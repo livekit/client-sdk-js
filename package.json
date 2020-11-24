@@ -1,0 +1,14 @@
+{
+  "devDependencies": {
+    "tslint": "^6.1.3",
+    "typescript": "^4.1.2"
+  },
+  "name": "livekit-js",
+  "version": "0.0.1",
+  "description": "JavaScript/TypeScript SDK for LiveKit",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": "git@github.com:livekit/livekit-js.git",
+  "author": "David Zhao <david@davidzhao.com>",
+  "license": "MIT"
+}
