@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "tslint": "^6.1.3",
+    "ts-proto": "^1.39.0",
     "typescript": "^4.1.2"
   },
   "name": "livekit-js",
@@ -10,5 +10,15 @@
   "types": "dist/index.d.ts",
   "repository": "git@github.com:livekit/livekit-js.git",
   "author": "David Zhao <david@davidzhao.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "build": "yarn exec tsc",
+    "proto": "protoc --plugin=node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_out=./src/proto --ts_proto_opt=outputClientImpl=false,useOptionals=true -I../livekit-server/proto ../livekit-server/proto/room.proto ../livekit-server/proto/rtc.proto",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@types/ws": "^7.4.0",
+    "axios": "^0.21.0",
+    "webrtc-adapter": "^7.7.0"
+  }
 }
