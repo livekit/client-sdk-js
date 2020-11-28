@@ -19,6 +19,7 @@
   "dependencies": {
     "@types/ws": "^7.4.0",
     "axios": "^0.21.0",
+    "events": "^3.2.0",
     "webrtc-adapter": "^7.7.0"
   }
 }

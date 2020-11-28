@@ -1,15 +1,23 @@
 import 'webrtc-adapter'
 import { SessionDescription, SignalRequest, SignalResponse } from '../proto/rtc'
 
+export interface ConnectionInfo {
+  host: string
+  port: string
+  secure?: boolean
+}
+
 /**
  * RTCClient is the signaling layer of WebRTC, it's LiveKit's signaling protocol
  * so that it
  */
 export interface RTCClient {
-  join(url: string): Promise<void>
-  offer(offer: RTCSessionDescription): void
-  negotiate(offer: RTCSessionDescription): void
-  sendIceCandidate(candidate: RTCIceCandidate): void
+  join(info: ConnectionInfo, roomId: string, token: string): Promise<void>
+  offer(offer: RTCSessionDescriptionInit): void
+  sendNegotiate(offer: RTCSessionDescriptionInit): void
+  sendIceCandidate(candidate: RTCIceCandidateInit): void
+
+  readonly isConnected: boolean
 
   // callbacks
   // server answered
@@ -21,16 +29,23 @@ export interface RTCClient {
 }
 
 export class RTCClientImpl {
-  ws?: WebSocket
+  isConnected: boolean
   onAnswer?: (sd: RTCSessionDescriptionInit) => void
   // handle negotiation, expect both offer and answer
   onNegotiate?: (sd: RTCSessionDescriptionInit) => void
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit) => void
 
-  constructor() {}
+  ws?: WebSocket
 
-  join(url: string): Promise<void> {
+  constructor() {
+    this.isConnected = false
+  }
+
+  join(info: ConnectionInfo, roomId: string, token: string): Promise<void> {
+    const protocol = info.secure ? 'wss' : 'ws'
+    const url = `${protocol}://${info.host}:${info.port}?room_id=${roomId}&token=${token}`
+
     return new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(url)
       ws.onerror = (ev: Event) => {
@@ -45,6 +60,7 @@ export class RTCClientImpl {
 
       ws.onopen = (ev: Event) => {
         this.ws = ws
+        this.isConnected = true
         resolve()
       }
 
@@ -52,22 +68,22 @@ export class RTCClientImpl {
     })
   }
 
-  offer(offer: RTCSessionDescription) {
+  offer(offer: RTCSessionDescriptionInit) {
     this.sendRequest({
       offer: toProtoSessionDescription(offer),
     })
   }
 
-  negotiate(offer: RTCSessionDescription) {
+  sendNegotiate(offer: RTCSessionDescriptionInit) {
     this.sendRequest({
       negotiate: toProtoSessionDescription(offer),
     })
   }
 
-  sendIceCandidate(candidate: RTCIceCandidate) {
+  sendIceCandidate(candidate: RTCIceCandidateInit) {
     this.sendRequest({
       trickle: {
-        candidate: candidate.candidate,
+        candidate: candidate.candidate!,
       },
     })
   }

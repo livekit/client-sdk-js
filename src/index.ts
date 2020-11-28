@@ -1,5 +1,5 @@
 import { connect } from './connect'
-import Room from './room'
+import { RoomEvent } from './room/events'
+import Room from './room/room'
 
-
-export { Room, connect }
+export { Room, connect, RoomEvent }

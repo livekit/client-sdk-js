@@ -33,6 +33,7 @@ export interface RoomInfo {
 
 export interface PeerInfo {
   peerId: string;
+  name: string;
   hasAudio: boolean;
   hasVideo: boolean;
 }
@@ -71,6 +72,7 @@ const baseRoomInfo: object = {
 
 const basePeerInfo: object = {
   peerId: "",
+  name: "",
   hasAudio: false,
   hasVideo: false,
 };
@@ -461,8 +463,9 @@ export const RoomInfo = {
 export const PeerInfo = {
   encode(message: PeerInfo, writer: Writer = Writer.create()): Writer {
     writer.uint32(10).string(message.peerId);
-    writer.uint32(16).bool(message.hasAudio);
-    writer.uint32(24).bool(message.hasVideo);
+    writer.uint32(18).string(message.name);
+    writer.uint32(24).bool(message.hasAudio);
+    writer.uint32(32).bool(message.hasVideo);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): PeerInfo {
@@ -476,9 +479,12 @@ export const PeerInfo = {
           message.peerId = reader.string();
           break;
         case 2:
-          message.hasAudio = reader.bool();
+          message.name = reader.string();
           break;
         case 3:
+          message.hasAudio = reader.bool();
+          break;
+        case 4:
           message.hasVideo = reader.bool();
           break;
         default:
@@ -494,6 +500,11 @@ export const PeerInfo = {
       message.peerId = String(object.peerId);
     } else {
       message.peerId = "";
+    }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = String(object.name);
+    } else {
+      message.name = "";
     }
     if (object.hasAudio !== undefined && object.hasAudio !== null) {
       message.hasAudio = Boolean(object.hasAudio);
@@ -514,6 +525,11 @@ export const PeerInfo = {
     } else {
       message.peerId = "";
     }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = object.name;
+    } else {
+      message.name = "";
+    }
     if (object.hasAudio !== undefined && object.hasAudio !== null) {
       message.hasAudio = object.hasAudio;
     } else {
@@ -529,6 +545,7 @@ export const PeerInfo = {
   toJSON(message: PeerInfo): unknown {
     const obj: any = {};
     message.peerId !== undefined && (obj.peerId = message.peerId);
+    message.name !== undefined && (obj.name = message.name);
     message.hasAudio !== undefined && (obj.hasAudio = message.hasAudio);
     message.hasVideo !== undefined && (obj.hasVideo = message.hasVideo);
     return obj;
