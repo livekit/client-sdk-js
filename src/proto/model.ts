@@ -15,8 +15,11 @@ export interface NodeStats {
   numClients: number;
 }
 
+/**
+ *  internal type, for serialization with proto
+ */
 export interface Room {
-  roomId: string;
+  id: string;
   emptyTimeout: number;
   maxParticipants: number;
   creationTime: number;
@@ -24,16 +27,16 @@ export interface Room {
 }
 
 export interface RoomInfo {
-  roomId: string;
+  id: string;
   nodeIp: string;
-  nodeRtcPort: number;
   creationTime: number;
   token: string;
 }
 
-export interface PeerInfo {
-  peerId: string;
+export interface ParticipantInfo {
+  id: string;
   name: string;
+  state: ParticipantInfo_State;
   hasAudio: boolean;
   hasVideo: boolean;
 }
@@ -55,7 +58,7 @@ const baseNodeStats: object = {
 };
 
 const baseRoom: object = {
-  roomId: "",
+  id: "",
   emptyTimeout: 0,
   maxParticipants: 0,
   creationTime: 0,
@@ -63,16 +66,16 @@ const baseRoom: object = {
 };
 
 const baseRoomInfo: object = {
-  roomId: "",
+  id: "",
   nodeIp: "",
-  nodeRtcPort: 0,
   creationTime: 0,
   token: "",
 };
 
-const basePeerInfo: object = {
-  peerId: "",
+const baseParticipantInfo: object = {
+  id: "",
   name: "",
+  state: 0,
   hasAudio: false,
   hasVideo: false,
 };
@@ -89,6 +92,58 @@ function longToNumber(long: Long) {
 }
 
 export const protobufPackage = 'livekit'
+
+export enum ParticipantInfo_State {
+  /** JOINING -  websocket connected, but not offered yet
+   */
+  JOINING = 0,
+  /** JOINED -  server received client offer
+   */
+  JOINED = 1,
+  /** ACTIVE -  ICE connectivity established
+   */
+  ACTIVE = 2,
+  /** DISCONNECTED -  WS disconnected
+   */
+  DISCONNECTED = 3,
+  UNRECOGNIZED = -1,
+}
+
+export function participantInfo_StateFromJSON(object: any): ParticipantInfo_State {
+  switch (object) {
+    case 0:
+    case "JOINING":
+      return ParticipantInfo_State.JOINING;
+    case 1:
+    case "JOINED":
+      return ParticipantInfo_State.JOINED;
+    case 2:
+    case "ACTIVE":
+      return ParticipantInfo_State.ACTIVE;
+    case 3:
+    case "DISCONNECTED":
+      return ParticipantInfo_State.DISCONNECTED;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ParticipantInfo_State.UNRECOGNIZED;
+  }
+}
+
+export function participantInfo_StateToJSON(object: ParticipantInfo_State): string {
+  switch (object) {
+    case ParticipantInfo_State.JOINING:
+      return "JOINING";
+    case ParticipantInfo_State.JOINED:
+      return "JOINED";
+    case ParticipantInfo_State.ACTIVE:
+      return "ACTIVE";
+    case ParticipantInfo_State.DISCONNECTED:
+      return "DISCONNECTED";
+    default:
+      return "UNKNOWN";
+  }
+}
 
 export const Node = {
   encode(message: Node, writer: Writer = Writer.create()): Writer {
@@ -248,7 +303,7 @@ export const NodeStats = {
 
 export const Room = {
   encode(message: Room, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.roomId);
+    writer.uint32(10).string(message.id);
     writer.uint32(16).uint32(message.emptyTimeout);
     writer.uint32(24).uint32(message.maxParticipants);
     writer.uint32(32).int64(message.creationTime);
@@ -263,7 +318,7 @@ export const Room = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.roomId = reader.string();
+          message.id = reader.string();
           break;
         case 2:
           message.emptyTimeout = reader.uint32();
@@ -286,10 +341,10 @@ export const Room = {
   },
   fromJSON(object: any): Room {
     const message = { ...baseRoom } as Room;
-    if (object.roomId !== undefined && object.roomId !== null) {
-      message.roomId = String(object.roomId);
+    if (object.id !== undefined && object.id !== null) {
+      message.id = String(object.id);
     } else {
-      message.roomId = "";
+      message.id = "";
     }
     if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
       message.emptyTimeout = Number(object.emptyTimeout);
@@ -315,10 +370,10 @@ export const Room = {
   },
   fromPartial(object: DeepPartial<Room>): Room {
     const message = { ...baseRoom } as Room;
-    if (object.roomId !== undefined && object.roomId !== null) {
-      message.roomId = object.roomId;
+    if (object.id !== undefined && object.id !== null) {
+      message.id = object.id;
     } else {
-      message.roomId = "";
+      message.id = "";
     }
     if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
       message.emptyTimeout = object.emptyTimeout;
@@ -344,7 +399,7 @@ export const Room = {
   },
   toJSON(message: Room): unknown {
     const obj: any = {};
-    message.roomId !== undefined && (obj.roomId = message.roomId);
+    message.id !== undefined && (obj.id = message.id);
     message.emptyTimeout !== undefined && (obj.emptyTimeout = message.emptyTimeout);
     message.maxParticipants !== undefined && (obj.maxParticipants = message.maxParticipants);
     message.creationTime !== undefined && (obj.creationTime = message.creationTime);
@@ -355,11 +410,10 @@ export const Room = {
 
 export const RoomInfo = {
   encode(message: RoomInfo, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.roomId);
+    writer.uint32(10).string(message.id);
     writer.uint32(18).string(message.nodeIp);
-    writer.uint32(24).uint32(message.nodeRtcPort);
-    writer.uint32(32).int64(message.creationTime);
-    writer.uint32(42).string(message.token);
+    writer.uint32(24).int64(message.creationTime);
+    writer.uint32(34).string(message.token);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): RoomInfo {
@@ -370,18 +424,15 @@ export const RoomInfo = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.roomId = reader.string();
+          message.id = reader.string();
           break;
         case 2:
           message.nodeIp = reader.string();
           break;
         case 3:
-          message.nodeRtcPort = reader.uint32();
-          break;
-        case 4:
           message.creationTime = longToNumber(reader.int64() as Long);
           break;
-        case 5:
+        case 4:
           message.token = reader.string();
           break;
         default:
@@ -393,20 +444,15 @@ export const RoomInfo = {
   },
   fromJSON(object: any): RoomInfo {
     const message = { ...baseRoomInfo } as RoomInfo;
-    if (object.roomId !== undefined && object.roomId !== null) {
-      message.roomId = String(object.roomId);
+    if (object.id !== undefined && object.id !== null) {
+      message.id = String(object.id);
     } else {
-      message.roomId = "";
+      message.id = "";
     }
     if (object.nodeIp !== undefined && object.nodeIp !== null) {
       message.nodeIp = String(object.nodeIp);
     } else {
       message.nodeIp = "";
-    }
-    if (object.nodeRtcPort !== undefined && object.nodeRtcPort !== null) {
-      message.nodeRtcPort = Number(object.nodeRtcPort);
-    } else {
-      message.nodeRtcPort = 0;
     }
     if (object.creationTime !== undefined && object.creationTime !== null) {
       message.creationTime = Number(object.creationTime);
@@ -422,20 +468,15 @@ export const RoomInfo = {
   },
   fromPartial(object: DeepPartial<RoomInfo>): RoomInfo {
     const message = { ...baseRoomInfo } as RoomInfo;
-    if (object.roomId !== undefined && object.roomId !== null) {
-      message.roomId = object.roomId;
+    if (object.id !== undefined && object.id !== null) {
+      message.id = object.id;
     } else {
-      message.roomId = "";
+      message.id = "";
     }
     if (object.nodeIp !== undefined && object.nodeIp !== null) {
       message.nodeIp = object.nodeIp;
     } else {
       message.nodeIp = "";
-    }
-    if (object.nodeRtcPort !== undefined && object.nodeRtcPort !== null) {
-      message.nodeRtcPort = object.nodeRtcPort;
-    } else {
-      message.nodeRtcPort = 0;
     }
     if (object.creationTime !== undefined && object.creationTime !== null) {
       message.creationTime = object.creationTime;
@@ -451,40 +492,43 @@ export const RoomInfo = {
   },
   toJSON(message: RoomInfo): unknown {
     const obj: any = {};
-    message.roomId !== undefined && (obj.roomId = message.roomId);
+    message.id !== undefined && (obj.id = message.id);
     message.nodeIp !== undefined && (obj.nodeIp = message.nodeIp);
-    message.nodeRtcPort !== undefined && (obj.nodeRtcPort = message.nodeRtcPort);
     message.creationTime !== undefined && (obj.creationTime = message.creationTime);
     message.token !== undefined && (obj.token = message.token);
     return obj;
   },
 };
 
-export const PeerInfo = {
-  encode(message: PeerInfo, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.peerId);
+export const ParticipantInfo = {
+  encode(message: ParticipantInfo, writer: Writer = Writer.create()): Writer {
+    writer.uint32(10).string(message.id);
     writer.uint32(18).string(message.name);
-    writer.uint32(24).bool(message.hasAudio);
-    writer.uint32(32).bool(message.hasVideo);
+    writer.uint32(24).int32(message.state);
+    writer.uint32(32).bool(message.hasAudio);
+    writer.uint32(40).bool(message.hasVideo);
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): PeerInfo {
+  decode(input: Uint8Array | Reader, length?: number): ParticipantInfo {
     const reader = input instanceof Uint8Array ? new Reader(input) : input;
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...basePeerInfo } as PeerInfo;
+    const message = { ...baseParticipantInfo } as ParticipantInfo;
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.peerId = reader.string();
+          message.id = reader.string();
           break;
         case 2:
           message.name = reader.string();
           break;
         case 3:
-          message.hasAudio = reader.bool();
+          message.state = reader.int32() as any;
           break;
         case 4:
+          message.hasAudio = reader.bool();
+          break;
+        case 5:
           message.hasVideo = reader.bool();
           break;
         default:
@@ -494,17 +538,22 @@ export const PeerInfo = {
     }
     return message;
   },
-  fromJSON(object: any): PeerInfo {
-    const message = { ...basePeerInfo } as PeerInfo;
-    if (object.peerId !== undefined && object.peerId !== null) {
-      message.peerId = String(object.peerId);
+  fromJSON(object: any): ParticipantInfo {
+    const message = { ...baseParticipantInfo } as ParticipantInfo;
+    if (object.id !== undefined && object.id !== null) {
+      message.id = String(object.id);
     } else {
-      message.peerId = "";
+      message.id = "";
     }
     if (object.name !== undefined && object.name !== null) {
       message.name = String(object.name);
     } else {
       message.name = "";
+    }
+    if (object.state !== undefined && object.state !== null) {
+      message.state = participantInfo_StateFromJSON(object.state);
+    } else {
+      message.state = 0;
     }
     if (object.hasAudio !== undefined && object.hasAudio !== null) {
       message.hasAudio = Boolean(object.hasAudio);
@@ -518,17 +567,22 @@ export const PeerInfo = {
     }
     return message;
   },
-  fromPartial(object: DeepPartial<PeerInfo>): PeerInfo {
-    const message = { ...basePeerInfo } as PeerInfo;
-    if (object.peerId !== undefined && object.peerId !== null) {
-      message.peerId = object.peerId;
+  fromPartial(object: DeepPartial<ParticipantInfo>): ParticipantInfo {
+    const message = { ...baseParticipantInfo } as ParticipantInfo;
+    if (object.id !== undefined && object.id !== null) {
+      message.id = object.id;
     } else {
-      message.peerId = "";
+      message.id = "";
     }
     if (object.name !== undefined && object.name !== null) {
       message.name = object.name;
     } else {
       message.name = "";
+    }
+    if (object.state !== undefined && object.state !== null) {
+      message.state = object.state;
+    } else {
+      message.state = 0;
     }
     if (object.hasAudio !== undefined && object.hasAudio !== null) {
       message.hasAudio = object.hasAudio;
@@ -542,10 +596,11 @@ export const PeerInfo = {
     }
     return message;
   },
-  toJSON(message: PeerInfo): unknown {
+  toJSON(message: ParticipantInfo): unknown {
     const obj: any = {};
-    message.peerId !== undefined && (obj.peerId = message.peerId);
+    message.id !== undefined && (obj.id = message.id);
     message.name !== undefined && (obj.name = message.name);
+    message.state !== undefined && (obj.state = participantInfo_StateToJSON(message.state));
     message.hasAudio !== undefined && (obj.hasAudio = message.hasAudio);
     message.hasVideo !== undefined && (obj.hasVideo = message.hasVideo);
     return obj;

@@ -4,7 +4,6 @@ import { Writer, Reader } from 'protobufjs/minimal';
 
 
 export interface CreateRoomRequest {
-  roomId: string;
   /**
    *  number of seconds the room should cleanup after being empty
    */
@@ -24,7 +23,6 @@ export interface DeleteRoomResponse {
 }
 
 const baseCreateRoomRequest: object = {
-  roomId: "",
   emptyTimeout: 0,
   maxParticipants: 0,
 };
@@ -62,9 +60,8 @@ export const protobufPackage = 'livekit'
 
 export const CreateRoomRequest = {
   encode(message: CreateRoomRequest, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.roomId);
-    writer.uint32(16).uint32(message.emptyTimeout);
-    writer.uint32(24).uint32(message.maxParticipants);
+    writer.uint32(8).uint32(message.emptyTimeout);
+    writer.uint32(16).uint32(message.maxParticipants);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): CreateRoomRequest {
@@ -75,12 +72,9 @@ export const CreateRoomRequest = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.roomId = reader.string();
-          break;
-        case 2:
           message.emptyTimeout = reader.uint32();
           break;
-        case 3:
+        case 2:
           message.maxParticipants = reader.uint32();
           break;
         default:
@@ -92,11 +86,6 @@ export const CreateRoomRequest = {
   },
   fromJSON(object: any): CreateRoomRequest {
     const message = { ...baseCreateRoomRequest } as CreateRoomRequest;
-    if (object.roomId !== undefined && object.roomId !== null) {
-      message.roomId = String(object.roomId);
-    } else {
-      message.roomId = "";
-    }
     if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
       message.emptyTimeout = Number(object.emptyTimeout);
     } else {
@@ -111,11 +100,6 @@ export const CreateRoomRequest = {
   },
   fromPartial(object: DeepPartial<CreateRoomRequest>): CreateRoomRequest {
     const message = { ...baseCreateRoomRequest } as CreateRoomRequest;
-    if (object.roomId !== undefined && object.roomId !== null) {
-      message.roomId = object.roomId;
-    } else {
-      message.roomId = "";
-    }
     if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
       message.emptyTimeout = object.emptyTimeout;
     } else {
@@ -130,7 +114,6 @@ export const CreateRoomRequest = {
   },
   toJSON(message: CreateRoomRequest): unknown {
     const obj: any = {};
-    message.roomId !== undefined && (obj.roomId = message.roomId);
     message.emptyTimeout !== undefined && (obj.emptyTimeout = message.emptyTimeout);
     message.maxParticipants !== undefined && (obj.maxParticipants = message.maxParticipants);
     return obj;
