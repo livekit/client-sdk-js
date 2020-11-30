@@ -1,6 +1,7 @@
-import { connect } from './connect'
-import { RoomEvent } from './room/events'
-import { Participant } from './room/participant'
-import Room from './room/room'
+import { ConnectionInfo } from './api/rtcClient';
+import { connect } from './connect';
+import { RoomEvent } from './room/events';
+import { Participant } from './room/participant';
+import Room from './room/room';
 
-export { connect, Participant, Room, RoomEvent }
+export { connect, ConnectionInfo, Participant, Room, RoomEvent };

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { ParticipantInfo } from '../proto/model';
+import { RTCEngine } from './engine';
 import {
   AudioTrack,
   LocalAudioTrack,
@@ -24,10 +25,11 @@ export class Participant extends EventEmitter {
 }
 
 export class LocalParticipant extends Participant {
-  rtcConn: RTCPeerConnection;
-  constructor(info: ParticipantInfo, rtcConn: RTCPeerConnection) {
+  engine: RTCEngine;
+
+  constructor(info: ParticipantInfo, engine: RTCEngine) {
     super(info);
-    this.rtcConn = rtcConn;
+    this.engine = engine;
   }
 
   publishTrack(
@@ -44,9 +46,15 @@ export class LocalParticipant extends Participant {
       }
     }
 
-    // TODO: publish
+    // depending on the track type, add to each kind
+    if (track instanceof LocalVideoTrack) {
+      this.videoTracks[track.id] = track;
+    } else if (track instanceof LocalAudioTrack) {
+      this.audioTracks[track.id] = track;
+    }
 
-    this.rtcConn.addTrack(track.mediaStreamTrack);
+    // TODO: check data channel
+    this.engine.peerConn.addTrack(track.mediaStreamTrack);
   }
 }
 

@@ -4,12 +4,14 @@ export type LocalTrack = LocalAudioTrack | LocalVideoTrack;
 
 export class Track extends EventEmitter {
   kind: Track.Kind;
+  id: Track.ID;
   name: string;
 
-  protected constructor(kind: Track.Kind, name: string) {
+  protected constructor(kind: Track.Kind, id: Track.ID, name?: string) {
     super();
     this.kind = kind;
-    this.name = name;
+    this.id = id;
+    this.name = name || id;
   }
 }
 
@@ -24,7 +26,7 @@ export class AudioTrack extends Track {
   mediaStreamTrack: MediaStreamTrack;
 
   protected constructor(mediaTrack: MediaStreamTrack, name?: string) {
-    super('audio', name || mediaTrack.id);
+    super('audio', mediaTrack.id, name);
     this.mediaStreamTrack = mediaTrack;
   }
 
@@ -49,12 +51,12 @@ export class AudioTrack extends Track {
 }
 
 export class RemoteAudioTrack extends AudioTrack {
-  id: string;
   // whether the remote audio track is switched off
   isSwitchedOff: boolean = false;
 
   constructor(mediaTrack: MediaStreamTrack, id: string, name?: string) {
     super(mediaTrack, name);
+    // override id to parsed ID
     this.id = id;
   }
 }

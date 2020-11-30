@@ -84,7 +84,7 @@ export class RTCClientImpl {
         if (msg.join) {
           ws.onmessage = this.handleWSMessage;
           this.isConnected = true;
-          resolve(msg.join.participant);
+          resolve(msg.join.participant!);
         } else {
           // show error and disconnect
         }

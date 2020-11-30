@@ -1,8 +1,8 @@
-import { RTCClientImpl } from './api/rtcClient';
+import { ConnectionInfo, RTCClientImpl } from './api/rtcClient';
 import Room from './room/room';
 
 const connect = function (
-  host: string,
+  info: ConnectionInfo,
   roomId: string,
   token: string
 ): Promise<Room> {
@@ -10,7 +10,7 @@ const connect = function (
   const room = new Room(client, roomId);
 
   // connect to room
-  return room.connect();
+  return room.connect(info, token);
 };
 
-export { connect, Room };
+export { connect };
