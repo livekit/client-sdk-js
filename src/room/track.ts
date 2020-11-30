@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 
 export type LocalTrack = LocalAudioTrack | LocalVideoTrack;
+export type RemoteTrack = RemoteAudioTrack | RemoteVideoTrack;
 
 export class Track extends EventEmitter {
   kind: Track.Kind;
@@ -24,24 +25,38 @@ export class AudioTrack extends Track {
   isStarted: boolean = false;
   isEnabled: boolean = false;
   mediaStreamTrack: MediaStreamTrack;
+  attachedElements: HTMLMediaElement[] = [];
 
   protected constructor(mediaTrack: MediaStreamTrack, name?: string) {
     super('audio', mediaTrack.id, name);
     this.mediaStreamTrack = mediaTrack;
   }
 
-  // /**
-  //  * Create an HTMLAudioElement and attach AudioTrack to it
-  //  */
-  // attach(): HTMLAudioElement {
-
-  // }
-
   /**
    * Attach to an existing HTMLAudioElement or HTMLVideoElement
-   * @param element
+   * @param element if not passed in, creates a new HTMLAudioElement
    */
-  attach(element: HTMLMediaElement): HTMLMediaElement {
+  attach(element?: HTMLMediaElement): HTMLMediaElement {
+    if (!element) {
+      element = new HTMLAudioElement();
+    }
+    let mediaStream: MediaStream;
+
+    // already attached
+    if (this.attachedElements.includes(element)) {
+      return element;
+    }
+
+    if (element.srcObject instanceof MediaStream) {
+      mediaStream = element.srcObject;
+    } else {
+      mediaStream = new MediaStream();
+      element.srcObject = mediaStream;
+    }
+
+    mediaStream.addTrack(this.mediaStreamTrack);
+    this.attachedElements.push(element);
+
     return element;
   }
 
@@ -54,8 +69,8 @@ export class RemoteAudioTrack extends AudioTrack {
   // whether the remote audio track is switched off
   isSwitchedOff: boolean = false;
 
-  constructor(mediaTrack: MediaStreamTrack, id: string, name?: string) {
-    super(mediaTrack, name);
+  constructor(mediaTrack: MediaStreamTrack, id: string) {
+    super(mediaTrack);
     // override id to parsed ID
     this.id = id;
   }
@@ -71,15 +86,40 @@ export class VideoTrack extends Track {
   isStarted: boolean = false;
   isEnabled: boolean = false;
   mediaStreamTrack: MediaStreamTrack;
-  dimensions: VideoTrack.Dimensions;
+  dimensions: VideoTrack.Dimensions = {};
+  attachedElements: HTMLVideoElement[] = [];
 
   protected constructor(mediaTrack: MediaStreamTrack, name?: string) {
-    super('video', name || mediaTrack.id);
+    super('video', name || mediaTrack.label);
     this.mediaStreamTrack = mediaTrack;
-    this.dimensions = {};
+    const { width, height } = mediaTrack.getSettings();
+    if (width && height) {
+      this.dimensions.width = width;
+      this.dimensions.height = height;
+    }
   }
 
-  attach(element: HTMLMediaElement): HTMLMediaElement {
+  attach(element?: HTMLVideoElement): HTMLVideoElement {
+    if (!element) {
+      element = new HTMLVideoElement();
+    }
+    let mediaStream: MediaStream;
+
+    // already attached
+    if (this.attachedElements.includes(element)) {
+      return element;
+    }
+
+    if (element.srcObject instanceof MediaStream) {
+      mediaStream = element.srcObject;
+    } else {
+      mediaStream = new MediaStream();
+      element.srcObject = mediaStream;
+    }
+
+    mediaStream.addTrack(this.mediaStreamTrack);
+    this.attachedElements.push(element);
+
     return element;
   }
 
@@ -98,5 +138,13 @@ export namespace VideoTrack {
 export class LocalVideoTrack extends VideoTrack {
   constructor(mediaTrack: MediaStreamTrack, name?: string) {
     super(mediaTrack, name);
+  }
+}
+
+export class RemoteVideoTrack extends VideoTrack {
+  constructor(mediaTrack: MediaStreamTrack, id: string) {
+    super(mediaTrack);
+    // override id to parsed ID
+    this.id = id;
   }
 }
