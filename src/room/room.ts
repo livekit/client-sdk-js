@@ -1,8 +1,7 @@
 import { EventEmitter } from 'events';
-import { RoomEvent } from '..';
 import { ConnectionInfo, RTCClient } from '../api/rtcClient';
 import { RTCEngine } from './engine';
-import { EngineEvent } from './events';
+import { EngineEvent, RoomEvent } from './events';
 import { LocalParticipant, RemoteParticipant } from './participant';
 import { UnpackTrackId } from './utils';
 

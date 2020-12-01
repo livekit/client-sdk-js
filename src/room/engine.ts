@@ -1,8 +1,7 @@
 import { EventEmitter } from 'events';
-import { RoomEvent } from '..';
 import { ConnectionInfo, RTCClient } from '../api/rtcClient';
 import { ParticipantInfo } from '../proto/model';
-import { EngineEvent } from './events';
+import { EngineEvent, RoomEvent } from './events';
 
 export class RTCEngine extends EventEmitter {
   peerConn: RTCPeerConnection;

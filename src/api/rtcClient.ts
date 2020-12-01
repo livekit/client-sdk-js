@@ -8,7 +8,7 @@ import {
 
 export interface ConnectionInfo {
   host: string;
-  port: string;
+  port: number;
   secure?: boolean;
 }
 
@@ -59,7 +59,7 @@ export class RTCClientImpl {
     token: string
   ): Promise<ParticipantInfo> {
     const protocol = info.secure ? 'wss' : 'ws';
-    const url = `${protocol}://${info.host}:${info.port}?room_id=${roomId}&token=${token}`;
+    const url = `${protocol}://${info.host}:${info.port}/rtc?room_id=${roomId}&token=${token}`;
 
     return new Promise<ParticipantInfo>((resolve, reject) => {
       const ws = new WebSocket(url);
