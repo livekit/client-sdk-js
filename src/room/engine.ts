@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { ConnectionInfo, RTCClient } from '../api/rtcClient';
+import { ConnectionInfo, JoinOptions, RTCClient } from '../api/rtcClient';
 import { ParticipantInfo } from '../proto/model';
 import { EngineEvent, RoomEvent } from './events';
 
@@ -7,6 +7,7 @@ export class RTCEngine extends EventEmitter {
   peerConn: RTCPeerConnection;
   client: RTCClient;
 
+  privateDC?: RTCDataChannel;
   rtcConnected: boolean = false;
   iceConnected: boolean = false;
   pendingCandidates: RTCIceCandidateInit[] = [];
@@ -22,9 +23,15 @@ export class RTCEngine extends EventEmitter {
   join = async (
     info: ConnectionInfo,
     roomId: string,
-    token: string
+    token: string,
+    options?: JoinOptions
   ): Promise<ParticipantInfo> => {
-    const participantInfo = await this.client.join(info, roomId, token);
+    const participantInfo = await this.client.join(
+      info,
+      roomId,
+      token,
+      options
+    );
 
     // create offer
     const offer = await this.peerConn.createOffer();
@@ -60,6 +67,7 @@ export class RTCEngine extends EventEmitter {
 
     this.peerConn.onnegotiationneeded = (ev) => {
       if (!this.rtcConnected) {
+        console.log('skipping negotiations');
         return;
       }
 
@@ -76,6 +84,9 @@ export class RTCEngine extends EventEmitter {
     this.peerConn.ontrack = (ev: RTCTrackEvent) => {
       this.emit(EngineEvent.TrackAdded, ev.track, ev.streams);
     };
+
+    // always have a blank data channel, to ensure there isn't an empty ice-ufrag
+    this.privateDC = this.peerConn.createDataChannel('_private');
 
     // configure signaling client
     this.client.onAnswer = (sd) => {
@@ -103,6 +114,7 @@ export class RTCEngine extends EventEmitter {
 
   // signaling channel connected
   private onRTCConnected() {
+    console.log('RTC connected');
     this.rtcConnected = true;
 
     // send pending ICE candidates
@@ -115,6 +127,7 @@ export class RTCEngine extends EventEmitter {
   }
 
   private onICEConnected() {
+    console.log('ICE connected');
     this.iceConnected = true;
   }
 }

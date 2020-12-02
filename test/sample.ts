@@ -13,6 +13,38 @@ declare global {
 window.connectToRoom = () => {
   const host = (<HTMLInputElement>$('host')).value;
   const port = (<HTMLInputElement>$('port')).value;
-  console.log('host', host, 'port', port);
-  connect({ host: 'localhost', port: 7881 }, 'randomId', 'token');
+  const roomId = (<HTMLInputElement>$('roomId')).value;
+  const token = (<HTMLInputElement>$('token')).value;
+  connect({ host: host, port: parseInt(port) }, roomId, token, {
+    name: 'myclient',
+  })
+    .then((room) => {
+      console.log('connected to room', room.id);
+    })
+    .catch((reason) => {
+      console.log('error connecting to room', reason);
+    });
 };
+
+// override console.log
+(() => {
+  const old = console.log;
+  const logger = $('log')!;
+  console.log = function () {
+    for (var i = 0; i < arguments.length; i++) {
+      if (typeof arguments[i] == 'object') {
+        logger.innerHTML +=
+          (JSON && JSON.stringify
+            ? JSON.stringify(arguments[i], undefined, 2)
+            : arguments[i]) + ' ';
+      } else {
+        logger.innerHTML += arguments[i] + ' ';
+      }
+    }
+    logger.innerHTML += '\n';
+    (() => {
+      logger.scrollTop = logger.scrollHeight;
+    })();
+    old(...arguments);
+  };
+})();

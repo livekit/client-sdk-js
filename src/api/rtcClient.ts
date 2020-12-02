@@ -20,7 +20,8 @@ export interface RTCClient {
   join(
     info: ConnectionInfo,
     roomId: string,
-    token: string
+    token: string,
+    options?: JoinOptions
   ): Promise<ParticipantInfo>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendNegotiate(offer: RTCSessionDescriptionInit): void;
@@ -36,6 +37,10 @@ export interface RTCClient {
   onNegotiate?: (sd: RTCSessionDescriptionInit) => void;
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit) => void;
+}
+
+export interface JoinOptions {
+  name?: string;
 }
 
 export class RTCClientImpl {
@@ -56,12 +61,18 @@ export class RTCClientImpl {
   join(
     info: ConnectionInfo,
     roomId: string,
-    token: string
+    token: string,
+    options?: JoinOptions
   ): Promise<ParticipantInfo> {
     const protocol = info.secure ? 'wss' : 'ws';
-    const url = `${protocol}://${info.host}:${info.port}/rtc?room_id=${roomId}&token=${token}`;
+    let url = `${protocol}://${info.host}:${info.port}/rtc?room_id=${roomId}&token=${token}`;
+
+    if (options && options.name) {
+      url += '&name=' + encodeURIComponent(options.name);
+    }
 
     return new Promise<ParticipantInfo>((resolve, reject) => {
+      console.log('connecting to', url);
       const ws = new WebSocket(url);
       ws.onerror = (ev: Event) => {
         if (!this.ws) {
@@ -82,6 +93,7 @@ export class RTCClientImpl {
         const json = JSON.parse(ev.data);
         const msg = SignalResponse.fromJSON(json);
         if (msg.join) {
+          console.log('got join response ', msg.join);
           ws.onmessage = this.handleWSMessage;
           this.isConnected = true;
           resolve(msg.join.participant!);
@@ -91,6 +103,9 @@ export class RTCClientImpl {
       };
 
       ws.onclose = (ev: CloseEvent) => {
+        if (!this.isConnected) return;
+
+        console.log('websocket connection closed', ev.reason);
         this.isConnected = false;
         if (this.onClose) this.onClose(ev.reason);
       };
@@ -107,18 +122,21 @@ export class RTCClientImpl {
   }
 
   sendOffer(offer: RTCSessionDescriptionInit) {
+    console.log('sending offer', offer);
     this.sendRequest({
       offer: toProtoSessionDescription(offer),
     });
   }
 
   sendNegotiate(offer: RTCSessionDescriptionInit) {
+    console.log('sending negotiate', offer);
     this.sendRequest({
       negotiate: toProtoSessionDescription(offer),
     });
   }
 
   sendIceCandidate(candidate: RTCIceCandidateInit) {
+    console.log('sending ice candidate', candidate);
     this.sendRequest({
       trickle: {
         candidate: candidate.candidate!,

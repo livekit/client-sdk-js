@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { ConnectionInfo, RTCClient } from '../api/rtcClient';
+import { ConnectionInfo, JoinOptions, RTCClient } from '../api/rtcClient';
 import { RTCEngine } from './engine';
 import { EngineEvent, RoomEvent } from './events';
 import { LocalParticipant, RemoteParticipant } from './participant';
@@ -27,8 +27,17 @@ class Room extends EventEmitter {
     this.engine.addListener(EngineEvent.TrackAdded, this.onTrackAdded);
   }
 
-  connect = async (info: ConnectionInfo, token: string): Promise<Room> => {
-    const participantInfo = await this.engine.join(info, this.id, token);
+  connect = async (
+    info: ConnectionInfo,
+    token: string,
+    options?: JoinOptions
+  ): Promise<Room> => {
+    const participantInfo = await this.engine.join(
+      info,
+      this.id,
+      token,
+      options
+    );
 
     this.state = RoomState.Connected;
     this.localParticipant = new LocalParticipant(
