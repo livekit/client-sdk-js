@@ -1,11 +1,13 @@
 export enum RoomEvent {
-  Connected = 'connected',
   Disconnected = 'disconnected',
+  ParticipantConnected = 'participantConnected',
   TrackPublished = 'trackPublished',
+  TrackSubscribed = 'trackSubscribed',
 }
 
 export enum ParticipantEvent {
   TrackPublished = 'trackPublished',
+  TrackSubscribed = 'trackSubscribed',
 }
 
 export enum EngineEvent {

@@ -65,6 +65,12 @@ export class LocalParticipant extends Participant {
 export class RemoteParticipant extends Participant {
   private participantInfo?: ParticipantInfo;
 
+  static fromParticipantInfo(pi: ParticipantInfo): RemoteParticipant {
+    const rp = new RemoteParticipant(pi.id, pi.name);
+    rp.updateMetadata(pi);
+    return rp;
+  }
+
   constructor(id: string, name?: string) {
     super(id, name || '');
   }
@@ -82,7 +88,7 @@ export class RemoteParticipant extends Participant {
 
     // see if we should trigger participantConnected
     if (this.hasMetadata) {
-      this.emit(ParticipantEvent.TrackPublished, track);
+      this.emit(ParticipantEvent.TrackSubscribed, track);
     }
 
     return track;

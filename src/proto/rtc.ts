@@ -27,10 +27,14 @@ export interface SignalResponse {
    *  sent when an ICE candidate is available
    */
   trickle?: Trickle | undefined;
+  /**
+   *  sent when participants in the room has changed
+   */
+  update?: ParticipantUpdate | undefined;
 }
 
 export interface Trickle {
-  candidate: string;
+  candidateInit: string;
 }
 
 export interface SessionDescription {
@@ -43,12 +47,14 @@ export interface SessionDescription {
 
 export interface JoinResponse {
   participant?: ParticipantInfo;
+  otherParticipants: ParticipantInfo[];
 }
 
 export interface MediaControl {
 }
 
 export interface ParticipantUpdate {
+  participants: ParticipantInfo[];
 }
 
 const baseSignalRequest: object = {
@@ -58,7 +64,7 @@ const baseSignalResponse: object = {
 };
 
 const baseTrickle: object = {
-  candidate: "",
+  candidateInit: "",
 };
 
 const baseSessionDescription: object = {
@@ -191,6 +197,9 @@ export const SignalResponse = {
     if (message.trickle !== undefined) {
       Trickle.encode(message.trickle, writer.uint32(34).fork()).ldelim();
     }
+    if (message.update !== undefined) {
+      ParticipantUpdate.encode(message.update, writer.uint32(42).fork()).ldelim();
+    }
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): SignalResponse {
@@ -211,6 +220,9 @@ export const SignalResponse = {
           break;
         case 4:
           message.trickle = Trickle.decode(reader, reader.uint32());
+          break;
+        case 5:
+          message.update = ParticipantUpdate.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -241,6 +253,11 @@ export const SignalResponse = {
     } else {
       message.trickle = undefined;
     }
+    if (object.update !== undefined && object.update !== null) {
+      message.update = ParticipantUpdate.fromJSON(object.update);
+    } else {
+      message.update = undefined;
+    }
     return message;
   },
   fromPartial(object: DeepPartial<SignalResponse>): SignalResponse {
@@ -265,6 +282,11 @@ export const SignalResponse = {
     } else {
       message.trickle = undefined;
     }
+    if (object.update !== undefined && object.update !== null) {
+      message.update = ParticipantUpdate.fromPartial(object.update);
+    } else {
+      message.update = undefined;
+    }
     return message;
   },
   toJSON(message: SignalResponse): unknown {
@@ -273,13 +295,14 @@ export const SignalResponse = {
     message.answer !== undefined && (obj.answer = message.answer ? SessionDescription.toJSON(message.answer) : undefined);
     message.negotiate !== undefined && (obj.negotiate = message.negotiate ? SessionDescription.toJSON(message.negotiate) : undefined);
     message.trickle !== undefined && (obj.trickle = message.trickle ? Trickle.toJSON(message.trickle) : undefined);
+    message.update !== undefined && (obj.update = message.update ? ParticipantUpdate.toJSON(message.update) : undefined);
     return obj;
   },
 };
 
 export const Trickle = {
   encode(message: Trickle, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.candidate);
+    writer.uint32(10).string(message.candidateInit);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): Trickle {
@@ -290,7 +313,7 @@ export const Trickle = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.candidate = reader.string();
+          message.candidateInit = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -301,25 +324,25 @@ export const Trickle = {
   },
   fromJSON(object: any): Trickle {
     const message = { ...baseTrickle } as Trickle;
-    if (object.candidate !== undefined && object.candidate !== null) {
-      message.candidate = String(object.candidate);
+    if (object.candidateInit !== undefined && object.candidateInit !== null) {
+      message.candidateInit = String(object.candidateInit);
     } else {
-      message.candidate = "";
+      message.candidateInit = "";
     }
     return message;
   },
   fromPartial(object: DeepPartial<Trickle>): Trickle {
     const message = { ...baseTrickle } as Trickle;
-    if (object.candidate !== undefined && object.candidate !== null) {
-      message.candidate = object.candidate;
+    if (object.candidateInit !== undefined && object.candidateInit !== null) {
+      message.candidateInit = object.candidateInit;
     } else {
-      message.candidate = "";
+      message.candidateInit = "";
     }
     return message;
   },
   toJSON(message: Trickle): unknown {
     const obj: any = {};
-    message.candidate !== undefined && (obj.candidate = message.candidate);
+    message.candidateInit !== undefined && (obj.candidateInit = message.candidateInit);
     return obj;
   },
 };
@@ -391,17 +414,24 @@ export const JoinResponse = {
     if (message.participant !== undefined && message.participant !== undefined) {
       ParticipantInfo.encode(message.participant, writer.uint32(10).fork()).ldelim();
     }
+    for (const v of message.otherParticipants) {
+      ParticipantInfo.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): JoinResponse {
     const reader = input instanceof Uint8Array ? new Reader(input) : input;
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseJoinResponse } as JoinResponse;
+    message.otherParticipants = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
           message.participant = ParticipantInfo.decode(reader, reader.uint32());
+          break;
+        case 2:
+          message.otherParticipants.push(ParticipantInfo.decode(reader, reader.uint32()));
           break;
         default:
           reader.skipType(tag & 7);
@@ -412,25 +442,42 @@ export const JoinResponse = {
   },
   fromJSON(object: any): JoinResponse {
     const message = { ...baseJoinResponse } as JoinResponse;
+    message.otherParticipants = [];
     if (object.participant !== undefined && object.participant !== null) {
       message.participant = ParticipantInfo.fromJSON(object.participant);
     } else {
       message.participant = undefined;
     }
+    if (object.otherParticipants !== undefined && object.otherParticipants !== null) {
+      for (const e of object.otherParticipants) {
+        message.otherParticipants.push(ParticipantInfo.fromJSON(e));
+      }
+    }
     return message;
   },
   fromPartial(object: DeepPartial<JoinResponse>): JoinResponse {
     const message = { ...baseJoinResponse } as JoinResponse;
+    message.otherParticipants = [];
     if (object.participant !== undefined && object.participant !== null) {
       message.participant = ParticipantInfo.fromPartial(object.participant);
     } else {
       message.participant = undefined;
+    }
+    if (object.otherParticipants !== undefined && object.otherParticipants !== null) {
+      for (const e of object.otherParticipants) {
+        message.otherParticipants.push(ParticipantInfo.fromPartial(e));
+      }
     }
     return message;
   },
   toJSON(message: JoinResponse): unknown {
     const obj: any = {};
     message.participant !== undefined && (obj.participant = message.participant ? ParticipantInfo.toJSON(message.participant) : undefined);
+    if (message.otherParticipants) {
+      obj.otherParticipants = message.otherParticipants.map(e => e ? ParticipantInfo.toJSON(e) : undefined);
+    } else {
+      obj.otherParticipants = [];
+    }
     return obj;
   },
 };
@@ -468,16 +515,23 @@ export const MediaControl = {
 };
 
 export const ParticipantUpdate = {
-  encode(_: ParticipantUpdate, writer: Writer = Writer.create()): Writer {
+  encode(message: ParticipantUpdate, writer: Writer = Writer.create()): Writer {
+    for (const v of message.participants) {
+      ParticipantInfo.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): ParticipantUpdate {
     const reader = input instanceof Uint8Array ? new Reader(input) : input;
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseParticipantUpdate } as ParticipantUpdate;
+    message.participants = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
+        case 1:
+          message.participants.push(ParticipantInfo.decode(reader, reader.uint32()));
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -485,16 +539,33 @@ export const ParticipantUpdate = {
     }
     return message;
   },
-  fromJSON(_: any): ParticipantUpdate {
+  fromJSON(object: any): ParticipantUpdate {
     const message = { ...baseParticipantUpdate } as ParticipantUpdate;
+    message.participants = [];
+    if (object.participants !== undefined && object.participants !== null) {
+      for (const e of object.participants) {
+        message.participants.push(ParticipantInfo.fromJSON(e));
+      }
+    }
     return message;
   },
-  fromPartial(_: DeepPartial<ParticipantUpdate>): ParticipantUpdate {
+  fromPartial(object: DeepPartial<ParticipantUpdate>): ParticipantUpdate {
     const message = { ...baseParticipantUpdate } as ParticipantUpdate;
+    message.participants = [];
+    if (object.participants !== undefined && object.participants !== null) {
+      for (const e of object.participants) {
+        message.participants.push(ParticipantInfo.fromPartial(e));
+      }
+    }
     return message;
   },
-  toJSON(_: ParticipantUpdate): unknown {
+  toJSON(message: ParticipantUpdate): unknown {
     const obj: any = {};
+    if (message.participants) {
+      obj.participants = message.participants.map(e => e ? ParticipantInfo.toJSON(e) : undefined);
+    } else {
+      obj.participants = [];
+    }
     return obj;
   },
 };

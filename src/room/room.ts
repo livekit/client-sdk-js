@@ -24,7 +24,9 @@ class Room extends EventEmitter {
     this.id = roomId;
     this.engine = new RTCEngine(client);
 
-    this.engine.addListener(EngineEvent.TrackAdded, this.onTrackAdded);
+    this.engine.on(EngineEvent.TrackAdded, (mediaTrack: MediaStreamTrack) => {
+      this.onTrackAdded(mediaTrack);
+    });
   }
 
   connect = async (
@@ -32,19 +34,16 @@ class Room extends EventEmitter {
     token: string,
     options?: JoinOptions
   ): Promise<Room> => {
-    const participantInfo = await this.engine.join(
-      info,
-      this.id,
-      token,
-      options
-    );
+    const joinResponse = await this.engine.join(info, this.id, token, options);
 
     this.state = RoomState.Connected;
-    this.localParticipant = new LocalParticipant(
-      participantInfo.id,
-      participantInfo.name,
-      this.engine
-    );
+    const pi = joinResponse.participant!;
+    this.localParticipant = new LocalParticipant(pi.id, pi.name, this.engine);
+
+    // populate remote participants
+    joinResponse.otherParticipants.forEach((pi) => {
+      this.participants[pi.id] = RemoteParticipant.fromParticipantInfo(pi);
+    });
 
     return this;
   };
@@ -63,9 +62,10 @@ class Room extends EventEmitter {
     }
 
     const track = participant.addTrack(mediaTrack, trackId);
+    console.log('participant with track', track);
 
     if (participant.hasMetadata) {
-      this.emit(RoomEvent.TrackPublished, this, track);
+      this.emit(RoomEvent.TrackSubscribed, track, participant);
     }
   }
 }

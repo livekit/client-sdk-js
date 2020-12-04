@@ -1,4 +1,5 @@
-import { connect } from '../src/index';
+import { connect, RemoteParticipant, RoomEvent } from '../src/index';
+import { RemoteTrack } from '../src/room/track';
 
 let $ = function (id: string) {
   return document.getElementById(id);
@@ -20,6 +21,13 @@ window.connectToRoom = () => {
   })
     .then((room) => {
       console.log('connected to room', room.id);
+      room.on(
+        RoomEvent.TrackSubscribed,
+        (track: RemoteTrack, participant: RemoteParticipant) => {
+          console.log('got subscribe event', track);
+          track.attach(<HTMLVideoElement>$('video'));
+        }
+      );
     })
     .catch((reason) => {
       console.log('error connecting to room', reason);

@@ -1,6 +1,7 @@
 import 'webrtc-adapter';
 import { ParticipantInfo } from '../proto/model';
 import {
+  JoinResponse,
   SessionDescription,
   SignalRequest,
   SignalResponse,
@@ -22,7 +23,7 @@ export interface RTCClient {
     roomId: string,
     token: string,
     options?: JoinOptions
-  ): Promise<ParticipantInfo>;
+  ): Promise<JoinResponse>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendNegotiate(offer: RTCSessionDescriptionInit): void;
   sendIceCandidate(candidate: RTCIceCandidateInit): void;
@@ -37,6 +38,8 @@ export interface RTCClient {
   onNegotiate?: (sd: RTCSessionDescriptionInit) => void;
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit) => void;
+  // when a participant has changed
+  onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
 }
 
 export interface JoinOptions {
@@ -51,6 +54,7 @@ export class RTCClientImpl {
   onNegotiate?: (sd: RTCSessionDescriptionInit) => void;
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit) => void;
+  onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
 
   ws?: WebSocket;
 
@@ -63,7 +67,7 @@ export class RTCClientImpl {
     roomId: string,
     token: string,
     options?: JoinOptions
-  ): Promise<ParticipantInfo> {
+  ): Promise<JoinResponse> {
     const protocol = info.secure ? 'wss' : 'ws';
     let url = `${protocol}://${info.host}:${info.port}/rtc?room_id=${roomId}&token=${token}`;
 
@@ -71,7 +75,7 @@ export class RTCClientImpl {
       url += '&name=' + encodeURIComponent(options.name);
     }
 
-    return new Promise<ParticipantInfo>((resolve, reject) => {
+    return new Promise<JoinResponse>((resolve, reject) => {
       console.log('connecting to', url);
       const ws = new WebSocket(url);
       ws.onerror = (ev: Event) => {
@@ -92,14 +96,19 @@ export class RTCClientImpl {
         // not considered connected until JoinResponse is received
         const json = JSON.parse(ev.data);
         const msg = SignalResponse.fromJSON(json);
-        if (msg.join) {
-          console.log('got join response ', msg.join);
-          ws.onmessage = this.handleWSMessage;
-          this.isConnected = true;
-          resolve(msg.join.participant!);
-        } else {
-          // show error and disconnect
+
+        if (!this.isConnected) {
+          // handle join message only
+          if (msg.join) {
+            this.isConnected = true;
+            resolve(msg.join);
+          } else {
+            reject('did not receive join response');
+          }
+          return;
         }
+
+        this.handleSignalResponse(msg);
       };
 
       ws.onclose = (ev: CloseEvent) => {
@@ -139,7 +148,7 @@ export class RTCClientImpl {
     console.log('sending ice candidate', candidate);
     this.sendRequest({
       trickle: {
-        candidate: candidate.candidate!,
+        candidateInit: JSON.stringify(candidate),
       },
     });
   }
@@ -153,10 +162,7 @@ export class RTCClientImpl {
     this.ws.send(JSON.stringify(msg));
   }
 
-  private handleWSMessage(ev: MessageEvent) {
-    const json = JSON.parse(ev.data);
-    const msg = SignalResponse.fromJSON(json);
-
+  private handleSignalResponse(msg: SignalResponse) {
     if (msg.answer) {
       const sd = fromProtoSessionDescription(msg.answer);
       if (this.onAnswer) {
@@ -168,9 +174,9 @@ export class RTCClientImpl {
         this.onNegotiate(sd);
       }
     } else if (msg.trickle) {
-      const candidate: RTCIceCandidateInit = {
-        candidate: msg.trickle.candidate,
-      };
+      const candidate: RTCIceCandidateInit = JSON.parse(
+        msg.trickle.candidateInit
+      );
       if (this.onTrickle) {
         this.onTrickle(candidate);
       }

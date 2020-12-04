@@ -37,8 +37,15 @@ export interface ParticipantInfo {
   id: string;
   name: string;
   state: ParticipantInfo_State;
-  hasAudio: boolean;
-  hasVideo: boolean;
+}
+
+/**
+ *  describing
+ */
+export interface TrackInfo {
+  id: string;
+  type: TrackInfo_Type;
+  name: string;
 }
 
 export interface DataChannel {
@@ -76,8 +83,12 @@ const baseParticipantInfo: object = {
   id: "",
   name: "",
   state: 0,
-  hasAudio: false,
-  hasVideo: false,
+};
+
+const baseTrackInfo: object = {
+  id: "",
+  type: 0,
+  name: "",
 };
 
 const baseDataChannel: object = {
@@ -140,6 +151,44 @@ export function participantInfo_StateToJSON(object: ParticipantInfo_State): stri
       return "ACTIVE";
     case ParticipantInfo_State.DISCONNECTED:
       return "DISCONNECTED";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+export enum TrackInfo_Type {
+  AUDIO = 0,
+  VIDEO = 1,
+  DATA = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function trackInfo_TypeFromJSON(object: any): TrackInfo_Type {
+  switch (object) {
+    case 0:
+    case "AUDIO":
+      return TrackInfo_Type.AUDIO;
+    case 1:
+    case "VIDEO":
+      return TrackInfo_Type.VIDEO;
+    case 2:
+    case "DATA":
+      return TrackInfo_Type.DATA;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return TrackInfo_Type.UNRECOGNIZED;
+  }
+}
+
+export function trackInfo_TypeToJSON(object: TrackInfo_Type): string {
+  switch (object) {
+    case TrackInfo_Type.AUDIO:
+      return "AUDIO";
+    case TrackInfo_Type.VIDEO:
+      return "VIDEO";
+    case TrackInfo_Type.DATA:
+      return "DATA";
     default:
       return "UNKNOWN";
   }
@@ -505,8 +554,6 @@ export const ParticipantInfo = {
     writer.uint32(10).string(message.id);
     writer.uint32(18).string(message.name);
     writer.uint32(24).int32(message.state);
-    writer.uint32(32).bool(message.hasAudio);
-    writer.uint32(40).bool(message.hasVideo);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): ParticipantInfo {
@@ -524,12 +571,6 @@ export const ParticipantInfo = {
           break;
         case 3:
           message.state = reader.int32() as any;
-          break;
-        case 4:
-          message.hasAudio = reader.bool();
-          break;
-        case 5:
-          message.hasVideo = reader.bool();
           break;
         default:
           reader.skipType(tag & 7);
@@ -555,16 +596,6 @@ export const ParticipantInfo = {
     } else {
       message.state = 0;
     }
-    if (object.hasAudio !== undefined && object.hasAudio !== null) {
-      message.hasAudio = Boolean(object.hasAudio);
-    } else {
-      message.hasAudio = false;
-    }
-    if (object.hasVideo !== undefined && object.hasVideo !== null) {
-      message.hasVideo = Boolean(object.hasVideo);
-    } else {
-      message.hasVideo = false;
-    }
     return message;
   },
   fromPartial(object: DeepPartial<ParticipantInfo>): ParticipantInfo {
@@ -584,16 +615,6 @@ export const ParticipantInfo = {
     } else {
       message.state = 0;
     }
-    if (object.hasAudio !== undefined && object.hasAudio !== null) {
-      message.hasAudio = object.hasAudio;
-    } else {
-      message.hasAudio = false;
-    }
-    if (object.hasVideo !== undefined && object.hasVideo !== null) {
-      message.hasVideo = object.hasVideo;
-    } else {
-      message.hasVideo = false;
-    }
     return message;
   },
   toJSON(message: ParticipantInfo): unknown {
@@ -601,8 +622,83 @@ export const ParticipantInfo = {
     message.id !== undefined && (obj.id = message.id);
     message.name !== undefined && (obj.name = message.name);
     message.state !== undefined && (obj.state = participantInfo_StateToJSON(message.state));
-    message.hasAudio !== undefined && (obj.hasAudio = message.hasAudio);
-    message.hasVideo !== undefined && (obj.hasVideo = message.hasVideo);
+    return obj;
+  },
+};
+
+export const TrackInfo = {
+  encode(message: TrackInfo, writer: Writer = Writer.create()): Writer {
+    writer.uint32(10).string(message.id);
+    writer.uint32(16).int32(message.type);
+    writer.uint32(26).string(message.name);
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): TrackInfo {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseTrackInfo } as TrackInfo;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.id = reader.string();
+          break;
+        case 2:
+          message.type = reader.int32() as any;
+          break;
+        case 3:
+          message.name = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(object: any): TrackInfo {
+    const message = { ...baseTrackInfo } as TrackInfo;
+    if (object.id !== undefined && object.id !== null) {
+      message.id = String(object.id);
+    } else {
+      message.id = "";
+    }
+    if (object.type !== undefined && object.type !== null) {
+      message.type = trackInfo_TypeFromJSON(object.type);
+    } else {
+      message.type = 0;
+    }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = String(object.name);
+    } else {
+      message.name = "";
+    }
+    return message;
+  },
+  fromPartial(object: DeepPartial<TrackInfo>): TrackInfo {
+    const message = { ...baseTrackInfo } as TrackInfo;
+    if (object.id !== undefined && object.id !== null) {
+      message.id = object.id;
+    } else {
+      message.id = "";
+    }
+    if (object.type !== undefined && object.type !== null) {
+      message.type = object.type;
+    } else {
+      message.type = 0;
+    }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = object.name;
+    } else {
+      message.name = "";
+    }
+    return message;
+  },
+  toJSON(message: TrackInfo): unknown {
+    const obj: any = {};
+    message.id !== undefined && (obj.id = message.id);
+    message.type !== undefined && (obj.type = trackInfo_TypeToJSON(message.type));
+    message.name !== undefined && (obj.name = message.name);
     return obj;
   },
 };

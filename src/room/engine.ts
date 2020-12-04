@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { ConnectionInfo, JoinOptions, RTCClient } from '../api/rtcClient';
-import { ParticipantInfo } from '../proto/model';
-import { EngineEvent, RoomEvent } from './events';
+import { JoinResponse } from '../proto/rtc';
+import { EngineEvent } from './events';
 
 export class RTCEngine extends EventEmitter {
   peerConn: RTCPeerConnection;
@@ -25,20 +25,15 @@ export class RTCEngine extends EventEmitter {
     roomId: string,
     token: string,
     options?: JoinOptions
-  ): Promise<ParticipantInfo> => {
-    const participantInfo = await this.client.join(
-      info,
-      roomId,
-      token,
-      options
-    );
+  ): Promise<JoinResponse> => {
+    const joinResponse = await this.client.join(info, roomId, token, options);
 
     // create offer
     const offer = await this.peerConn.createOffer();
     this.peerConn.setLocalDescription(offer);
 
     this.client.sendOffer(offer);
-    return participantInfo;
+    return joinResponse;
   };
 
   createOffer = async (): Promise<RTCSessionDescriptionInit> => {
@@ -57,6 +52,7 @@ export class RTCEngine extends EventEmitter {
     this.peerConn.onicecandidate = (ev) => {
       if (!ev.candidate) return;
 
+      console.log('ICE candidate available', ev.candidate);
       if (this.rtcConnected) {
         // send it through
         this.client.sendIceCandidate(ev.candidate);
@@ -71,6 +67,7 @@ export class RTCEngine extends EventEmitter {
         return;
       }
 
+      console.log('client requested negotiation');
       this.negotiate();
     };
 
@@ -90,6 +87,7 @@ export class RTCEngine extends EventEmitter {
 
     // configure signaling client
     this.client.onAnswer = (sd) => {
+      console.log('got answer from server');
       this.peerConn.setRemoteDescription(sd).then(() => {
         // consider connected
         this.onRTCConnected();
@@ -97,7 +95,10 @@ export class RTCEngine extends EventEmitter {
     };
 
     // add candidate on trickle
-    this.client.onTrickle = this.peerConn.addIceCandidate;
+    this.client.onTrickle = (candidate) => {
+      console.log('adding ice candidate', candidate);
+      this.peerConn.addIceCandidate(candidate);
+    };
 
     this.client.onNegotiate = (sd) => {
       this.peerConn.setRemoteDescription(sd);
@@ -122,8 +123,6 @@ export class RTCEngine extends EventEmitter {
       this.client.sendIceCandidate(cand);
     });
     this.pendingCandidates = [];
-
-    this.emit(RoomEvent.Connected);
   }
 
   private onICEConnected() {
