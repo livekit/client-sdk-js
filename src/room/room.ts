@@ -27,6 +27,11 @@ class Room extends EventEmitter {
     this.engine.on(EngineEvent.TrackAdded, (mediaTrack: MediaStreamTrack) => {
       this.onTrackAdded(mediaTrack);
     });
+
+    this.engine.on(EngineEvent.Disconnected, (reason: any) => {
+      console.debug('disconnected from server', reason);
+      this.emit(RoomEvent.Disconnected);
+    });
   }
 
   connect = async (
@@ -53,7 +58,6 @@ class Room extends EventEmitter {
   }
 
   private onTrackAdded(mediaTrack: MediaStreamTrack) {
-    console.log('remote track added', mediaTrack);
     // create remote participant if not created yet
     const [participantId, trackId] = UnpackTrackId(mediaTrack.id);
     let participant = this.participants[participantId];
@@ -62,7 +66,7 @@ class Room extends EventEmitter {
     }
 
     const track = participant.addTrack(mediaTrack, trackId);
-    console.log('participant with track', track);
+    console.debug('remote track added', track);
 
     if (participant.hasMetadata) {
       this.emit(RoomEvent.TrackSubscribed, track, participant);

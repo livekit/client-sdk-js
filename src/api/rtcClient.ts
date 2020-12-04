@@ -76,7 +76,7 @@ export class RTCClientImpl {
     }
 
     return new Promise<JoinResponse>((resolve, reject) => {
-      console.log('connecting to', url);
+      console.debug('connecting to', url);
       const ws = new WebSocket(url);
       ws.onerror = (ev: Event) => {
         if (!this.ws) {
@@ -114,7 +114,7 @@ export class RTCClientImpl {
       ws.onclose = (ev: CloseEvent) => {
         if (!this.isConnected) return;
 
-        console.log('websocket connection closed', ev.reason);
+        console.debug('websocket connection closed', ev.reason);
         this.isConnected = false;
         if (this.onClose) this.onClose(ev.reason);
       };
@@ -131,21 +131,21 @@ export class RTCClientImpl {
   }
 
   sendOffer(offer: RTCSessionDescriptionInit) {
-    console.log('sending offer', offer);
+    console.debug('sending offer', offer);
     this.sendRequest({
       offer: toProtoSessionDescription(offer),
     });
   }
 
-  sendNegotiate(offer: RTCSessionDescriptionInit) {
-    console.log('sending negotiate', offer);
+  sendNegotiate(negotiate: RTCSessionDescriptionInit) {
+    console.debug('sending negotiate', negotiate.type);
     this.sendRequest({
-      negotiate: toProtoSessionDescription(offer),
+      negotiate: toProtoSessionDescription(negotiate),
     });
   }
 
   sendIceCandidate(candidate: RTCIceCandidateInit) {
-    console.log('sending ice candidate', candidate);
+    console.debug('sending ice candidate', candidate);
     this.sendRequest({
       trickle: {
         candidateInit: JSON.stringify(candidate),

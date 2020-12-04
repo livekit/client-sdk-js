@@ -76,7 +76,7 @@ export class RemoteParticipant extends Participant {
   }
 
   addTrack(mediaTrack: MediaStreamTrack, id: string): RemoteTrack {
-    const isVideo = mediaTrack.kind === 'audio';
+    const isVideo = mediaTrack.kind === 'video';
     let track: RemoteTrack;
     if (isVideo) {
       track = new RemoteVideoTrack(mediaTrack, id);

@@ -12,5 +12,6 @@ export enum ParticipantEvent {
 
 export enum EngineEvent {
   Connected = 'connected',
+  Disconnected = 'disconnected',
   TrackAdded = 'trackAdded',
 }

@@ -11,6 +11,24 @@ declare global {
   }
 }
 
+function appendLog(...args: any[]) {
+  const logger = $('log')!;
+  for (var i = 0; i < arguments.length; i++) {
+    if (typeof arguments[i] == 'object') {
+      logger.innerHTML +=
+        (JSON && JSON.stringify
+          ? JSON.stringify(arguments[i], undefined, 2)
+          : arguments[i]) + ' ';
+    } else {
+      logger.innerHTML += arguments[i] + ' ';
+    }
+  }
+  logger.innerHTML += '\n';
+  (() => {
+    logger.scrollTop = logger.scrollHeight;
+  })();
+}
+
 window.connectToRoom = () => {
   const host = (<HTMLInputElement>$('host')).value;
   const port = (<HTMLInputElement>$('port')).value;
@@ -20,39 +38,16 @@ window.connectToRoom = () => {
     name: 'myclient',
   })
     .then((room) => {
-      console.log('connected to room', room.id);
+      appendLog('connected to room', room.id);
       room.on(
         RoomEvent.TrackSubscribed,
         (track: RemoteTrack, participant: RemoteParticipant) => {
-          console.log('got subscribe event', track);
+          appendLog('attaching track to video', track.id);
           track.attach(<HTMLVideoElement>$('video'));
         }
       );
     })
     .catch((reason) => {
-      console.log('error connecting to room', reason);
+      console.error('error connecting to room', reason);
     });
 };
-
-// override console.log
-(() => {
-  const old = console.log;
-  const logger = $('log')!;
-  console.log = function () {
-    for (var i = 0; i < arguments.length; i++) {
-      if (typeof arguments[i] == 'object') {
-        logger.innerHTML +=
-          (JSON && JSON.stringify
-            ? JSON.stringify(arguments[i], undefined, 2)
-            : arguments[i]) + ' ';
-      } else {
-        logger.innerHTML += arguments[i] + ' ';
-      }
-    }
-    logger.innerHTML += '\n';
-    (() => {
-      logger.scrollTop = logger.scrollHeight;
-    })();
-    old(...arguments);
-  };
-})();

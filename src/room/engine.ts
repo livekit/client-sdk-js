@@ -52,7 +52,7 @@ export class RTCEngine extends EventEmitter {
     this.peerConn.onicecandidate = (ev) => {
       if (!ev.candidate) return;
 
-      console.log('ICE candidate available', ev.candidate);
+      console.debug('adding ICE candidate for peer', ev.candidate);
       if (this.rtcConnected) {
         // send it through
         this.client.sendIceCandidate(ev.candidate);
@@ -63,11 +63,8 @@ export class RTCEngine extends EventEmitter {
 
     this.peerConn.onnegotiationneeded = (ev) => {
       if (!this.rtcConnected) {
-        console.log('skipping negotiations');
         return;
       }
-
-      console.log('client requested negotiation');
       this.negotiate();
     };
 
@@ -87,7 +84,6 @@ export class RTCEngine extends EventEmitter {
 
     // configure signaling client
     this.client.onAnswer = (sd) => {
-      console.log('got answer from server');
       this.peerConn.setRemoteDescription(sd).then(() => {
         // consider connected
         this.onRTCConnected();
@@ -96,7 +92,7 @@ export class RTCEngine extends EventEmitter {
 
     // add candidate on trickle
     this.client.onTrickle = (candidate) => {
-      console.log('adding ice candidate', candidate);
+      console.debug('got ICE candidate from peer', candidate);
       this.peerConn.addIceCandidate(candidate);
     };
 
@@ -111,11 +107,15 @@ export class RTCEngine extends EventEmitter {
         });
       }
     };
+
+    this.client.onClose = (reason) => {
+      this.emit(EngineEvent.Disconnected, reason);
+    };
   }
 
   // signaling channel connected
   private onRTCConnected() {
-    console.log('RTC connected');
+    console.debug('RTC connected');
     this.rtcConnected = true;
 
     // send pending ICE candidates
@@ -126,7 +126,7 @@ export class RTCEngine extends EventEmitter {
   }
 
   private onICEConnected() {
-    console.log('ICE connected');
+    console.debug('ICE connected');
     this.iceConnected = true;
   }
 }
