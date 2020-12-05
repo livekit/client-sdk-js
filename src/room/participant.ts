@@ -17,13 +17,13 @@ export class Participant extends EventEmitter {
   // map of track id => AudioTrack
   audioTracks: { [key: string]: AudioTrack } = {};
   videoTracks: { [key: string]: VideoTrack } = {};
-  id: string;
+  sid: string;
   // client assigned identity
   name: string;
 
-  constructor(id: string, name: string) {
+  constructor(sid: string, name: string) {
     super();
-    this.id = id;
+    this.sid = sid;
     this.name = name;
   }
 }
@@ -31,8 +31,8 @@ export class Participant extends EventEmitter {
 export class LocalParticipant extends Participant {
   engine: RTCEngine;
 
-  constructor(id: string, name: string, engine: RTCEngine) {
-    super(id, name);
+  constructor(sid: string, name: string, engine: RTCEngine) {
+    super(sid, name);
     this.engine = engine;
   }
 
@@ -66,7 +66,7 @@ export class RemoteParticipant extends Participant {
   private participantInfo?: ParticipantInfo;
 
   static fromParticipantInfo(pi: ParticipantInfo): RemoteParticipant {
-    const rp = new RemoteParticipant(pi.id, pi.name);
+    const rp = new RemoteParticipant(pi.sid, pi.name);
     rp.updateMetadata(pi);
     return rp;
   }
@@ -100,7 +100,7 @@ export class RemoteParticipant extends Participant {
 
   updateMetadata(info: ParticipantInfo) {
     this.name = info.name;
-    this.id = info.id;
+    this.sid = info.sid;
     this.participantInfo = info;
   }
 }

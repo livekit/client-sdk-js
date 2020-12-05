@@ -38,11 +38,11 @@ window.connectToRoom = () => {
     name: 'myclient',
   })
     .then((room) => {
-      appendLog('connected to room', room.id);
+      appendLog('connected to room', room.sid);
       room.on(
         RoomEvent.TrackSubscribed,
         (track: RemoteTrack, participant: RemoteParticipant) => {
-          appendLog('attaching track to video', track.id);
+          appendLog('attaching track to video', track.sid);
           track.attach(<HTMLVideoElement>$('video'));
         }
       );

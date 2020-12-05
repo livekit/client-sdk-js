@@ -12,7 +12,7 @@ export enum RoomState {
 }
 
 class Room extends EventEmitter {
-  id: string;
+  sid: string;
   engine: RTCEngine;
   state: RoomState = RoomState.Disconnected;
 
@@ -21,7 +21,7 @@ class Room extends EventEmitter {
 
   constructor(client: RTCClient, roomId: string) {
     super();
-    this.id = roomId;
+    this.sid = roomId;
     this.engine = new RTCEngine(client);
 
     this.engine.on(EngineEvent.TrackAdded, (mediaTrack: MediaStreamTrack) => {
@@ -39,15 +39,15 @@ class Room extends EventEmitter {
     token: string,
     options?: JoinOptions
   ): Promise<Room> => {
-    const joinResponse = await this.engine.join(info, this.id, token, options);
+    const joinResponse = await this.engine.join(info, this.sid, token, options);
 
     this.state = RoomState.Connected;
     const pi = joinResponse.participant!;
-    this.localParticipant = new LocalParticipant(pi.id, pi.name, this.engine);
+    this.localParticipant = new LocalParticipant(pi.sid, pi.name, this.engine);
 
     // populate remote participants
     joinResponse.otherParticipants.forEach((pi) => {
-      this.participants[pi.id] = RemoteParticipant.fromParticipantInfo(pi);
+      this.participants[pi.sid] = RemoteParticipant.fromParticipantInfo(pi);
     });
 
     return this;

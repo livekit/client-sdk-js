@@ -5,14 +5,12 @@ export type RemoteTrack = RemoteAudioTrack | RemoteVideoTrack;
 
 export class Track extends EventEmitter {
   kind: Track.Kind;
-  id: Track.ID;
   name: string;
 
-  protected constructor(kind: Track.Kind, id: Track.ID, name?: string) {
+  protected constructor(kind: Track.Kind, name?: string) {
     super();
     this.kind = kind;
-    this.id = id;
-    this.name = name || id;
+    this.name = name || '';
   }
 }
 
@@ -28,7 +26,7 @@ export class AudioTrack extends Track {
   attachedElements: HTMLMediaElement[] = [];
 
   protected constructor(mediaTrack: MediaStreamTrack, name?: string) {
-    super('audio', mediaTrack.id, name);
+    super('audio', name);
     this.mediaStreamTrack = mediaTrack;
   }
 
@@ -68,17 +66,20 @@ export class AudioTrack extends Track {
 export class RemoteAudioTrack extends AudioTrack {
   // whether the remote audio track is switched off
   isSwitchedOff: boolean = false;
+  sid: Track.ID;
 
-  constructor(mediaTrack: MediaStreamTrack, id: string) {
+  constructor(mediaTrack: MediaStreamTrack, sid: string) {
     super(mediaTrack);
-    // override id to parsed ID
-    this.id = id;
+    this.sid = sid;
   }
 }
 
 export class LocalAudioTrack extends AudioTrack {
+  id: Track.ID;
+
   constructor(mediaTrack: MediaStreamTrack, name?: string) {
     super(mediaTrack, name);
+    this.id = mediaTrack.id;
   }
 }
 
@@ -136,15 +137,20 @@ export namespace VideoTrack {
 }
 
 export class LocalVideoTrack extends VideoTrack {
+  id: Track.ID;
+
   constructor(mediaTrack: MediaStreamTrack, name?: string) {
     super(mediaTrack, name);
+    this.id = mediaTrack.id;
   }
 }
 
 export class RemoteVideoTrack extends VideoTrack {
-  constructor(mediaTrack: MediaStreamTrack, id: string) {
+  sid: Track.ID;
+
+  constructor(mediaTrack: MediaStreamTrack, sid: string) {
     super(mediaTrack);
     // override id to parsed ID
-    this.id = id;
+    this.sid = sid;
   }
 }

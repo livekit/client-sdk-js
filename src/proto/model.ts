@@ -19,7 +19,7 @@ export interface NodeStats {
  *  internal type, for serialization with proto
  */
 export interface Room {
-  id: string;
+  sid: string;
   emptyTimeout: number;
   maxParticipants: number;
   creationTime: number;
@@ -27,14 +27,14 @@ export interface Room {
 }
 
 export interface RoomInfo {
-  id: string;
+  sid: string;
   nodeIp: string;
   creationTime: number;
   token: string;
 }
 
 export interface ParticipantInfo {
-  id: string;
+  sid: string;
   name: string;
   state: ParticipantInfo_State;
 }
@@ -43,7 +43,7 @@ export interface ParticipantInfo {
  *  describing
  */
 export interface TrackInfo {
-  id: string;
+  sid: string;
   type: TrackInfo_Type;
   name: string;
 }
@@ -65,7 +65,7 @@ const baseNodeStats: object = {
 };
 
 const baseRoom: object = {
-  id: "",
+  sid: "",
   emptyTimeout: 0,
   maxParticipants: 0,
   creationTime: 0,
@@ -73,20 +73,20 @@ const baseRoom: object = {
 };
 
 const baseRoomInfo: object = {
-  id: "",
+  sid: "",
   nodeIp: "",
   creationTime: 0,
   token: "",
 };
 
 const baseParticipantInfo: object = {
-  id: "",
+  sid: "",
   name: "",
   state: 0,
 };
 
 const baseTrackInfo: object = {
-  id: "",
+  sid: "",
   type: 0,
   name: "",
 };
@@ -352,7 +352,7 @@ export const NodeStats = {
 
 export const Room = {
   encode(message: Room, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.id);
+    writer.uint32(10).string(message.sid);
     writer.uint32(16).uint32(message.emptyTimeout);
     writer.uint32(24).uint32(message.maxParticipants);
     writer.uint32(32).int64(message.creationTime);
@@ -367,7 +367,7 @@ export const Room = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.id = reader.string();
+          message.sid = reader.string();
           break;
         case 2:
           message.emptyTimeout = reader.uint32();
@@ -390,10 +390,10 @@ export const Room = {
   },
   fromJSON(object: any): Room {
     const message = { ...baseRoom } as Room;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = String(object.id);
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = String(object.sid);
     } else {
-      message.id = "";
+      message.sid = "";
     }
     if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
       message.emptyTimeout = Number(object.emptyTimeout);
@@ -419,10 +419,10 @@ export const Room = {
   },
   fromPartial(object: DeepPartial<Room>): Room {
     const message = { ...baseRoom } as Room;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = object.id;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = object.sid;
     } else {
-      message.id = "";
+      message.sid = "";
     }
     if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
       message.emptyTimeout = object.emptyTimeout;
@@ -448,7 +448,7 @@ export const Room = {
   },
   toJSON(message: Room): unknown {
     const obj: any = {};
-    message.id !== undefined && (obj.id = message.id);
+    message.sid !== undefined && (obj.sid = message.sid);
     message.emptyTimeout !== undefined && (obj.emptyTimeout = message.emptyTimeout);
     message.maxParticipants !== undefined && (obj.maxParticipants = message.maxParticipants);
     message.creationTime !== undefined && (obj.creationTime = message.creationTime);
@@ -459,7 +459,7 @@ export const Room = {
 
 export const RoomInfo = {
   encode(message: RoomInfo, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.id);
+    writer.uint32(10).string(message.sid);
     writer.uint32(18).string(message.nodeIp);
     writer.uint32(24).int64(message.creationTime);
     writer.uint32(34).string(message.token);
@@ -473,7 +473,7 @@ export const RoomInfo = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.id = reader.string();
+          message.sid = reader.string();
           break;
         case 2:
           message.nodeIp = reader.string();
@@ -493,10 +493,10 @@ export const RoomInfo = {
   },
   fromJSON(object: any): RoomInfo {
     const message = { ...baseRoomInfo } as RoomInfo;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = String(object.id);
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = String(object.sid);
     } else {
-      message.id = "";
+      message.sid = "";
     }
     if (object.nodeIp !== undefined && object.nodeIp !== null) {
       message.nodeIp = String(object.nodeIp);
@@ -517,10 +517,10 @@ export const RoomInfo = {
   },
   fromPartial(object: DeepPartial<RoomInfo>): RoomInfo {
     const message = { ...baseRoomInfo } as RoomInfo;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = object.id;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = object.sid;
     } else {
-      message.id = "";
+      message.sid = "";
     }
     if (object.nodeIp !== undefined && object.nodeIp !== null) {
       message.nodeIp = object.nodeIp;
@@ -541,7 +541,7 @@ export const RoomInfo = {
   },
   toJSON(message: RoomInfo): unknown {
     const obj: any = {};
-    message.id !== undefined && (obj.id = message.id);
+    message.sid !== undefined && (obj.sid = message.sid);
     message.nodeIp !== undefined && (obj.nodeIp = message.nodeIp);
     message.creationTime !== undefined && (obj.creationTime = message.creationTime);
     message.token !== undefined && (obj.token = message.token);
@@ -551,7 +551,7 @@ export const RoomInfo = {
 
 export const ParticipantInfo = {
   encode(message: ParticipantInfo, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.id);
+    writer.uint32(10).string(message.sid);
     writer.uint32(18).string(message.name);
     writer.uint32(24).int32(message.state);
     return writer;
@@ -564,7 +564,7 @@ export const ParticipantInfo = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.id = reader.string();
+          message.sid = reader.string();
           break;
         case 2:
           message.name = reader.string();
@@ -581,10 +581,10 @@ export const ParticipantInfo = {
   },
   fromJSON(object: any): ParticipantInfo {
     const message = { ...baseParticipantInfo } as ParticipantInfo;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = String(object.id);
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = String(object.sid);
     } else {
-      message.id = "";
+      message.sid = "";
     }
     if (object.name !== undefined && object.name !== null) {
       message.name = String(object.name);
@@ -600,10 +600,10 @@ export const ParticipantInfo = {
   },
   fromPartial(object: DeepPartial<ParticipantInfo>): ParticipantInfo {
     const message = { ...baseParticipantInfo } as ParticipantInfo;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = object.id;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = object.sid;
     } else {
-      message.id = "";
+      message.sid = "";
     }
     if (object.name !== undefined && object.name !== null) {
       message.name = object.name;
@@ -619,7 +619,7 @@ export const ParticipantInfo = {
   },
   toJSON(message: ParticipantInfo): unknown {
     const obj: any = {};
-    message.id !== undefined && (obj.id = message.id);
+    message.sid !== undefined && (obj.sid = message.sid);
     message.name !== undefined && (obj.name = message.name);
     message.state !== undefined && (obj.state = participantInfo_StateToJSON(message.state));
     return obj;
@@ -628,7 +628,7 @@ export const ParticipantInfo = {
 
 export const TrackInfo = {
   encode(message: TrackInfo, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.id);
+    writer.uint32(10).string(message.sid);
     writer.uint32(16).int32(message.type);
     writer.uint32(26).string(message.name);
     return writer;
@@ -641,7 +641,7 @@ export const TrackInfo = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.id = reader.string();
+          message.sid = reader.string();
           break;
         case 2:
           message.type = reader.int32() as any;
@@ -658,10 +658,10 @@ export const TrackInfo = {
   },
   fromJSON(object: any): TrackInfo {
     const message = { ...baseTrackInfo } as TrackInfo;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = String(object.id);
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = String(object.sid);
     } else {
-      message.id = "";
+      message.sid = "";
     }
     if (object.type !== undefined && object.type !== null) {
       message.type = trackInfo_TypeFromJSON(object.type);
@@ -677,10 +677,10 @@ export const TrackInfo = {
   },
   fromPartial(object: DeepPartial<TrackInfo>): TrackInfo {
     const message = { ...baseTrackInfo } as TrackInfo;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = object.id;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = object.sid;
     } else {
-      message.id = "";
+      message.sid = "";
     }
     if (object.type !== undefined && object.type !== null) {
       message.type = object.type;
@@ -696,7 +696,7 @@ export const TrackInfo = {
   },
   toJSON(message: TrackInfo): unknown {
     const obj: any = {};
-    message.id !== undefined && (obj.id = message.id);
+    message.sid !== undefined && (obj.sid = message.sid);
     message.type !== undefined && (obj.type = trackInfo_TypeToJSON(message.type));
     message.name !== undefined && (obj.name = message.name);
     return obj;
