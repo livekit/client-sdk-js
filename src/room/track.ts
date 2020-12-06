@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { TrackInfo_Type } from '../proto/model';
 
 export type LocalTrack = LocalAudioTrack | LocalVideoTrack;
 export type RemoteTrack = RemoteAudioTrack | RemoteVideoTrack;
@@ -15,8 +16,24 @@ export class Track extends EventEmitter {
 }
 
 export namespace Track {
-  export type Kind = 'audio' | 'video' | 'data';
-  export type ID = string;
+  export enum Kind {
+    Audio = 'audio',
+    Video = 'video',
+    Data = 'data',
+  }
+  export type SID = string;
+  export type Priority = 'low' | 'standard' | 'high';
+
+  export function kindToProto(k: Kind): TrackInfo_Type {
+    switch (k) {
+      case Kind.Audio:
+        return TrackInfo_Type.AUDIO;
+      case Kind.Video:
+        return TrackInfo_Type.VIDEO;
+      case Kind.Data:
+        return TrackInfo_Type.DATA;
+    }
+  }
 }
 
 export class AudioTrack extends Track {
@@ -26,7 +43,7 @@ export class AudioTrack extends Track {
   attachedElements: HTMLMediaElement[] = [];
 
   protected constructor(mediaTrack: MediaStreamTrack, name?: string) {
-    super('audio', name);
+    super(Track.Kind.Audio, name);
     this.mediaStreamTrack = mediaTrack;
   }
 
@@ -66,7 +83,7 @@ export class AudioTrack extends Track {
 export class RemoteAudioTrack extends AudioTrack {
   // whether the remote audio track is switched off
   isSwitchedOff: boolean = false;
-  sid: Track.ID;
+  sid: Track.SID;
 
   constructor(mediaTrack: MediaStreamTrack, sid: string) {
     super(mediaTrack);
@@ -75,7 +92,7 @@ export class RemoteAudioTrack extends AudioTrack {
 }
 
 export class LocalAudioTrack extends AudioTrack {
-  id: Track.ID;
+  id: Track.SID;
 
   constructor(mediaTrack: MediaStreamTrack, name?: string) {
     super(mediaTrack, name);
@@ -91,7 +108,7 @@ export class VideoTrack extends Track {
   attachedElements: HTMLVideoElement[] = [];
 
   protected constructor(mediaTrack: MediaStreamTrack, name?: string) {
-    super('video', name || mediaTrack.label);
+    super(Track.Kind.Video, name || mediaTrack.label);
     this.mediaStreamTrack = mediaTrack;
     const { width, height } = mediaTrack.getSettings();
     if (width && height) {
@@ -137,7 +154,7 @@ export namespace VideoTrack {
 }
 
 export class LocalVideoTrack extends VideoTrack {
-  id: Track.ID;
+  id: Track.SID;
 
   constructor(mediaTrack: MediaStreamTrack, name?: string) {
     super(mediaTrack, name);
@@ -146,7 +163,7 @@ export class LocalVideoTrack extends VideoTrack {
 }
 
 export class RemoteVideoTrack extends VideoTrack {
-  sid: Track.ID;
+  sid: Track.SID;
 
   constructor(mediaTrack: MediaStreamTrack, sid: string) {
     super(mediaTrack);

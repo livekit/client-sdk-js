@@ -37,6 +37,7 @@ export interface ParticipantInfo {
   sid: string;
   name: string;
   state: ParticipantInfo_State;
+  tracks: TrackInfo[];
 }
 
 /**
@@ -554,12 +555,16 @@ export const ParticipantInfo = {
     writer.uint32(10).string(message.sid);
     writer.uint32(18).string(message.name);
     writer.uint32(24).int32(message.state);
+    for (const v of message.tracks) {
+      TrackInfo.encode(v!, writer.uint32(34).fork()).ldelim();
+    }
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): ParticipantInfo {
     const reader = input instanceof Uint8Array ? new Reader(input) : input;
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseParticipantInfo } as ParticipantInfo;
+    message.tracks = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -572,6 +577,9 @@ export const ParticipantInfo = {
         case 3:
           message.state = reader.int32() as any;
           break;
+        case 4:
+          message.tracks.push(TrackInfo.decode(reader, reader.uint32()));
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -581,6 +589,7 @@ export const ParticipantInfo = {
   },
   fromJSON(object: any): ParticipantInfo {
     const message = { ...baseParticipantInfo } as ParticipantInfo;
+    message.tracks = [];
     if (object.sid !== undefined && object.sid !== null) {
       message.sid = String(object.sid);
     } else {
@@ -596,10 +605,16 @@ export const ParticipantInfo = {
     } else {
       message.state = 0;
     }
+    if (object.tracks !== undefined && object.tracks !== null) {
+      for (const e of object.tracks) {
+        message.tracks.push(TrackInfo.fromJSON(e));
+      }
+    }
     return message;
   },
   fromPartial(object: DeepPartial<ParticipantInfo>): ParticipantInfo {
     const message = { ...baseParticipantInfo } as ParticipantInfo;
+    message.tracks = [];
     if (object.sid !== undefined && object.sid !== null) {
       message.sid = object.sid;
     } else {
@@ -615,6 +630,11 @@ export const ParticipantInfo = {
     } else {
       message.state = 0;
     }
+    if (object.tracks !== undefined && object.tracks !== null) {
+      for (const e of object.tracks) {
+        message.tracks.push(TrackInfo.fromPartial(e));
+      }
+    }
     return message;
   },
   toJSON(message: ParticipantInfo): unknown {
@@ -622,6 +642,11 @@ export const ParticipantInfo = {
     message.sid !== undefined && (obj.sid = message.sid);
     message.name !== undefined && (obj.name = message.name);
     message.state !== undefined && (obj.state = participantInfo_StateToJSON(message.state));
+    if (message.tracks) {
+      obj.tracks = message.tracks.map(e => e ? TrackInfo.toJSON(e) : undefined);
+    } else {
+      obj.tracks = [];
+    }
     return obj;
   },
 };
