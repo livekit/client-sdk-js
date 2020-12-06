@@ -43,7 +43,7 @@ window.connectToRoom = () => {
         RoomEvent.TrackSubscribed,
         (track: RemoteTrack, participant: RemoteParticipant) => {
           appendLog('attaching track to video', track.sid);
-          track.attach(<HTMLVideoElement>$('video'));
+          track.attach(<HTMLVideoElement>$('video1'));
         }
       );
     })

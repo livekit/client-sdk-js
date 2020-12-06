@@ -180,6 +180,12 @@ export class RTCClientImpl {
       if (this.onTrickle) {
         this.onTrickle(candidate);
       }
+    } else if (msg.update) {
+      if (this.onParticipantUpdate) {
+        this.onParticipantUpdate(msg.update.participants);
+      }
+    } else {
+      console.warn('unsupported message', msg);
     }
   }
 

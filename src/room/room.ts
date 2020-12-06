@@ -5,7 +5,7 @@ import { RTCEngine } from './engine';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant, RemoteParticipant } from './participant';
 import { RemoteTrack } from './track';
-import { RemoteTrackPublication } from './trackPublication';
+import { RemoteTrackPublication, TrackPublication } from './trackPublication';
 import { unpackTrackId } from './utils';
 
 export enum RoomState {
@@ -32,7 +32,6 @@ class Room extends EventEmitter {
     });
 
     this.engine.on(EngineEvent.Disconnected, (reason: any) => {
-      console.debug('disconnected from server', reason);
       this.emit(RoomEvent.Disconnected);
     });
 
@@ -73,11 +72,7 @@ class Room extends EventEmitter {
     const [participantId, trackId] = unpackTrackId(mediaTrack.id);
 
     const participant = this.getOrCreateParticipant(participantId);
-    const trackPublication = participant.addSubscribedTrack(
-      mediaTrack,
-      trackId
-    );
-    console.debug('remote track subscribed', trackPublication);
+    participant.addSubscribedTrack(mediaTrack, trackId);
   }
 
   private handleParticipantUpdates(participantInfos: ParticipantInfo[]) {
@@ -85,15 +80,11 @@ class Room extends EventEmitter {
     participantInfos.forEach((info) => {
       let remoteParticipant = this.participants[info.sid];
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
-        // remove and send event
-        delete this.participants[info.sid];
-        if (remoteParticipant) {
-          this.emit(RoomEvent.ParticipantDisconnected, remoteParticipant);
-        }
+        this.handleParticipantDisconnected(info.sid, remoteParticipant);
         return;
       }
 
-      const isNewParticipant = !!remoteParticipant;
+      const isNewParticipant = !remoteParticipant;
 
       // create participant if doesn't exist
       remoteParticipant = this.getOrCreateParticipant(info.sid, info);
@@ -105,6 +96,30 @@ class Room extends EventEmitter {
         remoteParticipant.updateMetadata(info);
       }
     });
+  }
+
+  private handleParticipantDisconnected(
+    sid: string,
+    participant?: RemoteParticipant
+  ) {
+    // remove and send event
+    delete this.participants[sid];
+    if (!participant) {
+      return;
+    }
+
+    // unsubscribe from any active tracks
+    const removeTracks = (tracks: { [key: string]: TrackPublication }) => {
+      Object.keys(tracks).forEach((sid) => {
+        // since participant disconnected, we don't need to send events
+        participant.unpublishTrack(tracks, sid);
+      });
+    };
+    removeTracks(participant.audioTracks);
+    removeTracks(participant.videoTracks);
+    removeTracks(participant.dataTracks);
+
+    this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
 
   private getOrCreateParticipant(
@@ -138,8 +153,27 @@ class Room extends EventEmitter {
           this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
         }
       );
+
+      participant.on(
+        ParticipantEvent.TrackUnpublished,
+        (publication: RemoteTrackPublication) => {
+          this.emit(RoomEvent.TrackUnpublished, publication, participant);
+        }
+      );
+
+      participant.on(
+        ParticipantEvent.TrackUnsubscribed,
+        (publication: RemoteTrackPublication) => {
+          this.emit(RoomEvent.TrackUnsubscribed, publication, participant);
+        }
+      );
     }
     return participant;
+  }
+
+  emit(event: string | symbol, ...args: any[]): boolean {
+    console.debug('room event', event, ...args);
+    return super.emit(event, ...args);
   }
 }
 

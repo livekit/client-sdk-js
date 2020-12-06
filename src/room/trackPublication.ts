@@ -7,6 +7,8 @@ import {
   LocalTrack,
   LocalVideoTrack,
   RemoteAudioTrack,
+  RemoteTrack,
+  RemoteVideoTrack,
 } from './track';
 
 export type AudioTrackPublication =
@@ -31,7 +33,7 @@ export class TrackPublication extends EventEmitter {
 }
 
 export class RemoteTrackPublication extends TrackPublication {
-  track?: RemoteAudioTrack;
+  track?: RemoteTrack;
 
   constructor(kind: Track.Kind, id: string, name: string) {
     super(kind, id, name);
@@ -44,14 +46,20 @@ export class RemoteTrackPublication extends TrackPublication {
 }
 
 export class RemoteAudioTrackPublication extends RemoteTrackPublication {
-  constructor(info: TrackInfo) {
+  track?: RemoteAudioTrack;
+
+  constructor(info: TrackInfo, track?: RemoteAudioTrack) {
     super(Track.Kind.Audio, info.sid, info.name);
+    this.track = track;
   }
 }
 
 export class RemoteVideoTrackPublication extends RemoteTrackPublication {
-  constructor(info: TrackInfo) {
+  track?: RemoteVideoTrack;
+
+  constructor(info: TrackInfo, track?: RemoteVideoTrack) {
     super(Track.Kind.Video, info.sid, info.name);
+    this.track = track;
   }
 }
 

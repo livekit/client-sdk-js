@@ -78,6 +78,10 @@ export class AudioTrack extends Track {
   detach(element: HTMLMediaElement): HTMLMediaElement {
     return element;
   }
+
+  stop() {
+    this.mediaStreamTrack.stop();
+  }
 }
 
 export class RemoteAudioTrack extends AudioTrack {
@@ -142,7 +146,12 @@ export class VideoTrack extends Track {
   }
 
   detach(element: HTMLMediaElement): HTMLMediaElement {
+    // TODO: implement
     return element;
+  }
+
+  stop() {
+    this.mediaStreamTrack.stop();
   }
 }
 

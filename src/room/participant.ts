@@ -150,10 +150,10 @@ export class RemoteParticipant extends Participant {
 
     // find the track publication or create one
     // it's possible for the media track to arrive before participant info
-    let trackPublication = this.getTrackPublication(track.kind, id);
-    let newTrackPublication = !trackPublication;
+    let publication = this.getTrackPublication(track.kind, id);
+    let newTrackPublication = !publication;
 
-    if (!trackPublication) {
+    if (!publication) {
       const info: TrackInfo = {
         sid: id,
         name: mediaTrack.label,
@@ -161,10 +161,16 @@ export class RemoteParticipant extends Participant {
       };
       switch (track.kind) {
         case Track.Kind.Audio:
-          trackPublication = new RemoteAudioTrackPublication(info);
+          publication = new RemoteAudioTrackPublication(
+            info,
+            <RemoteAudioTrack>track
+          );
           break;
         case Track.Kind.Video:
-          trackPublication = new RemoteVideoTrackPublication(info);
+          publication = new RemoteVideoTrackPublication(
+            info,
+            <RemoteVideoTrack>track
+          );
           break;
         default:
           throw new TrackInvalidError();
@@ -172,17 +178,22 @@ export class RemoteParticipant extends Participant {
     }
 
     if (newTrackPublication) {
-      this.addTrackPublication(trackPublication);
+      this.addTrackPublication(publication);
       // only send this after metadata is filled in, which indicates the track
       // is published AFTER client connected to room
       if (this.hasMetadata) {
-        this.emit(ParticipantEvent.TrackPublished, trackPublication);
+        this.emit(ParticipantEvent.TrackPublished, publication);
       }
     }
 
-    this.emit(ParticipantEvent.TrackSubscribed, track, trackPublication);
+    // when media track is ended, fire the event
+    mediaTrack.onended = (ev) => {
+      this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
+    };
 
-    return trackPublication;
+    this.emit(ParticipantEvent.TrackSubscribed, track, publication);
+
+    return publication;
   }
 
   get hasMetadata(): boolean {
@@ -252,9 +263,7 @@ export class RemoteParticipant extends Participant {
     }) => {
       Object.keys(tracks).forEach((sid) => {
         if (!validTracks[sid]) {
-          const track = tracks[sid];
-          delete tracks[sid];
-          this.emit(ParticipantEvent.TrackUnpublished, track);
+          this.unpublishTrack(tracks, sid, true);
         }
       });
     };
@@ -262,6 +271,30 @@ export class RemoteParticipant extends Participant {
     detectRemovedTracks(this.audioTracks);
     detectRemovedTracks(this.videoTracks);
     detectRemovedTracks(this.dataTracks);
+  }
+
+  unpublishTrack(
+    tracks: { [key: string]: TrackPublication },
+    sid: Track.SID,
+    sendEvents?: boolean
+  ) {
+    const publication = <RemoteTrackPublication>tracks[sid];
+    if (!publication) {
+      return;
+    }
+    delete tracks[sid];
+    // also send unsubscribe, if track is actively subscribed
+    if (publication.track) {
+      publication.track.stop();
+      if (sendEvents)
+        this.emit(ParticipantEvent.TrackUnsubscribed, publication);
+    }
+    if (sendEvents) this.emit(ParticipantEvent.TrackUnpublished, publication);
+  }
+
+  emit(event: string | symbol, ...args: any[]): boolean {
+    console.debug('participant event', this.sid, event, ...args);
+    return super.emit(event, ...args);
   }
 }
 
