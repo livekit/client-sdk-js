@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { ParticipantInfo, TrackInfo, TrackInfo_Type } from '../proto/model';
+import { ParticipantInfo, TrackInfo } from '../proto/model';
 import { RTCEngine } from './engine';
 import { TrackInvalidError } from './errors';
 import { ParticipantEvent } from './events';
@@ -34,6 +34,7 @@ export class Participant extends EventEmitter {
   audioTracks: AudioTrackMap = {};
   videoTracks: VideoTrackMap = {};
   dataTracks: DataTrackMap = {};
+  tracks: { [key: string]: TrackPublication } = {};
   sid: string;
   // client assigned identity
   name: string;
@@ -45,6 +46,7 @@ export class Participant extends EventEmitter {
   }
 
   protected addTrackPublication(publication: TrackPublication) {
+    this.tracks[publication.trackSid] = publication;
     switch (publication.kind) {
       case Track.Kind.Audio:
         this.audioTracks[publication.trackSid] = <AudioTrackPublication>(
@@ -121,10 +123,39 @@ export class LocalParticipant extends Participant {
     // TODO: check data channel
     this.engine.peerConn.addTrack(track.mediaStreamTrack);
   }
+
+  unpublishTrack(track: LocalTrack): LocalTrackPublication | null {
+    if (!this.tracks[track.id]) {
+      return null;
+    }
+    // TODO: need another way to associate the tracks
+    const publication = <LocalTrackPublication>this.tracks[track.id];
+    track.stop();
+    const senders = this.engine.peerConn.getSenders();
+    senders.forEach((sender) => {
+      if (sender.track === track.mediaStreamTrack) {
+        this.engine.peerConn.removeTrack(sender);
+      }
+    });
+
+    return publication;
+  }
+
+  unpublishTracks(tracks: LocalTrack[]): LocalTrackPublication[] {
+    const publications: LocalTrackPublication[] = [];
+    tracks.forEach((track) => {
+      const pub = this.unpublishTrack(track);
+      if (pub) {
+        publications.push(pub);
+      }
+    });
+    return publications;
+  }
 }
 
 export class RemoteParticipant extends Participant {
   private participantInfo?: ParticipantInfo;
+  tracks: { [key: string]: RemoteTrackPublication } = {};
 
   static fromParticipantInfo(pi: ParticipantInfo): RemoteParticipant {
     const rp = new RemoteParticipant(pi.sid, pi.name);
@@ -150,7 +181,7 @@ export class RemoteParticipant extends Participant {
 
     // find the track publication or create one
     // it's possible for the media track to arrive before participant info
-    let publication = this.getTrackPublication(track.kind, id);
+    let publication = this.getTrackPublication(id);
     let newTrackPublication = !publication;
 
     if (!publication) {
@@ -200,27 +231,8 @@ export class RemoteParticipant extends Participant {
     return !!this.participantInfo;
   }
 
-  getTrackPublication(
-    kind: Track.Kind | TrackInfo_Type,
-    id: Track.SID
-  ): RemoteTrackPublication | null {
-    let publication: RemoteTrackPublication | null = null;
-
-    switch (kind) {
-      case Track.Kind.Audio:
-      case TrackInfo_Type.AUDIO:
-        publication = <RemoteAudioTrackPublication>this.audioTracks[id];
-        break;
-      case Track.Kind.Video:
-      case TrackInfo_Type.VIDEO:
-        publication = <RemoteVideoTrackPublication>this.videoTracks[id];
-        break;
-      case Track.Kind.Data:
-      case TrackInfo_Type.DATA:
-        break;
-    }
-
-    return publication;
+  getTrackPublication(id: Track.SID): RemoteTrackPublication | null {
+    return <RemoteTrackPublication>this.tracks[id];
   }
 
   updateMetadata(info: ParticipantInfo) {
@@ -239,7 +251,7 @@ export class RemoteParticipant extends Participant {
     const newTracks: { [key: string]: RemoteTrackPublication } = {};
 
     info.tracks.forEach((ti) => {
-      let publication = this.getTrackPublication(ti.type, ti.sid);
+      let publication = this.getTrackPublication(ti.sid);
       if (!publication) {
         // new publication
         publication = RemoteTrackPublication.createTrackFromInfo(ti);
@@ -258,31 +270,34 @@ export class RemoteParticipant extends Participant {
     }
 
     // detect removed tracks
-    const detectRemovedTracks = (tracks: {
-      [key: string]: TrackPublication;
-    }) => {
-      Object.keys(tracks).forEach((sid) => {
-        if (!validTracks[sid]) {
-          this.unpublishTrack(tracks, sid, true);
-        }
-      });
-    };
-
-    detectRemovedTracks(this.audioTracks);
-    detectRemovedTracks(this.videoTracks);
-    detectRemovedTracks(this.dataTracks);
+    Object.keys(this.tracks).forEach((sid) => {
+      if (!validTracks[sid]) {
+        this.unpublishTrack(sid, true);
+      }
+    });
   }
 
-  unpublishTrack(
-    tracks: { [key: string]: TrackPublication },
-    sid: Track.SID,
-    sendEvents?: boolean
-  ) {
-    const publication = <RemoteTrackPublication>tracks[sid];
+  unpublishTrack(sid: Track.SID, sendEvents?: boolean) {
+    const publication = <RemoteTrackPublication>this.tracks[sid];
     if (!publication) {
       return;
     }
-    delete tracks[sid];
+
+    delete this.tracks[sid];
+
+    // remove from the right type map
+    switch (publication.kind) {
+      case Track.Kind.Audio:
+        delete this.audioTracks[sid];
+        break;
+      case Track.Kind.Video:
+        delete this.videoTracks[sid];
+        break;
+      case Track.Kind.Data:
+        delete this.dataTracks[sid];
+        break;
+    }
+
     // also send unsubscribe, if track is actively subscribed
     if (publication.track) {
       publication.track.stop();

@@ -39,6 +39,10 @@ export class RemoteTrackPublication extends TrackPublication {
     super(kind, id, name);
   }
 
+  get isSubscribed(): boolean {
+    return !!this.track;
+  }
+
   updateMetadata(info: TrackInfo) {
     this.trackSid = info.sid;
     this.trackName = info.name;

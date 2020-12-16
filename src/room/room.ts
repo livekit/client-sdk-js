@@ -5,7 +5,7 @@ import { RTCEngine } from './engine';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant, RemoteParticipant } from './participant';
 import { RemoteTrack } from './track';
-import { RemoteTrackPublication, TrackPublication } from './trackPublication';
+import { RemoteTrackPublication } from './trackPublication';
 import { unpackTrackId } from './utils';
 
 export enum RoomState {
@@ -56,8 +56,7 @@ class Room extends EventEmitter {
 
     // populate remote participants, these should not trigger new events
     joinResponse.otherParticipants.forEach((pi) => {
-      this.getOrCreateParticipant;
-      pi.sid, pi;
+      this.getOrCreateParticipant(pi.sid, pi);
     });
 
     return this;
@@ -108,17 +107,9 @@ class Room extends EventEmitter {
       return;
     }
 
-    // unsubscribe from any active tracks
-    const removeTracks = (tracks: { [key: string]: TrackPublication }) => {
-      Object.keys(tracks).forEach((sid) => {
-        // since participant disconnected, we don't need to send events
-        participant.unpublishTrack(tracks, sid);
-      });
-    };
-    removeTracks(participant.audioTracks);
-    removeTracks(participant.videoTracks);
-    removeTracks(participant.dataTracks);
-
+    Object.keys(participant.tracks).forEach((sid) => {
+      participant.unpublishTrack(sid);
+    });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
 
