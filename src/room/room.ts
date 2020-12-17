@@ -78,20 +78,19 @@ class Room extends EventEmitter {
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
       let remoteParticipant = this.participants[info.sid];
-      if (info.state === ParticipantInfo_State.DISCONNECTED) {
-        this.handleParticipantDisconnected(info.sid, remoteParticipant);
-        return;
-      }
-
       const isNewParticipant = !remoteParticipant;
 
       // create participant if doesn't exist
       remoteParticipant = this.getOrCreateParticipant(info.sid, info);
 
-      if (isNewParticipant) {
+      // when it's disconnected, send updates
+      if (info.state === ParticipantInfo_State.DISCONNECTED) {
+        this.handleParticipantDisconnected(info.sid, remoteParticipant);
+      } else if (isNewParticipant) {
         // fire connected event
         this.emit(RoomEvent.ParticipantConnected, remoteParticipant);
       } else {
+        // just update, no events
         remoteParticipant.updateMetadata(info);
       }
     });
