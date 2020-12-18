@@ -10,6 +10,7 @@ import {
   AudioTrack,
   LocalTrack,
   RemoteTrack,
+  Track,
   VideoTrack,
 } from '../src/room/track';
 import { LocalTrackPublication } from '../src/room/trackPublication';
@@ -43,9 +44,14 @@ function appendLog(...args: any[]) {
   })();
 }
 
-function trackSubscribed(div: HTMLDivElement, track: AudioTrack | VideoTrack) {
+function trackSubscribed(
+  div: HTMLDivElement,
+  track: AudioTrack | VideoTrack
+): HTMLMediaElement {
   appendLog('track subscribed', track);
-  div.appendChild(track.attach());
+  const element = track.attach();
+  div.appendChild(element);
+  return element;
 }
 
 function trackUnsubscribed(track: RemoteTrack) {
@@ -130,7 +136,11 @@ window.toggleVideo = () => {
     createLocalTracks().then((tracks) => {
       currentRoom.localParticipant.publishTracks(tracks);
       for (const track of tracks) {
-        trackSubscribed(div, track);
+        const element = trackSubscribed(div, track);
+        if (track.kind === Track.Kind.Video) {
+          // flip video
+          element.style.transform = 'scale(-1, 1)';
+        }
       }
     });
   }
