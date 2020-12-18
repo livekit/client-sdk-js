@@ -1,5 +1,5 @@
 import 'webrtc-adapter';
-import { ParticipantInfo } from '../proto/model';
+import { ParticipantInfo, TrackInfo } from '../proto/model';
 import {
   JoinResponse,
   SessionDescription,
@@ -40,6 +40,8 @@ export interface RTCClient {
   onTrickle?: (sd: RTCIceCandidateInit) => void;
   // when a participant has changed
   onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
+  // when track is published successfully
+  onLocalTrackPublished?: (ti: TrackInfo) => void;
 }
 
 export interface JoinOptions {
@@ -55,6 +57,7 @@ export class RTCClientImpl {
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit) => void;
   onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
+  onLocalTrackPublished?: (ti: TrackInfo) => void;
 
   ws?: WebSocket;
 
@@ -183,6 +186,10 @@ export class RTCClientImpl {
     } else if (msg.update) {
       if (this.onParticipantUpdate) {
         this.onParticipantUpdate(msg.update.participants);
+      }
+    } else if (msg.trackPublished) {
+      if (this.onLocalTrackPublished) {
+        this.onLocalTrackPublished(msg.trackPublished);
       }
     } else {
       console.warn('unsupported message', msg);

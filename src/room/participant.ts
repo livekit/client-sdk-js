@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { ParticipantInfo, TrackInfo } from '../proto/model';
 import { RTCEngine } from './engine';
 import { TrackInvalidError } from './errors';
-import { ParticipantEvent } from './events';
+import { EngineEvent, ParticipantEvent } from './events';
 import {
   LocalAudioTrack,
   LocalTrack,
@@ -65,6 +65,10 @@ export class Participant extends EventEmitter {
         break;
     }
   }
+
+  getTracks(): TrackPublication[] {
+    return Object.values(this.tracks);
+  }
 }
 
 export class LocalParticipant extends Participant {
@@ -78,12 +82,7 @@ export class LocalParticipant extends Participant {
   publishTrack(
     track: LocalTrack | MediaStreamTrack,
     options?: LocalTrackOptions
-  ) {
-    if (this.audioTracks[track.id] || this.videoTracks[track.id]) {
-      // already published.. ignore
-      return;
-    }
-
+  ): Promise<LocalTrackPublication> {
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
         case 'audio':
@@ -100,28 +99,51 @@ export class LocalParticipant extends Participant {
     }
 
     // create track publication from track
-    let trackPublication: LocalTrackPublication;
-    switch (track.kind) {
-      case Track.Kind.Audio:
-        trackPublication = new LocalAudioTrackPublication(track);
-        this.audioTracks[track.id] = trackPublication;
-        break;
-      case Track.Kind.Video:
-        trackPublication = new LocalVideoTrackPublication(
-          <LocalVideoTrack>track
-        );
-        this.videoTracks[track.id] = trackPublication;
-        break;
-      default:
-        // impossible
-        throw new TrackInvalidError();
+    let publication: LocalTrackPublication;
+
+    return new Promise<LocalTrackPublication>((resolve, reject) => {
+      this.engine.once(EngineEvent.LocalTrackPublished, (ti: TrackInfo) => {
+        switch (track.kind) {
+          case Track.Kind.Audio:
+            publication = new LocalAudioTrackPublication(
+              <LocalAudioTrack>track
+            );
+            this.audioTracks[ti.sid] = publication;
+            break;
+          case Track.Kind.Video:
+            publication = new LocalVideoTrackPublication(
+              <LocalVideoTrack>track
+            );
+            this.videoTracks[ti.sid] = publication;
+            break;
+          default:
+            // impossible
+            throw new TrackInvalidError();
+        }
+
+        publication.trackSid = ti.sid;
+        this.tracks[ti.sid] = publication;
+
+        // send event for publication
+        this.emit(ParticipantEvent.TrackPublished, publication);
+        resolve(publication);
+      });
+
+      this.engine.peerConn.addTrack((<LocalTrack>track).mediaStreamTrack);
+    });
+  }
+
+  async publishTracks(
+    tracks: LocalTrack[] | MediaStreamTrack[]
+  ): Promise<Array<LocalTrackPublication>> {
+    const publications: LocalTrackPublication[] = [];
+
+    for (const track of tracks) {
+      const publication = await this.publishTrack(track);
+      publications.push(publication);
     }
 
-    // send event for publication
-    this.emit(ParticipantEvent.TrackPublished, trackPublication);
-
-    // TODO: check data channel
-    this.engine.peerConn.addTrack(track.mediaStreamTrack);
+    return publications;
   }
 
   unpublishTrack(track: LocalTrack): LocalTrackPublication | null {

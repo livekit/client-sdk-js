@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { ParticipantInfo } from './model';
+import { TrackInfo, ParticipantInfo } from './model';
 import { Writer, Reader } from 'protobufjs/minimal';
 
 
@@ -31,6 +31,10 @@ export interface SignalResponse {
    *  sent when participants in the room has changed
    */
   update?: ParticipantUpdate | undefined;
+  /**
+   *  sent to the participant when their track has been published
+   */
+  trackPublished?: TrackInfo | undefined;
 }
 
 export interface Trickle {
@@ -200,6 +204,9 @@ export const SignalResponse = {
     if (message.update !== undefined) {
       ParticipantUpdate.encode(message.update, writer.uint32(42).fork()).ldelim();
     }
+    if (message.trackPublished !== undefined) {
+      TrackInfo.encode(message.trackPublished, writer.uint32(50).fork()).ldelim();
+    }
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): SignalResponse {
@@ -223,6 +230,9 @@ export const SignalResponse = {
           break;
         case 5:
           message.update = ParticipantUpdate.decode(reader, reader.uint32());
+          break;
+        case 6:
+          message.trackPublished = TrackInfo.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -258,6 +268,11 @@ export const SignalResponse = {
     } else {
       message.update = undefined;
     }
+    if (object.trackPublished !== undefined && object.trackPublished !== null) {
+      message.trackPublished = TrackInfo.fromJSON(object.trackPublished);
+    } else {
+      message.trackPublished = undefined;
+    }
     return message;
   },
   fromPartial(object: DeepPartial<SignalResponse>): SignalResponse {
@@ -287,6 +302,11 @@ export const SignalResponse = {
     } else {
       message.update = undefined;
     }
+    if (object.trackPublished !== undefined && object.trackPublished !== null) {
+      message.trackPublished = TrackInfo.fromPartial(object.trackPublished);
+    } else {
+      message.trackPublished = undefined;
+    }
     return message;
   },
   toJSON(message: SignalResponse): unknown {
@@ -296,6 +316,7 @@ export const SignalResponse = {
     message.negotiate !== undefined && (obj.negotiate = message.negotiate ? SessionDescription.toJSON(message.negotiate) : undefined);
     message.trickle !== undefined && (obj.trickle = message.trickle ? Trickle.toJSON(message.trickle) : undefined);
     message.update !== undefined && (obj.update = message.update ? ParticipantUpdate.toJSON(message.update) : undefined);
+    message.trackPublished !== undefined && (obj.trackPublished = message.trackPublished ? TrackInfo.toJSON(message.trackPublished) : undefined);
     return obj;
   },
 };

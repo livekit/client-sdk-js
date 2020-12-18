@@ -1,5 +1,13 @@
 import { ConnectionInfo, JoinOptions } from './api/rtcClient';
-import { connect } from './connect';
+import {
+  connect,
+  createLocalAudioTrack,
+  CreateLocalTrackOptions,
+  createLocalTracks,
+  CreateLocalTracksOptions,
+  createLocalVideoTrack,
+  LogLevel,
+} from './livekit';
 import { RoomEvent } from './room/events';
 import {
   LocalParticipant,
@@ -11,6 +19,12 @@ import { AudioTrack, Track, VideoTrack } from './room/track';
 
 export {
   connect,
+  createLocalAudioTrack,
+  createLocalVideoTrack,
+  createLocalTracks,
+  CreateLocalTrackOptions,
+  CreateLocalTracksOptions,
+  LogLevel,
   ConnectionInfo,
   JoinOptions,
   Room,

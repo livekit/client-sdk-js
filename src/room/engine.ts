@@ -112,6 +112,10 @@ export class RTCEngine extends EventEmitter {
       this.emit(EngineEvent.ParticipantUpdate, updates);
     };
 
+    this.client.onLocalTrackPublished = (ti) => {
+      this.emit(EngineEvent.LocalTrackPublished, ti);
+    };
+
     this.client.onClose = (reason) => {
       this.emit(EngineEvent.Disconnected, reason);
     };

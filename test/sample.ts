@@ -1,6 +1,18 @@
-import { connect, RemoteParticipant, RoomEvent } from '../src/index';
+import {
+  connect,
+  createLocalTracks,
+  RemoteParticipant,
+  Room,
+  RoomEvent,
+} from '../src/index';
 import { ParticipantEvent } from '../src/room/events';
-import { RemoteTrack } from '../src/room/track';
+import {
+  AudioTrack,
+  LocalTrack,
+  RemoteTrack,
+  VideoTrack,
+} from '../src/room/track';
+import { LocalTrackPublication } from '../src/room/trackPublication';
 
 let $ = function (id: string) {
   return document.getElementById(id);
@@ -9,6 +21,7 @@ let $ = function (id: string) {
 declare global {
   interface Window {
     connectToRoom: any;
+    toggleVideo: any;
   }
 }
 
@@ -30,8 +43,8 @@ function appendLog(...args: any[]) {
   })();
 }
 
-function trackSubscribed(div: HTMLDivElement, track: RemoteTrack) {
-  appendLog('track subscribed', track.sid);
+function trackSubscribed(div: HTMLDivElement, track: AudioTrack | VideoTrack) {
+  appendLog('track subscribed', track);
   div.appendChild(track.attach());
 }
 
@@ -69,6 +82,7 @@ function participantDisconnected(participant: RemoteParticipant) {
   $(participant.sid)?.remove();
 }
 
+let currentRoom: Room;
 window.connectToRoom = () => {
   const host = (<HTMLInputElement>$('host')).value;
   const port = (<HTMLInputElement>$('port')).value;
@@ -82,6 +96,10 @@ window.connectToRoom = () => {
   })
     .then((room) => {
       appendLog('connected to room', room.sid);
+      $('toggle-video-button')!.removeAttribute('disabled');
+      $('connect-button')!.setAttribute('disabled', 'true');
+      currentRoom = room;
+
       room
         .on(RoomEvent.ParticipantConnected, participantConnected)
         .on(RoomEvent.ParticipantDisconnected, participantDisconnected);
@@ -94,4 +112,27 @@ window.connectToRoom = () => {
     .catch((reason) => {
       console.error('error connecting to room', reason);
     });
+};
+
+let videoEnabled = false;
+window.toggleVideo = () => {
+  if (!currentRoom) return;
+
+  if (videoEnabled) {
+    const tracks: LocalTrack[] = [];
+    for (const publication of currentRoom.localParticipant.getTracks()) {
+      const localPublication = <LocalTrackPublication>publication;
+      tracks.push(localPublication.track);
+      currentRoom.localParticipant.unpublishTracks(tracks);
+    }
+  } else {
+    const div = <HTMLDivElement>$('local-video');
+    createLocalTracks().then((tracks) => {
+      currentRoom.localParticipant.publishTracks(tracks);
+      for (const track of tracks) {
+        trackSubscribed(div, track);
+      }
+    });
+  }
+  videoEnabled = !videoEnabled;
 };

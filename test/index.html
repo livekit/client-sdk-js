@@ -41,7 +41,12 @@
       </div>
 
       <div class="form-group row">
-        <button class="btn btn-primary" type="button" onclick="connectToRoom()">Connect</button>
+        <div class="col-md-1">
+          <button id="connect-button" class="btn btn-primary" type="button" onclick="connectToRoom()">Connect</button>
+        </div>
+        <div class="col-md-2">
+          <button id="toggle-video-button" class="btn btn-secondary" disabled type="button" onclick="toggleVideo()">Toggle Video</button>
+        </div>
       </div>
 
       <div class="form-group row">
@@ -50,6 +55,11 @@
     </form>
 
     <div class="row" id="remote-area">
+    </div>
+    <div class="row" id="local-area">
+      <div class="col-md-6 video-container" id="local-video">
+        Me
+      </div>
     </div>
   </div>
   <script src="/bundle.js"></script>

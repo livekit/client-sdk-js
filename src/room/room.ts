@@ -19,7 +19,7 @@ class Room extends EventEmitter {
   engine: RTCEngine;
   state: RoomState = RoomState.Disconnected;
 
-  localParticipant?: LocalParticipant;
+  localParticipant: LocalParticipant;
   participants: { [key: string]: RemoteParticipant } = {};
 
   constructor(client: RTCClient, roomId: string) {
@@ -41,6 +41,9 @@ class Room extends EventEmitter {
         this.handleParticipantUpdates(participants);
       }
     );
+
+    // placeholder until connected
+    this.localParticipant = new LocalParticipant('', '', this.engine);
   }
 
   connect = async (
