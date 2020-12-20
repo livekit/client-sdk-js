@@ -5,9 +5,10 @@ import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant } from './participant/LocalParticipant';
 import { RemoteParticipant } from './participant/RemoteParticipant';
 import { RTCEngine } from './RTCEngine';
+import { RemoteDataTrack } from './track/RemoteDataTrack';
 import { RemoteTrackPublication } from './track/RemoteTrackPublication';
 import { RemoteTrack } from './track/types';
-import { unpackTrackId } from './utils';
+import { unpackDataTrackLabel, unpackTrackId } from './utils';
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -28,9 +29,19 @@ class Room extends EventEmitter {
     this.sid = roomId;
     this.engine = new RTCEngine(client);
 
-    this.engine.on(EngineEvent.TrackAdded, (mediaTrack: MediaStreamTrack) => {
-      this.onTrackAdded(mediaTrack);
-    });
+    this.engine.on(
+      EngineEvent.MediaTrackAdded,
+      (mediaTrack: MediaStreamTrack) => {
+        this.onTrackAdded(mediaTrack);
+      }
+    );
+
+    this.engine.on(
+      EngineEvent.DataChannelAdded,
+      (dataChannel: RTCDataChannel) => {
+        this.onDataChannelAdded(dataChannel);
+      }
+    );
 
     this.engine.on(EngineEvent.Disconnected, (reason: any) => {
       this.emit(RoomEvent.Disconnected);
@@ -76,6 +87,14 @@ class Room extends EventEmitter {
 
     const participant = this.getOrCreateParticipant(participantId);
     participant.addSubscribedMediaTrack(mediaTrack, trackId);
+  }
+
+  private onDataChannelAdded(dataChannel: RTCDataChannel) {
+    const [participantId, trackId, name] = unpackDataTrackLabel(
+      dataChannel.label
+    );
+    const participant = this.getOrCreateParticipant(participantId);
+    participant.addSubscribedDataTrack(dataChannel, trackId, name);
   }
 
   private handleParticipantUpdates(participantInfos: ParticipantInfo[]) {
@@ -159,6 +178,13 @@ class Room extends EventEmitter {
         ParticipantEvent.TrackUnsubscribed,
         (publication: RemoteTrackPublication) => {
           this.emit(RoomEvent.TrackUnsubscribed, publication, participant);
+        }
+      );
+
+      participant.on(
+        ParticipantEvent.TrackMessage,
+        (data: any, track: RemoteDataTrack) => {
+          this.emit(RoomEvent.TrackMessage, data, track, participant);
         }
       );
     }

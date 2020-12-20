@@ -78,7 +78,11 @@ export class RTCEngine extends EventEmitter {
     };
 
     this.peerConn.ontrack = (ev: RTCTrackEvent) => {
-      this.emit(EngineEvent.TrackAdded, ev.track, ev.streams);
+      this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams);
+    };
+
+    this.peerConn.ondatachannel = (ev: RTCDataChannelEvent) => {
+      this.emit(EngineEvent.DataChannelAdded, ev.channel);
     };
 
     // always have a blank data channel, to ensure there isn't an empty ice-ufrag

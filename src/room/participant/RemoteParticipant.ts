@@ -1,8 +1,10 @@
-import { ParticipantInfo, TrackInfo } from '../../proto/model';
+import { ParticipantInfo, TrackInfo, TrackInfo_Type } from '../../proto/model';
 import { TrackInvalidError } from '../errors';
-import { ParticipantEvent } from '../events';
+import { ParticipantEvent, TrackEvent } from '../events';
 import { RemoteAudioTrack } from '../track/RemoteAudioTrack';
 import { RemoteAudioTrackPublication } from '../track/RemoteAudioTrackPublication';
+import { RemoteDataTrack } from '../track/RemoteDataTrack';
+import { RemoteDataTrackPublication } from '../track/RemoteDataTrackPublication';
 import { RemoteTrackPublication } from '../track/RemoteTrackPublication';
 import { RemoteVideoTrack } from '../track/RemoteVideoTrack';
 import { RemoteVideoTrackPublication } from '../track/RemoteVideoTrackPublication';
@@ -29,24 +31,23 @@ export class RemoteParticipant extends Participant {
 
   addSubscribedMediaTrack(
     mediaTrack: MediaStreamTrack,
-    id: string
+    sid: Track.SID
   ): RemoteTrackPublication {
     const isVideo = mediaTrack.kind === 'video';
     let track: RemoteTrack;
     if (isVideo) {
-      track = new RemoteVideoTrack(mediaTrack, id);
+      track = new RemoteVideoTrack(mediaTrack, sid);
     } else {
-      track = new RemoteAudioTrack(mediaTrack, id);
+      track = new RemoteAudioTrack(mediaTrack, sid);
     }
 
     // find the track publication or create one
     // it's possible for the media track to arrive before participant info
-    let publication = this.getTrackPublication(id);
-    let newTrackPublication = !publication;
+    let publication = this.getTrackPublication(sid);
 
     if (!publication) {
       const info: TrackInfo = {
-        sid: id,
+        sid: sid,
         name: mediaTrack.label,
         type: Track.kindToProto(track.kind),
       };
@@ -66,22 +67,21 @@ export class RemoteParticipant extends Participant {
         default:
           throw new TrackInvalidError();
       }
-    }
 
-    if (newTrackPublication) {
       this.addTrackPublication(publication);
       // only send this after metadata is filled in, which indicates the track
       // is published AFTER client connected to room
       if (this.hasMetadata) {
         this.emit(ParticipantEvent.TrackPublished, publication);
       }
+    } else {
+      publication.track = track;
     }
 
     // when media track is ended, fire the event
     mediaTrack.onended = (ev) => {
       this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
     };
-
     this.emit(ParticipantEvent.TrackSubscribed, track, publication);
 
     return publication;
@@ -89,16 +89,51 @@ export class RemoteParticipant extends Participant {
 
   addSubscribedDataTrack(
     dataChannel: RTCDataChannel,
-    sid: string,
+    sid: Track.SID,
     name: string
-  ) {}
+  ): RemoteTrackPublication {
+    const track = new RemoteDataTrack(sid, name, dataChannel);
+    let publication = this.getTrackPublication(sid);
+
+    if (!publication) {
+      publication = new RemoteDataTrackPublication(
+        {
+          sid: sid,
+          name: name,
+          type: TrackInfo_Type.DATA,
+        },
+        track
+      );
+      this.addTrackPublication(publication);
+
+      // only send this after metadata is filled in, which indicates the track
+      // is published AFTER client connected to room
+      if (this.hasMetadata) {
+        this.emit(ParticipantEvent.TrackPublished, publication);
+      }
+    } else {
+      publication.track = track;
+    }
+
+    track.on(TrackEvent.Message, (data: any) => {
+      // forward this
+      this.emit(ParticipantEvent.TrackMessage, data, track);
+    });
+
+    dataChannel.onclose = (ev) => {
+      this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
+    };
+    this.emit(ParticipantEvent.TrackSubscribed, track, publication);
+
+    return publication;
+  }
 
   get hasMetadata(): boolean {
     return !!this.participantInfo;
   }
 
-  getTrackPublication(id: Track.SID): RemoteTrackPublication | null {
-    return <RemoteTrackPublication>this.tracks[id];
+  getTrackPublication(sid: Track.SID): RemoteTrackPublication | null {
+    return <RemoteTrackPublication>this.tracks[sid];
   }
 
   updateMetadata(info: ParticipantInfo) {

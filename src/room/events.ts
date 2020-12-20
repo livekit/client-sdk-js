@@ -6,6 +6,7 @@ export enum RoomEvent {
   TrackSubscribed = 'trackSubscribed',
   TrackUnpublished = 'trackUnpublished',
   TrackUnsubscribed = 'trackUnsubscribed',
+  TrackMessage = 'trackMessage',
 }
 
 export enum ParticipantEvent {
@@ -13,6 +14,7 @@ export enum ParticipantEvent {
   TrackSubscribed = 'trackSubscribed',
   TrackUnpublished = 'trackUnpublished',
   TrackUnsubscribed = 'trackUnsubscribed',
+  TrackMessage = 'trackMessage',
 }
 
 export enum EngineEvent {
@@ -20,7 +22,8 @@ export enum EngineEvent {
   Disconnected = 'disconnected',
   LocalTrackPublished = 'localTrackPublished',
   ParticipantUpdate = 'participantUpdate',
-  TrackAdded = 'trackAdded',
+  MediaTrackAdded = 'mediaTrackAdded',
+  DataChannelAdded = 'dataChannelAdded',
 }
 
 export enum TrackEvent {

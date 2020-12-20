@@ -87,6 +87,10 @@ export class LocalParticipant extends Participant {
       const localTrack = <LocalTrack>track;
       if (localTrack instanceof LocalDataTrack) {
         // add data track
+        this.engine.peerConn.createDataChannel(
+          localTrack.name,
+          localTrack.dataChannelInit
+        );
       } else {
         this.engine.peerConn.addTrack(localTrack.mediaStreamTrack);
       }

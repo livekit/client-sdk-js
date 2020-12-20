@@ -1,19 +1,19 @@
 import {
+  AudioTrack,
   connect,
   createLocalTracks,
+  LocalDataTrack,
+  LocalTrack,
+  LocalTrackPublication,
+  ParticipantEvent,
+  RemoteDataTrack,
   RemoteParticipant,
+  RemoteTrack,
   Room,
   RoomEvent,
-} from '../src/index';
-import { ParticipantEvent } from '../src/room/events';
-import {
-  AudioTrack,
-  LocalTrack,
-  RemoteTrack,
   Track,
   VideoTrack,
-} from '../src/room/track';
-import { LocalTrackPublication } from '../src/room/trackPublication';
+} from '../src/index';
 
 let $ = function (id: string) {
   return document.getElementById(id);
@@ -46,17 +46,26 @@ function appendLog(...args: any[]) {
 
 function trackSubscribed(
   div: HTMLDivElement,
-  track: AudioTrack | VideoTrack
-): HTMLMediaElement {
+  track: AudioTrack | VideoTrack | RemoteDataTrack | LocalDataTrack
+): HTMLMediaElement | null {
   appendLog('track subscribed', track);
-  const element = track.attach();
-  div.appendChild(element);
-  return element;
+  if (track instanceof AudioTrack || track instanceof VideoTrack) {
+    const element = track.attach();
+    div.appendChild(element);
+    return element;
+  } else if (track instanceof RemoteDataTrack) {
+    handleDataTrack(track);
+  }
+  return null;
 }
+
+function handleDataTrack(dataTrack: RemoteDataTrack) {}
 
 function trackUnsubscribed(track: RemoteTrack) {
   appendLog('track unsubscribed', track.sid);
-  track.detach().forEach((element) => element.remove());
+  if (track instanceof AudioTrack || track instanceof VideoTrack) {
+    track.detach().forEach((element) => element.remove());
+  }
 }
 
 function participantConnected(participant: RemoteParticipant) {
@@ -71,12 +80,14 @@ function participantConnected(participant: RemoteParticipant) {
   participant.on(ParticipantEvent.TrackSubscribed, (track) =>
     trackSubscribed(div, track)
   );
-  participant.on(ParticipantEvent.TrackUnpublished, (track) =>
+  participant.on(ParticipantEvent.TrackUnsubscribed, (track) =>
     trackUnsubscribed(track)
   );
 
   Object.values(participant.tracks).forEach((publication) => {
-    if (publication.isSubscribed) {
+    if (!publication.isSubscribed) return;
+    if (publication.track! instanceof RemoteDataTrack) {
+    } else {
       trackSubscribed(div, publication.track!);
     }
   });
@@ -128,7 +139,7 @@ window.toggleVideo = () => {
     const tracks: LocalTrack[] = [];
     for (const publication of currentRoom.localParticipant.getTracks()) {
       const localPublication = <LocalTrackPublication>publication;
-      tracks.push(localPublication.track);
+      tracks.push(localPublication.track!);
       currentRoom.localParticipant.unpublishTracks(tracks);
     }
   } else {
@@ -137,7 +148,7 @@ window.toggleVideo = () => {
       currentRoom.localParticipant.publishTracks(tracks);
       for (const track of tracks) {
         const element = trackSubscribed(div, track);
-        if (track.kind === Track.Kind.Video) {
+        if (element && track.kind === Track.Kind.Video) {
           // flip video
           element.style.transform = 'scale(-1, 1)';
         }
