@@ -5,6 +5,7 @@ import {
   LocalDataTrack,
   LocalTrack,
   LocalTrackPublication,
+  Participant,
   ParticipantEvent,
   RemoteDataTrack,
   RemoteParticipant,
@@ -23,6 +24,7 @@ declare global {
   interface Window {
     connectToRoom: any;
     toggleVideo: any;
+    enterText: any;
   }
 }
 
@@ -46,25 +48,33 @@ function appendLog(...args: any[]) {
 
 function trackSubscribed(
   div: HTMLDivElement,
-  track: AudioTrack | VideoTrack | RemoteDataTrack | LocalDataTrack
+  track: Track,
+  participant: Participant
 ): HTMLMediaElement | null {
   appendLog('track subscribed', track);
   if (track instanceof AudioTrack || track instanceof VideoTrack) {
     const element = track.attach();
     div.appendChild(element);
     return element;
-  } else if (track instanceof RemoteDataTrack) {
-    handleDataTrack(track);
   }
   return null;
 }
 
-function handleDataTrack(dataTrack: RemoteDataTrack) {}
-
-function trackUnsubscribed(track: RemoteTrack) {
+function trackUnsubscribed(track: RemoteTrack, participant: Participant) {
   appendLog('track unsubscribed', track.sid);
   if (track instanceof AudioTrack || track instanceof VideoTrack) {
     track.detach().forEach((element) => element.remove());
+  }
+}
+
+function handleMessage(
+  msg: string | ArrayBuffer,
+  track: RemoteDataTrack,
+  participant: RemoteParticipant
+) {
+  if (track.name === 'chat') {
+    const chat = <HTMLTextAreaElement>$('chat');
+    chat.value += `${participant.name}: ${msg}\n`;
   }
 }
 
@@ -78,17 +88,17 @@ function participantConnected(participant: RemoteParticipant) {
   $('remote-area')?.appendChild(div);
 
   participant.on(ParticipantEvent.TrackSubscribed, (track) =>
-    trackSubscribed(div, track)
+    trackSubscribed(div, track, participant)
   );
   participant.on(ParticipantEvent.TrackUnsubscribed, (track) =>
-    trackUnsubscribed(track)
+    trackUnsubscribed(track, participant)
   );
 
   Object.values(participant.tracks).forEach((publication) => {
     if (!publication.isSubscribed) return;
     if (publication.track! instanceof RemoteDataTrack) {
     } else {
-      trackSubscribed(div, publication.track!);
+      trackSubscribed(div, publication.track!, participant);
     }
   });
 }
@@ -100,16 +110,21 @@ function participantDisconnected(participant: RemoteParticipant) {
 }
 
 let currentRoom: Room;
+const chatTrack: LocalDataTrack = new LocalDataTrack({
+  name: 'chat',
+  ordered: true,
+});
 window.connectToRoom = () => {
   const host = (<HTMLInputElement>$('host')).value;
   const port = (<HTMLInputElement>$('port')).value;
   const roomId = (<HTMLInputElement>$('roomId')).value;
   const token = (<HTMLInputElement>$('token')).value;
+  const name = (<HTMLInputElement>$('name')).value;
 
   // participant to div mapping
 
   connect({ host: host, port: parseInt(port) }, roomId, token, {
-    name: 'myclient',
+    name: name,
   })
     .then((room) => {
       appendLog('connected to room', room.sid);
@@ -119,7 +134,10 @@ window.connectToRoom = () => {
 
       room
         .on(RoomEvent.ParticipantConnected, participantConnected)
-        .on(RoomEvent.ParticipantDisconnected, participantDisconnected);
+        .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
+        .on(RoomEvent.TrackMessage, handleMessage);
+
+      room.localParticipant.publishTrack(chatTrack);
 
       appendLog('room participants', Object.keys(room.participants));
       Object.values(room.participants).forEach((participant) => {
@@ -147,7 +165,11 @@ window.toggleVideo = () => {
     createLocalTracks().then((tracks) => {
       currentRoom.localParticipant.publishTracks(tracks);
       for (const track of tracks) {
-        const element = trackSubscribed(div, track);
+        const element = trackSubscribed(
+          div,
+          track,
+          currentRoom.localParticipant
+        );
         if (element && track.kind === Track.Kind.Video) {
           // flip video
           element.style.transform = 'scale(-1, 1)';
@@ -156,4 +178,13 @@ window.toggleVideo = () => {
     });
   }
   videoEnabled = !videoEnabled;
+};
+
+window.enterText = () => {
+  const textField = <HTMLInputElement>$('entry');
+  if (textField.value) {
+    chatTrack.send(textField.value);
+    (<HTMLTextAreaElement>$('chat')).value += `me: ${textField.value}\n`;
+    textField.value = '';
+  }
 };
