@@ -1,11 +1,12 @@
 import { EventEmitter } from 'events';
-import { ConnectionInfo, JoinOptions, RTCClient } from '../api/rtcClient';
+import { ConnectionInfo, JoinOptions, RTCClient } from '../api/RTCClient';
 import { ParticipantInfo, ParticipantInfo_State } from '../proto/model';
-import { RTCEngine } from './engine';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
-import { LocalParticipant, RemoteParticipant } from './participant';
-import { RemoteTrack } from './track';
-import { RemoteTrackPublication } from './trackPublication';
+import { LocalParticipant } from './participant/LocalParticipant';
+import { RemoteParticipant } from './participant/RemoteParticipant';
+import { RTCEngine } from './RTCEngine';
+import { RemoteTrackPublication } from './track/RemoteTrackPublication';
+import { RemoteTrack } from './track/types';
 import { unpackTrackId } from './utils';
 
 export enum RoomState {
@@ -74,7 +75,7 @@ class Room extends EventEmitter {
     const [participantId, trackId] = unpackTrackId(mediaTrack.id);
 
     const participant = this.getOrCreateParticipant(participantId);
-    participant.addSubscribedTrack(mediaTrack, trackId);
+    participant.addSubscribedMediaTrack(mediaTrack, trackId);
   }
 
   private handleParticipantUpdates(participantInfos: ParticipantInfo[]) {

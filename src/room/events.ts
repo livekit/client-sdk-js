@@ -23,6 +23,6 @@ export enum EngineEvent {
   TrackAdded = 'trackAdded',
 }
 
-// export enum TrackEvent {
-//   TrackPublished = 'trackPublished',
-// }
+export enum TrackEvent {
+  Message = 'message',
+}

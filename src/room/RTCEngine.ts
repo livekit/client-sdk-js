@@ -1,7 +1,9 @@
 import { EventEmitter } from 'events';
-import { ConnectionInfo, JoinOptions, RTCClient } from '../api/rtcClient';
+import { ConnectionInfo, JoinOptions, RTCClient } from '../api/RTCClient';
 import { JoinResponse } from '../proto/rtc';
 import { EngineEvent } from './events';
+
+const placeholderDataChannel = '_private';
 
 export class RTCEngine extends EventEmitter {
   peerConn: RTCPeerConnection;
@@ -80,7 +82,7 @@ export class RTCEngine extends EventEmitter {
     };
 
     // always have a blank data channel, to ensure there isn't an empty ice-ufrag
-    this.privateDC = this.peerConn.createDataChannel('_private');
+    this.privateDC = this.peerConn.createDataChannel(placeholderDataChannel);
 
     // configure signaling client
     this.client.onAnswer = (sd) => {

@@ -1,7 +1,9 @@
-import { ConnectionInfo, JoinOptions, RTCClientImpl } from './api/rtcClient';
+import { ConnectionInfo, JoinOptions, RTCClientImpl } from './api/RTCClient';
 import { TrackInvalidError } from './room/errors';
-import Room from './room/room';
-import { LocalAudioTrack, LocalTrack, LocalVideoTrack } from './room/track';
+import Room from './room/Room';
+import { LocalAudioTrack } from './room/track/LocalAudioTrack';
+import { LocalVideoTrack } from './room/track/LocalVideoTrack';
+import { LocalTrack } from './room/track/types';
 
 const connect = function (
   info: ConnectionInfo,
