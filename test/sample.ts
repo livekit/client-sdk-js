@@ -165,15 +165,18 @@ window.toggleVideo = () => {
     createLocalTracks().then((tracks) => {
       currentRoom.localParticipant.publishTracks(tracks);
       for (const track of tracks) {
+        // skip adding local audio track, to avoid your own sound
+        // only process local video tracks
+        if (track.kind !== Track.Kind.Video) {
+          continue;
+        }
         const element = trackSubscribed(
           div,
           track,
           currentRoom.localParticipant
         );
-        if (element && track.kind === Track.Kind.Video) {
-          // flip video
-          element.style.transform = 'scale(-1, 1)';
-        }
+        // flip video
+        if (element) element.style.transform = 'scale(-1, 1)';
       }
     });
   }
