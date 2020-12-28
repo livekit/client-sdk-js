@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
-import { ConnectionInfo, JoinOptions, RTCClient } from '../api/RTCClient';
+import log from 'loglevel';
+import { ConnectionInfo, ConnectOptions, RTCClient } from '../api/RTCClient';
 import { ParticipantInfo, ParticipantInfo_State } from '../proto/model';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant } from './participant/LocalParticipant';
@@ -17,16 +18,16 @@ export enum RoomState {
 }
 
 class Room extends EventEmitter {
-  sid: string;
   engine: RTCEngine;
   state: RoomState = RoomState.Disconnected;
-
-  localParticipant: LocalParticipant;
   participants: { [key: string]: RemoteParticipant } = {};
 
-  constructor(client: RTCClient, roomId: string) {
+  // available after connected
+  sid!: string;
+  localParticipant!: LocalParticipant;
+
+  constructor(client: RTCClient) {
     super();
-    this.sid = roomId;
     this.engine = new RTCEngine(client);
 
     this.engine.on(
@@ -53,17 +54,14 @@ class Room extends EventEmitter {
         this.handleParticipantUpdates(participants);
       }
     );
-
-    // placeholder until connected
-    this.localParticipant = new LocalParticipant('', '', this.engine);
   }
 
   connect = async (
     info: ConnectionInfo,
     token: string,
-    options?: JoinOptions
+    options?: ConnectOptions
   ): Promise<Room> => {
-    const joinResponse = await this.engine.join(info, this.sid, token, options);
+    const joinResponse = await this.engine.join(info, token, options);
 
     this.state = RoomState.Connected;
     const pi = joinResponse.participant!;
@@ -192,7 +190,7 @@ class Room extends EventEmitter {
   }
 
   emit(event: string | symbol, ...args: any[]): boolean {
-    console.debug('room event', event, ...args);
+    log.trace('room event', event, ...args);
     return super.emit(event, ...args);
   }
 }

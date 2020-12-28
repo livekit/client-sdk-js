@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
-import { ConnectionInfo, JoinOptions, RTCClient } from '../api/RTCClient';
+import log from 'loglevel';
+import { ConnectionInfo, ConnectOptions, RTCClient } from '../api/RTCClient';
 import { JoinResponse } from '../proto/rtc';
 import { EngineEvent } from './events';
 
@@ -24,11 +25,10 @@ export class RTCEngine extends EventEmitter {
 
   join = async (
     info: ConnectionInfo,
-    roomId: string,
     token: string,
-    options?: JoinOptions
+    options?: ConnectOptions
   ): Promise<JoinResponse> => {
-    const joinResponse = await this.client.join(info, roomId, token, options);
+    const joinResponse = await this.client.join(info, token, options);
 
     // create offer
     const offer = await this.peerConn.createOffer();
@@ -54,7 +54,7 @@ export class RTCEngine extends EventEmitter {
     this.peerConn.onicecandidate = (ev) => {
       if (!ev.candidate) return;
 
-      console.debug('adding ICE candidate for peer', ev.candidate);
+      log.trace('adding ICE candidate for peer', ev.candidate);
       if (this.rtcConnected) {
         // send it through
         this.client.sendIceCandidate(ev.candidate);
@@ -98,7 +98,7 @@ export class RTCEngine extends EventEmitter {
 
     // add candidate on trickle
     this.client.onTrickle = (candidate) => {
-      console.debug('got ICE candidate from peer', candidate);
+      log.debug('got ICE candidate from peer', candidate);
       this.peerConn.addIceCandidate(candidate);
     };
 
@@ -129,7 +129,7 @@ export class RTCEngine extends EventEmitter {
 
   // signaling channel connected
   private onRTCConnected() {
-    console.debug('RTC connected');
+    log.debug('RTC connected');
     this.rtcConnected = true;
 
     // send pending ICE candidates
@@ -140,7 +140,7 @@ export class RTCEngine extends EventEmitter {
   }
 
   private onICEConnected() {
-    console.debug('ICE connected');
+    log.debug('ICE connected');
     this.iceConnected = true;
   }
 }

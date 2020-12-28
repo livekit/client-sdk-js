@@ -1,3 +1,4 @@
+import log from 'loglevel';
 import 'webrtc-adapter';
 import { ParticipantInfo, TrackInfo } from '../proto/model';
 import {
@@ -20,9 +21,8 @@ export interface ConnectionInfo {
 export interface RTCClient {
   join(
     info: ConnectionInfo,
-    roomId: string,
     token: string,
-    options?: JoinOptions
+    options?: ConnectOptions
   ): Promise<JoinResponse>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendNegotiate(offer: RTCSessionDescriptionInit): void;
@@ -44,7 +44,8 @@ export interface RTCClient {
   onLocalTrackPublished?: (ti: TrackInfo) => void;
 }
 
-export interface JoinOptions {
+export interface ConnectOptions {
+  // name of the room to join
   name?: string;
 }
 
@@ -67,19 +68,18 @@ export class RTCClientImpl {
 
   join(
     info: ConnectionInfo,
-    roomId: string,
     token: string,
-    options?: JoinOptions
+    options?: ConnectOptions
   ): Promise<JoinResponse> {
     const protocol = info.secure ? 'wss' : 'ws';
-    let url = `${protocol}://${info.host}:${info.port}/rtc?room_id=${roomId}&token=${token}`;
+    let url = `${protocol}://${info.host}:${info.port}/rtc?access_token=${token}`;
 
     if (options && options.name) {
-      url += '&name=' + encodeURIComponent(options.name);
+      url += '&room=' + encodeURIComponent(options.name);
     }
 
     return new Promise<JoinResponse>((resolve, reject) => {
-      console.debug('connecting to', url);
+      log.debug('connecting to', url);
       const ws = new WebSocket(url);
       ws.onerror = (ev: Event) => {
         if (!this.ws) {
@@ -117,7 +117,7 @@ export class RTCClientImpl {
       ws.onclose = (ev: CloseEvent) => {
         if (!this.isConnected) return;
 
-        console.debug('websocket connection closed', ev.reason);
+        log.debug('websocket connection closed', ev.reason);
         this.isConnected = false;
         if (this.onClose) this.onClose(ev.reason);
       };
@@ -134,21 +134,21 @@ export class RTCClientImpl {
   }
 
   sendOffer(offer: RTCSessionDescriptionInit) {
-    console.debug('sending offer', offer);
+    log.debug('sending offer', offer);
     this.sendRequest({
       offer: toProtoSessionDescription(offer),
     });
   }
 
   sendNegotiate(negotiate: RTCSessionDescriptionInit) {
-    console.debug('sending negotiate', negotiate.type);
+    log.debug('sending negotiate', negotiate.type);
     this.sendRequest({
       negotiate: toProtoSessionDescription(negotiate),
     });
   }
 
   sendIceCandidate(candidate: RTCIceCandidateInit) {
-    console.debug('sending ice candidate', candidate);
+    log.debug('sending ice candidate', candidate);
     this.sendRequest({
       trickle: {
         candidateInit: JSON.stringify(candidate),

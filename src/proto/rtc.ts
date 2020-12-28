@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { TrackInfo, ParticipantInfo } from './model';
+import { TrackInfo, RoomInfo, ParticipantInfo } from './model';
 import { Writer, Reader } from 'protobufjs/minimal';
 
 
@@ -50,6 +50,7 @@ export interface SessionDescription {
 }
 
 export interface JoinResponse {
+  room?: RoomInfo;
   participant?: ParticipantInfo;
   otherParticipants: ParticipantInfo[];
 }
@@ -432,11 +433,14 @@ export const SessionDescription = {
 
 export const JoinResponse = {
   encode(message: JoinResponse, writer: Writer = Writer.create()): Writer {
+    if (message.room !== undefined && message.room !== undefined) {
+      RoomInfo.encode(message.room, writer.uint32(10).fork()).ldelim();
+    }
     if (message.participant !== undefined && message.participant !== undefined) {
-      ParticipantInfo.encode(message.participant, writer.uint32(10).fork()).ldelim();
+      ParticipantInfo.encode(message.participant, writer.uint32(18).fork()).ldelim();
     }
     for (const v of message.otherParticipants) {
-      ParticipantInfo.encode(v!, writer.uint32(18).fork()).ldelim();
+      ParticipantInfo.encode(v!, writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },
@@ -449,9 +453,12 @@ export const JoinResponse = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.participant = ParticipantInfo.decode(reader, reader.uint32());
+          message.room = RoomInfo.decode(reader, reader.uint32());
           break;
         case 2:
+          message.participant = ParticipantInfo.decode(reader, reader.uint32());
+          break;
+        case 3:
           message.otherParticipants.push(ParticipantInfo.decode(reader, reader.uint32()));
           break;
         default:
@@ -464,6 +471,11 @@ export const JoinResponse = {
   fromJSON(object: any): JoinResponse {
     const message = { ...baseJoinResponse } as JoinResponse;
     message.otherParticipants = [];
+    if (object.room !== undefined && object.room !== null) {
+      message.room = RoomInfo.fromJSON(object.room);
+    } else {
+      message.room = undefined;
+    }
     if (object.participant !== undefined && object.participant !== null) {
       message.participant = ParticipantInfo.fromJSON(object.participant);
     } else {
@@ -479,6 +491,11 @@ export const JoinResponse = {
   fromPartial(object: DeepPartial<JoinResponse>): JoinResponse {
     const message = { ...baseJoinResponse } as JoinResponse;
     message.otherParticipants = [];
+    if (object.room !== undefined && object.room !== null) {
+      message.room = RoomInfo.fromPartial(object.room);
+    } else {
+      message.room = undefined;
+    }
     if (object.participant !== undefined && object.participant !== null) {
       message.participant = ParticipantInfo.fromPartial(object.participant);
     } else {
@@ -493,6 +510,7 @@ export const JoinResponse = {
   },
   toJSON(message: JoinResponse): unknown {
     const obj: any = {};
+    message.room !== undefined && (obj.room = message.room ? RoomInfo.toJSON(message.room) : undefined);
     message.participant !== undefined && (obj.participant = message.participant ? ParticipantInfo.toJSON(message.participant) : undefined);
     if (message.otherParticipants) {
       obj.otherParticipants = message.otherParticipants.map(e => e ? ParticipantInfo.toJSON(e) : undefined);

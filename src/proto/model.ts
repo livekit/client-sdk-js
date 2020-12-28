@@ -20,17 +20,17 @@ export interface NodeStats {
  */
 export interface Room {
   sid: string;
+  name: string;
   emptyTimeout: number;
   maxParticipants: number;
   creationTime: number;
-  token: string;
 }
 
 export interface RoomInfo {
   sid: string;
+  name: string;
   nodeIp: string;
   creationTime: number;
-  token: string;
 }
 
 export interface ParticipantInfo {
@@ -49,9 +49,9 @@ export interface TrackInfo {
   name: string;
 }
 
-export interface DataChannel {
-  sessionId: string;
-  payload: Uint8Array;
+export interface DataMessage {
+  text: string | undefined;
+  binary: Uint8Array | undefined;
 }
 
 const baseNode: object = {
@@ -67,17 +67,17 @@ const baseNodeStats: object = {
 
 const baseRoom: object = {
   sid: "",
+  name: "",
   emptyTimeout: 0,
   maxParticipants: 0,
   creationTime: 0,
-  token: "",
 };
 
 const baseRoomInfo: object = {
   sid: "",
+  name: "",
   nodeIp: "",
   creationTime: 0,
-  token: "",
 };
 
 const baseParticipantInfo: object = {
@@ -92,8 +92,7 @@ const baseTrackInfo: object = {
   name: "",
 };
 
-const baseDataChannel: object = {
-  sessionId: "",
+const baseDataMessage: object = {
 };
 
 function longToNumber(long: Long) {
@@ -106,7 +105,7 @@ function longToNumber(long: Long) {
 export const protobufPackage = 'livekit'
 
 export enum ParticipantInfo_State {
-  /** JOINING -  websocket connected, but not offered yet
+  /** JOINING -  websocket' connected, but not offered yet
    */
   JOINING = 0,
   /** JOINED -  server received client offer
@@ -354,10 +353,10 @@ export const NodeStats = {
 export const Room = {
   encode(message: Room, writer: Writer = Writer.create()): Writer {
     writer.uint32(10).string(message.sid);
-    writer.uint32(16).uint32(message.emptyTimeout);
-    writer.uint32(24).uint32(message.maxParticipants);
-    writer.uint32(32).int64(message.creationTime);
-    writer.uint32(42).string(message.token);
+    writer.uint32(18).string(message.name);
+    writer.uint32(24).uint32(message.emptyTimeout);
+    writer.uint32(32).uint32(message.maxParticipants);
+    writer.uint32(40).int64(message.creationTime);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): Room {
@@ -371,16 +370,16 @@ export const Room = {
           message.sid = reader.string();
           break;
         case 2:
-          message.emptyTimeout = reader.uint32();
+          message.name = reader.string();
           break;
         case 3:
-          message.maxParticipants = reader.uint32();
+          message.emptyTimeout = reader.uint32();
           break;
         case 4:
-          message.creationTime = longToNumber(reader.int64() as Long);
+          message.maxParticipants = reader.uint32();
           break;
         case 5:
-          message.token = reader.string();
+          message.creationTime = longToNumber(reader.int64() as Long);
           break;
         default:
           reader.skipType(tag & 7);
@@ -395,6 +394,11 @@ export const Room = {
       message.sid = String(object.sid);
     } else {
       message.sid = "";
+    }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = String(object.name);
+    } else {
+      message.name = "";
     }
     if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
       message.emptyTimeout = Number(object.emptyTimeout);
@@ -411,11 +415,6 @@ export const Room = {
     } else {
       message.creationTime = 0;
     }
-    if (object.token !== undefined && object.token !== null) {
-      message.token = String(object.token);
-    } else {
-      message.token = "";
-    }
     return message;
   },
   fromPartial(object: DeepPartial<Room>): Room {
@@ -424,6 +423,11 @@ export const Room = {
       message.sid = object.sid;
     } else {
       message.sid = "";
+    }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = object.name;
+    } else {
+      message.name = "";
     }
     if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
       message.emptyTimeout = object.emptyTimeout;
@@ -440,20 +444,15 @@ export const Room = {
     } else {
       message.creationTime = 0;
     }
-    if (object.token !== undefined && object.token !== null) {
-      message.token = object.token;
-    } else {
-      message.token = "";
-    }
     return message;
   },
   toJSON(message: Room): unknown {
     const obj: any = {};
     message.sid !== undefined && (obj.sid = message.sid);
+    message.name !== undefined && (obj.name = message.name);
     message.emptyTimeout !== undefined && (obj.emptyTimeout = message.emptyTimeout);
     message.maxParticipants !== undefined && (obj.maxParticipants = message.maxParticipants);
     message.creationTime !== undefined && (obj.creationTime = message.creationTime);
-    message.token !== undefined && (obj.token = message.token);
     return obj;
   },
 };
@@ -461,9 +460,9 @@ export const Room = {
 export const RoomInfo = {
   encode(message: RoomInfo, writer: Writer = Writer.create()): Writer {
     writer.uint32(10).string(message.sid);
-    writer.uint32(18).string(message.nodeIp);
-    writer.uint32(24).int64(message.creationTime);
-    writer.uint32(34).string(message.token);
+    writer.uint32(18).string(message.name);
+    writer.uint32(26).string(message.nodeIp);
+    writer.uint32(32).int64(message.creationTime);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): RoomInfo {
@@ -477,13 +476,13 @@ export const RoomInfo = {
           message.sid = reader.string();
           break;
         case 2:
-          message.nodeIp = reader.string();
+          message.name = reader.string();
           break;
         case 3:
-          message.creationTime = longToNumber(reader.int64() as Long);
+          message.nodeIp = reader.string();
           break;
         case 4:
-          message.token = reader.string();
+          message.creationTime = longToNumber(reader.int64() as Long);
           break;
         default:
           reader.skipType(tag & 7);
@@ -499,6 +498,11 @@ export const RoomInfo = {
     } else {
       message.sid = "";
     }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = String(object.name);
+    } else {
+      message.name = "";
+    }
     if (object.nodeIp !== undefined && object.nodeIp !== null) {
       message.nodeIp = String(object.nodeIp);
     } else {
@@ -509,11 +513,6 @@ export const RoomInfo = {
     } else {
       message.creationTime = 0;
     }
-    if (object.token !== undefined && object.token !== null) {
-      message.token = String(object.token);
-    } else {
-      message.token = "";
-    }
     return message;
   },
   fromPartial(object: DeepPartial<RoomInfo>): RoomInfo {
@@ -522,6 +521,11 @@ export const RoomInfo = {
       message.sid = object.sid;
     } else {
       message.sid = "";
+    }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = object.name;
+    } else {
+      message.name = "";
     }
     if (object.nodeIp !== undefined && object.nodeIp !== null) {
       message.nodeIp = object.nodeIp;
@@ -533,19 +537,14 @@ export const RoomInfo = {
     } else {
       message.creationTime = 0;
     }
-    if (object.token !== undefined && object.token !== null) {
-      message.token = object.token;
-    } else {
-      message.token = "";
-    }
     return message;
   },
   toJSON(message: RoomInfo): unknown {
     const obj: any = {};
     message.sid !== undefined && (obj.sid = message.sid);
+    message.name !== undefined && (obj.name = message.name);
     message.nodeIp !== undefined && (obj.nodeIp = message.nodeIp);
     message.creationTime !== undefined && (obj.creationTime = message.creationTime);
-    message.token !== undefined && (obj.token = message.token);
     return obj;
   },
 };
@@ -728,24 +727,28 @@ export const TrackInfo = {
   },
 };
 
-export const DataChannel = {
-  encode(message: DataChannel, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.sessionId);
-    writer.uint32(18).bytes(message.payload);
+export const DataMessage = {
+  encode(message: DataMessage, writer: Writer = Writer.create()): Writer {
+    if (message.text !== undefined) {
+      writer.uint32(10).string(message.text);
+    }
+    if (message.binary !== undefined) {
+      writer.uint32(18).bytes(message.binary);
+    }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): DataChannel {
+  decode(input: Uint8Array | Reader, length?: number): DataMessage {
     const reader = input instanceof Uint8Array ? new Reader(input) : input;
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseDataChannel } as DataChannel;
+    const message = { ...baseDataMessage } as DataMessage;
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.sessionId = reader.string();
+          message.text = reader.string();
           break;
         case 2:
-          message.payload = reader.bytes();
+          message.binary = reader.bytes();
           break;
         default:
           reader.skipType(tag & 7);
@@ -754,36 +757,36 @@ export const DataChannel = {
     }
     return message;
   },
-  fromJSON(object: any): DataChannel {
-    const message = { ...baseDataChannel } as DataChannel;
-    if (object.sessionId !== undefined && object.sessionId !== null) {
-      message.sessionId = String(object.sessionId);
+  fromJSON(object: any): DataMessage {
+    const message = { ...baseDataMessage } as DataMessage;
+    if (object.text !== undefined && object.text !== null) {
+      message.text = String(object.text);
     } else {
-      message.sessionId = "";
+      message.text = undefined;
     }
-    if (object.payload !== undefined && object.payload !== null) {
-      message.payload = bytesFromBase64(object.payload);
+    if (object.binary !== undefined && object.binary !== null) {
+      message.binary = bytesFromBase64(object.binary);
     }
     return message;
   },
-  fromPartial(object: DeepPartial<DataChannel>): DataChannel {
-    const message = { ...baseDataChannel } as DataChannel;
-    if (object.sessionId !== undefined && object.sessionId !== null) {
-      message.sessionId = object.sessionId;
+  fromPartial(object: DeepPartial<DataMessage>): DataMessage {
+    const message = { ...baseDataMessage } as DataMessage;
+    if (object.text !== undefined && object.text !== null) {
+      message.text = object.text;
     } else {
-      message.sessionId = "";
+      message.text = undefined;
     }
-    if (object.payload !== undefined && object.payload !== null) {
-      message.payload = object.payload;
+    if (object.binary !== undefined && object.binary !== null) {
+      message.binary = object.binary;
     } else {
-      message.payload = new Uint8Array();
+      message.binary = undefined;
     }
     return message;
   },
-  toJSON(message: DataChannel): unknown {
+  toJSON(message: DataMessage): unknown {
     const obj: any = {};
-    message.sessionId !== undefined && (obj.sessionId = message.sessionId);
-    message.payload !== undefined && (obj.payload = base64FromBytes(message.payload !== undefined ? message.payload : new Uint8Array()));
+    message.text !== undefined && (obj.text = message.text);
+    message.binary !== undefined && (obj.binary = message.binary !== undefined ? base64FromBytes(message.binary) : undefined);
     return obj;
   },
 };

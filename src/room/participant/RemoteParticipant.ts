@@ -1,3 +1,4 @@
+import log from 'loglevel';
 import { ParticipantInfo, TrackInfo, TrackInfo_Type } from '../../proto/model';
 import { TrackInvalidError } from '../errors';
 import { ParticipantEvent, TrackEvent } from '../events';
@@ -209,7 +210,7 @@ export class RemoteParticipant extends Participant {
   }
 
   emit(event: string | symbol, ...args: any[]): boolean {
-    console.debug('participant event', this.sid, event, ...args);
+    log.debug('participant event', this.sid, event, ...args);
     return super.emit(event, ...args);
   }
 }

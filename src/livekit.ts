@@ -1,4 +1,5 @@
-import { ConnectionInfo, JoinOptions, RTCClientImpl } from './api/RTCClient';
+import log from 'loglevel';
+import { ConnectionInfo, ConnectOptions, RTCClientImpl } from './api/RTCClient';
 import { TrackInvalidError } from './room/errors';
 import Room from './room/Room';
 import { LocalAudioTrack } from './room/track/LocalAudioTrack';
@@ -7,12 +8,11 @@ import { LocalTrack } from './room/track/types';
 
 const connect = function (
   info: ConnectionInfo,
-  roomId: string,
   token: string,
-  options?: JoinOptions
+  options?: ConnectOptions
 ): Promise<Room> {
   const client = new RTCClientImpl();
-  const room = new Room(client, roomId);
+  const room = new Room(client);
 
   // connect to room
   return room.connect(info, token, options);
@@ -75,13 +75,12 @@ async function createLocalTracks(
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
   const tracks: LocalTrack[] = [];
   stream.getTracks().forEach((mediaStreamTrack) => {
-    console.debug('created local track', mediaStreamTrack);
     const trackOptions =
       mediaStreamTrack.kind === 'audio' ? options!.audio : options!.video;
     tracks.push(createLocalTrack(mediaStreamTrack, trackOptions!));
   });
 
-  console.debug('created tracks', tracks);
+  log.debug('created tracks', tracks);
   return tracks;
 }
 

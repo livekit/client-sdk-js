@@ -16,9 +16,13 @@ const livekitPackage = 'livekit';
 
 export class RoomServiceClientImpl implements RoomService {
   private readonly rpc: Rpc;
+  private apiKey: string;
+  private secret: string;
 
-  constructor(host: string) {
+  constructor(host: string, apiKey: string, secret: string) {
     this.rpc = new TwirpRpc(host, livekitPackage);
+    this.apiKey = apiKey;
+    this.secret = secret;
   }
 
   CreateRoom(request: CreateRoomRequest): Promise<RoomInfo> {

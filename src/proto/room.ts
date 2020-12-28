@@ -4,6 +4,7 @@ import { Writer, Reader } from 'protobufjs/minimal';
 
 
 export interface CreateRoomRequest {
+  name: string;
   /**
    *  number of seconds the room should cleanup after being empty
    */
@@ -12,27 +13,28 @@ export interface CreateRoomRequest {
 }
 
 export interface GetRoomRequest {
-  roomId: string;
+  room: string;
 }
 
 export interface DeleteRoomRequest {
-  roomId: string;
+  room: string;
 }
 
 export interface DeleteRoomResponse {
 }
 
 const baseCreateRoomRequest: object = {
+  name: "",
   emptyTimeout: 0,
   maxParticipants: 0,
 };
 
 const baseGetRoomRequest: object = {
-  roomId: "",
+  room: "",
 };
 
 const baseDeleteRoomRequest: object = {
-  roomId: "",
+  room: "",
 };
 
 const baseDeleteRoomResponse: object = {
@@ -60,8 +62,9 @@ export const protobufPackage = 'livekit'
 
 export const CreateRoomRequest = {
   encode(message: CreateRoomRequest, writer: Writer = Writer.create()): Writer {
-    writer.uint32(8).uint32(message.emptyTimeout);
-    writer.uint32(16).uint32(message.maxParticipants);
+    writer.uint32(10).string(message.name);
+    writer.uint32(16).uint32(message.emptyTimeout);
+    writer.uint32(24).uint32(message.maxParticipants);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): CreateRoomRequest {
@@ -72,9 +75,12 @@ export const CreateRoomRequest = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.emptyTimeout = reader.uint32();
+          message.name = reader.string();
           break;
         case 2:
+          message.emptyTimeout = reader.uint32();
+          break;
+        case 3:
           message.maxParticipants = reader.uint32();
           break;
         default:
@@ -86,6 +92,11 @@ export const CreateRoomRequest = {
   },
   fromJSON(object: any): CreateRoomRequest {
     const message = { ...baseCreateRoomRequest } as CreateRoomRequest;
+    if (object.name !== undefined && object.name !== null) {
+      message.name = String(object.name);
+    } else {
+      message.name = "";
+    }
     if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
       message.emptyTimeout = Number(object.emptyTimeout);
     } else {
@@ -100,6 +111,11 @@ export const CreateRoomRequest = {
   },
   fromPartial(object: DeepPartial<CreateRoomRequest>): CreateRoomRequest {
     const message = { ...baseCreateRoomRequest } as CreateRoomRequest;
+    if (object.name !== undefined && object.name !== null) {
+      message.name = object.name;
+    } else {
+      message.name = "";
+    }
     if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
       message.emptyTimeout = object.emptyTimeout;
     } else {
@@ -114,6 +130,7 @@ export const CreateRoomRequest = {
   },
   toJSON(message: CreateRoomRequest): unknown {
     const obj: any = {};
+    message.name !== undefined && (obj.name = message.name);
     message.emptyTimeout !== undefined && (obj.emptyTimeout = message.emptyTimeout);
     message.maxParticipants !== undefined && (obj.maxParticipants = message.maxParticipants);
     return obj;
@@ -122,7 +139,7 @@ export const CreateRoomRequest = {
 
 export const GetRoomRequest = {
   encode(message: GetRoomRequest, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.roomId);
+    writer.uint32(10).string(message.room);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): GetRoomRequest {
@@ -133,7 +150,7 @@ export const GetRoomRequest = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.roomId = reader.string();
+          message.room = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -144,32 +161,32 @@ export const GetRoomRequest = {
   },
   fromJSON(object: any): GetRoomRequest {
     const message = { ...baseGetRoomRequest } as GetRoomRequest;
-    if (object.roomId !== undefined && object.roomId !== null) {
-      message.roomId = String(object.roomId);
+    if (object.room !== undefined && object.room !== null) {
+      message.room = String(object.room);
     } else {
-      message.roomId = "";
+      message.room = "";
     }
     return message;
   },
   fromPartial(object: DeepPartial<GetRoomRequest>): GetRoomRequest {
     const message = { ...baseGetRoomRequest } as GetRoomRequest;
-    if (object.roomId !== undefined && object.roomId !== null) {
-      message.roomId = object.roomId;
+    if (object.room !== undefined && object.room !== null) {
+      message.room = object.room;
     } else {
-      message.roomId = "";
+      message.room = "";
     }
     return message;
   },
   toJSON(message: GetRoomRequest): unknown {
     const obj: any = {};
-    message.roomId !== undefined && (obj.roomId = message.roomId);
+    message.room !== undefined && (obj.room = message.room);
     return obj;
   },
 };
 
 export const DeleteRoomRequest = {
   encode(message: DeleteRoomRequest, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.roomId);
+    writer.uint32(10).string(message.room);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): DeleteRoomRequest {
@@ -180,7 +197,7 @@ export const DeleteRoomRequest = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.roomId = reader.string();
+          message.room = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -191,25 +208,25 @@ export const DeleteRoomRequest = {
   },
   fromJSON(object: any): DeleteRoomRequest {
     const message = { ...baseDeleteRoomRequest } as DeleteRoomRequest;
-    if (object.roomId !== undefined && object.roomId !== null) {
-      message.roomId = String(object.roomId);
+    if (object.room !== undefined && object.room !== null) {
+      message.room = String(object.room);
     } else {
-      message.roomId = "";
+      message.room = "";
     }
     return message;
   },
   fromPartial(object: DeepPartial<DeleteRoomRequest>): DeleteRoomRequest {
     const message = { ...baseDeleteRoomRequest } as DeleteRoomRequest;
-    if (object.roomId !== undefined && object.roomId !== null) {
-      message.roomId = object.roomId;
+    if (object.room !== undefined && object.room !== null) {
+      message.room = object.room;
     } else {
-      message.roomId = "";
+      message.room = "";
     }
     return message;
   },
   toJSON(message: DeleteRoomRequest): unknown {
     const obj: any = {};
-    message.roomId !== undefined && (obj.roomId = message.roomId);
+    message.room !== undefined && (obj.room = message.room);
     return obj;
   },
 };
