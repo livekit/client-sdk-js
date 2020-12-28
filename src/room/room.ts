@@ -24,6 +24,7 @@ class Room extends EventEmitter {
 
   // available after connected
   sid!: string;
+  name!: string;
   localParticipant!: LocalParticipant;
 
   constructor(client: RTCClient) {
@@ -71,6 +72,9 @@ class Room extends EventEmitter {
     joinResponse.otherParticipants.forEach((pi) => {
       this.getOrCreateParticipant(pi.sid, pi);
     });
+
+    this.name = joinResponse.room!.name;
+    this.sid = joinResponse.room!.sid;
 
     return this;
   };

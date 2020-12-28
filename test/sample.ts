@@ -117,17 +117,16 @@ const chatTrack: LocalDataTrack = new LocalDataTrack({
 window.connectToRoom = () => {
   const host = (<HTMLInputElement>$('host')).value;
   const port = (<HTMLInputElement>$('port')).value;
-  const roomId = (<HTMLInputElement>$('roomId')).value;
+  const room = (<HTMLInputElement>$('room')).value;
   const token = (<HTMLInputElement>$('token')).value;
-  const name = (<HTMLInputElement>$('name')).value;
 
   // participant to div mapping
 
-  connect({ host: host, port: parseInt(port) }, roomId, token, {
-    name: name,
+  connect({ host: host, port: parseInt(port) }, token, {
+    name: room,
   })
     .then((room) => {
-      appendLog('connected to room', room.sid);
+      appendLog('connected to room', room.name);
       $('toggle-video-button')!.removeAttribute('disabled');
       $('connect-button')!.setAttribute('disabled', 'true');
       currentRoom = room;
