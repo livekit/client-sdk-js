@@ -159,6 +159,10 @@ window.toggleVideo = () => {
       tracks.push(localPublication.track!);
       currentRoom.localParticipant.unpublishTracks(tracks);
     }
+    const video = <HTMLVideoElement>document.querySelector('#local-video video');
+    if (video) { 
+      video.remove();
+    }
   } else {
     const div = <HTMLDivElement>$('local-video');
     createLocalTracks().then((tracks) => {
