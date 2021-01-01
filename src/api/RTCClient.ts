@@ -27,6 +27,7 @@ export interface RTCClient {
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendNegotiate(offer: RTCSessionDescriptionInit): void;
   sendIceCandidate(candidate: RTCIceCandidateInit): void;
+  sendMuteTrack(trackSid: string, muted: boolean): void;
 
   readonly isConnected: boolean;
 
@@ -152,6 +153,15 @@ export class RTCClientImpl {
     this.sendRequest({
       trickle: {
         candidateInit: JSON.stringify(candidate),
+      },
+    });
+  }
+
+  sendMuteTrack(trackSid: string, muted: boolean) {
+    this.sendRequest({
+      mute: {
+        trackSid: trackSid,
+        muted: muted,
       },
     });
   }

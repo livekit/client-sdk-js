@@ -7,7 +7,7 @@ export interface SignalRequest {
   offer?: SessionDescription | undefined;
   negotiate?: SessionDescription | undefined;
   trickle?: Trickle | undefined;
-  control?: MediaControl | undefined;
+  mute?: MuteTrack | undefined;
 }
 
 export interface SignalResponse {
@@ -55,7 +55,9 @@ export interface JoinResponse {
   otherParticipants: ParticipantInfo[];
 }
 
-export interface MediaControl {
+export interface MuteTrack {
+  trackSid: string;
+  muted: boolean;
 }
 
 export interface ParticipantUpdate {
@@ -80,7 +82,9 @@ const baseSessionDescription: object = {
 const baseJoinResponse: object = {
 };
 
-const baseMediaControl: object = {
+const baseMuteTrack: object = {
+  trackSid: "",
+  muted: false,
 };
 
 const baseParticipantUpdate: object = {
@@ -99,8 +103,8 @@ export const SignalRequest = {
     if (message.trickle !== undefined) {
       Trickle.encode(message.trickle, writer.uint32(26).fork()).ldelim();
     }
-    if (message.control !== undefined) {
-      MediaControl.encode(message.control, writer.uint32(34).fork()).ldelim();
+    if (message.mute !== undefined) {
+      MuteTrack.encode(message.mute, writer.uint32(34).fork()).ldelim();
     }
     return writer;
   },
@@ -121,7 +125,7 @@ export const SignalRequest = {
           message.trickle = Trickle.decode(reader, reader.uint32());
           break;
         case 4:
-          message.control = MediaControl.decode(reader, reader.uint32());
+          message.mute = MuteTrack.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -147,10 +151,10 @@ export const SignalRequest = {
     } else {
       message.trickle = undefined;
     }
-    if (object.control !== undefined && object.control !== null) {
-      message.control = MediaControl.fromJSON(object.control);
+    if (object.mute !== undefined && object.mute !== null) {
+      message.mute = MuteTrack.fromJSON(object.mute);
     } else {
-      message.control = undefined;
+      message.mute = undefined;
     }
     return message;
   },
@@ -171,10 +175,10 @@ export const SignalRequest = {
     } else {
       message.trickle = undefined;
     }
-    if (object.control !== undefined && object.control !== null) {
-      message.control = MediaControl.fromPartial(object.control);
+    if (object.mute !== undefined && object.mute !== null) {
+      message.mute = MuteTrack.fromPartial(object.mute);
     } else {
-      message.control = undefined;
+      message.mute = undefined;
     }
     return message;
   },
@@ -183,7 +187,7 @@ export const SignalRequest = {
     message.offer !== undefined && (obj.offer = message.offer ? SessionDescription.toJSON(message.offer) : undefined);
     message.negotiate !== undefined && (obj.negotiate = message.negotiate ? SessionDescription.toJSON(message.negotiate) : undefined);
     message.trickle !== undefined && (obj.trickle = message.trickle ? Trickle.toJSON(message.trickle) : undefined);
-    message.control !== undefined && (obj.control = message.control ? MediaControl.toJSON(message.control) : undefined);
+    message.mute !== undefined && (obj.mute = message.mute ? MuteTrack.toJSON(message.mute) : undefined);
     return obj;
   },
 };
@@ -521,17 +525,25 @@ export const JoinResponse = {
   },
 };
 
-export const MediaControl = {
-  encode(_: MediaControl, writer: Writer = Writer.create()): Writer {
+export const MuteTrack = {
+  encode(message: MuteTrack, writer: Writer = Writer.create()): Writer {
+    writer.uint32(10).string(message.trackSid);
+    writer.uint32(16).bool(message.muted);
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): MediaControl {
+  decode(input: Uint8Array | Reader, length?: number): MuteTrack {
     const reader = input instanceof Uint8Array ? new Reader(input) : input;
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseMediaControl } as MediaControl;
+    const message = { ...baseMuteTrack } as MuteTrack;
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
+        case 1:
+          message.trackSid = reader.string();
+          break;
+        case 2:
+          message.muted = reader.bool();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -539,16 +551,38 @@ export const MediaControl = {
     }
     return message;
   },
-  fromJSON(_: any): MediaControl {
-    const message = { ...baseMediaControl } as MediaControl;
+  fromJSON(object: any): MuteTrack {
+    const message = { ...baseMuteTrack } as MuteTrack;
+    if (object.trackSid !== undefined && object.trackSid !== null) {
+      message.trackSid = String(object.trackSid);
+    } else {
+      message.trackSid = "";
+    }
+    if (object.muted !== undefined && object.muted !== null) {
+      message.muted = Boolean(object.muted);
+    } else {
+      message.muted = false;
+    }
     return message;
   },
-  fromPartial(_: DeepPartial<MediaControl>): MediaControl {
-    const message = { ...baseMediaControl } as MediaControl;
+  fromPartial(object: DeepPartial<MuteTrack>): MuteTrack {
+    const message = { ...baseMuteTrack } as MuteTrack;
+    if (object.trackSid !== undefined && object.trackSid !== null) {
+      message.trackSid = object.trackSid;
+    } else {
+      message.trackSid = "";
+    }
+    if (object.muted !== undefined && object.muted !== null) {
+      message.muted = object.muted;
+    } else {
+      message.muted = false;
+    }
     return message;
   },
-  toJSON(_: MediaControl): unknown {
+  toJSON(message: MuteTrack): unknown {
     const obj: any = {};
+    message.trackSid !== undefined && (obj.trackSid = message.trackSid);
+    message.muted !== undefined && (obj.muted = message.muted);
     return obj;
   },
 };

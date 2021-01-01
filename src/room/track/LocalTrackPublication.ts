@@ -10,8 +10,4 @@ export abstract class LocalTrackPublication extends TrackPublication {
   constructor(kind: Track.Kind, ti: TrackInfo) {
     super(kind, ti.sid, ti.name);
   }
-
-  get isTrackEnabled(): boolean {
-    return true;
-  }
 }

@@ -1,4 +1,5 @@
 import { TrackInfo } from '../../proto/model';
+import { TrackEvent } from '../events';
 import { LocalTrackPublication } from './LocalTrackPublication';
 import { LocalVideoTrack } from './LocalVideoTrack';
 import { Track } from './Track';
@@ -9,5 +10,14 @@ export class LocalVideoTrackPublication extends LocalTrackPublication {
   constructor(track: LocalVideoTrack, ti: TrackInfo) {
     super(Track.Kind.Video, ti);
     this.track = track;
+
+    // forward events
+    track.on(TrackEvent.Muted, () => {
+      this.emit(TrackEvent.Muted);
+    });
+
+    track.on(TrackEvent.Unmuted, () => {
+      this.emit(TrackEvent.Unmuted);
+    });
   }
 }

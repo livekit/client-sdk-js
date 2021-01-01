@@ -47,6 +47,7 @@ export interface TrackInfo {
   sid: string;
   type: TrackInfo_Type;
   name: string;
+  muted: boolean;
 }
 
 export interface DataMessage {
@@ -90,6 +91,7 @@ const baseTrackInfo: object = {
   sid: "",
   type: 0,
   name: "",
+  muted: false,
 };
 
 const baseDataMessage: object = {
@@ -655,6 +657,7 @@ export const TrackInfo = {
     writer.uint32(10).string(message.sid);
     writer.uint32(16).int32(message.type);
     writer.uint32(26).string(message.name);
+    writer.uint32(32).bool(message.muted);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): TrackInfo {
@@ -672,6 +675,9 @@ export const TrackInfo = {
           break;
         case 3:
           message.name = reader.string();
+          break;
+        case 4:
+          message.muted = reader.bool();
           break;
         default:
           reader.skipType(tag & 7);
@@ -697,6 +703,11 @@ export const TrackInfo = {
     } else {
       message.name = "";
     }
+    if (object.muted !== undefined && object.muted !== null) {
+      message.muted = Boolean(object.muted);
+    } else {
+      message.muted = false;
+    }
     return message;
   },
   fromPartial(object: DeepPartial<TrackInfo>): TrackInfo {
@@ -716,6 +727,11 @@ export const TrackInfo = {
     } else {
       message.name = "";
     }
+    if (object.muted !== undefined && object.muted !== null) {
+      message.muted = object.muted;
+    } else {
+      message.muted = false;
+    }
     return message;
   },
   toJSON(message: TrackInfo): unknown {
@@ -723,6 +739,7 @@ export const TrackInfo = {
     message.sid !== undefined && (obj.sid = message.sid);
     message.type !== undefined && (obj.type = trackInfo_TypeToJSON(message.type));
     message.name !== undefined && (obj.name = message.name);
+    message.muted !== undefined && (obj.muted = message.muted);
     return obj;
   },
 };

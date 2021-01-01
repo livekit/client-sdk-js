@@ -1,3 +1,7 @@
+import { TrackEvent } from '../events';
+import { LocalAudioTrack } from './LocalAudioTrack';
+import { LocalVideoTrack } from './LocalVideoTrack';
+
 // attachment/detachment helpers
 export function attachTrack(
   track: MediaStreamTrack,
@@ -62,4 +66,16 @@ export function detachTrack(
     const mediaStream = element.srcObject;
     mediaStream.removeTrack(track);
   }
+}
+
+export function setTrackMuted(
+  track: LocalVideoTrack | LocalAudioTrack,
+  muted: boolean
+) {
+  if (track.isMuted === muted) {
+    return;
+  }
+
+  track.mediaStreamTrack.enabled = !muted;
+  track.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, track);
 }

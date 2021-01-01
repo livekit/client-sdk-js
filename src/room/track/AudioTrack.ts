@@ -3,7 +3,7 @@ import { attachTrack, detachTracks } from './utils';
 
 export class AudioTrack extends Track {
   isStarted: boolean = false;
-  isEnabled: boolean = false;
+  isMuted: boolean = false;
   mediaStreamTrack: MediaStreamTrack;
   attachedElements: HTMLMediaElement[] = [];
 
@@ -17,6 +17,7 @@ export class AudioTrack extends Track {
    * @param element if not passed in, creates a new HTMLAudioElement
    */
   attach(): HTMLMediaElement;
+  attach(element: HTMLMediaElement): HTMLMediaElement;
   attach(element?: HTMLMediaElement): HTMLMediaElement {
     return attachTrack(
       this.mediaStreamTrack,
@@ -27,6 +28,7 @@ export class AudioTrack extends Track {
   }
 
   detach(): HTMLMediaElement[];
+  detach(element: HTMLMediaElement): HTMLMediaElement;
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
     return detachTracks(this.mediaStreamTrack, this.attachedElements, element);
   }

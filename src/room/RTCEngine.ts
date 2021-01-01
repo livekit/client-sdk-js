@@ -50,6 +50,10 @@ export class RTCEngine extends EventEmitter {
     this.client.sendNegotiate(offer);
   };
 
+  updateMuteStatus(trackSid: string, muted: boolean) {
+    this.client.sendMuteTrack(trackSid, muted);
+  }
+
   private configure() {
     this.peerConn.onicecandidate = (ev) => {
       if (!ev.candidate) return;

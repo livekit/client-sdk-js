@@ -51,6 +51,7 @@ export class RemoteParticipant extends Participant {
         sid: sid,
         name: mediaTrack.label,
         type: Track.kindToProto(track.kind),
+        muted: false,
       };
       switch (track.kind) {
         case Track.Kind.Audio:
@@ -102,6 +103,7 @@ export class RemoteParticipant extends Participant {
           sid: sid,
           name: name,
           type: TrackInfo_Type.DATA,
+          muted: false,
         },
         track
       );
@@ -159,6 +161,8 @@ export class RemoteParticipant extends Participant {
         publication = createRemoteTrackPublicationFromInfo(ti);
         newTracks[ti.sid] = publication;
         this.addTrackPublication(publication);
+      } else {
+        publication.updateMetadata(ti);
       }
       validTracks[ti.sid] = publication;
     });

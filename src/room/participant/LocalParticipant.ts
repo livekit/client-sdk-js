@@ -1,6 +1,7 @@
+import log from 'loglevel';
 import { TrackInfo } from '../../proto/model';
 import { TrackInvalidError } from '../errors';
-import { EngineEvent, ParticipantEvent } from '../events';
+import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import { RTCEngine } from '../RTCEngine';
 import { LocalAudioTrack } from '../track/LocalAudioTrack';
 import { LocalAudioTrackPublication } from '../track/LocalAudioTrackPublication';
@@ -41,6 +42,9 @@ export class LocalParticipant extends Participant {
           );
       }
     }
+
+    track.on(TrackEvent.Muted, this.onTrackMuted);
+    track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
 
     // create track publication from track
     let publication: LocalTrackPublication;
@@ -146,6 +150,11 @@ export class LocalParticipant extends Participant {
     if (!publication) {
       return null;
     }
+
+    if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
+      track.removeListener(TrackEvent.Muted, this.onTrackMuted);
+      track.removeListener(TrackEvent.Unmuted, this.onTrackUnmuted);
+    }
     track.stop();
 
     if (!(track instanceof LocalDataTrack)) {
@@ -193,4 +202,33 @@ export class LocalParticipant extends Participant {
     });
     return publications;
   }
+
+  onTrackUnmuted = (track: LocalVideoTrack | LocalAudioTrack) => {
+    this.onTrackMuted(track, false);
+  };
+
+  // when the local track changes in mute status, we'll notify server as such
+  onTrackMuted = (
+    track: LocalVideoTrack | LocalAudioTrack,
+    muted?: boolean
+  ) => {
+    if (muted === undefined) {
+      muted = true;
+    }
+    // find the track's publication and use sid there
+    let sid: string | undefined;
+    Object.values(this.tracks).forEach((publication) => {
+      const localPub = <LocalTrackPublication>publication;
+      if (track === localPub.track) {
+        sid = localPub.trackSid;
+      }
+    });
+
+    if (!sid) {
+      log.error('could not update mute status for unpublished track', track);
+      return;
+    }
+
+    this.engine.updateMuteStatus(sid, muted);
+  };
 }

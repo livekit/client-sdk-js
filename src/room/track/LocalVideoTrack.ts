@@ -1,4 +1,5 @@
 import { Track } from './Track';
+import { setTrackMuted } from './utils';
 import { VideoTrack } from './VideoTrack';
 
 export class LocalVideoTrack extends VideoTrack {
@@ -7,5 +8,15 @@ export class LocalVideoTrack extends VideoTrack {
   constructor(mediaTrack: MediaStreamTrack, name?: string) {
     super(mediaTrack, name);
     this.id = mediaTrack.id;
+  }
+
+  mute(): LocalVideoTrack {
+    setTrackMuted(this, true);
+    return this;
+  }
+
+  unmute(): LocalVideoTrack {
+    setTrackMuted(this, false);
+    return this;
   }
 }

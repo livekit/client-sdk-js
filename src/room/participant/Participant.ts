@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { ParticipantEvent, TrackEvent } from '../events';
 import { Track } from '../track/Track';
 import { TrackPublication } from '../track/TrackPublication';
 import {
@@ -27,7 +28,20 @@ export class Participant extends EventEmitter {
     this.name = name;
   }
 
+  getTracks(): TrackPublication[] {
+    return Object.values(this.tracks);
+  }
+
   protected addTrackPublication(publication: TrackPublication) {
+    // forward publication driven events
+    publication.on(TrackEvent.Muted, () => {
+      this.emit(ParticipantEvent.TrackMuted, publication);
+    });
+
+    publication.on(TrackEvent.Unmuted, () => {
+      this.emit(ParticipantEvent.TrackUnmuted, publication);
+    });
+
     this.tracks[publication.trackSid] = publication;
     switch (publication.kind) {
       case Track.Kind.Audio:
@@ -46,9 +60,5 @@ export class Participant extends EventEmitter {
         );
         break;
     }
-  }
-
-  getTracks(): TrackPublication[] {
-    return Object.values(this.tracks);
   }
 }

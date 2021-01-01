@@ -10,7 +10,7 @@ export namespace VideoTrack {
 
 export class VideoTrack extends Track {
   isStarted: boolean = false;
-  isEnabled: boolean = false;
+  isMuted: boolean = false;
   mediaStreamTrack: MediaStreamTrack;
   dimensions: VideoTrack.Dimensions = {};
   attachedElements: HTMLVideoElement[] = [];
@@ -26,6 +26,7 @@ export class VideoTrack extends Track {
   }
 
   attach(): HTMLVideoElement;
+  attach(element: HTMLVideoElement): HTMLVideoElement;
   attach(element?: HTMLVideoElement): HTMLVideoElement {
     return <HTMLVideoElement>(
       attachTrack(
@@ -38,6 +39,7 @@ export class VideoTrack extends Track {
   }
 
   detach(): HTMLMediaElement[];
+  detach(element: HTMLMediaElement): HTMLMediaElement;
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
     return detachTracks(this.mediaStreamTrack, this.attachedElements, element);
   }
