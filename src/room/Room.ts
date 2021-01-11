@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
-import { ConnectionInfo, ConnectOptions, RTCClient } from '../api/RTCClient';
+import { ConnectionInfo, RTCClient } from '../api/RTCClient';
 import { ParticipantInfo, ParticipantInfo_State } from '../proto/model';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant } from './participant/LocalParticipant';
@@ -57,12 +57,8 @@ class Room extends EventEmitter {
     );
   }
 
-  connect = async (
-    info: ConnectionInfo,
-    token: string,
-    options?: ConnectOptions
-  ): Promise<Room> => {
-    const joinResponse = await this.engine.join(info, token, options);
+  connect = async (info: ConnectionInfo, token: string): Promise<Room> => {
+    const joinResponse = await this.engine.join(info, token);
 
     this.state = RoomState.Connected;
     const pi = joinResponse.participant!;

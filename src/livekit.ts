@@ -1,5 +1,5 @@
 import log from 'loglevel';
-import { ConnectionInfo, ConnectOptions, RTCClientImpl } from './api/RTCClient';
+import { ConnectionInfo, RTCClientImpl } from './api/RTCClient';
 import { TrackInvalidError } from './room/errors';
 import Room from './room/Room';
 import { LocalAudioTrack } from './room/track/LocalAudioTrack';
@@ -14,16 +14,27 @@ const connect = function (
   const client = new RTCClientImpl();
   const room = new Room(client);
 
+  let level: LogLevel = LogLevel.info;
+  if (options && options.logLevel) {
+    level = options.logLevel;
+  }
+  log.setLevel(level);
+
   // connect to room
-  return room.connect(info, token, options);
+  return room.connect(info, token);
 };
+
+export interface ConnectOptions {
+  // name of the room to join
+  logLevel?: LogLevel;
+}
 
 export enum LogLevel {
   debug = 'debug',
   info = 'info',
   warn = 'warn',
   error = 'error',
-  off = 'off',
+  silent = 'silent',
 }
 
 export interface CreateLocalTracksOptions {

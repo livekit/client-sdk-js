@@ -1,11 +1,12 @@
 import log from 'loglevel';
 import 'webrtc-adapter';
-import { ParticipantInfo, TrackInfo } from '../proto/model';
+import { ParticipantInfo, TrackType } from '../proto/model';
 import {
   JoinResponse,
   SessionDescription,
   SignalRequest,
   SignalResponse,
+  TrackPublishedResponse,
 } from '../proto/rtc';
 
 export interface ConnectionInfo {
@@ -19,15 +20,14 @@ export interface ConnectionInfo {
  * so that it
  */
 export interface RTCClient {
-  join(
-    info: ConnectionInfo,
-    token: string,
-    options?: ConnectOptions
-  ): Promise<JoinResponse>;
+  join(info: ConnectionInfo, token: string): Promise<JoinResponse>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
-  sendNegotiate(offer: RTCSessionDescriptionInit): void;
+  sendAnswer(answer: RTCSessionDescriptionInit): void;
   sendIceCandidate(candidate: RTCIceCandidateInit): void;
   sendMuteTrack(trackSid: string, muted: boolean): void;
+  sendAddTrack(cid: string, name: string, type: TrackType): void;
+  sendRemoveTrack(sid: string): void;
+  sendNegotiate(): void;
 
   readonly isConnected: boolean;
 
@@ -35,31 +35,28 @@ export interface RTCClient {
   onClose?: (reason: string) => void;
   // server answered
   onAnswer?: (sd: RTCSessionDescriptionInit) => void;
-  // handle negotiation, expect both offer and answer
-  onNegotiate?: (sd: RTCSessionDescriptionInit) => void;
+  // handle server initiated negotiation
+  onOffer?: (sd: RTCSessionDescriptionInit) => void;
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit) => void;
   // when a participant has changed
   onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
   // when track is published successfully
-  onLocalTrackPublished?: (ti: TrackInfo) => void;
-}
-
-export interface ConnectOptions {
-  // name of the room to join
-  name?: string;
+  onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
+  // when a negotiation request is granted
+  onNegotiateRequested?: () => void;
 }
 
 export class RTCClientImpl {
   isConnected: boolean;
   onClose?: (reason: string) => void;
   onAnswer?: (sd: RTCSessionDescriptionInit) => void;
-  // handle negotiation, expect both offer and answer
-  onNegotiate?: (sd: RTCSessionDescriptionInit) => void;
+  onOffer?: (sd: RTCSessionDescriptionInit) => void;
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit) => void;
   onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
-  onLocalTrackPublished?: (ti: TrackInfo) => void;
+  onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
+  onNegotiateRequested?: () => void;
 
   ws?: WebSocket;
 
@@ -67,17 +64,9 @@ export class RTCClientImpl {
     this.isConnected = false;
   }
 
-  join(
-    info: ConnectionInfo,
-    token: string,
-    options?: ConnectOptions
-  ): Promise<JoinResponse> {
+  join(info: ConnectionInfo, token: string): Promise<JoinResponse> {
     const protocol = info.secure ? 'wss' : 'ws';
     let url = `${protocol}://${info.host}:${info.port}/rtc?access_token=${token}`;
-
-    if (options && options.name) {
-      url += '&room=' + encodeURIComponent(options.name);
-    }
 
     return new Promise<JoinResponse>((resolve, reject) => {
       log.debug('connecting to', url);
@@ -134,6 +123,7 @@ export class RTCClientImpl {
     }
   }
 
+  // initial offer after joining
   sendOffer(offer: RTCSessionDescriptionInit) {
     log.debug('sending offer', offer);
     this.sendRequest({
@@ -141,10 +131,11 @@ export class RTCClientImpl {
     });
   }
 
-  sendNegotiate(negotiate: RTCSessionDescriptionInit) {
-    log.debug('sending negotiate', negotiate.type);
+  // answer a server-initiated offer
+  sendAnswer(answer: RTCSessionDescriptionInit) {
+    log.debug('sending answer');
     this.sendRequest({
-      negotiate: toProtoSessionDescription(negotiate),
+      answer: toProtoSessionDescription(answer),
     });
   }
 
@@ -160,10 +151,32 @@ export class RTCClientImpl {
   sendMuteTrack(trackSid: string, muted: boolean) {
     this.sendRequest({
       mute: {
-        trackSid: trackSid,
+        sid: trackSid,
         muted: muted,
       },
     });
+  }
+
+  sendAddTrack(cid: string, name: string, type: TrackType): void {
+    this.sendRequest({
+      addTrack: {
+        cid,
+        name,
+        type,
+      },
+    });
+  }
+
+  sendRemoveTrack(sid: string): void {
+    this.sendRequest({
+      removeTrack: {
+        sid,
+      },
+    });
+  }
+
+  sendNegotiate(): void {
+    this.sendRequest({ negotiate: {} });
   }
 
   sendRequest(req: SignalRequest) {
@@ -181,10 +194,10 @@ export class RTCClientImpl {
       if (this.onAnswer) {
         this.onAnswer(sd);
       }
-    } else if (msg.negotiate) {
-      const sd = fromProtoSessionDescription(msg.negotiate);
-      if (this.onNegotiate) {
-        this.onNegotiate(sd);
+    } else if (msg.offer) {
+      const sd = fromProtoSessionDescription(msg.offer);
+      if (this.onOffer) {
+        this.onOffer(sd);
       }
     } else if (msg.trickle) {
       const candidate: RTCIceCandidateInit = JSON.parse(
@@ -200,6 +213,10 @@ export class RTCClientImpl {
     } else if (msg.trackPublished) {
       if (this.onLocalTrackPublished) {
         this.onLocalTrackPublished(msg.trackPublished);
+      }
+    } else if (msg.negotiate) {
+      if (this.onNegotiateRequested) {
+        this.onNegotiateRequested();
       }
     } else {
       console.warn('unsupported message', msg);

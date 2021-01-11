@@ -1,5 +1,5 @@
 import log from 'loglevel';
-import { ParticipantInfo, TrackInfo, TrackInfo_Type } from '../../proto/model';
+import { ParticipantInfo, TrackInfo, TrackType } from '../../proto/model';
 import { TrackInvalidError } from '../errors';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RemoteAudioTrack } from '../track/RemoteAudioTrack';
@@ -102,7 +102,7 @@ export class RemoteParticipant extends Participant {
         {
           sid: sid,
           name: name,
-          type: TrackInfo_Type.DATA,
+          type: TrackType.DATA,
           muted: false,
         },
         track

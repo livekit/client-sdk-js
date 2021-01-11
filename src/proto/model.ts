@@ -45,7 +45,7 @@ export interface ParticipantInfo {
  */
 export interface TrackInfo {
   sid: string;
-  type: TrackInfo_Type;
+  type: TrackType;
   name: string;
   muted: boolean;
 }
@@ -106,6 +106,44 @@ function longToNumber(long: Long) {
 
 export const protobufPackage = 'livekit'
 
+export enum TrackType {
+  AUDIO = 0,
+  VIDEO = 1,
+  DATA = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function trackTypeFromJSON(object: any): TrackType {
+  switch (object) {
+    case 0:
+    case "AUDIO":
+      return TrackType.AUDIO;
+    case 1:
+    case "VIDEO":
+      return TrackType.VIDEO;
+    case 2:
+    case "DATA":
+      return TrackType.DATA;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return TrackType.UNRECOGNIZED;
+  }
+}
+
+export function trackTypeToJSON(object: TrackType): string {
+  switch (object) {
+    case TrackType.AUDIO:
+      return "AUDIO";
+    case TrackType.VIDEO:
+      return "VIDEO";
+    case TrackType.DATA:
+      return "DATA";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 export enum ParticipantInfo_State {
   /** JOINING -  websocket' connected, but not offered yet
    */
@@ -153,44 +191,6 @@ export function participantInfo_StateToJSON(object: ParticipantInfo_State): stri
       return "ACTIVE";
     case ParticipantInfo_State.DISCONNECTED:
       return "DISCONNECTED";
-    default:
-      return "UNKNOWN";
-  }
-}
-
-export enum TrackInfo_Type {
-  AUDIO = 0,
-  VIDEO = 1,
-  DATA = 2,
-  UNRECOGNIZED = -1,
-}
-
-export function trackInfo_TypeFromJSON(object: any): TrackInfo_Type {
-  switch (object) {
-    case 0:
-    case "AUDIO":
-      return TrackInfo_Type.AUDIO;
-    case 1:
-    case "VIDEO":
-      return TrackInfo_Type.VIDEO;
-    case 2:
-    case "DATA":
-      return TrackInfo_Type.DATA;
-    case -1:
-    case "UNRECOGNIZED":
-    default:
-      return TrackInfo_Type.UNRECOGNIZED;
-  }
-}
-
-export function trackInfo_TypeToJSON(object: TrackInfo_Type): string {
-  switch (object) {
-    case TrackInfo_Type.AUDIO:
-      return "AUDIO";
-    case TrackInfo_Type.VIDEO:
-      return "VIDEO";
-    case TrackInfo_Type.DATA:
-      return "DATA";
     default:
       return "UNKNOWN";
   }
@@ -694,7 +694,7 @@ export const TrackInfo = {
       message.sid = "";
     }
     if (object.type !== undefined && object.type !== null) {
-      message.type = trackInfo_TypeFromJSON(object.type);
+      message.type = trackTypeFromJSON(object.type);
     } else {
       message.type = 0;
     }
@@ -737,7 +737,7 @@ export const TrackInfo = {
   toJSON(message: TrackInfo): unknown {
     const obj: any = {};
     message.sid !== undefined && (obj.sid = message.sid);
-    message.type !== undefined && (obj.type = trackInfo_TypeToJSON(message.type));
+    message.type !== undefined && (obj.type = trackTypeToJSON(message.type));
     message.name !== undefined && (obj.name = message.name);
     message.muted !== undefined && (obj.muted = message.muted);
     return obj;

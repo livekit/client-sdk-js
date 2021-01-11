@@ -1,8 +1,11 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
-import { ConnectionInfo, ConnectOptions, RTCClient } from '../api/RTCClient';
-import { JoinResponse } from '../proto/rtc';
+import { ConnectionInfo, RTCClient } from '../api/RTCClient';
+import { TrackInfo } from '../proto/model';
+import { JoinResponse, TrackPublishedResponse } from '../proto/rtc';
+import { TrackInvalidError } from './errors';
 import { EngineEvent } from './events';
+import { Track } from './track/Track';
 
 const placeholderDataChannel = '_private';
 
@@ -14,6 +17,7 @@ export class RTCEngine extends EventEmitter {
   rtcConnected: boolean = false;
   iceConnected: boolean = false;
   pendingCandidates: RTCIceCandidateInit[] = [];
+  pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
 
   constructor(client: RTCClient) {
     super();
@@ -23,16 +27,12 @@ export class RTCEngine extends EventEmitter {
     this.configure();
   }
 
-  join = async (
-    info: ConnectionInfo,
-    token: string,
-    options?: ConnectOptions
-  ): Promise<JoinResponse> => {
-    const joinResponse = await this.client.join(info, token, options);
+  join = async (info: ConnectionInfo, token: string): Promise<JoinResponse> => {
+    const joinResponse = await this.client.join(info, token);
 
     // create offer
     const offer = await this.peerConn.createOffer();
-    this.peerConn.setLocalDescription(offer);
+    await this.peerConn.setLocalDescription(offer);
 
     this.client.sendOffer(offer);
     return joinResponse;
@@ -44,11 +44,21 @@ export class RTCEngine extends EventEmitter {
     return offer;
   };
 
-  negotiate = async () => {
-    const offer = await this.createOffer();
-    await this.peerConn.setLocalDescription(offer);
-    this.client.sendNegotiate(offer);
-  };
+  addTrack(cid: string, name: string, kind: Track.Kind): Promise<TrackInfo> {
+    if (this.pendingTrackResolvers[cid]) {
+      throw new TrackInvalidError(
+        'a track with the same ID has already been published'
+      );
+    }
+    return new Promise<TrackInfo>((resolve, reject) => {
+      this.pendingTrackResolvers[cid] = resolve;
+      this.client.sendAddTrack(cid, name, Track.kindToProto(kind));
+    });
+  }
+
+  removeTrack(sid: string) {
+    this.client.sendRemoveTrack(sid);
+  }
 
   updateMuteStatus(trackSid: string, muted: boolean) {
     this.client.sendMuteTrack(trackSid, muted);
@@ -71,11 +81,14 @@ export class RTCEngine extends EventEmitter {
       if (!this.rtcConnected) {
         return;
       }
-      this.negotiate();
+      this.requestNegotiation();
     };
 
     this.peerConn.oniceconnectionstatechange = (ev) => {
-      if (this.peerConn.iceConnectionState === 'connected') {
+      if (
+        this.peerConn.iceConnectionState === 'connected' &&
+        !this.iceConnected
+      ) {
         this.onICEConnected();
       }
       // TODO: handle other connection states
@@ -93,11 +106,11 @@ export class RTCEngine extends EventEmitter {
     this.privateDC = this.peerConn.createDataChannel(placeholderDataChannel);
 
     // configure signaling client
-    this.client.onAnswer = (sd) => {
-      this.peerConn.setRemoteDescription(sd).then(() => {
-        // consider connected
-        this.onRTCConnected();
-      });
+    this.client.onAnswer = async (sd) => {
+      await this.peerConn.setRemoteDescription(sd);
+
+      // consider connected
+      if (!this.rtcConnected) this.onRTCConnected();
     };
 
     // add candidate on trickle
@@ -106,29 +119,51 @@ export class RTCEngine extends EventEmitter {
       this.peerConn.addIceCandidate(candidate);
     };
 
-    this.client.onNegotiate = (sd) => {
-      this.peerConn.setRemoteDescription(sd);
+    // when server creates an offer for the client
+    this.client.onOffer = async (sd) => {
+      log.debug('received offer, signalingState', this.peerConn.signalingState);
+      await this.peerConn.setRemoteDescription(sd);
 
       // answer the offer
-      if (sd.type === 'offer') {
-        this.peerConn.createAnswer().then((answer) => {
-          this.peerConn.setLocalDescription(answer);
-          this.client.sendNegotiate(answer);
-        });
-      }
+      const answer = await this.peerConn.createAnswer();
+      await this.peerConn.setLocalDescription(answer);
+      this.client.sendAnswer(answer);
+    };
+
+    this.client.onNegotiateRequested = () => {
+      this.negotiate();
     };
 
     this.client.onParticipantUpdate = (updates) => {
       this.emit(EngineEvent.ParticipantUpdate, updates);
     };
 
-    this.client.onLocalTrackPublished = (ti) => {
-      this.emit(EngineEvent.LocalTrackPublished, ti);
+    this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
+      const resolve = this.pendingTrackResolvers[res.cid];
+      if (!resolve) {
+        log.error('missing track resolver for ', res.cid);
+        return;
+      }
+      delete this.pendingTrackResolvers[res.cid];
+      resolve(res.track!);
     };
 
     this.client.onClose = (reason) => {
       this.emit(EngineEvent.Disconnected, reason);
     };
+  }
+
+  private async negotiate() {
+    // TODO: what if signaling state changed? will need to queue and retry
+    log.debug('starting to negotiate', this.peerConn.signalingState);
+    const offer = await this.peerConn.createOffer();
+    await this.peerConn.setLocalDescription(offer);
+    this.client.sendOffer(offer);
+  }
+
+  private requestNegotiation() {
+    log.debug('requesting negotiation');
+    this.client.sendNegotiate();
   }
 
   // signaling channel connected

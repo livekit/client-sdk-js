@@ -1,7 +1,6 @@
 import log from 'loglevel';
-import { TrackInfo } from '../../proto/model';
 import { TrackInvalidError } from '../errors';
-import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
+import { ParticipantEvent, TrackEvent } from '../events';
 import { RTCEngine } from '../RTCEngine';
 import { LocalAudioTrack } from '../track/LocalAudioTrack';
 import { LocalAudioTrackPublication } from '../track/LocalAudioTrackPublication';
@@ -17,13 +16,14 @@ import { Participant } from './Participant';
 
 export class LocalParticipant extends Participant {
   engine: RTCEngine;
+  private pendingTracks: { [key: string]: LocalTrack } = {};
 
   constructor(sid: string, name: string, engine: RTCEngine) {
     super(sid, name);
     this.engine = engine;
   }
 
-  publishTrack(
+  async publishTrack(
     track: LocalTrack | MediaStreamTrack,
     options?: LocalTrackOptions
   ): Promise<LocalTrackPublication> {
@@ -43,62 +43,64 @@ export class LocalParticipant extends Participant {
       }
     }
 
+    // forward mute/unmute events
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
+
+    // get local track id for use during publishing
+    let cid: string;
+    if (track instanceof LocalDataTrack) {
+      // add data track
+      track.dataChannel = this.engine.peerConn.createDataChannel(
+        track.name,
+        track.dataChannelInit
+      );
+      // use data channel name as the id
+      cid = track.name;
+    } else {
+      this.engine.peerConn.addTrack(track.mediaStreamTrack);
+      cid = track.mediaStreamTrack.id;
+    }
 
     // create track publication from track
     let publication: LocalTrackPublication;
 
-    return new Promise<LocalTrackPublication>((resolve, reject) => {
-      this.engine.once(EngineEvent.LocalTrackPublished, (ti: TrackInfo) => {
-        switch (track.kind) {
-          case Track.Kind.Audio:
-            const audioPublication = new LocalAudioTrackPublication(
-              <LocalAudioTrack>track,
-              ti
-            );
-            this.audioTracks[ti.sid] = audioPublication;
-            publication = audioPublication;
-            break;
-          case Track.Kind.Video:
-            const videoPublication = new LocalVideoTrackPublication(
-              <LocalVideoTrack>track,
-              ti
-            );
-            this.videoTracks[ti.sid] = videoPublication;
-            publication = videoPublication;
-            break;
-          case Track.Kind.Data:
-            const dataPublication = new LocalDataTrackPublication(
-              <LocalDataTrack>track,
-              ti
-            );
-            this.dataTracks[ti.sid] = dataPublication;
-            publication = dataPublication;
-            break;
-          default:
-            // impossible
-            throw new TrackInvalidError();
-        }
-
-        this.tracks[ti.sid] = publication;
-
-        // send event for publication
-        this.emit(ParticipantEvent.TrackPublished, publication);
-        resolve(publication);
-      });
-
-      const localTrack = <LocalTrack>track;
-      if (localTrack instanceof LocalDataTrack) {
-        // add data track
-        localTrack.dataChannel = this.engine.peerConn.createDataChannel(
-          localTrack.name,
-          localTrack.dataChannelInit
+    const ti = await this.engine.addTrack(cid, track.name, track.kind);
+    switch (track.kind) {
+      case Track.Kind.Audio:
+        const audioPublication = new LocalAudioTrackPublication(
+          <LocalAudioTrack>track,
+          ti
         );
-      } else {
-        this.engine.peerConn.addTrack(localTrack.mediaStreamTrack);
-      }
-    });
+        this.audioTracks[ti.sid] = audioPublication;
+        publication = audioPublication;
+        break;
+      case Track.Kind.Video:
+        const videoPublication = new LocalVideoTrackPublication(
+          <LocalVideoTrack>track,
+          ti
+        );
+        this.videoTracks[ti.sid] = videoPublication;
+        publication = videoPublication;
+        break;
+      case Track.Kind.Data:
+        const dataPublication = new LocalDataTrackPublication(
+          <LocalDataTrack>track,
+          ti
+        );
+        this.dataTracks[ti.sid] = dataPublication;
+        publication = dataPublication;
+        break;
+      default:
+        // impossible
+        throw new TrackInvalidError();
+    }
+
+    this.tracks[ti.sid] = publication;
+
+    // send event for publication
+    this.emit(ParticipantEvent.TrackPublished, publication);
+    return publication;
   }
 
   async publishTracks(

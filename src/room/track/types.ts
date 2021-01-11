@@ -1,4 +1,4 @@
-import { TrackInfo, TrackInfo_Type } from '../../proto/model';
+import { TrackInfo, TrackType } from '../../proto/model';
 import { TrackInvalidError } from '../errors';
 import { LocalAudioTrack } from './LocalAudioTrack';
 import { LocalAudioTrackPublication } from './LocalAudioTrackPublication';
@@ -32,13 +32,13 @@ export function createRemoteTrackPublicationFromInfo(
 ): RemoteTrackPublication {
   let tp: RemoteTrackPublication;
   switch (info.type) {
-    case TrackInfo_Type.AUDIO:
+    case TrackType.AUDIO:
       tp = new RemoteAudioTrackPublication(info);
       break;
-    case TrackInfo_Type.VIDEO:
+    case TrackType.VIDEO:
       tp = new RemoteVideoTrackPublication(info);
       break;
-    case TrackInfo_Type.DATA:
+    case TrackType.DATA:
       tp = new RemoteDataTrackPublication(info);
       break;
     default:

@@ -24,7 +24,6 @@ export enum ParticipantEvent {
 export enum EngineEvent {
   Connected = 'connected',
   Disconnected = 'disconnected',
-  LocalTrackPublished = 'localTrackPublished',
   ParticipantUpdate = 'participantUpdate',
   MediaTrackAdded = 'mediaTrackAdded',
   DataChannelAdded = 'dataChannelAdded',

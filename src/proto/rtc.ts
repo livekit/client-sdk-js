@@ -1,13 +1,25 @@
 /* eslint-disable */
-import { TrackInfo, RoomInfo, ParticipantInfo } from './model';
+import { TrackType, RoomInfo, ParticipantInfo, TrackInfo, trackTypeFromJSON, trackTypeToJSON } from './model';
 import { Writer, Reader } from 'protobufjs/minimal';
 
 
 export interface SignalRequest {
+  /**
+   *  participant joining initially
+   */
   offer?: SessionDescription | undefined;
-  negotiate?: SessionDescription | undefined;
-  trickle?: Trickle | undefined;
-  mute?: MuteTrack | undefined;
+  /**
+   *  participant responding to server-issued offers
+   */
+  answer?: SessionDescription | undefined;
+  trickle?: TrickleRequest | undefined;
+  addTrack?: AddTrackRequest | undefined;
+  mute?: MuteTrackRequest | undefined;
+  removeTrack?: RemoveTrackRequest | undefined;
+  /**
+   *  when client needs to negotiate
+   */
+  negotiate?: NegotiationRequest | undefined;
 }
 
 export interface SignalResponse {
@@ -20,13 +32,13 @@ export interface SignalResponse {
    */
   answer?: SessionDescription | undefined;
   /**
-   *  sent when a negotiated sd is available (could be either offer or answer)
+   *  sent when server needs to negotiate, always offer
    */
-  negotiate?: SessionDescription | undefined;
+  offer?: SessionDescription | undefined;
   /**
    *  sent when an ICE candidate is available
    */
-  trickle?: Trickle | undefined;
+  trickle?: TrickleRequest | undefined;
   /**
    *  sent when participants in the room has changed
    */
@@ -34,19 +46,39 @@ export interface SignalResponse {
   /**
    *  sent to the participant when their track has been published
    */
-  trackPublished?: TrackInfo | undefined;
+  trackPublished?: TrackPublishedResponse | undefined;
+  /**
+   *  sent to participant when they should initiate negotiation
+   */
+  negotiate?: NegotiationResponse | undefined;
 }
 
-export interface Trickle {
+export interface AddTrackRequest {
+  /**
+   *  client ID of track, to match it when RTC track is received
+   */
+  cid: string;
+  name: string;
+  type: TrackType;
+}
+
+export interface TrickleRequest {
   candidateInit: string;
 }
 
-export interface SessionDescription {
-  /**
-   *  "answer" | "offer" | "pranswer" | "rollback"
-   */
-  type: string;
-  sdp: string;
+export interface RemoveTrackRequest {
+  sid: string;
+}
+
+export interface MuteTrackRequest {
+  sid: string;
+  muted: boolean;
+}
+
+/**
+ *  empty
+ */
+export interface NegotiationRequest {
 }
 
 export interface JoinResponse {
@@ -55,9 +87,23 @@ export interface JoinResponse {
   otherParticipants: ParticipantInfo[];
 }
 
-export interface MuteTrack {
-  trackSid: string;
-  muted: boolean;
+export interface TrackPublishedResponse {
+  cid: string;
+  track?: TrackInfo;
+}
+
+/**
+ *  empty
+ */
+export interface NegotiationResponse {
+}
+
+export interface SessionDescription {
+  /**
+   *  "answer" | "offer" | "pranswer" | "rollback"
+   */
+  type: string;
+  sdp: string;
 }
 
 export interface ParticipantUpdate {
@@ -70,21 +116,41 @@ const baseSignalRequest: object = {
 const baseSignalResponse: object = {
 };
 
-const baseTrickle: object = {
+const baseAddTrackRequest: object = {
+  cid: "",
+  name: "",
+  type: 0,
+};
+
+const baseTrickleRequest: object = {
   candidateInit: "",
 };
 
-const baseSessionDescription: object = {
-  type: "",
-  sdp: "",
+const baseRemoveTrackRequest: object = {
+  sid: "",
+};
+
+const baseMuteTrackRequest: object = {
+  sid: "",
+  muted: false,
+};
+
+const baseNegotiationRequest: object = {
 };
 
 const baseJoinResponse: object = {
 };
 
-const baseMuteTrack: object = {
-  trackSid: "",
-  muted: false,
+const baseTrackPublishedResponse: object = {
+  cid: "",
+};
+
+const baseNegotiationResponse: object = {
+};
+
+const baseSessionDescription: object = {
+  type: "",
+  sdp: "",
 };
 
 const baseParticipantUpdate: object = {
@@ -97,14 +163,23 @@ export const SignalRequest = {
     if (message.offer !== undefined) {
       SessionDescription.encode(message.offer, writer.uint32(10).fork()).ldelim();
     }
-    if (message.negotiate !== undefined) {
-      SessionDescription.encode(message.negotiate, writer.uint32(18).fork()).ldelim();
+    if (message.answer !== undefined) {
+      SessionDescription.encode(message.answer, writer.uint32(18).fork()).ldelim();
     }
     if (message.trickle !== undefined) {
-      Trickle.encode(message.trickle, writer.uint32(26).fork()).ldelim();
+      TrickleRequest.encode(message.trickle, writer.uint32(26).fork()).ldelim();
+    }
+    if (message.addTrack !== undefined) {
+      AddTrackRequest.encode(message.addTrack, writer.uint32(34).fork()).ldelim();
     }
     if (message.mute !== undefined) {
-      MuteTrack.encode(message.mute, writer.uint32(34).fork()).ldelim();
+      MuteTrackRequest.encode(message.mute, writer.uint32(42).fork()).ldelim();
+    }
+    if (message.removeTrack !== undefined) {
+      RemoveTrackRequest.encode(message.removeTrack, writer.uint32(50).fork()).ldelim();
+    }
+    if (message.negotiate !== undefined) {
+      NegotiationRequest.encode(message.negotiate, writer.uint32(58).fork()).ldelim();
     }
     return writer;
   },
@@ -119,13 +194,22 @@ export const SignalRequest = {
           message.offer = SessionDescription.decode(reader, reader.uint32());
           break;
         case 2:
-          message.negotiate = SessionDescription.decode(reader, reader.uint32());
+          message.answer = SessionDescription.decode(reader, reader.uint32());
           break;
         case 3:
-          message.trickle = Trickle.decode(reader, reader.uint32());
+          message.trickle = TrickleRequest.decode(reader, reader.uint32());
           break;
         case 4:
-          message.mute = MuteTrack.decode(reader, reader.uint32());
+          message.addTrack = AddTrackRequest.decode(reader, reader.uint32());
+          break;
+        case 5:
+          message.mute = MuteTrackRequest.decode(reader, reader.uint32());
+          break;
+        case 6:
+          message.removeTrack = RemoveTrackRequest.decode(reader, reader.uint32());
+          break;
+        case 7:
+          message.negotiate = NegotiationRequest.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -141,20 +225,35 @@ export const SignalRequest = {
     } else {
       message.offer = undefined;
     }
-    if (object.negotiate !== undefined && object.negotiate !== null) {
-      message.negotiate = SessionDescription.fromJSON(object.negotiate);
+    if (object.answer !== undefined && object.answer !== null) {
+      message.answer = SessionDescription.fromJSON(object.answer);
     } else {
-      message.negotiate = undefined;
+      message.answer = undefined;
     }
     if (object.trickle !== undefined && object.trickle !== null) {
-      message.trickle = Trickle.fromJSON(object.trickle);
+      message.trickle = TrickleRequest.fromJSON(object.trickle);
     } else {
       message.trickle = undefined;
     }
+    if (object.addTrack !== undefined && object.addTrack !== null) {
+      message.addTrack = AddTrackRequest.fromJSON(object.addTrack);
+    } else {
+      message.addTrack = undefined;
+    }
     if (object.mute !== undefined && object.mute !== null) {
-      message.mute = MuteTrack.fromJSON(object.mute);
+      message.mute = MuteTrackRequest.fromJSON(object.mute);
     } else {
       message.mute = undefined;
+    }
+    if (object.removeTrack !== undefined && object.removeTrack !== null) {
+      message.removeTrack = RemoveTrackRequest.fromJSON(object.removeTrack);
+    } else {
+      message.removeTrack = undefined;
+    }
+    if (object.negotiate !== undefined && object.negotiate !== null) {
+      message.negotiate = NegotiationRequest.fromJSON(object.negotiate);
+    } else {
+      message.negotiate = undefined;
     }
     return message;
   },
@@ -165,29 +264,47 @@ export const SignalRequest = {
     } else {
       message.offer = undefined;
     }
-    if (object.negotiate !== undefined && object.negotiate !== null) {
-      message.negotiate = SessionDescription.fromPartial(object.negotiate);
+    if (object.answer !== undefined && object.answer !== null) {
+      message.answer = SessionDescription.fromPartial(object.answer);
     } else {
-      message.negotiate = undefined;
+      message.answer = undefined;
     }
     if (object.trickle !== undefined && object.trickle !== null) {
-      message.trickle = Trickle.fromPartial(object.trickle);
+      message.trickle = TrickleRequest.fromPartial(object.trickle);
     } else {
       message.trickle = undefined;
     }
+    if (object.addTrack !== undefined && object.addTrack !== null) {
+      message.addTrack = AddTrackRequest.fromPartial(object.addTrack);
+    } else {
+      message.addTrack = undefined;
+    }
     if (object.mute !== undefined && object.mute !== null) {
-      message.mute = MuteTrack.fromPartial(object.mute);
+      message.mute = MuteTrackRequest.fromPartial(object.mute);
     } else {
       message.mute = undefined;
+    }
+    if (object.removeTrack !== undefined && object.removeTrack !== null) {
+      message.removeTrack = RemoveTrackRequest.fromPartial(object.removeTrack);
+    } else {
+      message.removeTrack = undefined;
+    }
+    if (object.negotiate !== undefined && object.negotiate !== null) {
+      message.negotiate = NegotiationRequest.fromPartial(object.negotiate);
+    } else {
+      message.negotiate = undefined;
     }
     return message;
   },
   toJSON(message: SignalRequest): unknown {
     const obj: any = {};
     message.offer !== undefined && (obj.offer = message.offer ? SessionDescription.toJSON(message.offer) : undefined);
-    message.negotiate !== undefined && (obj.negotiate = message.negotiate ? SessionDescription.toJSON(message.negotiate) : undefined);
-    message.trickle !== undefined && (obj.trickle = message.trickle ? Trickle.toJSON(message.trickle) : undefined);
-    message.mute !== undefined && (obj.mute = message.mute ? MuteTrack.toJSON(message.mute) : undefined);
+    message.answer !== undefined && (obj.answer = message.answer ? SessionDescription.toJSON(message.answer) : undefined);
+    message.trickle !== undefined && (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
+    message.addTrack !== undefined && (obj.addTrack = message.addTrack ? AddTrackRequest.toJSON(message.addTrack) : undefined);
+    message.mute !== undefined && (obj.mute = message.mute ? MuteTrackRequest.toJSON(message.mute) : undefined);
+    message.removeTrack !== undefined && (obj.removeTrack = message.removeTrack ? RemoveTrackRequest.toJSON(message.removeTrack) : undefined);
+    message.negotiate !== undefined && (obj.negotiate = message.negotiate ? NegotiationRequest.toJSON(message.negotiate) : undefined);
     return obj;
   },
 };
@@ -200,17 +317,20 @@ export const SignalResponse = {
     if (message.answer !== undefined) {
       SessionDescription.encode(message.answer, writer.uint32(18).fork()).ldelim();
     }
-    if (message.negotiate !== undefined) {
-      SessionDescription.encode(message.negotiate, writer.uint32(26).fork()).ldelim();
+    if (message.offer !== undefined) {
+      SessionDescription.encode(message.offer, writer.uint32(26).fork()).ldelim();
     }
     if (message.trickle !== undefined) {
-      Trickle.encode(message.trickle, writer.uint32(34).fork()).ldelim();
+      TrickleRequest.encode(message.trickle, writer.uint32(34).fork()).ldelim();
     }
     if (message.update !== undefined) {
       ParticipantUpdate.encode(message.update, writer.uint32(42).fork()).ldelim();
     }
     if (message.trackPublished !== undefined) {
-      TrackInfo.encode(message.trackPublished, writer.uint32(50).fork()).ldelim();
+      TrackPublishedResponse.encode(message.trackPublished, writer.uint32(50).fork()).ldelim();
+    }
+    if (message.negotiate !== undefined) {
+      NegotiationResponse.encode(message.negotiate, writer.uint32(58).fork()).ldelim();
     }
     return writer;
   },
@@ -228,16 +348,19 @@ export const SignalResponse = {
           message.answer = SessionDescription.decode(reader, reader.uint32());
           break;
         case 3:
-          message.negotiate = SessionDescription.decode(reader, reader.uint32());
+          message.offer = SessionDescription.decode(reader, reader.uint32());
           break;
         case 4:
-          message.trickle = Trickle.decode(reader, reader.uint32());
+          message.trickle = TrickleRequest.decode(reader, reader.uint32());
           break;
         case 5:
           message.update = ParticipantUpdate.decode(reader, reader.uint32());
           break;
         case 6:
-          message.trackPublished = TrackInfo.decode(reader, reader.uint32());
+          message.trackPublished = TrackPublishedResponse.decode(reader, reader.uint32());
+          break;
+        case 7:
+          message.negotiate = NegotiationResponse.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -258,13 +381,13 @@ export const SignalResponse = {
     } else {
       message.answer = undefined;
     }
-    if (object.negotiate !== undefined && object.negotiate !== null) {
-      message.negotiate = SessionDescription.fromJSON(object.negotiate);
+    if (object.offer !== undefined && object.offer !== null) {
+      message.offer = SessionDescription.fromJSON(object.offer);
     } else {
-      message.negotiate = undefined;
+      message.offer = undefined;
     }
     if (object.trickle !== undefined && object.trickle !== null) {
-      message.trickle = Trickle.fromJSON(object.trickle);
+      message.trickle = TrickleRequest.fromJSON(object.trickle);
     } else {
       message.trickle = undefined;
     }
@@ -274,9 +397,14 @@ export const SignalResponse = {
       message.update = undefined;
     }
     if (object.trackPublished !== undefined && object.trackPublished !== null) {
-      message.trackPublished = TrackInfo.fromJSON(object.trackPublished);
+      message.trackPublished = TrackPublishedResponse.fromJSON(object.trackPublished);
     } else {
       message.trackPublished = undefined;
+    }
+    if (object.negotiate !== undefined && object.negotiate !== null) {
+      message.negotiate = NegotiationResponse.fromJSON(object.negotiate);
+    } else {
+      message.negotiate = undefined;
     }
     return message;
   },
@@ -292,13 +420,13 @@ export const SignalResponse = {
     } else {
       message.answer = undefined;
     }
-    if (object.negotiate !== undefined && object.negotiate !== null) {
-      message.negotiate = SessionDescription.fromPartial(object.negotiate);
+    if (object.offer !== undefined && object.offer !== null) {
+      message.offer = SessionDescription.fromPartial(object.offer);
     } else {
-      message.negotiate = undefined;
+      message.offer = undefined;
     }
     if (object.trickle !== undefined && object.trickle !== null) {
-      message.trickle = Trickle.fromPartial(object.trickle);
+      message.trickle = TrickleRequest.fromPartial(object.trickle);
     } else {
       message.trickle = undefined;
     }
@@ -308,9 +436,14 @@ export const SignalResponse = {
       message.update = undefined;
     }
     if (object.trackPublished !== undefined && object.trackPublished !== null) {
-      message.trackPublished = TrackInfo.fromPartial(object.trackPublished);
+      message.trackPublished = TrackPublishedResponse.fromPartial(object.trackPublished);
     } else {
       message.trackPublished = undefined;
+    }
+    if (object.negotiate !== undefined && object.negotiate !== null) {
+      message.negotiate = NegotiationResponse.fromPartial(object.negotiate);
+    } else {
+      message.negotiate = undefined;
     }
     return message;
   },
@@ -318,23 +451,101 @@ export const SignalResponse = {
     const obj: any = {};
     message.join !== undefined && (obj.join = message.join ? JoinResponse.toJSON(message.join) : undefined);
     message.answer !== undefined && (obj.answer = message.answer ? SessionDescription.toJSON(message.answer) : undefined);
-    message.negotiate !== undefined && (obj.negotiate = message.negotiate ? SessionDescription.toJSON(message.negotiate) : undefined);
-    message.trickle !== undefined && (obj.trickle = message.trickle ? Trickle.toJSON(message.trickle) : undefined);
+    message.offer !== undefined && (obj.offer = message.offer ? SessionDescription.toJSON(message.offer) : undefined);
+    message.trickle !== undefined && (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
     message.update !== undefined && (obj.update = message.update ? ParticipantUpdate.toJSON(message.update) : undefined);
-    message.trackPublished !== undefined && (obj.trackPublished = message.trackPublished ? TrackInfo.toJSON(message.trackPublished) : undefined);
+    message.trackPublished !== undefined && (obj.trackPublished = message.trackPublished ? TrackPublishedResponse.toJSON(message.trackPublished) : undefined);
+    message.negotiate !== undefined && (obj.negotiate = message.negotiate ? NegotiationResponse.toJSON(message.negotiate) : undefined);
     return obj;
   },
 };
 
-export const Trickle = {
-  encode(message: Trickle, writer: Writer = Writer.create()): Writer {
+export const AddTrackRequest = {
+  encode(message: AddTrackRequest, writer: Writer = Writer.create()): Writer {
+    writer.uint32(10).string(message.cid);
+    writer.uint32(18).string(message.name);
+    writer.uint32(24).int32(message.type);
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): AddTrackRequest {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseAddTrackRequest } as AddTrackRequest;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.cid = reader.string();
+          break;
+        case 2:
+          message.name = reader.string();
+          break;
+        case 3:
+          message.type = reader.int32() as any;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(object: any): AddTrackRequest {
+    const message = { ...baseAddTrackRequest } as AddTrackRequest;
+    if (object.cid !== undefined && object.cid !== null) {
+      message.cid = String(object.cid);
+    } else {
+      message.cid = "";
+    }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = String(object.name);
+    } else {
+      message.name = "";
+    }
+    if (object.type !== undefined && object.type !== null) {
+      message.type = trackTypeFromJSON(object.type);
+    } else {
+      message.type = 0;
+    }
+    return message;
+  },
+  fromPartial(object: DeepPartial<AddTrackRequest>): AddTrackRequest {
+    const message = { ...baseAddTrackRequest } as AddTrackRequest;
+    if (object.cid !== undefined && object.cid !== null) {
+      message.cid = object.cid;
+    } else {
+      message.cid = "";
+    }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = object.name;
+    } else {
+      message.name = "";
+    }
+    if (object.type !== undefined && object.type !== null) {
+      message.type = object.type;
+    } else {
+      message.type = 0;
+    }
+    return message;
+  },
+  toJSON(message: AddTrackRequest): unknown {
+    const obj: any = {};
+    message.cid !== undefined && (obj.cid = message.cid);
+    message.name !== undefined && (obj.name = message.name);
+    message.type !== undefined && (obj.type = trackTypeToJSON(message.type));
+    return obj;
+  },
+};
+
+export const TrickleRequest = {
+  encode(message: TrickleRequest, writer: Writer = Writer.create()): Writer {
     writer.uint32(10).string(message.candidateInit);
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): Trickle {
+  decode(input: Uint8Array | Reader, length?: number): TrickleRequest {
     const reader = input instanceof Uint8Array ? new Reader(input) : input;
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseTrickle } as Trickle;
+    const message = { ...baseTrickleRequest } as TrickleRequest;
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -348,8 +559,8 @@ export const Trickle = {
     }
     return message;
   },
-  fromJSON(object: any): Trickle {
-    const message = { ...baseTrickle } as Trickle;
+  fromJSON(object: any): TrickleRequest {
+    const message = { ...baseTrickleRequest } as TrickleRequest;
     if (object.candidateInit !== undefined && object.candidateInit !== null) {
       message.candidateInit = String(object.candidateInit);
     } else {
@@ -357,8 +568,8 @@ export const Trickle = {
     }
     return message;
   },
-  fromPartial(object: DeepPartial<Trickle>): Trickle {
-    const message = { ...baseTrickle } as Trickle;
+  fromPartial(object: DeepPartial<TrickleRequest>): TrickleRequest {
+    const message = { ...baseTrickleRequest } as TrickleRequest;
     if (object.candidateInit !== undefined && object.candidateInit !== null) {
       message.candidateInit = object.candidateInit;
     } else {
@@ -366,31 +577,27 @@ export const Trickle = {
     }
     return message;
   },
-  toJSON(message: Trickle): unknown {
+  toJSON(message: TrickleRequest): unknown {
     const obj: any = {};
     message.candidateInit !== undefined && (obj.candidateInit = message.candidateInit);
     return obj;
   },
 };
 
-export const SessionDescription = {
-  encode(message: SessionDescription, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.type);
-    writer.uint32(18).string(message.sdp);
+export const RemoveTrackRequest = {
+  encode(message: RemoveTrackRequest, writer: Writer = Writer.create()): Writer {
+    writer.uint32(10).string(message.sid);
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): SessionDescription {
+  decode(input: Uint8Array | Reader, length?: number): RemoveTrackRequest {
     const reader = input instanceof Uint8Array ? new Reader(input) : input;
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseSessionDescription } as SessionDescription;
+    const message = { ...baseRemoveTrackRequest } as RemoveTrackRequest;
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.type = reader.string();
-          break;
-        case 2:
-          message.sdp = reader.string();
+          message.sid = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -399,38 +606,121 @@ export const SessionDescription = {
     }
     return message;
   },
-  fromJSON(object: any): SessionDescription {
-    const message = { ...baseSessionDescription } as SessionDescription;
-    if (object.type !== undefined && object.type !== null) {
-      message.type = String(object.type);
+  fromJSON(object: any): RemoveTrackRequest {
+    const message = { ...baseRemoveTrackRequest } as RemoveTrackRequest;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = String(object.sid);
     } else {
-      message.type = "";
-    }
-    if (object.sdp !== undefined && object.sdp !== null) {
-      message.sdp = String(object.sdp);
-    } else {
-      message.sdp = "";
+      message.sid = "";
     }
     return message;
   },
-  fromPartial(object: DeepPartial<SessionDescription>): SessionDescription {
-    const message = { ...baseSessionDescription } as SessionDescription;
-    if (object.type !== undefined && object.type !== null) {
-      message.type = object.type;
+  fromPartial(object: DeepPartial<RemoveTrackRequest>): RemoveTrackRequest {
+    const message = { ...baseRemoveTrackRequest } as RemoveTrackRequest;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = object.sid;
     } else {
-      message.type = "";
-    }
-    if (object.sdp !== undefined && object.sdp !== null) {
-      message.sdp = object.sdp;
-    } else {
-      message.sdp = "";
+      message.sid = "";
     }
     return message;
   },
-  toJSON(message: SessionDescription): unknown {
+  toJSON(message: RemoveTrackRequest): unknown {
     const obj: any = {};
-    message.type !== undefined && (obj.type = message.type);
-    message.sdp !== undefined && (obj.sdp = message.sdp);
+    message.sid !== undefined && (obj.sid = message.sid);
+    return obj;
+  },
+};
+
+export const MuteTrackRequest = {
+  encode(message: MuteTrackRequest, writer: Writer = Writer.create()): Writer {
+    writer.uint32(10).string(message.sid);
+    writer.uint32(16).bool(message.muted);
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): MuteTrackRequest {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseMuteTrackRequest } as MuteTrackRequest;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.sid = reader.string();
+          break;
+        case 2:
+          message.muted = reader.bool();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(object: any): MuteTrackRequest {
+    const message = { ...baseMuteTrackRequest } as MuteTrackRequest;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = String(object.sid);
+    } else {
+      message.sid = "";
+    }
+    if (object.muted !== undefined && object.muted !== null) {
+      message.muted = Boolean(object.muted);
+    } else {
+      message.muted = false;
+    }
+    return message;
+  },
+  fromPartial(object: DeepPartial<MuteTrackRequest>): MuteTrackRequest {
+    const message = { ...baseMuteTrackRequest } as MuteTrackRequest;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = object.sid;
+    } else {
+      message.sid = "";
+    }
+    if (object.muted !== undefined && object.muted !== null) {
+      message.muted = object.muted;
+    } else {
+      message.muted = false;
+    }
+    return message;
+  },
+  toJSON(message: MuteTrackRequest): unknown {
+    const obj: any = {};
+    message.sid !== undefined && (obj.sid = message.sid);
+    message.muted !== undefined && (obj.muted = message.muted);
+    return obj;
+  },
+};
+
+export const NegotiationRequest = {
+  encode(_: NegotiationRequest, writer: Writer = Writer.create()): Writer {
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): NegotiationRequest {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseNegotiationRequest } as NegotiationRequest;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(_: any): NegotiationRequest {
+    const message = { ...baseNegotiationRequest } as NegotiationRequest;
+    return message;
+  },
+  fromPartial(_: DeepPartial<NegotiationRequest>): NegotiationRequest {
+    const message = { ...baseNegotiationRequest } as NegotiationRequest;
+    return message;
+  },
+  toJSON(_: NegotiationRequest): unknown {
+    const obj: any = {};
     return obj;
   },
 };
@@ -525,24 +815,26 @@ export const JoinResponse = {
   },
 };
 
-export const MuteTrack = {
-  encode(message: MuteTrack, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.trackSid);
-    writer.uint32(16).bool(message.muted);
+export const TrackPublishedResponse = {
+  encode(message: TrackPublishedResponse, writer: Writer = Writer.create()): Writer {
+    writer.uint32(10).string(message.cid);
+    if (message.track !== undefined && message.track !== undefined) {
+      TrackInfo.encode(message.track, writer.uint32(18).fork()).ldelim();
+    }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): MuteTrack {
+  decode(input: Uint8Array | Reader, length?: number): TrackPublishedResponse {
     const reader = input instanceof Uint8Array ? new Reader(input) : input;
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseMuteTrack } as MuteTrack;
+    const message = { ...baseTrackPublishedResponse } as TrackPublishedResponse;
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.trackSid = reader.string();
+          message.cid = reader.string();
           break;
         case 2:
-          message.muted = reader.bool();
+          message.track = TrackInfo.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -551,38 +843,132 @@ export const MuteTrack = {
     }
     return message;
   },
-  fromJSON(object: any): MuteTrack {
-    const message = { ...baseMuteTrack } as MuteTrack;
-    if (object.trackSid !== undefined && object.trackSid !== null) {
-      message.trackSid = String(object.trackSid);
+  fromJSON(object: any): TrackPublishedResponse {
+    const message = { ...baseTrackPublishedResponse } as TrackPublishedResponse;
+    if (object.cid !== undefined && object.cid !== null) {
+      message.cid = String(object.cid);
     } else {
-      message.trackSid = "";
+      message.cid = "";
     }
-    if (object.muted !== undefined && object.muted !== null) {
-      message.muted = Boolean(object.muted);
+    if (object.track !== undefined && object.track !== null) {
+      message.track = TrackInfo.fromJSON(object.track);
     } else {
-      message.muted = false;
-    }
-    return message;
-  },
-  fromPartial(object: DeepPartial<MuteTrack>): MuteTrack {
-    const message = { ...baseMuteTrack } as MuteTrack;
-    if (object.trackSid !== undefined && object.trackSid !== null) {
-      message.trackSid = object.trackSid;
-    } else {
-      message.trackSid = "";
-    }
-    if (object.muted !== undefined && object.muted !== null) {
-      message.muted = object.muted;
-    } else {
-      message.muted = false;
+      message.track = undefined;
     }
     return message;
   },
-  toJSON(message: MuteTrack): unknown {
+  fromPartial(object: DeepPartial<TrackPublishedResponse>): TrackPublishedResponse {
+    const message = { ...baseTrackPublishedResponse } as TrackPublishedResponse;
+    if (object.cid !== undefined && object.cid !== null) {
+      message.cid = object.cid;
+    } else {
+      message.cid = "";
+    }
+    if (object.track !== undefined && object.track !== null) {
+      message.track = TrackInfo.fromPartial(object.track);
+    } else {
+      message.track = undefined;
+    }
+    return message;
+  },
+  toJSON(message: TrackPublishedResponse): unknown {
     const obj: any = {};
-    message.trackSid !== undefined && (obj.trackSid = message.trackSid);
-    message.muted !== undefined && (obj.muted = message.muted);
+    message.cid !== undefined && (obj.cid = message.cid);
+    message.track !== undefined && (obj.track = message.track ? TrackInfo.toJSON(message.track) : undefined);
+    return obj;
+  },
+};
+
+export const NegotiationResponse = {
+  encode(_: NegotiationResponse, writer: Writer = Writer.create()): Writer {
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): NegotiationResponse {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseNegotiationResponse } as NegotiationResponse;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(_: any): NegotiationResponse {
+    const message = { ...baseNegotiationResponse } as NegotiationResponse;
+    return message;
+  },
+  fromPartial(_: DeepPartial<NegotiationResponse>): NegotiationResponse {
+    const message = { ...baseNegotiationResponse } as NegotiationResponse;
+    return message;
+  },
+  toJSON(_: NegotiationResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+};
+
+export const SessionDescription = {
+  encode(message: SessionDescription, writer: Writer = Writer.create()): Writer {
+    writer.uint32(10).string(message.type);
+    writer.uint32(18).string(message.sdp);
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): SessionDescription {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseSessionDescription } as SessionDescription;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.type = reader.string();
+          break;
+        case 2:
+          message.sdp = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(object: any): SessionDescription {
+    const message = { ...baseSessionDescription } as SessionDescription;
+    if (object.type !== undefined && object.type !== null) {
+      message.type = String(object.type);
+    } else {
+      message.type = "";
+    }
+    if (object.sdp !== undefined && object.sdp !== null) {
+      message.sdp = String(object.sdp);
+    } else {
+      message.sdp = "";
+    }
+    return message;
+  },
+  fromPartial(object: DeepPartial<SessionDescription>): SessionDescription {
+    const message = { ...baseSessionDescription } as SessionDescription;
+    if (object.type !== undefined && object.type !== null) {
+      message.type = object.type;
+    } else {
+      message.type = "";
+    }
+    if (object.sdp !== undefined && object.sdp !== null) {
+      message.sdp = object.sdp;
+    } else {
+      message.sdp = "";
+    }
+    return message;
+  },
+  toJSON(message: SessionDescription): unknown {
+    const obj: any = {};
+    message.type !== undefined && (obj.type = message.type);
+    message.sdp !== undefined && (obj.sdp = message.sdp);
     return obj;
   },
 };

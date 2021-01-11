@@ -1,4 +1,4 @@
-import { ConnectionInfo, ConnectOptions } from './api/RTCClient';
+import { ConnectionInfo } from './api/RTCClient';
 import { LocalParticipant } from './room/participant/LocalParticipant';
 import { Participant } from './room/participant/Participant';
 import { RemoteParticipant } from './room/participant/RemoteParticipant';
@@ -28,7 +28,6 @@ export * from './room/track/types';
 export * from './room/track/VideoTrack';
 export {
   ConnectionInfo,
-  ConnectOptions,
   Room,
   Participant,
   RemoteParticipant,

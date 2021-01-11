@@ -2,9 +2,10 @@ import {
   AudioTrack,
   connect,
   createLocalTracks,
+  LocalAudioTrack,
   LocalDataTrack,
-  LocalTrack,
-  LocalTrackPublication,
+  LocalVideoTrack,
+  LogLevel,
   Participant,
   ParticipantEvent,
   RemoteDataTrack,
@@ -114,16 +115,17 @@ const chatTrack: LocalDataTrack = new LocalDataTrack({
   name: 'chat',
   ordered: true,
 });
+let videoTrack: LocalVideoTrack;
+let audioTrack: LocalAudioTrack;
 window.connectToRoom = () => {
   const host = (<HTMLInputElement>$('host')).value;
   const port = (<HTMLInputElement>$('port')).value;
-  const room = (<HTMLInputElement>$('room')).value;
   const token = (<HTMLInputElement>$('token')).value;
 
   // participant to div mapping
 
   connect({ host: host, port: parseInt(port) }, token, {
-    name: room,
+    logLevel: LogLevel.debug,
   })
     .then((room) => {
       appendLog('connected to room', room.name);
@@ -142,48 +144,65 @@ window.connectToRoom = () => {
       Object.values(room.participants).forEach((participant) => {
         participantConnected(participant);
       });
+
+      // publish video
+      const div = <HTMLDivElement>$('local-video');
+      createLocalTracks().then((tracks) => {
+        currentRoom.localParticipant.publishTracks(tracks);
+        for (const track of tracks) {
+          if (track instanceof LocalVideoTrack) {
+            videoTrack = track;
+          } else if (track instanceof LocalAudioTrack) {
+            audioTrack = track;
+          }
+          // skip adding local audio track, to avoid your own sound
+          // only process local video tracks
+          if (track.kind !== Track.Kind.Video) {
+            continue;
+          }
+          const element = trackSubscribed(
+            div,
+            track,
+            currentRoom.localParticipant
+          );
+          // flip video
+          if (element) element.style.transform = 'scale(-1, 1)';
+        }
+      });
     })
     .catch((reason) => {
       console.error('error connecting to room', reason);
     });
 };
 
-let videoEnabled = false;
 window.toggleVideo = () => {
   if (!currentRoom) return;
+  const video = <HTMLVideoElement>document.querySelector('#local-video video');
+  if (videoTrack.isMuted) {
+    videoTrack.mute();
+    // hide from display
+    if (video) {
+      video.style.display = 'none';
+    }
 
-  if (videoEnabled) {
-    const tracks: LocalTrack[] = [];
-    for (const publication of currentRoom.localParticipant.getTracks()) {
-      const localPublication = <LocalTrackPublication>publication;
-      tracks.push(localPublication.track!);
-      currentRoom.localParticipant.unpublishTracks(tracks);
-    }
-    const video = <HTMLVideoElement>document.querySelector('#local-video video');
-    if (video) { 
-      video.remove();
-    }
+    // const tracks: LocalTrack[] = [];
+    // for (const publication of currentRoom.localParticipant.getTracks()) {
+    //   const localPublication = <LocalTrackPublication>publication;
+    //   tracks.push(localPublication.track!);
+    //   currentRoom.localParticipant.unpublishTracks(tracks);
+    // }
+    // const video = <HTMLVideoElement>(
+    //   document.querySelector('#local-video video')
+    // );
+    // if (video) {
+    //   video.remove();
+    // }
   } else {
-    const div = <HTMLDivElement>$('local-video');
-    createLocalTracks().then((tracks) => {
-      currentRoom.localParticipant.publishTracks(tracks);
-      for (const track of tracks) {
-        // skip adding local audio track, to avoid your own sound
-        // only process local video tracks
-        if (track.kind !== Track.Kind.Video) {
-          continue;
-        }
-        const element = trackSubscribed(
-          div,
-          track,
-          currentRoom.localParticipant
-        );
-        // flip video
-        if (element) element.style.transform = 'scale(-1, 1)';
-      }
-    });
+    videoTrack.unmute();
+    if (video) {
+      video.style.display = '';
+    }
   }
-  videoEnabled = !videoEnabled;
 };
 
 window.enterText = () => {
