@@ -78,6 +78,9 @@ export class RemoteParticipant extends Participant {
       }
     } else {
       publication.track = track;
+      // set track name etc
+      track.name = publication.trackName;
+      track.sid = publication.trackSid;
     }
 
     // when media track is ended, fire the event
