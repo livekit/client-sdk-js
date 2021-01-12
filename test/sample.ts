@@ -2,6 +2,7 @@ import {
   AudioTrack,
   connect,
   createLocalTracks,
+  createLocalVideoTrack,
   LocalAudioTrack,
   LocalDataTrack,
   LocalVideoTrack,
@@ -25,6 +26,8 @@ declare global {
   interface Window {
     connectToRoom: any;
     toggleVideo: any;
+    muteVideo: any;
+    muteAudio: any;
     enterText: any;
   }
 }
@@ -115,7 +118,7 @@ const chatTrack: LocalDataTrack = new LocalDataTrack({
   name: 'chat',
   ordered: true,
 });
-let videoTrack: LocalVideoTrack;
+let videoTrack: LocalVideoTrack | undefined;
 let audioTrack: LocalAudioTrack;
 window.connectToRoom = () => {
   const host = (<HTMLInputElement>$('host')).value;
@@ -129,8 +132,7 @@ window.connectToRoom = () => {
   })
     .then((room) => {
       appendLog('connected to room', room.name);
-      $('toggle-video-button')!.removeAttribute('disabled');
-      $('connect-button')!.setAttribute('disabled', 'true');
+      setButtonsForState(true);
       currentRoom = room;
 
       room
@@ -152,21 +154,12 @@ window.connectToRoom = () => {
         for (const track of tracks) {
           if (track instanceof LocalVideoTrack) {
             videoTrack = track;
+            publishLocalVideo(videoTrack);
           } else if (track instanceof LocalAudioTrack) {
+            // skip adding local audio track, to avoid your own sound
+            // only process local video tracks
             audioTrack = track;
           }
-          // skip adding local audio track, to avoid your own sound
-          // only process local video tracks
-          if (track.kind !== Track.Kind.Video) {
-            continue;
-          }
-          const element = trackSubscribed(
-            div,
-            track,
-            currentRoom.localParticipant
-          );
-          // flip video
-          if (element) element.style.transform = 'scale(-1, 1)';
         }
       });
     })
@@ -175,33 +168,48 @@ window.connectToRoom = () => {
     });
 };
 
-window.toggleVideo = () => {
-  if (!currentRoom) return;
-  const video = <HTMLVideoElement>document.querySelector('#local-video video');
-  if (videoTrack.isMuted) {
+window.muteVideo = () => {
+  if (!currentRoom || !videoTrack) return;
+  const video = getMyVideo();
+  if (!videoTrack.isMuted) {
+    appendLog('muting video');
     videoTrack.mute();
     // hide from display
     if (video) {
       video.style.display = 'none';
     }
-
-    // const tracks: LocalTrack[] = [];
-    // for (const publication of currentRoom.localParticipant.getTracks()) {
-    //   const localPublication = <LocalTrackPublication>publication;
-    //   tracks.push(localPublication.track!);
-    //   currentRoom.localParticipant.unpublishTracks(tracks);
-    // }
-    // const video = <HTMLVideoElement>(
-    //   document.querySelector('#local-video video')
-    // );
-    // if (video) {
-    //   video.remove();
-    // }
   } else {
+    appendLog('unmuting video');
     videoTrack.unmute();
     if (video) {
       video.style.display = '';
     }
+  }
+};
+
+window.muteAudio = () => {
+  if (!currentRoom || !audioTrack) return;
+  if (!audioTrack.isMuted) {
+    appendLog('muting audio');
+    audioTrack.mute();
+  } else {
+    appendLog('unmuting audio');
+    audioTrack.unmute();
+  }
+};
+
+window.toggleVideo = async () => {
+  if (!currentRoom) return;
+  if (videoTrack) {
+    appendLog('turning video off');
+    currentRoom.localParticipant.unpublishTrack(videoTrack);
+    videoTrack = undefined;
+    const video = getMyVideo();
+    if (video) video.remove();
+  } else {
+    appendLog('turning video on');
+    videoTrack = await createLocalVideoTrack();
+    await publishLocalVideo(videoTrack);
   }
 };
 
@@ -213,3 +221,29 @@ window.enterText = () => {
     textField.value = '';
   }
 };
+
+async function publishLocalVideo(track: LocalVideoTrack) {
+  await currentRoom.localParticipant.publishTrack(track);
+  const video = track.attach();
+  video.style.transform = 'scale(-1, 1)';
+  $('local-video')!.appendChild(video);
+}
+
+function setButtonsForState(connected: boolean) {
+  const connectedSet = [
+    'toggle-video-button',
+    'mute-video-button',
+    'mute-audio-button',
+  ];
+  const disconnectedSet = ['connect-button'];
+
+  const toRemove = connected ? connectedSet : disconnectedSet;
+  const toAdd = connected ? disconnectedSet : connectedSet;
+
+  toRemove.forEach((id) => $(id)?.removeAttribute('disabled'));
+  toAdd.forEach((id) => $(id)?.setAttribute('disabled', 'true'));
+}
+
+function getMyVideo() {
+  return <HTMLVideoElement>document.querySelector('#local-video video');
+}

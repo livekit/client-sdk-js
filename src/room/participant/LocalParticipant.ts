@@ -119,35 +119,8 @@ export class LocalParticipant extends Participant {
   unpublishTrack(
     track: LocalTrack | MediaStreamTrack
   ): LocalTrackPublication | null {
-    // look through all published tracks
-    let publication: LocalTrackPublication | undefined;
-    for (const pub of Object.values(this.tracks)) {
-      let localTrack: LocalTrack | undefined;
-      if (
-        pub instanceof LocalAudioTrackPublication ||
-        pub instanceof LocalVideoTrackPublication ||
-        pub instanceof LocalDataTrackPublication
-      ) {
-        localTrack = pub.track;
-      }
-      if (!localTrack) continue;
-
-      // this looks overly complicated due to this object tree
-      if (track instanceof MediaStreamTrack) {
-        if (
-          localTrack instanceof LocalAudioTrack ||
-          localTrack instanceof LocalVideoTrack
-        ) {
-          if (localTrack.mediaStreamTrack === track) {
-            publication = publication = <LocalTrackPublication>pub;
-            break;
-          }
-        }
-      } else if (track === localTrack) {
-        publication = <LocalTrackPublication>pub;
-        break;
-      }
-    }
+    // look through all published tracks to find the right ones
+    let publication = this.getPublicationForTrack(track);
 
     if (!publication) {
       return null;
@@ -203,6 +176,40 @@ export class LocalParticipant extends Participant {
       }
     });
     return publications;
+  }
+
+  getPublicationForTrack(
+    track: LocalTrack | MediaStreamTrack
+  ): LocalTrackPublication | undefined {
+    let publication: LocalTrackPublication | undefined;
+    for (const pub of Object.values(this.tracks)) {
+      let localTrack: LocalTrack | undefined;
+      if (
+        pub instanceof LocalAudioTrackPublication ||
+        pub instanceof LocalVideoTrackPublication ||
+        pub instanceof LocalDataTrackPublication
+      ) {
+        localTrack = pub.track;
+      }
+      if (!localTrack) continue;
+
+      // this looks overly complicated due to this object tree
+      if (track instanceof MediaStreamTrack) {
+        if (
+          localTrack instanceof LocalAudioTrack ||
+          localTrack instanceof LocalVideoTrack
+        ) {
+          if (localTrack.mediaStreamTrack === track) {
+            publication = publication = <LocalTrackPublication>pub;
+            break;
+          }
+        }
+      } else if (track === localTrack) {
+        publication = <LocalTrackPublication>pub;
+        break;
+      }
+    }
+    return publication;
   }
 
   onTrackUnmuted = (track: LocalVideoTrack | LocalAudioTrack) => {

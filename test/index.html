@@ -65,7 +65,26 @@
                   Connect
                 </button>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-8">
+                <button
+                  id="mute-audio-button"
+                  class="btn btn-secondary"
+                  disabled
+                  type="button"
+                  onclick="muteAudio()"
+                >
+                  Mute Audio
+                </button>
+                <button
+                  id="mute-video-button"
+                  class="btn btn-secondary"
+                  disabled
+                  type="button"
+                  onclick="muteVideo()"
+                >
+                  Mute Video
+                </button>
+
                 <button
                   id="toggle-video-button"
                   class="btn btn-secondary"
@@ -74,17 +93,6 @@
                   onclick="toggleVideo()"
                 >
                   Toggle Video
-                </button>
-              </div>
-              <div class="col-md-3">
-                <button
-                  id="toggle-audio-button"
-                  class="btn btn-secondary"
-                  disabled
-                  type="button"
-                  onclick="toggleAudio()"
-                >
-                  Toggle Audio
                 </button>
               </div>
             </div>

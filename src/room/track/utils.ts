@@ -76,6 +76,7 @@ export function setTrackMuted(
     return;
   }
 
+  track.isMuted = muted;
   track.mediaStreamTrack.enabled = !muted;
   track.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, track);
 }

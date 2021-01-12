@@ -43,7 +43,7 @@ export interface CreateLocalTracksOptions {
   video?: boolean | CreateLocalTrackOptions;
 }
 
-export interface CreateLocalTrackOptions {
+export interface CreateLocalTrackOptions extends MediaTrackConstraints {
   logLevel?: LogLevel;
   name?: string;
 }
@@ -53,6 +53,7 @@ async function createLocalVideoTrack(
 ): Promise<LocalVideoTrack> {
   const tracks = await createLocalTracks({
     logLevel: options?.logLevel,
+    audio: false,
     video: options,
   });
   return <LocalVideoTrack>tracks[0];
@@ -64,6 +65,7 @@ async function createLocalAudioTrack(
   const tracks = await createLocalTracks({
     logLevel: options?.logLevel,
     audio: options,
+    video: false,
   });
   return <LocalAudioTrack>tracks[0];
 }
@@ -77,10 +79,10 @@ async function createLocalTracks(
   if (options.video === undefined) options.video = true;
 
   if (options.video) {
-    constraints.video = { facingMode: 'user' };
+    constraints.video = options.video;
   }
   if (options.audio) {
-    constraints.audio = true;
+    constraints.audio = options.audio;
   }
 
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -97,7 +99,7 @@ async function createLocalTracks(
 
 function createLocalTrack(
   mediaStreamTrack: MediaStreamTrack,
-  options: boolean | CreateLocalTrackOptions
+  options: CreateLocalTrackOptions | boolean
 ): LocalTrack {
   let name: string | undefined;
   if (options instanceof Object && options.name) {
