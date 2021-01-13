@@ -26,7 +26,6 @@ export interface RTCClient {
   sendIceCandidate(candidate: RTCIceCandidateInit): void;
   sendMuteTrack(trackSid: string, muted: boolean): void;
   sendAddTrack(cid: string, name: string, type: TrackType): void;
-  sendRemoveTrack(sid: string): void;
   sendNegotiate(): void;
 
   readonly isConnected: boolean;
@@ -163,14 +162,6 @@ export class RTCClientImpl {
         cid,
         name,
         type,
-      },
-    });
-  }
-
-  sendRemoveTrack(sid: string): void {
-    this.sendRequest({
-      removeTrack: {
-        sid,
       },
     });
   }

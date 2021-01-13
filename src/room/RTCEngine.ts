@@ -56,10 +56,6 @@ export class RTCEngine extends EventEmitter {
     });
   }
 
-  removeTrack(sid: string) {
-    this.client.sendRemoveTrack(sid);
-  }
-
   updateMuteStatus(trackSid: string, muted: boolean) {
     this.client.sendMuteTrack(trackSid, muted);
   }
