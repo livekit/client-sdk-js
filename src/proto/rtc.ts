@@ -15,7 +15,6 @@ export interface SignalRequest {
   trickle?: TrickleRequest | undefined;
   addTrack?: AddTrackRequest | undefined;
   mute?: MuteTrackRequest | undefined;
-  removeTrack?: RemoveTrackRequest | undefined;
   /**
    *  when client needs to negotiate
    */
@@ -64,10 +63,6 @@ export interface AddTrackRequest {
 
 export interface TrickleRequest {
   candidateInit: string;
-}
-
-export interface RemoveTrackRequest {
-  sid: string;
 }
 
 export interface MuteTrackRequest {
@@ -126,10 +121,6 @@ const baseTrickleRequest: object = {
   candidateInit: "",
 };
 
-const baseRemoveTrackRequest: object = {
-  sid: "",
-};
-
 const baseMuteTrackRequest: object = {
   sid: "",
   muted: false,
@@ -175,9 +166,6 @@ export const SignalRequest = {
     if (message.mute !== undefined) {
       MuteTrackRequest.encode(message.mute, writer.uint32(42).fork()).ldelim();
     }
-    if (message.removeTrack !== undefined) {
-      RemoveTrackRequest.encode(message.removeTrack, writer.uint32(50).fork()).ldelim();
-    }
     if (message.negotiate !== undefined) {
       NegotiationRequest.encode(message.negotiate, writer.uint32(58).fork()).ldelim();
     }
@@ -204,9 +192,6 @@ export const SignalRequest = {
           break;
         case 5:
           message.mute = MuteTrackRequest.decode(reader, reader.uint32());
-          break;
-        case 6:
-          message.removeTrack = RemoveTrackRequest.decode(reader, reader.uint32());
           break;
         case 7:
           message.negotiate = NegotiationRequest.decode(reader, reader.uint32());
@@ -245,11 +230,6 @@ export const SignalRequest = {
     } else {
       message.mute = undefined;
     }
-    if (object.removeTrack !== undefined && object.removeTrack !== null) {
-      message.removeTrack = RemoveTrackRequest.fromJSON(object.removeTrack);
-    } else {
-      message.removeTrack = undefined;
-    }
     if (object.negotiate !== undefined && object.negotiate !== null) {
       message.negotiate = NegotiationRequest.fromJSON(object.negotiate);
     } else {
@@ -284,11 +264,6 @@ export const SignalRequest = {
     } else {
       message.mute = undefined;
     }
-    if (object.removeTrack !== undefined && object.removeTrack !== null) {
-      message.removeTrack = RemoveTrackRequest.fromPartial(object.removeTrack);
-    } else {
-      message.removeTrack = undefined;
-    }
     if (object.negotiate !== undefined && object.negotiate !== null) {
       message.negotiate = NegotiationRequest.fromPartial(object.negotiate);
     } else {
@@ -303,7 +278,6 @@ export const SignalRequest = {
     message.trickle !== undefined && (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
     message.addTrack !== undefined && (obj.addTrack = message.addTrack ? AddTrackRequest.toJSON(message.addTrack) : undefined);
     message.mute !== undefined && (obj.mute = message.mute ? MuteTrackRequest.toJSON(message.mute) : undefined);
-    message.removeTrack !== undefined && (obj.removeTrack = message.removeTrack ? RemoveTrackRequest.toJSON(message.removeTrack) : undefined);
     message.negotiate !== undefined && (obj.negotiate = message.negotiate ? NegotiationRequest.toJSON(message.negotiate) : undefined);
     return obj;
   },
@@ -580,53 +554,6 @@ export const TrickleRequest = {
   toJSON(message: TrickleRequest): unknown {
     const obj: any = {};
     message.candidateInit !== undefined && (obj.candidateInit = message.candidateInit);
-    return obj;
-  },
-};
-
-export const RemoveTrackRequest = {
-  encode(message: RemoveTrackRequest, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.sid);
-    return writer;
-  },
-  decode(input: Uint8Array | Reader, length?: number): RemoveTrackRequest {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseRemoveTrackRequest } as RemoveTrackRequest;
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1:
-          message.sid = reader.string();
-          break;
-        default:
-          reader.skipType(tag & 7);
-          break;
-      }
-    }
-    return message;
-  },
-  fromJSON(object: any): RemoveTrackRequest {
-    const message = { ...baseRemoveTrackRequest } as RemoveTrackRequest;
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = String(object.sid);
-    } else {
-      message.sid = "";
-    }
-    return message;
-  },
-  fromPartial(object: DeepPartial<RemoveTrackRequest>): RemoveTrackRequest {
-    const message = { ...baseRemoveTrackRequest } as RemoveTrackRequest;
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = object.sid;
-    } else {
-      message.sid = "";
-    }
-    return message;
-  },
-  toJSON(message: RemoveTrackRequest): unknown {
-    const obj: any = {};
-    message.sid !== undefined && (obj.sid = message.sid);
     return obj;
   },
 };
