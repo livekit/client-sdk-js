@@ -3,33 +3,11 @@ import * as Long from 'long';
 import { Writer, Reader, util, configure } from 'protobufjs/minimal';
 
 
-export interface Node {
-  id: string;
-  ip: string;
-  rtcPort: number;
-  stats?: NodeStats;
-}
-
-export interface NodeStats {
-  numRooms: number;
-  numClients: number;
-}
-
-/**
- *  internal type, for serialization with proto
- */
 export interface Room {
   sid: string;
   name: string;
   emptyTimeout: number;
   maxParticipants: number;
-  creationTime: number;
-}
-
-export interface RoomInfo {
-  sid: string;
-  name: string;
-  nodeIp: string;
   creationTime: number;
 }
 
@@ -40,9 +18,6 @@ export interface ParticipantInfo {
   tracks: TrackInfo[];
 }
 
-/**
- *  describing
- */
 export interface TrackInfo {
   sid: string;
   type: TrackType;
@@ -55,29 +30,11 @@ export interface DataMessage {
   binary: Uint8Array | undefined;
 }
 
-const baseNode: object = {
-  id: "",
-  ip: "",
-  rtcPort: 0,
-};
-
-const baseNodeStats: object = {
-  numRooms: 0,
-  numClients: 0,
-};
-
 const baseRoom: object = {
   sid: "",
   name: "",
   emptyTimeout: 0,
   maxParticipants: 0,
-  creationTime: 0,
-};
-
-const baseRoomInfo: object = {
-  sid: "",
-  name: "",
-  nodeIp: "",
   creationTime: 0,
 };
 
@@ -196,162 +153,6 @@ export function participantInfo_StateToJSON(object: ParticipantInfo_State): stri
   }
 }
 
-export const Node = {
-  encode(message: Node, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.id);
-    writer.uint32(18).string(message.ip);
-    writer.uint32(24).uint32(message.rtcPort);
-    if (message.stats !== undefined && message.stats !== undefined) {
-      NodeStats.encode(message.stats, writer.uint32(34).fork()).ldelim();
-    }
-    return writer;
-  },
-  decode(input: Uint8Array | Reader, length?: number): Node {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseNode } as Node;
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1:
-          message.id = reader.string();
-          break;
-        case 2:
-          message.ip = reader.string();
-          break;
-        case 3:
-          message.rtcPort = reader.uint32();
-          break;
-        case 4:
-          message.stats = NodeStats.decode(reader, reader.uint32());
-          break;
-        default:
-          reader.skipType(tag & 7);
-          break;
-      }
-    }
-    return message;
-  },
-  fromJSON(object: any): Node {
-    const message = { ...baseNode } as Node;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = String(object.id);
-    } else {
-      message.id = "";
-    }
-    if (object.ip !== undefined && object.ip !== null) {
-      message.ip = String(object.ip);
-    } else {
-      message.ip = "";
-    }
-    if (object.rtcPort !== undefined && object.rtcPort !== null) {
-      message.rtcPort = Number(object.rtcPort);
-    } else {
-      message.rtcPort = 0;
-    }
-    if (object.stats !== undefined && object.stats !== null) {
-      message.stats = NodeStats.fromJSON(object.stats);
-    } else {
-      message.stats = undefined;
-    }
-    return message;
-  },
-  fromPartial(object: DeepPartial<Node>): Node {
-    const message = { ...baseNode } as Node;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = object.id;
-    } else {
-      message.id = "";
-    }
-    if (object.ip !== undefined && object.ip !== null) {
-      message.ip = object.ip;
-    } else {
-      message.ip = "";
-    }
-    if (object.rtcPort !== undefined && object.rtcPort !== null) {
-      message.rtcPort = object.rtcPort;
-    } else {
-      message.rtcPort = 0;
-    }
-    if (object.stats !== undefined && object.stats !== null) {
-      message.stats = NodeStats.fromPartial(object.stats);
-    } else {
-      message.stats = undefined;
-    }
-    return message;
-  },
-  toJSON(message: Node): unknown {
-    const obj: any = {};
-    message.id !== undefined && (obj.id = message.id);
-    message.ip !== undefined && (obj.ip = message.ip);
-    message.rtcPort !== undefined && (obj.rtcPort = message.rtcPort);
-    message.stats !== undefined && (obj.stats = message.stats ? NodeStats.toJSON(message.stats) : undefined);
-    return obj;
-  },
-};
-
-export const NodeStats = {
-  encode(message: NodeStats, writer: Writer = Writer.create()): Writer {
-    writer.uint32(8).int32(message.numRooms);
-    writer.uint32(16).int32(message.numClients);
-    return writer;
-  },
-  decode(input: Uint8Array | Reader, length?: number): NodeStats {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseNodeStats } as NodeStats;
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1:
-          message.numRooms = reader.int32();
-          break;
-        case 2:
-          message.numClients = reader.int32();
-          break;
-        default:
-          reader.skipType(tag & 7);
-          break;
-      }
-    }
-    return message;
-  },
-  fromJSON(object: any): NodeStats {
-    const message = { ...baseNodeStats } as NodeStats;
-    if (object.numRooms !== undefined && object.numRooms !== null) {
-      message.numRooms = Number(object.numRooms);
-    } else {
-      message.numRooms = 0;
-    }
-    if (object.numClients !== undefined && object.numClients !== null) {
-      message.numClients = Number(object.numClients);
-    } else {
-      message.numClients = 0;
-    }
-    return message;
-  },
-  fromPartial(object: DeepPartial<NodeStats>): NodeStats {
-    const message = { ...baseNodeStats } as NodeStats;
-    if (object.numRooms !== undefined && object.numRooms !== null) {
-      message.numRooms = object.numRooms;
-    } else {
-      message.numRooms = 0;
-    }
-    if (object.numClients !== undefined && object.numClients !== null) {
-      message.numClients = object.numClients;
-    } else {
-      message.numClients = 0;
-    }
-    return message;
-  },
-  toJSON(message: NodeStats): unknown {
-    const obj: any = {};
-    message.numRooms !== undefined && (obj.numRooms = message.numRooms);
-    message.numClients !== undefined && (obj.numClients = message.numClients);
-    return obj;
-  },
-};
-
 export const Room = {
   encode(message: Room, writer: Writer = Writer.create()): Writer {
     writer.uint32(10).string(message.sid);
@@ -454,98 +255,6 @@ export const Room = {
     message.name !== undefined && (obj.name = message.name);
     message.emptyTimeout !== undefined && (obj.emptyTimeout = message.emptyTimeout);
     message.maxParticipants !== undefined && (obj.maxParticipants = message.maxParticipants);
-    message.creationTime !== undefined && (obj.creationTime = message.creationTime);
-    return obj;
-  },
-};
-
-export const RoomInfo = {
-  encode(message: RoomInfo, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.sid);
-    writer.uint32(18).string(message.name);
-    writer.uint32(26).string(message.nodeIp);
-    writer.uint32(32).int64(message.creationTime);
-    return writer;
-  },
-  decode(input: Uint8Array | Reader, length?: number): RoomInfo {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseRoomInfo } as RoomInfo;
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1:
-          message.sid = reader.string();
-          break;
-        case 2:
-          message.name = reader.string();
-          break;
-        case 3:
-          message.nodeIp = reader.string();
-          break;
-        case 4:
-          message.creationTime = longToNumber(reader.int64() as Long);
-          break;
-        default:
-          reader.skipType(tag & 7);
-          break;
-      }
-    }
-    return message;
-  },
-  fromJSON(object: any): RoomInfo {
-    const message = { ...baseRoomInfo } as RoomInfo;
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = String(object.sid);
-    } else {
-      message.sid = "";
-    }
-    if (object.name !== undefined && object.name !== null) {
-      message.name = String(object.name);
-    } else {
-      message.name = "";
-    }
-    if (object.nodeIp !== undefined && object.nodeIp !== null) {
-      message.nodeIp = String(object.nodeIp);
-    } else {
-      message.nodeIp = "";
-    }
-    if (object.creationTime !== undefined && object.creationTime !== null) {
-      message.creationTime = Number(object.creationTime);
-    } else {
-      message.creationTime = 0;
-    }
-    return message;
-  },
-  fromPartial(object: DeepPartial<RoomInfo>): RoomInfo {
-    const message = { ...baseRoomInfo } as RoomInfo;
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = object.sid;
-    } else {
-      message.sid = "";
-    }
-    if (object.name !== undefined && object.name !== null) {
-      message.name = object.name;
-    } else {
-      message.name = "";
-    }
-    if (object.nodeIp !== undefined && object.nodeIp !== null) {
-      message.nodeIp = object.nodeIp;
-    } else {
-      message.nodeIp = "";
-    }
-    if (object.creationTime !== undefined && object.creationTime !== null) {
-      message.creationTime = object.creationTime;
-    } else {
-      message.creationTime = 0;
-    }
-    return message;
-  },
-  toJSON(message: RoomInfo): unknown {
-    const obj: any = {};
-    message.sid !== undefined && (obj.sid = message.sid);
-    message.name !== undefined && (obj.name = message.name);
-    message.nodeIp !== undefined && (obj.nodeIp = message.nodeIp);
     message.creationTime !== undefined && (obj.creationTime = message.creationTime);
     return obj;
   },
