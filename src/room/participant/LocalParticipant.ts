@@ -50,15 +50,9 @@ export class LocalParticipant extends Participant {
     // get local track id for use during publishing
     let cid: string;
     if (track instanceof LocalDataTrack) {
-      // add data track
-      track.dataChannel = this.engine.peerConn.createDataChannel(
-        track.name,
-        track.dataChannelInit
-      );
       // use data channel name as the id
       cid = track.name;
     } else {
-      this.engine.peerConn.addTrack(track.mediaStreamTrack);
       cid = track.mediaStreamTrack.id;
     }
 
@@ -94,6 +88,16 @@ export class LocalParticipant extends Participant {
       default:
         // impossible
         throw new TrackInvalidError();
+    }
+
+    if (track instanceof LocalDataTrack) {
+      // add data track
+      track.dataChannel = this.engine.peerConn.createDataChannel(
+        track.name,
+        track.dataChannelInit
+      );
+    } else {
+      this.engine.peerConn.addTrack(track.mediaStreamTrack);
     }
 
     this.tracks[ti.sid] = publication;
