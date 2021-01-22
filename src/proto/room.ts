@@ -10,6 +10,10 @@ export interface CreateRoomRequest {
    */
   emptyTimeout: number;
   maxParticipants: number;
+  /**
+   *  override the node room is allocated to, for debugging
+   */
+  nodeId: string;
 }
 
 export interface ListRoomsRequest {
@@ -30,6 +34,7 @@ const baseCreateRoomRequest: object = {
   name: "",
   emptyTimeout: 0,
   maxParticipants: 0,
+  nodeId: "",
 };
 
 const baseListRoomsRequest: object = {
@@ -70,6 +75,7 @@ export const CreateRoomRequest = {
     writer.uint32(10).string(message.name);
     writer.uint32(16).uint32(message.emptyTimeout);
     writer.uint32(24).uint32(message.maxParticipants);
+    writer.uint32(34).string(message.nodeId);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): CreateRoomRequest {
@@ -87,6 +93,9 @@ export const CreateRoomRequest = {
           break;
         case 3:
           message.maxParticipants = reader.uint32();
+          break;
+        case 4:
+          message.nodeId = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -112,6 +121,11 @@ export const CreateRoomRequest = {
     } else {
       message.maxParticipants = 0;
     }
+    if (object.nodeId !== undefined && object.nodeId !== null) {
+      message.nodeId = String(object.nodeId);
+    } else {
+      message.nodeId = "";
+    }
     return message;
   },
   fromPartial(object: DeepPartial<CreateRoomRequest>): CreateRoomRequest {
@@ -131,6 +145,11 @@ export const CreateRoomRequest = {
     } else {
       message.maxParticipants = 0;
     }
+    if (object.nodeId !== undefined && object.nodeId !== null) {
+      message.nodeId = object.nodeId;
+    } else {
+      message.nodeId = "";
+    }
     return message;
   },
   toJSON(message: CreateRoomRequest): unknown {
@@ -138,6 +157,7 @@ export const CreateRoomRequest = {
     message.name !== undefined && (obj.name = message.name);
     message.emptyTimeout !== undefined && (obj.emptyTimeout = message.emptyTimeout);
     message.maxParticipants !== undefined && (obj.maxParticipants = message.maxParticipants);
+    message.nodeId !== undefined && (obj.nodeId = message.nodeId);
     return obj;
   },
 };

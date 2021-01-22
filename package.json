@@ -8,7 +8,7 @@
     "webpack-cli": "^4.2.0",
     "webpack-dev-server": "^3.11.0"
   },
-  "name": "livekit-js",
+  "name": "livekit-client",
   "version": "0.0.1",
   "description": "JavaScript/TypeScript SDK for LiveKit",
   "main": "dist/index.js",

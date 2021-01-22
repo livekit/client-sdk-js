@@ -18,7 +18,7 @@ import { Participant } from './Participant';
 
 export class RemoteParticipant extends Participant {
   private participantInfo?: ParticipantInfo;
-  tracks: { [key: string]: RemoteTrackPublication } = {};
+  tracks: Map<string, RemoteTrackPublication>;
 
   static fromParticipantInfo(pi: ParticipantInfo): RemoteParticipant {
     const rp = new RemoteParticipant(pi.sid, pi.name);
@@ -28,6 +28,7 @@ export class RemoteParticipant extends Participant {
 
   constructor(id: string, name?: string) {
     super(id, name || '');
+    this.tracks = new Map();
   }
 
   addSubscribedMediaTrack(
@@ -138,14 +139,14 @@ export class RemoteParticipant extends Participant {
     return !!this.participantInfo;
   }
 
-  getTrackPublication(sid: Track.SID): RemoteTrackPublication | null {
-    return <RemoteTrackPublication>this.tracks[sid];
+  getTrackPublication(sid: Track.SID): RemoteTrackPublication | undefined {
+    return this.tracks.get(sid);
   }
 
   updateMetadata(info: ParticipantInfo) {
     const alreadyHasMetadata = this.hasMetadata;
 
-    this.name = info.name;
+    this.identity = info.name;
     this.sid = info.sid;
     this.participantInfo = info;
 
@@ -154,56 +155,55 @@ export class RemoteParticipant extends Participant {
 
     // reconcile track publications, publish events only if metadata is already there
     // i.e. changes since the local participant has joined
-    const validTracks: { [key: string]: RemoteTrackPublication } = {};
-    const newTracks: { [key: string]: RemoteTrackPublication } = {};
+    const validTracks = new Map<string, RemoteTrackPublication>();
+    const newTracks = new Map<string, RemoteTrackPublication>();
 
     info.tracks.forEach((ti) => {
       let publication = this.getTrackPublication(ti.sid);
       if (!publication) {
         // new publication
         publication = createRemoteTrackPublicationFromInfo(ti);
-        newTracks[ti.sid] = publication;
+        newTracks.set(ti.sid, publication);
         this.addTrackPublication(publication);
       } else {
         publication.updateMetadata(ti);
       }
-      validTracks[ti.sid] = publication;
+      validTracks.set(ti.sid, publication);
     });
 
     // send new tracks
     if (alreadyHasMetadata) {
-      Object.keys(newTracks).forEach((sid) => {
-        const publication = newTracks[sid];
+      newTracks.forEach((publication) => {
         this.emit(ParticipantEvent.TrackPublished, publication);
       });
     }
 
     // detect removed tracks
-    Object.keys(this.tracks).forEach((sid) => {
-      if (!validTracks[sid]) {
-        this.unpublishTrack(sid, true);
+    this.tracks.forEach((publication) => {
+      if (!validTracks.has(publication.trackSid)) {
+        this.unpublishTrack(publication.trackSid, true);
       }
     });
   }
 
   unpublishTrack(sid: Track.SID, sendEvents?: boolean) {
-    const publication = <RemoteTrackPublication>this.tracks[sid];
+    const publication = <RemoteTrackPublication>this.tracks.get(sid);
     if (!publication) {
       return;
     }
 
-    delete this.tracks[sid];
+    this.tracks.delete(sid);
 
     // remove from the right type map
     switch (publication.kind) {
       case Track.Kind.Audio:
-        delete this.audioTracks[sid];
+        this.audioTracks.delete(sid);
         break;
       case Track.Kind.Video:
-        delete this.videoTracks[sid];
+        this.videoTracks.delete(sid);
         break;
       case Track.Kind.Data:
-        delete this.dataTracks[sid];
+        this.dataTracks.delete(sid);
         break;
     }
 

@@ -20,7 +20,7 @@ export enum RoomState {
 class Room extends EventEmitter {
   engine: RTCEngine;
   state: RoomState = RoomState.Disconnected;
-  participants: { [key: string]: RemoteParticipant } = {};
+  participants: Map<string, RemoteParticipant>;
 
   // available after connected
   sid!: string;
@@ -29,6 +29,7 @@ class Room extends EventEmitter {
 
   constructor(client: RTCClient) {
     super();
+    this.participants = new Map();
     this.engine = new RTCEngine(client);
 
     this.engine.on(
@@ -98,7 +99,7 @@ class Room extends EventEmitter {
   private handleParticipantUpdates(participantInfos: ParticipantInfo[]) {
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
-      let remoteParticipant = this.participants[info.sid];
+      let remoteParticipant = this.participants.get(info.sid);
       const isNewParticipant = !remoteParticipant;
 
       // create participant if doesn't exist
@@ -122,13 +123,13 @@ class Room extends EventEmitter {
     participant?: RemoteParticipant
   ) {
     // remove and send event
-    delete this.participants[sid];
+    this.participants.delete(sid);
     if (!participant) {
       return;
     }
 
-    Object.keys(participant.tracks).forEach((sid) => {
-      participant.unpublishTrack(sid);
+    participant.tracks.forEach((track) => {
+      participant.unpublishTrack(track.trackSid);
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
@@ -137,7 +138,7 @@ class Room extends EventEmitter {
     id: string,
     info?: ParticipantInfo
   ): RemoteParticipant {
-    let participant = this.participants[id];
+    let participant = this.participants.get(id);
     if (!participant) {
       // it's possible for the RTC track to arrive before signaling data
       // when this happens, we'll create the participant and make the track work
@@ -146,7 +147,7 @@ class Room extends EventEmitter {
       } else {
         participant = new RemoteParticipant(id, '');
       }
-      this.participants[id] = participant;
+      this.participants.set(id, participant);
       // also forward events
 
       // trackPublished is only fired for tracks added after both local participant

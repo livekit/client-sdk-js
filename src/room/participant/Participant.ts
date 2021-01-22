@@ -14,22 +14,26 @@ export type DataTrackMap = { [key: string]: DataTrackPublication };
 
 export class Participant extends EventEmitter {
   // map of track id => AudioTrack
-  audioTracks: AudioTrackMap = {};
-  videoTracks: VideoTrackMap = {};
-  dataTracks: DataTrackMap = {};
-  tracks: { [key: string]: TrackPublication } = {};
+  audioTracks: Map<string, AudioTrackPublication>;
+  videoTracks: Map<string, VideoTrackPublication>;
+  dataTracks: Map<string, DataTrackPublication>;
+  tracks: Map<string, TrackPublication>;
   sid: string;
   // client assigned identity
-  name: string;
+  identity: string;
 
   constructor(sid: string, name: string) {
     super();
     this.sid = sid;
-    this.name = name;
+    this.identity = name;
+    this.audioTracks = new Map();
+    this.videoTracks = new Map();
+    this.dataTracks = new Map();
+    this.tracks = new Map();
   }
 
   getTracks(): TrackPublication[] {
-    return Object.values(this.tracks);
+    return Array.from(this.tracks.values());
   }
 
   protected addTrackPublication(publication: TrackPublication) {
@@ -42,21 +46,24 @@ export class Participant extends EventEmitter {
       this.emit(ParticipantEvent.TrackUnmuted, publication);
     });
 
-    this.tracks[publication.trackSid] = publication;
+    this.tracks.set(publication.trackSid, publication);
     switch (publication.kind) {
       case Track.Kind.Audio:
-        this.audioTracks[publication.trackSid] = <AudioTrackPublication>(
-          publication
+        this.audioTracks.set(
+          publication.trackSid,
+          <AudioTrackPublication>publication
         );
         break;
       case Track.Kind.Video:
-        this.videoTracks[publication.trackSid] = <VideoTrackPublication>(
-          publication
+        this.videoTracks.set(
+          publication.trackSid,
+          <VideoTrackPublication>publication
         );
         break;
       case Track.Kind.Data:
-        this.dataTracks[publication.trackSid] = <DataTrackPublication>(
-          publication
+        this.dataTracks.set(
+          publication.trackSid,
+          <DataTrackPublication>publication
         );
         break;
     }

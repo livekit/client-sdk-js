@@ -1,9 +1,10 @@
-import { RoomInfo } from '../proto/model';
+import { Room } from '../proto/model';
 import {
   CreateRoomRequest,
   DeleteRoomRequest,
   DeleteRoomResponse,
-  GetRoomRequest,
+  ListRoomsRequest,
+  ListRoomsResponse,
   RoomService,
 } from '../proto/room';
 import { TwirpRpc } from './TwirpRPC';
@@ -25,30 +26,30 @@ export class RoomServiceClientImpl implements RoomService {
     this.secret = secret;
   }
 
-  CreateRoom(request: CreateRoomRequest): Promise<RoomInfo> {
-    const promise = this.rpc.request(
+  async CreateRoom(request: CreateRoomRequest): Promise<Room> {
+    const data = await this.rpc.request(
       'RoomService',
       'CreateRoom',
       CreateRoomRequest.toJSON(request)
     );
-    return promise.then((data) => RoomInfo.fromJSON(data));
+    return Room.fromJSON(data);
   }
 
-  GetRoom(request: GetRoomRequest): Promise<RoomInfo> {
-    const promise = this.rpc.request(
+  async ListRooms(request: ListRoomsRequest): Promise<ListRoomsResponse> {
+    const data = await this.rpc.request(
       'RoomService',
-      'GetRoom',
-      GetRoomRequest.toJSON(request)
+      'ListRooms',
+      ListRoomsRequest.toJSON(request)
     );
-    return promise.then((data) => RoomInfo.fromJSON(data));
+    return ListRoomsResponse.fromJSON(data);
   }
 
-  DeleteRoom(request: DeleteRoomRequest): Promise<DeleteRoomResponse> {
-    const promise = this.rpc.request(
+  async DeleteRoom(request: DeleteRoomRequest): Promise<DeleteRoomResponse> {
+    const data = await this.rpc.request(
       'RoomService',
       'DeleteRoom',
       DeleteRoomRequest.toJSON(request)
     );
-    return promise.then((data) => DeleteRoomResponse.fromJSON(data));
+    return DeleteRoomResponse.fromJSON(data);
   }
 }

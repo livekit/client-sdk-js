@@ -16,7 +16,6 @@ import { Participant } from './Participant';
 
 export class LocalParticipant extends Participant {
   engine: RTCEngine;
-  private pendingTracks: { [key: string]: LocalTrack } = {};
 
   constructor(sid: string, name: string, engine: RTCEngine) {
     super(sid, name);
@@ -66,7 +65,7 @@ export class LocalParticipant extends Participant {
           <LocalAudioTrack>track,
           ti
         );
-        this.audioTracks[ti.sid] = audioPublication;
+        this.audioTracks.set(ti.sid, audioPublication);
         publication = audioPublication;
         break;
       case Track.Kind.Video:
@@ -74,7 +73,7 @@ export class LocalParticipant extends Participant {
           <LocalVideoTrack>track,
           ti
         );
-        this.videoTracks[ti.sid] = videoPublication;
+        this.videoTracks.set(ti.sid, videoPublication);
         publication = videoPublication;
         break;
       case Track.Kind.Data:
@@ -82,7 +81,7 @@ export class LocalParticipant extends Participant {
           <LocalDataTrack>track,
           ti
         );
-        this.dataTracks[ti.sid] = dataPublication;
+        this.dataTracks.set(ti.sid, dataPublication);
         publication = dataPublication;
         break;
       default:
@@ -97,10 +96,11 @@ export class LocalParticipant extends Participant {
         track.dataChannelInit
       );
     } else {
-      this.engine.peerConn.addTrack(track.mediaStreamTrack);
+      // store RTPSender
+      track.sender = this.engine.peerConn.addTrack(track.mediaStreamTrack);
     }
 
-    this.tracks[ti.sid] = publication;
+    this.tracks.set(ti.sid, publication);
 
     // send event for publication
     this.emit(ParticipantEvent.TrackPublished, publication);
@@ -153,16 +153,16 @@ export class LocalParticipant extends Participant {
     }
 
     // remove from our maps
-    delete this.tracks[publication.trackSid];
+    this.tracks.delete(publication.trackSid);
     switch (publication.kind) {
       case Track.Kind.Audio:
-        delete this.audioTracks[publication.trackSid];
+        this.audioTracks.delete(publication.trackSid);
         break;
       case Track.Kind.Video:
-        delete this.videoTracks[publication.trackSid];
+        this.videoTracks.delete(publication.trackSid);
         break;
       case Track.Kind.Data:
-        delete this.dataTracks[publication.trackSid];
+        this.dataTracks.delete(publication.trackSid);
         break;
     }
 
@@ -186,7 +186,7 @@ export class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack
   ): LocalTrackPublication | undefined {
     let publication: LocalTrackPublication | undefined;
-    for (const pub of Object.values(this.tracks)) {
+    for (const pub of this.tracks.values()) {
       let localTrack: LocalTrack | undefined;
       if (
         pub instanceof LocalAudioTrackPublication ||
@@ -230,7 +230,7 @@ export class LocalParticipant extends Participant {
     }
     // find the track's publication and use sid there
     let sid: string | undefined;
-    Object.values(this.tracks).forEach((publication) => {
+    this.tracks.forEach((publication) => {
       const localPub = <LocalTrackPublication>publication;
       if (track === localPub.track) {
         sid = localPub.trackSid;

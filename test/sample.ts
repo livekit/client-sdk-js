@@ -1,8 +1,5 @@
-import {
+import Livekit, {
   AudioTrack,
-  connect,
-  createLocalTracks,
-  createLocalVideoTrack,
   LocalAudioTrack,
   LocalDataTrack,
   LocalVideoTrack,
@@ -78,7 +75,7 @@ function handleMessage(
 ) {
   if (track.name === 'chat') {
     const chat = <HTMLTextAreaElement>$('chat');
-    chat.value += `${participant.name}: ${msg}\n`;
+    chat.value += `${participant.identity}: ${msg}\n`;
   }
 }
 
@@ -87,7 +84,7 @@ function participantConnected(participant: RemoteParticipant) {
 
   const div = document.createElement('div');
   div.id = participant.sid;
-  div.innerText = participant.name;
+  div.innerText = participant.identity;
   div.className = 'col-md-6 video-container';
   $('remote-area')?.appendChild(div);
 
@@ -98,7 +95,7 @@ function participantConnected(participant: RemoteParticipant) {
     trackUnsubscribed(track, participant)
   );
 
-  Object.values(participant.tracks).forEach((publication) => {
+  participant.tracks.forEach((publication) => {
     if (!publication.isSubscribed) return;
     if (publication.track! instanceof RemoteDataTrack) {
     } else {
@@ -127,7 +124,7 @@ window.connectToRoom = () => {
 
   // participant to div mapping
 
-  connect({ host: host, port: parseInt(port) }, token, {
+  Livekit.connect({ host: host, port: parseInt(port) }, token, {
     logLevel: LogLevel.debug,
   })
     .then((room) => {
@@ -142,14 +139,14 @@ window.connectToRoom = () => {
 
       room.localParticipant.publishTrack(chatTrack);
 
-      appendLog('room participants', Object.keys(room.participants));
-      Object.values(room.participants).forEach((participant) => {
+      appendLog('room participants', room.participants.keys());
+      room.participants.forEach((participant) => {
         participantConnected(participant);
       });
 
       // publish video
       const div = <HTMLDivElement>$('local-video');
-      createLocalTracks().then((tracks) => {
+      Livekit.createLocalTracks().then((tracks) => {
         currentRoom.localParticipant.publishTracks(tracks);
         for (const track of tracks) {
           if (track instanceof LocalVideoTrack) {
@@ -208,7 +205,7 @@ window.toggleVideo = async () => {
     if (video) video.remove();
   } else {
     appendLog('turning video on');
-    videoTrack = await createLocalVideoTrack();
+    videoTrack = await Livekit.createLocalVideoTrack();
     await publishLocalVideo(videoTrack);
   }
 };
