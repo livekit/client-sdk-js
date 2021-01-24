@@ -21,6 +21,7 @@ class Room extends EventEmitter {
   engine: RTCEngine;
   state: RoomState = RoomState.Disconnected;
   participants: Map<string, RemoteParticipant>;
+  dominantSpeaker?: RemoteParticipant;
 
   // available after connected
   sid!: string;
