@@ -11,11 +11,11 @@ import Room from './room/Room';
 import { LocalAudioTrack } from './room/track/LocalAudioTrack';
 import { LocalVideoTrack } from './room/track/LocalVideoTrack';
 import { LocalTrack } from './room/track/types';
-import { version } from './version';
+export { version } from './version';
 
-const isSupported = true;
+export const isSupported = true;
 
-const connect = function (
+export async function connect(
   info: ConnectionInfo,
   token: string,
   options?: ConnectOptions
@@ -23,17 +23,44 @@ const connect = function (
   const client = new RTCClientImpl();
   const room = new Room(client);
 
-  let level: LogLevel = LogLevel.info;
-  if (options && options.logLevel) {
-    level = options.logLevel;
+  // set defaults
+  options ||= {};
+  options.logLevel ||= LogLevel.info;
+  if (options.audio === undefined) options.audio = true;
+  if (options.video === undefined) options.video = true;
+
+  log.setLevel(options.logLevel);
+
+  if (options.iceServers) {
+    room.engine.peerConn.setConfiguration({
+      iceServers: options.iceServers,
+    });
   }
-  log.setLevel(level);
 
   // connect to room
-  return room.connect(info, token);
-};
+  await room.connect(info, token);
 
-async function createLocalVideoTrack(
+  // add tracks if available
+  let tracks = options.tracks;
+
+  if (!tracks) {
+    if (options.audio || options.video) {
+      tracks = await createLocalTracks({
+        audio: options.audio,
+        video: options.video,
+      });
+    }
+  }
+
+  if (tracks) {
+    // save these tracks so room can stop upon disconnect
+    room.autoTracks = await room.localParticipant.publishTracks(tracks);
+  }
+
+  return room;
+}
+
+export async function createLocalVideoTrack(
   options?: CreateLocalTrackOptions
 ): Promise<LocalVideoTrack> {
   const tracks = await createLocalTracks({
@@ -44,7 +71,7 @@ async function createLocalVideoTrack(
   return <LocalVideoTrack>tracks[0];
 }
 
-async function createLocalAudioTrack(
+export async function createLocalAudioTrack(
   options?: CreateLocalTrackOptions
 ): Promise<LocalAudioTrack> {
   const tracks = await createLocalTracks({
@@ -55,7 +82,7 @@ async function createLocalAudioTrack(
   return <LocalAudioTrack>tracks[0];
 }
 
-async function createLocalTracks(
+export async function createLocalTracks(
   options?: CreateLocalTracksOptions
 ): Promise<Array<LocalTrack>> {
   const constraints: MediaStreamConstraints = {};
@@ -105,12 +132,3 @@ function createLocalTrack(
       );
   }
 }
-
-export {
-  connect,
-  createLocalTracks,
-  createLocalAudioTrack,
-  createLocalVideoTrack,
-  version,
-  isSupported,
-};

@@ -6,6 +6,7 @@ import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant } from './participant/LocalParticipant';
 import { RemoteParticipant } from './participant/RemoteParticipant';
 import { RTCEngine } from './RTCEngine';
+import { LocalTrackPublication } from './track/LocalTrackPublication';
 import { RemoteDataTrack } from './track/RemoteDataTrack';
 import { RemoteTrackPublication } from './track/RemoteTrackPublication';
 import { RemoteTrack } from './track/types';
@@ -22,6 +23,7 @@ class Room extends EventEmitter {
   state: RoomState = RoomState.Disconnected;
   participants: Map<string, RemoteParticipant>;
   dominantSpeaker?: RemoteParticipant;
+  autoTracks?: LocalTrackPublication[];
 
   // available after connected
   sid!: string;

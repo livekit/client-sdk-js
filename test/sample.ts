@@ -1,8 +1,10 @@
 import Livekit, {
   AudioTrack,
   LocalAudioTrack,
+  LocalAudioTrackPublication,
   LocalDataTrack,
   LocalVideoTrack,
+  LocalVideoTrackPublication,
   LogLevel,
   Participant,
   ParticipantEvent,
@@ -144,19 +146,15 @@ window.connectToRoom = () => {
         participantConnected(participant);
       });
 
-      // publish video
-      const div = <HTMLDivElement>$('local-video');
-      Livekit.createLocalTracks().then((tracks) => {
-        currentRoom.localParticipant.publishTracks(tracks);
-        for (const track of tracks) {
-          if (track instanceof LocalVideoTrack) {
-            videoTrack = track;
-            publishLocalVideo(videoTrack);
-          } else if (track instanceof LocalAudioTrack) {
-            // skip adding local audio track, to avoid your own sound
-            // only process local video tracks
-            audioTrack = track;
-          }
+      // add already published tracks
+      currentRoom.localParticipant.tracks.forEach((publication) => {
+        if (publication instanceof LocalVideoTrackPublication) {
+          videoTrack = publication.track;
+          publishLocalVideo(videoTrack);
+        } else if (publication instanceof LocalAudioTrackPublication) {
+          // skip adding local audio track, to avoid your own sound
+          // only process local video tracks
+          audioTrack = publication.track;
         }
       });
     })

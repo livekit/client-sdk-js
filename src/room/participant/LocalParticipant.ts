@@ -42,6 +42,16 @@ export class LocalParticipant extends Participant {
       }
     }
 
+    // is it already published? if so skip
+    let existingPublication: LocalTrackPublication | undefined;
+    this.tracks.forEach((publication) => {
+      if (publication.track === track) {
+        existingPublication = <LocalTrackPublication>publication;
+      }
+    });
+
+    if (existingPublication) return existingPublication;
+
     // forward mute/unmute events
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);

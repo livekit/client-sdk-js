@@ -6,6 +6,7 @@ export class TrackPublication extends EventEmitter {
   kind: Track.Kind;
   trackName: string;
   trackSid: Track.SID;
+  track?: Track;
 
   constructor(kind: Track.Kind, id: string, name: string) {
     super();
