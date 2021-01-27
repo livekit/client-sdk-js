@@ -26,8 +26,8 @@ export async function connect(
   // set defaults
   options ||= {};
   options.logLevel ||= LogLevel.info;
-  if (options.audio === undefined) options.audio = true;
-  if (options.video === undefined) options.video = true;
+  if (options.audio === undefined) options.audio = false;
+  if (options.video === undefined) options.video = false;
 
   log.setLevel(options.logLevel);
 
