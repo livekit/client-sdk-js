@@ -128,6 +128,8 @@ window.connectToRoom = () => {
 
   Livekit.connect({ host: host, port: parseInt(port) }, token, {
     logLevel: LogLevel.debug,
+    audio: true,
+    video: true,
   })
     .then((room) => {
       appendLog('connected to room', room.name);
