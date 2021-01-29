@@ -136,7 +136,12 @@ export class LocalParticipant extends Participant {
     // look through all published tracks to find the right ones
     let publication = this.getPublicationForTrack(track);
 
+    log.log('unpublishTrack', 'unpublishing track', track);
+
+    // TODO: add logging
+
     if (!publication) {
+      log.warn('unpublishTrack', 'track was not unpublished because no publication was found', track);
       return null;
     }
 
@@ -155,6 +160,7 @@ export class LocalParticipant extends Participant {
       }
 
       const senders = this.engine.peerConn.getSenders();
+      log.info('unpublishTrack:', `removing the track from ${senders.length} senders`, track);
       senders.forEach((sender) => {
         if (sender.track === mediaStreamTrack) {
           this.engine.peerConn.removeTrack(sender);
