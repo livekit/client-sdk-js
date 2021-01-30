@@ -21,7 +21,7 @@ export class RemoteParticipant extends Participant {
   tracks: Map<string, RemoteTrackPublication>;
 
   static fromParticipantInfo(pi: ParticipantInfo): RemoteParticipant {
-    const rp = new RemoteParticipant(pi.sid, pi.name);
+    const rp = new RemoteParticipant(pi.sid, pi.identity);
     rp.updateMetadata(pi);
     return rp;
   }
@@ -146,7 +146,7 @@ export class RemoteParticipant extends Participant {
   updateMetadata(info: ParticipantInfo) {
     const alreadyHasMetadata = this.hasMetadata;
 
-    this.identity = info.name;
+    this.identity = info.identity;
     this.sid = info.sid;
     this.participantInfo = info;
 

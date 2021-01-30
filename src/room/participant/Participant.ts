@@ -22,10 +22,10 @@ export class Participant extends EventEmitter {
   // client assigned identity
   identity: string;
 
-  constructor(sid: string, name: string) {
+  constructor(sid: string, identity: string) {
     super();
     this.sid = sid;
-    this.identity = name;
+    this.identity = identity;
     this.audioTracks = new Map();
     this.videoTracks = new Map();
     this.dataTracks = new Map();

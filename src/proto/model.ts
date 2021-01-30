@@ -13,7 +13,7 @@ export interface Room {
 
 export interface ParticipantInfo {
   sid: string;
-  name: string;
+  identity: string;
   state: ParticipantInfo_State;
   tracks: TrackInfo[];
 }
@@ -40,7 +40,7 @@ const baseRoom: object = {
 
 const baseParticipantInfo: object = {
   sid: "",
-  name: "",
+  identity: "",
   state: 0,
 };
 
@@ -263,7 +263,7 @@ export const Room = {
 export const ParticipantInfo = {
   encode(message: ParticipantInfo, writer: Writer = Writer.create()): Writer {
     writer.uint32(10).string(message.sid);
-    writer.uint32(18).string(message.name);
+    writer.uint32(18).string(message.identity);
     writer.uint32(24).int32(message.state);
     for (const v of message.tracks) {
       TrackInfo.encode(v!, writer.uint32(34).fork()).ldelim();
@@ -282,7 +282,7 @@ export const ParticipantInfo = {
           message.sid = reader.string();
           break;
         case 2:
-          message.name = reader.string();
+          message.identity = reader.string();
           break;
         case 3:
           message.state = reader.int32() as any;
@@ -305,10 +305,10 @@ export const ParticipantInfo = {
     } else {
       message.sid = "";
     }
-    if (object.name !== undefined && object.name !== null) {
-      message.name = String(object.name);
+    if (object.identity !== undefined && object.identity !== null) {
+      message.identity = String(object.identity);
     } else {
-      message.name = "";
+      message.identity = "";
     }
     if (object.state !== undefined && object.state !== null) {
       message.state = participantInfo_StateFromJSON(object.state);
@@ -330,10 +330,10 @@ export const ParticipantInfo = {
     } else {
       message.sid = "";
     }
-    if (object.name !== undefined && object.name !== null) {
-      message.name = object.name;
+    if (object.identity !== undefined && object.identity !== null) {
+      message.identity = object.identity;
     } else {
-      message.name = "";
+      message.identity = "";
     }
     if (object.state !== undefined && object.state !== null) {
       message.state = object.state;
@@ -350,7 +350,7 @@ export const ParticipantInfo = {
   toJSON(message: ParticipantInfo): unknown {
     const obj: any = {};
     message.sid !== undefined && (obj.sid = message.sid);
-    message.name !== undefined && (obj.name = message.name);
+    message.identity !== undefined && (obj.identity = message.identity);
     message.state !== undefined && (obj.state = participantInfo_StateToJSON(message.state));
     if (message.tracks) {
       obj.tracks = message.tracks.map(e => e ? TrackInfo.toJSON(e) : undefined);

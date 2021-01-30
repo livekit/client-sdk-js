@@ -66,7 +66,7 @@ class Room extends EventEmitter {
 
     this.state = RoomState.Connected;
     const pi = joinResponse.participant!;
-    this.localParticipant = new LocalParticipant(pi.sid, pi.name, this.engine);
+    this.localParticipant = new LocalParticipant(pi.sid, pi.identity, this.engine);
 
     // populate remote participants, these should not trigger new events
     joinResponse.otherParticipants.forEach((pi) => {
