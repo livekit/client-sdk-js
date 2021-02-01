@@ -66,7 +66,11 @@ class Room extends EventEmitter {
 
     this.state = RoomState.Connected;
     const pi = joinResponse.participant!;
-    this.localParticipant = new LocalParticipant(pi.sid, pi.identity, this.engine);
+    this.localParticipant = new LocalParticipant(
+      pi.sid,
+      pi.identity,
+      this.engine
+    );
 
     // populate remote participants, these should not trigger new events
     joinResponse.otherParticipants.forEach((pi) => {
@@ -131,8 +135,8 @@ class Room extends EventEmitter {
       return;
     }
 
-    participant.tracks.forEach((track) => {
-      participant.unpublishTrack(track.trackSid);
+    participant.tracks.forEach((publication) => {
+      participant.unpublishTrack(publication.trackSid);
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
@@ -194,7 +198,7 @@ class Room extends EventEmitter {
   }
 
   emit(event: string | symbol, ...args: any[]): boolean {
-    log.trace('room event', event, ...args);
+    log.debug('room event', event, ...args);
     return super.emit(event, ...args);
   }
 }

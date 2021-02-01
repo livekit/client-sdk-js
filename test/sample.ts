@@ -23,11 +23,13 @@ let $ = function (id: string) {
 
 declare global {
   interface Window {
+    connectWithFormInput: any;
     connectToRoom: any;
     toggleVideo: any;
     muteVideo: any;
     muteAudio: any;
     enterText: any;
+    currentRoom: any;
   }
 }
 
@@ -119,14 +121,16 @@ const chatTrack: LocalDataTrack = new LocalDataTrack({
 });
 let videoTrack: LocalVideoTrack | undefined;
 let audioTrack: LocalAudioTrack;
-window.connectToRoom = () => {
+window.connectWithFormInput = () => {
   const host = (<HTMLInputElement>$('host')).value;
-  const port = (<HTMLInputElement>$('port')).value;
+  const port = parseInt((<HTMLInputElement>$('port')).value);
   const token = (<HTMLInputElement>$('token')).value;
 
-  // participant to div mapping
+  window.connectToRoom(host, port, token);
+};
 
-  Livekit.connect({ host: host, port: parseInt(port) }, token, {
+window.connectToRoom = (host: string, port: number, token: string) => {
+  Livekit.connect({ host, port }, token, {
     logLevel: LogLevel.debug,
     audio: true,
     video: true,
@@ -135,6 +139,7 @@ window.connectToRoom = () => {
       appendLog('connected to room', room.name);
       setButtonsForState(true);
       currentRoom = room;
+      window.currentRoom = room;
 
       room
         .on(RoomEvent.ParticipantConnected, participantConnected)
@@ -244,3 +249,12 @@ function setButtonsForState(connected: boolean) {
 function getMyVideo() {
   return <HTMLVideoElement>document.querySelector('#local-video video');
 }
+
+// uncomment to autoconnect after page load
+// setTimeout(() => {
+//   window.connectToRoom(
+//     'localhost',
+//     7880,
+//     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTQxMDkzMDQsImlzcyI6IkFQSU1teGlMOHJxdUt6dFpFb1pKVjlGYiIsImp0aSI6Im1lIiwibmJmIjoxNjExNTE3MzA0LCJ2aWRlbyI6eyJyb29tIjoibXlyb29tIiwicm9vbUpvaW4iOnRydWV9fQ.E_2V2SGcd8eHGvireFqFdM2s5wYoc1R5dtlw_XULcGI'
+//   );
+// }, 100);

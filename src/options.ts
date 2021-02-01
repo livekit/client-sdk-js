@@ -16,6 +16,7 @@ export interface ConnectOptions {
 }
 
 export enum LogLevel {
+  trace = 'trace',
   debug = 'debug',
   info = 'info',
   warn = 'warn',

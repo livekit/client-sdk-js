@@ -186,7 +186,7 @@ export class RemoteParticipant extends Participant {
     });
   }
 
-  unpublishTrack(sid: Track.SID, sendEvents?: boolean) {
+  unpublishTrack(sid: Track.SID, sendUnpublish?: boolean) {
     const publication = <RemoteTrackPublication>this.tracks.get(sid);
     if (!publication) {
       return;
@@ -210,14 +210,15 @@ export class RemoteParticipant extends Participant {
     // also send unsubscribe, if track is actively subscribed
     if (publication.track) {
       publication.track.stop();
-      if (sendEvents)
-        this.emit(ParticipantEvent.TrackUnsubscribed, publication);
+      // always send unsubscribed, since apps may rely on this
+      this.emit(ParticipantEvent.TrackUnsubscribed, publication);
     }
-    if (sendEvents) this.emit(ParticipantEvent.TrackUnpublished, publication);
+    if (sendUnpublish)
+      this.emit(ParticipantEvent.TrackUnpublished, publication);
   }
 
   emit(event: string | symbol, ...args: any[]): boolean {
-    log.debug('participant event', this.sid, event, ...args);
+    log.trace('participant event', this.sid, event, ...args);
     return super.emit(event, ...args);
   }
 }
