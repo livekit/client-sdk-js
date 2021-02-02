@@ -103,6 +103,11 @@ export class RTCEngine extends EventEmitter {
 
     // configure signaling client
     this.client.onAnswer = async (sd) => {
+      log.debug(
+        'received server answer',
+        sd.type,
+        this.peerConn.signalingState
+      );
       await this.peerConn.setRemoteDescription(sd);
 
       // consider connected
@@ -117,7 +122,7 @@ export class RTCEngine extends EventEmitter {
 
     // when server creates an offer for the client
     this.client.onOffer = async (sd) => {
-      log.debug('received offer, signalingState', this.peerConn.signalingState);
+      log.debug('received server offer', sd.type, this.peerConn.signalingState);
       await this.peerConn.setRemoteDescription(sd);
 
       // answer the offer
