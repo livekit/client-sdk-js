@@ -62,6 +62,11 @@ class Room extends EventEmitter {
   }
 
   connect = async (info: ConnectionInfo, token: string): Promise<Room> => {
+    // guard against calling connect
+    if (this.localParticipant) {
+      log.warn('already connected to room', this.name);
+      return this;
+    }
     const joinResponse = await this.engine.join(info, token);
 
     this.state = RoomState.Connected;
