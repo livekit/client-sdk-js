@@ -17,8 +17,8 @@ import { Participant } from './Participant';
 export class LocalParticipant extends Participant {
   engine: RTCEngine;
 
-  constructor(sid: string, name: string, engine: RTCEngine) {
-    super(sid, name);
+  constructor(sid: string, identity: string, engine: RTCEngine) {
+    super(sid, identity);
     this.engine = engine;
   }
 
@@ -141,7 +141,11 @@ export class LocalParticipant extends Participant {
     // TODO: add logging
 
     if (!publication) {
-      log.warn('unpublishTrack', 'track was not unpublished because no publication was found', track);
+      log.warn(
+        'unpublishTrack',
+        'track was not unpublished because no publication was found',
+        track
+      );
       return null;
     }
 
@@ -160,7 +164,11 @@ export class LocalParticipant extends Participant {
       }
 
       const senders = this.engine.peerConn.getSenders();
-      log.debug('unpublishTrack:', `removing the track from ${senders.length} senders`, track);
+      log.debug(
+        'unpublishTrack:',
+        `removing the track from ${senders.length} senders`,
+        track
+      );
       senders.forEach((sender) => {
         if (sender.track === mediaStreamTrack) {
           this.engine.peerConn.removeTrack(sender);

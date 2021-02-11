@@ -14,6 +14,9 @@ export function attachTrack(
   if (!element) {
     element = document.createElement(elementType);
     element.autoplay = true;
+    if (element instanceof HTMLVideoElement) {
+      (<HTMLVideoElement>element).playsInline = true;
+    }
   }
 
   // already attached

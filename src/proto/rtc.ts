@@ -14,11 +14,18 @@ export interface SignalRequest {
   answer?: SessionDescription | undefined;
   trickle?: TrickleRequest | undefined;
   addTrack?: AddTrackRequest | undefined;
+  /**
+   *  mute the participant's own tracks
+   */
   mute?: MuteTrackRequest | undefined;
   /**
    *  when client needs to negotiate
    */
   negotiate?: NegotiationRequest | undefined;
+  /**
+   *  mute a track client is subscribed to
+   */
+  muteSubscribed?: MuteTrackRequest | undefined;
 }
 
 export interface SignalResponse {
@@ -169,6 +176,9 @@ export const SignalRequest = {
     if (message.negotiate !== undefined) {
       NegotiationRequest.encode(message.negotiate, writer.uint32(58).fork()).ldelim();
     }
+    if (message.muteSubscribed !== undefined) {
+      MuteTrackRequest.encode(message.muteSubscribed, writer.uint32(66).fork()).ldelim();
+    }
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): SignalRequest {
@@ -195,6 +205,9 @@ export const SignalRequest = {
           break;
         case 7:
           message.negotiate = NegotiationRequest.decode(reader, reader.uint32());
+          break;
+        case 8:
+          message.muteSubscribed = MuteTrackRequest.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -235,6 +248,11 @@ export const SignalRequest = {
     } else {
       message.negotiate = undefined;
     }
+    if (object.muteSubscribed !== undefined && object.muteSubscribed !== null) {
+      message.muteSubscribed = MuteTrackRequest.fromJSON(object.muteSubscribed);
+    } else {
+      message.muteSubscribed = undefined;
+    }
     return message;
   },
   fromPartial(object: DeepPartial<SignalRequest>): SignalRequest {
@@ -269,6 +287,11 @@ export const SignalRequest = {
     } else {
       message.negotiate = undefined;
     }
+    if (object.muteSubscribed !== undefined && object.muteSubscribed !== null) {
+      message.muteSubscribed = MuteTrackRequest.fromPartial(object.muteSubscribed);
+    } else {
+      message.muteSubscribed = undefined;
+    }
     return message;
   },
   toJSON(message: SignalRequest): unknown {
@@ -279,6 +302,7 @@ export const SignalRequest = {
     message.addTrack !== undefined && (obj.addTrack = message.addTrack ? AddTrackRequest.toJSON(message.addTrack) : undefined);
     message.mute !== undefined && (obj.mute = message.mute ? MuteTrackRequest.toJSON(message.mute) : undefined);
     message.negotiate !== undefined && (obj.negotiate = message.negotiate ? NegotiationRequest.toJSON(message.negotiate) : undefined);
+    message.muteSubscribed !== undefined && (obj.muteSubscribed = message.muteSubscribed ? MuteTrackRequest.toJSON(message.muteSubscribed) : undefined);
     return obj;
   },
 };

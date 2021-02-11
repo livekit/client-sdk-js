@@ -76,6 +76,7 @@ class Room extends EventEmitter {
       pi.identity,
       this.engine
     );
+    this.localParticipant.setMetadata(pi.metadata);
 
     // populate remote participants, these should not trigger new events
     joinResponse.otherParticipants.forEach((pi) => {
@@ -125,7 +126,7 @@ class Room extends EventEmitter {
         this.emit(RoomEvent.ParticipantConnected, remoteParticipant);
       } else {
         // just update, no events
-        remoteParticipant.updateMetadata(info);
+        remoteParticipant.updateInfo(info);
       }
     });
   }

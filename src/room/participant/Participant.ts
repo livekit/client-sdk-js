@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import log from 'loglevel';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { Track } from '../track/Track';
 import { TrackPublication } from '../track/TrackPublication';
@@ -21,6 +22,8 @@ export class Participant extends EventEmitter {
   sid: string;
   // client assigned identity
   identity: string;
+  // client passed metadata
+  metadata: object = {};
 
   constructor(sid: string, identity: string) {
     super();
@@ -34,6 +37,18 @@ export class Participant extends EventEmitter {
 
   getTracks(): TrackPublication[] {
     return Array.from(this.tracks.values());
+  }
+
+  setMetadata(md: string) {
+    if (!md) {
+      this.metadata = {};
+    } else {
+      try {
+        this.metadata = JSON.parse(md);
+      } catch (err) {
+        log.error('could not decode metadata', err);
+      }
+    }
   }
 
   protected addTrackPublication(publication: TrackPublication) {

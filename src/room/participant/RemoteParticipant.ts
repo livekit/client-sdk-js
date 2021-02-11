@@ -22,7 +22,7 @@ export class RemoteParticipant extends Participant {
 
   static fromParticipantInfo(pi: ParticipantInfo): RemoteParticipant {
     const rp = new RemoteParticipant(pi.sid, pi.identity);
-    rp.updateMetadata(pi);
+    rp.updateInfo(pi);
     return rp;
   }
 
@@ -143,12 +143,13 @@ export class RemoteParticipant extends Participant {
     return this.tracks.get(sid);
   }
 
-  updateMetadata(info: ParticipantInfo) {
+  updateInfo(info: ParticipantInfo) {
     const alreadyHasMetadata = this.hasMetadata;
 
     this.identity = info.identity;
     this.sid = info.sid;
     this.participantInfo = info;
+    this.setMetadata(info.metadata);
 
     // we are getting a list of all available tracks, reconcile in here
     // and send out events for changes
@@ -210,6 +211,7 @@ export class RemoteParticipant extends Participant {
     // also send unsubscribe, if track is actively subscribed
     if (publication.track) {
       publication.track.stop();
+      publication.track = undefined;
       // always send unsubscribed, since apps may rely on this
       this.emit(ParticipantEvent.TrackUnsubscribed, publication);
     }

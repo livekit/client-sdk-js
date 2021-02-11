@@ -16,6 +16,7 @@ export interface ParticipantInfo {
   identity: string;
   state: ParticipantInfo_State;
   tracks: TrackInfo[];
+  metadata: string;
 }
 
 export interface TrackInfo {
@@ -42,6 +43,7 @@ const baseParticipantInfo: object = {
   sid: "",
   identity: "",
   state: 0,
+  metadata: "",
 };
 
 const baseTrackInfo: object = {
@@ -268,6 +270,7 @@ export const ParticipantInfo = {
     for (const v of message.tracks) {
       TrackInfo.encode(v!, writer.uint32(34).fork()).ldelim();
     }
+    writer.uint32(42).string(message.metadata);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): ParticipantInfo {
@@ -289,6 +292,9 @@ export const ParticipantInfo = {
           break;
         case 4:
           message.tracks.push(TrackInfo.decode(reader, reader.uint32()));
+          break;
+        case 5:
+          message.metadata = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -320,6 +326,11 @@ export const ParticipantInfo = {
         message.tracks.push(TrackInfo.fromJSON(e));
       }
     }
+    if (object.metadata !== undefined && object.metadata !== null) {
+      message.metadata = String(object.metadata);
+    } else {
+      message.metadata = "";
+    }
     return message;
   },
   fromPartial(object: DeepPartial<ParticipantInfo>): ParticipantInfo {
@@ -345,6 +356,11 @@ export const ParticipantInfo = {
         message.tracks.push(TrackInfo.fromPartial(e));
       }
     }
+    if (object.metadata !== undefined && object.metadata !== null) {
+      message.metadata = object.metadata;
+    } else {
+      message.metadata = "";
+    }
     return message;
   },
   toJSON(message: ParticipantInfo): unknown {
@@ -357,6 +373,7 @@ export const ParticipantInfo = {
     } else {
       obj.tracks = [];
     }
+    message.metadata !== undefined && (obj.metadata = message.metadata);
     return obj;
   },
 };
