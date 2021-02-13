@@ -101,13 +101,13 @@ export class LocalParticipant extends Participant {
 
     if (track instanceof LocalDataTrack) {
       // add data track
-      track.dataChannel = this.engine.peerConn.createDataChannel(
+      track.dataChannel = this.engine.publisher.pc.createDataChannel(
         track.name,
         track.dataChannelInit
       );
     } else {
       // store RTPSender
-      track.sender = this.engine.peerConn.addTrack(track.mediaStreamTrack);
+      track.sender = this.engine.publisher.pc.addTrack(track.mediaStreamTrack);
     }
 
     this.tracks.set(ti.sid, publication);
@@ -163,15 +163,10 @@ export class LocalParticipant extends Participant {
         mediaStreamTrack = track.mediaStreamTrack;
       }
 
-      const senders = this.engine.peerConn.getSenders();
-      log.debug(
-        'unpublishTrack:',
-        `removing the track from ${senders.length} senders`,
-        track
-      );
+      const senders = this.engine.publisher.pc.getSenders();
       senders.forEach((sender) => {
         if (sender.track === mediaStreamTrack) {
-          this.engine.peerConn.removeTrack(sender);
+          this.engine.publisher.pc.removeTrack(sender);
         }
       });
     }

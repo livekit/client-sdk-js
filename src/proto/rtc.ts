@@ -5,11 +5,11 @@ import { Writer, Reader } from 'protobufjs/minimal';
 
 export interface SignalRequest {
   /**
-   *  participant joining initially, and during negotiations
+   *  initial join exchange, for publisher
    */
   offer?: SessionDescription | undefined;
   /**
-   *  participant responding to server-issued offers
+   *  participant answering publisher offer
    */
   answer?: SessionDescription | undefined;
   trickle?: TrickleRequest | undefined;
@@ -18,10 +18,6 @@ export interface SignalRequest {
    *  mute the participant's own tracks
    */
   mute?: MuteTrackRequest | undefined;
-  /**
-   *  when client needs to negotiate
-   */
-  negotiate?: NegotiationRequest | undefined;
   /**
    *  mute a track client is subscribed to
    */
@@ -34,11 +30,11 @@ export interface SignalResponse {
    */
   join?: JoinResponse | undefined;
   /**
-   *  sent when offer is answered
+   *  sent when server answers publisher
    */
   answer?: SessionDescription | undefined;
   /**
-   *  sent when server needs to negotiate, always offer
+   *  sent when server is sending subscriber an offer
    */
   offer?: SessionDescription | undefined;
   /**
@@ -53,10 +49,6 @@ export interface SignalResponse {
    *  sent to the participant when their track has been published
    */
   trackPublished?: TrackPublishedResponse | undefined;
-  /**
-   *  sent to participant when they should initiate negotiation
-   */
-  negotiate?: NegotiationResponse | undefined;
 }
 
 export interface AddTrackRequest {
@@ -70,6 +62,7 @@ export interface AddTrackRequest {
 
 export interface TrickleRequest {
   candidateInit: string;
+  target: SignalTarget;
 }
 
 export interface MuteTrackRequest {
@@ -87,17 +80,12 @@ export interface JoinResponse {
   room?: Room;
   participant?: ParticipantInfo;
   otherParticipants: ParticipantInfo[];
+  serverVersion: string;
 }
 
 export interface TrackPublishedResponse {
   cid: string;
   track?: TrackInfo;
-}
-
-/**
- *  empty
- */
-export interface NegotiationResponse {
 }
 
 export interface SessionDescription {
@@ -126,6 +114,7 @@ const baseAddTrackRequest: object = {
 
 const baseTrickleRequest: object = {
   candidateInit: "",
+  target: 0,
 };
 
 const baseMuteTrackRequest: object = {
@@ -137,13 +126,11 @@ const baseNegotiationRequest: object = {
 };
 
 const baseJoinResponse: object = {
+  serverVersion: "",
 };
 
 const baseTrackPublishedResponse: object = {
   cid: "",
-};
-
-const baseNegotiationResponse: object = {
 };
 
 const baseSessionDescription: object = {
@@ -155,6 +142,38 @@ const baseParticipantUpdate: object = {
 };
 
 export const protobufPackage = 'livekit'
+
+export enum SignalTarget {
+  PUBLISHER = 0,
+  SUBSCRIBER = 1,
+  UNRECOGNIZED = -1,
+}
+
+export function signalTargetFromJSON(object: any): SignalTarget {
+  switch (object) {
+    case 0:
+    case "PUBLISHER":
+      return SignalTarget.PUBLISHER;
+    case 1:
+    case "SUBSCRIBER":
+      return SignalTarget.SUBSCRIBER;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return SignalTarget.UNRECOGNIZED;
+  }
+}
+
+export function signalTargetToJSON(object: SignalTarget): string {
+  switch (object) {
+    case SignalTarget.PUBLISHER:
+      return "PUBLISHER";
+    case SignalTarget.SUBSCRIBER:
+      return "SUBSCRIBER";
+    default:
+      return "UNKNOWN";
+  }
+}
 
 export const SignalRequest = {
   encode(message: SignalRequest, writer: Writer = Writer.create()): Writer {
@@ -173,11 +192,8 @@ export const SignalRequest = {
     if (message.mute !== undefined) {
       MuteTrackRequest.encode(message.mute, writer.uint32(42).fork()).ldelim();
     }
-    if (message.negotiate !== undefined) {
-      NegotiationRequest.encode(message.negotiate, writer.uint32(58).fork()).ldelim();
-    }
     if (message.muteSubscribed !== undefined) {
-      MuteTrackRequest.encode(message.muteSubscribed, writer.uint32(66).fork()).ldelim();
+      MuteTrackRequest.encode(message.muteSubscribed, writer.uint32(50).fork()).ldelim();
     }
     return writer;
   },
@@ -203,10 +219,7 @@ export const SignalRequest = {
         case 5:
           message.mute = MuteTrackRequest.decode(reader, reader.uint32());
           break;
-        case 7:
-          message.negotiate = NegotiationRequest.decode(reader, reader.uint32());
-          break;
-        case 8:
+        case 6:
           message.muteSubscribed = MuteTrackRequest.decode(reader, reader.uint32());
           break;
         default:
@@ -243,11 +256,6 @@ export const SignalRequest = {
     } else {
       message.mute = undefined;
     }
-    if (object.negotiate !== undefined && object.negotiate !== null) {
-      message.negotiate = NegotiationRequest.fromJSON(object.negotiate);
-    } else {
-      message.negotiate = undefined;
-    }
     if (object.muteSubscribed !== undefined && object.muteSubscribed !== null) {
       message.muteSubscribed = MuteTrackRequest.fromJSON(object.muteSubscribed);
     } else {
@@ -282,11 +290,6 @@ export const SignalRequest = {
     } else {
       message.mute = undefined;
     }
-    if (object.negotiate !== undefined && object.negotiate !== null) {
-      message.negotiate = NegotiationRequest.fromPartial(object.negotiate);
-    } else {
-      message.negotiate = undefined;
-    }
     if (object.muteSubscribed !== undefined && object.muteSubscribed !== null) {
       message.muteSubscribed = MuteTrackRequest.fromPartial(object.muteSubscribed);
     } else {
@@ -301,7 +304,6 @@ export const SignalRequest = {
     message.trickle !== undefined && (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
     message.addTrack !== undefined && (obj.addTrack = message.addTrack ? AddTrackRequest.toJSON(message.addTrack) : undefined);
     message.mute !== undefined && (obj.mute = message.mute ? MuteTrackRequest.toJSON(message.mute) : undefined);
-    message.negotiate !== undefined && (obj.negotiate = message.negotiate ? NegotiationRequest.toJSON(message.negotiate) : undefined);
     message.muteSubscribed !== undefined && (obj.muteSubscribed = message.muteSubscribed ? MuteTrackRequest.toJSON(message.muteSubscribed) : undefined);
     return obj;
   },
@@ -326,9 +328,6 @@ export const SignalResponse = {
     }
     if (message.trackPublished !== undefined) {
       TrackPublishedResponse.encode(message.trackPublished, writer.uint32(50).fork()).ldelim();
-    }
-    if (message.negotiate !== undefined) {
-      NegotiationResponse.encode(message.negotiate, writer.uint32(58).fork()).ldelim();
     }
     return writer;
   },
@@ -356,9 +355,6 @@ export const SignalResponse = {
           break;
         case 6:
           message.trackPublished = TrackPublishedResponse.decode(reader, reader.uint32());
-          break;
-        case 7:
-          message.negotiate = NegotiationResponse.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -399,11 +395,6 @@ export const SignalResponse = {
     } else {
       message.trackPublished = undefined;
     }
-    if (object.negotiate !== undefined && object.negotiate !== null) {
-      message.negotiate = NegotiationResponse.fromJSON(object.negotiate);
-    } else {
-      message.negotiate = undefined;
-    }
     return message;
   },
   fromPartial(object: DeepPartial<SignalResponse>): SignalResponse {
@@ -438,11 +429,6 @@ export const SignalResponse = {
     } else {
       message.trackPublished = undefined;
     }
-    if (object.negotiate !== undefined && object.negotiate !== null) {
-      message.negotiate = NegotiationResponse.fromPartial(object.negotiate);
-    } else {
-      message.negotiate = undefined;
-    }
     return message;
   },
   toJSON(message: SignalResponse): unknown {
@@ -453,7 +439,6 @@ export const SignalResponse = {
     message.trickle !== undefined && (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
     message.update !== undefined && (obj.update = message.update ? ParticipantUpdate.toJSON(message.update) : undefined);
     message.trackPublished !== undefined && (obj.trackPublished = message.trackPublished ? TrackPublishedResponse.toJSON(message.trackPublished) : undefined);
-    message.negotiate !== undefined && (obj.negotiate = message.negotiate ? NegotiationResponse.toJSON(message.negotiate) : undefined);
     return obj;
   },
 };
@@ -538,6 +523,7 @@ export const AddTrackRequest = {
 export const TrickleRequest = {
   encode(message: TrickleRequest, writer: Writer = Writer.create()): Writer {
     writer.uint32(10).string(message.candidateInit);
+    writer.uint32(16).int32(message.target);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): TrickleRequest {
@@ -549,6 +535,9 @@ export const TrickleRequest = {
       switch (tag >>> 3) {
         case 1:
           message.candidateInit = reader.string();
+          break;
+        case 2:
+          message.target = reader.int32() as any;
           break;
         default:
           reader.skipType(tag & 7);
@@ -564,6 +553,11 @@ export const TrickleRequest = {
     } else {
       message.candidateInit = "";
     }
+    if (object.target !== undefined && object.target !== null) {
+      message.target = signalTargetFromJSON(object.target);
+    } else {
+      message.target = 0;
+    }
     return message;
   },
   fromPartial(object: DeepPartial<TrickleRequest>): TrickleRequest {
@@ -573,11 +567,17 @@ export const TrickleRequest = {
     } else {
       message.candidateInit = "";
     }
+    if (object.target !== undefined && object.target !== null) {
+      message.target = object.target;
+    } else {
+      message.target = 0;
+    }
     return message;
   },
   toJSON(message: TrickleRequest): unknown {
     const obj: any = {};
     message.candidateInit !== undefined && (obj.candidateInit = message.candidateInit);
+    message.target !== undefined && (obj.target = signalTargetToJSON(message.target));
     return obj;
   },
 };
@@ -687,6 +687,7 @@ export const JoinResponse = {
     for (const v of message.otherParticipants) {
       ParticipantInfo.encode(v!, writer.uint32(26).fork()).ldelim();
     }
+    writer.uint32(34).string(message.serverVersion);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): JoinResponse {
@@ -705,6 +706,9 @@ export const JoinResponse = {
           break;
         case 3:
           message.otherParticipants.push(ParticipantInfo.decode(reader, reader.uint32()));
+          break;
+        case 4:
+          message.serverVersion = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -731,6 +735,11 @@ export const JoinResponse = {
         message.otherParticipants.push(ParticipantInfo.fromJSON(e));
       }
     }
+    if (object.serverVersion !== undefined && object.serverVersion !== null) {
+      message.serverVersion = String(object.serverVersion);
+    } else {
+      message.serverVersion = "";
+    }
     return message;
   },
   fromPartial(object: DeepPartial<JoinResponse>): JoinResponse {
@@ -751,6 +760,11 @@ export const JoinResponse = {
         message.otherParticipants.push(ParticipantInfo.fromPartial(e));
       }
     }
+    if (object.serverVersion !== undefined && object.serverVersion !== null) {
+      message.serverVersion = object.serverVersion;
+    } else {
+      message.serverVersion = "";
+    }
     return message;
   },
   toJSON(message: JoinResponse): unknown {
@@ -762,6 +776,7 @@ export const JoinResponse = {
     } else {
       obj.otherParticipants = [];
     }
+    message.serverVersion !== undefined && (obj.serverVersion = message.serverVersion);
     return obj;
   },
 };
@@ -826,38 +841,6 @@ export const TrackPublishedResponse = {
     const obj: any = {};
     message.cid !== undefined && (obj.cid = message.cid);
     message.track !== undefined && (obj.track = message.track ? TrackInfo.toJSON(message.track) : undefined);
-    return obj;
-  },
-};
-
-export const NegotiationResponse = {
-  encode(_: NegotiationResponse, writer: Writer = Writer.create()): Writer {
-    return writer;
-  },
-  decode(input: Uint8Array | Reader, length?: number): NegotiationResponse {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseNegotiationResponse } as NegotiationResponse;
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        default:
-          reader.skipType(tag & 7);
-          break;
-      }
-    }
-    return message;
-  },
-  fromJSON(_: any): NegotiationResponse {
-    const message = { ...baseNegotiationResponse } as NegotiationResponse;
-    return message;
-  },
-  fromPartial(_: DeepPartial<NegotiationResponse>): NegotiationResponse {
-    const message = { ...baseNegotiationResponse } as NegotiationResponse;
-    return message;
-  },
-  toJSON(_: NegotiationResponse): unknown {
-    const obj: any = {};
     return obj;
   },
 };

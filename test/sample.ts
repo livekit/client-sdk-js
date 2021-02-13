@@ -84,7 +84,7 @@ function handleMessage(
 }
 
 function participantConnected(participant: RemoteParticipant) {
-  appendLog('participant', participant.sid, 'connected');
+  appendLog('participant', participant.sid, 'connected', participant.metadata);
 
   const div = document.createElement('div');
   div.id = participant.sid;
@@ -152,6 +152,8 @@ window.connectToRoom = (host: string, port: number, token: string) => {
       room.participants.forEach((participant) => {
         participantConnected(participant);
       });
+
+      $('local-video')!.innerHTML = `${room.localParticipant.identity} (local)`;
 
       // add already published tracks
       currentRoom.localParticipant.tracks.forEach((publication) => {

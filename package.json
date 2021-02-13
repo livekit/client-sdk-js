@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,10 +14,12 @@
     "test": "jest"
   },
   "dependencies": {
+    "@types/semver": "^7.3.4",
     "@types/ws": "^7.4.0",
     "events": "^3.2.0",
     "loglevel": "^1.7.1",
     "protobufjs": "^6.10.2",
+    "semver": "^6.3.0",
     "webrtc-adapter": "^7.7.0"
   },
   "devDependencies": {

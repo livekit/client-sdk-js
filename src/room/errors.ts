@@ -10,6 +10,12 @@ export class LivekitError {
 
 export class TrackInvalidError extends LivekitError {
   constructor(message?: string) {
-    super(53300, message || 'Track is invalid');
+    super(20, message || 'Track is invalid');
+  }
+}
+
+export class UnsupportedServer extends LivekitError {
+  constructor(message?: string) {
+    super(10, message || 'Unsupported server');
   }
 }

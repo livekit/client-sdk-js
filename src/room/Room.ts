@@ -1,7 +1,9 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
+import { SemVer } from 'semver';
 import { ConnectionInfo, RTCClient } from '../api/RTCClient';
 import { ParticipantInfo, ParticipantInfo_State } from '../proto/model';
+import { UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant } from './participant/LocalParticipant';
 import { RemoteParticipant } from './participant/RemoteParticipant';
@@ -30,10 +32,10 @@ class Room extends EventEmitter {
   name!: string;
   localParticipant!: LocalParticipant;
 
-  constructor(client: RTCClient) {
+  constructor(client: RTCClient, config?: RTCConfiguration) {
     super();
     this.participants = new Map();
-    this.engine = new RTCEngine(client);
+    this.engine = new RTCEngine(client, config);
 
     this.engine.on(
       EngineEvent.MediaTrackAdded,
@@ -69,6 +71,21 @@ class Room extends EventEmitter {
     }
     const joinResponse = await this.engine.join(info, token);
 
+    log.debug('connected to Livekit Server', joinResponse.serverVersion);
+
+    try {
+      if (!joinResponse.serverVersion) {
+        throw new UnsupportedServer('unknown server version');
+      }
+      const sv = new SemVer(joinResponse.serverVersion);
+      if (!(sv.major >= 0 && sv.minor >= 4)) {
+        throw new UnsupportedServer('requires server >= 0.4.x');
+      }
+    } catch (err) {
+      this.engine.close();
+      throw err;
+    }
+
     this.state = RoomState.Connected;
     const pi = joinResponse.participant!;
     this.localParticipant = new LocalParticipant(
@@ -86,7 +103,17 @@ class Room extends EventEmitter {
     this.name = joinResponse.room!.name;
     this.sid = joinResponse.room!.sid;
 
-    return this;
+    // don't return until ICE connected
+    return new Promise<Room>((resolve, reject) => {
+      this.engine.once(EngineEvent.Connected, () => {
+        resolve(this);
+      });
+
+      // timeout
+      setTimeout(() => {
+        reject('could not connect after timeout');
+      }, 5 * 1000);
+    });
   };
 
   disconnect() {

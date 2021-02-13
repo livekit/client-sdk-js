@@ -20,9 +20,6 @@ export async function connect(
   token: string,
   options?: ConnectOptions
 ): Promise<Room> {
-  const client = new RTCClientImpl();
-  const room = new Room(client);
-
   // set defaults
   options ||= {};
   options.logLevel ||= LogLevel.info;
@@ -31,11 +28,19 @@ export async function connect(
 
   log.setLevel(options.logLevel);
 
+  let config: RTCConfiguration = {
+    iceServers: [
+      {
+        urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
+      },
+    ],
+  };
   if (options.iceServers) {
-    room.engine.peerConn.setConfiguration({
-      iceServers: options.iceServers,
-    });
+    config.iceServers = options.iceServers;
   }
+
+  const client = new RTCClientImpl();
+  const room = new Room(client, config);
 
   // connect to room
   await room.connect(info, token);

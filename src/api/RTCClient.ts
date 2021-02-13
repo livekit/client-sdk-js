@@ -6,6 +6,7 @@ import {
   SessionDescription,
   SignalRequest,
   SignalResponse,
+  SignalTarget,
   TrackPublishedResponse,
 } from '../proto/rtc';
 
@@ -23,10 +24,10 @@ export interface RTCClient {
   join(info: ConnectionInfo, token: string): Promise<JoinResponse>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendAnswer(answer: RTCSessionDescriptionInit): void;
-  sendIceCandidate(candidate: RTCIceCandidateInit): void;
+  sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget): void;
   sendMuteTrack(trackSid: string, muted: boolean): void;
   sendAddTrack(cid: string, name: string, type: TrackType): void;
-  sendNegotiate(): void;
+  close(): void;
 
   readonly isConnected: boolean;
 
@@ -37,13 +38,11 @@ export interface RTCClient {
   // handle server initiated negotiation
   onOffer?: (sd: RTCSessionDescriptionInit) => void;
   // when a new ICE candidate is made available
-  onTrickle?: (sd: RTCIceCandidateInit) => void;
+  onTrickle?: (sd: RTCIceCandidateInit, target: SignalTarget) => void;
   // when a participant has changed
   onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
   // when track is published successfully
   onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
-  // when a negotiation request is granted
-  onNegotiateRequested?: () => void;
 }
 
 export class RTCClientImpl {
@@ -52,7 +51,7 @@ export class RTCClientImpl {
   onAnswer?: (sd: RTCSessionDescriptionInit) => void;
   onOffer?: (sd: RTCSessionDescriptionInit) => void;
   // when a new ICE candidate is made available
-  onTrickle?: (sd: RTCIceCandidateInit) => void;
+  onTrickle?: (sd: RTCIceCandidateInit, target: SignalTarget) => void;
   onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
   onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
   onNegotiateRequested?: () => void;
@@ -138,11 +137,12 @@ export class RTCClientImpl {
     });
   }
 
-  sendIceCandidate(candidate: RTCIceCandidateInit) {
+  sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
     log.debug('sending ice candidate', candidate);
     this.sendRequest({
       trickle: {
         candidateInit: JSON.stringify(candidate),
+        target: target,
       },
     });
   }
@@ -164,10 +164,6 @@ export class RTCClientImpl {
         type,
       },
     });
-  }
-
-  sendNegotiate(): void {
-    this.sendRequest({ negotiate: {} });
   }
 
   sendRequest(req: SignalRequest) {
@@ -195,7 +191,7 @@ export class RTCClientImpl {
         msg.trickle.candidateInit
       );
       if (this.onTrickle) {
-        this.onTrickle(candidate);
+        this.onTrickle(candidate, msg.trickle.target);
       }
     } else if (msg.update) {
       if (this.onParticipantUpdate) {
@@ -204,10 +200,6 @@ export class RTCClientImpl {
     } else if (msg.trackPublished) {
       if (this.onLocalTrackPublished) {
         this.onLocalTrackPublished(msg.trackPublished);
-      }
-    } else if (msg.negotiate) {
-      if (this.onNegotiateRequested) {
-        this.onNegotiateRequested();
       }
     } else {
       console.warn('unsupported message', msg);
