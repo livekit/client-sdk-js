@@ -39,8 +39,8 @@ class Room extends EventEmitter {
 
     this.engine.on(
       EngineEvent.MediaTrackAdded,
-      (mediaTrack: MediaStreamTrack) => {
-        this.onTrackAdded(mediaTrack);
+      (mediaTrack: MediaStreamTrack, streams: MediaStream[]) => {
+        this.onTrackAdded(mediaTrack, streams);
       }
     );
 
@@ -120,9 +120,15 @@ class Room extends EventEmitter {
     // TODO: handle disconnection
   }
 
-  private onTrackAdded(mediaTrack: MediaStreamTrack) {
-    // create remote participant if not created yet
-    const [participantId, trackId] = unpackTrackId(mediaTrack.id);
+  private onTrackAdded(mediaTrack: MediaStreamTrack, streams: MediaStream[]) {
+    let participantId: string;
+    let trackId: string;
+    if (streams.length > 0) {
+      participantId = streams[0].id;
+      trackId = mediaTrack.id;
+    } else {
+      [participantId, trackId] = unpackTrackId(mediaTrack.id);
+    }
 
     const participant = this.getOrCreateParticipant(participantId);
     participant.addSubscribedMediaTrack(mediaTrack, trackId);

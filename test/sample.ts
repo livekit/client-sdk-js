@@ -129,47 +129,44 @@ window.connectWithFormInput = () => {
   window.connectToRoom(host, port, token);
 };
 
-window.connectToRoom = (host: string, port: number, token: string) => {
-  Livekit.connect({ host, port }, token, {
+window.connectToRoom = async (host: string, port: number, token: string) => {
+  const room = await Livekit.connect({ host, port }, token, {
     logLevel: LogLevel.debug,
     audio: true,
     video: true,
-  })
-    .then((room) => {
-      appendLog('connected to room', room.name);
-      setButtonsForState(true);
-      currentRoom = room;
-      window.currentRoom = room;
+  });
 
-      room
-        .on(RoomEvent.ParticipantConnected, participantConnected)
-        .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
-        .on(RoomEvent.TrackMessage, handleMessage);
+  window.currentRoom = room;
+  appendLog('connected to room', room.name);
+  setButtonsForState(true);
+  currentRoom = room;
+  window.currentRoom = room;
 
-      room.localParticipant.publishTrack(chatTrack);
+  room
+    .on(RoomEvent.ParticipantConnected, participantConnected)
+    .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
+    .on(RoomEvent.TrackMessage, handleMessage);
 
-      appendLog('room participants', room.participants.keys());
-      room.participants.forEach((participant) => {
-        participantConnected(participant);
-      });
+  room.localParticipant.publishTrack(chatTrack);
 
-      $('local-video')!.innerHTML = `${room.localParticipant.identity} (local)`;
+  appendLog('room participants', room.participants.keys());
+  room.participants.forEach((participant) => {
+    participantConnected(participant);
+  });
 
-      // add already published tracks
-      currentRoom.localParticipant.tracks.forEach((publication) => {
-        if (publication instanceof LocalVideoTrackPublication) {
-          videoTrack = publication.track;
-          publishLocalVideo(videoTrack);
-        } else if (publication instanceof LocalAudioTrackPublication) {
-          // skip adding local audio track, to avoid your own sound
-          // only process local video tracks
-          audioTrack = publication.track;
-        }
-      });
-    })
-    .catch((reason) => {
-      console.error('error connecting to room', reason);
-    });
+  $('local-video')!.innerHTML = `${room.localParticipant.identity} (local)`;
+
+  // add already published tracks
+  currentRoom.localParticipant.tracks.forEach((publication) => {
+    if (publication instanceof LocalVideoTrackPublication) {
+      videoTrack = publication.track;
+      publishLocalVideo(videoTrack);
+    } else if (publication instanceof LocalAudioTrackPublication) {
+      // skip adding local audio track, to avoid your own sound
+      // only process local video tracks
+      audioTrack = publication.track;
+    }
+  });
 };
 
 window.muteVideo = () => {
@@ -257,6 +254,6 @@ function getMyVideo() {
 //   window.connectToRoom(
 //     'localhost',
 //     7880,
-//     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTQxMDkzMDQsImlzcyI6IkFQSU1teGlMOHJxdUt6dFpFb1pKVjlGYiIsImp0aSI6Im1lIiwibmJmIjoxNjExNTE3MzA0LCJ2aWRlbyI6eyJyb29tIjoibXlyb29tIiwicm9vbUpvaW4iOnRydWV9fQ.E_2V2SGcd8eHGvireFqFdM2s5wYoc1R5dtlw_XULcGI'
+//     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTU2MTUwOTAsImlzcyI6IkFQSXU5SmpLdFpubXRLQmtjcXNFOUJuZkgiLCJqdGkiOiJtZSIsIm1ldGFkYXRhIjp7Im9yZGVyIjoxfSwibmJmIjoxNjEzMDIzMDkwLCJ2aWRlbyI6eyJyb29tIjoibXlyb29tIiwicm9vbUpvaW4iOnRydWV9fQ.MGEzYSO-Vh8gT1iwE_C8x63Km6f5EuqXVP8HKp4qXJA'
 //   );
 // }, 100);

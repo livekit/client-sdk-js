@@ -1,14 +1,11 @@
 import log from 'loglevel';
-import { ParticipantInfo, TrackInfo, TrackType } from '../../proto/model';
-import { TrackInvalidError } from '../errors';
+import { ParticipantInfo, TrackType } from '../../proto/model';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RemoteAudioTrack } from '../track/RemoteAudioTrack';
-import { RemoteAudioTrackPublication } from '../track/RemoteAudioTrackPublication';
 import { RemoteDataTrack } from '../track/RemoteDataTrack';
 import { RemoteDataTrackPublication } from '../track/RemoteDataTrackPublication';
 import { RemoteTrackPublication } from '../track/RemoteTrackPublication';
 import { RemoteVideoTrack } from '../track/RemoteVideoTrack';
-import { RemoteVideoTrackPublication } from '../track/RemoteVideoTrackPublication';
 import { Track } from '../track/Track';
 import {
   createRemoteTrackPublicationFromInfo,
@@ -31,10 +28,7 @@ export class RemoteParticipant extends Participant {
     this.tracks = new Map();
   }
 
-  addSubscribedMediaTrack(
-    mediaTrack: MediaStreamTrack,
-    sid: Track.SID
-  ): RemoteTrackPublication {
+  addSubscribedMediaTrack(mediaTrack: MediaStreamTrack, sid: Track.SID) {
     const isVideo = mediaTrack.kind === 'video';
     let track: RemoteTrack;
     if (isVideo) {
@@ -43,46 +37,39 @@ export class RemoteParticipant extends Participant {
       track = new RemoteAudioTrack(mediaTrack, sid);
     }
 
+    if (!this.hasMetadata) {
+      // try this again later
+      setTimeout(() => {
+        this.addSubscribedMediaTrack(mediaTrack, sid);
+      }, 100);
+      return;
+    }
+
     // find the track publication or create one
     // it's possible for the media track to arrive before participant info
     let publication = this.getTrackPublication(sid);
 
+    // it's also possible that the browser didn't honor our original track id
+    // FireFox would use its own local uuid instead of server track id
     if (!publication) {
-      const info: TrackInfo = {
-        sid: sid,
-        name: mediaTrack.label,
-        type: Track.kindToProto(track.kind),
-        muted: false,
-      };
-      switch (track.kind) {
-        case Track.Kind.Audio:
-          publication = new RemoteAudioTrackPublication(
-            info,
-            <RemoteAudioTrack>track
-          );
-          break;
-        case Track.Kind.Video:
-          publication = new RemoteVideoTrackPublication(
-            info,
-            <RemoteVideoTrack>track
-          );
-          break;
-        default:
-          throw new TrackInvalidError();
+      if (!sid.startsWith('TR')) {
+        // find the first track that matches type
+        this.tracks.forEach((p) => {
+          if (!publication && mediaTrack.kind === p.kind.toString()) {
+            publication = p;
+          }
+        });
       }
-
-      this.addTrackPublication(publication);
-      // only send this after metadata is filled in, which indicates the track
-      // is published AFTER client connected to room
-      if (this.hasMetadata) {
-        this.emit(ParticipantEvent.TrackPublished, publication);
-      }
-    } else {
-      publication.track = track;
-      // set track name etc
-      track.name = publication.trackName;
-      track.sid = publication.trackSid;
     }
+    if (!publication) {
+      log.error('could not find published track', this.sid, sid);
+      return;
+    }
+
+    publication.track = track;
+    // set track name etc
+    track.name = publication.trackName;
+    track.sid = publication.trackSid;
 
     // when media track is ended, fire the event
     mediaTrack.onended = (ev) => {
