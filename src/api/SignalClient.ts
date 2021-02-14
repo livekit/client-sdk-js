@@ -7,6 +7,7 @@ import {
   SignalRequest,
   SignalResponse,
   SignalTarget,
+  SpeakerInfo,
   TrackPublishedResponse,
 } from '../proto/rtc';
 
@@ -20,7 +21,7 @@ export interface ConnectionInfo {
  * RTCClient is the signaling layer of WebRTC, it's LiveKit's signaling protocol
  * so that it
  */
-export interface RTCClient {
+export interface SignalClient {
   join(info: ConnectionInfo, token: string): Promise<JoinResponse>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendAnswer(answer: RTCSessionDescriptionInit): void;
@@ -43,9 +44,11 @@ export interface RTCClient {
   onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
   // when track is published successfully
   onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
+  // when active speakers changed
+  onActiveSpeakersChanged?: (res: SpeakerInfo[]) => void;
 }
 
-export class RTCClientImpl {
+export class WSSignalClient {
   isConnected: boolean;
   onClose?: (reason: string) => void;
   onAnswer?: (sd: RTCSessionDescriptionInit) => void;
@@ -55,6 +58,7 @@ export class RTCClientImpl {
   onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
   onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
   onNegotiateRequested?: () => void;
+  onActiveSpeakersChanged?: (res: SpeakerInfo[]) => void;
 
   ws?: WebSocket;
 
@@ -200,6 +204,10 @@ export class RTCClientImpl {
     } else if (msg.trackPublished) {
       if (this.onLocalTrackPublished) {
         this.onLocalTrackPublished(msg.trackPublished);
+      }
+    } else if (msg.speaker) {
+      if (this.onActiveSpeakersChanged) {
+        this.onActiveSpeakersChanged(msg.speaker.speakers);
       }
     } else {
       console.warn('unsupported message', msg);

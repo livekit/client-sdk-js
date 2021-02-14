@@ -83,6 +83,10 @@ function handleMessage(
   }
 }
 
+function handleSpeakerChanged(speakers: RemoteParticipant[]) {
+  appendLog('speakers changed', speakers.length);
+}
+
 function participantConnected(participant: RemoteParticipant) {
   appendLog('participant', participant.sid, 'connected', participant.metadata);
 
@@ -145,7 +149,8 @@ window.connectToRoom = async (host: string, port: number, token: string) => {
   room
     .on(RoomEvent.ParticipantConnected, participantConnected)
     .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
-    .on(RoomEvent.TrackMessage, handleMessage);
+    .on(RoomEvent.TrackMessage, handleMessage)
+    .on(RoomEvent.ActiveSpeakersChanged, handleSpeakerChanged);
 
   room.localParticipant.publishTrack(chatTrack);
 

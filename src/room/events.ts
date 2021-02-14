@@ -9,6 +9,7 @@ export enum RoomEvent {
   TrackMuted = 'trackMuted',
   TrackUnmuted = 'trackUnmuted',
   TrackMessage = 'trackMessage',
+  ActiveSpeakersChanged = 'activeSpeakersChanged',
 }
 
 export enum ParticipantEvent {
@@ -27,6 +28,7 @@ export enum EngineEvent {
   ParticipantUpdate = 'participantUpdate',
   MediaTrackAdded = 'mediaTrackAdded',
   DataChannelAdded = 'dataChannelAdded',
+  SpeakersUpdate = 'speakersUpdate',
 }
 
 export enum TrackEvent {

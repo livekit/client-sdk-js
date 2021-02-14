@@ -1,4 +1,4 @@
-import { ConnectionInfo } from './api/RTCClient';
+import { ConnectionInfo } from './api/SignalClient';
 import * as livekit from './livekit';
 import { LocalParticipant } from './room/participant/LocalParticipant';
 import { Participant } from './room/participant/Participant';

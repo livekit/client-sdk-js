@@ -1,8 +1,10 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
 import { SemVer } from 'semver';
-import { ConnectionInfo, RTCClient } from '../api/RTCClient';
+import { Participant } from '..';
+import { ConnectionInfo, SignalClient } from '../api/SignalClient';
 import { ParticipantInfo, ParticipantInfo_State } from '../proto/model';
+import { SpeakerInfo } from '../proto/rtc';
 import { UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant } from './participant/LocalParticipant';
@@ -24,7 +26,7 @@ class Room extends EventEmitter {
   engine: RTCEngine;
   state: RoomState = RoomState.Disconnected;
   participants: Map<string, RemoteParticipant>;
-  dominantSpeaker?: RemoteParticipant;
+  activeSpeakers: Participant[] = [];
   autoTracks?: LocalTrackPublication[];
 
   // available after connected
@@ -32,7 +34,7 @@ class Room extends EventEmitter {
   name!: string;
   localParticipant!: LocalParticipant;
 
-  constructor(client: RTCClient, config?: RTCConfiguration) {
+  constructor(client: SignalClient, config?: RTCConfiguration) {
     super();
     this.participants = new Map();
     this.engine = new RTCEngine(client, config);
@@ -61,6 +63,10 @@ class Room extends EventEmitter {
         this.handleParticipantUpdates(participants);
       }
     );
+
+    this.engine.on(EngineEvent.SpeakersUpdate, (speakers: SpeakerInfo[]) => {
+      this.handleSpeakerUpdate(speakers);
+    });
   }
 
   connect = async (info: ConnectionInfo, token: string): Promise<Room> => {
@@ -178,6 +184,36 @@ class Room extends EventEmitter {
       participant.unpublishTrack(publication.trackSid);
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
+  }
+
+  private handleSpeakerUpdate(speakers: SpeakerInfo[]) {
+    const activeSpeakers: Participant[] = [];
+    const seenSids: any = {};
+    speakers.forEach((speaker) => {
+      seenSids[speaker.sid] = true;
+      if (speaker.sid === this.localParticipant.sid) {
+        this.localParticipant.audioLevel = speaker.level;
+        activeSpeakers.push(this.localParticipant);
+      } else {
+        const p = this.participants.get(speaker.sid);
+        if (p) {
+          p.audioLevel = speaker.level;
+          activeSpeakers.push(p);
+        }
+      }
+    });
+
+    if (!seenSids[this.localParticipant.sid]) {
+      this.localParticipant.audioLevel = 0;
+    }
+    this.participants.forEach((p) => {
+      if (!seenSids[p.sid]) {
+        p.audioLevel = 0;
+      }
+    });
+
+    this.activeSpeakers = activeSpeakers;
+    this.emit(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
   }
 
   private getOrCreateParticipant(

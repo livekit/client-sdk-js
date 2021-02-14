@@ -49,6 +49,10 @@ export interface SignalResponse {
    *  sent to the participant when their track has been published
    */
   trackPublished?: TrackPublishedResponse | undefined;
+  /**
+   *  list of active speakers
+   */
+  speaker?: ActiveSpeakerUpdate | undefined;
 }
 
 export interface AddTrackRequest {
@@ -100,6 +104,22 @@ export interface ParticipantUpdate {
   participants: ParticipantInfo[];
 }
 
+export interface ActiveSpeakerUpdate {
+  speakers: SpeakerInfo[];
+}
+
+export interface SpeakerInfo {
+  sid: string;
+  /**
+   *  audio level, 0-1.0, 1 is loudest
+   */
+  level: number;
+  /**
+   *  true if speaker is currently active
+   */
+  active: boolean;
+}
+
 const baseSignalRequest: object = {
 };
 
@@ -139,6 +159,15 @@ const baseSessionDescription: object = {
 };
 
 const baseParticipantUpdate: object = {
+};
+
+const baseActiveSpeakerUpdate: object = {
+};
+
+const baseSpeakerInfo: object = {
+  sid: "",
+  level: 0,
+  active: false,
 };
 
 export const protobufPackage = 'livekit'
@@ -329,6 +358,9 @@ export const SignalResponse = {
     if (message.trackPublished !== undefined) {
       TrackPublishedResponse.encode(message.trackPublished, writer.uint32(50).fork()).ldelim();
     }
+    if (message.speaker !== undefined) {
+      ActiveSpeakerUpdate.encode(message.speaker, writer.uint32(58).fork()).ldelim();
+    }
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): SignalResponse {
@@ -355,6 +387,9 @@ export const SignalResponse = {
           break;
         case 6:
           message.trackPublished = TrackPublishedResponse.decode(reader, reader.uint32());
+          break;
+        case 7:
+          message.speaker = ActiveSpeakerUpdate.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -395,6 +430,11 @@ export const SignalResponse = {
     } else {
       message.trackPublished = undefined;
     }
+    if (object.speaker !== undefined && object.speaker !== null) {
+      message.speaker = ActiveSpeakerUpdate.fromJSON(object.speaker);
+    } else {
+      message.speaker = undefined;
+    }
     return message;
   },
   fromPartial(object: DeepPartial<SignalResponse>): SignalResponse {
@@ -429,6 +469,11 @@ export const SignalResponse = {
     } else {
       message.trackPublished = undefined;
     }
+    if (object.speaker !== undefined && object.speaker !== null) {
+      message.speaker = ActiveSpeakerUpdate.fromPartial(object.speaker);
+    } else {
+      message.speaker = undefined;
+    }
     return message;
   },
   toJSON(message: SignalResponse): unknown {
@@ -439,6 +484,7 @@ export const SignalResponse = {
     message.trickle !== undefined && (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
     message.update !== undefined && (obj.update = message.update ? ParticipantUpdate.toJSON(message.update) : undefined);
     message.trackPublished !== undefined && (obj.trackPublished = message.trackPublished ? TrackPublishedResponse.toJSON(message.trackPublished) : undefined);
+    message.speaker !== undefined && (obj.speaker = message.speaker ? ActiveSpeakerUpdate.toJSON(message.speaker) : undefined);
     return obj;
   },
 };
@@ -959,6 +1005,139 @@ export const ParticipantUpdate = {
     } else {
       obj.participants = [];
     }
+    return obj;
+  },
+};
+
+export const ActiveSpeakerUpdate = {
+  encode(message: ActiveSpeakerUpdate, writer: Writer = Writer.create()): Writer {
+    for (const v of message.speakers) {
+      SpeakerInfo.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): ActiveSpeakerUpdate {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
+    message.speakers = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.speakers.push(SpeakerInfo.decode(reader, reader.uint32()));
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(object: any): ActiveSpeakerUpdate {
+    const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
+    message.speakers = [];
+    if (object.speakers !== undefined && object.speakers !== null) {
+      for (const e of object.speakers) {
+        message.speakers.push(SpeakerInfo.fromJSON(e));
+      }
+    }
+    return message;
+  },
+  fromPartial(object: DeepPartial<ActiveSpeakerUpdate>): ActiveSpeakerUpdate {
+    const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
+    message.speakers = [];
+    if (object.speakers !== undefined && object.speakers !== null) {
+      for (const e of object.speakers) {
+        message.speakers.push(SpeakerInfo.fromPartial(e));
+      }
+    }
+    return message;
+  },
+  toJSON(message: ActiveSpeakerUpdate): unknown {
+    const obj: any = {};
+    if (message.speakers) {
+      obj.speakers = message.speakers.map(e => e ? SpeakerInfo.toJSON(e) : undefined);
+    } else {
+      obj.speakers = [];
+    }
+    return obj;
+  },
+};
+
+export const SpeakerInfo = {
+  encode(message: SpeakerInfo, writer: Writer = Writer.create()): Writer {
+    writer.uint32(10).string(message.sid);
+    writer.uint32(21).float(message.level);
+    writer.uint32(24).bool(message.active);
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): SpeakerInfo {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseSpeakerInfo } as SpeakerInfo;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.sid = reader.string();
+          break;
+        case 2:
+          message.level = reader.float();
+          break;
+        case 3:
+          message.active = reader.bool();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(object: any): SpeakerInfo {
+    const message = { ...baseSpeakerInfo } as SpeakerInfo;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = String(object.sid);
+    } else {
+      message.sid = "";
+    }
+    if (object.level !== undefined && object.level !== null) {
+      message.level = Number(object.level);
+    } else {
+      message.level = 0;
+    }
+    if (object.active !== undefined && object.active !== null) {
+      message.active = Boolean(object.active);
+    } else {
+      message.active = false;
+    }
+    return message;
+  },
+  fromPartial(object: DeepPartial<SpeakerInfo>): SpeakerInfo {
+    const message = { ...baseSpeakerInfo } as SpeakerInfo;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = object.sid;
+    } else {
+      message.sid = "";
+    }
+    if (object.level !== undefined && object.level !== null) {
+      message.level = object.level;
+    } else {
+      message.level = 0;
+    }
+    if (object.active !== undefined && object.active !== null) {
+      message.active = object.active;
+    } else {
+      message.active = false;
+    }
+    return message;
+  },
+  toJSON(message: SpeakerInfo): unknown {
+    const obj: any = {};
+    message.sid !== undefined && (obj.sid = message.sid);
+    message.level !== undefined && (obj.level = message.level);
+    message.active !== undefined && (obj.active = message.active);
     return obj;
   },
 };

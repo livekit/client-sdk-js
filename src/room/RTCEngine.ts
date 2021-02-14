@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
-import { ConnectionInfo, RTCClient } from '../api/RTCClient';
+import { ConnectionInfo, SignalClient } from '../api/SignalClient';
 import { TrackInfo } from '../proto/model';
 import {
   JoinResponse,
@@ -17,7 +17,7 @@ const placeholderDataChannel = '_private';
 export class RTCEngine extends EventEmitter {
   publisher: PCTransport;
   subscriber: PCTransport;
-  client: RTCClient;
+  client: SignalClient;
 
   privateDC?: RTCDataChannel;
   rtcConnected: boolean = false;
@@ -25,7 +25,7 @@ export class RTCEngine extends EventEmitter {
   pendingCandidates: RTCIceCandidateInit[] = [];
   pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
 
-  constructor(client: RTCClient, config?: RTCConfiguration) {
+  constructor(client: SignalClient, config?: RTCConfiguration) {
     super();
     this.client = client;
     this.publisher = new PCTransport(config);
@@ -173,6 +173,10 @@ export class RTCEngine extends EventEmitter {
       }
       delete this.pendingTrackResolvers[res.cid];
       resolve(res.track!);
+    };
+
+    this.client.onActiveSpeakersChanged = (speakers) => {
+      this.emit(EngineEvent.SpeakersUpdate, speakers);
     };
   }
 

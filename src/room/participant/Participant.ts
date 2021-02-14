@@ -19,6 +19,8 @@ export class Participant extends EventEmitter {
   videoTracks: Map<string, VideoTrackPublication>;
   dataTracks: Map<string, DataTrackPublication>;
   tracks: Map<string, TrackPublication>;
+  // audio level between 0-1.0, 1 being loudest, 0 being softest
+  audioLevel: number = 0;
   sid: string;
   // client assigned identity
   identity: string;

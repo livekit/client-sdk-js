@@ -1,5 +1,5 @@
 import log from 'loglevel';
-import { ConnectionInfo, RTCClientImpl } from './api/RTCClient';
+import { ConnectionInfo, WSSignalClient } from './api/SignalClient';
 import {
   ConnectOptions,
   CreateLocalTrackOptions,
@@ -39,7 +39,7 @@ export async function connect(
     config.iceServers = options.iceServers;
   }
 
-  const client = new RTCClientImpl();
+  const client = new WSSignalClient();
   const room = new Room(client, config);
 
   // connect to room
