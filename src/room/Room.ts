@@ -268,6 +268,13 @@ class Room extends EventEmitter {
           this.emit(RoomEvent.TrackMessage, data, track, participant);
         }
       );
+
+      participant.on(
+        ParticipantEvent.TrackSubscriptionFailed,
+        (sid: string) => {
+          this.emit(RoomEvent.TrackSubscriptionFailed, sid, participant);
+        }
+      );
     }
     return participant;
   }

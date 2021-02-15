@@ -4,6 +4,7 @@ export enum RoomEvent {
   ParticipantDisconnected = 'participantDisconnected',
   TrackPublished = 'trackPublished',
   TrackSubscribed = 'trackSubscribed',
+  TrackSubscriptionFailed = 'trackSubscriptionFailed',
   TrackUnpublished = 'trackUnpublished',
   TrackUnsubscribed = 'trackUnsubscribed',
   TrackMuted = 'trackMuted',
@@ -15,6 +16,7 @@ export enum RoomEvent {
 export enum ParticipantEvent {
   TrackPublished = 'trackPublished',
   TrackSubscribed = 'trackSubscribed',
+  TrackSubscriptionFailed = 'trackSubscriptionFailed',
   TrackUnpublished = 'trackUnpublished',
   TrackUnsubscribed = 'trackUnsubscribed',
   TrackMuted = 'trackMuted',

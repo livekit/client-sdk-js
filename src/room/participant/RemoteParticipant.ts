@@ -28,24 +28,12 @@ export class RemoteParticipant extends Participant {
     this.tracks = new Map();
   }
 
-  addSubscribedMediaTrack(mediaTrack: MediaStreamTrack, sid: Track.SID) {
-    const isVideo = mediaTrack.kind === 'video';
-    let track: RemoteTrack;
-    if (isVideo) {
-      track = new RemoteVideoTrack(mediaTrack, sid);
-    } else {
-      track = new RemoteAudioTrack(mediaTrack, sid);
-    }
-
-    if (!this.hasMetadata) {
-      // try this again later
-      setTimeout(() => {
-        this.addSubscribedMediaTrack(mediaTrack, sid);
-      }, 100);
-      return;
-    }
-
-    // find the track publication or create one
+  addSubscribedMediaTrack(
+    mediaTrack: MediaStreamTrack,
+    sid: Track.SID,
+    triesLeft?: number
+  ) {
+    // find the track publication
     // it's possible for the media track to arrive before participant info
     let publication = this.getTrackPublication(sid);
 
@@ -61,9 +49,29 @@ export class RemoteParticipant extends Participant {
         });
       }
     }
+
+    // when we couldn't locate the track, it's possible that the metadata hasn't
+    // yet arrived. Wait a bit longer for it to arrive, or fire an error
     if (!publication) {
-      log.error('could not find published track', this.sid, sid);
+      if (triesLeft === 0) {
+        log.error('could not find published track', this.sid, sid);
+        this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
+        return;
+      }
+
+      if (triesLeft === undefined) triesLeft = 20;
+      setTimeout(() => {
+        this.addSubscribedMediaTrack(mediaTrack, sid, triesLeft! - 1);
+      }, 150);
       return;
+    }
+
+    const isVideo = mediaTrack.kind === 'video';
+    let track: RemoteTrack;
+    if (isVideo) {
+      track = new RemoteVideoTrack(mediaTrack, sid);
+    } else {
+      track = new RemoteAudioTrack(mediaTrack, sid);
     }
 
     publication.track = track;
