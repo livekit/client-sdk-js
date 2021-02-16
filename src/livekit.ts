@@ -2,14 +2,19 @@ import log from 'loglevel';
 import { ConnectionInfo, WSSignalClient } from './api/SignalClient';
 import {
   ConnectOptions,
+  CreateAudioTrackOptions,
   CreateLocalTrackOptions,
   CreateLocalTracksOptions,
+  CreateVideoTrackOptions,
   LogLevel,
+  VideoPresets,
 } from './options';
 import { TrackInvalidError } from './room/errors';
 import Room from './room/Room';
 import { LocalAudioTrack } from './room/track/LocalAudioTrack';
 import { LocalVideoTrack } from './room/track/LocalVideoTrack';
+import { LocalTrackOptions } from './room/track/options';
+import { Track } from './room/track/Track';
 import { LocalTrack } from './room/track/types';
 export { version } from './version';
 
@@ -58,15 +63,33 @@ export async function connect(
   }
 
   if (tracks) {
-    // save these tracks so room can stop upon disconnect
-    room.autoTracks = await room.localParticipant.publishTracks(tracks);
+    room.autoTracks = [];
+    for (let i = 0; i < tracks.length; i++) {
+      const track = tracks[i];
+      // video options
+      const trackOptions: LocalTrackOptions = {};
+      if (
+        track.kind === Track.Kind.Video.toString() ||
+        track.kind === Track.Kind.Video
+      ) {
+        trackOptions.videoCodec = options?.videoCodec;
+        trackOptions.videoEncoding = options?.videoEncoding;
+        trackOptions.simulcast = options?.simulcast;
+      }
+
+      const publication = await room.localParticipant.publishTrack(
+        track,
+        trackOptions
+      );
+      room.autoTracks.push(publication);
+    }
   }
 
   return room;
 }
 
 export async function createLocalVideoTrack(
-  options?: CreateLocalTrackOptions
+  options?: CreateVideoTrackOptions
 ): Promise<LocalVideoTrack> {
   const tracks = await createLocalTracks({
     logLevel: options?.logLevel,
@@ -77,7 +100,7 @@ export async function createLocalVideoTrack(
 }
 
 export async function createLocalAudioTrack(
-  options?: CreateLocalTrackOptions
+  options?: CreateAudioTrackOptions
 ): Promise<LocalAudioTrack> {
   const tracks = await createLocalTracks({
     logLevel: options?.logLevel,
@@ -92,15 +115,23 @@ export async function createLocalTracks(
 ): Promise<Array<LocalTrack>> {
   const constraints: MediaStreamConstraints = {};
   if (!options) options = {};
-  if (options.audio === undefined) options.audio = true;
-  if (options.video === undefined) options.video = true;
+  if (options.audio === undefined) options.audio = {};
 
-  if (options.video) {
-    constraints.video = options.video;
+  // default video options
+  let videoOptions: CreateVideoTrackOptions = {
+    resolution: VideoPresets.hd.resolution,
+  };
+  if (typeof options.video === 'object') {
+    Object.assign(videoOptions, options.video);
   }
-  if (options.audio) {
-    constraints.audio = options.audio;
+
+  if (options.video === false) {
+    constraints.video = false;
+  } else {
+    // use defaults
+    constraints.video = videoOptions;
   }
+  constraints.audio = options.audio;
 
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
   const tracks: LocalTrack[] = [];
@@ -113,7 +144,6 @@ export async function createLocalTracks(
     tracks.push(createLocalTrack(mediaStreamTrack, trackOptions));
   });
 
-  log.debug('created tracks', tracks);
   return tracks;
 }
 

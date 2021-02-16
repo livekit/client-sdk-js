@@ -19,9 +19,13 @@ export interface SignalRequest {
    */
   mute?: MuteTrackRequest | undefined;
   /**
-   *  mute a track client is subscribed to
+   *  Subscribe or unsubscribe from tracks
    */
-  muteSubscribed?: MuteTrackRequest | undefined;
+  subscription?: UpdateSubscription | undefined;
+  /**
+   *  Update settings of subscribed tracks
+   */
+  trackSetting?: UpdateTrackSettings | undefined;
 }
 
 export interface SignalResponse {
@@ -120,6 +124,19 @@ export interface SpeakerInfo {
   active: boolean;
 }
 
+export interface UpdateSubscription {
+  trackSids: string[];
+  subscribe: boolean;
+  mute: boolean;
+  quality: VideoQuality;
+}
+
+export interface UpdateTrackSettings {
+  trackSids: string[];
+  mute: boolean;
+  quality: VideoQuality;
+}
+
 const baseSignalRequest: object = {
 };
 
@@ -170,6 +187,19 @@ const baseSpeakerInfo: object = {
   active: false,
 };
 
+const baseUpdateSubscription: object = {
+  trackSids: "",
+  subscribe: false,
+  mute: false,
+  quality: 0,
+};
+
+const baseUpdateTrackSettings: object = {
+  trackSids: "",
+  mute: false,
+  quality: 0,
+};
+
 export const protobufPackage = 'livekit'
 
 export enum SignalTarget {
@@ -204,6 +234,44 @@ export function signalTargetToJSON(object: SignalTarget): string {
   }
 }
 
+export enum VideoQuality {
+  LOW = 0,
+  MEDIUM = 1,
+  HIGH = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function videoQualityFromJSON(object: any): VideoQuality {
+  switch (object) {
+    case 0:
+    case "LOW":
+      return VideoQuality.LOW;
+    case 1:
+    case "MEDIUM":
+      return VideoQuality.MEDIUM;
+    case 2:
+    case "HIGH":
+      return VideoQuality.HIGH;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return VideoQuality.UNRECOGNIZED;
+  }
+}
+
+export function videoQualityToJSON(object: VideoQuality): string {
+  switch (object) {
+    case VideoQuality.LOW:
+      return "LOW";
+    case VideoQuality.MEDIUM:
+      return "MEDIUM";
+    case VideoQuality.HIGH:
+      return "HIGH";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 export const SignalRequest = {
   encode(message: SignalRequest, writer: Writer = Writer.create()): Writer {
     if (message.offer !== undefined) {
@@ -221,8 +289,11 @@ export const SignalRequest = {
     if (message.mute !== undefined) {
       MuteTrackRequest.encode(message.mute, writer.uint32(42).fork()).ldelim();
     }
-    if (message.muteSubscribed !== undefined) {
-      MuteTrackRequest.encode(message.muteSubscribed, writer.uint32(50).fork()).ldelim();
+    if (message.subscription !== undefined) {
+      UpdateSubscription.encode(message.subscription, writer.uint32(50).fork()).ldelim();
+    }
+    if (message.trackSetting !== undefined) {
+      UpdateTrackSettings.encode(message.trackSetting, writer.uint32(58).fork()).ldelim();
     }
     return writer;
   },
@@ -249,7 +320,10 @@ export const SignalRequest = {
           message.mute = MuteTrackRequest.decode(reader, reader.uint32());
           break;
         case 6:
-          message.muteSubscribed = MuteTrackRequest.decode(reader, reader.uint32());
+          message.subscription = UpdateSubscription.decode(reader, reader.uint32());
+          break;
+        case 7:
+          message.trackSetting = UpdateTrackSettings.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -285,10 +359,15 @@ export const SignalRequest = {
     } else {
       message.mute = undefined;
     }
-    if (object.muteSubscribed !== undefined && object.muteSubscribed !== null) {
-      message.muteSubscribed = MuteTrackRequest.fromJSON(object.muteSubscribed);
+    if (object.subscription !== undefined && object.subscription !== null) {
+      message.subscription = UpdateSubscription.fromJSON(object.subscription);
     } else {
-      message.muteSubscribed = undefined;
+      message.subscription = undefined;
+    }
+    if (object.trackSetting !== undefined && object.trackSetting !== null) {
+      message.trackSetting = UpdateTrackSettings.fromJSON(object.trackSetting);
+    } else {
+      message.trackSetting = undefined;
     }
     return message;
   },
@@ -319,10 +398,15 @@ export const SignalRequest = {
     } else {
       message.mute = undefined;
     }
-    if (object.muteSubscribed !== undefined && object.muteSubscribed !== null) {
-      message.muteSubscribed = MuteTrackRequest.fromPartial(object.muteSubscribed);
+    if (object.subscription !== undefined && object.subscription !== null) {
+      message.subscription = UpdateSubscription.fromPartial(object.subscription);
     } else {
-      message.muteSubscribed = undefined;
+      message.subscription = undefined;
+    }
+    if (object.trackSetting !== undefined && object.trackSetting !== null) {
+      message.trackSetting = UpdateTrackSettings.fromPartial(object.trackSetting);
+    } else {
+      message.trackSetting = undefined;
     }
     return message;
   },
@@ -333,7 +417,8 @@ export const SignalRequest = {
     message.trickle !== undefined && (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
     message.addTrack !== undefined && (obj.addTrack = message.addTrack ? AddTrackRequest.toJSON(message.addTrack) : undefined);
     message.mute !== undefined && (obj.mute = message.mute ? MuteTrackRequest.toJSON(message.mute) : undefined);
-    message.muteSubscribed !== undefined && (obj.muteSubscribed = message.muteSubscribed ? MuteTrackRequest.toJSON(message.muteSubscribed) : undefined);
+    message.subscription !== undefined && (obj.subscription = message.subscription ? UpdateSubscription.toJSON(message.subscription) : undefined);
+    message.trackSetting !== undefined && (obj.trackSetting = message.trackSetting ? UpdateTrackSettings.toJSON(message.trackSetting) : undefined);
     return obj;
   },
 };
@@ -1138,6 +1223,193 @@ export const SpeakerInfo = {
     message.sid !== undefined && (obj.sid = message.sid);
     message.level !== undefined && (obj.level = message.level);
     message.active !== undefined && (obj.active = message.active);
+    return obj;
+  },
+};
+
+export const UpdateSubscription = {
+  encode(message: UpdateSubscription, writer: Writer = Writer.create()): Writer {
+    for (const v of message.trackSids) {
+      writer.uint32(10).string(v!);
+    }
+    writer.uint32(16).bool(message.subscribe);
+    writer.uint32(24).bool(message.mute);
+    writer.uint32(32).int32(message.quality);
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): UpdateSubscription {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseUpdateSubscription } as UpdateSubscription;
+    message.trackSids = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.trackSids.push(reader.string());
+          break;
+        case 2:
+          message.subscribe = reader.bool();
+          break;
+        case 3:
+          message.mute = reader.bool();
+          break;
+        case 4:
+          message.quality = reader.int32() as any;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(object: any): UpdateSubscription {
+    const message = { ...baseUpdateSubscription } as UpdateSubscription;
+    message.trackSids = [];
+    if (object.trackSids !== undefined && object.trackSids !== null) {
+      for (const e of object.trackSids) {
+        message.trackSids.push(String(e));
+      }
+    }
+    if (object.subscribe !== undefined && object.subscribe !== null) {
+      message.subscribe = Boolean(object.subscribe);
+    } else {
+      message.subscribe = false;
+    }
+    if (object.mute !== undefined && object.mute !== null) {
+      message.mute = Boolean(object.mute);
+    } else {
+      message.mute = false;
+    }
+    if (object.quality !== undefined && object.quality !== null) {
+      message.quality = videoQualityFromJSON(object.quality);
+    } else {
+      message.quality = 0;
+    }
+    return message;
+  },
+  fromPartial(object: DeepPartial<UpdateSubscription>): UpdateSubscription {
+    const message = { ...baseUpdateSubscription } as UpdateSubscription;
+    message.trackSids = [];
+    if (object.trackSids !== undefined && object.trackSids !== null) {
+      for (const e of object.trackSids) {
+        message.trackSids.push(e);
+      }
+    }
+    if (object.subscribe !== undefined && object.subscribe !== null) {
+      message.subscribe = object.subscribe;
+    } else {
+      message.subscribe = false;
+    }
+    if (object.mute !== undefined && object.mute !== null) {
+      message.mute = object.mute;
+    } else {
+      message.mute = false;
+    }
+    if (object.quality !== undefined && object.quality !== null) {
+      message.quality = object.quality;
+    } else {
+      message.quality = 0;
+    }
+    return message;
+  },
+  toJSON(message: UpdateSubscription): unknown {
+    const obj: any = {};
+    if (message.trackSids) {
+      obj.trackSids = message.trackSids.map(e => e);
+    } else {
+      obj.trackSids = [];
+    }
+    message.subscribe !== undefined && (obj.subscribe = message.subscribe);
+    message.mute !== undefined && (obj.mute = message.mute);
+    message.quality !== undefined && (obj.quality = videoQualityToJSON(message.quality));
+    return obj;
+  },
+};
+
+export const UpdateTrackSettings = {
+  encode(message: UpdateTrackSettings, writer: Writer = Writer.create()): Writer {
+    for (const v of message.trackSids) {
+      writer.uint32(10).string(v!);
+    }
+    writer.uint32(24).bool(message.mute);
+    writer.uint32(32).int32(message.quality);
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): UpdateTrackSettings {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseUpdateTrackSettings } as UpdateTrackSettings;
+    message.trackSids = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.trackSids.push(reader.string());
+          break;
+        case 3:
+          message.mute = reader.bool();
+          break;
+        case 4:
+          message.quality = reader.int32() as any;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(object: any): UpdateTrackSettings {
+    const message = { ...baseUpdateTrackSettings } as UpdateTrackSettings;
+    message.trackSids = [];
+    if (object.trackSids !== undefined && object.trackSids !== null) {
+      for (const e of object.trackSids) {
+        message.trackSids.push(String(e));
+      }
+    }
+    if (object.mute !== undefined && object.mute !== null) {
+      message.mute = Boolean(object.mute);
+    } else {
+      message.mute = false;
+    }
+    if (object.quality !== undefined && object.quality !== null) {
+      message.quality = videoQualityFromJSON(object.quality);
+    } else {
+      message.quality = 0;
+    }
+    return message;
+  },
+  fromPartial(object: DeepPartial<UpdateTrackSettings>): UpdateTrackSettings {
+    const message = { ...baseUpdateTrackSettings } as UpdateTrackSettings;
+    message.trackSids = [];
+    if (object.trackSids !== undefined && object.trackSids !== null) {
+      for (const e of object.trackSids) {
+        message.trackSids.push(e);
+      }
+    }
+    if (object.mute !== undefined && object.mute !== null) {
+      message.mute = object.mute;
+    } else {
+      message.mute = false;
+    }
+    if (object.quality !== undefined && object.quality !== null) {
+      message.quality = object.quality;
+    } else {
+      message.quality = 0;
+    }
+    return message;
+  },
+  toJSON(message: UpdateTrackSettings): unknown {
+    const obj: any = {};
+    if (message.trackSids) {
+      obj.trackSids = message.trackSids.map(e => e);
+    } else {
+      obj.trackSids = [];
+    }
+    message.mute !== undefined && (obj.mute = message.mute);
+    message.quality !== undefined && (obj.quality = videoQualityToJSON(message.quality));
     return obj;
   },
 };

@@ -1,4 +1,5 @@
 import log from 'loglevel';
+import { VideoCodec, VideoEncoding, VideoPresets } from '../../options';
 import { TrackInvalidError } from '../errors';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RTCEngine } from '../RTCEngine';
@@ -106,8 +107,31 @@ export class LocalParticipant extends Participant {
         track.dataChannelInit
       );
     } else {
+      let encodings: RTCRtpEncodingParameters[] | undefined = undefined;
+      // for video
+      if (track.kind === Track.Kind.Video) {
+        const settings = track.mediaStreamTrack.getSettings();
+        encodings = this.computeVideoEncodings(
+          settings.width,
+          settings.height,
+          options
+        );
+      }
+
+      const transceiver = this.engine.publisher.pc.addTransceiver(
+        track.mediaStreamTrack,
+        {
+          direction: 'sendonly',
+          sendEncodings: encodings,
+        }
+      );
+
       // store RTPSender
-      track.sender = this.engine.publisher.pc.addTrack(track.mediaStreamTrack);
+      track.sender = transceiver.sender;
+
+      if (track.kind === Track.Kind.Video) {
+        this.setPreferredCodec(transceiver, options?.videoCodec);
+      }
     }
 
     this.tracks.set(ti.sid, publication);
@@ -115,19 +139,6 @@ export class LocalParticipant extends Participant {
     // send event for publication
     this.emit(ParticipantEvent.TrackPublished, publication);
     return publication;
-  }
-
-  async publishTracks(
-    tracks: LocalTrack[] | MediaStreamTrack[]
-  ): Promise<Array<LocalTrackPublication>> {
-    const publications: LocalTrackPublication[] = [];
-
-    for (const track of tracks) {
-      const publication = await this.publishTrack(track);
-      publications.push(publication);
-    }
-
-    return publications;
   }
 
   unpublishTrack(
@@ -263,4 +274,87 @@ export class LocalParticipant extends Participant {
 
     this.engine.updateMuteStatus(sid, muted);
   };
+
+  private setPreferredCodec(
+    transceiver: RTCRtpTransceiver,
+    codec?: VideoCodec
+  ) {
+    if ('setCodecPreferences' in transceiver) {
+      if (!codec) {
+        codec = 'vp8';
+      }
+      const cap = RTCRtpSender.getCapabilities('video');
+      if (!cap) return;
+      const selected = cap.codecs.find(
+        (c) => c.mimeType === `video/${codec!.toUpperCase()}`
+      );
+      if (selected) {
+        transceiver.setCodecPreferences([selected]);
+      }
+    }
+  }
+
+  private computeVideoEncodings(
+    width?: number,
+    height?: number,
+    options?: LocalTrackOptions
+  ): RTCRtpEncodingParameters[] {
+    let encodings: RTCRtpEncodingParameters[];
+
+    let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
+
+    if (!videoEncoding) {
+      // find the right encoding based on width/height
+      videoEncoding = this.determineAppropriateEncoding(width, height);
+    }
+
+    if (options?.simulcast) {
+      encodings = [
+        {
+          rid: 'f',
+          maxBitrate: videoEncoding.maxBitrate,
+          maxFramerate: videoEncoding.maxFramerate,
+        },
+        {
+          rid: 'h',
+          scaleResolutionDownBy: 2.0,
+          maxBitrate: videoEncoding.maxBitrate / 3.5,
+          maxFramerate: videoEncoding.maxFramerate,
+        },
+        {
+          rid: 'q',
+          scaleResolutionDownBy: 4.0,
+          maxBitrate: videoEncoding.maxBitrate / 7,
+          maxFramerate: videoEncoding.maxFramerate,
+        },
+      ];
+    } else {
+      encodings = [videoEncoding];
+    }
+
+    return encodings;
+  }
+
+  private determineAppropriateEncoding(
+    width?: number,
+    height?: number
+  ): VideoEncoding {
+    let encoding = VideoPresets.hd.encoding;
+
+    if (width && height) {
+      const keys = Object.keys(VideoPresets);
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        const preset = VideoPresets[key];
+        if (
+          width >= preset.resolution.width &&
+          height >= preset.resolution.height
+        ) {
+          encoding = preset.encoding;
+        }
+      }
+    }
+
+    return encoding;
+  }
 }

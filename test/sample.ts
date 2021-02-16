@@ -138,6 +138,7 @@ window.connectToRoom = async (host: string, port: number, token: string) => {
     logLevel: LogLevel.debug,
     audio: true,
     video: true,
+    simulcast: true,
   });
 
   window.currentRoom = room;
