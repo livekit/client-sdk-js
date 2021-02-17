@@ -75,11 +75,11 @@ class Room extends EventEmitter {
       log.warn('already connected to room', this.name);
       return this;
     }
-    const joinResponse = await this.engine.join(info, token);
-
-    log.debug('connected to Livekit Server', joinResponse.serverVersion);
 
     try {
+      const joinResponse = await this.engine.join(info, token);
+      log.debug('connected to Livekit Server', joinResponse.serverVersion);
+
       if (!joinResponse.serverVersion) {
         throw new UnsupportedServer('unknown server version');
       }
@@ -87,43 +87,46 @@ class Room extends EventEmitter {
       if (!(sv.major >= 0 && sv.minor >= 4)) {
         throw new UnsupportedServer('requires server >= 0.4.x');
       }
+
+      this.state = RoomState.Connected;
+      const pi = joinResponse.participant!;
+      this.localParticipant = new LocalParticipant(
+        pi.sid,
+        pi.identity,
+        this.engine
+      );
+      this.localParticipant.setMetadata(pi.metadata);
+
+      // populate remote participants, these should not trigger new events
+      joinResponse.otherParticipants.forEach((pi) => {
+        this.getOrCreateParticipant(pi.sid, pi);
+      });
+
+      this.name = joinResponse.room!.name;
+      this.sid = joinResponse.room!.sid;
     } catch (err) {
       this.engine.close();
       throw err;
     }
 
-    this.state = RoomState.Connected;
-    const pi = joinResponse.participant!;
-    this.localParticipant = new LocalParticipant(
-      pi.sid,
-      pi.identity,
-      this.engine
-    );
-    this.localParticipant.setMetadata(pi.metadata);
-
-    // populate remote participants, these should not trigger new events
-    joinResponse.otherParticipants.forEach((pi) => {
-      this.getOrCreateParticipant(pi.sid, pi);
-    });
-
-    this.name = joinResponse.room!.name;
-    this.sid = joinResponse.room!.sid;
-
     // don't return until ICE connected
     return new Promise<Room>((resolve, reject) => {
-      this.engine.once(EngineEvent.Connected, () => {
-        resolve(this);
-      });
-
-      // timeout
-      setTimeout(() => {
+      const connectTimeout = setTimeout(() => {
+        // timeout
+        this.engine.close();
         reject('could not connect after timeout');
       }, 5 * 1000);
+
+      this.engine.once(EngineEvent.Connected, () => {
+        clearTimeout(connectTimeout);
+        resolve(this);
+      });
     });
   };
 
   disconnect() {
-    // TODO: handle disconnection
+    this.engine.close();
+    this.emit(RoomEvent.Disconnected);
   }
 
   private onTrackAdded(mediaTrack: MediaStreamTrack, streams: MediaStream[]) {

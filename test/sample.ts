@@ -32,6 +32,8 @@ declare global {
     muteVideo: any;
     muteAudio: any;
     enterText: any;
+    disconnectSignal: any;
+    disconnectRoom: any;
     currentRoom: any;
   }
 }
@@ -191,10 +193,13 @@ window.connectToRoom = async (host: string, port: number, token: string) => {
     .on(RoomEvent.ActiveSpeakersChanged, handleSpeakerChanged)
     .on(RoomEvent.Disconnected, () => {
       appendLog('disconnected from room');
+      setButtonsForState(false);
       if (videoTrack) {
+        videoTrack.stop();
         trackUnsubscribed(videoTrack);
       }
       if (audioTrack) {
+        audioTrack.stop();
         trackUnsubscribed(audioTrack);
       }
     });
@@ -275,6 +280,20 @@ window.enterText = () => {
   }
 };
 
+window.disconnectSignal = () => {
+  if (!currentRoom) return;
+  currentRoom.engine.client.close();
+  if (currentRoom.engine.client.onClose) {
+    currentRoom.engine.client.onClose('manual disconnect');
+  }
+};
+
+window.disconnectRoom = () => {
+  if (currentRoom) {
+    currentRoom.disconnect();
+  }
+};
+
 async function publishLocalVideo(track: LocalVideoTrack) {
   await currentRoom.localParticipant.publishTrack(track);
   const video = track.attach();
@@ -287,6 +306,8 @@ function setButtonsForState(connected: boolean) {
     'toggle-video-button',
     'mute-video-button',
     'mute-audio-button',
+    'disconnect-ws-button',
+    'disconnect-room-button',
   ];
   const disconnectedSet = ['connect-button'];
 

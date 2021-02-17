@@ -13,6 +13,7 @@ import { PCTransport } from './PCTransport';
 import { Track } from './track/Track';
 
 const placeholderDataChannel = '_private';
+const maxWSRetries = 10;
 
 export class RTCEngine extends EventEmitter {
   publisher: PCTransport;
@@ -25,16 +26,25 @@ export class RTCEngine extends EventEmitter {
   pendingCandidates: RTCIceCandidateInit[] = [];
   pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
 
+  // keep join info around for reconnect
+  connectionInfo?: ConnectionInfo;
+  token?: string;
+  numRetries: number;
+
   constructor(client: SignalClient, config?: RTCConfiguration) {
     super();
     this.client = client;
     this.publisher = new PCTransport(config);
     this.subscriber = new PCTransport(config);
+    this.numRetries = 0;
 
     this.configure();
   }
 
   async join(info: ConnectionInfo, token: string): Promise<JoinResponse> {
+    this.connectionInfo = info;
+    this.token = token;
+
     const joinResponse = await this.client.join(info, token);
 
     // create offer
@@ -45,7 +55,7 @@ export class RTCEngine extends EventEmitter {
     return joinResponse;
   }
 
-  async close() {
+  close() {
     this.publisher.close();
     this.subscriber.close();
     this.client.close();
@@ -106,6 +116,7 @@ export class RTCEngine extends EventEmitter {
         log.trace('ICE disconnected');
         this.iceConnected = false;
         this.emit(EngineEvent.Disconnected);
+        this.close();
       }
     };
 
@@ -178,7 +189,36 @@ export class RTCEngine extends EventEmitter {
     this.client.onActiveSpeakersChanged = (speakers) => {
       this.emit(EngineEvent.SpeakersUpdate, speakers);
     };
+
+    this.client.onClose = this.handleWSClose;
   }
+
+  // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
+  // continues to work, we can reconnect to websocket to continue the session
+  // after a number of retries, we'll close and give up permanently
+  private handleWSClose = () => {
+    if (this.numRetries >= maxWSRetries) {
+      log.info(
+        'could not connect to signal after',
+        maxWSRetries,
+        'attempts. giving up'
+      );
+      this.close();
+      this.emit(EngineEvent.Disconnected);
+      return;
+    }
+
+    const delay = (this.numRetries ^ 2) * 500;
+    setTimeout(() => {
+      if (this.iceConnected && this.connectionInfo && this.token) {
+        log.info('reconnecting to signal connection, attempt', this.numRetries);
+        this.client
+          .reconnect(this.connectionInfo, this.token)
+          .catch(this.handleWSClose);
+      }
+    }, delay);
+    this.numRetries = this.numRetries + 1;
+  };
 
   private async negotiate() {
     // TODO: what if signaling state changed? will need to queue and retry

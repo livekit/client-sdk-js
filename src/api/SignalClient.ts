@@ -23,6 +23,7 @@ export interface ConnectionInfo {
  */
 export interface SignalClient {
   join(info: ConnectionInfo, token: string): Promise<JoinResponse>;
+  reconnect(info: ConnectionInfo, token: string): Promise<void>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendAnswer(answer: RTCSessionDescriptionInit): void;
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget): void;
@@ -66,11 +67,23 @@ export class WSSignalClient {
     this.isConnected = false;
   }
 
-  join(info: ConnectionInfo, token: string): Promise<JoinResponse> {
+  async reconnect(info: ConnectionInfo, token: string): Promise<void> {
+    await this.join(info, token, true);
+  }
+
+  join(info: ConnectionInfo, token: string): Promise<JoinResponse>;
+  join(info: ConnectionInfo, token: string, reconnect: boolean): Promise<void>;
+  join(
+    info: ConnectionInfo,
+    token: string,
+    reconnect: boolean = false
+  ): Promise<JoinResponse | void> {
     const protocol = info.secure ? 'wss' : 'ws';
     let url = `${protocol}://${info.host}:${info.port}/rtc?access_token=${token}`;
-
-    return new Promise<JoinResponse>((resolve, reject) => {
+    if (reconnect) {
+      url += '&reconnect=1';
+    }
+    return new Promise<JoinResponse | void>((resolve, reject) => {
       log.debug('connecting to', url);
       const ws = new WebSocket(url);
       ws.onerror = (ev: Event) => {
@@ -85,6 +98,11 @@ export class WSSignalClient {
 
       ws.onopen = (ev: Event) => {
         this.ws = ws;
+        if (reconnect) {
+          // upon reconnection, there will not be additional handshake
+          this.isConnected = true;
+          resolve();
+        }
       };
 
       ws.onmessage = (ev: MessageEvent) => {
@@ -117,12 +135,9 @@ export class WSSignalClient {
   }
 
   close() {
-    const wasConnected = this.isConnected;
     this.isConnected = false;
+    if (this.ws) this.ws.onclose = null;
     this.ws?.close();
-    if (this.onClose && wasConnected) {
-      this.onClose('client requested close');
-    }
   }
 
   // initial offer after joining
