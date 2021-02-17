@@ -84,8 +84,8 @@ class Room extends EventEmitter {
         throw new UnsupportedServer('unknown server version');
       }
       const sv = new SemVer(joinResponse.serverVersion);
-      if (!(sv.major >= 0 && sv.minor >= 4)) {
-        throw new UnsupportedServer('requires server >= 0.4.x');
+      if (!(sv.major >= 0 && sv.minor >= 5)) {
+        throw new UnsupportedServer('requires server >= 0.5.x');
       }
 
       this.state = RoomState.Connected;
