@@ -124,6 +124,9 @@ export async function createLocalTracks(
   );
   if (typeof options.video === 'object' && options.video) {
     Object.assign(videoOptions, options.video);
+    if (options.video.resolution) {
+      Object.assign(videoOptions, options.video.resolution);
+    }
   }
 
   if (options.video === false) {

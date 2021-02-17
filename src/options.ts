@@ -56,11 +56,7 @@ export interface CreateVideoTrackOptions extends CreateLocalTrackOptions {
   // a facing or an array of facings which are acceptable and/or required.
   facingMode?: ConstrainDOMString;
 
-  width: ConstrainULong;
-
-  height: ConstrainULong;
-
-  frameRate?: ConstrainDouble;
+  resolution?: VideoResolutionConstraint;
 }
 
 export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
