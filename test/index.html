@@ -20,6 +20,10 @@
         display: inline-block;
         border-radius: 5px;
       }
+
+      .video-container video.speaking {
+        border: 4px solid rgba(94, 166, 190, 0.7);
+      }
     </style>
   </head>
 
@@ -54,6 +58,23 @@
             <div class="form-group row">
               <label for="token" class="col-md-3 col-form-label">Token</label>
               <input type="text" class="form-control col-md-5" id="token" />
+            </div>
+
+            <div class="form-group row">
+              <div class="col-md-3"></div>
+              <div class="col-md-5">
+                <div class="form-check">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    id="simulcast"
+                    checked
+                  />
+                  <label for="checkbox" class="form-check-label"
+                    >Simulcast</label
+                  >
+                </div>
+              </div>
             </div>
 
             <div class="form-group row">

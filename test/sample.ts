@@ -3,14 +3,17 @@ import Livekit, {
   LocalAudioTrack,
   LocalAudioTrackPublication,
   LocalDataTrack,
+  LocalTrack,
   LocalVideoTrack,
   LocalVideoTrackPublication,
   LogLevel,
   Participant,
   ParticipantEvent,
+  RemoteAudioTrack,
   RemoteDataTrack,
   RemoteParticipant,
   RemoteTrack,
+  RemoteVideoTrack,
   Room,
   RoomEvent,
   Track,
@@ -65,8 +68,19 @@ function trackSubscribed(
   return null;
 }
 
-function trackUnsubscribed(track: RemoteTrack, participant: Participant) {
-  appendLog('track unsubscribed', track.sid);
+function trackUnsubscribed(
+  track: RemoteTrack | LocalTrack,
+  participant?: Participant
+) {
+  let logName = track.name;
+  if (
+    track instanceof RemoteAudioTrack ||
+    track instanceof RemoteVideoTrack ||
+    track instanceof RemoteDataTrack
+  ) {
+    logName = track.sid;
+  }
+  appendLog('track unsubscribed', logName);
   if (track instanceof AudioTrack || track instanceof VideoTrack) {
     track.detach().forEach((element) => element.remove());
   }
@@ -83,8 +97,31 @@ function handleMessage(
   }
 }
 
-function handleSpeakerChanged(speakers: RemoteParticipant[]) {
-  appendLog('speakers changed', speakers.length);
+function handleSpeakerChanged(speakers: Participant[]) {
+  // remove tags from all
+  currentRoom.participants.forEach((participant) => {
+    setParticipantSpeaking(participant, speakers.includes(participant));
+  });
+
+  // do the same for local participant
+  setParticipantSpeaking(
+    currentRoom.localParticipant,
+    speakers.includes(currentRoom.localParticipant)
+  );
+}
+
+function setParticipantSpeaking(participant: Participant, speaking: boolean) {
+  participant.videoTracks.forEach((publication) => {
+    if (publication.track) {
+      publication.track.attachedElements.forEach((element) => {
+        if (speaking) {
+          element.classList.add('speaking');
+        } else {
+          element.classList.remove('speaking');
+        }
+      });
+    }
+  });
 }
 
 function participantConnected(participant: RemoteParticipant) {
@@ -138,7 +175,7 @@ window.connectToRoom = async (host: string, port: number, token: string) => {
     logLevel: LogLevel.debug,
     audio: true,
     video: true,
-    simulcast: true,
+    simulcast: (<HTMLInputElement>$('simulcast')).checked,
   });
 
   window.currentRoom = room;
@@ -151,7 +188,16 @@ window.connectToRoom = async (host: string, port: number, token: string) => {
     .on(RoomEvent.ParticipantConnected, participantConnected)
     .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
     .on(RoomEvent.TrackMessage, handleMessage)
-    .on(RoomEvent.ActiveSpeakersChanged, handleSpeakerChanged);
+    .on(RoomEvent.ActiveSpeakersChanged, handleSpeakerChanged)
+    .on(RoomEvent.Disconnected, () => {
+      appendLog('disconnected from room');
+      if (videoTrack) {
+        trackUnsubscribed(videoTrack);
+      }
+      if (audioTrack) {
+        trackUnsubscribed(audioTrack);
+      }
+    });
 
   room.localParticipant.publishTrack(chatTrack);
 

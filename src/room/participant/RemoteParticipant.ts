@@ -2,10 +2,12 @@ import log from 'loglevel';
 import { ParticipantInfo, TrackType } from '../../proto/model';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RemoteAudioTrack } from '../track/RemoteAudioTrack';
+import { RemoteAudioTrackPublication } from '../track/RemoteAudioTrackPublication';
 import { RemoteDataTrack } from '../track/RemoteDataTrack';
 import { RemoteDataTrackPublication } from '../track/RemoteDataTrackPublication';
 import { RemoteTrackPublication } from '../track/RemoteTrackPublication';
 import { RemoteVideoTrack } from '../track/RemoteVideoTrack';
+import { RemoteVideoTrackPublication } from '../track/RemoteVideoTrackPublication';
 import { Track } from '../track/Track';
 import {
   createRemoteTrackPublicationFromInfo,
@@ -15,6 +17,9 @@ import { Participant } from './Participant';
 
 export class RemoteParticipant extends Participant {
   private participantInfo?: ParticipantInfo;
+  audioTracks: Map<string, RemoteAudioTrackPublication>;
+  videoTracks: Map<string, RemoteVideoTrackPublication>;
+  dataTracks: Map<string, RemoteDataTrackPublication>;
   tracks: Map<string, RemoteTrackPublication>;
 
   static fromParticipantInfo(pi: ParticipantInfo): RemoteParticipant {
@@ -26,6 +31,9 @@ export class RemoteParticipant extends Participant {
   constructor(id: string, name?: string) {
     super(id, name || '');
     this.tracks = new Map();
+    this.audioTracks = new Map();
+    this.videoTracks = new Map();
+    this.dataTracks = new Map();
   }
 
   addSubscribedMediaTrack(

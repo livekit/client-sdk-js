@@ -56,7 +56,11 @@ export interface CreateVideoTrackOptions extends CreateLocalTrackOptions {
   // a facing or an array of facings which are acceptable and/or required.
   facingMode?: ConstrainDOMString;
 
-  resolution?: VideoResolutionConstraint;
+  width: ConstrainULong;
+
+  height: ConstrainULong;
+
+  frameRate?: ConstrainDouble;
 }
 
 export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
@@ -101,6 +105,20 @@ export interface VideoPreset {
 export type VideoCodec = 'vp8' | 'h264';
 
 export const VideoPresets: { [key: string]: VideoPreset } = {
+  qvga: {
+    resolution: {
+      width: { ideal: 320 },
+      height: { ideal: 180 },
+      frameRate: {
+        ideal: 15,
+        max: 30,
+      },
+    },
+    encoding: {
+      maxBitrate: 150_000,
+      maxFramerate: 15.0,
+    },
+  },
   vga: {
     resolution: {
       width: { ideal: 640 },
@@ -115,7 +133,7 @@ export const VideoPresets: { [key: string]: VideoPreset } = {
       maxFramerate: 30.0,
     },
   },
-  shd: {
+  qhd: {
     resolution: {
       width: { ideal: 960 },
       height: { ideal: 540 },

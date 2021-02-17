@@ -15,6 +15,8 @@ import { Track } from '../track/Track';
 import { LocalTrack } from '../track/types';
 import { Participant } from './Participant';
 
+const simulcastMinWidth = 200;
+
 export class LocalParticipant extends Participant {
   engine: RTCEngine;
 
@@ -129,9 +131,7 @@ export class LocalParticipant extends Participant {
       // store RTPSender
       track.sender = transceiver.sender;
 
-      if (track.kind === Track.Kind.Video) {
-        this.setPreferredCodec(transceiver, options?.videoCodec);
-      }
+      this.setPreferredCodec(transceiver, track.kind, options?.videoCodec);
     }
 
     this.tracks.set(ti.sid, publication);
@@ -277,20 +277,18 @@ export class LocalParticipant extends Participant {
 
   private setPreferredCodec(
     transceiver: RTCRtpTransceiver,
-    codec?: VideoCodec
+    kind: Track.Kind,
+    videoCodec: VideoCodec = 'vp8'
   ) {
-    if ('setCodecPreferences' in transceiver) {
-      if (!codec) {
-        codec = 'vp8';
-      }
-      const cap = RTCRtpSender.getCapabilities('video');
-      if (!cap) return;
-      const selected = cap.codecs.find(
-        (c) => c.mimeType === `video/${codec!.toUpperCase()}`
-      );
-      if (selected) {
-        transceiver.setCodecPreferences([selected]);
-      }
+    const cap = RTCRtpSender.getCapabilities(kind);
+    if (!cap) return;
+    const selected = cap.codecs.find(
+      (c) =>
+        c.mimeType.toLowerCase() === `video/${videoCodec}` ||
+        c.mimeType.toLowerCase() === 'audio/opus'
+    );
+    if (selected && 'setCodecPreferences' in transceiver) {
+      transceiver.setCodecPreferences([selected]);
     }
   }
 
@@ -308,26 +306,32 @@ export class LocalParticipant extends Participant {
       videoEncoding = this.determineAppropriateEncoding(width, height);
     }
 
-    if (options?.simulcast) {
+    if (options?.simulcast && width && height) {
       encodings = [
         {
           rid: 'f',
           maxBitrate: videoEncoding.maxBitrate,
           maxFramerate: videoEncoding.maxFramerate,
         },
-        {
+      ];
+      let scaledWidth = width / 2;
+      if (scaledWidth >= simulcastMinWidth) {
+        encodings.push({
           rid: 'h',
           scaleResolutionDownBy: 2.0,
           maxBitrate: videoEncoding.maxBitrate / 3.5,
           maxFramerate: videoEncoding.maxFramerate,
-        },
-        {
+        });
+      }
+      scaledWidth = width / 4;
+      if (scaledWidth >= simulcastMinWidth) {
+        encodings.push({
           rid: 'q',
           scaleResolutionDownBy: 4.0,
           maxBitrate: videoEncoding.maxBitrate / 7,
           maxFramerate: videoEncoding.maxFramerate,
-        },
-      ];
+        });
+      }
     } else {
       encodings = [videoEncoding];
     }
@@ -339,7 +343,7 @@ export class LocalParticipant extends Participant {
     width?: number,
     height?: number
   ): VideoEncoding {
-    let encoding = VideoPresets.hd.encoding;
+    let encoding = VideoPresets.vga.encoding;
 
     if (width && height) {
       const keys = Object.keys(VideoPresets);
@@ -347,8 +351,8 @@ export class LocalParticipant extends Participant {
         const key = keys[i];
         const preset = VideoPresets[key];
         if (
-          width >= preset.resolution.width &&
-          height >= preset.resolution.height
+          width >= parseLongConstraint(preset.resolution.width) &&
+          height >= parseLongConstraint(preset.resolution.height)
         ) {
           encoding = preset.encoding;
         }
@@ -356,5 +360,15 @@ export class LocalParticipant extends Participant {
     }
 
     return encoding;
+  }
+}
+
+function parseLongConstraint(constrain: ConstrainULong): number {
+  if (typeof constrain === 'number') {
+    return constrain;
+  } else {
+    return (
+      constrain.exact || constrain.ideal || constrain.min || constrain.max || 0
+    );
   }
 }

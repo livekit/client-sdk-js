@@ -118,10 +118,11 @@ export async function createLocalTracks(
   if (options.audio === undefined) options.audio = {};
 
   // default video options
-  let videoOptions: CreateVideoTrackOptions = {
-    resolution: VideoPresets.hd.resolution,
-  };
-  if (typeof options.video === 'object') {
+  let videoOptions: MediaTrackConstraints = Object.assign(
+    {},
+    VideoPresets.qhd.resolution
+  );
+  if (typeof options.video === 'object' && options.video) {
     Object.assign(videoOptions, options.video);
   }
 
@@ -131,6 +132,7 @@ export async function createLocalTracks(
     // use defaults
     constraints.video = videoOptions;
   }
+  console.log('video constraints', constraints.video);
   constraints.audio = options.audio;
 
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
