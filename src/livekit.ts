@@ -18,8 +18,6 @@ import { Track } from './room/track/Track';
 import { LocalTrack } from './room/track/types';
 export { version } from './version';
 
-export const isSupported = true;
-
 export async function connect(
   url: string,
   token: string,
