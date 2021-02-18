@@ -1,5 +1,5 @@
 import log from 'loglevel';
-import { ConnectionInfo, WSSignalClient } from './api/SignalClient';
+import { WSSignalClient } from './api/SignalClient';
 import {
   ConnectOptions,
   CreateAudioTrackOptions,
@@ -21,7 +21,7 @@ export { version } from './version';
 export const isSupported = true;
 
 export async function connect(
-  info: ConnectionInfo,
+  url: string,
   token: string,
   options?: ConnectOptions
 ): Promise<Room> {
@@ -48,7 +48,7 @@ export async function connect(
   const room = new Room(client, config);
 
   // connect to room
-  await room.connect(info, token);
+  await room.connect(url, token);
 
   // add tracks if available
   let tracks = options.tracks;

@@ -1,9 +1,9 @@
 import { ConnectionInfo } from './api/SignalClient';
-import * as livekit from './livekit';
 import { LocalParticipant } from './room/participant/LocalParticipant';
 import { Participant } from './room/participant/Participant';
 import { RemoteParticipant } from './room/participant/RemoteParticipant';
 import Room from './room/Room';
+export * from './livekit';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';
@@ -35,5 +35,3 @@ export {
   RemoteParticipant,
   LocalParticipant,
 };
-
-export default livekit;

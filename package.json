@@ -9,8 +9,9 @@
   "license": "MIT",
   "scripts": {
     "build": "yarn exec tsc",
+    "build-docs": "yarn exec typedoc",
     "proto": "protoc --plugin=node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_out=./src/proto --ts_proto_opt=outputClientImpl=false,useOptionals=true -I../livekit-server/proto ../livekit-server/proto/rtc.proto ../livekit-server/proto/model.proto",
-    "sample": "cd test && webpack serve",
+    "sample": "cd example && webpack serve",
     "test": "jest"
   },
   "dependencies": {
@@ -26,6 +27,8 @@
     "@webpack-cli/serve": "^1.2.1",
     "ts-loader": "^8.0.11",
     "ts-proto": "1.41.0",
+    "typedoc": "^0.20.25",
+    "typedoc-plugin-no-inherit": "^1.2.0",
     "typescript": "^4.1.2",
     "webpack": "^5.9.0",
     "webpack-cli": "^4.2.0",

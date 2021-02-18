@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
-import { ConnectionInfo, SignalClient } from '../api/SignalClient';
+import { SignalClient } from '../api/SignalClient';
 import { TrackInfo } from '../proto/model';
 import {
   JoinResponse,
@@ -27,7 +27,7 @@ export class RTCEngine extends EventEmitter {
   pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
 
   // keep join info around for reconnect
-  connectionInfo?: ConnectionInfo;
+  url?: string;
   token?: string;
   numRetries: number;
 
@@ -41,11 +41,11 @@ export class RTCEngine extends EventEmitter {
     this.configure();
   }
 
-  async join(info: ConnectionInfo, token: string): Promise<JoinResponse> {
-    this.connectionInfo = info;
+  async join(url: string, token: string): Promise<JoinResponse> {
+    this.url = url;
     this.token = token;
 
-    const joinResponse = await this.client.join(info, token);
+    const joinResponse = await this.client.join(url, token);
 
     // create offer
     const offer = await this.publisher.pc.createOffer();
@@ -210,11 +210,9 @@ export class RTCEngine extends EventEmitter {
 
     const delay = (this.numRetries ^ 2) * 500;
     setTimeout(() => {
-      if (this.iceConnected && this.connectionInfo && this.token) {
+      if (this.iceConnected && this.url && this.token) {
         log.info('reconnecting to signal connection, attempt', this.numRetries);
-        this.client
-          .reconnect(this.connectionInfo, this.token)
-          .catch(this.handleWSClose);
+        this.client.reconnect(this.url, this.token).catch(this.handleWSClose);
       }
     }, delay);
     this.numRetries = this.numRetries + 1;

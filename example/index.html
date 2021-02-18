@@ -34,24 +34,14 @@
         <div class="col-md-8">
           <form>
             <div class="form-group row">
-              <label for="host" class="col-md-3 col-form-label"
-                >LiveKit Host</label
+              <label for="url" class="col-md-3 col-form-label"
+                >LiveKit URL</label
               >
               <input
                 type="text"
                 class="form-control col-md-5"
-                id="host"
-                value="localhost"
-              />
-            </div>
-
-            <div class="form-group row">
-              <label for="port" class="col-md-3 col-form-label">Port</label>
-              <input
-                type="text"
-                class="form-control col-md-2"
-                id="port"
-                value="7880"
+                id="url"
+                value="ws://localhost:7880"
               />
             </div>
 
@@ -128,7 +118,7 @@
                 </button>
                 <button
                   id="disconnect-room-button"
-                  class="btn btn-warning"
+                  class="btn btn-danger"
                   disabled
                   type="button"
                   onclick="disconnectRoom()"

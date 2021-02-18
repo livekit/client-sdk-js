@@ -22,8 +22,8 @@ export interface ConnectionInfo {
  * so that it
  */
 export interface SignalClient {
-  join(info: ConnectionInfo, token: string): Promise<JoinResponse>;
-  reconnect(info: ConnectionInfo, token: string): Promise<void>;
+  join(url: string, token: string): Promise<JoinResponse>;
+  reconnect(url: string, token: string): Promise<void>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendAnswer(answer: RTCSessionDescriptionInit): void;
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget): void;
@@ -67,19 +67,18 @@ export class WSSignalClient {
     this.isConnected = false;
   }
 
-  async reconnect(info: ConnectionInfo, token: string): Promise<void> {
-    await this.join(info, token, true);
+  async reconnect(url: string, token: string): Promise<void> {
+    await this.join(url, token, true);
   }
 
-  join(info: ConnectionInfo, token: string): Promise<JoinResponse>;
-  join(info: ConnectionInfo, token: string, reconnect: boolean): Promise<void>;
+  join(url: string, token: string): Promise<JoinResponse>;
+  join(url: string, token: string, reconnect: boolean): Promise<void>;
   join(
-    info: ConnectionInfo,
+    url: string,
     token: string,
     reconnect: boolean = false
   ): Promise<JoinResponse | void> {
-    const protocol = info.secure ? 'wss' : 'ws';
-    let url = `${protocol}://${info.host}:${info.port}/rtc?access_token=${token}`;
+    url += `/rtc?access_token=${token}`;
     if (reconnect) {
       url += '&reconnect=1';
     }

@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import log from 'loglevel';
 import { SemVer } from 'semver';
 import { Participant } from '..';
-import { ConnectionInfo, SignalClient } from '../api/SignalClient';
+import { SignalClient } from '../api/SignalClient';
 import { ParticipantInfo, ParticipantInfo_State } from '../proto/model';
 import { SpeakerInfo } from '../proto/rtc';
 import { UnsupportedServer } from './errors';
@@ -22,6 +22,10 @@ export enum RoomState {
   Reconnecting = 'reconnecting',
 }
 
+/**
+ * A LiveKit Room
+ * @noInheritDoc
+ */
 class Room extends EventEmitter {
   engine: RTCEngine;
   state: RoomState = RoomState.Disconnected;
@@ -69,7 +73,7 @@ class Room extends EventEmitter {
     });
   }
 
-  connect = async (info: ConnectionInfo, token: string): Promise<Room> => {
+  connect = async (url: string, token: string): Promise<Room> => {
     // guard against calling connect
     if (this.localParticipant) {
       log.warn('already connected to room', this.name);
@@ -77,7 +81,7 @@ class Room extends EventEmitter {
     }
 
     try {
-      const joinResponse = await this.engine.join(info, token);
+      const joinResponse = await this.engine.join(url, token);
       log.debug('connected to Livekit Server', joinResponse.serverVersion);
 
       if (!joinResponse.serverVersion) {

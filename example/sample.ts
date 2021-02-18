@@ -1,5 +1,7 @@
-import Livekit, {
+import {
   AudioTrack,
+  connect,
+  createLocalVideoTrack,
   LocalAudioTrack,
   LocalAudioTrackPublication,
   LocalDataTrack,
@@ -165,15 +167,14 @@ const chatTrack: LocalDataTrack = new LocalDataTrack({
 let videoTrack: LocalVideoTrack | undefined;
 let audioTrack: LocalAudioTrack;
 window.connectWithFormInput = () => {
-  const host = (<HTMLInputElement>$('host')).value;
-  const port = parseInt((<HTMLInputElement>$('port')).value);
+  const url = (<HTMLInputElement>$('url')).value;
   const token = (<HTMLInputElement>$('token')).value;
 
-  window.connectToRoom(host, port, token);
+  window.connectToRoom(url, token);
 };
 
-window.connectToRoom = async (host: string, port: number, token: string) => {
-  const room = await Livekit.connect({ host, port }, token, {
+window.connectToRoom = async (url: string, token: string) => {
+  const room = await connect(url, token, {
     logLevel: LogLevel.debug,
     audio: true,
     video: true,
@@ -266,7 +267,7 @@ window.toggleVideo = async () => {
     if (video) video.remove();
   } else {
     appendLog('turning video on');
-    videoTrack = await Livekit.createLocalVideoTrack();
+    videoTrack = await createLocalVideoTrack();
     await publishLocalVideo(videoTrack);
   }
 };
@@ -325,8 +326,7 @@ function getMyVideo() {
 // uncomment to autoconnect after page load
 // setTimeout(() => {
 //   window.connectToRoom(
-//     'localhost',
-//     7880,
+//     'ws://localhost:7880',
 //     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTU2MTUwOTAsImlzcyI6IkFQSXU5SmpLdFpubXRLQmtjcXNFOUJuZkgiLCJqdGkiOiJtZSIsIm1ldGFkYXRhIjp7Im9yZGVyIjoxfSwibmJmIjoxNjEzMDIzMDkwLCJ2aWRlbyI6eyJyb29tIjoibXlyb29tIiwicm9vbUpvaW4iOnRydWV9fQ.MGEzYSO-Vh8gT1iwE_C8x63Km6f5EuqXVP8HKp4qXJA'
 //   );
 // }, 100);

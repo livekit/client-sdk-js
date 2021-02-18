@@ -12,5 +12,15 @@
   },
   "include": [
     "src/**/*",
-  ]
+  ],
+  "typedocOptions": {
+    "entryPoints": [
+      "src/index.ts"
+    ],
+    "out": "docs",
+    "excludeInternal": true,
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "excludeExternals": true
+  }
 }
