@@ -10,7 +10,7 @@ import { LocalDataTrackPublication } from '../track/LocalDataTrackPublication';
 import { LocalTrackPublication } from '../track/LocalTrackPublication';
 import { LocalVideoTrack } from '../track/LocalVideoTrack';
 import { LocalVideoTrackPublication } from '../track/LocalVideoTrackPublication';
-import { LocalTrackOptions } from '../track/options';
+import { TrackPublishOptions } from '../track/options';
 import { Track } from '../track/Track';
 import { LocalTrack } from '../track/types';
 import { Participant } from './Participant';
@@ -18,16 +18,22 @@ import { Participant } from './Participant';
 const simulcastMinWidth = 200;
 
 export class LocalParticipant extends Participant {
-  engine: RTCEngine;
+  private engine: RTCEngine;
 
+  /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine) {
     super(sid, identity);
     this.engine = engine;
   }
 
+  /**
+   * Publish a new track to the room
+   * @param track
+   * @param options
+   */
   async publishTrack(
     track: LocalTrack | MediaStreamTrack,
-    options?: LocalTrackOptions
+    options?: TrackPublishOptions
   ): Promise<LocalTrackPublication> {
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
@@ -212,7 +218,7 @@ export class LocalParticipant extends Participant {
     return publications;
   }
 
-  getPublicationForTrack(
+  private getPublicationForTrack(
     track: LocalTrack | MediaStreamTrack
   ): LocalTrackPublication | undefined {
     let publication: LocalTrackPublication | undefined;
@@ -246,11 +252,13 @@ export class LocalParticipant extends Participant {
     return publication;
   }
 
+  /** @internal */
   onTrackUnmuted = (track: LocalVideoTrack | LocalAudioTrack) => {
     this.onTrackMuted(track, false);
   };
 
   // when the local track changes in mute status, we'll notify server as such
+  /** @internal */
   onTrackMuted = (
     track: LocalVideoTrack | LocalAudioTrack,
     muted?: boolean
@@ -295,7 +303,7 @@ export class LocalParticipant extends Participant {
   private computeVideoEncodings(
     width?: number,
     height?: number,
-    options?: LocalTrackOptions
+    options?: TrackPublishOptions
   ): RTCRtpEncodingParameters[] {
     let encodings: RTCRtpEncodingParameters[];
 
@@ -339,6 +347,14 @@ export class LocalParticipant extends Participant {
     return encodings;
   }
 
+  private orderedPresets = [
+    VideoPresets.qvga,
+    VideoPresets.vga,
+    VideoPresets.qhd,
+    VideoPresets.hd,
+    VideoPresets.fhd,
+  ];
+
   private determineAppropriateEncoding(
     width?: number,
     height?: number
@@ -346,10 +362,8 @@ export class LocalParticipant extends Participant {
     let encoding = VideoPresets.vga.encoding;
 
     if (width && height) {
-      const keys = Object.keys(VideoPresets);
-      for (let i = 0; i < keys.length; i++) {
-        const key = keys[i];
-        const preset = VideoPresets[key];
+      for (let i = 0; i < this.orderedPresets.length; i++) {
+        const preset = this.orderedPresets[i];
         if (
           width >= parseLongConstraint(preset.resolution.width) &&
           height >= parseLongConstraint(preset.resolution.height)

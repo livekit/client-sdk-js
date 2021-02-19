@@ -2,7 +2,7 @@ import { ConnectionInfo } from './api/SignalClient';
 import { LocalParticipant } from './room/participant/LocalParticipant';
 import { Participant } from './room/participant/Participant';
 import { RemoteParticipant } from './room/participant/RemoteParticipant';
-import Room from './room/Room';
+import Room, { RoomState } from './room/Room';
 export * from './livekit';
 export * from './options';
 export * from './room/errors';
@@ -31,6 +31,7 @@ export * from './version';
 export {
   ConnectionInfo,
   Room,
+  RoomState,
   Participant,
   RemoteParticipant,
   LocalParticipant,

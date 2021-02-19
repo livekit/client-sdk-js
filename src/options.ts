@@ -1,29 +1,34 @@
 import { LocalTrack } from './room/track/types';
 
-export interface ConnectOptions {
-  // default to true, publishes audio track with getUserMedia automatically on connect
-  // false to disable this behavior
-  audio?: boolean | CreateAudioTrackOptions;
-
-  // default to true, publishes video track with getUserMedia automatically on connect
-  // false to disable this behavior
-  video?: boolean | CreateVideoTrackOptions;
-
-  // encoding parameters, if not passed in, it'll automatically select an appropriate
-  // encoding based on bitrate
+/**
+ * if video or audio tracks are created as part of [[connect]], it'll automatically
+ * publish those tracks to the room.
+ */
+export interface ConnectOptions extends CreateLocalTracksOptions {
+  /** see [[TrackPublishOptions.videoEncoding]] */
   videoEncoding?: VideoEncoding;
 
-  // codec, defaults to vp8
+  /** see [[TrackPublishOptions.videoCodec]] */
   videoCodec?: VideoCodec;
 
-  // use simulcast, defaults to false
+  /** see [[TrackPublishOptions.simulcast]] */
   simulcast?: boolean;
 
+  /**
+   * configures LiveKit internal log level
+   */
   logLevel?: LogLevel;
+
+  /**
+   * set ICE servers. LiveKit uses STUN and by default points to Google's public
+   * STUN servers
+   */
   iceServers?: RTCIceServer[];
-  // the LocalTracks or MediaStreamTracks to publish after joining
-  // these can be obtained by calling createLocalTracks
-  // when this is passed in, it'll ignore audio and video options
+
+  /**
+   * Tracks to publish to the room after joining. These can be obtained by calling
+   * [[createLocalTracks]]. when this is passed in, it'll ignore audio and video options
+   */
   tracks?: LocalTrack[] | MediaStreamTrack[];
 }
 
@@ -37,51 +42,91 @@ export enum LogLevel {
 }
 
 export interface CreateLocalTracksOptions {
+  /**
+   * creates audio track with getUserMedia automatically on connect.
+   * default false
+   */
   audio?: boolean | CreateAudioTrackOptions;
-  logLevel?: LogLevel;
+
+  /**
+   * creates video track with getUserMedia automatically on connect.
+   * default false
+   */
   video?: boolean | CreateVideoTrackOptions;
 }
 
 export interface CreateLocalTrackOptions {
-  logLevel?: LogLevel;
-
-  // name of the track
+  /** name of track */
   name?: string;
 
-  // A ConstrainDOMString object specifying a device ID or an array of device IDs which are acceptable and/or required.
+  /**
+   * A ConstrainDOMString object specifying a device ID or an array of device
+   * IDs which are acceptable and/or required.
+   */
   deviceId?: ConstrainDOMString;
 }
 
 export interface CreateVideoTrackOptions extends CreateLocalTrackOptions {
-  // a facing or an array of facings which are acceptable and/or required.
+  /**
+   * a facing or an array of facings which are acceptable and/or required.
+   * [valid options](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode)
+   */
   facingMode?: ConstrainDOMString;
 
   resolution?: VideoResolutionConstraint;
 }
 
 export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
-  // specifies whether automatic gain control is preferred and/or required
+  /**
+   * specifies whether automatic gain control is preferred and/or required
+   */
   autoGainControl?: ConstrainBoolean;
 
-  // the channel count or range of channel counts which are acceptable and/or required
+  /**
+   * the channel count or range of channel counts which are acceptable and/or required
+   */
   channelCount?: ConstrainULong;
 
-  // whether or not echo cancellation is preferred and/or required
+  /**
+   * whether or not echo cancellation is preferred and/or required
+   */
   echoCancellation?: ConstrainBoolean;
 
-  // the latency or range of latencies which are acceptable and/or required.
+  /**
+   * the latency or range of latencies which are acceptable and/or required.
+   */
   latency?: ConstrainDouble;
 
-  // whether noise suppression is preferred and/or required.
+  /**
+   * whether noise suppression is preferred and/or required.
+   */
   noiseSuppression?: ConstrainBoolean;
 
-  // the sample rate or range of sample rates which are acceptable and/or required.
+  /**
+   * the sample rate or range of sample rates which are acceptable and/or required.
+   */
   sampleRate?: ConstrainULong;
 
-  // sample size or range of sample sizes which are acceptable and/or required.
+  /**
+   * sample size or range of sample sizes which are acceptable and/or required.
+   */
   sampleSize?: ConstrainULong;
 }
 
+/**
+ * example
+ *
+ * ```typescript
+ * {
+ *   width: { ideal: 960 },
+ *   height: { ideal: 540 },
+ *   frameRate: {
+ *     ideal: 30,
+ *     max: 60,
+ *   },
+ * }
+ * ```
+ */
 export interface VideoResolutionConstraint {
   width: ConstrainULong;
   height: ConstrainULong;
@@ -100,8 +145,12 @@ export interface VideoPreset {
 
 export type VideoCodec = 'vp8' | 'h264';
 
-export const VideoPresets: { [key: string]: VideoPreset } = {
-  qvga: {
+/**
+ * Sane presets for video resolution/encoding
+ */
+export namespace VideoPresets {
+  /** 320x180 @ 15fps, 150kbps  */
+  export const qvga: VideoPreset = {
     resolution: {
       width: { ideal: 320 },
       height: { ideal: 180 },
@@ -114,8 +163,10 @@ export const VideoPresets: { [key: string]: VideoPreset } = {
       maxBitrate: 150_000,
       maxFramerate: 15.0,
     },
-  },
-  vga: {
+  };
+
+  /** 640x360 @ 30fps, 500kbps  */
+  export const vga: VideoPreset = {
     resolution: {
       width: { ideal: 640 },
       height: { ideal: 360 },
@@ -128,8 +179,10 @@ export const VideoPresets: { [key: string]: VideoPreset } = {
       maxBitrate: 500_000,
       maxFramerate: 30.0,
     },
-  },
-  qhd: {
+  };
+
+  /** 960x540 @ 30fps, 1.2mbps  */
+  export const qhd: VideoPreset = {
     resolution: {
       width: { ideal: 960 },
       height: { ideal: 540 },
@@ -142,8 +195,10 @@ export const VideoPresets: { [key: string]: VideoPreset } = {
       maxBitrate: 1_200_000,
       maxFramerate: 30.0,
     },
-  },
-  hd: {
+  };
+
+  /** 720p @ 30fps, 2.5mbps  */
+  export const hd: VideoPreset = {
     resolution: {
       width: { ideal: 1280 },
       height: { ideal: 720 },
@@ -156,8 +211,10 @@ export const VideoPresets: { [key: string]: VideoPreset } = {
       maxBitrate: 2_500_000,
       maxFramerate: 30.0,
     },
-  },
-  fhd: {
+  };
+
+  /** 1080p @ 30fps, 4mbps  */
+  export const fhd: VideoPreset = {
     resolution: {
       width: { ideal: 1920 },
       height: { ideal: 1080 },
@@ -170,5 +227,5 @@ export const VideoPresets: { [key: string]: VideoPreset } = {
       maxBitrate: 4_000_000,
       maxFramerate: 30.0,
     },
-  },
-};
+  };
+}

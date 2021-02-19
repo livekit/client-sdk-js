@@ -14,19 +14,22 @@ export type VideoTrackMap = { [key: string]: VideoTrackPublication };
 export type DataTrackMap = { [key: string]: DataTrackPublication };
 
 export class Participant extends EventEmitter {
-  // map of track id => AudioTrack
   audioTracks: Map<string, AudioTrackPublication>;
   videoTracks: Map<string, VideoTrackPublication>;
   dataTracks: Map<string, DataTrackPublication>;
+
+  /** map of track sid => all published tracks */
   tracks: Map<string, TrackPublication>;
-  // audio level between 0-1.0, 1 being loudest, 0 being softest
+  /** audio level between 0-1.0, 1 being loudest, 0 being softest */
   audioLevel: number = 0;
+  /** server assigned unique id */
   sid: string;
-  // client assigned identity
+  /** client assigned identity, encoded in JWT token */
   identity: string;
-  // client passed metadata
+  /** client passed metadata, encoded in JWT token */
   metadata: object = {};
 
+  /** @internal */
   constructor(sid: string, identity: string) {
     super();
     this.sid = sid;
@@ -41,6 +44,7 @@ export class Participant extends EventEmitter {
     return Array.from(this.tracks.values());
   }
 
+  /** @internal */
   setMetadata(md: string) {
     if (!md) {
       this.metadata = {};

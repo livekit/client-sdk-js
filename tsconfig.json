@@ -17,10 +17,13 @@
     "entryPoints": [
       "src/index.ts"
     ],
-    "out": "docs",
     "excludeInternal": true,
     "excludePrivate": true,
     "excludeProtected": true,
-    "excludeExternals": true
+    "excludeExternals": true,
+    "includeVersion": true,
+    "name": "LiveKit JS SDK",
+    "out": "docs",
+    "theme": "default" // "node_modules/typedoc-neo-theme/bin/default"
   }
 }

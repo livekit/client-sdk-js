@@ -27,6 +27,7 @@ export type DataTrackPublication =
   | LocalDataTrackPublication
   | RemoteDataTrackPublication;
 
+/** @internal */
 export function createRemoteTrackPublicationFromInfo(
   info: TrackInfo
 ): RemoteTrackPublication {

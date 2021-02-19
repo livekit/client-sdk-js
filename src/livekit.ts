@@ -13,11 +13,30 @@ import { TrackInvalidError } from './room/errors';
 import Room from './room/Room';
 import { LocalAudioTrack } from './room/track/LocalAudioTrack';
 import { LocalVideoTrack } from './room/track/LocalVideoTrack';
-import { LocalTrackOptions } from './room/track/options';
+import { TrackPublishOptions } from './room/track/options';
 import { Track } from './room/track/Track';
 import { LocalTrack } from './room/track/types';
 export { version } from './version';
 
+/**
+ * Connects to a LiveKit room
+ *
+ * ```typescript
+ * connect('wss://myhost.livekit.io', token, {
+ *   // publish audio and video tracks on joining
+ *   audio: true,
+ *   video: {
+ *     resolution: VideoPresets.hd,
+ *     facingMode: {
+ *       ideal: "user",
+ *     }
+ *   }
+ * })
+ * ```
+ * @param url URL to LiveKit server
+ * @param token AccessToken, a JWT token that includes authentication and room details
+ * @param options
+ */
 export async function connect(
   url: string,
   token: string,
@@ -65,7 +84,7 @@ export async function connect(
     for (let i = 0; i < tracks.length; i++) {
       const track = tracks[i];
       // video options
-      const trackOptions: LocalTrackOptions = {};
+      const trackOptions: TrackPublishOptions = {};
       if (
         track.kind === Track.Kind.Video.toString() ||
         track.kind === Track.Kind.Video
@@ -86,11 +105,14 @@ export async function connect(
   return room;
 }
 
+/**
+ * Creates a [[LocalVideoTrack]] with getUserMedia()
+ * @param options
+ */
 export async function createLocalVideoTrack(
   options?: CreateVideoTrackOptions
 ): Promise<LocalVideoTrack> {
   const tracks = await createLocalTracks({
-    logLevel: options?.logLevel,
     audio: false,
     video: options,
   });
@@ -101,13 +123,16 @@ export async function createLocalAudioTrack(
   options?: CreateAudioTrackOptions
 ): Promise<LocalAudioTrack> {
   const tracks = await createLocalTracks({
-    logLevel: options?.logLevel,
     audio: options,
     video: false,
   });
   return <LocalAudioTrack>tracks[0];
 }
 
+/**
+ * creates a local video and audio track at the same time
+ * @param options
+ */
 export async function createLocalTracks(
   options?: CreateLocalTracksOptions
 ): Promise<Array<LocalTrack>> {
@@ -150,6 +175,7 @@ export async function createLocalTracks(
   return tracks;
 }
 
+/** @internal */
 function createLocalTrack(
   mediaStreamTrack: MediaStreamTrack,
   options: CreateLocalTrackOptions

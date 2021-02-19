@@ -1,6 +1,6 @@
 # JavaScript/TypeScript client SDK for LiveKit
 
-`livekit-client` is a client SDK for [LiveKit](https://github.com/livekit/livekit-server). With it, you can add real time video and audio to your web apps. LiveKit uses WebRTC in the browser.
+`livekit-client` is the official client SDK for [LiveKit](https://github.com/livekit/livekit-server). With it, you can add real time video and audio to your web apps. LiveKit uses WebRTC in the browser.
 
 ## Installation
 
@@ -26,7 +26,7 @@ const LiveKit = require('livekit-client');
 LiveKit.connect(...);
 ```
 
-### Connecting to a room, publishing video & audio
+### Connecting to a room, publish video & audio
 
 ```typescript
 import {
@@ -90,6 +90,23 @@ Access tokens can be created with livekit-cli, that came with the server, or [se
 
 ```
 ./bin/livekit-cli create-token --join --r <room_name> --p <participant_name>
+```
+
+### Manually publish, mute, unpublish
+
+```typescript
+import { createLocalVideoTrack } from 'livekit-client';
+
+const videoTrack = await createLocalVideoTrack();
+
+const publication = await room.localParticipant.publishTrack(videoTrack, {
+  name: 'mytrack',
+  simulcast: true,
+});
+
+videoTrack.mute();
+
+room.localParticipant.unpublishTrack(videoTrack);
 ```
 
 ## Examples

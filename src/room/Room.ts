@@ -13,6 +13,7 @@ import { RTCEngine } from './RTCEngine';
 import { LocalTrackPublication } from './track/LocalTrackPublication';
 import { RemoteDataTrack } from './track/RemoteDataTrack';
 import { RemoteTrackPublication } from './track/RemoteTrackPublication';
+import { TrackPublication } from './track/TrackPublication';
 import { RemoteTrack } from './track/types';
 import { unpackDataTrackLabel, unpackTrackId } from './utils';
 
@@ -23,21 +24,36 @@ export enum RoomState {
 }
 
 /**
- * A LiveKit Room
+ * In LiveKit, a room is the logical grouping for a list of participants.
+ * Participants in a room can publish tracks, and subscribe to others' tracks.
+ *
+ * a Room fires [[RoomEvent | RoomEvents]].
+ *
  * @noInheritDoc
  */
 class Room extends EventEmitter {
-  engine: RTCEngine;
   state: RoomState = RoomState.Disconnected;
+  /** map of sid: [[RemoteParticipant]] */
   participants: Map<string, RemoteParticipant>;
+  /**
+   * list of participants that are actively speaking. when this changes
+   * a [[RoomEvent.ActiveSpeakersChanged]] event is fired
+   */
   activeSpeakers: Participant[] = [];
+  /** @internal */
+  engine: RTCEngine;
+  /** @internal */
   autoTracks?: LocalTrackPublication[];
 
   // available after connected
+  /** server assigned unique room id */
   sid!: string;
+  /** user assigned name, derived from JWT token */
   name!: string;
+  /** the current participant */
   localParticipant!: LocalParticipant;
 
+  /** @internal */
   constructor(client: SignalClient, config?: RTCConfiguration) {
     super();
     this.participants = new Map();
@@ -59,6 +75,7 @@ class Room extends EventEmitter {
 
     this.engine.on(EngineEvent.Disconnected, (reason: any) => {
       this.emit(RoomEvent.Disconnected);
+      this.state = RoomState.Disconnected;
     });
 
     this.engine.on(
@@ -73,6 +90,7 @@ class Room extends EventEmitter {
     });
   }
 
+  /** @internal */
   connect = async (url: string, token: string): Promise<Room> => {
     // guard against calling connect
     if (this.localParticipant) {
@@ -128,9 +146,13 @@ class Room extends EventEmitter {
     });
   };
 
+  /**
+   * disconnects the room, emits [[RoomEvent.Disconnected]]
+   */
   disconnect() {
     this.engine.close();
     this.emit(RoomEvent.Disconnected);
+    this.state = RoomState.Disconnected;
   }
 
   private onTrackAdded(mediaTrack: MediaStreamTrack, streams: MediaStream[]) {
@@ -282,10 +304,19 @@ class Room extends EventEmitter {
           this.emit(RoomEvent.TrackSubscriptionFailed, sid, participant);
         }
       );
+
+      participant.on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
+        this.emit(RoomEvent.TrackMuted, pub, participant);
+      });
+
+      participant.on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
+        this.emit(RoomEvent.TrackUnmuted, pub, participant);
+      });
     }
     return participant;
   }
 
+  /** @internal */
   emit(event: string | symbol, ...args: any[]): boolean {
     log.debug('room event', event, ...args);
     return super.emit(event, ...args);

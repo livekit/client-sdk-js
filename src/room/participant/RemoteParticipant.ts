@@ -22,12 +22,14 @@ export class RemoteParticipant extends Participant {
   dataTracks: Map<string, RemoteDataTrackPublication>;
   tracks: Map<string, RemoteTrackPublication>;
 
+  /** @internal */
   static fromParticipantInfo(pi: ParticipantInfo): RemoteParticipant {
     const rp = new RemoteParticipant(pi.sid, pi.identity);
     rp.updateInfo(pi);
     return rp;
   }
 
+  /** @internal */
   constructor(id: string, name?: string) {
     super(id, name || '');
     this.tracks = new Map();
@@ -36,6 +38,7 @@ export class RemoteParticipant extends Participant {
     this.dataTracks = new Map();
   }
 
+  /** @internal */
   addSubscribedMediaTrack(
     mediaTrack: MediaStreamTrack,
     sid: Track.SID,
@@ -96,6 +99,7 @@ export class RemoteParticipant extends Participant {
     return publication;
   }
 
+  /** @internal */
   addSubscribedDataTrack(
     dataChannel: RTCDataChannel,
     sid: Track.SID,
@@ -138,6 +142,7 @@ export class RemoteParticipant extends Participant {
     return publication;
   }
 
+  /** @internal */
   get hasMetadata(): boolean {
     return !!this.participantInfo;
   }
@@ -146,6 +151,7 @@ export class RemoteParticipant extends Participant {
     return this.tracks.get(sid);
   }
 
+  /** @internal */
   updateInfo(info: ParticipantInfo) {
     const alreadyHasMetadata = this.hasMetadata;
 
@@ -190,6 +196,7 @@ export class RemoteParticipant extends Participant {
     });
   }
 
+  /** @internal */
   unpublishTrack(sid: Track.SID, sendUnpublish?: boolean) {
     const publication = <RemoteTrackPublication>this.tracks.get(sid);
     if (!publication) {
@@ -222,6 +229,7 @@ export class RemoteParticipant extends Participant {
       this.emit(ParticipantEvent.TrackUnpublished, publication);
   }
 
+  /** @internal */
   emit(event: string | symbol, ...args: any[]): boolean {
     log.trace('participant event', this.sid, event, ...args);
     return super.emit(event, ...args);
