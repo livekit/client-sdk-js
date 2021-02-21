@@ -212,7 +212,12 @@ export class RTCEngine extends EventEmitter {
     setTimeout(() => {
       if (this.iceConnected && this.url && this.token) {
         log.info('reconnecting to signal connection, attempt', this.numRetries);
-        this.client.reconnect(this.url, this.token).catch(this.handleWSClose);
+        this.client
+          .reconnect(this.url, this.token)
+          .then(() => {
+            this.numRetries = 0;
+          })
+          .catch(this.handleWSClose);
       }
     }, delay);
     this.numRetries = this.numRetries + 1;

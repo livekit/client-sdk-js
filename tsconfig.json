@@ -22,8 +22,8 @@
     "excludeProtected": true,
     "excludeExternals": true,
     "includeVersion": true,
-    "name": "LiveKit JS SDK",
+    "name": "LiveKit JS Client SDK",
     "out": "docs",
-    "theme": "default" // "node_modules/typedoc-neo-theme/bin/default"
+    "theme": "default"
   }
 }
