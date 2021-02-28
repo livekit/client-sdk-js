@@ -136,6 +136,9 @@ export class LocalParticipant extends Participant {
 
       // store RTPSender
       track.sender = transceiver.sender;
+      if (track instanceof LocalVideoTrack) {
+        track.startMonitor();
+      }
 
       this.setPreferredCodec(transceiver, track.kind, options?.videoCodec);
     }
@@ -218,6 +221,41 @@ export class LocalParticipant extends Participant {
     return publications;
   }
 
+  get publisherMetrics(): any {
+    return null;
+  }
+
+  /** @internal */
+  onTrackUnmuted = (track: LocalVideoTrack | LocalAudioTrack) => {
+    this.onTrackMuted(track, false);
+  };
+
+  // when the local track changes in mute status, we'll notify server as such
+  /** @internal */
+  onTrackMuted = (
+    track: LocalVideoTrack | LocalAudioTrack,
+    muted?: boolean
+  ) => {
+    if (muted === undefined) {
+      muted = true;
+    }
+    // find the track's publication and use sid there
+    let sid: string | undefined;
+    this.tracks.forEach((publication) => {
+      const localPub = <LocalTrackPublication>publication;
+      if (track === localPub.track) {
+        sid = localPub.trackSid;
+      }
+    });
+
+    if (!sid) {
+      log.error('could not update mute status for unpublished track', track);
+      return;
+    }
+
+    this.engine.updateMuteStatus(sid, muted);
+  };
+
   private getPublicationForTrack(
     track: LocalTrack | MediaStreamTrack
   ): LocalTrackPublication | undefined {
@@ -251,37 +289,6 @@ export class LocalParticipant extends Participant {
     }
     return publication;
   }
-
-  /** @internal */
-  onTrackUnmuted = (track: LocalVideoTrack | LocalAudioTrack) => {
-    this.onTrackMuted(track, false);
-  };
-
-  // when the local track changes in mute status, we'll notify server as such
-  /** @internal */
-  onTrackMuted = (
-    track: LocalVideoTrack | LocalAudioTrack,
-    muted?: boolean
-  ) => {
-    if (muted === undefined) {
-      muted = true;
-    }
-    // find the track's publication and use sid there
-    let sid: string | undefined;
-    this.tracks.forEach((publication) => {
-      const localPub = <LocalTrackPublication>publication;
-      if (track === localPub.track) {
-        sid = localPub.trackSid;
-      }
-    });
-
-    if (!sid) {
-      log.error('could not update mute status for unpublished track', track);
-      return;
-    }
-
-    this.engine.updateMuteStatus(sid, muted);
-  };
 
   private setPreferredCodec(
     transceiver: RTCRtpTransceiver,

@@ -158,7 +158,7 @@ export async function createLocalTracks(
     // use defaults
     constraints.video = videoOptions;
   }
-  console.log('video constraints', constraints.video);
+  log.debug('video constraints', constraints.video);
   constraints.audio = options.audio;
 
   const stream = await navigator.mediaDevices.getUserMedia(constraints);

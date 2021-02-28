@@ -42,6 +42,7 @@ export class RemoteParticipant extends Participant {
   addSubscribedMediaTrack(
     mediaTrack: MediaStreamTrack,
     sid: Track.SID,
+    receiver: RTCRtpReceiver,
     triesLeft?: number
   ) {
     // find the track publication
@@ -72,7 +73,7 @@ export class RemoteParticipant extends Participant {
 
       if (triesLeft === undefined) triesLeft = 20;
       setTimeout(() => {
-        this.addSubscribedMediaTrack(mediaTrack, sid, triesLeft! - 1);
+        this.addSubscribedMediaTrack(mediaTrack, sid, receiver, triesLeft! - 1);
       }, 150);
       return;
     }
@@ -80,9 +81,10 @@ export class RemoteParticipant extends Participant {
     const isVideo = mediaTrack.kind === 'video';
     let track: RemoteTrack;
     if (isVideo) {
-      track = new RemoteVideoTrack(mediaTrack, sid);
+      track = new RemoteVideoTrack(mediaTrack, sid, receiver);
+      (<RemoteVideoTrack>track).startMonitor();
     } else {
-      track = new RemoteAudioTrack(mediaTrack, sid);
+      track = new RemoteAudioTrack(mediaTrack, sid, receiver);
     }
 
     publication.track = track;

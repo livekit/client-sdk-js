@@ -11,11 +11,12 @@ import { LocalParticipant } from './participant/LocalParticipant';
 import { RemoteParticipant } from './participant/RemoteParticipant';
 import { RTCEngine } from './RTCEngine';
 import { LocalTrackPublication } from './track/LocalTrackPublication';
+import { LocalVideoTrack } from './track/LocalVideoTrack';
 import { RemoteDataTrack } from './track/RemoteDataTrack';
 import { RemoteTrackPublication } from './track/RemoteTrackPublication';
 import { TrackPublication } from './track/TrackPublication';
 import { RemoteTrack } from './track/types';
-import { unpackDataTrackLabel, unpackTrackId } from './utils';
+import { unpackDataTrackLabel } from './utils';
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -54,6 +55,9 @@ class Room extends EventEmitter {
   localParticipant!: LocalParticipant;
 
   /** @internal */
+  statsInterval: any;
+
+  /** @internal */
   constructor(client: SignalClient, config?: RTCConfiguration) {
     super();
     this.participants = new Map();
@@ -61,8 +65,12 @@ class Room extends EventEmitter {
 
     this.engine.on(
       EngineEvent.MediaTrackAdded,
-      (mediaTrack: MediaStreamTrack, streams: MediaStream[]) => {
-        this.onTrackAdded(mediaTrack, streams);
+      (
+        mediaTrack: MediaStreamTrack,
+        receiver: RTCRtpReceiver,
+        streams: MediaStream[]
+      ) => {
+        this.onTrackAdded(mediaTrack, receiver, streams);
       }
     );
 
@@ -142,6 +150,8 @@ class Room extends EventEmitter {
       this.engine.once(EngineEvent.Connected, () => {
         clearTimeout(connectTimeout);
         resolve(this);
+        // this.statsInterval = setInterval(this.logStats, 5000);
+        setTimeout(this.logStats, 10000);
       });
     });
   };
@@ -155,18 +165,37 @@ class Room extends EventEmitter {
     this.state = RoomState.Disconnected;
   }
 
-  private onTrackAdded(mediaTrack: MediaStreamTrack, streams: MediaStream[]) {
-    let participantId: string;
-    let trackId: string;
-    if (streams.length > 0) {
-      participantId = streams[0].id;
-      trackId = mediaTrack.id;
-    } else {
-      [participantId, trackId] = unpackTrackId(mediaTrack.id);
+  private logStats = async () => {
+    log.debug('sender stats');
+    this.localParticipant.videoTracks.forEach(async (pub) => {
+      const track = <LocalVideoTrack>pub.track!;
+      const stats = await track.getSenderStats();
+      stats.forEach((stat) => {
+        log.debug('sender stat for', stat.rid, stat);
+      });
+    });
+
+    log.debug('receiver stats');
+    for (let p of this.participants.values()) {
+      for (let t of p.videoTracks.values()) {
+        if (!t.track) continue;
+
+        const stats = await t.track.getReceiverStats();
+        log.debug('receiver stats for', t.trackSid, stats);
+      }
     }
+  };
+
+  private onTrackAdded(
+    mediaTrack: MediaStreamTrack,
+    receiver: RTCRtpReceiver,
+    streams: MediaStream[]
+  ) {
+    const participantId = streams[0].id;
+    const trackId = mediaTrack.id;
 
     const participant = this.getOrCreateParticipant(participantId);
-    participant.addSubscribedMediaTrack(mediaTrack, trackId);
+    participant.addSubscribedMediaTrack(mediaTrack, trackId, receiver);
   }
 
   private onDataChannelAdded(dataChannel: RTCDataChannel) {

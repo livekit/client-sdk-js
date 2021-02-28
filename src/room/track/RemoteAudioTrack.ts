@@ -4,10 +4,17 @@ import { Track } from './Track';
 
 export class RemoteAudioTrack extends AudioTrack {
   sid: Track.SID;
+  /** @internal */
+  receiver?: RTCRtpReceiver;
 
-  constructor(mediaTrack: MediaStreamTrack, sid: string) {
+  constructor(
+    mediaTrack: MediaStreamTrack,
+    sid: string,
+    receiver: RTCRtpReceiver
+  ) {
     super(mediaTrack);
     this.sid = sid;
+    this.receiver = receiver;
   }
 
   setMuted(muted: boolean) {

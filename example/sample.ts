@@ -169,16 +169,21 @@ let audioTrack: LocalAudioTrack;
 window.connectWithFormInput = () => {
   const url = (<HTMLInputElement>$('url')).value;
   const token = (<HTMLInputElement>$('token')).value;
+  const simulcast = (<HTMLInputElement>$('simulcast')).checked;
 
-  window.connectToRoom(url, token);
+  window.connectToRoom(url, token, simulcast);
 };
 
-window.connectToRoom = async (url: string, token: string) => {
+window.connectToRoom = async (
+  url: string,
+  token: string,
+  simulcast: boolean = false
+) => {
   const room = await connect(url, token, {
     logLevel: LogLevel.debug,
     audio: true,
     video: true,
-    simulcast: (<HTMLInputElement>$('simulcast')).checked,
+    simulcast,
   });
 
   window.currentRoom = room;
@@ -326,7 +331,8 @@ function getMyVideo() {
 // uncomment to autoconnect after page load
 // setTimeout(() => {
 //   window.connectToRoom(
-//     'ws://localhost:7880',
+//     // 'ws://localhost:7880',
+//     'ws://livekit-demo-1036575819.us-east-1.elb.amazonaws.com',
 //     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTU2MTUwOTAsImlzcyI6IkFQSXU5SmpLdFpubXRLQmtjcXNFOUJuZkgiLCJqdGkiOiJtZSIsIm1ldGFkYXRhIjp7Im9yZGVyIjoxfSwibmJmIjoxNjEzMDIzMDkwLCJ2aWRlbyI6eyJyb29tIjoibXlyb29tIiwicm9vbUpvaW4iOnRydWV9fQ.MGEzYSO-Vh8gT1iwE_C8x63Km6f5EuqXVP8HKp4qXJA'
 //   );
 // }, 100);

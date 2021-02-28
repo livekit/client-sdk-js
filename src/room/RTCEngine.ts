@@ -122,7 +122,7 @@ export class RTCEngine extends EventEmitter {
 
     this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
       log.debug('engine fired track added', ev.track);
-      this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams);
+      this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.receiver, ev.streams);
     };
 
     this.subscriber.pc.ondatachannel = (ev: RTCDataChannelEvent) => {
