@@ -11,7 +11,6 @@ import { LocalParticipant } from './participant/LocalParticipant';
 import { RemoteParticipant } from './participant/RemoteParticipant';
 import { RTCEngine } from './RTCEngine';
 import { LocalTrackPublication } from './track/LocalTrackPublication';
-import { LocalVideoTrack } from './track/LocalVideoTrack';
 import { RemoteDataTrack } from './track/RemoteDataTrack';
 import { RemoteTrackPublication } from './track/RemoteTrackPublication';
 import { TrackPublication } from './track/TrackPublication';
@@ -53,9 +52,6 @@ class Room extends EventEmitter {
   name!: string;
   /** the current participant */
   localParticipant!: LocalParticipant;
-
-  /** @internal */
-  statsInterval: any;
 
   /** @internal */
   constructor(client: SignalClient, config?: RTCConfiguration) {
@@ -150,8 +146,6 @@ class Room extends EventEmitter {
       this.engine.once(EngineEvent.Connected, () => {
         clearTimeout(connectTimeout);
         resolve(this);
-        // this.statsInterval = setInterval(this.logStats, 5000);
-        setTimeout(this.logStats, 10000);
       });
     });
   };
@@ -164,27 +158,6 @@ class Room extends EventEmitter {
     this.emit(RoomEvent.Disconnected);
     this.state = RoomState.Disconnected;
   }
-
-  private logStats = async () => {
-    log.debug('sender stats');
-    this.localParticipant.videoTracks.forEach(async (pub) => {
-      const track = <LocalVideoTrack>pub.track!;
-      const stats = await track.getSenderStats();
-      stats.forEach((stat) => {
-        log.debug('sender stat for', stat.rid, stat);
-      });
-    });
-
-    log.debug('receiver stats');
-    for (let p of this.participants.values()) {
-      for (let t of p.videoTracks.values()) {
-        if (!t.track) continue;
-
-        const stats = await t.track.getReceiverStats();
-        log.debug('receiver stats for', t.trackSid, stats);
-      }
-    }
-  };
 
   private onTrackAdded(
     mediaTrack: MediaStreamTrack,
