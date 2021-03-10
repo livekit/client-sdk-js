@@ -104,7 +104,7 @@ export class RemoteVideoTrack extends VideoTrack {
     const droppedDelta = curr.framesDropped - prev.framesDropped;
     const lostDelta = curr.packetsLost! - prev.packetsLost!;
 
-    if (pliDelta > 0 || nackDelta > 0 || droppedDelta > 0 || lostDelta > 0) {
+    if (pliDelta > 0 || droppedDelta > 0 || lostDelta > 0) {
       log.debug(
         'detected subscriber quality issue',
         'track',

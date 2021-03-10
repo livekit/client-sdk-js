@@ -11,6 +11,9 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   /** see [[TrackPublishOptions.videoCodec]] */
   videoCodec?: VideoCodec;
 
+  /** see [[TrackPublishOptions.audioBitrate]] */
+  audioBitrate?: number;
+
   /** see [[TrackPublishOptions.simulcast]] */
   simulcast?: boolean;
 
@@ -20,8 +23,7 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   logLevel?: LogLevel;
 
   /**
-   * set ICE servers. LiveKit uses STUN and by default points to Google's public
-   * STUN servers
+   * set ICE servers. When deployed correctly, LiveKit automatically uses the built-in TURN servers
    */
   iceServers?: RTCIceServer[];
 
@@ -143,7 +145,23 @@ export interface VideoPreset {
   encoding: VideoEncoding;
 }
 
+export interface AudioPreset {
+  maxBitrate: number;
+}
+
 export type VideoCodec = 'vp8' | 'h264';
+
+export namespace AudioPresets {
+  export const telephone: AudioPreset = {
+    maxBitrate: 12_000,
+  };
+  export const speech: AudioPreset = {
+    maxBitrate: 20_000,
+  };
+  export const music: AudioPreset = {
+    maxBitrate: 32_000,
+  };
+}
 
 /**
  * Sane presets for video resolution/encoding
@@ -192,7 +210,7 @@ export namespace VideoPresets {
       },
     },
     encoding: {
-      maxBitrate: 1_200_000,
+      maxBitrate: 600_000,
       maxFramerate: 30.0,
     },
   };

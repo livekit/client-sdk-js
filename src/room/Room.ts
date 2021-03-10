@@ -41,7 +41,7 @@ class Room extends EventEmitter {
    */
   activeSpeakers: Participant[] = [];
   /** @internal */
-  engine: RTCEngine;
+  engine!: RTCEngine;
   /** @internal */
   autoTracks?: LocalTrackPublication[];
 

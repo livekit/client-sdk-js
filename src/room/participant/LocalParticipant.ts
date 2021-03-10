@@ -1,5 +1,10 @@
 import log from 'loglevel';
-import { VideoCodec, VideoEncoding, VideoPresets } from '../../options';
+import {
+  AudioPresets,
+  VideoCodec,
+  VideoEncoding,
+  VideoPresets,
+} from '../../options';
 import { TrackInvalidError } from '../errors';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RTCEngine } from '../RTCEngine';
@@ -124,8 +129,15 @@ export class LocalParticipant extends Participant {
           settings.height,
           options
         );
+      } else if (track.kind === Track.Kind.Audio) {
+        encodings = [
+          {
+            maxBitrate: options?.audioBitrate || AudioPresets.speech.maxBitrate,
+          },
+        ];
       }
 
+      log.debug('publishing with encodings', encodings);
       const transceiver = this.engine.publisher.pc.addTransceiver(
         track.mediaStreamTrack,
         {
@@ -319,6 +331,7 @@ export class LocalParticipant extends Participant {
     if (!videoEncoding) {
       // find the right encoding based on width/height
       videoEncoding = this.determineAppropriateEncoding(width, height);
+      log.debug('using video encoding', videoEncoding);
     }
 
     if (options?.simulcast && width && height) {

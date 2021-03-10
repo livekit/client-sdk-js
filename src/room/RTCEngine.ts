@@ -16,9 +16,10 @@ const placeholderDataChannel = '_private';
 const maxWSRetries = 10;
 
 export class RTCEngine extends EventEmitter {
-  publisher: PCTransport;
-  subscriber: PCTransport;
+  publisher!: PCTransport;
+  subscriber!: PCTransport;
   client: SignalClient;
+  rtcConfig: RTCConfiguration;
 
   privateDC?: RTCDataChannel;
   rtcConnected: boolean = false;
@@ -34,11 +35,8 @@ export class RTCEngine extends EventEmitter {
   constructor(client: SignalClient, config?: RTCConfiguration) {
     super();
     this.client = client;
-    this.publisher = new PCTransport(config);
-    this.subscriber = new PCTransport(config);
+    this.rtcConfig = config || {};
     this.numRetries = 0;
-
-    this.configure();
   }
 
   async join(url: string, token: string): Promise<JoinResponse> {
@@ -46,6 +44,26 @@ export class RTCEngine extends EventEmitter {
     this.token = token;
 
     const joinResponse = await this.client.join(url, token);
+
+    if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
+      this.rtcConfig.iceServers = [];
+      for (let iceServer of joinResponse.iceServers) {
+        const rtcIceServer: RTCIceServer = {
+          urls: iceServer.urls,
+        };
+        if (iceServer.username) rtcIceServer.username = iceServer.username;
+        if (iceServer.credential)
+          rtcIceServer.credential = iceServer.credential;
+        this.rtcConfig.iceServers.push(rtcIceServer);
+      }
+    }
+
+    // update ICE servers before creating PeerConnection
+    if (!this.publisher) {
+      this.publisher = new PCTransport(this.rtcConfig);
+      this.subscriber = new PCTransport(this.rtcConfig);
+      this.configure();
+    }
 
     // create offer
     const offer = await this.publisher.pc.createOffer();

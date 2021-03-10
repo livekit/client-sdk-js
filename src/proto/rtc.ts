@@ -89,6 +89,7 @@ export interface JoinResponse {
   participant?: ParticipantInfo;
   otherParticipants: ParticipantInfo[];
   serverVersion: string;
+  iceServers: ICEServer[];
 }
 
 export interface TrackPublishedResponse {
@@ -135,6 +136,12 @@ export interface UpdateTrackSettings {
   trackSids: string[];
   mute: boolean;
   quality: VideoQuality;
+}
+
+export interface ICEServer {
+  urls: string[];
+  username: string;
+  credential: string;
 }
 
 const baseSignalRequest: object = {
@@ -198,6 +205,12 @@ const baseUpdateTrackSettings: object = {
   trackSids: "",
   mute: false,
   quality: 0,
+};
+
+const baseICEServer: object = {
+  urls: "",
+  username: "",
+  credential: "",
 };
 
 export const protobufPackage = 'livekit'
@@ -819,6 +832,9 @@ export const JoinResponse = {
       ParticipantInfo.encode(v!, writer.uint32(26).fork()).ldelim();
     }
     writer.uint32(34).string(message.serverVersion);
+    for (const v of message.iceServers) {
+      ICEServer.encode(v!, writer.uint32(42).fork()).ldelim();
+    }
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): JoinResponse {
@@ -826,6 +842,7 @@ export const JoinResponse = {
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseJoinResponse } as JoinResponse;
     message.otherParticipants = [];
+    message.iceServers = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -841,6 +858,9 @@ export const JoinResponse = {
         case 4:
           message.serverVersion = reader.string();
           break;
+        case 5:
+          message.iceServers.push(ICEServer.decode(reader, reader.uint32()));
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -851,6 +871,7 @@ export const JoinResponse = {
   fromJSON(object: any): JoinResponse {
     const message = { ...baseJoinResponse } as JoinResponse;
     message.otherParticipants = [];
+    message.iceServers = [];
     if (object.room !== undefined && object.room !== null) {
       message.room = Room.fromJSON(object.room);
     } else {
@@ -871,11 +892,17 @@ export const JoinResponse = {
     } else {
       message.serverVersion = "";
     }
+    if (object.iceServers !== undefined && object.iceServers !== null) {
+      for (const e of object.iceServers) {
+        message.iceServers.push(ICEServer.fromJSON(e));
+      }
+    }
     return message;
   },
   fromPartial(object: DeepPartial<JoinResponse>): JoinResponse {
     const message = { ...baseJoinResponse } as JoinResponse;
     message.otherParticipants = [];
+    message.iceServers = [];
     if (object.room !== undefined && object.room !== null) {
       message.room = Room.fromPartial(object.room);
     } else {
@@ -896,6 +923,11 @@ export const JoinResponse = {
     } else {
       message.serverVersion = "";
     }
+    if (object.iceServers !== undefined && object.iceServers !== null) {
+      for (const e of object.iceServers) {
+        message.iceServers.push(ICEServer.fromPartial(e));
+      }
+    }
     return message;
   },
   toJSON(message: JoinResponse): unknown {
@@ -908,6 +940,11 @@ export const JoinResponse = {
       obj.otherParticipants = [];
     }
     message.serverVersion !== undefined && (obj.serverVersion = message.serverVersion);
+    if (message.iceServers) {
+      obj.iceServers = message.iceServers.map(e => e ? ICEServer.toJSON(e) : undefined);
+    } else {
+      obj.iceServers = [];
+    }
     return obj;
   },
 };
@@ -1410,6 +1447,92 @@ export const UpdateTrackSettings = {
     }
     message.mute !== undefined && (obj.mute = message.mute);
     message.quality !== undefined && (obj.quality = videoQualityToJSON(message.quality));
+    return obj;
+  },
+};
+
+export const ICEServer = {
+  encode(message: ICEServer, writer: Writer = Writer.create()): Writer {
+    for (const v of message.urls) {
+      writer.uint32(10).string(v!);
+    }
+    writer.uint32(18).string(message.username);
+    writer.uint32(26).string(message.credential);
+    return writer;
+  },
+  decode(input: Uint8Array | Reader, length?: number): ICEServer {
+    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseICEServer } as ICEServer;
+    message.urls = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.urls.push(reader.string());
+          break;
+        case 2:
+          message.username = reader.string();
+          break;
+        case 3:
+          message.credential = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+  fromJSON(object: any): ICEServer {
+    const message = { ...baseICEServer } as ICEServer;
+    message.urls = [];
+    if (object.urls !== undefined && object.urls !== null) {
+      for (const e of object.urls) {
+        message.urls.push(String(e));
+      }
+    }
+    if (object.username !== undefined && object.username !== null) {
+      message.username = String(object.username);
+    } else {
+      message.username = "";
+    }
+    if (object.credential !== undefined && object.credential !== null) {
+      message.credential = String(object.credential);
+    } else {
+      message.credential = "";
+    }
+    return message;
+  },
+  fromPartial(object: DeepPartial<ICEServer>): ICEServer {
+    const message = { ...baseICEServer } as ICEServer;
+    message.urls = [];
+    if (object.urls !== undefined && object.urls !== null) {
+      for (const e of object.urls) {
+        message.urls.push(e);
+      }
+    }
+    if (object.username !== undefined && object.username !== null) {
+      message.username = object.username;
+    } else {
+      message.username = "";
+    }
+    if (object.credential !== undefined && object.credential !== null) {
+      message.credential = object.credential;
+    } else {
+      message.credential = "";
+    }
+    return message;
+  },
+  toJSON(message: ICEServer): unknown {
+    const obj: any = {};
+    if (message.urls) {
+      obj.urls = message.urls.map(e => e);
+    } else {
+      obj.urls = [];
+    }
+    message.username !== undefined && (obj.username = message.username);
+    message.credential !== undefined && (obj.credential = message.credential);
     return obj;
   },
 };

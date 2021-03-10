@@ -50,13 +50,7 @@ export async function connect(
 
   log.setLevel(options.logLevel);
 
-  let config: RTCConfiguration = {
-    iceServers: [
-      {
-        urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
-      },
-    ],
-  };
+  let config: RTCConfiguration = {};
   if (options.iceServers) {
     config.iceServers = options.iceServers;
   }
@@ -83,7 +77,7 @@ export async function connect(
     room.autoTracks = [];
     for (let i = 0; i < tracks.length; i++) {
       const track = tracks[i];
-      // video options
+      // translate publish options
       const trackOptions: TrackPublishOptions = {};
       if (
         track.kind === Track.Kind.Video.toString() ||
@@ -92,6 +86,11 @@ export async function connect(
         trackOptions.videoCodec = options?.videoCodec;
         trackOptions.videoEncoding = options?.videoEncoding;
         trackOptions.simulcast = options?.simulcast;
+      } else if (
+        track.kind === Track.Kind.Audio.toString() ||
+        track.kind === Track.Kind.Audio
+      ) {
+        trackOptions.audioBitrate = options.audioBitrate;
       }
 
       const publication = await room.localParticipant.publishTrack(

@@ -21,6 +21,11 @@ export interface TrackPublishOptions {
   videoCodec?: VideoCodec;
 
   /**
+   * max audio bitrate, defaults to [[AudioPresets.speech]]
+   */
+  audioBitrate?: number;
+
+  /**
    * use simulcast, defaults to false.
    * When using simulcast, LiveKit will publish up to three version of the stream at varying qualiti
    */

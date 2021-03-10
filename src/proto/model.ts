@@ -9,6 +9,7 @@ export interface Room {
   emptyTimeout: number;
   maxParticipants: number;
   creationTime: number;
+  turnPassword: string;
 }
 
 export interface ParticipantInfo {
@@ -37,6 +38,7 @@ const baseRoom: object = {
   emptyTimeout: 0,
   maxParticipants: 0,
   creationTime: 0,
+  turnPassword: "",
 };
 
 const baseParticipantInfo: object = {
@@ -162,6 +164,7 @@ export const Room = {
     writer.uint32(24).uint32(message.emptyTimeout);
     writer.uint32(32).uint32(message.maxParticipants);
     writer.uint32(40).int64(message.creationTime);
+    writer.uint32(50).string(message.turnPassword);
     return writer;
   },
   decode(input: Uint8Array | Reader, length?: number): Room {
@@ -185,6 +188,9 @@ export const Room = {
           break;
         case 5:
           message.creationTime = longToNumber(reader.int64() as Long);
+          break;
+        case 6:
+          message.turnPassword = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -220,6 +226,11 @@ export const Room = {
     } else {
       message.creationTime = 0;
     }
+    if (object.turnPassword !== undefined && object.turnPassword !== null) {
+      message.turnPassword = String(object.turnPassword);
+    } else {
+      message.turnPassword = "";
+    }
     return message;
   },
   fromPartial(object: DeepPartial<Room>): Room {
@@ -249,6 +260,11 @@ export const Room = {
     } else {
       message.creationTime = 0;
     }
+    if (object.turnPassword !== undefined && object.turnPassword !== null) {
+      message.turnPassword = object.turnPassword;
+    } else {
+      message.turnPassword = "";
+    }
     return message;
   },
   toJSON(message: Room): unknown {
@@ -258,6 +274,7 @@ export const Room = {
     message.emptyTimeout !== undefined && (obj.emptyTimeout = message.emptyTimeout);
     message.maxParticipants !== undefined && (obj.maxParticipants = message.maxParticipants);
     message.creationTime !== undefined && (obj.creationTime = message.creationTime);
+    message.turnPassword !== undefined && (obj.turnPassword = message.turnPassword);
     return obj;
   },
 };
