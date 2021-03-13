@@ -26,6 +26,7 @@ export class RTCEngine extends EventEmitter {
   iceConnected: boolean = false;
   pendingCandidates: RTCIceCandidateInit[] = [];
   pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
+  disconnectTimeout?: ReturnType<typeof setTimeout>;
 
   // keep join info around for reconnect
   url?: string;
@@ -74,8 +75,10 @@ export class RTCEngine extends EventEmitter {
   }
 
   close() {
-    this.publisher.close();
-    this.subscriber.close();
+    if (this.publisher) {
+      this.publisher.close();
+      this.subscriber.close();
+    }
     this.client.close();
   }
 
@@ -123,18 +126,33 @@ export class RTCEngine extends EventEmitter {
     };
 
     this.publisher.pc.oniceconnectionstatechange = (ev) => {
-      if (
-        this.publisher.pc.iceConnectionState === 'connected' &&
-        !this.iceConnected
-      ) {
+      if (this.publisher.pc.iceConnectionState === 'connected') {
         log.trace('ICE connected');
-        this.iceConnected = true;
-        this.emit(EngineEvent.Connected);
+        if (this.disconnectTimeout) {
+          clearTimeout(this.disconnectTimeout);
+          this.disconnectTimeout = undefined;
+        }
+        if (!this.iceConnected) {
+          this.iceConnected = true;
+          this.emit(EngineEvent.Connected);
+        }
       } else if (this.publisher.pc.iceConnectionState === 'disconnected') {
         log.trace('ICE disconnected');
-        this.iceConnected = false;
-        this.emit(EngineEvent.Disconnected);
-        this.close();
+        if (this.disconnectTimeout) {
+          return;
+        }
+        // Safari sends ICE disconnect during negotiation, it'll reconnect
+        // once server responds
+        // We'll trigger disconnect after a long delay if we are in the waiting-for-server-answer
+        // state
+        const delay =
+          this.publisher.pc.signalingState == 'have-local-offer' ? 3000 : 100;
+        this.disconnectTimeout = setTimeout(() => {
+          this.disconnectTimeout = undefined;
+          this.iceConnected = false;
+          this.emit(EngineEvent.Disconnected);
+          this.close();
+        }, delay);
       }
     };
 

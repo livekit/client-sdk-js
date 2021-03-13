@@ -141,7 +141,8 @@ export class LocalVideoTrack extends VideoTrack {
   private handleStats(prev: VideoSenderStats, curr: VideoSenderStats) {
     const pliDelta = curr.pliCount - prev.pliCount;
     const nackDelta = curr.nackCount - prev.nackCount;
-    const qualityLimited = curr.qualityLimitationReason != 'none';
+    const qualityLimited =
+      curr.qualityLimitationReason && curr.qualityLimitationReason != 'none';
     if (pliDelta > 0 || qualityLimited) {
       log.debug(
         'detected publisher quality issue',
