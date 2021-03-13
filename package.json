@@ -10,7 +10,7 @@
   "scripts": {
     "build": "yarn exec tsc",
     "build-docs": "yarn exec typedoc",
-    "proto": "protoc --plugin=node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_out=./src/proto --ts_proto_opt=outputClientImpl=false,useOptionals=true -I../livekit-server/proto ../livekit-server/proto/rtc.proto ../livekit-server/proto/model.proto",
+    "proto": "protoc --plugin=node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_out=./src/proto --ts_proto_opt=outputClientImpl=false,useOptionals=true -I../protocol ../protocol/rtc.proto ../protocol/model.proto",
     "sample": "cd example && webpack serve",
     "test": "jest"
   },
