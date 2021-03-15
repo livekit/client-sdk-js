@@ -11,12 +11,6 @@ import {
   TrackPublishedResponse,
 } from '../proto/rtc';
 
-export interface ConnectionInfo {
-  host: string;
-  port: number;
-  secure?: boolean;
-}
-
 /**
  * RTCClient is the signaling layer of WebRTC, it's LiveKit's signaling protocol
  * so that it

@@ -1,4 +1,3 @@
-import { ConnectionInfo } from './api/SignalClient';
 import { LocalParticipant } from './room/participant/LocalParticipant';
 import { Participant } from './room/participant/Participant';
 import { RemoteParticipant } from './room/participant/RemoteParticipant';
@@ -28,11 +27,4 @@ export * from './room/track/TrackPublication';
 export * from './room/track/types';
 export * from './room/track/VideoTrack';
 export * from './version';
-export {
-  ConnectionInfo,
-  Room,
-  RoomState,
-  Participant,
-  RemoteParticipant,
-  LocalParticipant,
-};
+export { Room, RoomState, Participant, RemoteParticipant, LocalParticipant };
