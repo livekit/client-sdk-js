@@ -45,6 +45,7 @@ export interface SignalClient {
 
 export class WSSignalClient {
   isConnected: boolean;
+  useJSON: boolean;
   onClose?: (reason: string) => void;
   onAnswer?: (sd: RTCSessionDescriptionInit) => void;
   onOffer?: (sd: RTCSessionDescriptionInit) => void;
@@ -57,8 +58,9 @@ export class WSSignalClient {
 
   ws?: WebSocket;
 
-  constructor() {
+  constructor(useJSON: boolean = false) {
     this.isConnected = false;
+    this.useJSON = useJSON;
   }
 
   async reconnect(url: string, token: string): Promise<void> {
@@ -79,6 +81,7 @@ export class WSSignalClient {
     return new Promise<JoinResponse | void>((resolve, reject) => {
       log.debug('connecting to', url);
       const ws = new WebSocket(url);
+      ws.binaryType = 'arraybuffer';
       ws.onerror = (ev: Event) => {
         if (!this.ws) {
           // not yet connected, reject
@@ -100,8 +103,16 @@ export class WSSignalClient {
 
       ws.onmessage = (ev: MessageEvent) => {
         // not considered connected until JoinResponse is received
-        const json = JSON.parse(ev.data);
-        const msg = SignalResponse.fromJSON(json);
+        let msg: SignalResponse;
+        if (typeof ev.data === 'string') {
+          const json = JSON.parse(ev.data);
+          msg = SignalResponse.fromJSON(json);
+        } else if (ev.data instanceof ArrayBuffer) {
+          msg = SignalResponse.decode(new Uint8Array(ev.data));
+        } else {
+          log.error('could not decode websocket message', typeof ev.data);
+          return;
+        }
 
         if (!this.isConnected) {
           // handle join message only
@@ -183,8 +194,11 @@ export class WSSignalClient {
       throw 'cannot send signal request before connected';
     }
 
-    const msg = SignalRequest.toJSON(req);
-    this.ws.send(JSON.stringify(msg));
+    if (this.useJSON) {
+      this.ws.send(JSON.stringify(SignalRequest.toJSON(req)));
+    } else {
+      this.ws.send(SignalRequest.encode(req).finish());
+    }
   }
 
   private handleSignalResponse(msg: SignalResponse) {
