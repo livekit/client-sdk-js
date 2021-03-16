@@ -10,7 +10,6 @@ import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant } from './participant/LocalParticipant';
 import { RemoteParticipant } from './participant/RemoteParticipant';
 import { RTCEngine } from './RTCEngine';
-import { LocalTrackPublication } from './track/LocalTrackPublication';
 import { RemoteDataTrack } from './track/RemoteDataTrack';
 import { RemoteTrackPublication } from './track/RemoteTrackPublication';
 import { TrackPublication } from './track/TrackPublication';
@@ -42,8 +41,6 @@ class Room extends EventEmitter {
   activeSpeakers: Participant[] = [];
   /** @internal */
   engine!: RTCEngine;
-  /** @internal */
-  autoTracks?: LocalTrackPublication[];
 
   // available after connected
   /** server assigned unique room id */

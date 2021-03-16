@@ -74,7 +74,6 @@ export async function connect(
   }
 
   if (tracks) {
-    room.autoTracks = [];
     for (let i = 0; i < tracks.length; i++) {
       const track = tracks[i];
       // translate publish options
@@ -97,7 +96,6 @@ export async function connect(
         track,
         trackOptions
       );
-      room.autoTracks.push(publication);
     }
   }
 
