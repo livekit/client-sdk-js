@@ -16,7 +16,6 @@ import {
 import { Participant } from './Participant';
 
 export class RemoteParticipant extends Participant {
-  private participantInfo?: ParticipantInfo;
   audioTracks: Map<string, RemoteAudioTrackPublication>;
   videoTracks: Map<string, RemoteVideoTrackPublication>;
   dataTracks: Map<string, RemoteDataTrackPublication>;
@@ -157,10 +156,7 @@ export class RemoteParticipant extends Participant {
   updateInfo(info: ParticipantInfo) {
     const alreadyHasMetadata = this.hasMetadata;
 
-    this.identity = info.identity;
-    this.sid = info.sid;
-    this.participantInfo = info;
-    this.setMetadata(info.metadata);
+    super.updateInfo(info);
 
     // we are getting a list of all available tracks, reconcile in here
     // and send out events for changes

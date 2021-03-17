@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
+import { ParticipantInfo } from '../../proto/model';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { Track } from '../track/Track';
 import { TrackPublication } from '../track/TrackPublication';
@@ -14,6 +15,7 @@ export type VideoTrackMap = { [key: string]: VideoTrackPublication };
 export type DataTrackMap = { [key: string]: DataTrackPublication };
 
 export class Participant extends EventEmitter {
+  protected participantInfo?: ParticipantInfo;
   audioTracks: Map<string, AudioTrackPublication>;
   videoTracks: Map<string, VideoTrackPublication>;
   dataTracks: Map<string, DataTrackPublication>;
@@ -45,7 +47,19 @@ export class Participant extends EventEmitter {
   }
 
   /** @internal */
+  updateInfo(info: ParticipantInfo) {
+    this.identity = info.identity;
+    this.sid = info.sid;
+    this.setMetadata(info.metadata);
+    // set this last so setMetadata can detect changes
+    this.participantInfo = info;
+  }
+
+  /** @internal */
   setMetadata(md: string) {
+    const changed =
+      !this.participantInfo || this.participantInfo.metadata != md;
+    const prevMetadata = this.metadata;
     if (!md) {
       this.metadata = {};
     } else {
@@ -54,6 +68,10 @@ export class Participant extends EventEmitter {
       } catch (err) {
         log.error('could not decode metadata', err);
       }
+    }
+
+    if (changed) {
+      this.emit(ParticipantEvent.MetadataChanged, prevMetadata);
     }
   }
 

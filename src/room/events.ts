@@ -96,6 +96,16 @@ export enum RoomEvent {
    * args: (Array<[[Participant]]>)
    */
   ActiveSpeakersChanged = 'activeSpeakersChanged',
+
+  /**
+   * Participant metadata is an easy way for the application to push updates to
+   * app-specific state to the client.
+   * When RoomService.UpdateParticipantMetadata is called to change a participant's
+   * state, *all* other participants in the room will fire this event.
+   *
+   * args: (prevMetadata: object, Participant)
+   */
+  MetadataChanged = 'metadataChanged',
 }
 
 export enum ParticipantEvent {
@@ -107,6 +117,7 @@ export enum ParticipantEvent {
   TrackMuted = 'trackMuted',
   TrackUnmuted = 'trackUnmuted',
   TrackMessage = 'trackMessage',
+  MetadataChanged = 'metadataChanged',
 }
 
 /** @internal */

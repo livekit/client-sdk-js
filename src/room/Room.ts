@@ -179,6 +179,11 @@ class Room extends EventEmitter {
   private handleParticipantUpdates(participantInfos: ParticipantInfo[]) {
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
+      if (info.sid === this.localParticipant.sid) {
+        this.localParticipant.updateInfo(info);
+        return;
+      }
+
       let remoteParticipant = this.participants.get(info.sid);
       const isNewParticipant = !remoteParticipant;
 
@@ -311,6 +316,13 @@ class Room extends EventEmitter {
       participant.on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
         this.emit(RoomEvent.TrackUnmuted, pub, participant);
       });
+
+      participant.on(
+        ParticipantEvent.MetadataChanged,
+        (metadata: object, p: Participant) => {
+          this.emit(RoomEvent.MetadataChanged, metadata, p);
+        }
+      );
     }
     return participant;
   }
