@@ -145,7 +145,6 @@
 				C60F4130A7ED296927EA7C05 /* Pods-livekitsample-livekitsampleTests.debug.xcconfig */,
 				BF7E063715D9E8DAD7E29981 /* Pods-livekitsample-livekitsampleTests.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -485,6 +484,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = F75CPTN6Y9;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = livekitsample/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -511,6 +511,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = F75CPTN6Y9;
 				INFOPLIST_FILE = livekitsample/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
