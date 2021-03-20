@@ -1,4 +1,4 @@
-import { TrackInfo } from '../../proto/model';
+import { TrackInfo } from '../../proto/livekit_models';
 import { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
 import { LocalTrack } from './types';

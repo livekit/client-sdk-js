@@ -1,4 +1,4 @@
-import { TrackInfo } from '../../proto/model';
+import { TrackInfo } from '../../proto/livekit_models';
 import { TrackEvent } from '../events';
 import { RemoteAudioTrack } from './RemoteAudioTrack';
 import { RemoteVideoTrack } from './RemoteVideoTrack';

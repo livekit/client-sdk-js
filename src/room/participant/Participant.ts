@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
-import { ParticipantInfo } from '../../proto/model';
+import { ParticipantInfo } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { Track } from '../track/Track';
 import { TrackPublication } from '../track/TrackPublication';

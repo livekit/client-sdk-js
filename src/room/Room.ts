@@ -3,8 +3,11 @@ import log from 'loglevel';
 import { SemVer } from 'semver';
 import { Participant } from '..';
 import { SignalClient } from '../api/SignalClient';
-import { ParticipantInfo, ParticipantInfo_State } from '../proto/model';
-import { SpeakerInfo } from '../proto/rtc';
+import {
+  ParticipantInfo,
+  ParticipantInfo_State,
+} from '../proto/livekit_models';
+import { SpeakerInfo } from '../proto/livekit_rtc';
 import { UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant } from './participant/LocalParticipant';

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { TrackInfo } from '../../proto/model';
+import { TrackInfo } from '../../proto/livekit_models';
 import { Track } from './Track';
 
 export class TrackPublication extends EventEmitter {

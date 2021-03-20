@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { TrackType, Room, ParticipantInfo, TrackInfo, trackTypeFromJSON, trackTypeToJSON } from './model';
+import { TrackType, Room, ParticipantInfo, TrackInfo, trackTypeFromJSON, trackTypeToJSON } from './livekit_models';
 import { Writer, Reader } from 'protobufjs/minimal';
 
 
@@ -15,7 +15,7 @@ export interface SignalRequest {
   trickle?: TrickleRequest | undefined;
   addTrack?: AddTrackRequest | undefined;
   /**
-   *  mute the participant's own tracks
+   *  mute the participant's published tracks
    */
   mute?: MuteTrackRequest | undefined;
   /**
@@ -128,7 +128,6 @@ export interface SpeakerInfo {
 export interface UpdateSubscription {
   trackSids: string[];
   subscribe: boolean;
-  mute: boolean;
   quality: VideoQuality;
 }
 
@@ -197,7 +196,6 @@ const baseSpeakerInfo: object = {
 const baseUpdateSubscription: object = {
   trackSids: "",
   subscribe: false,
-  mute: false,
   quality: 0,
 };
 
@@ -1270,7 +1268,6 @@ export const UpdateSubscription = {
       writer.uint32(10).string(v!);
     }
     writer.uint32(16).bool(message.subscribe);
-    writer.uint32(24).bool(message.mute);
     writer.uint32(32).int32(message.quality);
     return writer;
   },
@@ -1287,9 +1284,6 @@ export const UpdateSubscription = {
           break;
         case 2:
           message.subscribe = reader.bool();
-          break;
-        case 3:
-          message.mute = reader.bool();
           break;
         case 4:
           message.quality = reader.int32() as any;
@@ -1314,11 +1308,6 @@ export const UpdateSubscription = {
     } else {
       message.subscribe = false;
     }
-    if (object.mute !== undefined && object.mute !== null) {
-      message.mute = Boolean(object.mute);
-    } else {
-      message.mute = false;
-    }
     if (object.quality !== undefined && object.quality !== null) {
       message.quality = videoQualityFromJSON(object.quality);
     } else {
@@ -1339,11 +1328,6 @@ export const UpdateSubscription = {
     } else {
       message.subscribe = false;
     }
-    if (object.mute !== undefined && object.mute !== null) {
-      message.mute = object.mute;
-    } else {
-      message.mute = false;
-    }
     if (object.quality !== undefined && object.quality !== null) {
       message.quality = object.quality;
     } else {
@@ -1359,7 +1343,6 @@ export const UpdateSubscription = {
       obj.trackSids = [];
     }
     message.subscribe !== undefined && (obj.subscribe = message.subscribe);
-    message.mute !== undefined && (obj.mute = message.mute);
     message.quality !== undefined && (obj.quality = videoQualityToJSON(message.quality));
     return obj;
   },

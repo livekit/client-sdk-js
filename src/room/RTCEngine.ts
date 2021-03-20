@@ -1,12 +1,12 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
 import { SignalClient } from '../api/SignalClient';
-import { TrackInfo } from '../proto/model';
+import { TrackInfo } from '../proto/livekit_models';
 import {
   JoinResponse,
   SignalTarget,
   TrackPublishedResponse,
-} from '../proto/rtc';
+} from '../proto/livekit_rtc';
 import { TrackInvalidError } from './errors';
 import { EngineEvent } from './events';
 import { PCTransport } from './PCTransport';

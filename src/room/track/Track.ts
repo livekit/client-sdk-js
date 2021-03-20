@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { TrackType } from '../../proto/model';
+import { TrackType } from '../../proto/livekit_models';
 
 export class Track extends EventEmitter {
   kind: Track.Kind;

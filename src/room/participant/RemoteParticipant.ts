@@ -1,5 +1,5 @@
 import log from 'loglevel';
-import { ParticipantInfo, TrackType } from '../../proto/model';
+import { ParticipantInfo, TrackType } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RemoteAudioTrack } from '../track/RemoteAudioTrack';
 import { RemoteAudioTrackPublication } from '../track/RemoteAudioTrackPublication';

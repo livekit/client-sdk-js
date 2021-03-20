@@ -1,6 +1,6 @@
 import log from 'loglevel';
 import 'webrtc-adapter';
-import { ParticipantInfo, TrackType } from '../proto/model';
+import { ParticipantInfo, TrackType } from '../proto/livekit_models';
 import {
   JoinResponse,
   SessionDescription,
@@ -9,7 +9,7 @@ import {
   SignalTarget,
   SpeakerInfo,
   TrackPublishedResponse,
-} from '../proto/rtc';
+} from '../proto/livekit_rtc';
 
 /**
  * RTCClient is the signaling layer of WebRTC, it's LiveKit's signaling protocol

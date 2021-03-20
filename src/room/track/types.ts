@@ -1,4 +1,4 @@
-import { TrackInfo, TrackType } from '../../proto/model';
+import { TrackInfo, TrackType } from '../../proto/livekit_models';
 import { TrackInvalidError } from '../errors';
 import { LocalAudioTrack } from './LocalAudioTrack';
 import { LocalAudioTrackPublication } from './LocalAudioTrackPublication';
