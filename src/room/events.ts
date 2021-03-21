@@ -103,7 +103,7 @@ export enum RoomEvent {
    * When RoomService.UpdateParticipantMetadata is called to change a participant's
    * state, *all*  participants in the room will fire this event.
    *
-   * args: (prevMetadata: object, Participant)
+   * args: (prevMetadata: string, Participant)
    */
   MetadataChanged = 'metadataChanged',
 }

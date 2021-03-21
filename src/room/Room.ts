@@ -122,6 +122,13 @@ class Room extends EventEmitter {
         this.engine
       );
       this.localParticipant.setMetadata(pi.metadata);
+      // forward metadata changed for the local participant
+      this.localParticipant.on(
+        ParticipantEvent.MetadataChanged,
+        (metadata: object, p: Participant) => {
+          this.emit(RoomEvent.MetadataChanged, metadata, p);
+        }
+      );
 
       // populate remote participants, these should not trigger new events
       joinResponse.otherParticipants.forEach((pi) => {

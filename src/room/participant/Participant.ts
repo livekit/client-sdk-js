@@ -27,7 +27,7 @@ export class Participant extends EventEmitter {
   sid: string;
   /** client assigned identity, encoded in JWT token */
   identity: string;
-  /** client passed metadata, encoded in JWT token */
+  /** client metadata, opaque to livekit */
   metadata?: string;
 
   /** @internal */
