@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-import log from 'loglevel';
 import { ParticipantInfo } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { Track } from '../track/Track';
@@ -29,7 +28,7 @@ export class Participant extends EventEmitter {
   /** client assigned identity, encoded in JWT token */
   identity: string;
   /** client passed metadata, encoded in JWT token */
-  metadata: object = {};
+  metadata?: string;
 
   /** @internal */
   constructor(sid: string, identity: string) {
@@ -60,15 +59,7 @@ export class Participant extends EventEmitter {
     const changed =
       !this.participantInfo || this.participantInfo.metadata != md;
     const prevMetadata = this.metadata;
-    if (!md) {
-      this.metadata = {};
-    } else {
-      try {
-        this.metadata = JSON.parse(md);
-      } catch (err) {
-        log.error('could not decode metadata', err);
-      }
-    }
+    this.metadata = md;
 
     if (changed) {
       this.emit(ParticipantEvent.MetadataChanged, prevMetadata);
