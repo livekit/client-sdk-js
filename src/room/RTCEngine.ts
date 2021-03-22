@@ -11,6 +11,7 @@ import { TrackInvalidError } from './errors';
 import { EngineEvent } from './events';
 import { PCTransport } from './PCTransport';
 import { Track } from './track/Track';
+import { useLegacyAPI } from './utils';
 
 const placeholderDataChannel = '_private';
 const maxWSRetries = 10;
@@ -20,6 +21,7 @@ export class RTCEngine extends EventEmitter {
   subscriber?: PCTransport;
   client: SignalClient;
   rtcConfig: RTCConfiguration;
+  useLegacy: boolean;
 
   privateDC?: RTCDataChannel;
   rtcConnected: boolean = false;
@@ -37,13 +39,15 @@ export class RTCEngine extends EventEmitter {
     this.client = client;
     this.rtcConfig = config || {};
     this.numRetries = 0;
+    this.useLegacy = useLegacyAPI();
+    log.trace('creating RTCEngine', 'useLegacy', this.useLegacy);
   }
 
   async join(url: string, token: string): Promise<JoinResponse> {
     this.url = url;
     this.token = token;
 
-    const joinResponse = await this.client.join(url, token);
+    const joinResponse = await this.client.join(url, token, this.useLegacy);
 
     if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
       this.rtcConfig.iceServers = [];
@@ -60,6 +64,10 @@ export class RTCEngine extends EventEmitter {
 
     // update ICE servers before creating PeerConnection
     if (!this.publisher) {
+      const conf: any = this.rtcConfig;
+      if (this.useLegacy) {
+        conf.sdpSemantics = 'plan-b';
+      }
       this.publisher = new PCTransport(this.rtcConfig);
       this.subscriber = new PCTransport(this.rtcConfig);
       this.configure();
@@ -158,14 +166,21 @@ export class RTCEngine extends EventEmitter {
       }
     };
 
-    this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
-      log.debug('engine fired track added', ev.track);
-      this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.receiver, ev.streams);
-    };
-
-    this.subscriber.pc.ondatachannel = (ev: RTCDataChannelEvent) => {
-      this.emit(EngineEvent.DataChannelAdded, ev.channel);
-    };
+    if (this.useLegacy) {
+      this.subscriber.pc.addEventListener('addstream', (ev: any) => {
+        const stream: MediaStream = ev.stream;
+        for (let t of stream.getTracks()) {
+          this.emitTrackEvent(t, stream);
+        }
+      });
+    } else {
+      this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
+        this.emitTrackEvent(ev.track, ev.streams[0], ev.receiver);
+      };
+      this.subscriber.pc.ondatachannel = (ev: RTCDataChannelEvent) => {
+        this.emit(EngineEvent.DataChannelAdded, ev.channel);
+      };
+    }
 
     // always have a blank data channel, to ensure there isn't an empty ice-ufrag
     this.privateDC = this.publisher.pc.createDataChannel(
@@ -289,4 +304,12 @@ export class RTCEngine extends EventEmitter {
     log.debug('RTC connected');
     this.rtcConnected = true;
   }
+
+  private emitTrackEvent = (
+    track: MediaStreamTrack,
+    stream: MediaStream,
+    receiver?: RTCRtpReceiver
+  ) => {
+    this.emit(EngineEvent.MediaTrackAdded, track, stream, receiver);
+  };
 }

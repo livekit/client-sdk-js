@@ -16,7 +16,7 @@ import { RemoteDataTrack } from './track/RemoteDataTrack';
 import { RemoteTrackPublication } from './track/RemoteTrackPublication';
 import { TrackPublication } from './track/TrackPublication';
 import { RemoteTrack } from './track/types';
-import { unpackDataTrackLabel } from './utils';
+import { unpackDataTrackLabel, unpackStreamId } from './utils';
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -62,10 +62,10 @@ class Room extends EventEmitter {
       EngineEvent.MediaTrackAdded,
       (
         mediaTrack: MediaStreamTrack,
-        receiver: RTCRtpReceiver,
-        streams: MediaStream[]
+        stream: MediaStream,
+        receiver?: RTCRtpReceiver
       ) => {
-        this.onTrackAdded(mediaTrack, receiver, streams);
+        this.onTrackAdded(mediaTrack, stream, receiver);
       }
     );
 
@@ -163,11 +163,13 @@ class Room extends EventEmitter {
 
   private onTrackAdded(
     mediaTrack: MediaStreamTrack,
-    receiver: RTCRtpReceiver,
-    streams: MediaStream[]
+    stream: MediaStream,
+    receiver?: RTCRtpReceiver
   ) {
-    const participantId = streams[0].id;
-    const trackId = mediaTrack.id;
+    const parts = unpackStreamId(stream.id);
+    const participantId = parts[0];
+    let trackId = parts[1];
+    if (!trackId || trackId === '') trackId = mediaTrack.id;
 
     const participant = this.getOrCreateParticipant(participantId);
     participant.addSubscribedMediaTrack(mediaTrack, trackId, receiver);

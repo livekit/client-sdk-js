@@ -62,7 +62,7 @@ export class RemoteParticipant extends Participant {
   addSubscribedMediaTrack(
     mediaTrack: MediaStreamTrack,
     sid: Track.SID,
-    receiver: RTCRtpReceiver,
+    receiver?: RTCRtpReceiver,
     triesLeft?: number
   ) {
     // find the track publication

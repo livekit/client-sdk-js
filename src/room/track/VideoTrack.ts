@@ -18,10 +18,14 @@ export class VideoTrack extends Track {
   protected constructor(mediaTrack: MediaStreamTrack, name?: string) {
     super(Track.Kind.Video, name || mediaTrack.label);
     this.mediaStreamTrack = mediaTrack;
-    const { width, height } = mediaTrack.getSettings();
-    if (width && height) {
-      this.dimensions.width = width;
-      this.dimensions.height = height;
+    try {
+      const { width, height } = mediaTrack.getSettings();
+      if (width && height) {
+        this.dimensions.width = width;
+        this.dimensions.height = height;
+      }
+    } catch (e) {
+      // ignore, react native doesn't support getSettings
     }
   }
 

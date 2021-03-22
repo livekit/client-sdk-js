@@ -8,7 +8,7 @@ export class RemoteAudioTrack extends AudioTrack {
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
-    receiver: RTCRtpReceiver
+    receiver?: RTCRtpReceiver
   ) {
     super(mediaTrack);
     this.sid = sid;

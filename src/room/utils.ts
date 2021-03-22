@@ -1,11 +1,11 @@
 const separator = '|';
 
-export function unpackTrackId(packed: string): string[] {
+export function unpackStreamId(packed: string): string[] {
   const parts = packed.split(separator);
   if (parts.length > 1) {
     return [parts[0], packed.substr(parts[0].length + 1)];
   }
-  return ['', packed];
+  return [packed, ''];
 }
 
 export function unpackDataTrackLabel(packed: string): string[] {
@@ -14,4 +14,9 @@ export function unpackDataTrackLabel(packed: string): string[] {
     return ['', '', ''];
   }
   return [parts[0], parts[1], parts[2]];
+}
+
+export function useLegacyAPI(): boolean {
+  // react native is using old stream based API
+  return typeof navigator != 'undefined' && navigator.product == 'ReactNative';
 }

@@ -11,7 +11,7 @@ export class RemoteVideoTrack extends VideoTrack {
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
-    receiver: RTCRtpReceiver
+    receiver?: RTCRtpReceiver
   ) {
     super(mediaTrack);
     // override id to parsed ID

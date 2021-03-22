@@ -108,6 +108,7 @@ export class LocalParticipant extends Participant {
       let encodings: RTCRtpEncodingParameters[] | undefined = undefined;
       // for video
       if (track.kind === Track.Kind.Video) {
+        // TODO: support react native, which doesn't expose getSettings
         const settings = track.mediaStreamTrack.getSettings();
         encodings = this.computeVideoEncodings(
           settings.width,

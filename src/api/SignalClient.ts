@@ -12,13 +12,19 @@ import {
   UpdateSubscription,
   UpdateTrackSettings,
 } from '../proto/livekit_rtc';
+import { protocolVersion } from '../version';
+
+interface SignalOptions {
+  usePlanB?: boolean;
+  reconnect?: boolean;
+}
 
 /**
  * RTCClient is the signaling layer of WebRTC, it's LiveKit's signaling protocol
  * so that it
  */
 export interface SignalClient {
-  join(url: string, token: string): Promise<JoinResponse>;
+  join(url: string, token: string, usePlanB?: boolean): Promise<JoinResponse>;
   reconnect(url: string, token: string): Promise<void>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendAnswer(answer: RTCSessionDescriptionInit): void;
@@ -68,20 +74,34 @@ export class WSSignalClient {
     this.useJSON = useJSON;
   }
 
-  async reconnect(url: string, token: string): Promise<void> {
-    await this.join(url, token, true);
-  }
-
-  join(url: string, token: string): Promise<JoinResponse>;
-  join(url: string, token: string, reconnect: boolean): Promise<void>;
-  join(
+  async join(
     url: string,
     token: string,
-    reconnect: boolean = false
+    planB: boolean = false
+  ): Promise<JoinResponse> {
+    const res = await this.connect(url, token, {
+      usePlanB: planB,
+    });
+    return res as JoinResponse;
+  }
+
+  async reconnect(url: string, token: string): Promise<void> {
+    await this.connect(url, token, {
+      reconnect: true,
+    });
+  }
+
+  connect(
+    url: string,
+    token: string,
+    opts: SignalOptions
   ): Promise<JoinResponse | void> {
-    url += `/rtc?access_token=${token}`;
-    if (reconnect) {
+    url += `/rtc?access_token=${token}&protocol=${protocolVersion}`;
+    if (opts.reconnect) {
       url += '&reconnect=1';
+    }
+    if (opts.usePlanB) {
+      url += '&planb=1';
     }
     return new Promise<JoinResponse | void>((resolve, reject) => {
       log.debug('connecting to', url);
@@ -99,7 +119,7 @@ export class WSSignalClient {
 
       ws.onopen = (ev: Event) => {
         this.ws = ws;
-        if (reconnect) {
+        if (opts.reconnect) {
           // upon reconnection, there will not be additional handshake
           this.isConnected = true;
           resolve();
