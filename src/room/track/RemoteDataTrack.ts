@@ -6,7 +6,6 @@ export class RemoteDataTrack extends Track {
   readonly maxRetransmits?: number;
   readonly ordered: boolean;
   readonly reliable: boolean;
-  readonly sid: Track.SID;
   private dataChannel: RTCDataChannel;
 
   constructor(sid: Track.SID, name: string, dataChannel: RTCDataChannel) {

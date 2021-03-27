@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { TrackInfo } from '../../proto/livekit_models';
+import { TrackEvent } from '../events';
 import { Track } from './Track';
 
 export class TrackPublication extends EventEmitter {
@@ -15,6 +16,23 @@ export class TrackPublication extends EventEmitter {
     this.trackName = name;
   }
 
+  /** @internal */
+  setTrack(track?: Track) {
+    this.track = track;
+
+    if (track) {
+      // forward events
+      track.on(TrackEvent.Muted, () => {
+        this.emit(TrackEvent.Muted);
+      });
+
+      track.on(TrackEvent.Unmuted, () => {
+        this.emit(TrackEvent.Unmuted);
+      });
+    }
+  }
+
+  /** @internal */
   updateInfo(info: TrackInfo) {
     this.trackSid = info.sid;
     this.trackName = info.name;

@@ -89,6 +89,7 @@ export function detachTrack(
   }
 }
 
+/** @internal */
 export function setTrackMuted(
   track: LocalVideoTrack | LocalAudioTrack,
   muted: boolean

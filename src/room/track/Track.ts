@@ -4,6 +4,10 @@ import { TrackType } from '../../proto/livekit_models';
 export class Track extends EventEmitter {
   kind: Track.Kind;
   name: string;
+  /**
+   * sid is set after track is published to server, or if it's a remote track
+   */
+  sid?: Track.SID;
 
   protected constructor(kind: Track.Kind, name?: string) {
     super();

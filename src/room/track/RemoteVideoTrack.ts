@@ -1,11 +1,9 @@
 import log from 'loglevel';
 import { TrackEvent } from '../events';
 import { monitorFrequency, VideoReceiverStats } from '../stats';
-import { Track } from './Track';
 import { VideoTrack } from './VideoTrack';
 
 export class RemoteVideoTrack extends VideoTrack {
-  sid: Track.SID;
   /** @internal */
   receiver?: RTCRtpReceiver;
   private prevStats?: VideoReceiverStats;

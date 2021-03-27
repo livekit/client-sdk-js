@@ -80,7 +80,7 @@ export class RemoteParticipant extends Participant {
       track = new RemoteAudioTrack(mediaTrack, sid, receiver);
     }
 
-    publication.track = track;
+    publication.setTrack(track);
     // set track name etc
     track.name = publication.trackName;
     track.sid = publication.trackSid;
@@ -105,7 +105,7 @@ export class RemoteParticipant extends Participant {
 
     if (!publication) {
       publication = new RemoteTrackPublication(Track.Kind.Data, sid, name);
-      publication.track = track;
+      publication.setTrack(track);
       this.addTrackPublication(publication);
 
       // only send this after metadata is filled in, which indicates the track
@@ -114,7 +114,7 @@ export class RemoteParticipant extends Participant {
         this.emit(ParticipantEvent.TrackPublished, publication);
       }
     } else {
-      publication.track = track;
+      publication.setTrack(track);
     }
 
     track.on(TrackEvent.Message, (data: any) => {
@@ -211,7 +211,7 @@ export class RemoteParticipant extends Participant {
     // also send unsubscribe, if track is actively subscribed
     if (publication.track) {
       publication.track.stop();
-      publication.track = undefined;
+      publication.setTrack(undefined);
       // always send unsubscribed, since apps may rely on this
       this.emit(ParticipantEvent.TrackUnsubscribed, publication);
     }

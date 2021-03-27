@@ -56,6 +56,9 @@ export class LocalParticipant extends Participant {
     // is it already published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
     this.tracks.forEach((publication) => {
+      if (!publication.track) {
+        return;
+      }
       if (publication.track === track) {
         existingPublication = <LocalTrackPublication>publication;
       }
@@ -63,14 +66,14 @@ export class LocalParticipant extends Participant {
 
     if (existingPublication) return existingPublication;
 
-    // forward mute/unmute events
+    // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
 
     // get local track id for use during publishing
     let cid: string;
     if (track instanceof LocalDataTrack) {
-      // use data channel name as the id
+      // use data channel name as the id, because id isn't created until later
       cid = track.name;
     } else {
       cid = track.mediaStreamTrack.id;
@@ -123,7 +126,7 @@ export class LocalParticipant extends Participant {
       this.setPreferredCodec(transceiver, track.kind, options?.videoCodec);
     }
 
-    this.tracks.set(ti.sid, publication);
+    this.addTrackPublication(publication);
 
     // send event for publication
     this.emit(ParticipantEvent.TrackPublished, publication);

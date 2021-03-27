@@ -133,7 +133,7 @@ export interface UpdateSubscription {
 
 export interface UpdateTrackSettings {
   trackSids: string[];
-  mute: boolean;
+  disabled: boolean;
   quality: VideoQuality;
 }
 
@@ -201,7 +201,7 @@ const baseUpdateSubscription: object = {
 
 const baseUpdateTrackSettings: object = {
   trackSids: "",
-  mute: false,
+  disabled: false,
   quality: 0,
 };
 
@@ -1353,7 +1353,7 @@ export const UpdateTrackSettings = {
     for (const v of message.trackSids) {
       writer.uint32(10).string(v!);
     }
-    writer.uint32(24).bool(message.mute);
+    writer.uint32(24).bool(message.disabled);
     writer.uint32(32).int32(message.quality);
     return writer;
   },
@@ -1369,7 +1369,7 @@ export const UpdateTrackSettings = {
           message.trackSids.push(reader.string());
           break;
         case 3:
-          message.mute = reader.bool();
+          message.disabled = reader.bool();
           break;
         case 4:
           message.quality = reader.int32() as any;
@@ -1389,10 +1389,10 @@ export const UpdateTrackSettings = {
         message.trackSids.push(String(e));
       }
     }
-    if (object.mute !== undefined && object.mute !== null) {
-      message.mute = Boolean(object.mute);
+    if (object.disabled !== undefined && object.disabled !== null) {
+      message.disabled = Boolean(object.disabled);
     } else {
-      message.mute = false;
+      message.disabled = false;
     }
     if (object.quality !== undefined && object.quality !== null) {
       message.quality = videoQualityFromJSON(object.quality);
@@ -1409,10 +1409,10 @@ export const UpdateTrackSettings = {
         message.trackSids.push(e);
       }
     }
-    if (object.mute !== undefined && object.mute !== null) {
-      message.mute = object.mute;
+    if (object.disabled !== undefined && object.disabled !== null) {
+      message.disabled = object.disabled;
     } else {
-      message.mute = false;
+      message.disabled = false;
     }
     if (object.quality !== undefined && object.quality !== null) {
       message.quality = object.quality;
@@ -1428,7 +1428,7 @@ export const UpdateTrackSettings = {
     } else {
       obj.trackSids = [];
     }
-    message.mute !== undefined && (obj.mute = message.mute);
+    message.disabled !== undefined && (obj.disabled = message.disabled);
     message.quality !== undefined && (obj.quality = videoQualityToJSON(message.quality));
     return obj;
   },

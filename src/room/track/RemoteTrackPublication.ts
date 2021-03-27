@@ -1,5 +1,4 @@
 import { TrackInfo } from '../../proto/livekit_models';
-import { TrackEvent } from '../events';
 import { RemoteAudioTrack } from './RemoteAudioTrack';
 import { RemoteVideoTrack } from './RemoteVideoTrack';
 import { Track } from './Track';
@@ -28,11 +27,6 @@ export class RemoteTrackPublication extends TrackPublication {
       this.track instanceof RemoteAudioTrack
     ) {
       this.track.setMuted(info.muted);
-    }
-
-    // also fire off muted events
-    if (changed) {
-      this.emit(info.muted ? TrackEvent.Muted : TrackEvent.Unmuted);
     }
   }
 }

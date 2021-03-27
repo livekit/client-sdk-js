@@ -9,11 +9,9 @@ import {
   LogLevel,
   Participant,
   ParticipantEvent,
-  RemoteAudioTrack,
   RemoteDataTrack,
   RemoteParticipant,
   RemoteTrack,
-  RemoteVideoTrack,
   Room,
   RoomEvent,
   Track,
@@ -75,11 +73,7 @@ function trackUnsubscribed(
   participant?: Participant
 ) {
   let logName = track.name;
-  if (
-    track instanceof RemoteAudioTrack ||
-    track instanceof RemoteVideoTrack ||
-    track instanceof RemoteDataTrack
-  ) {
+  if (track.sid) {
     logName = track.sid;
   }
   appendLog('track unsubscribed', logName);
