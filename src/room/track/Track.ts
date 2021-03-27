@@ -21,6 +21,7 @@ export namespace Track {
   export type SID = string;
   export type Priority = 'low' | 'standard' | 'high';
 
+  /** @internal */
   export function kindToProto(k: Kind): TrackType {
     switch (k) {
       case Kind.Audio:
@@ -29,6 +30,18 @@ export namespace Track {
         return TrackType.VIDEO;
       case Kind.Data:
         return TrackType.DATA;
+    }
+  }
+
+  /** @internal */
+  export function kindFromProto(t: TrackType): Kind | undefined {
+    switch (t) {
+      case TrackType.AUDIO:
+        return Kind.Audio;
+      case TrackType.VIDEO:
+        return Kind.Video;
+      case TrackType.DATA:
+        return Kind.Data;
     }
   }
 }

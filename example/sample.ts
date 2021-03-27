@@ -3,11 +3,9 @@ import {
   connect,
   createLocalVideoTrack,
   LocalAudioTrack,
-  LocalAudioTrackPublication,
   LocalDataTrack,
   LocalTrack,
   LocalVideoTrack,
-  LocalVideoTrackPublication,
   LogLevel,
   Participant,
   ParticipantEvent,
@@ -116,8 +114,9 @@ function handleSpeakerChanged(speakers: Participant[]) {
 
 function setParticipantSpeaking(participant: Participant, speaking: boolean) {
   participant.videoTracks.forEach((publication) => {
-    if (publication.track) {
-      publication.track.attachedElements.forEach((element) => {
+    const track = publication.track;
+    if (track instanceof VideoTrack) {
+      track.attachedElements.forEach((element) => {
         if (speaking) {
           element.classList.add('speaking');
         } else {
@@ -221,13 +220,13 @@ window.connectToRoom = async (
 
   // add already published tracks
   currentRoom.localParticipant.tracks.forEach((publication) => {
-    if (publication instanceof LocalVideoTrackPublication) {
-      videoTrack = publication.track;
+    if (publication.kind === Track.Kind.Video) {
+      videoTrack = <LocalVideoTrack>publication.track;
       publishLocalVideo(videoTrack);
-    } else if (publication instanceof LocalAudioTrackPublication) {
+    } else if (publication.kind === Track.Kind.Audio) {
       // skip adding local audio track, to avoid your own sound
       // only process local video tracks
-      audioTrack = publication.track;
+      audioTrack = <LocalAudioTrack>publication.track;
     }
   });
 };

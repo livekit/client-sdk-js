@@ -15,7 +15,7 @@ export class TrackPublication extends EventEmitter {
     this.trackName = name;
   }
 
-  updateMetadata(info: TrackInfo) {
+  updateInfo(info: TrackInfo) {
     this.trackSid = info.sid;
     this.trackName = info.name;
   }

@@ -9,12 +9,9 @@ import { TrackInvalidError } from '../errors';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RTCEngine } from '../RTCEngine';
 import { LocalAudioTrack } from '../track/LocalAudioTrack';
-import { LocalAudioTrackPublication } from '../track/LocalAudioTrackPublication';
 import { LocalDataTrack } from '../track/LocalDataTrack';
-import { LocalDataTrackPublication } from '../track/LocalDataTrackPublication';
 import { LocalTrackPublication } from '../track/LocalTrackPublication';
 import { LocalVideoTrack } from '../track/LocalVideoTrack';
-import { LocalVideoTrackPublication } from '../track/LocalVideoTrackPublication';
 import { TrackPublishOptions } from '../track/options';
 import { Track } from '../track/Track';
 import { LocalTrack } from '../track/types';
@@ -80,38 +77,9 @@ export class LocalParticipant extends Participant {
     }
 
     // create track publication from track
-    let publication: LocalTrackPublication;
 
     const ti = await this.engine.addTrack(cid, track.name, track.kind);
-    switch (track.kind) {
-      case Track.Kind.Audio:
-        const audioPublication = new LocalAudioTrackPublication(
-          <LocalAudioTrack>track,
-          ti
-        );
-        this.audioTracks.set(ti.sid, audioPublication);
-        publication = audioPublication;
-        break;
-      case Track.Kind.Video:
-        const videoPublication = new LocalVideoTrackPublication(
-          <LocalVideoTrack>track,
-          ti
-        );
-        this.videoTracks.set(ti.sid, videoPublication);
-        publication = videoPublication;
-        break;
-      case Track.Kind.Data:
-        const dataPublication = new LocalDataTrackPublication(
-          <LocalDataTrack>track,
-          ti
-        );
-        this.dataTracks.set(ti.sid, dataPublication);
-        publication = dataPublication;
-        break;
-      default:
-        // impossible
-        throw new TrackInvalidError();
-    }
+    const publication = new LocalTrackPublication(track.kind, ti, track);
 
     if (track instanceof LocalDataTrack) {
       // add data track
@@ -273,14 +241,7 @@ export class LocalParticipant extends Participant {
   ): LocalTrackPublication | undefined {
     let publication: LocalTrackPublication | undefined;
     for (const pub of this.tracks.values()) {
-      let localTrack: LocalTrack | undefined;
-      if (
-        pub instanceof LocalAudioTrackPublication ||
-        pub instanceof LocalVideoTrackPublication ||
-        pub instanceof LocalDataTrackPublication
-      ) {
-        localTrack = pub.track;
-      }
+      let localTrack = pub.track;
       if (!localTrack) continue;
 
       // this looks overly complicated due to this object tree

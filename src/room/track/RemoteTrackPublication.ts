@@ -18,8 +18,9 @@ export class RemoteTrackPublication extends TrackPublication {
     return !!this.track;
   }
 
-  updateMetadata(info: TrackInfo) {
-    super.updateMetadata(info);
+  /** @internal */
+  updateInfo(info: TrackInfo) {
+    super.updateInfo(info);
     const changed = this.isMuted !== info.muted;
     this.isMuted = info.muted;
     if (

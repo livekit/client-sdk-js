@@ -15,9 +15,9 @@ export type DataTrackMap = { [key: string]: DataTrackPublication };
 
 export class Participant extends EventEmitter {
   protected participantInfo?: ParticipantInfo;
-  audioTracks: Map<string, AudioTrackPublication>;
-  videoTracks: Map<string, VideoTrackPublication>;
-  dataTracks: Map<string, DataTrackPublication>;
+  audioTracks: Map<string, TrackPublication>;
+  videoTracks: Map<string, TrackPublication>;
+  dataTracks: Map<string, TrackPublication>;
 
   /** map of track sid => all published tracks */
   tracks: Map<string, TrackPublication>;

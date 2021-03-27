@@ -1,24 +1,18 @@
 import log from 'loglevel';
-import { ParticipantInfo, TrackType } from '../../proto/livekit_models';
+import { ParticipantInfo } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RemoteAudioTrack } from '../track/RemoteAudioTrack';
-import { RemoteAudioTrackPublication } from '../track/RemoteAudioTrackPublication';
 import { RemoteDataTrack } from '../track/RemoteDataTrack';
-import { RemoteDataTrackPublication } from '../track/RemoteDataTrackPublication';
 import { RemoteTrackPublication } from '../track/RemoteTrackPublication';
 import { RemoteVideoTrack } from '../track/RemoteVideoTrack';
-import { RemoteVideoTrackPublication } from '../track/RemoteVideoTrackPublication';
 import { Track } from '../track/Track';
-import {
-  createRemoteTrackPublicationFromInfo,
-  RemoteTrack,
-} from '../track/types';
+import { RemoteTrack } from '../track/types';
 import { Participant } from './Participant';
 
 export class RemoteParticipant extends Participant {
-  audioTracks: Map<string, RemoteAudioTrackPublication>;
-  videoTracks: Map<string, RemoteVideoTrackPublication>;
-  dataTracks: Map<string, RemoteDataTrackPublication>;
+  audioTracks: Map<string, RemoteTrackPublication>;
+  videoTracks: Map<string, RemoteTrackPublication>;
+  dataTracks: Map<string, RemoteTrackPublication>;
   tracks: Map<string, RemoteTrackPublication>;
 
   /** @internal */
@@ -110,15 +104,8 @@ export class RemoteParticipant extends Participant {
     let publication = this.getTrackPublication(sid);
 
     if (!publication) {
-      publication = new RemoteDataTrackPublication(
-        {
-          sid: sid,
-          name: name,
-          type: TrackType.DATA,
-          muted: false,
-        },
-        track
-      );
+      publication = new RemoteTrackPublication(Track.Kind.Data, sid, name);
+      publication.track = track;
       this.addTrackPublication(publication);
 
       // only send this after metadata is filled in, which indicates the track
@@ -170,11 +157,16 @@ export class RemoteParticipant extends Participant {
       let publication = this.getTrackPublication(ti.sid);
       if (!publication) {
         // new publication
-        publication = createRemoteTrackPublicationFromInfo(ti);
+        let kind = Track.kindFromProto(ti.type);
+        if (!kind) {
+          return;
+        }
+        publication = new RemoteTrackPublication(kind, ti.sid, ti.name);
+        publication.updateInfo(ti);
         newTracks.set(ti.sid, publication);
         this.addTrackPublication(publication);
       } else {
-        publication.updateMetadata(ti);
+        publication.updateInfo(ti);
       }
       validTracks.set(ti.sid, publication);
     });

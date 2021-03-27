@@ -61,7 +61,7 @@ export enum RoomEvent {
   TrackUnpublished = 'trackUnpublished',
 
   /**
-   * A subscribed track is no longer availablle. Clients should listent to this
+   * A subscribed track is no longer available. Clients should listen to this
    * event and ensure they detach tracks.
    *
    * args: ([[RemoteTrackPublication]], [[RemoteParticipant]])
