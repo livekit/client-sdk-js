@@ -9,6 +9,8 @@ import {
   SignalTarget,
   SpeakerInfo,
   TrackPublishedResponse,
+  UpdateSubscription,
+  UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 
 /**
@@ -23,6 +25,8 @@ export interface SignalClient {
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget): void;
   sendMuteTrack(trackSid: string, muted: boolean): void;
   sendAddTrack(cid: string, name: string, type: TrackType): void;
+  sendUpdateTrackSettings(settings: UpdateTrackSettings): void;
+  sendUpdateSubscription(sub: UpdateSubscription): void;
   close(): void;
 
   readonly isConnected: boolean;
@@ -187,6 +191,14 @@ export class WSSignalClient {
         type,
       },
     });
+  }
+
+  sendUpdateTrackSettings(settings: UpdateTrackSettings) {
+    this.sendRequest({ trackSetting: settings });
+  }
+
+  sendUpdateSubscription(sub: UpdateSubscription) {
+    this.sendRequest({ subscription: sub });
   }
 
   sendRequest(req: SignalRequest) {

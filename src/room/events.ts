@@ -134,4 +134,8 @@ export enum TrackEvent {
   Message = 'message',
   Muted = 'muted',
   Unmuted = 'unmuted',
+  /** @internal */
+  UpdateSettings = 'updateSettings',
+  /** @internal */
+  UpdateSubscription = 'updateSubscription',
 }

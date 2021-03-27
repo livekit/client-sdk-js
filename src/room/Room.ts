@@ -268,9 +268,12 @@ class Room extends EventEmitter {
       // it's possible for the RTC track to arrive before signaling data
       // when this happens, we'll create the participant and make the track work
       if (info) {
-        participant = RemoteParticipant.fromParticipantInfo(info);
+        participant = RemoteParticipant.fromParticipantInfo(
+          this.engine.client,
+          info
+        );
       } else {
-        participant = new RemoteParticipant(id, '');
+        participant = new RemoteParticipant(this.engine.client, id, '');
       }
       this.participants.set(id, participant);
       // also forward events

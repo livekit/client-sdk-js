@@ -1,11 +1,17 @@
 import log from 'loglevel';
+import { SignalClient } from '../../api/SignalClient';
 import { ParticipantInfo } from '../../proto/livekit_models';
+import {
+  UpdateSubscription,
+  UpdateTrackSettings,
+} from '../../proto/livekit_rtc';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RemoteAudioTrack } from '../track/RemoteAudioTrack';
 import { RemoteDataTrack } from '../track/RemoteDataTrack';
 import { RemoteTrackPublication } from '../track/RemoteTrackPublication';
 import { RemoteVideoTrack } from '../track/RemoteVideoTrack';
 import { Track } from '../track/Track';
+import { TrackPublication } from '../track/TrackPublication';
 import { RemoteTrack } from '../track/types';
 import { Participant } from './Participant';
 
@@ -15,20 +21,41 @@ export class RemoteParticipant extends Participant {
   dataTracks: Map<string, RemoteTrackPublication>;
   tracks: Map<string, RemoteTrackPublication>;
 
+  signalClient: SignalClient;
+
   /** @internal */
-  static fromParticipantInfo(pi: ParticipantInfo): RemoteParticipant {
-    const rp = new RemoteParticipant(pi.sid, pi.identity);
+  static fromParticipantInfo(
+    signalClient: SignalClient,
+    pi: ParticipantInfo
+  ): RemoteParticipant {
+    const rp = new RemoteParticipant(signalClient, pi.sid, pi.identity);
     rp.updateInfo(pi);
     return rp;
   }
 
   /** @internal */
-  constructor(id: string, name?: string) {
+  constructor(signalClient: SignalClient, id: string, name?: string) {
     super(id, name || '');
+    this.signalClient = signalClient;
     this.tracks = new Map();
     this.audioTracks = new Map();
     this.videoTracks = new Map();
     this.dataTracks = new Map();
+  }
+
+  protected addTrackPublication(publication: TrackPublication) {
+    super.addTrackPublication(publication);
+
+    // register action events
+    publication.on(
+      TrackEvent.UpdateSettings,
+      (settings: UpdateTrackSettings) => {
+        this.signalClient.sendUpdateTrackSettings(settings);
+      }
+    );
+    publication.on(TrackEvent.UpdateSubscription, (sub: UpdateSubscription) => {
+      this.signalClient.sendUpdateSubscription(sub);
+    });
   }
 
   /** @internal */

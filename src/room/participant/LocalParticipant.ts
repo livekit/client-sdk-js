@@ -222,21 +222,13 @@ export class LocalParticipant extends Participant {
     if (muted === undefined) {
       muted = true;
     }
-    // find the track's publication and use sid there
-    let sid: string | undefined;
-    this.tracks.forEach((publication) => {
-      const localPub = <LocalTrackPublication>publication;
-      if (track === localPub.track) {
-        sid = localPub.trackSid;
-      }
-    });
 
-    if (!sid) {
+    if (!track.sid) {
       log.error('could not update mute status for unpublished track', track);
       return;
     }
 
-    this.engine.updateMuteStatus(sid, muted);
+    this.engine.updateMuteStatus(track.sid, muted);
   };
 
   private getPublicationForTrack(
