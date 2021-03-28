@@ -5,6 +5,7 @@ import {
   VideoEncoding,
   VideoPresets,
 } from '../../options';
+import { ParticipantInfo } from '../../proto/livekit_models';
 import { TrackInvalidError } from '../errors';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RTCEngine } from '../RTCEngine';
@@ -206,6 +207,25 @@ export class LocalParticipant extends Participant {
 
   get publisherMetrics(): any {
     return null;
+  }
+
+  /** @internal */
+  updateInfo(info: ParticipantInfo) {
+    super.updateInfo(info);
+
+    // match local track mute status to server
+    for (const ti of info.tracks) {
+      const pub = <LocalTrackPublication>this.tracks.get(ti.sid);
+      if (!pub) {
+        continue;
+      }
+
+      if (ti.muted && !pub.isMuted) {
+        pub.mute();
+      } else if (!ti.muted && pub.isMuted) {
+        pub.unmute();
+      }
+    }
   }
 
   /** @internal */

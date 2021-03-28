@@ -19,6 +19,7 @@ export class RemoteVideoTrack extends VideoTrack {
     this.receiver = receiver;
   }
 
+  /** @internal */
   setMuted(muted: boolean) {
     if (this.isMuted != muted) {
       this.isMuted = muted;

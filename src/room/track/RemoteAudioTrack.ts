@@ -15,6 +15,7 @@ export class RemoteAudioTrack extends AudioTrack {
     this.receiver = receiver;
   }
 
+  /** @internal */
   setMuted(muted: boolean) {
     if (this.isMuted != muted) {
       this.isMuted = muted;

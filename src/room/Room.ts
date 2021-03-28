@@ -78,8 +78,7 @@ class Room extends EventEmitter {
     );
 
     this.engine.on(EngineEvent.Disconnected, (reason: any) => {
-      this.emit(RoomEvent.Disconnected);
-      this.state = RoomState.Disconnected;
+      this.handleDisconnect();
     });
 
     this.engine.on(
@@ -162,8 +161,7 @@ class Room extends EventEmitter {
    */
   disconnect() {
     this.engine.close();
-    this.emit(RoomEvent.Disconnected);
-    this.state = RoomState.Disconnected;
+    this.handleDisconnect();
   }
 
   private onTrackAdded(
@@ -184,6 +182,13 @@ class Room extends EventEmitter {
     );
     const participant = this.getOrCreateParticipant(participantId);
     participant.addSubscribedDataTrack(dataChannel, trackId, name);
+  }
+
+  private handleDisconnect() {
+    this.participants.clear();
+    this.activeSpeakers = [];
+    this.emit(RoomEvent.Disconnected);
+    this.state = RoomState.Disconnected;
   }
 
   private handleParticipantUpdates(participantInfos: ParticipantInfo[]) {
