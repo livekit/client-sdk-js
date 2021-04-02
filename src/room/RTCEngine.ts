@@ -24,7 +24,6 @@ export class RTCEngine extends EventEmitter {
   privateDC?: RTCDataChannel;
   rtcConnected: boolean = false;
   iceConnected: boolean = false;
-  pendingCandidates: RTCIceCandidateInit[] = [];
   pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
   disconnectTimeout?: ReturnType<typeof setTimeout>;
 
@@ -103,14 +102,7 @@ export class RTCEngine extends EventEmitter {
       if (!ev.candidate) return;
 
       log.trace('adding ICE candidate for peer', ev.candidate);
-      // TODO: don't think we need this rtcConnected check, should be able to send
-      // through right away
-      if (this.rtcConnected) {
-        // send it through
-        this.client.sendIceCandidate(ev.candidate, SignalTarget.PUBLISHER);
-      } else {
-        this.pendingCandidates.push(ev.candidate);
-      }
+      this.client.sendIceCandidate(ev.candidate, SignalTarget.PUBLISHER);
     };
 
     this.subscriber.pc.onicecandidate = (ev) => {
@@ -271,11 +263,5 @@ export class RTCEngine extends EventEmitter {
   private onRTCConnected() {
     log.debug('RTC connected');
     this.rtcConnected = true;
-
-    // send pending ICE candidates
-    this.pendingCandidates.forEach((cand) => {
-      this.client.sendIceCandidate(cand, SignalTarget.PUBLISHER);
-    });
-    this.pendingCandidates = [];
   }
 }
