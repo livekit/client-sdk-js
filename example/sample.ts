@@ -15,6 +15,7 @@ import {
   Room,
   RoomEvent,
   Track,
+  VideoPresets,
   VideoTrack,
 } from '../src/index';
 
@@ -27,6 +28,7 @@ declare global {
     connectWithFormInput: any;
     connectToRoom: any;
     toggleVideo: any;
+    shareScreen: any;
     muteVideo: any;
     muteAudio: any;
     enterText: any;
@@ -159,6 +161,7 @@ const chatTrack: LocalDataTrack = new LocalDataTrack({
 });
 let videoTrack: LocalVideoTrack | undefined;
 let audioTrack: LocalAudioTrack;
+let screenTrack: LocalVideoTrack | undefined;
 window.connectWithFormInput = () => {
   const url = (<HTMLInputElement>$('url')).value;
   const token = (<HTMLInputElement>$('token')).value;
@@ -279,6 +282,32 @@ window.enterText = () => {
   }
 };
 
+window.shareScreen = async () => {
+  if (screenTrack != undefined) {
+    currentRoom.localParticipant.unpublishTrack(screenTrack);
+    screenTrack = undefined;
+    return;
+  }
+
+  const mediaDevices: any = navigator.mediaDevices;
+  const preset = VideoPresets.hd;
+  const ssMediaStream: MediaStream = await mediaDevices.getDisplayMedia({
+    audio: false,
+    video: {
+      width: preset.resolution.width,
+      height: preset.resolution.height,
+    },
+  });
+  for (const t of ssMediaStream.getTracks()) {
+    screenTrack = new LocalVideoTrack(t, 'screen');
+    await currentRoom.localParticipant.publishTrack(t, {
+      videoEncoding: { maxFramerate: 30, maxBitrate: 3000000 },
+      videoCodec: 'h264',
+      simulcast: false,
+    });
+  }
+};
+
 window.disconnectSignal = () => {
   if (!currentRoom) return;
   currentRoom.engine.client.close();
@@ -305,6 +334,7 @@ function setButtonsForState(connected: boolean) {
     'toggle-video-button',
     'mute-video-button',
     'mute-audio-button',
+    'share-screen-button',
     'disconnect-ws-button',
     'disconnect-room-button',
   ];
