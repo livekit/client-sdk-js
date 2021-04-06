@@ -17,6 +17,8 @@ export function attachTrack(
     if (element instanceof HTMLVideoElement) {
       (<HTMLVideoElement>element).playsInline = true;
     }
+  } else {
+    element.play();
   }
 
   // already attached

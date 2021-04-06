@@ -19,3 +19,9 @@ export class UnsupportedServer extends LivekitError {
     super(10, message || 'Unsupported server');
   }
 }
+
+export class UnexpectedConnectionState extends LivekitError {
+  constructor(message?: string) {
+    super(12, message || 'Unexpected connection state');
+  }
+}

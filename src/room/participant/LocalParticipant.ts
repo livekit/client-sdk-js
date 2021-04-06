@@ -6,7 +6,7 @@ import {
   VideoPresets,
 } from '../../options';
 import { ParticipantInfo } from '../../proto/livekit_models';
-import { TrackInvalidError } from '../errors';
+import { TrackInvalidError, UnexpectedConnectionState } from '../errors';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RTCEngine } from '../RTCEngine';
 import { LocalAudioTrack } from '../track/LocalAudioTrack';
@@ -86,6 +86,9 @@ export class LocalParticipant extends Participant {
     const publication = new LocalTrackPublication(track.kind, ti, track);
 
     if (track instanceof LocalDataTrack) {
+      if (!this.engine.publisher) {
+        throw new UnexpectedConnectionState('publisher is closed');
+      }
       // add data track
       track.dataChannel = this.engine.publisher.pc.createDataChannel(
         track.name,
@@ -109,6 +112,9 @@ export class LocalParticipant extends Participant {
         ];
       }
 
+      if (!this.engine.publisher) {
+        throw new UnexpectedConnectionState('publisher is closed');
+      }
       log.debug('publishing with encodings', encodings);
       const transceiver = this.engine.publisher.pc.addTransceiver(
         track.mediaStreamTrack,
@@ -167,12 +173,14 @@ export class LocalParticipant extends Participant {
         mediaStreamTrack = track.mediaStreamTrack;
       }
 
-      const senders = this.engine.publisher.pc.getSenders();
-      senders.forEach((sender) => {
-        if (sender.track === mediaStreamTrack) {
-          this.engine.publisher.pc.removeTrack(sender);
+      if (this.engine.publisher) {
+        const senders = this.engine.publisher.pc.getSenders();
+        for (const sender of senders) {
+          if (sender.track === mediaStreamTrack) {
+            this.engine.publisher.pc.removeTrack(sender);
+          }
         }
-      });
+      }
     }
 
     // remove from our maps
@@ -283,6 +291,9 @@ export class LocalParticipant extends Participant {
     kind: Track.Kind,
     videoCodec: VideoCodec = 'vp8'
   ) {
+    if (!('getCapabilities' in RTCRtpSender)) {
+      return;
+    }
     const cap = RTCRtpSender.getCapabilities(kind);
     if (!cap) return;
     const selected = cap.codecs.find(

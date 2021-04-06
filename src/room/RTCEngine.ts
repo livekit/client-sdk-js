@@ -16,8 +16,8 @@ const placeholderDataChannel = '_private';
 const maxWSRetries = 10;
 
 export class RTCEngine extends EventEmitter {
-  publisher!: PCTransport;
-  subscriber!: PCTransport;
+  publisher?: PCTransport;
+  subscriber?: PCTransport;
   client: SignalClient;
   rtcConfig: RTCConfiguration;
 
@@ -76,7 +76,11 @@ export class RTCEngine extends EventEmitter {
   close() {
     if (this.publisher) {
       this.publisher.close();
+      this.publisher = undefined;
+    }
+    if (this.subscriber) {
       this.subscriber.close();
+      this.subscriber = undefined;
     }
     this.client.close();
   }
@@ -98,6 +102,9 @@ export class RTCEngine extends EventEmitter {
   }
 
   private configure() {
+    if (!this.publisher || !this.subscriber) {
+      return;
+    }
     this.publisher.pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
 
@@ -118,6 +125,9 @@ export class RTCEngine extends EventEmitter {
     };
 
     this.publisher.pc.oniceconnectionstatechange = (ev) => {
+      if (!this.publisher) {
+        return;
+      }
       if (this.publisher.pc.iceConnectionState === 'connected') {
         log.trace('ICE connected');
         if (this.disconnectTimeout) {
@@ -164,6 +174,9 @@ export class RTCEngine extends EventEmitter {
 
     // configure signaling client
     this.client.onAnswer = async (sd) => {
+      if (!this.publisher) {
+        return;
+      }
       log.debug(
         'received server answer',
         sd.type,
@@ -177,6 +190,9 @@ export class RTCEngine extends EventEmitter {
 
     // add candidate on trickle
     this.client.onTrickle = (candidate, target) => {
+      if (!this.publisher || !this.subscriber) {
+        return;
+      }
       log.trace('got ICE candidate from peer', candidate, target);
       if (target === SignalTarget.PUBLISHER) {
         this.publisher.addIceCandidate(candidate);
@@ -187,6 +203,9 @@ export class RTCEngine extends EventEmitter {
 
     // when server creates an offer for the client
     this.client.onOffer = async (sd) => {
+      if (!this.subscriber) {
+        return;
+      }
       log.debug(
         'received server offer',
         sd.type,
@@ -252,6 +271,9 @@ export class RTCEngine extends EventEmitter {
   };
 
   private async negotiate() {
+    if (!this.publisher) {
+      return;
+    }
     // TODO: what if signaling state changed? will need to queue and retry
     log.debug('starting to negotiate', this.publisher.pc.signalingState);
     const offer = await this.publisher.pc.createOffer();

@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
-import { SemVer } from 'semver';
 import { Participant } from '..';
 import { SignalClient } from '../api/SignalClient';
 import {
@@ -107,10 +106,6 @@ class Room extends EventEmitter {
 
       if (!joinResponse.serverVersion) {
         throw new UnsupportedServer('unknown server version');
-      }
-      const sv = new SemVer(joinResponse.serverVersion);
-      if (!(sv.major >= 0 && sv.minor >= 5)) {
-        throw new UnsupportedServer('requires server >= 0.5.x');
       }
 
       this.state = RoomState.Connected;
