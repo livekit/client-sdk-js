@@ -22,10 +22,20 @@ const simulcastMinWidth = 200;
 
 export class LocalParticipant extends Participant {
   private engine: RTCEngine;
+  audioTracks: Map<string, LocalTrackPublication>;
+  videoTracks: Map<string, LocalTrackPublication>;
+  dataTracks: Map<string, LocalTrackPublication>;
+
+  /** map of track sid => all published tracks */
+  tracks: Map<string, LocalTrackPublication>;
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine) {
     super(sid, identity);
+    this.audioTracks = new Map();
+    this.videoTracks = new Map();
+    this.dataTracks = new Map();
+    this.tracks = new Map();
     this.engine = engine;
   }
 

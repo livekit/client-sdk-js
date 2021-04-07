@@ -1,7 +1,10 @@
 import { EventEmitter } from 'events';
 import { TrackInfo } from '../../proto/livekit_models';
 import { TrackEvent } from '../events';
+import { AudioTrack } from './AudioTrack';
 import { Track } from './Track';
+import { MediaTrack } from './types';
+import { VideoTrack } from './VideoTrack';
 
 export class TrackPublication extends EventEmitter {
   kind: Track.Kind;
@@ -29,6 +32,33 @@ export class TrackPublication extends EventEmitter {
       track.on(TrackEvent.Unmuted, () => {
         this.emit(TrackEvent.Unmuted);
       });
+    }
+  }
+
+  /**
+   * an [AudioTrack] if this publication holds an audio track
+   */
+  get audioTrack(): AudioTrack | undefined {
+    if (this.track instanceof AudioTrack) {
+      return this.track;
+    }
+  }
+
+  /**
+   * an [VideoTrack] if this publication holds a video track
+   */
+  get videoTrack(): VideoTrack | undefined {
+    if (this.track instanceof VideoTrack) {
+      return this.track;
+    }
+  }
+
+  /**
+   * returns an audio or video track
+   */
+  get mediaTrack(): MediaTrack | undefined {
+    if (this.track instanceof VideoTrack || this.track instanceof AudioTrack) {
+      return this.track;
     }
   }
 
