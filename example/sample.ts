@@ -63,6 +63,10 @@ function trackSubscribed(
 ): HTMLMediaElement | null {
   appendLog('track subscribed', track);
   if (track instanceof AudioTrack || track instanceof VideoTrack) {
+    // const element: HTMLMediaElement = <HTMLMediaElement>(
+    //   document.createElement(track.kind.toString())
+    // );
+    // track.attach(element);
     const element = track.attach();
     div.appendChild(element);
     return element;

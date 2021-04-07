@@ -18,7 +18,10 @@ export function attachTrack(
       (<HTMLVideoElement>element).playsInline = true;
     }
   } else {
-    element.play();
+    if (element instanceof HTMLVideoElement) {
+      (<HTMLVideoElement>element).playsInline = true;
+    }
+    element.autoplay = true;
   }
 
   // already attached
