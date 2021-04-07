@@ -1,68 +1,121 @@
 /* eslint-disable */
-import { TrackType, Room, ParticipantInfo, TrackInfo, trackTypeFromJSON, trackTypeToJSON } from './livekit_models';
-import { Writer, Reader } from 'protobufjs/minimal';
+import Long from 'long';
+import _m0 from 'protobufjs/minimal';
+import {
+  TrackType,
+  Room,
+  ParticipantInfo,
+  TrackInfo,
+  trackTypeFromJSON,
+  trackTypeToJSON,
+} from './livekit_models';
 
+export const protobufPackage = 'livekit';
+
+export enum SignalTarget {
+  PUBLISHER = 0,
+  SUBSCRIBER = 1,
+  UNRECOGNIZED = -1,
+}
+
+export function signalTargetFromJSON(object: any): SignalTarget {
+  switch (object) {
+    case 0:
+    case 'PUBLISHER':
+      return SignalTarget.PUBLISHER;
+    case 1:
+    case 'SUBSCRIBER':
+      return SignalTarget.SUBSCRIBER;
+    case -1:
+    case 'UNRECOGNIZED':
+    default:
+      return SignalTarget.UNRECOGNIZED;
+  }
+}
+
+export function signalTargetToJSON(object: SignalTarget): string {
+  switch (object) {
+    case SignalTarget.PUBLISHER:
+      return 'PUBLISHER';
+    case SignalTarget.SUBSCRIBER:
+      return 'SUBSCRIBER';
+    default:
+      return 'UNKNOWN';
+  }
+}
+
+export enum VideoQuality {
+  LOW = 0,
+  MEDIUM = 1,
+  HIGH = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function videoQualityFromJSON(object: any): VideoQuality {
+  switch (object) {
+    case 0:
+    case 'LOW':
+      return VideoQuality.LOW;
+    case 1:
+    case 'MEDIUM':
+      return VideoQuality.MEDIUM;
+    case 2:
+    case 'HIGH':
+      return VideoQuality.HIGH;
+    case -1:
+    case 'UNRECOGNIZED':
+    default:
+      return VideoQuality.UNRECOGNIZED;
+  }
+}
+
+export function videoQualityToJSON(object: VideoQuality): string {
+  switch (object) {
+    case VideoQuality.LOW:
+      return 'LOW';
+    case VideoQuality.MEDIUM:
+      return 'MEDIUM';
+    case VideoQuality.HIGH:
+      return 'HIGH';
+    default:
+      return 'UNKNOWN';
+  }
+}
 
 export interface SignalRequest {
-  /**
-   *  initial join exchange, for publisher
-   */
+  /** initial join exchange, for publisher */
   offer?: SessionDescription | undefined;
-  /**
-   *  participant answering publisher offer
-   */
+  /** participant answering publisher offer */
   answer?: SessionDescription | undefined;
   trickle?: TrickleRequest | undefined;
   addTrack?: AddTrackRequest | undefined;
-  /**
-   *  mute the participant's published tracks
-   */
+  /** mute the participant's published tracks */
   mute?: MuteTrackRequest | undefined;
-  /**
-   *  Subscribe or unsubscribe from tracks
-   */
+  /** Subscribe or unsubscribe from tracks */
   subscription?: UpdateSubscription | undefined;
-  /**
-   *  Update settings of subscribed tracks
-   */
+  /** Update settings of subscribed tracks */
   trackSetting?: UpdateTrackSettings | undefined;
 }
 
 export interface SignalResponse {
-  /**
-   *  sent when join is accepted
-   */
+  /** sent when join is accepted */
   join?: JoinResponse | undefined;
-  /**
-   *  sent when server answers publisher
-   */
+  /** sent when server answers publisher */
   answer?: SessionDescription | undefined;
-  /**
-   *  sent when server is sending subscriber an offer
-   */
+  /** sent when server is sending subscriber an offer */
   offer?: SessionDescription | undefined;
-  /**
-   *  sent when an ICE candidate is available
-   */
+  /** sent when an ICE candidate is available */
   trickle?: TrickleRequest | undefined;
-  /**
-   *  sent when participants in the room has changed
-   */
+  /** sent when participants in the room has changed */
   update?: ParticipantUpdate | undefined;
-  /**
-   *  sent to the participant when their track has been published
-   */
+  /** sent to the participant when their track has been published */
   trackPublished?: TrackPublishedResponse | undefined;
-  /**
-   *  list of active speakers
-   */
+  /** list of active speakers */
   speaker?: ActiveSpeakerUpdate | undefined;
 }
 
 export interface AddTrackRequest {
-  /**
-   *  client ID of track, to match it when RTC track is received
-   */
+  /** client ID of track, to match it when RTC track is received */
   cid: string;
   name: string;
   type: TrackType;
@@ -78,11 +131,8 @@ export interface MuteTrackRequest {
   muted: boolean;
 }
 
-/**
- *  empty
- */
-export interface NegotiationRequest {
-}
+/** empty */
+export interface NegotiationRequest {}
 
 export interface JoinResponse {
   room?: Room;
@@ -98,9 +148,7 @@ export interface TrackPublishedResponse {
 }
 
 export interface SessionDescription {
-  /**
-   *  "answer" | "offer" | "pranswer" | "rollback"
-   */
+  /** "answer" | "offer" | "pranswer" | "rollback" */
   type: string;
   sdp: string;
 }
@@ -115,13 +163,9 @@ export interface ActiveSpeakerUpdate {
 
 export interface SpeakerInfo {
   sid: string;
-  /**
-   *  audio level, 0-1.0, 1 is loudest
-   */
+  /** audio level, 0-1.0, 1 is loudest */
   level: number;
-  /**
-   *  true if speaker is currently active
-   */
+  /** true if speaker is currently active */
   active: boolean;
 }
 
@@ -143,173 +187,54 @@ export interface ICEServer {
   credential: string;
 }
 
-const baseSignalRequest: object = {
-};
-
-const baseSignalResponse: object = {
-};
-
-const baseAddTrackRequest: object = {
-  cid: "",
-  name: "",
-  type: 0,
-};
-
-const baseTrickleRequest: object = {
-  candidateInit: "",
-  target: 0,
-};
-
-const baseMuteTrackRequest: object = {
-  sid: "",
-  muted: false,
-};
-
-const baseNegotiationRequest: object = {
-};
-
-const baseJoinResponse: object = {
-  serverVersion: "",
-};
-
-const baseTrackPublishedResponse: object = {
-  cid: "",
-};
-
-const baseSessionDescription: object = {
-  type: "",
-  sdp: "",
-};
-
-const baseParticipantUpdate: object = {
-};
-
-const baseActiveSpeakerUpdate: object = {
-};
-
-const baseSpeakerInfo: object = {
-  sid: "",
-  level: 0,
-  active: false,
-};
-
-const baseUpdateSubscription: object = {
-  trackSids: "",
-  subscribe: false,
-  quality: 0,
-};
-
-const baseUpdateTrackSettings: object = {
-  trackSids: "",
-  disabled: false,
-  quality: 0,
-};
-
-const baseICEServer: object = {
-  urls: "",
-  username: "",
-  credential: "",
-};
-
-export const protobufPackage = 'livekit'
-
-export enum SignalTarget {
-  PUBLISHER = 0,
-  SUBSCRIBER = 1,
-  UNRECOGNIZED = -1,
-}
-
-export function signalTargetFromJSON(object: any): SignalTarget {
-  switch (object) {
-    case 0:
-    case "PUBLISHER":
-      return SignalTarget.PUBLISHER;
-    case 1:
-    case "SUBSCRIBER":
-      return SignalTarget.SUBSCRIBER;
-    case -1:
-    case "UNRECOGNIZED":
-    default:
-      return SignalTarget.UNRECOGNIZED;
-  }
-}
-
-export function signalTargetToJSON(object: SignalTarget): string {
-  switch (object) {
-    case SignalTarget.PUBLISHER:
-      return "PUBLISHER";
-    case SignalTarget.SUBSCRIBER:
-      return "SUBSCRIBER";
-    default:
-      return "UNKNOWN";
-  }
-}
-
-export enum VideoQuality {
-  LOW = 0,
-  MEDIUM = 1,
-  HIGH = 2,
-  UNRECOGNIZED = -1,
-}
-
-export function videoQualityFromJSON(object: any): VideoQuality {
-  switch (object) {
-    case 0:
-    case "LOW":
-      return VideoQuality.LOW;
-    case 1:
-    case "MEDIUM":
-      return VideoQuality.MEDIUM;
-    case 2:
-    case "HIGH":
-      return VideoQuality.HIGH;
-    case -1:
-    case "UNRECOGNIZED":
-    default:
-      return VideoQuality.UNRECOGNIZED;
-  }
-}
-
-export function videoQualityToJSON(object: VideoQuality): string {
-  switch (object) {
-    case VideoQuality.LOW:
-      return "LOW";
-    case VideoQuality.MEDIUM:
-      return "MEDIUM";
-    case VideoQuality.HIGH:
-      return "HIGH";
-    default:
-      return "UNKNOWN";
-  }
-}
+const baseSignalRequest: object = {};
 
 export const SignalRequest = {
-  encode(message: SignalRequest, writer: Writer = Writer.create()): Writer {
+  encode(
+    message: SignalRequest,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
     if (message.offer !== undefined) {
-      SessionDescription.encode(message.offer, writer.uint32(10).fork()).ldelim();
+      SessionDescription.encode(
+        message.offer,
+        writer.uint32(10).fork()
+      ).ldelim();
     }
     if (message.answer !== undefined) {
-      SessionDescription.encode(message.answer, writer.uint32(18).fork()).ldelim();
+      SessionDescription.encode(
+        message.answer,
+        writer.uint32(18).fork()
+      ).ldelim();
     }
     if (message.trickle !== undefined) {
       TrickleRequest.encode(message.trickle, writer.uint32(26).fork()).ldelim();
     }
     if (message.addTrack !== undefined) {
-      AddTrackRequest.encode(message.addTrack, writer.uint32(34).fork()).ldelim();
+      AddTrackRequest.encode(
+        message.addTrack,
+        writer.uint32(34).fork()
+      ).ldelim();
     }
     if (message.mute !== undefined) {
       MuteTrackRequest.encode(message.mute, writer.uint32(42).fork()).ldelim();
     }
     if (message.subscription !== undefined) {
-      UpdateSubscription.encode(message.subscription, writer.uint32(50).fork()).ldelim();
+      UpdateSubscription.encode(
+        message.subscription,
+        writer.uint32(50).fork()
+      ).ldelim();
     }
     if (message.trackSetting !== undefined) {
-      UpdateTrackSettings.encode(message.trackSetting, writer.uint32(58).fork()).ldelim();
+      UpdateTrackSettings.encode(
+        message.trackSetting,
+        writer.uint32(58).fork()
+      ).ldelim();
     }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): SignalRequest {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SignalRequest {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseSignalRequest } as SignalRequest;
     while (reader.pos < end) {
@@ -331,10 +256,16 @@ export const SignalRequest = {
           message.mute = MuteTrackRequest.decode(reader, reader.uint32());
           break;
         case 6:
-          message.subscription = UpdateSubscription.decode(reader, reader.uint32());
+          message.subscription = UpdateSubscription.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         case 7:
-          message.trackSetting = UpdateTrackSettings.decode(reader, reader.uint32());
+          message.trackSetting = UpdateTrackSettings.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -343,6 +274,7 @@ export const SignalRequest = {
     }
     return message;
   },
+
   fromJSON(object: any): SignalRequest {
     const message = { ...baseSignalRequest } as SignalRequest;
     if (object.offer !== undefined && object.offer !== null) {
@@ -382,6 +314,40 @@ export const SignalRequest = {
     }
     return message;
   },
+
+  toJSON(message: SignalRequest): unknown {
+    const obj: any = {};
+    message.offer !== undefined &&
+      (obj.offer = message.offer
+        ? SessionDescription.toJSON(message.offer)
+        : undefined);
+    message.answer !== undefined &&
+      (obj.answer = message.answer
+        ? SessionDescription.toJSON(message.answer)
+        : undefined);
+    message.trickle !== undefined &&
+      (obj.trickle = message.trickle
+        ? TrickleRequest.toJSON(message.trickle)
+        : undefined);
+    message.addTrack !== undefined &&
+      (obj.addTrack = message.addTrack
+        ? AddTrackRequest.toJSON(message.addTrack)
+        : undefined);
+    message.mute !== undefined &&
+      (obj.mute = message.mute
+        ? MuteTrackRequest.toJSON(message.mute)
+        : undefined);
+    message.subscription !== undefined &&
+      (obj.subscription = message.subscription
+        ? UpdateSubscription.toJSON(message.subscription)
+        : undefined);
+    message.trackSetting !== undefined &&
+      (obj.trackSetting = message.trackSetting
+        ? UpdateTrackSettings.toJSON(message.trackSetting)
+        : undefined);
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<SignalRequest>): SignalRequest {
     const message = { ...baseSignalRequest } as SignalRequest;
     if (object.offer !== undefined && object.offer !== null) {
@@ -410,57 +376,71 @@ export const SignalRequest = {
       message.mute = undefined;
     }
     if (object.subscription !== undefined && object.subscription !== null) {
-      message.subscription = UpdateSubscription.fromPartial(object.subscription);
+      message.subscription = UpdateSubscription.fromPartial(
+        object.subscription
+      );
     } else {
       message.subscription = undefined;
     }
     if (object.trackSetting !== undefined && object.trackSetting !== null) {
-      message.trackSetting = UpdateTrackSettings.fromPartial(object.trackSetting);
+      message.trackSetting = UpdateTrackSettings.fromPartial(
+        object.trackSetting
+      );
     } else {
       message.trackSetting = undefined;
     }
     return message;
   },
-  toJSON(message: SignalRequest): unknown {
-    const obj: any = {};
-    message.offer !== undefined && (obj.offer = message.offer ? SessionDescription.toJSON(message.offer) : undefined);
-    message.answer !== undefined && (obj.answer = message.answer ? SessionDescription.toJSON(message.answer) : undefined);
-    message.trickle !== undefined && (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
-    message.addTrack !== undefined && (obj.addTrack = message.addTrack ? AddTrackRequest.toJSON(message.addTrack) : undefined);
-    message.mute !== undefined && (obj.mute = message.mute ? MuteTrackRequest.toJSON(message.mute) : undefined);
-    message.subscription !== undefined && (obj.subscription = message.subscription ? UpdateSubscription.toJSON(message.subscription) : undefined);
-    message.trackSetting !== undefined && (obj.trackSetting = message.trackSetting ? UpdateTrackSettings.toJSON(message.trackSetting) : undefined);
-    return obj;
-  },
 };
 
+const baseSignalResponse: object = {};
+
 export const SignalResponse = {
-  encode(message: SignalResponse, writer: Writer = Writer.create()): Writer {
+  encode(
+    message: SignalResponse,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
     if (message.join !== undefined) {
       JoinResponse.encode(message.join, writer.uint32(10).fork()).ldelim();
     }
     if (message.answer !== undefined) {
-      SessionDescription.encode(message.answer, writer.uint32(18).fork()).ldelim();
+      SessionDescription.encode(
+        message.answer,
+        writer.uint32(18).fork()
+      ).ldelim();
     }
     if (message.offer !== undefined) {
-      SessionDescription.encode(message.offer, writer.uint32(26).fork()).ldelim();
+      SessionDescription.encode(
+        message.offer,
+        writer.uint32(26).fork()
+      ).ldelim();
     }
     if (message.trickle !== undefined) {
       TrickleRequest.encode(message.trickle, writer.uint32(34).fork()).ldelim();
     }
     if (message.update !== undefined) {
-      ParticipantUpdate.encode(message.update, writer.uint32(42).fork()).ldelim();
+      ParticipantUpdate.encode(
+        message.update,
+        writer.uint32(42).fork()
+      ).ldelim();
     }
     if (message.trackPublished !== undefined) {
-      TrackPublishedResponse.encode(message.trackPublished, writer.uint32(50).fork()).ldelim();
+      TrackPublishedResponse.encode(
+        message.trackPublished,
+        writer.uint32(50).fork()
+      ).ldelim();
     }
     if (message.speaker !== undefined) {
-      ActiveSpeakerUpdate.encode(message.speaker, writer.uint32(58).fork()).ldelim();
+      ActiveSpeakerUpdate.encode(
+        message.speaker,
+        writer.uint32(58).fork()
+      ).ldelim();
     }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): SignalResponse {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SignalResponse {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseSignalResponse } as SignalResponse;
     while (reader.pos < end) {
@@ -482,7 +462,10 @@ export const SignalResponse = {
           message.update = ParticipantUpdate.decode(reader, reader.uint32());
           break;
         case 6:
-          message.trackPublished = TrackPublishedResponse.decode(reader, reader.uint32());
+          message.trackPublished = TrackPublishedResponse.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         case 7:
           message.speaker = ActiveSpeakerUpdate.decode(reader, reader.uint32());
@@ -494,6 +477,7 @@ export const SignalResponse = {
     }
     return message;
   },
+
   fromJSON(object: any): SignalResponse {
     const message = { ...baseSignalResponse } as SignalResponse;
     if (object.join !== undefined && object.join !== null) {
@@ -522,7 +506,9 @@ export const SignalResponse = {
       message.update = undefined;
     }
     if (object.trackPublished !== undefined && object.trackPublished !== null) {
-      message.trackPublished = TrackPublishedResponse.fromJSON(object.trackPublished);
+      message.trackPublished = TrackPublishedResponse.fromJSON(
+        object.trackPublished
+      );
     } else {
       message.trackPublished = undefined;
     }
@@ -533,6 +519,38 @@ export const SignalResponse = {
     }
     return message;
   },
+
+  toJSON(message: SignalResponse): unknown {
+    const obj: any = {};
+    message.join !== undefined &&
+      (obj.join = message.join ? JoinResponse.toJSON(message.join) : undefined);
+    message.answer !== undefined &&
+      (obj.answer = message.answer
+        ? SessionDescription.toJSON(message.answer)
+        : undefined);
+    message.offer !== undefined &&
+      (obj.offer = message.offer
+        ? SessionDescription.toJSON(message.offer)
+        : undefined);
+    message.trickle !== undefined &&
+      (obj.trickle = message.trickle
+        ? TrickleRequest.toJSON(message.trickle)
+        : undefined);
+    message.update !== undefined &&
+      (obj.update = message.update
+        ? ParticipantUpdate.toJSON(message.update)
+        : undefined);
+    message.trackPublished !== undefined &&
+      (obj.trackPublished = message.trackPublished
+        ? TrackPublishedResponse.toJSON(message.trackPublished)
+        : undefined);
+    message.speaker !== undefined &&
+      (obj.speaker = message.speaker
+        ? ActiveSpeakerUpdate.toJSON(message.speaker)
+        : undefined);
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<SignalResponse>): SignalResponse {
     const message = { ...baseSignalResponse } as SignalResponse;
     if (object.join !== undefined && object.join !== null) {
@@ -561,7 +579,9 @@ export const SignalResponse = {
       message.update = undefined;
     }
     if (object.trackPublished !== undefined && object.trackPublished !== null) {
-      message.trackPublished = TrackPublishedResponse.fromPartial(object.trackPublished);
+      message.trackPublished = TrackPublishedResponse.fromPartial(
+        object.trackPublished
+      );
     } else {
       message.trackPublished = undefined;
     }
@@ -572,28 +592,29 @@ export const SignalResponse = {
     }
     return message;
   },
-  toJSON(message: SignalResponse): unknown {
-    const obj: any = {};
-    message.join !== undefined && (obj.join = message.join ? JoinResponse.toJSON(message.join) : undefined);
-    message.answer !== undefined && (obj.answer = message.answer ? SessionDescription.toJSON(message.answer) : undefined);
-    message.offer !== undefined && (obj.offer = message.offer ? SessionDescription.toJSON(message.offer) : undefined);
-    message.trickle !== undefined && (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
-    message.update !== undefined && (obj.update = message.update ? ParticipantUpdate.toJSON(message.update) : undefined);
-    message.trackPublished !== undefined && (obj.trackPublished = message.trackPublished ? TrackPublishedResponse.toJSON(message.trackPublished) : undefined);
-    message.speaker !== undefined && (obj.speaker = message.speaker ? ActiveSpeakerUpdate.toJSON(message.speaker) : undefined);
-    return obj;
-  },
 };
 
+const baseAddTrackRequest: object = { cid: '', name: '', type: 0 };
+
 export const AddTrackRequest = {
-  encode(message: AddTrackRequest, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.cid);
-    writer.uint32(18).string(message.name);
-    writer.uint32(24).int32(message.type);
+  encode(
+    message: AddTrackRequest,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.cid !== '') {
+      writer.uint32(10).string(message.cid);
+    }
+    if (message.name !== '') {
+      writer.uint32(18).string(message.name);
+    }
+    if (message.type !== 0) {
+      writer.uint32(24).int32(message.type);
+    }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): AddTrackRequest {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): AddTrackRequest {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseAddTrackRequest } as AddTrackRequest;
     while (reader.pos < end) {
@@ -615,17 +636,18 @@ export const AddTrackRequest = {
     }
     return message;
   },
+
   fromJSON(object: any): AddTrackRequest {
     const message = { ...baseAddTrackRequest } as AddTrackRequest;
     if (object.cid !== undefined && object.cid !== null) {
       message.cid = String(object.cid);
     } else {
-      message.cid = "";
+      message.cid = '';
     }
     if (object.name !== undefined && object.name !== null) {
       message.name = String(object.name);
     } else {
-      message.name = "";
+      message.name = '';
     }
     if (object.type !== undefined && object.type !== null) {
       message.type = trackTypeFromJSON(object.type);
@@ -634,17 +656,26 @@ export const AddTrackRequest = {
     }
     return message;
   },
+
+  toJSON(message: AddTrackRequest): unknown {
+    const obj: any = {};
+    message.cid !== undefined && (obj.cid = message.cid);
+    message.name !== undefined && (obj.name = message.name);
+    message.type !== undefined && (obj.type = trackTypeToJSON(message.type));
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<AddTrackRequest>): AddTrackRequest {
     const message = { ...baseAddTrackRequest } as AddTrackRequest;
     if (object.cid !== undefined && object.cid !== null) {
       message.cid = object.cid;
     } else {
-      message.cid = "";
+      message.cid = '';
     }
     if (object.name !== undefined && object.name !== null) {
       message.name = object.name;
     } else {
-      message.name = "";
+      message.name = '';
     }
     if (object.type !== undefined && object.type !== null) {
       message.type = object.type;
@@ -653,23 +684,26 @@ export const AddTrackRequest = {
     }
     return message;
   },
-  toJSON(message: AddTrackRequest): unknown {
-    const obj: any = {};
-    message.cid !== undefined && (obj.cid = message.cid);
-    message.name !== undefined && (obj.name = message.name);
-    message.type !== undefined && (obj.type = trackTypeToJSON(message.type));
-    return obj;
-  },
 };
 
+const baseTrickleRequest: object = { candidateInit: '', target: 0 };
+
 export const TrickleRequest = {
-  encode(message: TrickleRequest, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.candidateInit);
-    writer.uint32(16).int32(message.target);
+  encode(
+    message: TrickleRequest,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.candidateInit !== '') {
+      writer.uint32(10).string(message.candidateInit);
+    }
+    if (message.target !== 0) {
+      writer.uint32(16).int32(message.target);
+    }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): TrickleRequest {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): TrickleRequest {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseTrickleRequest } as TrickleRequest;
     while (reader.pos < end) {
@@ -688,12 +722,13 @@ export const TrickleRequest = {
     }
     return message;
   },
+
   fromJSON(object: any): TrickleRequest {
     const message = { ...baseTrickleRequest } as TrickleRequest;
     if (object.candidateInit !== undefined && object.candidateInit !== null) {
       message.candidateInit = String(object.candidateInit);
     } else {
-      message.candidateInit = "";
+      message.candidateInit = '';
     }
     if (object.target !== undefined && object.target !== null) {
       message.target = signalTargetFromJSON(object.target);
@@ -702,12 +737,22 @@ export const TrickleRequest = {
     }
     return message;
   },
+
+  toJSON(message: TrickleRequest): unknown {
+    const obj: any = {};
+    message.candidateInit !== undefined &&
+      (obj.candidateInit = message.candidateInit);
+    message.target !== undefined &&
+      (obj.target = signalTargetToJSON(message.target));
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<TrickleRequest>): TrickleRequest {
     const message = { ...baseTrickleRequest } as TrickleRequest;
     if (object.candidateInit !== undefined && object.candidateInit !== null) {
       message.candidateInit = object.candidateInit;
     } else {
-      message.candidateInit = "";
+      message.candidateInit = '';
     }
     if (object.target !== undefined && object.target !== null) {
       message.target = object.target;
@@ -716,22 +761,26 @@ export const TrickleRequest = {
     }
     return message;
   },
-  toJSON(message: TrickleRequest): unknown {
-    const obj: any = {};
-    message.candidateInit !== undefined && (obj.candidateInit = message.candidateInit);
-    message.target !== undefined && (obj.target = signalTargetToJSON(message.target));
-    return obj;
-  },
 };
 
+const baseMuteTrackRequest: object = { sid: '', muted: false };
+
 export const MuteTrackRequest = {
-  encode(message: MuteTrackRequest, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.sid);
-    writer.uint32(16).bool(message.muted);
+  encode(
+    message: MuteTrackRequest,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.sid !== '') {
+      writer.uint32(10).string(message.sid);
+    }
+    if (message.muted === true) {
+      writer.uint32(16).bool(message.muted);
+    }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): MuteTrackRequest {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): MuteTrackRequest {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseMuteTrackRequest } as MuteTrackRequest;
     while (reader.pos < end) {
@@ -750,12 +799,13 @@ export const MuteTrackRequest = {
     }
     return message;
   },
+
   fromJSON(object: any): MuteTrackRequest {
     const message = { ...baseMuteTrackRequest } as MuteTrackRequest;
     if (object.sid !== undefined && object.sid !== null) {
       message.sid = String(object.sid);
     } else {
-      message.sid = "";
+      message.sid = '';
     }
     if (object.muted !== undefined && object.muted !== null) {
       message.muted = Boolean(object.muted);
@@ -764,12 +814,20 @@ export const MuteTrackRequest = {
     }
     return message;
   },
+
+  toJSON(message: MuteTrackRequest): unknown {
+    const obj: any = {};
+    message.sid !== undefined && (obj.sid = message.sid);
+    message.muted !== undefined && (obj.muted = message.muted);
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<MuteTrackRequest>): MuteTrackRequest {
     const message = { ...baseMuteTrackRequest } as MuteTrackRequest;
     if (object.sid !== undefined && object.sid !== null) {
       message.sid = object.sid;
     } else {
-      message.sid = "";
+      message.sid = '';
     }
     if (object.muted !== undefined && object.muted !== null) {
       message.muted = object.muted;
@@ -778,20 +836,20 @@ export const MuteTrackRequest = {
     }
     return message;
   },
-  toJSON(message: MuteTrackRequest): unknown {
-    const obj: any = {};
-    message.sid !== undefined && (obj.sid = message.sid);
-    message.muted !== undefined && (obj.muted = message.muted);
-    return obj;
-  },
 };
 
+const baseNegotiationRequest: object = {};
+
 export const NegotiationRequest = {
-  encode(_: NegotiationRequest, writer: Writer = Writer.create()): Writer {
+  encode(
+    _: NegotiationRequest,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): NegotiationRequest {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): NegotiationRequest {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseNegotiationRequest } as NegotiationRequest;
     while (reader.pos < end) {
@@ -804,39 +862,53 @@ export const NegotiationRequest = {
     }
     return message;
   },
+
   fromJSON(_: any): NegotiationRequest {
     const message = { ...baseNegotiationRequest } as NegotiationRequest;
     return message;
   },
-  fromPartial(_: DeepPartial<NegotiationRequest>): NegotiationRequest {
-    const message = { ...baseNegotiationRequest } as NegotiationRequest;
-    return message;
-  },
+
   toJSON(_: NegotiationRequest): unknown {
     const obj: any = {};
     return obj;
   },
+
+  fromPartial(_: DeepPartial<NegotiationRequest>): NegotiationRequest {
+    const message = { ...baseNegotiationRequest } as NegotiationRequest;
+    return message;
+  },
 };
 
+const baseJoinResponse: object = { serverVersion: '' };
+
 export const JoinResponse = {
-  encode(message: JoinResponse, writer: Writer = Writer.create()): Writer {
-    if (message.room !== undefined && message.room !== undefined) {
+  encode(
+    message: JoinResponse,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.room !== undefined) {
       Room.encode(message.room, writer.uint32(10).fork()).ldelim();
     }
-    if (message.participant !== undefined && message.participant !== undefined) {
-      ParticipantInfo.encode(message.participant, writer.uint32(18).fork()).ldelim();
+    if (message.participant !== undefined) {
+      ParticipantInfo.encode(
+        message.participant,
+        writer.uint32(18).fork()
+      ).ldelim();
     }
     for (const v of message.otherParticipants) {
       ParticipantInfo.encode(v!, writer.uint32(26).fork()).ldelim();
     }
-    writer.uint32(34).string(message.serverVersion);
+    if (message.serverVersion !== '') {
+      writer.uint32(34).string(message.serverVersion);
+    }
     for (const v of message.iceServers) {
       ICEServer.encode(v!, writer.uint32(42).fork()).ldelim();
     }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): JoinResponse {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): JoinResponse {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseJoinResponse } as JoinResponse;
     message.otherParticipants = [];
@@ -851,7 +923,9 @@ export const JoinResponse = {
           message.participant = ParticipantInfo.decode(reader, reader.uint32());
           break;
         case 3:
-          message.otherParticipants.push(ParticipantInfo.decode(reader, reader.uint32()));
+          message.otherParticipants.push(
+            ParticipantInfo.decode(reader, reader.uint32())
+          );
           break;
         case 4:
           message.serverVersion = reader.string();
@@ -866,6 +940,7 @@ export const JoinResponse = {
     }
     return message;
   },
+
   fromJSON(object: any): JoinResponse {
     const message = { ...baseJoinResponse } as JoinResponse;
     message.otherParticipants = [];
@@ -880,7 +955,10 @@ export const JoinResponse = {
     } else {
       message.participant = undefined;
     }
-    if (object.otherParticipants !== undefined && object.otherParticipants !== null) {
+    if (
+      object.otherParticipants !== undefined &&
+      object.otherParticipants !== null
+    ) {
       for (const e of object.otherParticipants) {
         message.otherParticipants.push(ParticipantInfo.fromJSON(e));
       }
@@ -888,7 +966,7 @@ export const JoinResponse = {
     if (object.serverVersion !== undefined && object.serverVersion !== null) {
       message.serverVersion = String(object.serverVersion);
     } else {
-      message.serverVersion = "";
+      message.serverVersion = '';
     }
     if (object.iceServers !== undefined && object.iceServers !== null) {
       for (const e of object.iceServers) {
@@ -897,6 +975,34 @@ export const JoinResponse = {
     }
     return message;
   },
+
+  toJSON(message: JoinResponse): unknown {
+    const obj: any = {};
+    message.room !== undefined &&
+      (obj.room = message.room ? Room.toJSON(message.room) : undefined);
+    message.participant !== undefined &&
+      (obj.participant = message.participant
+        ? ParticipantInfo.toJSON(message.participant)
+        : undefined);
+    if (message.otherParticipants) {
+      obj.otherParticipants = message.otherParticipants.map((e) =>
+        e ? ParticipantInfo.toJSON(e) : undefined
+      );
+    } else {
+      obj.otherParticipants = [];
+    }
+    message.serverVersion !== undefined &&
+      (obj.serverVersion = message.serverVersion);
+    if (message.iceServers) {
+      obj.iceServers = message.iceServers.map((e) =>
+        e ? ICEServer.toJSON(e) : undefined
+      );
+    } else {
+      obj.iceServers = [];
+    }
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<JoinResponse>): JoinResponse {
     const message = { ...baseJoinResponse } as JoinResponse;
     message.otherParticipants = [];
@@ -911,7 +1017,10 @@ export const JoinResponse = {
     } else {
       message.participant = undefined;
     }
-    if (object.otherParticipants !== undefined && object.otherParticipants !== null) {
+    if (
+      object.otherParticipants !== undefined &&
+      object.otherParticipants !== null
+    ) {
       for (const e of object.otherParticipants) {
         message.otherParticipants.push(ParticipantInfo.fromPartial(e));
       }
@@ -919,7 +1028,7 @@ export const JoinResponse = {
     if (object.serverVersion !== undefined && object.serverVersion !== null) {
       message.serverVersion = object.serverVersion;
     } else {
-      message.serverVersion = "";
+      message.serverVersion = '';
     }
     if (object.iceServers !== undefined && object.iceServers !== null) {
       for (const e of object.iceServers) {
@@ -928,35 +1037,29 @@ export const JoinResponse = {
     }
     return message;
   },
-  toJSON(message: JoinResponse): unknown {
-    const obj: any = {};
-    message.room !== undefined && (obj.room = message.room ? Room.toJSON(message.room) : undefined);
-    message.participant !== undefined && (obj.participant = message.participant ? ParticipantInfo.toJSON(message.participant) : undefined);
-    if (message.otherParticipants) {
-      obj.otherParticipants = message.otherParticipants.map(e => e ? ParticipantInfo.toJSON(e) : undefined);
-    } else {
-      obj.otherParticipants = [];
-    }
-    message.serverVersion !== undefined && (obj.serverVersion = message.serverVersion);
-    if (message.iceServers) {
-      obj.iceServers = message.iceServers.map(e => e ? ICEServer.toJSON(e) : undefined);
-    } else {
-      obj.iceServers = [];
-    }
-    return obj;
-  },
 };
 
+const baseTrackPublishedResponse: object = { cid: '' };
+
 export const TrackPublishedResponse = {
-  encode(message: TrackPublishedResponse, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.cid);
-    if (message.track !== undefined && message.track !== undefined) {
+  encode(
+    message: TrackPublishedResponse,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.cid !== '') {
+      writer.uint32(10).string(message.cid);
+    }
+    if (message.track !== undefined) {
       TrackInfo.encode(message.track, writer.uint32(18).fork()).ldelim();
     }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): TrackPublishedResponse {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number
+  ): TrackPublishedResponse {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseTrackPublishedResponse } as TrackPublishedResponse;
     while (reader.pos < end) {
@@ -975,12 +1078,13 @@ export const TrackPublishedResponse = {
     }
     return message;
   },
+
   fromJSON(object: any): TrackPublishedResponse {
     const message = { ...baseTrackPublishedResponse } as TrackPublishedResponse;
     if (object.cid !== undefined && object.cid !== null) {
       message.cid = String(object.cid);
     } else {
-      message.cid = "";
+      message.cid = '';
     }
     if (object.track !== undefined && object.track !== null) {
       message.track = TrackInfo.fromJSON(object.track);
@@ -989,12 +1093,23 @@ export const TrackPublishedResponse = {
     }
     return message;
   },
-  fromPartial(object: DeepPartial<TrackPublishedResponse>): TrackPublishedResponse {
+
+  toJSON(message: TrackPublishedResponse): unknown {
+    const obj: any = {};
+    message.cid !== undefined && (obj.cid = message.cid);
+    message.track !== undefined &&
+      (obj.track = message.track ? TrackInfo.toJSON(message.track) : undefined);
+    return obj;
+  },
+
+  fromPartial(
+    object: DeepPartial<TrackPublishedResponse>
+  ): TrackPublishedResponse {
     const message = { ...baseTrackPublishedResponse } as TrackPublishedResponse;
     if (object.cid !== undefined && object.cid !== null) {
       message.cid = object.cid;
     } else {
-      message.cid = "";
+      message.cid = '';
     }
     if (object.track !== undefined && object.track !== null) {
       message.track = TrackInfo.fromPartial(object.track);
@@ -1003,22 +1118,26 @@ export const TrackPublishedResponse = {
     }
     return message;
   },
-  toJSON(message: TrackPublishedResponse): unknown {
-    const obj: any = {};
-    message.cid !== undefined && (obj.cid = message.cid);
-    message.track !== undefined && (obj.track = message.track ? TrackInfo.toJSON(message.track) : undefined);
-    return obj;
-  },
 };
 
+const baseSessionDescription: object = { type: '', sdp: '' };
+
 export const SessionDescription = {
-  encode(message: SessionDescription, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.type);
-    writer.uint32(18).string(message.sdp);
+  encode(
+    message: SessionDescription,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.type !== '') {
+      writer.uint32(10).string(message.type);
+    }
+    if (message.sdp !== '') {
+      writer.uint32(18).string(message.sdp);
+    }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): SessionDescription {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SessionDescription {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseSessionDescription } as SessionDescription;
     while (reader.pos < end) {
@@ -1037,51 +1156,60 @@ export const SessionDescription = {
     }
     return message;
   },
+
   fromJSON(object: any): SessionDescription {
     const message = { ...baseSessionDescription } as SessionDescription;
     if (object.type !== undefined && object.type !== null) {
       message.type = String(object.type);
     } else {
-      message.type = "";
+      message.type = '';
     }
     if (object.sdp !== undefined && object.sdp !== null) {
       message.sdp = String(object.sdp);
     } else {
-      message.sdp = "";
+      message.sdp = '';
     }
     return message;
   },
-  fromPartial(object: DeepPartial<SessionDescription>): SessionDescription {
-    const message = { ...baseSessionDescription } as SessionDescription;
-    if (object.type !== undefined && object.type !== null) {
-      message.type = object.type;
-    } else {
-      message.type = "";
-    }
-    if (object.sdp !== undefined && object.sdp !== null) {
-      message.sdp = object.sdp;
-    } else {
-      message.sdp = "";
-    }
-    return message;
-  },
+
   toJSON(message: SessionDescription): unknown {
     const obj: any = {};
     message.type !== undefined && (obj.type = message.type);
     message.sdp !== undefined && (obj.sdp = message.sdp);
     return obj;
   },
+
+  fromPartial(object: DeepPartial<SessionDescription>): SessionDescription {
+    const message = { ...baseSessionDescription } as SessionDescription;
+    if (object.type !== undefined && object.type !== null) {
+      message.type = object.type;
+    } else {
+      message.type = '';
+    }
+    if (object.sdp !== undefined && object.sdp !== null) {
+      message.sdp = object.sdp;
+    } else {
+      message.sdp = '';
+    }
+    return message;
+  },
 };
 
+const baseParticipantUpdate: object = {};
+
 export const ParticipantUpdate = {
-  encode(message: ParticipantUpdate, writer: Writer = Writer.create()): Writer {
+  encode(
+    message: ParticipantUpdate,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
     for (const v of message.participants) {
       ParticipantInfo.encode(v!, writer.uint32(10).fork()).ldelim();
     }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): ParticipantUpdate {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ParticipantUpdate {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseParticipantUpdate } as ParticipantUpdate;
     message.participants = [];
@@ -1089,7 +1217,9 @@ export const ParticipantUpdate = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.participants.push(ParticipantInfo.decode(reader, reader.uint32()));
+          message.participants.push(
+            ParticipantInfo.decode(reader, reader.uint32())
+          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -1098,6 +1228,7 @@ export const ParticipantUpdate = {
     }
     return message;
   },
+
   fromJSON(object: any): ParticipantUpdate {
     const message = { ...baseParticipantUpdate } as ParticipantUpdate;
     message.participants = [];
@@ -1108,6 +1239,19 @@ export const ParticipantUpdate = {
     }
     return message;
   },
+
+  toJSON(message: ParticipantUpdate): unknown {
+    const obj: any = {};
+    if (message.participants) {
+      obj.participants = message.participants.map((e) =>
+        e ? ParticipantInfo.toJSON(e) : undefined
+      );
+    } else {
+      obj.participants = [];
+    }
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<ParticipantUpdate>): ParticipantUpdate {
     const message = { ...baseParticipantUpdate } as ParticipantUpdate;
     message.participants = [];
@@ -1118,26 +1262,23 @@ export const ParticipantUpdate = {
     }
     return message;
   },
-  toJSON(message: ParticipantUpdate): unknown {
-    const obj: any = {};
-    if (message.participants) {
-      obj.participants = message.participants.map(e => e ? ParticipantInfo.toJSON(e) : undefined);
-    } else {
-      obj.participants = [];
-    }
-    return obj;
-  },
 };
 
+const baseActiveSpeakerUpdate: object = {};
+
 export const ActiveSpeakerUpdate = {
-  encode(message: ActiveSpeakerUpdate, writer: Writer = Writer.create()): Writer {
+  encode(
+    message: ActiveSpeakerUpdate,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
     for (const v of message.speakers) {
       SpeakerInfo.encode(v!, writer.uint32(10).fork()).ldelim();
     }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): ActiveSpeakerUpdate {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ActiveSpeakerUpdate {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
     message.speakers = [];
@@ -1154,6 +1295,7 @@ export const ActiveSpeakerUpdate = {
     }
     return message;
   },
+
   fromJSON(object: any): ActiveSpeakerUpdate {
     const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
     message.speakers = [];
@@ -1164,6 +1306,19 @@ export const ActiveSpeakerUpdate = {
     }
     return message;
   },
+
+  toJSON(message: ActiveSpeakerUpdate): unknown {
+    const obj: any = {};
+    if (message.speakers) {
+      obj.speakers = message.speakers.map((e) =>
+        e ? SpeakerInfo.toJSON(e) : undefined
+      );
+    } else {
+      obj.speakers = [];
+    }
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<ActiveSpeakerUpdate>): ActiveSpeakerUpdate {
     const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
     message.speakers = [];
@@ -1174,26 +1329,29 @@ export const ActiveSpeakerUpdate = {
     }
     return message;
   },
-  toJSON(message: ActiveSpeakerUpdate): unknown {
-    const obj: any = {};
-    if (message.speakers) {
-      obj.speakers = message.speakers.map(e => e ? SpeakerInfo.toJSON(e) : undefined);
-    } else {
-      obj.speakers = [];
-    }
-    return obj;
-  },
 };
 
+const baseSpeakerInfo: object = { sid: '', level: 0, active: false };
+
 export const SpeakerInfo = {
-  encode(message: SpeakerInfo, writer: Writer = Writer.create()): Writer {
-    writer.uint32(10).string(message.sid);
-    writer.uint32(21).float(message.level);
-    writer.uint32(24).bool(message.active);
+  encode(
+    message: SpeakerInfo,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.sid !== '') {
+      writer.uint32(10).string(message.sid);
+    }
+    if (message.level !== 0) {
+      writer.uint32(21).float(message.level);
+    }
+    if (message.active === true) {
+      writer.uint32(24).bool(message.active);
+    }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): SpeakerInfo {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SpeakerInfo {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseSpeakerInfo } as SpeakerInfo;
     while (reader.pos < end) {
@@ -1215,12 +1373,13 @@ export const SpeakerInfo = {
     }
     return message;
   },
+
   fromJSON(object: any): SpeakerInfo {
     const message = { ...baseSpeakerInfo } as SpeakerInfo;
     if (object.sid !== undefined && object.sid !== null) {
       message.sid = String(object.sid);
     } else {
-      message.sid = "";
+      message.sid = '';
     }
     if (object.level !== undefined && object.level !== null) {
       message.level = Number(object.level);
@@ -1234,12 +1393,21 @@ export const SpeakerInfo = {
     }
     return message;
   },
+
+  toJSON(message: SpeakerInfo): unknown {
+    const obj: any = {};
+    message.sid !== undefined && (obj.sid = message.sid);
+    message.level !== undefined && (obj.level = message.level);
+    message.active !== undefined && (obj.active = message.active);
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<SpeakerInfo>): SpeakerInfo {
     const message = { ...baseSpeakerInfo } as SpeakerInfo;
     if (object.sid !== undefined && object.sid !== null) {
       message.sid = object.sid;
     } else {
-      message.sid = "";
+      message.sid = '';
     }
     if (object.level !== undefined && object.level !== null) {
       message.level = object.level;
@@ -1253,26 +1421,33 @@ export const SpeakerInfo = {
     }
     return message;
   },
-  toJSON(message: SpeakerInfo): unknown {
-    const obj: any = {};
-    message.sid !== undefined && (obj.sid = message.sid);
-    message.level !== undefined && (obj.level = message.level);
-    message.active !== undefined && (obj.active = message.active);
-    return obj;
-  },
+};
+
+const baseUpdateSubscription: object = {
+  trackSids: '',
+  subscribe: false,
+  quality: 0,
 };
 
 export const UpdateSubscription = {
-  encode(message: UpdateSubscription, writer: Writer = Writer.create()): Writer {
+  encode(
+    message: UpdateSubscription,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
     for (const v of message.trackSids) {
       writer.uint32(10).string(v!);
     }
-    writer.uint32(16).bool(message.subscribe);
-    writer.uint32(32).int32(message.quality);
+    if (message.subscribe === true) {
+      writer.uint32(16).bool(message.subscribe);
+    }
+    if (message.quality !== 0) {
+      writer.uint32(32).int32(message.quality);
+    }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): UpdateSubscription {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): UpdateSubscription {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseUpdateSubscription } as UpdateSubscription;
     message.trackSids = [];
@@ -1295,6 +1470,7 @@ export const UpdateSubscription = {
     }
     return message;
   },
+
   fromJSON(object: any): UpdateSubscription {
     const message = { ...baseUpdateSubscription } as UpdateSubscription;
     message.trackSids = [];
@@ -1315,6 +1491,20 @@ export const UpdateSubscription = {
     }
     return message;
   },
+
+  toJSON(message: UpdateSubscription): unknown {
+    const obj: any = {};
+    if (message.trackSids) {
+      obj.trackSids = message.trackSids.map((e) => e);
+    } else {
+      obj.trackSids = [];
+    }
+    message.subscribe !== undefined && (obj.subscribe = message.subscribe);
+    message.quality !== undefined &&
+      (obj.quality = videoQualityToJSON(message.quality));
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<UpdateSubscription>): UpdateSubscription {
     const message = { ...baseUpdateSubscription } as UpdateSubscription;
     message.trackSids = [];
@@ -1335,30 +1525,33 @@ export const UpdateSubscription = {
     }
     return message;
   },
-  toJSON(message: UpdateSubscription): unknown {
-    const obj: any = {};
-    if (message.trackSids) {
-      obj.trackSids = message.trackSids.map(e => e);
-    } else {
-      obj.trackSids = [];
-    }
-    message.subscribe !== undefined && (obj.subscribe = message.subscribe);
-    message.quality !== undefined && (obj.quality = videoQualityToJSON(message.quality));
-    return obj;
-  },
+};
+
+const baseUpdateTrackSettings: object = {
+  trackSids: '',
+  disabled: false,
+  quality: 0,
 };
 
 export const UpdateTrackSettings = {
-  encode(message: UpdateTrackSettings, writer: Writer = Writer.create()): Writer {
+  encode(
+    message: UpdateTrackSettings,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
     for (const v of message.trackSids) {
       writer.uint32(10).string(v!);
     }
-    writer.uint32(24).bool(message.disabled);
-    writer.uint32(32).int32(message.quality);
+    if (message.disabled === true) {
+      writer.uint32(24).bool(message.disabled);
+    }
+    if (message.quality !== 0) {
+      writer.uint32(32).int32(message.quality);
+    }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): UpdateTrackSettings {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): UpdateTrackSettings {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseUpdateTrackSettings } as UpdateTrackSettings;
     message.trackSids = [];
@@ -1381,6 +1574,7 @@ export const UpdateTrackSettings = {
     }
     return message;
   },
+
   fromJSON(object: any): UpdateTrackSettings {
     const message = { ...baseUpdateTrackSettings } as UpdateTrackSettings;
     message.trackSids = [];
@@ -1401,6 +1595,20 @@ export const UpdateTrackSettings = {
     }
     return message;
   },
+
+  toJSON(message: UpdateTrackSettings): unknown {
+    const obj: any = {};
+    if (message.trackSids) {
+      obj.trackSids = message.trackSids.map((e) => e);
+    } else {
+      obj.trackSids = [];
+    }
+    message.disabled !== undefined && (obj.disabled = message.disabled);
+    message.quality !== undefined &&
+      (obj.quality = videoQualityToJSON(message.quality));
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<UpdateTrackSettings>): UpdateTrackSettings {
     const message = { ...baseUpdateTrackSettings } as UpdateTrackSettings;
     message.trackSids = [];
@@ -1421,30 +1629,29 @@ export const UpdateTrackSettings = {
     }
     return message;
   },
-  toJSON(message: UpdateTrackSettings): unknown {
-    const obj: any = {};
-    if (message.trackSids) {
-      obj.trackSids = message.trackSids.map(e => e);
-    } else {
-      obj.trackSids = [];
-    }
-    message.disabled !== undefined && (obj.disabled = message.disabled);
-    message.quality !== undefined && (obj.quality = videoQualityToJSON(message.quality));
-    return obj;
-  },
 };
 
+const baseICEServer: object = { urls: '', username: '', credential: '' };
+
 export const ICEServer = {
-  encode(message: ICEServer, writer: Writer = Writer.create()): Writer {
+  encode(
+    message: ICEServer,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
     for (const v of message.urls) {
       writer.uint32(10).string(v!);
     }
-    writer.uint32(18).string(message.username);
-    writer.uint32(26).string(message.credential);
+    if (message.username !== '') {
+      writer.uint32(18).string(message.username);
+    }
+    if (message.credential !== '') {
+      writer.uint32(26).string(message.credential);
+    }
     return writer;
   },
-  decode(input: Uint8Array | Reader, length?: number): ICEServer {
-    const reader = input instanceof Uint8Array ? new Reader(input) : input;
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ICEServer {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseICEServer } as ICEServer;
     message.urls = [];
@@ -1467,6 +1674,7 @@ export const ICEServer = {
     }
     return message;
   },
+
   fromJSON(object: any): ICEServer {
     const message = { ...baseICEServer } as ICEServer;
     message.urls = [];
@@ -1478,15 +1686,28 @@ export const ICEServer = {
     if (object.username !== undefined && object.username !== null) {
       message.username = String(object.username);
     } else {
-      message.username = "";
+      message.username = '';
     }
     if (object.credential !== undefined && object.credential !== null) {
       message.credential = String(object.credential);
     } else {
-      message.credential = "";
+      message.credential = '';
     }
     return message;
   },
+
+  toJSON(message: ICEServer): unknown {
+    const obj: any = {};
+    if (message.urls) {
+      obj.urls = message.urls.map((e) => e);
+    } else {
+      obj.urls = [];
+    }
+    message.username !== undefined && (obj.username = message.username);
+    message.credential !== undefined && (obj.credential = message.credential);
+    return obj;
+  },
+
   fromPartial(object: DeepPartial<ICEServer>): ICEServer {
     const message = { ...baseICEServer } as ICEServer;
     message.urls = [];
@@ -1498,25 +1719,14 @@ export const ICEServer = {
     if (object.username !== undefined && object.username !== null) {
       message.username = object.username;
     } else {
-      message.username = "";
+      message.username = '';
     }
     if (object.credential !== undefined && object.credential !== null) {
       message.credential = object.credential;
     } else {
-      message.credential = "";
+      message.credential = '';
     }
     return message;
-  },
-  toJSON(message: ICEServer): unknown {
-    const obj: any = {};
-    if (message.urls) {
-      obj.urls = message.urls.map(e => e);
-    } else {
-      obj.urls = [];
-    }
-    message.username !== undefined && (obj.username = message.username);
-    message.credential !== undefined && (obj.credential = message.credential);
-    return obj;
   },
 };
 
@@ -1530,3 +1740,8 @@ export type DeepPartial<T> = T extends Builtin
   : T extends {}
   ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;
+
+if (_m0.util.Long !== Long) {
+  _m0.util.Long = Long as any;
+  _m0.configure();
+}
