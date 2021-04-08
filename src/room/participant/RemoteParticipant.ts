@@ -111,6 +111,8 @@ export class RemoteParticipant extends Participant {
     // set track name etc
     track.name = publication.trackName;
     track.sid = publication.trackSid;
+    // keep publication's muted status
+    track.isMuted = publication.isMuted;
 
     // when media track is ended, fire the event
     mediaTrack.onended = (ev) => {
