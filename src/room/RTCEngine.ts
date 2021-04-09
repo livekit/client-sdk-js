@@ -244,6 +244,9 @@ export class RTCEngine extends EventEmitter {
   // continues to work, we can reconnect to websocket to continue the session
   // after a number of retries, we'll close and give up permanently
   private handleWSClose = () => {
+    if (!this.iceConnected) {
+      return;
+    }
     if (this.numRetries >= maxWSRetries) {
       log.info(
         'could not connect to signal after',
