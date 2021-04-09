@@ -95,6 +95,8 @@ export interface SignalRequest {
   subscription?: UpdateSubscription | undefined;
   /** Update settings of subscribed tracks */
   trackSetting?: UpdateTrackSettings | undefined;
+  /** Immediately terminate session */
+  leave?: LeaveRequest | undefined;
 }
 
 export interface SignalResponse {
@@ -181,6 +183,9 @@ export interface UpdateTrackSettings {
   quality: VideoQuality;
 }
 
+/** empty */
+export interface LeaveRequest {}
+
 export interface ICEServer {
   urls: string[];
   username: string;
@@ -230,6 +235,9 @@ export const SignalRequest = {
         writer.uint32(58).fork()
       ).ldelim();
     }
+    if (message.leave !== undefined) {
+      LeaveRequest.encode(message.leave, writer.uint32(66).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -266,6 +274,9 @@ export const SignalRequest = {
             reader,
             reader.uint32()
           );
+          break;
+        case 8:
+          message.leave = LeaveRequest.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -312,6 +323,11 @@ export const SignalRequest = {
     } else {
       message.trackSetting = undefined;
     }
+    if (object.leave !== undefined && object.leave !== null) {
+      message.leave = LeaveRequest.fromJSON(object.leave);
+    } else {
+      message.leave = undefined;
+    }
     return message;
   },
 
@@ -344,6 +360,10 @@ export const SignalRequest = {
     message.trackSetting !== undefined &&
       (obj.trackSetting = message.trackSetting
         ? UpdateTrackSettings.toJSON(message.trackSetting)
+        : undefined);
+    message.leave !== undefined &&
+      (obj.leave = message.leave
+        ? LeaveRequest.toJSON(message.leave)
         : undefined);
     return obj;
   },
@@ -388,6 +408,11 @@ export const SignalRequest = {
       );
     } else {
       message.trackSetting = undefined;
+    }
+    if (object.leave !== undefined && object.leave !== null) {
+      message.leave = LeaveRequest.fromPartial(object.leave);
+    } else {
+      message.leave = undefined;
     }
     return message;
   },
@@ -1627,6 +1652,47 @@ export const UpdateTrackSettings = {
     } else {
       message.quality = 0;
     }
+    return message;
+  },
+};
+
+const baseLeaveRequest: object = {};
+
+export const LeaveRequest = {
+  encode(
+    _: LeaveRequest,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): LeaveRequest {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseLeaveRequest } as LeaveRequest;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(_: any): LeaveRequest {
+    const message = { ...baseLeaveRequest } as LeaveRequest;
+    return message;
+  },
+
+  toJSON(_: LeaveRequest): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  fromPartial(_: DeepPartial<LeaveRequest>): LeaveRequest {
+    const message = { ...baseLeaveRequest } as LeaveRequest;
     return message;
   },
 };

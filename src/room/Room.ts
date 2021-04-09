@@ -155,6 +155,8 @@ class Room extends EventEmitter {
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
   disconnect() {
+    // send leave
+    this.engine.client.sendLeave();
     this.engine.close();
     this.handleDisconnect();
   }

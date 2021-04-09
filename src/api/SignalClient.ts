@@ -27,6 +27,7 @@ export interface SignalClient {
   sendAddTrack(cid: string, name: string, type: TrackType): void;
   sendUpdateTrackSettings(settings: UpdateTrackSettings): void;
   sendUpdateSubscription(sub: UpdateSubscription): void;
+  sendLeave(): void;
   close(): void;
 
   readonly isConnected: boolean;
@@ -199,6 +200,10 @@ export class WSSignalClient {
 
   sendUpdateSubscription(sub: UpdateSubscription) {
     this.sendRequest({ subscription: sub });
+  }
+
+  sendLeave() {
+    this.sendRequest({ leave: {} });
   }
 
   sendRequest(req: SignalRequest) {
