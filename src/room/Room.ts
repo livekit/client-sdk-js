@@ -115,7 +115,7 @@ class Room extends EventEmitter {
         pi.identity,
         this.engine
       );
-      this.localParticipant.setMetadata(pi.metadata);
+      this.localParticipant.updateInfo(pi);
       // forward metadata changed for the local participant
       this.localParticipant.on(
         ParticipantEvent.MetadataChanged,

@@ -253,6 +253,11 @@ export class RTCEngine extends EventEmitter {
     };
 
     this.client.onClose = this.handleWSClose;
+
+    this.client.onLeave = () => {
+      this.close();
+      this.emit(EngineEvent.Disconnected);
+    };
   }
 
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection

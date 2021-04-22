@@ -114,6 +114,8 @@ export interface SignalResponse {
   trackPublished?: TrackPublishedResponse | undefined;
   /** list of active speakers */
   speaker?: ActiveSpeakerUpdate | undefined;
+  /** Immediately terminate session */
+  leave?: LeaveRequest | undefined;
 }
 
 export interface AddTrackRequest {
@@ -461,6 +463,9 @@ export const SignalResponse = {
         writer.uint32(58).fork()
       ).ldelim();
     }
+    if (message.leave !== undefined) {
+      LeaveRequest.encode(message.leave, writer.uint32(66).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -494,6 +499,9 @@ export const SignalResponse = {
           break;
         case 7:
           message.speaker = ActiveSpeakerUpdate.decode(reader, reader.uint32());
+          break;
+        case 8:
+          message.leave = LeaveRequest.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -542,6 +550,11 @@ export const SignalResponse = {
     } else {
       message.speaker = undefined;
     }
+    if (object.leave !== undefined && object.leave !== null) {
+      message.leave = LeaveRequest.fromJSON(object.leave);
+    } else {
+      message.leave = undefined;
+    }
     return message;
   },
 
@@ -572,6 +585,10 @@ export const SignalResponse = {
     message.speaker !== undefined &&
       (obj.speaker = message.speaker
         ? ActiveSpeakerUpdate.toJSON(message.speaker)
+        : undefined);
+    message.leave !== undefined &&
+      (obj.leave = message.leave
+        ? LeaveRequest.toJSON(message.leave)
         : undefined);
     return obj;
   },
@@ -614,6 +631,11 @@ export const SignalResponse = {
       message.speaker = ActiveSpeakerUpdate.fromPartial(object.speaker);
     } else {
       message.speaker = undefined;
+    }
+    if (object.leave !== undefined && object.leave !== null) {
+      message.leave = LeaveRequest.fromPartial(object.leave);
+    } else {
+      message.leave = undefined;
     }
     return message;
   },

@@ -52,6 +52,7 @@ export interface SignalClient {
   onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
   // when active speakers changed
   onActiveSpeakersChanged?: (res: SpeakerInfo[]) => void;
+  onLeave?: () => void;
 }
 
 export class WSSignalClient {
@@ -66,6 +67,7 @@ export class WSSignalClient {
   onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
   onNegotiateRequested?: () => void;
   onActiveSpeakersChanged?: (res: SpeakerInfo[]) => void;
+  onLeave?: () => void;
 
   ws?: WebSocket;
 
@@ -267,6 +269,10 @@ export class WSSignalClient {
     } else if (msg.speaker) {
       if (this.onActiveSpeakersChanged) {
         this.onActiveSpeakersChanged(msg.speaker.speakers);
+      }
+    } else if (msg.leave) {
+      if (this.onLeave) {
+        this.onLeave();
       }
     } else {
       console.warn('unsupported message', msg);
