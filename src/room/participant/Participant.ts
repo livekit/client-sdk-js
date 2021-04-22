@@ -40,6 +40,7 @@ export class Participant extends EventEmitter {
     return Array.from(this.tracks.values());
   }
 
+  /** when participant joined the room */
   get joinedAt(): Date | undefined {
     if (this.participantInfo) {
       return new Date(this.participantInfo.joinedAt * 1000);
