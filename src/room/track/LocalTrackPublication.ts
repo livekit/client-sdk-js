@@ -1,6 +1,5 @@
 import { TrackInfo } from '../../proto/livekit_models';
 import { LocalAudioTrack } from './LocalAudioTrack';
-import { LocalDataTrack } from './LocalDataTrack';
 import { LocalVideoTrack } from './LocalVideoTrack';
 import { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
@@ -18,7 +17,7 @@ export class LocalTrackPublication extends TrackPublication {
   }
 
   get isMuted(): boolean {
-    if (!this.track || this.track instanceof LocalDataTrack) {
+    if (!this.track) {
       return false;
     }
     return this.track.isMuted;

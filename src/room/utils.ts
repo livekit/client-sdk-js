@@ -8,14 +8,6 @@ export function unpackStreamId(packed: string): string[] {
   return [packed, ''];
 }
 
-export function unpackDataTrackLabel(packed: string): string[] {
-  const parts = packed.split(separator);
-  if (parts.length !== 3) {
-    return ['', '', ''];
-  }
-  return [parts[0], parts[1], parts[2]];
-}
-
 export function useLegacyAPI(): boolean {
   // react native is using old stream based API
   return typeof navigator != 'undefined' && navigator.product == 'ReactNative';

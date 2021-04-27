@@ -194,6 +194,52 @@ export interface ICEServer {
   credential: string;
 }
 
+/** new DataPacket API */
+export interface DataPacket {
+  kind: DataPacket_Kind;
+  user?: UserPacket | undefined;
+  speaker?: ActiveSpeakerUpdate | undefined;
+}
+
+export enum DataPacket_Kind {
+  RELIABLE = 0,
+  LOSSY = 1,
+  UNRECOGNIZED = -1,
+}
+
+export function dataPacket_KindFromJSON(object: any): DataPacket_Kind {
+  switch (object) {
+    case 0:
+    case 'RELIABLE':
+      return DataPacket_Kind.RELIABLE;
+    case 1:
+    case 'LOSSY':
+      return DataPacket_Kind.LOSSY;
+    case -1:
+    case 'UNRECOGNIZED':
+    default:
+      return DataPacket_Kind.UNRECOGNIZED;
+  }
+}
+
+export function dataPacket_KindToJSON(object: DataPacket_Kind): string {
+  switch (object) {
+    case DataPacket_Kind.RELIABLE:
+      return 'RELIABLE';
+    case DataPacket_Kind.LOSSY:
+      return 'LOSSY';
+    default:
+      return 'UNKNOWN';
+  }
+}
+
+export interface UserPacket {
+  /** participant ID of user that sent the message */
+  participantSid: string;
+  /** user defined payload */
+  payload: Uint8Array;
+}
+
 const baseSignalRequest: object = {};
 
 export const SignalRequest = {
@@ -1817,6 +1863,218 @@ export const ICEServer = {
     return message;
   },
 };
+
+const baseDataPacket: object = { kind: 0 };
+
+export const DataPacket = {
+  encode(
+    message: DataPacket,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.kind !== 0) {
+      writer.uint32(8).int32(message.kind);
+    }
+    if (message.user !== undefined) {
+      UserPacket.encode(message.user, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.speaker !== undefined) {
+      ActiveSpeakerUpdate.encode(
+        message.speaker,
+        writer.uint32(26).fork()
+      ).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): DataPacket {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseDataPacket } as DataPacket;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.kind = reader.int32() as any;
+          break;
+        case 2:
+          message.user = UserPacket.decode(reader, reader.uint32());
+          break;
+        case 3:
+          message.speaker = ActiveSpeakerUpdate.decode(reader, reader.uint32());
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DataPacket {
+    const message = { ...baseDataPacket } as DataPacket;
+    if (object.kind !== undefined && object.kind !== null) {
+      message.kind = dataPacket_KindFromJSON(object.kind);
+    } else {
+      message.kind = 0;
+    }
+    if (object.user !== undefined && object.user !== null) {
+      message.user = UserPacket.fromJSON(object.user);
+    } else {
+      message.user = undefined;
+    }
+    if (object.speaker !== undefined && object.speaker !== null) {
+      message.speaker = ActiveSpeakerUpdate.fromJSON(object.speaker);
+    } else {
+      message.speaker = undefined;
+    }
+    return message;
+  },
+
+  toJSON(message: DataPacket): unknown {
+    const obj: any = {};
+    message.kind !== undefined &&
+      (obj.kind = dataPacket_KindToJSON(message.kind));
+    message.user !== undefined &&
+      (obj.user = message.user ? UserPacket.toJSON(message.user) : undefined);
+    message.speaker !== undefined &&
+      (obj.speaker = message.speaker
+        ? ActiveSpeakerUpdate.toJSON(message.speaker)
+        : undefined);
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<DataPacket>): DataPacket {
+    const message = { ...baseDataPacket } as DataPacket;
+    if (object.kind !== undefined && object.kind !== null) {
+      message.kind = object.kind;
+    } else {
+      message.kind = 0;
+    }
+    if (object.user !== undefined && object.user !== null) {
+      message.user = UserPacket.fromPartial(object.user);
+    } else {
+      message.user = undefined;
+    }
+    if (object.speaker !== undefined && object.speaker !== null) {
+      message.speaker = ActiveSpeakerUpdate.fromPartial(object.speaker);
+    } else {
+      message.speaker = undefined;
+    }
+    return message;
+  },
+};
+
+const baseUserPacket: object = { participantSid: '' };
+
+export const UserPacket = {
+  encode(
+    message: UserPacket,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.participantSid !== '') {
+      writer.uint32(10).string(message.participantSid);
+    }
+    if (message.payload.length !== 0) {
+      writer.uint32(18).bytes(message.payload);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): UserPacket {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseUserPacket } as UserPacket;
+    message.payload = new Uint8Array();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.participantSid = reader.string();
+          break;
+        case 2:
+          message.payload = reader.bytes();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UserPacket {
+    const message = { ...baseUserPacket } as UserPacket;
+    message.payload = new Uint8Array();
+    if (object.participantSid !== undefined && object.participantSid !== null) {
+      message.participantSid = String(object.participantSid);
+    } else {
+      message.participantSid = '';
+    }
+    if (object.payload !== undefined && object.payload !== null) {
+      message.payload = bytesFromBase64(object.payload);
+    }
+    return message;
+  },
+
+  toJSON(message: UserPacket): unknown {
+    const obj: any = {};
+    message.participantSid !== undefined &&
+      (obj.participantSid = message.participantSid);
+    message.payload !== undefined &&
+      (obj.payload = base64FromBytes(
+        message.payload !== undefined ? message.payload : new Uint8Array()
+      ));
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<UserPacket>): UserPacket {
+    const message = { ...baseUserPacket } as UserPacket;
+    if (object.participantSid !== undefined && object.participantSid !== null) {
+      message.participantSid = object.participantSid;
+    } else {
+      message.participantSid = '';
+    }
+    if (object.payload !== undefined && object.payload !== null) {
+      message.payload = object.payload;
+    } else {
+      message.payload = new Uint8Array();
+    }
+    return message;
+  },
+};
+
+declare var self: any | undefined;
+declare var window: any | undefined;
+var globalThis: any = (() => {
+  if (typeof globalThis !== 'undefined') return globalThis;
+  if (typeof self !== 'undefined') return self;
+  if (typeof window !== 'undefined') return window;
+  if (typeof global !== 'undefined') return global;
+  throw 'Unable to locate global object';
+})();
+
+const atob: (b64: string) => string =
+  globalThis.atob ||
+  ((b64) => globalThis.Buffer.from(b64, 'base64').toString('binary'));
+function bytesFromBase64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; ++i) {
+    arr[i] = bin.charCodeAt(i);
+  }
+  return arr;
+}
+
+const btoa: (bin: string) => string =
+  globalThis.btoa ||
+  ((bin) => globalThis.Buffer.from(bin, 'binary').toString('base64'));
+function base64FromBytes(arr: Uint8Array): string {
+  const bin: string[] = [];
+  for (let i = 0; i < arr.byteLength; ++i) {
+    bin.push(String.fromCharCode(arr[i]));
+  }
+  return btoa(bin.join(''));
+}
 
 type Builtin = Date | Function | Uint8Array | string | number | undefined;
 export type DeepPartial<T> = T extends Builtin

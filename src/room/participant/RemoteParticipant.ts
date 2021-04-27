@@ -7,7 +7,6 @@ import {
 } from '../../proto/livekit_rtc';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RemoteAudioTrack } from '../track/RemoteAudioTrack';
-import { RemoteDataTrack } from '../track/RemoteDataTrack';
 import { RemoteTrackPublication } from '../track/RemoteTrackPublication';
 import { RemoteVideoTrack } from '../track/RemoteVideoTrack';
 import { Track } from '../track/Track';
@@ -18,7 +17,6 @@ import { Participant } from './Participant';
 export class RemoteParticipant extends Participant {
   audioTracks: Map<string, RemoteTrackPublication>;
   videoTracks: Map<string, RemoteTrackPublication>;
-  dataTracks: Map<string, RemoteTrackPublication>;
   tracks: Map<string, RemoteTrackPublication>;
 
   signalClient: SignalClient;
@@ -40,7 +38,6 @@ export class RemoteParticipant extends Participant {
     this.tracks = new Map();
     this.audioTracks = new Map();
     this.videoTracks = new Map();
-    this.dataTracks = new Map();
   }
 
   protected addTrackPublication(publication: TrackPublication) {
@@ -124,42 +121,6 @@ export class RemoteParticipant extends Participant {
   }
 
   /** @internal */
-  addSubscribedDataTrack(
-    dataChannel: RTCDataChannel,
-    sid: Track.SID,
-    name: string
-  ): RemoteTrackPublication {
-    const track = new RemoteDataTrack(sid, name, dataChannel);
-    let publication = this.getTrackPublication(sid);
-
-    if (!publication) {
-      publication = new RemoteTrackPublication(Track.Kind.Data, sid, name);
-      publication.setTrack(track);
-      this.addTrackPublication(publication);
-
-      // only send this after metadata is filled in, which indicates the track
-      // is published AFTER client connected to room
-      if (this.hasMetadata) {
-        this.emit(ParticipantEvent.TrackPublished, publication);
-      }
-    } else {
-      publication.setTrack(track);
-    }
-
-    track.on(TrackEvent.Message, (data: any) => {
-      // forward this
-      this.emit(ParticipantEvent.TrackMessage, data, track);
-    });
-
-    dataChannel.onclose = (ev) => {
-      this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
-    };
-    this.emit(ParticipantEvent.TrackSubscribed, track, publication);
-
-    return publication;
-  }
-
-  /** @internal */
   get hasMetadata(): boolean {
     return !!this.participantInfo;
   }
@@ -231,9 +192,6 @@ export class RemoteParticipant extends Participant {
         break;
       case Track.Kind.Video:
         this.videoTracks.delete(sid);
-        break;
-      case Track.Kind.Data:
-        this.dataTracks.delete(sid);
         break;
     }
 

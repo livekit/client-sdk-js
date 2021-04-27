@@ -25,3 +25,9 @@ export class UnexpectedConnectionState extends LivekitError {
     super(12, message || 'Unexpected connection state');
   }
 }
+
+export class PublishDataError extends LivekitError {
+  constructor(message?: string) {
+    super(13, message || 'Unable to publish data');
+  }
+}

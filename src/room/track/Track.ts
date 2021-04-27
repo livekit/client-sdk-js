@@ -20,7 +20,6 @@ export namespace Track {
   export enum Kind {
     Audio = 'audio',
     Video = 'video',
-    Data = 'data',
   }
   export type SID = string;
   export type Priority = 'low' | 'standard' | 'high';
@@ -32,8 +31,6 @@ export namespace Track {
         return TrackType.AUDIO;
       case Kind.Video:
         return TrackType.VIDEO;
-      case Kind.Data:
-        return TrackType.DATA;
     }
   }
 
@@ -44,8 +41,6 @@ export namespace Track {
         return Kind.Audio;
       case TrackType.VIDEO:
         return Kind.Video;
-      case TrackType.DATA:
-        return Kind.Data;
     }
   }
 }

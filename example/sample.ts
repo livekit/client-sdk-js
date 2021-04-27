@@ -3,13 +3,11 @@ import {
   connect,
   createLocalVideoTrack,
   LocalAudioTrack,
-  LocalDataTrack,
   LocalTrack,
   LocalVideoTrack,
   LogLevel,
   Participant,
   ParticipantEvent,
-  RemoteDataTrack,
   RemoteParticipant,
   RemoteTrack,
   Room,
@@ -18,6 +16,7 @@ import {
   VideoPresets,
   VideoTrack,
 } from '../src/index';
+import { DataPacket_Kind } from '../src/proto/livekit_rtc';
 
 let $ = function (id: string) {
   return document.getElementById(id);
@@ -88,15 +87,12 @@ function trackUnsubscribed(
   }
 }
 
-function handleMessage(
-  msg: string | ArrayBuffer,
-  track: RemoteDataTrack,
-  participant: RemoteParticipant
-) {
-  if (track.name === 'chat') {
-    const chat = <HTMLTextAreaElement>$('chat');
-    chat.value += `${participant.identity}: ${msg}\n`;
-  }
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+function handleData(msg: Uint8Array, participant: RemoteParticipant) {
+  const str = decoder.decode(msg);
+  const chat = <HTMLTextAreaElement>$('chat');
+  chat.value += `${participant.identity}: ${str}\n`;
 }
 
 function handleSpeakerChanged(speakers: Participant[]) {
@@ -145,10 +141,7 @@ function participantConnected(participant: RemoteParticipant) {
 
   participant.tracks.forEach((publication) => {
     if (!publication.isSubscribed) return;
-    if (publication.track! instanceof RemoteDataTrack) {
-    } else {
-      trackSubscribed(div, publication.track!, participant);
-    }
+    trackSubscribed(div, publication.track!, participant);
   });
 }
 
@@ -159,10 +152,6 @@ function participantDisconnected(participant: RemoteParticipant) {
 }
 
 let currentRoom: Room;
-const chatTrack: LocalDataTrack = new LocalDataTrack({
-  name: 'chat',
-  ordered: true,
-});
 let videoTrack: LocalVideoTrack | undefined;
 let audioTrack: LocalAudioTrack;
 let screenTrack: LocalVideoTrack | undefined;
@@ -195,7 +184,7 @@ window.connectToRoom = async (
   room
     .on(RoomEvent.ParticipantConnected, participantConnected)
     .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
-    .on(RoomEvent.TrackMessage, handleMessage)
+    .on(RoomEvent.DataReceived, handleData)
     .on(RoomEvent.ActiveSpeakersChanged, handleSpeakerChanged)
     .on(RoomEvent.Disconnected, () => {
       appendLog('disconnected from room');
@@ -209,8 +198,6 @@ window.connectToRoom = async (
         trackUnsubscribed(audioTrack);
       }
     });
-
-  room.localParticipant.publishTrack(chatTrack);
 
   appendLog('room participants', room.participants.keys());
   room.participants.forEach((participant) => {
@@ -280,8 +267,11 @@ window.toggleVideo = async () => {
 window.enterText = () => {
   const textField = <HTMLInputElement>$('entry');
   if (textField.value) {
-    chatTrack.send(textField.value);
-    (<HTMLTextAreaElement>$('chat')).value += `me: ${textField.value}\n`;
+    const msg = encoder.encode(textField.value);
+    currentRoom.localParticipant.publishData(msg, DataPacket_Kind.RELIABLE);
+    (<HTMLTextAreaElement>(
+      $('chat')
+    )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
     textField.value = '';
   }
 };

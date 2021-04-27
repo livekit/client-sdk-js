@@ -31,13 +31,3 @@ export interface TrackPublishOptions {
    */
   simulcast?: boolean;
 }
-
-/**
- * Options when publishing data tracks
- */
-export interface LocalDataTrackOptions {
-  name?: string;
-  maxPacketLifeTime?: number;
-  maxRetransmits?: number;
-  ordered?: boolean;
-}

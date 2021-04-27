@@ -120,6 +120,7 @@ export interface TrackInfo {
   muted: boolean;
 }
 
+/** old DataTrack message */
 export interface DataMessage {
   text: string | undefined;
   binary: Uint8Array | undefined;

@@ -6,11 +6,15 @@ import {
   VideoPresets,
 } from '../../options';
 import { ParticipantInfo } from '../../proto/livekit_models';
-import { TrackInvalidError, UnexpectedConnectionState } from '../errors';
+import { DataPacket, DataPacket_Kind } from '../../proto/livekit_rtc';
+import {
+  PublishDataError,
+  TrackInvalidError,
+  UnexpectedConnectionState,
+} from '../errors';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { RTCEngine } from '../RTCEngine';
 import { LocalAudioTrack } from '../track/LocalAudioTrack';
-import { LocalDataTrack } from '../track/LocalDataTrack';
 import { LocalTrackPublication } from '../track/LocalTrackPublication';
 import { LocalVideoTrack } from '../track/LocalVideoTrack';
 import { TrackPublishOptions } from '../track/options';
@@ -24,7 +28,6 @@ export class LocalParticipant extends Participant {
   private engine: RTCEngine;
   audioTracks: Map<string, LocalTrackPublication>;
   videoTracks: Map<string, LocalTrackPublication>;
-  dataTracks: Map<string, LocalTrackPublication>;
 
   /** map of track sid => all published tracks */
   tracks: Map<string, LocalTrackPublication>;
@@ -34,7 +37,6 @@ export class LocalParticipant extends Participant {
     super(sid, identity);
     this.audioTracks = new Map();
     this.videoTracks = new Map();
-    this.dataTracks = new Map();
     this.tracks = new Map();
     this.engine = engine;
   }
@@ -82,68 +84,49 @@ export class LocalParticipant extends Participant {
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
 
     // get local track id for use during publishing
-    let cid: string;
-    if (track instanceof LocalDataTrack) {
-      // use data channel name as the id, because id isn't created until later
-      cid = track.name;
-    } else {
-      cid = track.mediaStreamTrack.id;
-    }
+    let cid = track.mediaStreamTrack.id;
 
     // create track publication from track
-
     const ti = await this.engine.addTrack(cid, track.name, track.kind);
     const publication = new LocalTrackPublication(track.kind, ti, track);
 
-    if (track instanceof LocalDataTrack) {
-      if (!this.engine.publisher) {
-        throw new UnexpectedConnectionState('publisher is closed');
-      }
-      // add data track
-      track.dataChannel = this.engine.publisher.pc.createDataChannel(
-        track.name,
-        track.dataChannelInit
+    let encodings: RTCRtpEncodingParameters[] | undefined = undefined;
+    // for video
+    if (track.kind === Track.Kind.Video) {
+      // TODO: support react native, which doesn't expose getSettings
+      const settings = track.mediaStreamTrack.getSettings();
+      encodings = this.computeVideoEncodings(
+        settings.width,
+        settings.height,
+        options
       );
-    } else {
-      let encodings: RTCRtpEncodingParameters[] | undefined = undefined;
-      // for video
-      if (track.kind === Track.Kind.Video) {
-        // TODO: support react native, which doesn't expose getSettings
-        const settings = track.mediaStreamTrack.getSettings();
-        encodings = this.computeVideoEncodings(
-          settings.width,
-          settings.height,
-          options
-        );
-      } else if (track.kind === Track.Kind.Audio) {
-        encodings = [
-          {
-            maxBitrate: options?.audioBitrate || AudioPresets.speech.maxBitrate,
-          },
-        ];
-      }
-
-      if (!this.engine.publisher) {
-        throw new UnexpectedConnectionState('publisher is closed');
-      }
-      log.debug('publishing with encodings', encodings);
-      const transceiver = this.engine.publisher.pc.addTransceiver(
-        track.mediaStreamTrack,
+    } else if (track.kind === Track.Kind.Audio) {
+      encodings = [
         {
-          direction: 'sendonly',
-          sendEncodings: encodings,
-        }
-      );
-
-      // store RTPSender
-      track.sender = transceiver.sender;
-      if (track instanceof LocalVideoTrack) {
-        track.startMonitor();
-      }
-
-      this.setPreferredCodec(transceiver, track.kind, options?.videoCodec);
+          maxBitrate: options?.audioBitrate || AudioPresets.speech.maxBitrate,
+        },
+      ];
     }
 
+    if (!this.engine.publisher) {
+      throw new UnexpectedConnectionState('publisher is closed');
+    }
+    log.debug('publishing with encodings', encodings);
+    const transceiver = this.engine.publisher.pc.addTransceiver(
+      track.mediaStreamTrack,
+      {
+        direction: 'sendonly',
+        sendEncodings: encodings,
+      }
+    );
+
+    // store RTPSender
+    track.sender = transceiver.sender;
+    if (track instanceof LocalVideoTrack) {
+      track.startMonitor();
+    }
+
+    this.setPreferredCodec(transceiver, track.kind, options?.videoCodec);
     this.addTrackPublication(publication);
 
     // send event for publication
@@ -176,20 +159,18 @@ export class LocalParticipant extends Participant {
     }
     track.stop();
 
-    if (!(track instanceof LocalDataTrack)) {
-      let mediaStreamTrack: MediaStreamTrack;
-      if (track instanceof MediaStreamTrack) {
-        mediaStreamTrack = track;
-      } else {
-        mediaStreamTrack = track.mediaStreamTrack;
-      }
+    let mediaStreamTrack: MediaStreamTrack;
+    if (track instanceof MediaStreamTrack) {
+      mediaStreamTrack = track;
+    } else {
+      mediaStreamTrack = track.mediaStreamTrack;
+    }
 
-      if (this.engine.publisher) {
-        const senders = this.engine.publisher.pc.getSenders();
-        for (const sender of senders) {
-          if (sender.track === mediaStreamTrack) {
-            this.engine.publisher.pc.removeTrack(sender);
-          }
+    if (this.engine.publisher) {
+      const senders = this.engine.publisher.pc.getSenders();
+      for (const sender of senders) {
+        if (sender.track === mediaStreamTrack) {
+          this.engine.publisher.pc.removeTrack(sender);
         }
       }
     }
@@ -202,9 +183,6 @@ export class LocalParticipant extends Participant {
         break;
       case Track.Kind.Video:
         this.videoTracks.delete(publication.trackSid);
-        break;
-      case Track.Kind.Data:
-        this.dataTracks.delete(publication.trackSid);
         break;
     }
 
@@ -244,6 +222,37 @@ export class LocalParticipant extends Participant {
       } else if (!ti.muted && pub.isMuted) {
         pub.unmute();
       }
+    }
+  }
+
+  /**
+   * Publish a new data payload to the room. Data will be forwarded to each
+   * participant in the room
+   *
+   * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
+   * @param kind whether to send this as reliable or lossy.
+   * For data that you need delivery guarantee (such as chat messages), use Reliable.
+   * For data that should arrive as quickly as possible, but you are ok with dropped
+   * packets, use Lossy.
+   */
+  publishData(data: Uint8Array, kind: DataPacket_Kind) {
+    if (data.length > 15_000) {
+      throw new PublishDataError('data cannot be larger than 15k');
+    }
+
+    const packet: DataPacket = {
+      kind: kind,
+      user: {
+        participantSid: this.sid,
+        payload: data,
+      },
+    };
+
+    const msg = DataPacket.encode(packet).finish();
+    if (kind === DataPacket_Kind.LOSSY && this.engine.lossyDC) {
+      this.engine.lossyDC.send(msg);
+    } else if (kind === DataPacket_Kind.RELIABLE && this.engine.reliableDC) {
+      this.engine.reliableDC.send(msg);
     }
   }
 
