@@ -3,6 +3,7 @@ import log from 'loglevel';
 import { SignalClient } from '../api/SignalClient';
 import { TrackInfo } from '../proto/livekit_models';
 import {
+  DataPacket,
   JoinResponse,
   SignalTarget,
   TrackPublishedResponse,
@@ -13,7 +14,8 @@ import { PCTransport } from './PCTransport';
 import { Track } from './track/Track';
 import { useLegacyAPI } from './utils';
 
-const placeholderDataChannel = '_private';
+const lossyDataChannel = '_lossy';
+const reliableDataChannel = '_reliable';
 const maxWSRetries = 10;
 
 export class RTCEngine extends EventEmitter {
@@ -23,7 +25,8 @@ export class RTCEngine extends EventEmitter {
   rtcConfig: RTCConfiguration;
   useLegacy: boolean;
 
-  privateDC?: RTCDataChannel;
+  lossyDC?: RTCDataChannel;
+  reliableDC?: RTCDataChannel;
   rtcConnected: boolean = false;
   iceConnected: boolean = false;
   pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
@@ -113,6 +116,7 @@ export class RTCEngine extends EventEmitter {
     if (!this.publisher || !this.subscriber) {
       return;
     }
+
     this.publisher.pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
 
@@ -177,15 +181,20 @@ export class RTCEngine extends EventEmitter {
       this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
         this.emitTrackEvent(ev.track, ev.streams[0], ev.receiver);
       };
-      this.subscriber.pc.ondatachannel = (ev: RTCDataChannelEvent) => {
-        this.emit(EngineEvent.DataChannelAdded, ev.channel);
-      };
     }
 
-    // always have a blank data channel, to ensure there isn't an empty ice-ufrag
-    this.privateDC = this.publisher.pc.createDataChannel(
-      placeholderDataChannel
-    );
+    // data channels
+    this.lossyDC = this.publisher.pc.createDataChannel(lossyDataChannel, {
+      // will drop older packets that arrive
+      ordered: true,
+      maxRetransmits: 1,
+    });
+    this.reliableDC = this.publisher.pc.createDataChannel(reliableDataChannel, {
+      ordered: true,
+    });
+
+    this.lossyDC.onmessage = this.handleDataMessage;
+    this.reliableDC.onmessage = this.handleDataMessage;
 
     // configure signaling client
     this.client.onAnswer = async (sd) => {
@@ -259,6 +268,17 @@ export class RTCEngine extends EventEmitter {
       this.emit(EngineEvent.Disconnected);
     };
   }
+
+  private handleDataMessage = (message: MessageEvent) => {
+    // decode
+    const dp = DataPacket.decode(new Uint8Array(message.data));
+    if (dp.speaker) {
+      // dispatch speaker updates
+      this.emit(EngineEvent.SpeakersUpdate, dp.speaker.speakers);
+    } else if (dp.user) {
+      this.emit(EngineEvent.DataPacketReceived, dp.user, dp.kind);
+    }
+  };
 
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
   // continues to work, we can reconnect to websocket to continue the session

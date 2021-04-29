@@ -83,13 +83,6 @@ export enum RoomEvent {
   TrackUnmuted = 'trackUnmuted',
 
   /**
-   * a message received over a [[DataTrack]]
-   *
-   * args: (data, [[RemoteDataTrack]], [[RemoteParticipant]])
-   */
-  TrackMessage = 'trackMessage',
-
-  /**
    * Active speakers changed. List of speakers are ordered by their audio level.
    * loudest speakers first. This will include the LocalParticipant too.
    *
@@ -103,9 +96,18 @@ export enum RoomEvent {
    * When RoomService.UpdateParticipantMetadata is called to change a participant's
    * state, *all*  participants in the room will fire this event.
    *
-   * args: (prevMetadata: string, Participant)
+   * args: (prevMetadata: string, [[Participant]])
    */
   MetadataChanged = 'metadataChanged',
+
+  /**
+   * Data received from another participant.
+   * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
+   * All participants in the room will receive the messages sent to the room.
+   *
+   * args (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]])
+   */
+  DataReceived = 'dataReceived',
 }
 
 export enum ParticipantEvent {
@@ -116,8 +118,8 @@ export enum ParticipantEvent {
   TrackUnsubscribed = 'trackUnsubscribed',
   TrackMuted = 'trackMuted',
   TrackUnmuted = 'trackUnmuted',
-  TrackMessage = 'trackMessage',
   MetadataChanged = 'metadataChanged',
+  DataReceived = 'dataReceived',
 }
 
 /** @internal */
@@ -126,8 +128,8 @@ export enum EngineEvent {
   Disconnected = 'disconnected',
   ParticipantUpdate = 'participantUpdate',
   MediaTrackAdded = 'mediaTrackAdded',
-  DataChannelAdded = 'dataChannelAdded',
   SpeakersUpdate = 'speakersUpdate',
+  DataPacketReceived = 'dataPacketReceived',
 }
 
 export enum TrackEvent {

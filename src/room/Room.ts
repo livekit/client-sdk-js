@@ -6,17 +6,16 @@ import {
   ParticipantInfo,
   ParticipantInfo_State,
 } from '../proto/livekit_models';
-import { SpeakerInfo } from '../proto/livekit_rtc';
+import { DataPacket_Kind, SpeakerInfo, UserPacket } from '../proto/livekit_rtc';
 import { UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
 import { LocalParticipant } from './participant/LocalParticipant';
 import { RemoteParticipant } from './participant/RemoteParticipant';
 import { RTCEngine } from './RTCEngine';
-import { RemoteDataTrack } from './track/RemoteDataTrack';
 import { RemoteTrackPublication } from './track/RemoteTrackPublication';
 import { TrackPublication } from './track/TrackPublication';
 import { RemoteTrack } from './track/types';
-import { unpackDataTrackLabel, unpackStreamId } from './utils';
+import { unpackStreamId } from './utils';
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -69,13 +68,6 @@ class Room extends EventEmitter {
       }
     );
 
-    this.engine.on(
-      EngineEvent.DataChannelAdded,
-      (dataChannel: RTCDataChannel) => {
-        this.onDataChannelAdded(dataChannel);
-      }
-    );
-
     this.engine.on(EngineEvent.Disconnected, (reason: any) => {
       this.handleDisconnect();
     });
@@ -87,9 +79,9 @@ class Room extends EventEmitter {
       }
     );
 
-    this.engine.on(EngineEvent.SpeakersUpdate, (speakers: SpeakerInfo[]) => {
-      this.handleSpeakerUpdate(speakers);
-    });
+    this.engine.on(EngineEvent.SpeakersUpdate, this.handleSpeakerUpdate);
+
+    this.engine.on(EngineEvent.DataPacketReceived, this.handleDataPacket);
   }
 
   /** @internal */
@@ -175,14 +167,6 @@ class Room extends EventEmitter {
     participant.addSubscribedMediaTrack(mediaTrack, trackId, receiver);
   }
 
-  private onDataChannelAdded(dataChannel: RTCDataChannel) {
-    const [participantId, trackId, name] = unpackDataTrackLabel(
-      dataChannel.label
-    );
-    const participant = this.getOrCreateParticipant(participantId);
-    participant.addSubscribedDataTrack(dataChannel, trackId, name);
-  }
-
   private handleDisconnect() {
     this.participants.clear();
     this.activeSpeakers = [];
@@ -233,7 +217,7 @@ class Room extends EventEmitter {
     this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
 
-  private handleSpeakerUpdate(speakers: SpeakerInfo[]) {
+  private handleSpeakerUpdate = (speakers: SpeakerInfo[]) => {
     const activeSpeakers: Participant[] = [];
     const seenSids: any = {};
     speakers.forEach((speaker) => {
@@ -261,7 +245,22 @@ class Room extends EventEmitter {
 
     this.activeSpeakers = activeSpeakers;
     this.emit(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
-  }
+  };
+
+  private handleDataPacket = (
+    userPacket: UserPacket,
+    kind: DataPacket_Kind
+  ) => {
+    // find the participant
+    const participant = this.participants.get(userPacket.participantSid);
+    if (!participant) {
+      return;
+    }
+    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind);
+
+    // also emit on the participant
+    participant.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
+  };
 
   private getOrCreateParticipant(
     id: string,
@@ -309,13 +308,6 @@ class Room extends EventEmitter {
         ParticipantEvent.TrackUnsubscribed,
         (publication: RemoteTrackPublication) => {
           this.emit(RoomEvent.TrackUnsubscribed, publication, participant);
-        }
-      );
-
-      participant.on(
-        ParticipantEvent.TrackMessage,
-        (data: any, track: RemoteDataTrack) => {
-          this.emit(RoomEvent.TrackMessage, data, track, participant);
         }
       );
 

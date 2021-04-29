@@ -6,13 +6,11 @@ import { TrackPublication } from '../track/TrackPublication';
 
 export type AudioTrackMap = { [key: string]: TrackPublication };
 export type VideoTrackMap = { [key: string]: TrackPublication };
-export type DataTrackMap = { [key: string]: TrackPublication };
 
 export class Participant extends EventEmitter {
   protected participantInfo?: ParticipantInfo;
   audioTracks: Map<string, TrackPublication>;
   videoTracks: Map<string, TrackPublication>;
-  dataTracks: Map<string, TrackPublication>;
 
   /** map of track sid => all published tracks */
   tracks: Map<string, TrackPublication>;
@@ -32,7 +30,6 @@ export class Participant extends EventEmitter {
     this.identity = identity;
     this.audioTracks = new Map();
     this.videoTracks = new Map();
-    this.dataTracks = new Map();
     this.tracks = new Map();
   }
 
@@ -89,9 +86,6 @@ export class Participant extends EventEmitter {
         break;
       case Track.Kind.Video:
         this.videoTracks.set(publication.trackSid, publication);
-        break;
-      case Track.Kind.Data:
-        this.dataTracks.set(publication.trackSid, publication);
         break;
     }
   }
