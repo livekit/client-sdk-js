@@ -1,3 +1,4 @@
+import { DataPacket_Kind } from './proto/livekit_rtc';
 import { LocalParticipant } from './room/participant/LocalParticipant';
 import { Participant } from './room/participant/Participant';
 import { RemoteParticipant } from './room/participant/RemoteParticipant';
@@ -19,4 +20,11 @@ export * from './room/track/TrackPublication';
 export * from './room/track/types';
 export * from './room/track/VideoTrack';
 export * from './version';
-export { Room, RoomState, Participant, RemoteParticipant, LocalParticipant };
+export {
+  Room,
+  RoomState,
+  DataPacket_Kind,
+  Participant,
+  RemoteParticipant,
+  LocalParticipant,
+};
