@@ -14,9 +14,9 @@ import {
   RoomEvent,
   Track,
   VideoPresets,
-  VideoTrack,
-} from '../src/index';
-import { DataPacket_Kind } from '../src/proto/livekit_rtc';
+  VideoTrack
+} from '../src/index'
+import { DataPacket_Kind } from '../src/proto/livekit_rtc'
 
 let $ = function (id: string) {
   return document.getElementById(id);
@@ -151,6 +151,20 @@ function participantDisconnected(participant: RemoteParticipant) {
   $(participant.sid)?.remove();
 }
 
+function handleRoomDisconnect() {
+  appendLog('disconnected from room');
+  setButtonsForState(false);
+  if (videoTrack) {
+    videoTrack.stop();
+    trackUnsubscribed(videoTrack);
+  }
+  if (audioTrack) {
+    audioTrack.stop();
+    trackUnsubscribed(audioTrack);
+  }
+  $('local-video')!.innerHTML = '';
+}
+
 let currentRoom: Room;
 let videoTrack: LocalVideoTrack | undefined;
 let audioTrack: LocalAudioTrack;
@@ -162,6 +176,7 @@ window.connectWithFormInput = () => {
 
   window.connectToRoom(url, token, simulcast);
 };
+
 
 window.connectToRoom = async (
   url: string,
@@ -186,25 +201,14 @@ window.connectToRoom = async (
     .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
     .on(RoomEvent.DataReceived, handleData)
     .on(RoomEvent.ActiveSpeakersChanged, handleSpeakerChanged)
-    .on(RoomEvent.Disconnected, () => {
-      appendLog('disconnected from room');
-      setButtonsForState(false);
-      if (videoTrack) {
-        videoTrack.stop();
-        trackUnsubscribed(videoTrack);
-      }
-      if (audioTrack) {
-        audioTrack.stop();
-        trackUnsubscribed(audioTrack);
-      }
-    });
+    .on(RoomEvent.Disconnected, handleRoomDisconnect);
 
   appendLog('room participants', room.participants.keys());
   room.participants.forEach((participant) => {
     participantConnected(participant);
   });
 
-  $('local-video')!.innerHTML = `${room.localParticipant.identity} (local)`;
+  $('local-video')!.innerHTML = `${room.localParticipant.identity} (me)`;
 
   // add already published tracks
   currentRoom.localParticipant.tracks.forEach((publication) => {
