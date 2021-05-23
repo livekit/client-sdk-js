@@ -1,5 +1,5 @@
-import log from 'loglevel';
-import { WSSignalClient } from './api/SignalClient';
+import log from 'loglevel'
+import { WSSignalClient } from './api/SignalClient'
 import {
   ConnectOptions,
   CreateAudioTrackOptions,
@@ -7,16 +7,16 @@ import {
   CreateLocalTracksOptions,
   CreateVideoTrackOptions,
   LogLevel,
-  VideoPresets,
-} from './options';
-import { TrackInvalidError } from './room/errors';
-import Room from './room/Room';
-import { LocalAudioTrack } from './room/track/LocalAudioTrack';
-import { LocalVideoTrack } from './room/track/LocalVideoTrack';
-import { TrackPublishOptions } from './room/track/options';
-import { Track } from './room/track/Track';
-import { LocalTrack } from './room/track/types';
-export { version } from './version';
+  VideoPresets
+} from './options'
+import { TrackInvalidError } from './room/errors'
+import Room from './room/Room'
+import { LocalAudioTrack } from './room/track/LocalAudioTrack'
+import { LocalVideoTrack } from './room/track/LocalVideoTrack'
+import { TrackPublishOptions } from './room/track/options'
+import { Track } from './room/track/Track'
+import { LocalTrack } from './room/track/types'
+export { version } from './version'
 
 /**
  * Connects to a LiveKit room
@@ -59,7 +59,9 @@ export async function connect(
   const room = new Room(client, config);
 
   // connect to room
-  await room.connect(url, token);
+  await room.connect(url, token, {
+    autoSubscribe: options?.autoSubscribe,
+  });
 
   // add tracks if available
   let tracks = options.tracks;

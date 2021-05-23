@@ -62,10 +62,6 @@ function trackSubscribed(
 ): HTMLMediaElement | null {
   appendLog('track subscribed', track);
   if (track instanceof AudioTrack || track instanceof VideoTrack) {
-    // const element: HTMLMediaElement = <HTMLMediaElement>(
-    //   document.createElement(track.kind.toString())
-    // );
-    // track.attach(element);
     const element = track.attach();
     div.appendChild(element);
     return element;
@@ -348,12 +344,3 @@ function setButtonsForState(connected: boolean) {
 function getMyVideo() {
   return <HTMLVideoElement>document.querySelector('#local-video video');
 }
-
-// uncomment to autoconnect after page load
-// setTimeout(() => {
-//   window.connectToRoom(
-//     // 'ws://localhost:7880',
-//     'ws://livekit-demo-1036575819.us-east-1.elb.amazonaws.com',
-//     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2MTU2MTUwOTAsImlzcyI6IkFQSXU5SmpLdFpubXRLQmtjcXNFOUJuZkgiLCJqdGkiOiJtZSIsIm1ldGFkYXRhIjp7Im9yZGVyIjoxfSwibmJmIjoxNjEzMDIzMDkwLCJ2aWRlbyI6eyJyb29tIjoibXlyb29tIiwicm9vbUpvaW4iOnRydWV9fQ.MGEzYSO-Vh8gT1iwE_C8x63Km6f5EuqXVP8HKp4qXJA'
-//   );
-// }, 100);

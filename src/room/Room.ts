@@ -1,21 +1,21 @@
-import { EventEmitter } from 'events';
-import log from 'loglevel';
-import { Participant } from '..';
-import { SignalClient } from '../api/SignalClient';
+import { EventEmitter } from 'events'
+import log from 'loglevel'
+import { Participant } from '..'
+import { SignalClient, SignalOptions } from '../api/SignalClient'
 import {
   ParticipantInfo,
-  ParticipantInfo_State,
-} from '../proto/livekit_models';
-import { DataPacket_Kind, SpeakerInfo, UserPacket } from '../proto/livekit_rtc';
-import { UnsupportedServer } from './errors';
-import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
-import { LocalParticipant } from './participant/LocalParticipant';
-import { RemoteParticipant } from './participant/RemoteParticipant';
-import { RTCEngine } from './RTCEngine';
-import { RemoteTrackPublication } from './track/RemoteTrackPublication';
-import { TrackPublication } from './track/TrackPublication';
-import { RemoteTrack } from './track/types';
-import { unpackStreamId } from './utils';
+  ParticipantInfo_State
+} from '../proto/livekit_models'
+import { DataPacket_Kind, SpeakerInfo, UserPacket } from '../proto/livekit_rtc'
+import { UnsupportedServer } from './errors'
+import { EngineEvent, ParticipantEvent, RoomEvent } from './events'
+import { LocalParticipant } from './participant/LocalParticipant'
+import { RemoteParticipant } from './participant/RemoteParticipant'
+import { RTCEngine } from './RTCEngine'
+import { RemoteTrackPublication } from './track/RemoteTrackPublication'
+import { TrackPublication } from './track/TrackPublication'
+import { RemoteTrack } from './track/types'
+import { unpackStreamId } from './utils'
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -85,7 +85,7 @@ class Room extends EventEmitter {
   }
 
   /** @internal */
-  connect = async (url: string, token: string): Promise<Room> => {
+  connect = async (url: string, token: string, opts?: SignalOptions): Promise<Room> => {
     // guard against calling connect
     if (this.localParticipant) {
       log.warn('already connected to room', this.name);
@@ -93,7 +93,7 @@ class Room extends EventEmitter {
     }
 
     try {
-      const joinResponse = await this.engine.join(url, token);
+      const joinResponse = await this.engine.join(url, token, opts);
       log.debug('connected to Livekit Server', joinResponse.serverVersion);
 
       if (!joinResponse.serverVersion) {

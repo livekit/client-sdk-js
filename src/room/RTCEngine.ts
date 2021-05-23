@@ -1,18 +1,18 @@
-import { EventEmitter } from 'events';
-import log from 'loglevel';
-import { SignalClient } from '../api/SignalClient';
-import { TrackInfo } from '../proto/livekit_models';
+import { EventEmitter } from 'events'
+import log from 'loglevel'
+import { SignalClient, SignalOptions } from '../api/SignalClient'
+import { TrackInfo } from '../proto/livekit_models'
 import {
   DataPacket,
   JoinResponse,
   SignalTarget,
-  TrackPublishedResponse,
-} from '../proto/livekit_rtc';
-import { TrackInvalidError } from './errors';
-import { EngineEvent } from './events';
-import { PCTransport } from './PCTransport';
-import { Track } from './track/Track';
-import { useLegacyAPI } from './utils';
+  TrackPublishedResponse
+} from '../proto/livekit_rtc'
+import { TrackInvalidError } from './errors'
+import { EngineEvent } from './events'
+import { PCTransport } from './PCTransport'
+import { Track } from './track/Track'
+import { useLegacyAPI } from './utils'
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -46,11 +46,11 @@ export class RTCEngine extends EventEmitter {
     log.trace('creating RTCEngine', 'useLegacy', this.useLegacy);
   }
 
-  async join(url: string, token: string): Promise<JoinResponse> {
+  async join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse> {
     this.url = url;
     this.token = token;
 
-    const joinResponse = await this.client.join(url, token, this.useLegacy);
+    const joinResponse = await this.client.join(url, token, this.useLegacy, opts);
 
     if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
       this.rtcConfig.iceServers = [];

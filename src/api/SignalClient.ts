@@ -1,6 +1,6 @@
-import log from 'loglevel';
-import 'webrtc-adapter';
-import { ParticipantInfo, TrackType } from '../proto/livekit_models';
+import log from 'loglevel'
+import 'webrtc-adapter'
+import { ParticipantInfo, TrackType } from '../proto/livekit_models'
 import {
   JoinResponse,
   SessionDescription,
@@ -10,13 +10,21 @@ import {
   SpeakerInfo,
   TrackPublishedResponse,
   UpdateSubscription,
-  UpdateTrackSettings,
-} from '../proto/livekit_rtc';
-import { protocolVersion } from '../version';
+  UpdateTrackSettings
+} from '../proto/livekit_rtc'
+import { protocolVersion } from '../version'
 
-interface SignalOptions {
+// internal options
+interface connectOpts {
+  autoSubscribe?: boolean;
   usePlanB?: boolean;
+  /** internal */
   reconnect?: boolean;
+}
+
+// public options
+export interface SignalOptions {
+  autoSubscribe?: boolean;
 }
 
 /**
@@ -24,7 +32,7 @@ interface SignalOptions {
  * so that it
  */
 export interface SignalClient {
-  join(url: string, token: string, usePlanB?: boolean): Promise<JoinResponse>;
+  join(url: string, token: string, usePlanB?: boolean, opts?: SignalOptions): Promise<JoinResponse>;
   reconnect(url: string, token: string): Promise<void>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendAnswer(answer: RTCSessionDescriptionInit): void;
@@ -79,10 +87,12 @@ export class WSSignalClient {
   async join(
     url: string,
     token: string,
-    planB: boolean = false
+    planB: boolean = false,
+    opts?: SignalOptions
   ): Promise<JoinResponse> {
     const res = await this.connect(url, token, {
       usePlanB: planB,
+      autoSubscribe: opts?.autoSubscribe,
     });
     return res as JoinResponse;
   }
@@ -96,7 +106,7 @@ export class WSSignalClient {
   connect(
     url: string,
     token: string,
-    opts: SignalOptions
+    opts: connectOpts
   ): Promise<JoinResponse | void> {
     url += `/rtc?access_token=${token}&protocol=${protocolVersion}`;
     if (opts.reconnect) {
@@ -104,6 +114,9 @@ export class WSSignalClient {
     }
     if (opts.usePlanB) {
       url += '&planb=1';
+    }
+    if (opts.autoSubscribe !== undefined) {
+      url += '&auto_subscribe=' + (opts.autoSubscribe ? '1' : '0')
     }
     return new Promise<JoinResponse | void>((resolve, reject) => {
       log.debug('connecting to', url);

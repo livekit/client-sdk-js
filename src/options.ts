@@ -1,4 +1,4 @@
-import { LocalTrack } from './room/track/types';
+import { LocalTrack } from './room/track/types'
 
 /**
  * if video or audio tracks are created as part of [[connect]], it'll automatically
@@ -16,6 +16,9 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
 
   /** see [[TrackPublishOptions.simulcast]] */
   simulcast?: boolean;
+
+  /** autosubscribe to room tracks upon connect, defaults to true */
+  autoSubscribe?: boolean;
 
   /**
    * configures LiveKit internal log level

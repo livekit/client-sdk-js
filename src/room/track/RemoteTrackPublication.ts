@@ -1,15 +1,15 @@
-import { TrackInfo } from '../../proto/livekit_models';
+import { TrackInfo } from '../../proto/livekit_models'
 import {
   UpdateSubscription,
   UpdateTrackSettings,
-  VideoQuality,
-} from '../../proto/livekit_rtc';
-import { TrackEvent } from '../events';
-import { RemoteAudioTrack } from './RemoteAudioTrack';
-import { RemoteVideoTrack } from './RemoteVideoTrack';
-import { Track } from './Track';
-import { TrackPublication } from './TrackPublication';
-import { RemoteTrack } from './types';
+  VideoQuality
+} from '../../proto/livekit_rtc'
+import { TrackEvent } from '../events'
+import { RemoteAudioTrack } from './RemoteAudioTrack'
+import { RemoteVideoTrack } from './RemoteVideoTrack'
+import { Track } from './Track'
+import { TrackPublication } from './TrackPublication'
+import { RemoteTrack } from './types'
 
 export class RemoteTrackPublication extends TrackPublication {
   track?: RemoteTrack;
@@ -32,7 +32,7 @@ export class RemoteTrackPublication extends TrackPublication {
    * @param subscribed true to subscribe to a track, false to unsubscribe
    */
   setSubscribed(subscribed: boolean) {
-    this.subscribe = !subscribed;
+    this.subscribe = subscribed;
 
     const sub: UpdateSubscription = {
       trackSids: [this.trackSid],
