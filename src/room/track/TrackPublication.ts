@@ -1,10 +1,10 @@
-import { EventEmitter } from 'events';
-import { TrackInfo } from '../../proto/livekit_models';
-import { TrackEvent } from '../events';
-import { AudioTrack } from './AudioTrack';
-import { Track } from './Track';
-import { MediaTrack } from './types';
-import { VideoTrack } from './VideoTrack';
+import { EventEmitter } from 'events'
+import { TrackInfo } from '../../proto/livekit_models'
+import { TrackEvent } from '../events'
+import { AudioTrack } from './AudioTrack'
+import { Track } from './Track'
+import { MediaTrack } from './types'
+import { VideoTrack } from './VideoTrack'
 
 export class TrackPublication extends EventEmitter {
   kind: Track.Kind;
@@ -12,11 +12,20 @@ export class TrackPublication extends EventEmitter {
   trackSid: Track.SID;
   track?: Track;
 
+  protected _isMuted: boolean = false;
+
   constructor(kind: Track.Kind, id: string, name: string) {
     super();
     this.kind = kind;
     this.trackSid = id;
     this.trackName = name;
+  }
+
+  get isMuted(): boolean {
+    if (!this.track) {
+      return false;
+    }
+    return this._isMuted;
   }
 
   /** @internal */

@@ -69,16 +69,16 @@ export enum RoomEvent {
   TrackUnsubscribed = 'trackUnsubscribed',
 
   /**
-   * A track that was muted by [[RemoteParticipant]]
+   * A track that was muted, fires on both [[RemoteParticipant]]s and [[LocalParticipant]]
    *
-   * args: ([[RemoteTrackPublication]], [[RemoteParticipant]])
+   * args: ([[TrackPublication]], [[Participant]])
    */
   TrackMuted = 'trackMuted',
 
   /**
-   * A track that was unmuted by [[RemoteParticipant]]
+   * A track that was unmuted, fires on both [[RemoteParticipant]]s and [[LocalParticipant]]
    *
-   * args: ([[RemoteTrackPublication]], [[RemoteParticipant]])
+   * args: ([[TrackPublication]], [[Participant]])
    */
   TrackUnmuted = 'trackUnmuted',
 
@@ -120,6 +120,7 @@ export enum ParticipantEvent {
   TrackUnmuted = 'trackUnmuted',
   MetadataChanged = 'metadataChanged',
   DataReceived = 'dataReceived',
+  IsSpeakingChanged = 'isSpeakingChanged',
 }
 
 /** @internal */

@@ -1,8 +1,8 @@
-import { EventEmitter } from 'events';
-import { ParticipantInfo } from '../../proto/livekit_models';
-import { ParticipantEvent, TrackEvent } from '../events';
-import { Track } from '../track/Track';
-import { TrackPublication } from '../track/TrackPublication';
+import { EventEmitter } from 'events'
+import { ParticipantInfo } from '../../proto/livekit_models'
+import { ParticipantEvent, TrackEvent } from '../events'
+import { Track } from '../track/Track'
+import { TrackPublication } from '../track/TrackPublication'
 
 export type AudioTrackMap = { [key: string]: TrackPublication };
 export type VideoTrackMap = { [key: string]: TrackPublication };
@@ -16,6 +16,8 @@ export class Participant extends EventEmitter {
   tracks: Map<string, TrackPublication>;
   /** audio level between 0-1.0, 1 being loudest, 0 being softest */
   audioLevel: number = 0;
+  /** if participant is currently speaking */
+  isSpeaking: boolean = false;
   /** server assigned unique id */
   sid: string;
   /** client assigned identity, encoded in JWT token */
@@ -63,6 +65,15 @@ export class Participant extends EventEmitter {
     if (changed) {
       this.emit(ParticipantEvent.MetadataChanged, prevMetadata);
     }
+  }
+
+  /** @internal */
+  setIsSpeaking(speaking: boolean) {
+    if (speaking === this.isSpeaking) {
+      return
+    }
+    this.isSpeaking = speaking
+    this.emit(ParticipantEvent.IsSpeakingChanged, speaking)
   }
 
   protected addTrackPublication(publication: TrackPublication) {

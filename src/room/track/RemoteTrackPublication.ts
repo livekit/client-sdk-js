@@ -13,7 +13,6 @@ import { RemoteTrack } from './types'
 
 export class RemoteTrackPublication extends TrackPublication {
   track?: RemoteTrack;
-  isMuted: boolean = false;
 
   protected subscribe: boolean = false;
   protected disabled: boolean = false;
@@ -70,7 +69,7 @@ export class RemoteTrackPublication extends TrackPublication {
   /** @internal */
   updateInfo(info: TrackInfo) {
     super.updateInfo(info);
-    this.isMuted = info.muted;
+    this._isMuted = info.muted;
     if (
       this.track instanceof RemoteVideoTrack ||
       this.track instanceof RemoteAudioTrack

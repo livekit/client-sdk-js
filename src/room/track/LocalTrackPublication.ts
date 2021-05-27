@@ -1,10 +1,8 @@
-import { TrackInfo } from '../../proto/livekit_models';
-import { LocalAudioTrack } from './LocalAudioTrack';
-import { LocalVideoTrack } from './LocalVideoTrack';
-import { Track } from './Track';
-import { TrackPublication } from './TrackPublication';
-import { LocalTrack } from './types';
-import { setTrackMuted } from './utils';
+import { TrackInfo } from '../../proto/livekit_models'
+import { Track } from './Track'
+import { TrackPublication } from './TrackPublication'
+import { LocalTrack } from './types'
+import { setTrackMuted } from './utils'
 
 export class LocalTrackPublication extends TrackPublication {
   priority?: Track.Priority;
@@ -17,20 +15,17 @@ export class LocalTrackPublication extends TrackPublication {
   }
 
   get isMuted(): boolean {
-    if (!this.track) {
-      return false;
+    if (this.track) {
+      return this.track.isMuted;
     }
-    return this.track.isMuted;
+    return super.isMuted
   }
 
   /**
    * Mute the track associated with this publication
    */
   mute() {
-    if (
-      this.track instanceof LocalVideoTrack ||
-      this.track instanceof LocalAudioTrack
-    ) {
+    if (this.track) {
       setTrackMuted(this.track, true);
     }
   }
@@ -39,10 +34,7 @@ export class LocalTrackPublication extends TrackPublication {
    * Unmute track associated with this publication
    */
   unmute() {
-    if (
-      this.track instanceof LocalVideoTrack ||
-      this.track instanceof LocalAudioTrack
-    ) {
+    if (this.track) {
       setTrackMuted(this.track, false);
     }
   }

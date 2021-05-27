@@ -224,11 +224,13 @@ class Room extends EventEmitter {
       seenSids[speaker.sid] = true;
       if (speaker.sid === this.localParticipant.sid) {
         this.localParticipant.audioLevel = speaker.level;
+        this.localParticipant.setIsSpeaking(true)
         activeSpeakers.push(this.localParticipant);
       } else {
         const p = this.participants.get(speaker.sid);
         if (p) {
           p.audioLevel = speaker.level;
+          p.setIsSpeaking(true)
           activeSpeakers.push(p);
         }
       }
@@ -236,10 +238,12 @@ class Room extends EventEmitter {
 
     if (!seenSids[this.localParticipant.sid]) {
       this.localParticipant.audioLevel = 0;
+      this.localParticipant.setIsSpeaking(false)
     }
     this.participants.forEach((p) => {
       if (!seenSids[p.sid]) {
         p.audioLevel = 0;
+        p.setIsSpeaking(false)
       }
     });
 
