@@ -301,6 +301,7 @@ function fromProtoSessionDescription(
   sd: SessionDescription
 ): RTCSessionDescriptionInit {
   const rsd: RTCSessionDescriptionInit = {
+    type: undefined,
     sdp: sd.sdp,
   };
   switch (sd.type) {

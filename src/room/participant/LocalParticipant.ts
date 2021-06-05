@@ -1,26 +1,26 @@
-import log from 'loglevel';
+import log from 'loglevel'
 import {
   AudioPresets,
   VideoCodec,
   VideoEncoding,
-  VideoPresets,
-} from '../../options';
-import { ParticipantInfo } from '../../proto/livekit_models';
-import { DataPacket, DataPacket_Kind } from '../../proto/livekit_rtc';
+  VideoPresets
+} from '../../options'
+import { ParticipantInfo } from '../../proto/livekit_models'
+import { DataPacket, DataPacket_Kind } from '../../proto/livekit_rtc'
 import {
   PublishDataError,
   TrackInvalidError,
-  UnexpectedConnectionState,
-} from '../errors';
-import { ParticipantEvent, TrackEvent } from '../events';
-import { RTCEngine } from '../RTCEngine';
-import { LocalAudioTrack } from '../track/LocalAudioTrack';
-import { LocalTrackPublication } from '../track/LocalTrackPublication';
-import { LocalVideoTrack } from '../track/LocalVideoTrack';
-import { TrackPublishOptions } from '../track/options';
-import { Track } from '../track/Track';
-import { LocalTrack } from '../track/types';
-import { Participant } from './Participant';
+  UnexpectedConnectionState
+} from '../errors'
+import { ParticipantEvent, TrackEvent } from '../events'
+import { RTCEngine } from '../RTCEngine'
+import { LocalAudioTrack } from '../track/LocalAudioTrack'
+import { LocalTrackPublication } from '../track/LocalTrackPublication'
+import { LocalVideoTrack } from '../track/LocalVideoTrack'
+import { TrackPublishOptions } from '../track/options'
+import { Track } from '../track/Track'
+import { LocalTrack } from '../track/types'
+import { Participant } from './Participant'
 
 const simulcastMinWidth = 200;
 
