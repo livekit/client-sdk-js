@@ -2,6 +2,10 @@
 
 `livekit-client` is the official client SDK for [LiveKit](https://github.com/livekit/livekit-server). With it, you can add real time video and audio to your web apps. LiveKit uses WebRTC in the browser.
 
+## Docs
+
+Docs and guides at [https://docs.livekit.io](https://docs.livekit.io)
+
 ## Installation
 
 ### Yarn
@@ -84,13 +88,7 @@ function handleDisconnect() {
 
 In order to connect to a room, you need to first create an access token.
 
-Access tokens are JWT tokens that authorizes the SDK. LiveKit tokens include the room and participant name, and should be created for each participant that joins the room.
-
-Access tokens can be created with livekit-cli, that came with the server, or [server-api-js](https://github.com/livekit/server-api-js).
-
-```
-./bin/livekit-cli create-token --join --r <room_name> --p <participant_name>
-```
+See [access token docs](https://docs.livekit.io/guides/access-tokens) for details
 
 ### Manually publish, mute, unpublish
 
