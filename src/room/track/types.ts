@@ -1,10 +1,8 @@
-import { AudioTrack } from './AudioTrack';
-import { LocalAudioTrack } from './LocalAudioTrack';
-import { LocalVideoTrack } from './LocalVideoTrack';
-import { RemoteAudioTrack } from './RemoteAudioTrack';
-import { RemoteVideoTrack } from './RemoteVideoTrack';
-import { VideoTrack } from './VideoTrack';
+import LocalAudioTrack from './LocalAudioTrack';
+import LocalVideoTrack from './LocalVideoTrack';
+import RemoteAudioTrack from './RemoteAudioTrack';
+import RemoteVideoTrack from './RemoteVideoTrack';
 
-export type LocalTrack = LocalAudioTrack | LocalVideoTrack;
 export type RemoteTrack = RemoteAudioTrack | RemoteVideoTrack;
-export type MediaTrack = AudioTrack | VideoTrack;
+export type AudioTrack = RemoteAudioTrack | LocalAudioTrack;
+export type VideoTrack = RemoteVideoTrack | LocalVideoTrack;

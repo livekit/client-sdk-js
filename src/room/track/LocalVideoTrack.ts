@@ -1,42 +1,20 @@
 import log from 'loglevel';
 import { monitorFrequency, VideoSenderStats } from '../stats';
+import LocalTrack from './LocalTrack';
 import { Track } from './Track';
-import { restartTrack, setTrackMuted } from './utils';
-import { VideoTrack } from './VideoTrack';
 
 const ridOrder = ['f', 'h', 'q'];
 
-export class LocalVideoTrack extends VideoTrack {
-  id: Track.SID;
-
-  /** @internal */
-  sender?: RTCRtpSender;
-  /** @internal */
-  _constraints: MediaTrackConstraints;
+export default class LocalVideoTrack extends LocalTrack {
   private prevStats?: VideoSenderStats[];
 
   constructor(
     mediaTrack: MediaStreamTrack,
     name?: string,
-    constraints?: MediaTrackConstraints
+    constraints?: MediaTrackConstraints,
   ) {
-    super(mediaTrack, name);
-    this.id = mediaTrack.id;
-    this._constraints = constraints || {};
-  }
-
-  mute(): LocalVideoTrack {
-    setTrackMuted(this, true);
-    return this;
-  }
-
-  unmute(): LocalVideoTrack {
-    setTrackMuted(this, false);
-    return this;
-  }
-
-  restart(constraints?: MediaTrackConstraints) {
-    restartTrack(this, constraints);
+    super(mediaTrack, Track.Kind.Video, name);
+    this.constraints = constraints || {};
   }
 
   startMonitor() {
@@ -57,22 +35,21 @@ export class LocalVideoTrack extends VideoTrack {
 
     const stats = await this.sender.getStats();
     let sender: any;
-    for (const [key, v] of stats) {
+    stats.forEach((v) => {
       if (
-        v.type === 'track' &&
-        v.trackIdentifier === this.mediaStreamTrack.id
+        v.type === 'track'
+        && v.trackIdentifier === this.mediaStreamTrack.id
       ) {
         sender = v;
-        break;
       }
-    }
+    });
 
     if (!sender) {
       return items;
     }
 
     // match the outbound-rtp items
-    for (const [key, v] of stats) {
+    stats.forEach((v) => {
       if (v.type === 'outbound-rtp' && v.trackId === sender.id) {
         const vs: VideoSenderStats = {
           type: 'video',
@@ -100,7 +77,7 @@ export class LocalVideoTrack extends VideoTrack {
 
         items.push(vs);
       }
-    }
+    });
 
     // sort by rid, so that f, h, q is the ordering
     items.sort((a, b): number => {
@@ -128,7 +105,7 @@ export class LocalVideoTrack extends VideoTrack {
         return;
       }
 
-      for (let i = 0; i < this.prevStats.length; i++) {
+      for (let i = 0; i < this.prevStats.length; i += 1) {
         this.handleStats(this.prevStats[i], stats[i]);
       }
     }
@@ -141,8 +118,7 @@ export class LocalVideoTrack extends VideoTrack {
   private handleStats(prev: VideoSenderStats, curr: VideoSenderStats) {
     const pliDelta = curr.pliCount - prev.pliCount;
     const nackDelta = curr.nackCount - prev.nackCount;
-    const qualityLimited =
-      curr.qualityLimitationReason && curr.qualityLimitationReason != 'none';
+    const qualityLimited = curr.qualityLimitationReason && curr.qualityLimitationReason !== 'none';
     if (pliDelta > 0 || qualityLimited) {
       log.debug(
         'detected publisher quality issue',
@@ -156,7 +132,7 @@ export class LocalVideoTrack extends VideoTrack {
         nackDelta,
         'qualityLimited',
         curr.qualityLimitationReason,
-        curr
+        curr,
       );
     }
   }

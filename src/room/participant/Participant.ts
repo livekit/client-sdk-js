@@ -1,27 +1,34 @@
-import { EventEmitter } from 'events'
-import { ParticipantInfo } from '../../proto/livekit_models'
-import { ParticipantEvent, TrackEvent } from '../events'
-import { Track } from '../track/Track'
-import { TrackPublication } from '../track/TrackPublication'
+import { EventEmitter } from 'events';
+import { ParticipantInfo } from '../../proto/livekit_models';
+import { ParticipantEvent, TrackEvent } from '../events';
+import { Track } from '../track/Track';
+import TrackPublication from '../track/TrackPublication';
 
 export type AudioTrackMap = { [key: string]: TrackPublication };
 export type VideoTrackMap = { [key: string]: TrackPublication };
 
-export class Participant extends EventEmitter {
+export default class Participant extends EventEmitter {
   protected participantInfo?: ParticipantInfo;
+
   audioTracks: Map<string, TrackPublication>;
+
   videoTracks: Map<string, TrackPublication>;
 
   /** map of track sid => all published tracks */
   tracks: Map<string, TrackPublication>;
+
   /** audio level between 0-1.0, 1 being loudest, 0 being softest */
   audioLevel: number = 0;
+
   /** if participant is currently speaking */
   isSpeaking: boolean = false;
+
   /** server assigned unique id */
   sid: string;
+
   /** client assigned identity, encoded in JWT token */
   identity: string;
+
   /** client metadata, opaque to livekit */
   metadata?: string;
 
@@ -44,6 +51,7 @@ export class Participant extends EventEmitter {
     if (this.participantInfo) {
       return new Date(this.participantInfo.joinedAt * 1000);
     }
+    return new Date();
   }
 
   /** @internal */
@@ -57,8 +65,7 @@ export class Participant extends EventEmitter {
 
   /** @internal */
   setMetadata(md: string) {
-    const changed =
-      !this.participantInfo || this.participantInfo.metadata != md;
+    const changed = !this.participantInfo || this.participantInfo.metadata !== md;
     const prevMetadata = this.metadata;
     this.metadata = md;
 
@@ -70,10 +77,10 @@ export class Participant extends EventEmitter {
   /** @internal */
   setIsSpeaking(speaking: boolean) {
     if (speaking === this.isSpeaking) {
-      return
+      return;
     }
-    this.isSpeaking = speaking
-    this.emit(ParticipantEvent.IsSpeakingChanged, speaking)
+    this.isSpeaking = speaking;
+    this.emit(ParticipantEvent.IsSpeakingChanged, speaking);
   }
 
   protected addTrackPublication(publication: TrackPublication) {
@@ -86,8 +93,9 @@ export class Participant extends EventEmitter {
       this.emit(ParticipantEvent.TrackUnmuted, publication);
     });
 
-    if (publication.track) {
-      publication.track.sid = publication.trackSid;
+    const pub = publication;
+    if (pub.track) {
+      pub.track.sid = publication.trackSid;
     }
 
     this.tracks.set(publication.trackSid, publication);
@@ -97,6 +105,8 @@ export class Participant extends EventEmitter {
         break;
       case Track.Kind.Video:
         this.videoTracks.set(publication.trackSid, publication);
+        break;
+      default:
         break;
     }
   }

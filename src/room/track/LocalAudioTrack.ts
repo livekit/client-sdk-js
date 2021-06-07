@@ -1,33 +1,17 @@
-import { AudioTrack } from './AudioTrack';
+import LocalTrack from './LocalTrack';
 import { Track } from './Track';
-import { restartTrack, setTrackMuted } from './utils';
 
-export class LocalAudioTrack extends AudioTrack {
-  id: Track.SID;
+export default class LocalAudioTrack extends LocalTrack {
   sender?: RTCRtpSender;
-  _constraints: MediaTrackConstraints;
+
+  protected constraints: MediaTrackConstraints;
 
   constructor(
     mediaTrack: MediaStreamTrack,
     name?: string,
-    constraints?: MediaTrackConstraints
+    constraints?: MediaTrackConstraints,
   ) {
-    super(mediaTrack, name);
-    this.id = mediaTrack.id;
-    this._constraints = constraints || {};
-  }
-
-  mute(): LocalAudioTrack {
-    setTrackMuted(this, true);
-    return this;
-  }
-
-  unmute(): LocalAudioTrack {
-    setTrackMuted(this, false);
-    return this;
-  }
-
-  restart(constraints?: MediaTrackConstraints) {
-    restartTrack(this, constraints);
+    super(mediaTrack, Track.Kind.Audio, name);
+    this.constraints = constraints || {};
   }
 }

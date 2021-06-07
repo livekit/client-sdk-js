@@ -1,6 +1,6 @@
-import log from 'loglevel'
-import 'webrtc-adapter'
-import { ParticipantInfo, TrackType } from '../proto/livekit_models'
+import log from 'loglevel';
+import 'webrtc-adapter';
+import { ParticipantInfo, TrackType } from '../proto/livekit_models';
 import {
   JoinResponse,
   SessionDescription,
@@ -10,12 +10,13 @@ import {
   SpeakerInfo,
   TrackPublishedResponse,
   UpdateSubscription,
-  UpdateTrackSettings
-} from '../proto/livekit_rtc'
-import { protocolVersion } from '../version'
+  UpdateTrackSettings,
+} from '../proto/livekit_rtc';
+import { ConnectionError } from '../room/errors';
+import { protocolVersion } from '../version';
 
 // internal options
-interface connectOpts {
+interface ConnectOpts {
   autoSubscribe?: boolean;
   usePlanB?: boolean;
   /** internal */
@@ -65,16 +66,26 @@ export interface SignalClient {
 
 export class WSSignalClient {
   isConnected: boolean;
+
   useJSON: boolean;
+
   onClose?: (reason: string) => void;
+
   onAnswer?: (sd: RTCSessionDescriptionInit) => void;
+
   onOffer?: (sd: RTCSessionDescriptionInit) => void;
+
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit, target: SignalTarget) => void;
+
   onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
+
   onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
+
   onNegotiateRequested?: () => void;
+
   onActiveSpeakersChanged?: (res: SpeakerInfo[]) => void;
+
   onLeave?: () => void;
 
   ws?: WebSocket;
@@ -88,7 +99,7 @@ export class WSSignalClient {
     url: string,
     token: string,
     planB: boolean = false,
-    opts?: SignalOptions
+    opts?: SignalOptions,
   ): Promise<JoinResponse> {
     const res = await this.connect(url, token, {
       usePlanB: planB,
@@ -106,7 +117,7 @@ export class WSSignalClient {
   connect(
     url: string,
     token: string,
-    opts: connectOpts
+    opts: ConnectOpts,
   ): Promise<JoinResponse | void> {
     url += `/rtc?access_token=${token}&protocol=${protocolVersion}`;
     if (opts.reconnect) {
@@ -116,7 +127,7 @@ export class WSSignalClient {
       url += '&planb=1';
     }
     if (opts.autoSubscribe !== undefined) {
-      url += '&auto_subscribe=' + (opts.autoSubscribe ? '1' : '0')
+      url += `&auto_subscribe=${opts.autoSubscribe ? '1' : '0'}`;
     }
     return new Promise<JoinResponse | void>((resolve, reject) => {
       log.debug('connecting to', url);
@@ -125,14 +136,14 @@ export class WSSignalClient {
       ws.onerror = (ev: Event) => {
         if (!this.ws) {
           // not yet connected, reject
-          reject('Could not connect');
+          reject(new ConnectionError('Could not connect'));
           return;
         }
         // other errors, handle
         this.handleWSError(ev);
       };
 
-      ws.onopen = (ev: Event) => {
+      ws.onopen = () => {
         this.ws = ws;
         if (opts.reconnect) {
           // upon reconnection, there will not be additional handshake
@@ -160,7 +171,7 @@ export class WSSignalClient {
             this.isConnected = true;
             resolve(msg.join);
           } else {
-            reject('did not receive join response');
+            reject(new ConnectionError('did not receive join response'));
           }
           return;
         }
@@ -205,7 +216,7 @@ export class WSSignalClient {
     this.sendRequest({
       trickle: {
         candidateInit: JSON.stringify(candidate),
-        target: target,
+        target,
       },
     });
   }
@@ -214,7 +225,7 @@ export class WSSignalClient {
     this.sendRequest({
       mute: {
         sid: trackSid,
-        muted: muted,
+        muted,
       },
     });
   }
@@ -243,7 +254,7 @@ export class WSSignalClient {
 
   sendRequest(req: SignalRequest) {
     if (!this.ws) {
-      throw 'cannot send signal request before connected';
+      throw new ConnectionError('cannot send signal request before connected');
     }
 
     if (this.useJSON) {
@@ -266,7 +277,7 @@ export class WSSignalClient {
       }
     } else if (msg.trickle) {
       const candidate: RTCIceCandidateInit = JSON.parse(
-        msg.trickle.candidateInit
+        msg.trickle.candidateInit,
       );
       if (this.onTrickle) {
         this.onTrickle(candidate, msg.trickle.target);
@@ -288,17 +299,17 @@ export class WSSignalClient {
         this.onLeave();
       }
     } else {
-      console.warn('unsupported message', msg);
+      log.warn('unsupported message', msg);
     }
   }
 
   private handleWSError(ev: Event) {
-    console.error('websocket error', ev);
+    log.error('websocket error', ev);
   }
 }
 
 function fromProtoSessionDescription(
-  sd: SessionDescription
+  sd: SessionDescription,
 ): RTCSessionDescriptionInit {
   const rsd: RTCSessionDescriptionInit = {
     type: undefined,
@@ -310,12 +321,15 @@ function fromProtoSessionDescription(
     case 'pranswer':
     case 'rollback':
       rsd.type = sd.type;
+      break;
+    default:
+      break;
   }
   return rsd;
 }
 
 function toProtoSessionDescription(
-  rsd: RTCSessionDescription | RTCSessionDescriptionInit
+  rsd: RTCSessionDescription | RTCSessionDescriptionInit,
 ): SessionDescription {
   const sd: SessionDescription = {
     sdp: rsd.sdp!,

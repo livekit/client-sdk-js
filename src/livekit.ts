@@ -1,5 +1,5 @@
-import log from 'loglevel'
-import { WSSignalClient } from './api/SignalClient'
+import log from 'loglevel';
+import { WSSignalClient } from './api/SignalClient';
 import {
   ConnectOptions,
   CreateAudioTrackOptions,
@@ -7,16 +7,17 @@ import {
   CreateLocalTracksOptions,
   CreateVideoTrackOptions,
   LogLevel,
-  VideoPresets
-} from './options'
-import { TrackInvalidError } from './room/errors'
-import Room from './room/Room'
-import { LocalAudioTrack } from './room/track/LocalAudioTrack'
-import { LocalVideoTrack } from './room/track/LocalVideoTrack'
-import { TrackPublishOptions } from './room/track/options'
-import { Track } from './room/track/Track'
-import { LocalTrack } from './room/track/types'
-export { version } from './version'
+  VideoPresets,
+} from './options';
+import { TrackInvalidError } from './room/errors';
+import Room from './room/Room';
+import LocalAudioTrack from './room/track/LocalAudioTrack';
+import LocalTrack from './room/track/LocalTrack';
+import LocalVideoTrack from './room/track/LocalVideoTrack';
+import { TrackPublishOptions } from './room/track/options';
+import { Track } from './room/track/Track';
+
+export { version } from './version';
 
 /**
  * Connects to a LiveKit room
@@ -40,7 +41,7 @@ export { version } from './version'
 export async function connect(
   url: string,
   token: string,
-  options?: ConnectOptions
+  options?: ConnectOptions,
 ): Promise<Room> {
   // set defaults
   options ||= {};
@@ -50,7 +51,7 @@ export async function connect(
 
   log.setLevel(options.logLevel);
 
-  let config: RTCConfiguration = {};
+  const config: RTCConfiguration = {};
   if (options.iceServers) {
     config.iceServers = options.iceServers;
   }
@@ -64,7 +65,7 @@ export async function connect(
   });
 
   // add tracks if available
-  let tracks = options.tracks;
+  let { tracks } = options;
 
   if (!tracks) {
     if (options.audio || options.video) {
@@ -76,27 +77,27 @@ export async function connect(
   }
 
   if (tracks) {
-    for (let i = 0; i < tracks.length; i++) {
+    for (let i = 0; i < tracks.length; i += 1) {
       const track = tracks[i];
       // translate publish options
       const trackOptions: TrackPublishOptions = {};
       if (
-        track.kind === Track.Kind.Video.toString() ||
-        track.kind === Track.Kind.Video
+        track.kind === Track.Kind.Video.toString()
+        || track.kind === Track.Kind.Video
       ) {
         trackOptions.videoCodec = options?.videoCodec;
         trackOptions.videoEncoding = options?.videoEncoding;
         trackOptions.simulcast = options?.simulcast;
       } else if (
-        track.kind === Track.Kind.Audio.toString() ||
-        track.kind === Track.Kind.Audio
+        track.kind === Track.Kind.Audio.toString()
+        || track.kind === Track.Kind.Audio
       ) {
         trackOptions.audioBitrate = options.audioBitrate;
       }
 
-      const publication = await room.localParticipant.publishTrack(
+      await room.localParticipant.publishTrack(
         track,
-        trackOptions
+        trackOptions,
       );
     }
   }
@@ -109,7 +110,7 @@ export async function connect(
  * @param options
  */
 export async function createLocalVideoTrack(
-  options?: CreateVideoTrackOptions
+  options?: CreateVideoTrackOptions,
 ): Promise<LocalVideoTrack> {
   const tracks = await createLocalTracks({
     audio: false,
@@ -119,7 +120,7 @@ export async function createLocalVideoTrack(
 }
 
 export async function createLocalAudioTrack(
-  options?: CreateAudioTrackOptions
+  options?: CreateAudioTrackOptions,
 ): Promise<LocalAudioTrack> {
   const tracks = await createLocalTracks({
     audio: options,
@@ -133,17 +134,17 @@ export async function createLocalAudioTrack(
  * @param options
  */
 export async function createLocalTracks(
-  options?: CreateLocalTracksOptions
+  options?: CreateLocalTracksOptions,
 ): Promise<Array<LocalTrack>> {
   const constraints: MediaStreamConstraints = {};
   if (!options) options = {};
   if (options.audio === undefined) options.audio = {};
 
   // default video options
-  let videoOptions: MediaTrackConstraints = Object.assign(
-    {},
-    VideoPresets.qhd.resolution
-  );
+  const videoOptions: MediaTrackConstraints = {
+
+    ...VideoPresets.qhd.resolution,
+  };
   if (typeof options.video === 'object' && options.video) {
     Object.assign(videoOptions, options.video);
     if (options.video.resolution) {
@@ -162,8 +163,7 @@ export async function createLocalTracks(
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
   const tracks: LocalTrack[] = [];
   stream.getTracks().forEach((mediaStreamTrack) => {
-    let trackOptions =
-      mediaStreamTrack.kind === 'audio' ? options!.audio : options!.video;
+    let trackOptions = mediaStreamTrack.kind === 'audio' ? options!.audio : options!.video;
     if (typeof trackOptions === 'boolean' || !trackOptions) {
       trackOptions = {};
     }
@@ -176,7 +176,7 @@ export async function createLocalTracks(
 /** @internal */
 function createLocalTrack(
   mediaStreamTrack: MediaStreamTrack,
-  options: CreateLocalTrackOptions
+  options: CreateLocalTrackOptions,
 ): LocalTrack {
   let name: string | undefined;
   if (options instanceof Object && options.name) {
@@ -190,7 +190,7 @@ function createLocalTrack(
       return new LocalVideoTrack(mediaStreamTrack, name, options);
     default:
       throw new TrackInvalidError(
-        'unsupported track type: ' + mediaStreamTrack.kind
+        `unsupported track type: ${mediaStreamTrack.kind}`,
       );
   }
 }

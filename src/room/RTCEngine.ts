@@ -1,40 +1,51 @@
-import { EventEmitter } from 'events'
-import log from 'loglevel'
-import { SignalClient, SignalOptions } from '../api/SignalClient'
-import { TrackInfo } from '../proto/livekit_models'
+import { EventEmitter } from 'events';
+import log from 'loglevel';
+import { SignalClient, SignalOptions } from '../api/SignalClient';
+import { TrackInfo } from '../proto/livekit_models';
 import {
   DataPacket,
   JoinResponse,
   SignalTarget,
-  TrackPublishedResponse
-} from '../proto/livekit_rtc'
-import { TrackInvalidError } from './errors'
-import { EngineEvent } from './events'
-import { PCTransport } from './PCTransport'
-import { Track } from './track/Track'
-import { useLegacyAPI } from './utils'
+  TrackPublishedResponse,
+} from '../proto/livekit_rtc';
+import { TrackInvalidError } from './errors';
+import { EngineEvent } from './events';
+import PCTransport from './PCTransport';
+import { Track } from './track/Track';
+import { useLegacyAPI } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const maxWSRetries = 10;
 
-export class RTCEngine extends EventEmitter {
+export default class RTCEngine extends EventEmitter {
   publisher?: PCTransport;
+
   subscriber?: PCTransport;
+
   client: SignalClient;
+
   rtcConfig: RTCConfiguration;
+
   useLegacy: boolean;
 
   lossyDC?: RTCDataChannel;
+
   reliableDC?: RTCDataChannel;
+
   rtcConnected: boolean = false;
+
   iceConnected: boolean = false;
+
   pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
+
   disconnectTimeout?: ReturnType<typeof setTimeout>;
 
   // keep join info around for reconnect
   url?: string;
+
   token?: string;
+
   numRetries: number;
 
   constructor(client: SignalClient, config?: RTCConfiguration) {
@@ -53,16 +64,16 @@ export class RTCEngine extends EventEmitter {
     const joinResponse = await this.client.join(url, token, this.useLegacy, opts);
 
     if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
-      this.rtcConfig.iceServers = [];
-      for (let iceServer of joinResponse.iceServers) {
+      const rtcIceServers: RTCIceServer[] = [];
+      joinResponse.iceServers.forEach((iceServer) => {
         const rtcIceServer: RTCIceServer = {
           urls: iceServer.urls,
         };
         if (iceServer.username) rtcIceServer.username = iceServer.username;
-        if (iceServer.credential)
-          rtcIceServer.credential = iceServer.credential;
-        this.rtcConfig.iceServers.push(rtcIceServer);
-      }
+        if (iceServer.credential) { rtcIceServer.credential = iceServer.credential; }
+        rtcIceServers.push(rtcIceServer);
+      });
+      this.rtcConfig.iceServers = rtcIceServers;
     }
 
     // update ICE servers before creating PeerConnection
@@ -99,10 +110,10 @@ export class RTCEngine extends EventEmitter {
   addTrack(cid: string, name: string, kind: Track.Kind): Promise<TrackInfo> {
     if (this.pendingTrackResolvers[cid]) {
       throw new TrackInvalidError(
-        'a track with the same ID has already been published'
+        'a track with the same ID has already been published',
       );
     }
-    return new Promise<TrackInfo>((resolve, reject) => {
+    return new Promise<TrackInfo>((resolve) => {
       this.pendingTrackResolvers[cid] = resolve;
       this.client.sendAddTrack(cid, name, Track.kindToProto(kind));
     });
@@ -129,14 +140,14 @@ export class RTCEngine extends EventEmitter {
       this.client.sendIceCandidate(ev.candidate, SignalTarget.SUBSCRIBER);
     };
 
-    this.publisher.pc.onnegotiationneeded = (ev) => {
+    this.publisher.pc.onnegotiationneeded = () => {
       if (!this.rtcConnected) {
         return;
       }
       this.negotiate();
     };
 
-    this.publisher.pc.oniceconnectionstatechange = (ev) => {
+    this.publisher.pc.oniceconnectionstatechange = () => {
       if (!this.publisher) {
         return;
       }
@@ -159,8 +170,7 @@ export class RTCEngine extends EventEmitter {
         // once server responds
         // We'll trigger disconnect after a long delay if we are in the waiting-for-server-answer
         // state
-        const delay =
-          this.publisher.pc.signalingState == 'have-local-offer' ? 3000 : 100;
+        const delay = this.publisher.pc.signalingState === 'have-local-offer' ? 3000 : 100;
         this.disconnectTimeout = setTimeout(() => {
           this.disconnectTimeout = undefined;
           this.iceConnected = false;
@@ -172,10 +182,10 @@ export class RTCEngine extends EventEmitter {
 
     if (this.useLegacy) {
       this.subscriber.pc.addEventListener('addstream', (ev: any) => {
-        const stream: MediaStream = ev.stream;
-        for (let t of stream.getTracks()) {
+        const { stream } = ev;
+        stream.getTracks().forEach((t: MediaStreamTrack) => {
           this.emitTrackEvent(t, stream);
-        }
+        });
       });
     } else {
       this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
@@ -204,7 +214,7 @@ export class RTCEngine extends EventEmitter {
       log.debug(
         'received server answer',
         sd.type,
-        this.publisher.pc.signalingState
+        this.publisher.pc.signalingState,
       );
       await this.publisher.setRemoteDescription(sd);
 
@@ -233,7 +243,7 @@ export class RTCEngine extends EventEmitter {
       log.debug(
         'received server offer',
         sd.type,
-        this.subscriber.pc.signalingState
+        this.subscriber.pc.signalingState,
       );
       await this.subscriber.setRemoteDescription(sd);
 
@@ -291,14 +301,14 @@ export class RTCEngine extends EventEmitter {
       log.info(
         'could not connect to signal after',
         maxWSRetries,
-        'attempts. giving up'
+        'attempts. giving up',
       );
       this.close();
       this.emit(EngineEvent.Disconnected);
       return;
     }
 
-    const delay = (this.numRetries ^ 2) * 500;
+    const delay = (this.numRetries * this.numRetries) * 500;
     setTimeout(() => {
       if (this.iceConnected && this.url && this.token) {
         log.info('reconnecting to signal connection, attempt', this.numRetries);
@@ -310,7 +320,7 @@ export class RTCEngine extends EventEmitter {
           .catch(this.handleWSClose);
       }
     }, delay);
-    this.numRetries = this.numRetries + 1;
+    this.numRetries += 1;
   };
 
   private async negotiate() {
@@ -333,7 +343,7 @@ export class RTCEngine extends EventEmitter {
   private emitTrackEvent = (
     track: MediaStreamTrack,
     stream: MediaStream,
-    receiver?: RTCRtpReceiver
+    receiver?: RTCRtpReceiver,
   ) => {
     this.emit(EngineEvent.MediaTrackAdded, track, stream, receiver);
   };

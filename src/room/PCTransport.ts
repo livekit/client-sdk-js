@@ -1,5 +1,6 @@
-export class PCTransport {
+export default class PCTransport {
   pc: RTCPeerConnection;
+
   pendingCandidates: RTCIceCandidateInit[] = [];
 
   constructor(config?: RTCConfiguration) {
@@ -9,9 +10,8 @@ export class PCTransport {
   async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
     if (this.pc.remoteDescription) {
       return this.pc.addIceCandidate(candidate);
-    } else {
-      this.pendingCandidates.push(candidate);
     }
+    this.pendingCandidates.push(candidate);
   }
 
   async setRemoteDescription(sd: RTCSessionDescriptionInit): Promise<void> {

@@ -1,31 +1,28 @@
-import { EventEmitter } from 'events'
-import { TrackInfo } from '../../proto/livekit_models'
-import { TrackEvent } from '../events'
-import { AudioTrack } from './AudioTrack'
-import { Track } from './Track'
-import { MediaTrack } from './types'
-import { VideoTrack } from './VideoTrack'
+import { EventEmitter } from 'events';
+import { TrackInfo } from '../../proto/livekit_models';
+import { TrackEvent } from '../events';
+import LocalAudioTrack from './LocalAudioTrack';
+import LocalVideoTrack from './LocalVideoTrack';
+import RemoteAudioTrack from './RemoteAudioTrack';
+import RemoteVideoTrack from './RemoteVideoTrack';
+import { Track } from './Track';
 
-export class TrackPublication extends EventEmitter {
+export default class TrackPublication extends EventEmitter {
   kind: Track.Kind;
+
   trackName: string;
+
   trackSid: Track.SID;
+
   track?: Track;
 
-  protected _isMuted: boolean = false;
+  protected metadataMuted: boolean = false;
 
   constructor(kind: Track.Kind, id: string, name: string) {
     super();
     this.kind = kind;
     this.trackSid = id;
     this.trackName = name;
-  }
-
-  get isMuted(): boolean {
-    if (!this.track) {
-      return false;
-    }
-    return this._isMuted;
   }
 
   /** @internal */
@@ -44,11 +41,15 @@ export class TrackPublication extends EventEmitter {
     }
   }
 
+  get isMuted(): boolean {
+    return this.metadataMuted;
+  }
+
   /**
    * an [AudioTrack] if this publication holds an audio track
    */
-  get audioTrack(): AudioTrack | undefined {
-    if (this.track instanceof AudioTrack) {
+  get audioTrack(): LocalAudioTrack | RemoteAudioTrack | undefined {
+    if (this.track instanceof LocalAudioTrack || this.track instanceof RemoteAudioTrack) {
       return this.track;
     }
   }
@@ -56,17 +57,8 @@ export class TrackPublication extends EventEmitter {
   /**
    * an [VideoTrack] if this publication holds a video track
    */
-  get videoTrack(): VideoTrack | undefined {
-    if (this.track instanceof VideoTrack) {
-      return this.track;
-    }
-  }
-
-  /**
-   * returns an audio or video track
-   */
-  get mediaTrack(): MediaTrack | undefined {
-    if (this.track instanceof VideoTrack || this.track instanceof AudioTrack) {
+  get videoTrack(): LocalVideoTrack | RemoteVideoTrack | undefined {
+    if (this.track instanceof LocalVideoTrack || this.track instanceof RemoteVideoTrack) {
       return this.track;
     }
   }

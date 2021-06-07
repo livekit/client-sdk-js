@@ -1,21 +1,21 @@
-import { EventEmitter } from 'events'
-import log from 'loglevel'
-import { Participant } from '..'
-import { SignalClient, SignalOptions } from '../api/SignalClient'
+import { EventEmitter } from 'events';
+import log from 'loglevel';
+import { SignalClient, SignalOptions } from '../api/SignalClient';
 import {
   ParticipantInfo,
-  ParticipantInfo_State
-} from '../proto/livekit_models'
-import { DataPacket_Kind, SpeakerInfo, UserPacket } from '../proto/livekit_rtc'
-import { UnsupportedServer } from './errors'
-import { EngineEvent, ParticipantEvent, RoomEvent } from './events'
-import { LocalParticipant } from './participant/LocalParticipant'
-import { RemoteParticipant } from './participant/RemoteParticipant'
-import { RTCEngine } from './RTCEngine'
-import { RemoteTrackPublication } from './track/RemoteTrackPublication'
-import { TrackPublication } from './track/TrackPublication'
-import { RemoteTrack } from './track/types'
-import { unpackStreamId } from './utils'
+  ParticipantInfo_State,
+} from '../proto/livekit_models';
+import { DataPacket_Kind, SpeakerInfo, UserPacket } from '../proto/livekit_rtc';
+import { ConnectionError, UnsupportedServer } from './errors';
+import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
+import LocalParticipant from './participant/LocalParticipant';
+import Participant from './participant/Participant';
+import RemoteParticipant from './participant/RemoteParticipant';
+import RTCEngine from './RTCEngine';
+import RemoteTrackPublication from './track/RemoteTrackPublication';
+import TrackPublication from './track/TrackPublication';
+import { RemoteTrack } from './track/types';
+import { unpackStreamId } from './utils';
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -33,21 +33,26 @@ export enum RoomState {
  */
 class Room extends EventEmitter {
   state: RoomState = RoomState.Disconnected;
+
   /** map of sid: [[RemoteParticipant]] */
   participants: Map<string, RemoteParticipant>;
+
   /**
    * list of participants that are actively speaking. when this changes
    * a [[RoomEvent.ActiveSpeakersChanged]] event is fired
    */
   activeSpeakers: Participant[] = [];
+
   /** @internal */
   engine!: RTCEngine;
 
   // available after connected
   /** server assigned unique room id */
   sid!: string;
+
   /** user assigned name, derived from JWT token */
   name!: string;
+
   /** the current participant */
   localParticipant!: LocalParticipant;
 
@@ -62,13 +67,13 @@ class Room extends EventEmitter {
       (
         mediaTrack: MediaStreamTrack,
         stream: MediaStream,
-        receiver?: RTCRtpReceiver
+        receiver?: RTCRtpReceiver,
       ) => {
         this.onTrackAdded(mediaTrack, stream, receiver);
-      }
+      },
     );
 
-    this.engine.on(EngineEvent.Disconnected, (reason: any) => {
+    this.engine.on(EngineEvent.Disconnected, () => {
       this.handleDisconnect();
     });
 
@@ -76,7 +81,7 @@ class Room extends EventEmitter {
       EngineEvent.ParticipantUpdate,
       (participants: ParticipantInfo[]) => {
         this.handleParticipantUpdates(participants);
-      }
+      },
     );
 
     this.engine.on(EngineEvent.SpeakersUpdate, this.handleSpeakerUpdate);
@@ -105,7 +110,7 @@ class Room extends EventEmitter {
       this.localParticipant = new LocalParticipant(
         pi.sid,
         pi.identity,
-        this.engine
+        this.engine,
       );
       this.localParticipant.updateInfo(pi);
       // forward metadata changed for the local participant
@@ -113,12 +118,12 @@ class Room extends EventEmitter {
         ParticipantEvent.MetadataChanged,
         (metadata: object, p: Participant) => {
           this.emit(RoomEvent.MetadataChanged, metadata, p);
-        }
+        },
       );
 
       // populate remote participants, these should not trigger new events
-      joinResponse.otherParticipants.forEach((pi) => {
-        this.getOrCreateParticipant(pi.sid, pi);
+      joinResponse.otherParticipants.forEach((info) => {
+        this.getOrCreateParticipant(info.sid, info);
       });
 
       this.name = joinResponse.room!.name;
@@ -133,7 +138,7 @@ class Room extends EventEmitter {
       const connectTimeout = setTimeout(() => {
         // timeout
         this.engine.close();
-        reject('could not connect after timeout');
+        reject(new ConnectionError('could not connect after timeout'));
       }, 5 * 1000);
 
       this.engine.once(EngineEvent.Connected, () => {
@@ -156,7 +161,7 @@ class Room extends EventEmitter {
   private onTrackAdded(
     mediaTrack: MediaStreamTrack,
     stream: MediaStream,
-    receiver?: RTCRtpReceiver
+    receiver?: RTCRtpReceiver,
   ) {
     const parts = unpackStreamId(stream.id);
     const participantId = parts[0];
@@ -203,7 +208,7 @@ class Room extends EventEmitter {
 
   private handleParticipantDisconnected(
     sid: string,
-    participant?: RemoteParticipant
+    participant?: RemoteParticipant,
   ) {
     // remove and send event
     this.participants.delete(sid);
@@ -224,13 +229,13 @@ class Room extends EventEmitter {
       seenSids[speaker.sid] = true;
       if (speaker.sid === this.localParticipant.sid) {
         this.localParticipant.audioLevel = speaker.level;
-        this.localParticipant.setIsSpeaking(true)
+        this.localParticipant.setIsSpeaking(true);
         activeSpeakers.push(this.localParticipant);
       } else {
         const p = this.participants.get(speaker.sid);
         if (p) {
           p.audioLevel = speaker.level;
-          p.setIsSpeaking(true)
+          p.setIsSpeaking(true);
           activeSpeakers.push(p);
         }
       }
@@ -238,12 +243,12 @@ class Room extends EventEmitter {
 
     if (!seenSids[this.localParticipant.sid]) {
       this.localParticipant.audioLevel = 0;
-      this.localParticipant.setIsSpeaking(false)
+      this.localParticipant.setIsSpeaking(false);
     }
     this.participants.forEach((p) => {
       if (!seenSids[p.sid]) {
         p.audioLevel = 0;
-        p.setIsSpeaking(false)
+        p.setIsSpeaking(false);
       }
     });
 
@@ -253,7 +258,7 @@ class Room extends EventEmitter {
 
   private handleDataPacket = (
     userPacket: UserPacket,
-    kind: DataPacket_Kind
+    kind: DataPacket_Kind,
   ) => {
     // find the participant
     const participant = this.participants.get(userPacket.participantSid);
@@ -268,7 +273,7 @@ class Room extends EventEmitter {
 
   private getOrCreateParticipant(
     id: string,
-    info?: ParticipantInfo
+    info?: ParticipantInfo,
   ): RemoteParticipant {
     let participant = this.participants.get(id);
     if (!participant) {
@@ -277,7 +282,7 @@ class Room extends EventEmitter {
       if (info) {
         participant = RemoteParticipant.fromParticipantInfo(
           this.engine.client,
-          info
+          info,
         );
       } else {
         participant = new RemoteParticipant(this.engine.client, id, '');
@@ -291,35 +296,35 @@ class Room extends EventEmitter {
         ParticipantEvent.TrackPublished,
         (trackPublication: RemoteTrackPublication) => {
           this.emit(RoomEvent.TrackPublished, trackPublication, participant);
-        }
+        },
       );
 
       participant.on(
         ParticipantEvent.TrackSubscribed,
         (track: RemoteTrack, publication: RemoteTrackPublication) => {
           this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
-        }
+        },
       );
 
       participant.on(
         ParticipantEvent.TrackUnpublished,
         (publication: RemoteTrackPublication) => {
           this.emit(RoomEvent.TrackUnpublished, publication, participant);
-        }
+        },
       );
 
       participant.on(
         ParticipantEvent.TrackUnsubscribed,
         (publication: RemoteTrackPublication) => {
           this.emit(RoomEvent.TrackUnsubscribed, publication, participant);
-        }
+        },
       );
 
       participant.on(
         ParticipantEvent.TrackSubscriptionFailed,
         (sid: string) => {
           this.emit(RoomEvent.TrackSubscriptionFailed, sid, participant);
-        }
+        },
       );
 
       participant.on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
@@ -334,7 +339,7 @@ class Room extends EventEmitter {
         ParticipantEvent.MetadataChanged,
         (metadata: object, p: Participant) => {
           this.emit(RoomEvent.MetadataChanged, metadata, p);
-        }
+        },
       );
     }
     return participant;

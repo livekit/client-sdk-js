@@ -1,23 +1,23 @@
 import { TrackEvent } from '../events';
-import { AudioTrack } from './AudioTrack';
+import { Track } from './Track';
 
-export class RemoteAudioTrack extends AudioTrack {
+export default class RemoteAudioTrack extends Track {
   /** @internal */
   receiver?: RTCRtpReceiver;
 
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
-    receiver?: RTCRtpReceiver
+    receiver?: RTCRtpReceiver,
   ) {
-    super(mediaTrack);
+    super(mediaTrack, Track.Kind.Audio);
     this.sid = sid;
     this.receiver = receiver;
   }
 
   /** @internal */
   setMuted(muted: boolean) {
-    if (this.isMuted != muted) {
+    if (this.isMuted !== muted) {
       this.isMuted = muted;
       this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
     }

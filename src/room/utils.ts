@@ -10,5 +10,5 @@ export function unpackStreamId(packed: string): string[] {
 
 export function useLegacyAPI(): boolean {
   // react native is using old stream based API
-  return typeof navigator != 'undefined' && navigator.product == 'ReactNative';
+  return typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
 }

@@ -6,17 +6,19 @@ import {
   UpdateTrackSettings,
 } from '../../proto/livekit_rtc';
 import { ParticipantEvent, TrackEvent } from '../events';
-import { RemoteAudioTrack } from '../track/RemoteAudioTrack';
-import { RemoteTrackPublication } from '../track/RemoteTrackPublication';
-import { RemoteVideoTrack } from '../track/RemoteVideoTrack';
+import RemoteAudioTrack from '../track/RemoteAudioTrack';
+import RemoteTrackPublication from '../track/RemoteTrackPublication';
+import RemoteVideoTrack from '../track/RemoteVideoTrack';
 import { Track } from '../track/Track';
-import { TrackPublication } from '../track/TrackPublication';
+import TrackPublication from '../track/TrackPublication';
 import { RemoteTrack } from '../track/types';
-import { Participant } from './Participant';
+import Participant from './Participant';
 
-export class RemoteParticipant extends Participant {
+export default class RemoteParticipant extends Participant {
   audioTracks: Map<string, RemoteTrackPublication>;
+
   videoTracks: Map<string, RemoteTrackPublication>;
+
   tracks: Map<string, RemoteTrackPublication>;
 
   signalClient: SignalClient;
@@ -24,7 +26,7 @@ export class RemoteParticipant extends Participant {
   /** @internal */
   static fromParticipantInfo(
     signalClient: SignalClient,
-    pi: ParticipantInfo
+    pi: ParticipantInfo,
   ): RemoteParticipant {
     const rp = new RemoteParticipant(signalClient, pi.sid, pi.identity);
     rp.updateInfo(pi);
@@ -48,7 +50,7 @@ export class RemoteParticipant extends Participant {
       TrackEvent.UpdateSettings,
       (settings: UpdateTrackSettings) => {
         this.signalClient.sendUpdateTrackSettings(settings);
-      }
+      },
     );
     publication.on(TrackEvent.UpdateSubscription, (sub: UpdateSubscription) => {
       this.signalClient.sendUpdateSubscription(sub);
@@ -60,7 +62,7 @@ export class RemoteParticipant extends Participant {
     mediaTrack: MediaStreamTrack,
     sid: Track.SID,
     receiver?: RTCRtpReceiver,
-    triesLeft?: number
+    triesLeft?: number,
   ) {
     // find the track publication
     // it's possible for the media track to arrive before participant info
@@ -112,7 +114,7 @@ export class RemoteParticipant extends Participant {
     track.isMuted = publication.isMuted;
 
     // when media track is ended, fire the event
-    mediaTrack.onended = (ev) => {
+    mediaTrack.onended = () => {
       this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
     };
     this.emit(ParticipantEvent.TrackSubscribed, track, publication);
@@ -147,7 +149,7 @@ export class RemoteParticipant extends Participant {
       let publication = this.getTrackPublication(ti.sid);
       if (!publication) {
         // new publication
-        let kind = Track.kindFromProto(ti.type);
+        const kind = Track.kindFromProto(ti.type);
         if (!kind) {
           return;
         }
@@ -178,7 +180,7 @@ export class RemoteParticipant extends Participant {
 
   /** @internal */
   unpublishTrack(sid: Track.SID, sendUnpublish?: boolean) {
-    const publication = <RemoteTrackPublication>this.tracks.get(sid);
+    const publication = <RemoteTrackPublication> this.tracks.get(sid);
     if (!publication) {
       return;
     }
@@ -193,6 +195,8 @@ export class RemoteParticipant extends Participant {
       case Track.Kind.Video:
         this.videoTracks.delete(sid);
         break;
+      default:
+        break;
     }
 
     // also send unsubscribe, if track is actively subscribed
@@ -202,8 +206,7 @@ export class RemoteParticipant extends Participant {
       // always send unsubscribed, since apps may rely on this
       this.emit(ParticipantEvent.TrackUnsubscribed, publication);
     }
-    if (sendUnpublish)
-      this.emit(ParticipantEvent.TrackUnpublished, publication);
+    if (sendUnpublish) { this.emit(ParticipantEvent.TrackUnpublished, publication); }
   }
 
   /** @internal */

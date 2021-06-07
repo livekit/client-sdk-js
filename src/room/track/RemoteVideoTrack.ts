@@ -1,19 +1,20 @@
 import log from 'loglevel';
 import { TrackEvent } from '../events';
 import { monitorFrequency, VideoReceiverStats } from '../stats';
-import { VideoTrack } from './VideoTrack';
+import { Track } from './Track';
 
-export class RemoteVideoTrack extends VideoTrack {
+export default class RemoteVideoTrack extends Track {
   /** @internal */
   receiver?: RTCRtpReceiver;
+
   private prevStats?: VideoReceiverStats;
 
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
-    receiver?: RTCRtpReceiver
+    receiver?: RTCRtpReceiver,
   ) {
-    super(mediaTrack);
+    super(mediaTrack, Track.Kind.Video);
     // override id to parsed ID
     this.sid = sid;
     this.receiver = receiver;
@@ -21,7 +22,7 @@ export class RemoteVideoTrack extends VideoTrack {
 
   /** @internal */
   setMuted(muted: boolean) {
-    if (this.isMuted != muted) {
+    if (this.isMuted !== muted) {
       this.isMuted = muted;
       this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
     }
@@ -40,24 +41,23 @@ export class RemoteVideoTrack extends VideoTrack {
 
     const stats = await this.receiver.getStats();
     let rs: any;
-    for (const [key, v] of stats) {
+    stats.forEach((v) => {
       if (
-        v.type === 'track' &&
-        v.trackIdentifier === this.mediaStreamTrack.id
+        v.type === 'track'
+        && v.trackIdentifier === this.mediaStreamTrack.id
       ) {
         rs = v;
-        break;
       }
-    }
-
+    });
     if (!rs) {
       return null;
     }
 
     // match the outbound-rtp items
-    for (const [key, v] of stats) {
+    let data: any = null;
+    stats.forEach((v) => {
       if (v.type === 'inbound-rtp' && v.trackId === rs.id) {
-        return {
+        data = {
           type: 'video',
           jitterBufferDelay: rs.jitterBufferDelay,
           packetsLost: v.packetsLost,
@@ -73,9 +73,9 @@ export class RemoteVideoTrack extends VideoTrack {
           nackCount: v.nackCount,
         };
       }
-    }
+    });
 
-    return null;
+    return data;
   }
 
   private monitorReceiver = async () => {
@@ -116,7 +116,7 @@ export class RemoteVideoTrack extends VideoTrack {
         lostDelta,
         'droppedDelta',
         droppedDelta,
-        curr
+        curr,
       );
     }
   }

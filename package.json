@@ -23,7 +23,11 @@
     "webrtc-adapter": "^7.7.1"
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^4.4.1",
     "@webpack-cli/serve": "^1.2.1",
+    "eslint": "^7.28.0",
+    "eslint-config-airbnb-typescript": "^12.3.1",
+    "eslint-plugin-import": "^2.22.0",
     "ts-loader": "^8.1.0",
     "ts-proto": "1.79.1",
     "typedoc": "^0.20.35",

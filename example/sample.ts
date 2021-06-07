@@ -1,5 +1,4 @@
 import {
-  AudioTrack,
   connect,
   createLocalVideoTrack,
   LocalAudioTrack,
@@ -13,8 +12,7 @@ import {
   Room,
   RoomEvent,
   Track,
-  VideoPresets,
-  VideoTrack
+  VideoPresets
 } from '../src/index'
 import { DataPacket_Kind } from '../src/proto/livekit_rtc'
 
@@ -61,12 +59,9 @@ function trackSubscribed(
   participant: Participant
 ): HTMLMediaElement | null {
   appendLog('track subscribed', track);
-  if (track instanceof AudioTrack || track instanceof VideoTrack) {
-    const element = track.attach();
-    div.appendChild(element);
-    return element;
-  }
-  return null;
+  const element = track.attach();
+  div.appendChild(element);
+  return element;
 }
 
 function trackUnsubscribed(
@@ -78,9 +73,7 @@ function trackUnsubscribed(
     logName = track.sid;
   }
   appendLog('track unsubscribed', logName);
-  if (track instanceof AudioTrack || track instanceof VideoTrack) {
-    track.detach().forEach((element) => element.remove());
-  }
+  track.detach().forEach((element) => element.remove());
 }
 
 const encoder = new TextEncoder();
@@ -107,7 +100,7 @@ function handleSpeakerChanged(speakers: Participant[]) {
 function setParticipantSpeaking(participant: Participant, speaking: boolean) {
   participant.videoTracks.forEach((publication) => {
     const track = publication.track;
-    if (track instanceof VideoTrack) {
+    if (track && track.kind === Track.Kind.Video) {
       track.attachedElements.forEach((element) => {
         if (speaking) {
           element.classList.add('speaking');

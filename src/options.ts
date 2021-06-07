@@ -1,4 +1,4 @@
-import { LocalTrack } from './room/track/types'
+import LocalTrack from './room/track/LocalTrack';
 
 /**
  * if video or audio tracks are created as part of [[connect]], it'll automatically

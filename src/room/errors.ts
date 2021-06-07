@@ -1,10 +1,15 @@
-export class LivekitError {
+export class LivekitError extends Error {
   code: number;
-  message?: string;
 
   constructor(code: number, message?: string) {
+    super(message || 'an error has occured');
     this.code = code;
-    this.message = message;
+  }
+}
+
+export class ConnectionError extends LivekitError {
+  constructor(message?: string) {
+    super(1, message);
   }
 }
 

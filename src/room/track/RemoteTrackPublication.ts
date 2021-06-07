@@ -1,26 +1,21 @@
-import { TrackInfo } from '../../proto/livekit_models'
+import { TrackInfo } from '../../proto/livekit_models';
 import {
   UpdateSubscription,
   UpdateTrackSettings,
-  VideoQuality
-} from '../../proto/livekit_rtc'
-import { TrackEvent } from '../events'
-import { RemoteAudioTrack } from './RemoteAudioTrack'
-import { RemoteVideoTrack } from './RemoteVideoTrack'
-import { Track } from './Track'
-import { TrackPublication } from './TrackPublication'
-import { RemoteTrack } from './types'
+  VideoQuality,
+} from '../../proto/livekit_rtc';
+import { TrackEvent } from '../events';
+import TrackPublication from './TrackPublication';
+import { RemoteTrack } from './types';
 
-export class RemoteTrackPublication extends TrackPublication {
+export default class RemoteTrackPublication extends TrackPublication {
   track?: RemoteTrack;
 
   protected subscribe: boolean = false;
-  protected disabled: boolean = false;
-  protected videoQuality: VideoQuality = VideoQuality.HIGH;
 
-  constructor(kind: Track.Kind, id: string, name: string) {
-    super(kind, id, name);
-  }
+  protected disabled: boolean = false;
+
+  protected videoQuality: VideoQuality = VideoQuality.HIGH;
 
   get isSubscribed(): boolean {
     return !!this.track;
@@ -69,13 +64,8 @@ export class RemoteTrackPublication extends TrackPublication {
   /** @internal */
   updateInfo(info: TrackInfo) {
     super.updateInfo(info);
-    this._isMuted = info.muted;
-    if (
-      this.track instanceof RemoteVideoTrack ||
-      this.track instanceof RemoteAudioTrack
-    ) {
-      this.track.setMuted(info.muted);
-    }
+    this.metadataMuted = info.muted;
+    this.track?.setMuted(info.muted);
   }
 
   protected emitTrackUpdate() {

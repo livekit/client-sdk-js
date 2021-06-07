@@ -1,32 +1,34 @@
-import log from 'loglevel'
+import log from 'loglevel';
 import {
   AudioPresets,
   VideoCodec,
   VideoEncoding,
-  VideoPresets
-} from '../../options'
-import { ParticipantInfo } from '../../proto/livekit_models'
-import { DataPacket, DataPacket_Kind } from '../../proto/livekit_rtc'
+  VideoPresets,
+} from '../../options';
+import { ParticipantInfo } from '../../proto/livekit_models';
+import { DataPacket, DataPacket_Kind } from '../../proto/livekit_rtc';
 import {
   PublishDataError,
   TrackInvalidError,
-  UnexpectedConnectionState
-} from '../errors'
-import { ParticipantEvent, TrackEvent } from '../events'
-import { RTCEngine } from '../RTCEngine'
-import { LocalAudioTrack } from '../track/LocalAudioTrack'
-import { LocalTrackPublication } from '../track/LocalTrackPublication'
-import { LocalVideoTrack } from '../track/LocalVideoTrack'
-import { TrackPublishOptions } from '../track/options'
-import { Track } from '../track/Track'
-import { LocalTrack } from '../track/types'
-import { Participant } from './Participant'
+  UnexpectedConnectionState,
+} from '../errors';
+import { ParticipantEvent, TrackEvent } from '../events';
+import RTCEngine from '../RTCEngine';
+import LocalAudioTrack from '../track/LocalAudioTrack';
+import LocalTrack from '../track/LocalTrack';
+import LocalTrackPublication from '../track/LocalTrackPublication';
+import LocalVideoTrack from '../track/LocalVideoTrack';
+import { TrackPublishOptions } from '../track/options';
+import { Track } from '../track/Track';
+import Participant from './Participant';
 
 const simulcastMinWidth = 200;
 
-export class LocalParticipant extends Participant {
+export default class LocalParticipant extends Participant {
   private engine: RTCEngine;
+
   audioTracks: Map<string, LocalTrackPublication>;
+
   videoTracks: Map<string, LocalTrackPublication>;
 
   /** map of track sid => all published tracks */
@@ -48,7 +50,7 @@ export class LocalParticipant extends Participant {
    */
   async publishTrack(
     track: LocalTrack | MediaStreamTrack,
-    options?: TrackPublishOptions
+    options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
@@ -61,7 +63,7 @@ export class LocalParticipant extends Participant {
           break;
         default:
           throw new TrackInvalidError(
-            `unsupported MediaStreamTrack kind ${track.kind}`
+            `unsupported MediaStreamTrack kind ${track.kind}`,
           );
       }
     }
@@ -84,13 +86,13 @@ export class LocalParticipant extends Participant {
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
 
     // get local track id for use during publishing
-    let cid = track.mediaStreamTrack.id;
+    const cid = track.mediaStreamTrack.id;
 
     // create track publication from track
     const ti = await this.engine.addTrack(cid, track.name, track.kind);
     const publication = new LocalTrackPublication(track.kind, ti, track);
 
-    let encodings: RTCRtpEncodingParameters[] | undefined = undefined;
+    let encodings: RTCRtpEncodingParameters[] | undefined;
     // for video
     if (track.kind === Track.Kind.Video) {
       // TODO: support react native, which doesn't expose getSettings
@@ -98,7 +100,7 @@ export class LocalParticipant extends Participant {
       encodings = this.computeVideoEncodings(
         settings.width,
         settings.height,
-        options
+        options,
       );
     } else if (track.kind === Track.Kind.Audio) {
       encodings = [
@@ -117,7 +119,7 @@ export class LocalParticipant extends Participant {
       {
         direction: 'sendonly',
         sendEncodings: encodings,
-      }
+      },
     );
 
     // store RTPSender
@@ -135,10 +137,10 @@ export class LocalParticipant extends Participant {
   }
 
   unpublishTrack(
-    track: LocalTrack | MediaStreamTrack
+    track: LocalTrack | MediaStreamTrack,
   ): LocalTrackPublication | null {
     // look through all published tracks to find the right ones
-    let publication = this.getPublicationForTrack(track);
+    const publication = this.getPublicationForTrack(track);
 
     log.debug('unpublishTrack', 'unpublishing track', track);
 
@@ -148,7 +150,7 @@ export class LocalParticipant extends Participant {
       log.warn(
         'unpublishTrack',
         'track was not unpublished because no publication was found',
-        track
+        track,
       );
       return null;
     }
@@ -168,11 +170,11 @@ export class LocalParticipant extends Participant {
 
     if (this.engine.publisher) {
       const senders = this.engine.publisher.pc.getSenders();
-      for (const sender of senders) {
+      senders.forEach((sender) => {
         if (sender.track === mediaStreamTrack) {
-          this.engine.publisher.pc.removeTrack(sender);
+          this.engine.publisher?.pc.removeTrack(sender);
         }
-      }
+      });
     }
 
     // remove from our maps
@@ -184,13 +186,15 @@ export class LocalParticipant extends Participant {
       case Track.Kind.Video:
         this.videoTracks.delete(publication.trackSid);
         break;
+      default:
+        break;
     }
 
     return publication;
   }
 
   unpublishTracks(
-    tracks: LocalTrack[] | MediaStreamTrack[]
+    tracks: LocalTrack[] | MediaStreamTrack[],
   ): LocalTrackPublication[] {
     const publications: LocalTrackPublication[] = [];
     tracks.forEach((track: LocalTrack | MediaStreamTrack) => {
@@ -211,10 +215,10 @@ export class LocalParticipant extends Participant {
     super.updateInfo(info);
 
     // match local track mute status to server
-    for (const ti of info.tracks) {
-      const pub = <LocalTrackPublication>this.tracks.get(ti.sid);
+    info.tracks.forEach((ti) => {
+      const pub = <LocalTrackPublication> this.tracks.get(ti.sid);
       if (!pub) {
-        continue;
+        return;
       }
 
       if (ti.muted && !pub.isMuted) {
@@ -222,7 +226,7 @@ export class LocalParticipant extends Participant {
       } else if (!ti.muted && pub.isMuted) {
         pub.unmute();
       }
-    }
+    });
   }
 
   /**
@@ -241,7 +245,7 @@ export class LocalParticipant extends Participant {
     }
 
     const packet: DataPacket = {
-      kind: kind,
+      kind,
       user: {
         participantSid: this.sid,
         payload: data,
@@ -265,7 +269,7 @@ export class LocalParticipant extends Participant {
   /** @internal */
   onTrackMuted = (
     track: LocalVideoTrack | LocalAudioTrack,
-    muted?: boolean
+    muted?: boolean,
   ) => {
     if (muted === undefined) {
       muted = true;
@@ -280,36 +284,36 @@ export class LocalParticipant extends Participant {
   };
 
   private getPublicationForTrack(
-    track: LocalTrack | MediaStreamTrack
+    track: LocalTrack | MediaStreamTrack,
   ): LocalTrackPublication | undefined {
     let publication: LocalTrackPublication | undefined;
-    for (const pub of this.tracks.values()) {
-      let localTrack = pub.track;
-      if (!localTrack) continue;
+    this.tracks.forEach((pub) => {
+      const localTrack = pub.track;
+      if (!localTrack) {
+        return;
+      }
 
       // this looks overly complicated due to this object tree
       if (track instanceof MediaStreamTrack) {
         if (
-          localTrack instanceof LocalAudioTrack ||
-          localTrack instanceof LocalVideoTrack
+          localTrack instanceof LocalAudioTrack
+          || localTrack instanceof LocalVideoTrack
         ) {
           if (localTrack.mediaStreamTrack === track) {
-            publication = publication = <LocalTrackPublication>pub;
-            break;
+            publication = <LocalTrackPublication>pub;
           }
         }
       } else if (track === localTrack) {
         publication = <LocalTrackPublication>pub;
-        break;
       }
-    }
+    });
     return publication;
   }
 
   private setPreferredCodec(
     transceiver: RTCRtpTransceiver,
     kind: Track.Kind,
-    videoCodec: VideoCodec = 'vp8'
+    videoCodec: VideoCodec = 'vp8',
   ) {
     if (!('getCapabilities' in RTCRtpSender)) {
       return;
@@ -317,9 +321,8 @@ export class LocalParticipant extends Participant {
     const cap = RTCRtpSender.getCapabilities(kind);
     if (!cap) return;
     const selected = cap.codecs.find(
-      (c) =>
-        c.mimeType.toLowerCase() === `video/${videoCodec}` ||
-        c.mimeType.toLowerCase() === 'audio/opus'
+      (c) => c.mimeType.toLowerCase() === `video/${videoCodec}`
+        || c.mimeType.toLowerCase() === 'audio/opus',
     );
     if (selected && 'setCodecPreferences' in transceiver) {
       transceiver.setCodecPreferences([selected]);
@@ -329,7 +332,7 @@ export class LocalParticipant extends Participant {
   private computeVideoEncodings(
     width?: number,
     height?: number,
-    options?: TrackPublishOptions
+    options?: TrackPublishOptions,
   ): RTCRtpEncodingParameters[] {
     let encodings: RTCRtpEncodingParameters[];
 
@@ -384,16 +387,16 @@ export class LocalParticipant extends Participant {
 
   private determineAppropriateEncoding(
     width?: number,
-    height?: number
+    height?: number,
   ): VideoEncoding {
-    let encoding = VideoPresets.vga.encoding;
+    let { encoding } = VideoPresets.vga;
 
     if (width && height) {
-      for (let i = 0; i < this.orderedPresets.length; i++) {
+      for (let i = 0; i < this.orderedPresets.length; i += 1) {
         const preset = this.orderedPresets[i];
         if (
-          width >= parseLongConstraint(preset.resolution.width) &&
-          height >= parseLongConstraint(preset.resolution.height)
+          width >= parseLongConstraint(preset.resolution.width)
+          && height >= parseLongConstraint(preset.resolution.height)
         ) {
           encoding = preset.encoding;
         }
@@ -407,9 +410,8 @@ export class LocalParticipant extends Participant {
 function parseLongConstraint(constrain: ConstrainULong): number {
   if (typeof constrain === 'number') {
     return constrain;
-  } else {
-    return (
-      constrain.exact || constrain.ideal || constrain.min || constrain.max || 0
-    );
   }
+  return (
+    constrain.exact || constrain.ideal || constrain.min || constrain.max || 0
+  );
 }
