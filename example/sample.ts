@@ -269,15 +269,16 @@ window.enterText = () => {
 };
 
 window.shareScreen = async () => {
-  if (screenTrack != undefined) {
+  if (screenTrack !== undefined) {
     currentRoom.localParticipant.unpublishTrack(screenTrack);
     screenTrack = undefined;
     return;
   }
 
-  const { mediaDevices } = navigator;
   const preset = VideoPresets.hd;
-  const ssMediaStream: MediaStream = await mediaDevices.getDisplayMedia({
+  // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
+  // @ts-ignore
+  const ssMediaStream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
     audio: false,
     video: {
       width: preset.resolution.width,
