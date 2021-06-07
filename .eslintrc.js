@@ -1,7 +1,7 @@
 module.exports = {
   extends: ['airbnb-typescript/base'],
   parserOptions: {
-    project: './tsconfig.json',
+    project: './tsconfig.eslint.json',
   },
   rules: {
     'import/export': 'off',
@@ -11,5 +11,5 @@ module.exports = {
     'consistent-return': 'off',
     'class-methods-use-this': 'off',
     '@typescript-eslint/no-use-before-define': 'off',
-  }
+  },
 };

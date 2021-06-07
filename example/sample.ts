@@ -12,11 +12,11 @@ import {
   Room,
   RoomEvent,
   Track,
-  VideoPresets
-} from '../src/index'
-import { DataPacket_Kind } from '../src/proto/livekit_rtc'
+  VideoPresets,
+} from '../src/index';
+import { DataPacket_Kind } from '../src/proto/livekit_rtc';
 
-let $ = function (id: string) {
+const $ = function (id: string) {
   return document.getElementById(id);
 };
 
@@ -37,14 +37,14 @@ declare global {
 
 function appendLog(...args: any[]) {
   const logger = $('log')!;
-  for (var i = 0; i < arguments.length; i++) {
-    if (typeof arguments[i] == 'object') {
-      logger.innerHTML +=
-        (JSON && JSON.stringify
-          ? JSON.stringify(arguments[i], undefined, 2)
-          : arguments[i]) + ' ';
+  for (let i = 0; i < arguments.length; i += 1) {
+    if (typeof args[i] === 'object') {
+      logger.innerHTML
+        += `${JSON && JSON.stringify
+          ? JSON.stringify(args[i], undefined, 2)
+          : args[i]} `;
     } else {
-      logger.innerHTML += arguments[i] + ' ';
+      logger.innerHTML += `${args[i]} `;
     }
   }
   logger.innerHTML += '\n';
@@ -56,7 +56,7 @@ function appendLog(...args: any[]) {
 function trackSubscribed(
   div: HTMLDivElement,
   track: Track,
-  participant: Participant
+  participant: Participant,
 ): HTMLMediaElement | null {
   appendLog('track subscribed', track);
   const element = track.attach();
@@ -66,7 +66,7 @@ function trackSubscribed(
 
 function trackUnsubscribed(
   track: RemoteTrack | LocalTrack,
-  participant?: Participant
+  participant?: Participant,
 ) {
   let logName = track.name;
   if (track.sid) {
@@ -93,13 +93,13 @@ function handleSpeakerChanged(speakers: Participant[]) {
   // do the same for local participant
   setParticipantSpeaking(
     currentRoom.localParticipant,
-    speakers.includes(currentRoom.localParticipant)
+    speakers.includes(currentRoom.localParticipant),
   );
 }
 
 function setParticipantSpeaking(participant: Participant, speaking: boolean) {
   participant.videoTracks.forEach((publication) => {
-    const track = publication.track;
+    const { track } = publication;
     if (track && track.kind === Track.Kind.Video) {
       track.attachedElements.forEach((element) => {
         if (speaking) {
@@ -121,12 +121,12 @@ function participantConnected(participant: RemoteParticipant) {
   div.className = 'col-md-6 video-container';
   $('remote-area')?.appendChild(div);
 
-  participant.on(ParticipantEvent.TrackSubscribed, (track) =>
-    trackSubscribed(div, track, participant)
-  );
-  participant.on(ParticipantEvent.TrackUnsubscribed, (track) =>
-    trackUnsubscribed(track, participant)
-  );
+  participant.on(ParticipantEvent.TrackSubscribed, (track) => {
+    trackSubscribed(div, track, participant);
+  });
+  participant.on(ParticipantEvent.TrackUnsubscribed, (track) => {
+    trackUnsubscribed(track, participant);
+  });
 
   participant.tracks.forEach((publication) => {
     if (!publication.isSubscribed) return;
@@ -166,11 +166,10 @@ window.connectWithFormInput = () => {
   window.connectToRoom(url, token, simulcast);
 };
 
-
 window.connectToRoom = async (
   url: string,
   token: string,
-  simulcast: boolean = false
+  simulcast: boolean = false,
 ) => {
   const room = await connect(url, token, {
     logLevel: LogLevel.debug,
@@ -276,7 +275,7 @@ window.shareScreen = async () => {
     return;
   }
 
-  const mediaDevices: any = navigator.mediaDevices;
+  const { mediaDevices } = navigator;
   const preset = VideoPresets.hd;
   const ssMediaStream: MediaStream = await mediaDevices.getDisplayMedia({
     audio: false,
