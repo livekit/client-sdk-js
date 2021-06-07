@@ -21,6 +21,7 @@ import LocalVideoTrack from '../track/LocalVideoTrack';
 import { TrackPublishOptions } from '../track/options';
 import { Track } from '../track/Track';
 import Participant from './Participant';
+import RemoteParticipant from './RemoteParticipant';
 
 const simulcastMinWidth = 200;
 
@@ -231,17 +232,23 @@ export default class LocalParticipant extends Participant {
 
   /**
    * Publish a new data payload to the room. Data will be forwarded to each
-   * participant in the room
+   * participant in the room if the destination argument is empty
    *
    * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
    * @param kind whether to send this as reliable or lossy.
    * For data that you need delivery guarantee (such as chat messages), use Reliable.
    * For data that should arrive as quickly as possible, but you are ok with dropped
    * packets, use Lossy.
+   * @param destination the participants who will receive the message
    */
-  publishData(data: Uint8Array, kind: DataPacket_Kind) {
+  publishData(data: Uint8Array, kind: DataPacket_Kind, destination: RemoteParticipant[] = []) {
     if (data.length > 15_000) {
       throw new PublishDataError('data cannot be larger than 15k');
+    }
+
+    const dest: string[] = [];
+    for(const rp of destination){
+      dest.push(rp.sid);
     }
 
     const packet: DataPacket = {
@@ -249,6 +256,7 @@ export default class LocalParticipant extends Participant {
       user: {
         participantSid: this.sid,
         payload: data,
+        destinationSids: dest
       },
     };
 

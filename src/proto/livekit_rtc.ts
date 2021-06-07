@@ -238,6 +238,8 @@ export interface UserPacket {
   participantSid: string;
   /** user defined payload */
   payload: Uint8Array;
+  /** the ID of the participants who will receive the message (the message will be sent to all the people in the room if this variable is empty) */
+  destinationSids: string[];
 }
 
 const baseSignalRequest: object = {};
@@ -1964,7 +1966,7 @@ export const DataPacket = {
   },
 };
 
-const baseUserPacket: object = { participantSid: '' };
+const baseUserPacket: object = { participantSid: '', destinationSids: '' };
 
 export const UserPacket = {
   encode(
@@ -1977,6 +1979,9 @@ export const UserPacket = {
     if (message.payload.length !== 0) {
       writer.uint32(18).bytes(message.payload);
     }
+    for (const v of message.destinationSids) {
+      writer.uint32(26).string(v!);
+    }
     return writer;
   },
 
@@ -1984,6 +1989,7 @@ export const UserPacket = {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseUserPacket } as UserPacket;
+    message.destinationSids = [];
     message.payload = new Uint8Array();
     while (reader.pos < end) {
       const tag = reader.uint32();
@@ -1993,6 +1999,9 @@ export const UserPacket = {
           break;
         case 2:
           message.payload = reader.bytes();
+          break;
+        case 3:
+          message.destinationSids.push(reader.string());
           break;
         default:
           reader.skipType(tag & 7);
@@ -2004,6 +2013,7 @@ export const UserPacket = {
 
   fromJSON(object: any): UserPacket {
     const message = { ...baseUserPacket } as UserPacket;
+    message.destinationSids = [];
     message.payload = new Uint8Array();
     if (object.participantSid !== undefined && object.participantSid !== null) {
       message.participantSid = String(object.participantSid);
@@ -2012,6 +2022,14 @@ export const UserPacket = {
     }
     if (object.payload !== undefined && object.payload !== null) {
       message.payload = bytesFromBase64(object.payload);
+    }
+    if (
+      object.destinationSids !== undefined &&
+      object.destinationSids !== null
+    ) {
+      for (const e of object.destinationSids) {
+        message.destinationSids.push(String(e));
+      }
     }
     return message;
   },
@@ -2024,11 +2042,17 @@ export const UserPacket = {
       (obj.payload = base64FromBytes(
         message.payload !== undefined ? message.payload : new Uint8Array()
       ));
+    if (message.destinationSids) {
+      obj.destinationSids = message.destinationSids.map((e) => e);
+    } else {
+      obj.destinationSids = [];
+    }
     return obj;
   },
 
   fromPartial(object: DeepPartial<UserPacket>): UserPacket {
     const message = { ...baseUserPacket } as UserPacket;
+    message.destinationSids = [];
     if (object.participantSid !== undefined && object.participantSid !== null) {
       message.participantSid = object.participantSid;
     } else {
@@ -2038,6 +2062,14 @@ export const UserPacket = {
       message.payload = object.payload;
     } else {
       message.payload = new Uint8Array();
+    }
+    if (
+      object.destinationSids !== undefined &&
+      object.destinationSids !== null
+    ) {
+      for (const e of object.destinationSids) {
+        message.destinationSids.push(e);
+      }
     }
     return message;
   },
