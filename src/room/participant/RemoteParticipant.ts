@@ -201,10 +201,11 @@ export default class RemoteParticipant extends Participant {
 
     // also send unsubscribe, if track is actively subscribed
     if (publication.track) {
-      publication.track.stop();
+      const { track } = publication;
+      track.stop();
       publication.setTrack(undefined);
       // always send unsubscribed, since apps may rely on this
-      this.emit(ParticipantEvent.TrackUnsubscribed, publication);
+      this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
     }
     if (sendUnpublish) { this.emit(ParticipantEvent.TrackUnpublished, publication); }
   }

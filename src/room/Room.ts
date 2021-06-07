@@ -315,8 +315,8 @@ class Room extends EventEmitter {
 
       participant.on(
         ParticipantEvent.TrackUnsubscribed,
-        (publication: RemoteTrackPublication) => {
-          this.emit(RoomEvent.TrackUnsubscribed, publication, participant);
+        (track: RemoteTrack, publication: RemoteTrackPublication) => {
+          this.emit(RoomEvent.TrackUnsubscribed, track, publication, participant);
         },
       );
 
