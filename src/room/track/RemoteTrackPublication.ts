@@ -11,29 +11,32 @@ import { RemoteTrack } from './types';
 export default class RemoteTrackPublication extends TrackPublication {
   track?: RemoteTrack;
 
-  protected subscribe: boolean = false;
+  protected subscribed: boolean = false;
 
   protected disabled: boolean = false;
 
   protected videoQuality: VideoQuality = VideoQuality.HIGH;
-
-  get isSubscribed(): boolean {
-    return !!this.track;
-  }
 
   /**
    * Subscribe or unsubscribe to this remote track
    * @param subscribed true to subscribe to a track, false to unsubscribe
    */
   setSubscribed(subscribed: boolean) {
-    this.subscribe = subscribed;
+    this.subscribed = subscribed;
 
     const sub: UpdateSubscription = {
       trackSids: [this.trackSid],
-      subscribe: this.subscribe,
+      subscribe: this.subscribed,
       quality: this.videoQuality,
     };
     this.emit(TrackEvent.UpdateSubscription, sub);
+  }
+
+  get isSubscribed(): boolean {
+    if (!this.subscribed) {
+      return false;
+    }
+    return super.isSubscribed;
   }
 
   /**

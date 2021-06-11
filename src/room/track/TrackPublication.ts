@@ -45,6 +45,10 @@ export default class TrackPublication extends EventEmitter {
     return this.metadataMuted;
   }
 
+  get isSubscribed(): boolean {
+    return this.track !== undefined;
+  }
+
   /**
    * an [AudioTrack] if this publication holds an audio track
    */
