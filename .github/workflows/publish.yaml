@@ -2,9 +2,7 @@ name: Publish
 
 # Controls when the action will run.
 on:
-  # Triggers the workflow on push or pull request events but only for the main branch
   push:
-    # branches: [ main ]
     # only publish on version tags
     tags:
       - v*
@@ -32,12 +30,22 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Install Yarn
-        run: npm install -g yarn
+        run: |
+          npm install -g yarn
+          yarn install
+
+      - name: Build
+        run: yarn build
 
       - name: Build Docs
+        run: yarn build-docs
+
+      - name: Publish to npm
         run: |
-          yarn install
-          yarn build-docs
+          npm config set '//registry.npmjs.org/:_authToken' $NPM_TOKEN
+          npm publish
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: S3 Upload
         uses: ItsKarma/aws-cli@v1.70.0
