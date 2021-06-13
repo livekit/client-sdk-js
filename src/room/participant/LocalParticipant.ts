@@ -241,13 +241,14 @@ export default class LocalParticipant extends Participant {
    * packets, use Lossy.
    * @param destination the participants who will receive the message
    */
-  publishData(data: Uint8Array, kind: DataPacket_Kind, destination?: RemoteParticipant[] | string[]) {
+  publishData(data: Uint8Array, kind: DataPacket_Kind,
+    destination?: RemoteParticipant[] | string[]) {
     if (data.length > 15_000) {
       throw new PublishDataError('data cannot be larger than 15k');
     }
 
     const dest: string[] = [];
-    if(destination !== undefined){
+    if (destination !== undefined) {
       destination.forEach((val : any) => {
         if (val instanceof RemoteParticipant) {
           dest.push(val.sid);
@@ -262,7 +263,7 @@ export default class LocalParticipant extends Participant {
       user: {
         participantSid: this.sid,
         payload: data,
-        destinationSids: dest
+        destinationSids: dest,
       },
     };
 
