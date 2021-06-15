@@ -32,6 +32,8 @@ export default class Participant extends EventEmitter {
   /** client metadata, opaque to livekit */
   metadata?: string;
 
+  lastSpokeAt?: Date | undefined;
+
   /** @internal */
   constructor(sid: string, identity: string) {
     super();
@@ -80,6 +82,9 @@ export default class Participant extends EventEmitter {
       return;
     }
     this.isSpeaking = speaking;
+    if (speaking) {
+      this.lastSpokeAt = new Date();
+    }
     this.emit(ParticipantEvent.IsSpeakingChanged, speaking);
   }
 
