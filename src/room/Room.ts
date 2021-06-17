@@ -173,6 +173,18 @@ class Room extends EventEmitter {
   }
 
   private handleDisconnect() {
+    this.participants.forEach((p) => {
+      p.tracks.forEach((pub) => {
+        if (pub.track) {
+          pub.track.stop();
+          pub.track.detach();
+        }
+      });
+    });
+    this.localParticipant.tracks.forEach((pub) => {
+      pub.track?.stop();
+      pub.track?.detach();
+    });
     this.participants.clear();
     this.activeSpeakers = [];
     this.emit(RoomEvent.Disconnected);

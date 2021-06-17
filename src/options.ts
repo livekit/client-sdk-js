@@ -170,7 +170,7 @@ export namespace AudioPresets {
  * Sane presets for video resolution/encoding
  */
 export namespace VideoPresets {
-  /** 320x180 @ 15fps, 150kbps  */
+  /** 320x180 @ 15fps, 125kbps  */
   export const qvga: VideoPreset = {
     resolution: {
       width: { ideal: 320 },
@@ -181,12 +181,12 @@ export namespace VideoPresets {
       },
     },
     encoding: {
-      maxBitrate: 150_000,
+      maxBitrate: 125_000,
       maxFramerate: 15.0,
     },
   };
 
-  /** 640x360 @ 30fps, 500kbps  */
+  /** 640x360 @ 30fps, 400kbps  */
   export const vga: VideoPreset = {
     resolution: {
       width: { ideal: 640 },
@@ -197,12 +197,12 @@ export namespace VideoPresets {
       },
     },
     encoding: {
-      maxBitrate: 500_000,
+      maxBitrate: 400_000,
       maxFramerate: 30.0,
     },
   };
 
-  /** 960x540 @ 30fps, 1.2mbps  */
+  /** 960x540 @ 30fps, 800kbps  */
   export const qhd: VideoPreset = {
     resolution: {
       width: { ideal: 960 },
@@ -213,7 +213,7 @@ export namespace VideoPresets {
       },
     },
     encoding: {
-      maxBitrate: 600_000,
+      maxBitrate: 800_000,
       maxFramerate: 30.0,
     },
   };

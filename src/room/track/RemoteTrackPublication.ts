@@ -11,7 +11,7 @@ import { RemoteTrack } from './types';
 export default class RemoteTrackPublication extends TrackPublication {
   track?: RemoteTrack;
 
-  protected subscribed: boolean = false;
+  protected subscribed?: boolean;
 
   protected disabled: boolean = false;
 
@@ -33,7 +33,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   get isSubscribed(): boolean {
-    if (!this.subscribed) {
+    if (this.subscribed === false) {
       return false;
     }
     return super.isSubscribed;
