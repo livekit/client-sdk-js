@@ -22,8 +22,6 @@ import { Track } from '../track/Track';
 import Participant from './Participant';
 import RemoteParticipant from './RemoteParticipant';
 
-const simulcastMinWidth = 200;
-
 export default class LocalParticipant extends Participant {
   private engine: RTCEngine;
 
