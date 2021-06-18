@@ -250,3 +250,88 @@ export namespace VideoPresets {
     },
   };
 }
+
+/**
+ * Four by three presets
+ */
+export namespace VideoPresets43 {
+  /** 240x180 @ 15fps, 100kbps  */
+  export const qvga: VideoPreset = {
+    resolution: {
+      width: { ideal: 240 },
+      height: { ideal: 180 },
+      frameRate: {
+        ideal: 15,
+        max: 30,
+      },
+    },
+    encoding: {
+      maxBitrate: 100_000,
+      maxFramerate: 15.0,
+    },
+  };
+
+  /** 480x360 @ 30fps, 320kbps  */
+  export const vga: VideoPreset = {
+    resolution: {
+      width: { ideal: 480 },
+      height: { ideal: 360 },
+      frameRate: {
+        ideal: 30,
+        max: 60,
+      },
+    },
+    encoding: {
+      maxBitrate: 320_000,
+      maxFramerate: 30.0,
+    },
+  };
+
+  /** 720x540 @ 30fps, 640kbps  */
+  export const qhd: VideoPreset = {
+    resolution: {
+      width: { ideal: 720 },
+      height: { ideal: 540 },
+      frameRate: {
+        ideal: 30,
+        max: 60,
+      },
+    },
+    encoding: {
+      maxBitrate: 640_000,
+      maxFramerate: 30.0,
+    },
+  };
+
+  /** 720p @ 30fps, 2mbps  */
+  export const hd: VideoPreset = {
+    resolution: {
+      width: { ideal: 960 },
+      height: { ideal: 720 },
+      frameRate: {
+        ideal: 30,
+        max: 60,
+      },
+    },
+    encoding: {
+      maxBitrate: 2_000_000,
+      maxFramerate: 30.0,
+    },
+  };
+
+  /** 1080p @ 30fps, 3.2mbps  */
+  export const fhd: VideoPreset = {
+    resolution: {
+      width: { ideal: 1440 },
+      height: { ideal: 1080 },
+      frameRate: {
+        ideal: 30,
+        max: 60,
+      },
+    },
+    encoding: {
+      maxBitrate: 3_200_000,
+      maxFramerate: 30.0,
+    },
+  };
+}

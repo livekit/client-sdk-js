@@ -13,12 +13,11 @@ import {
   RoomEvent,
   Track,
   VideoPresets,
+  VideoPresets43,
 } from '../src/index';
 import { DataPacket_Kind } from '../src/proto/livekit_rtc';
 
-const $ = function (id: string) {
-  return document.getElementById(id);
-};
+const $ = (id: string) => document.getElementById(id);
 
 declare global {
   interface Window {
@@ -174,7 +173,9 @@ window.connectToRoom = async (
   const room = await connect(url, token, {
     logLevel: LogLevel.debug,
     audio: true,
-    video: true,
+    video: {
+      resolution: VideoPresets43.hd.resolution,
+    },
     simulcast,
   });
 

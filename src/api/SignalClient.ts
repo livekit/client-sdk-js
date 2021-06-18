@@ -2,6 +2,7 @@ import log from 'loglevel';
 import 'webrtc-adapter';
 import { ParticipantInfo, TrackType } from '../proto/livekit_models';
 import {
+  AddTrackRequest,
   JoinResponse,
   SessionDescription,
   SignalRequest,
@@ -13,6 +14,7 @@ import {
   UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
+import { Track } from '../room/track/Track';
 import { protocolVersion } from '../version';
 
 // internal options
@@ -39,7 +41,7 @@ export interface SignalClient {
   sendAnswer(answer: RTCSessionDescriptionInit): void;
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget): void;
   sendMuteTrack(trackSid: string, muted: boolean): void;
-  sendAddTrack(cid: string, name: string, type: TrackType): void;
+  sendAddTrack(cid: string, name: string, type: TrackType, dimension?: Track.Dimension): void;
   sendUpdateTrackSettings(settings: UpdateTrackSettings): void;
   sendUpdateSubscription(sub: UpdateSubscription): void;
   sendLeave(): void;
@@ -230,13 +232,18 @@ export class WSSignalClient {
     });
   }
 
-  sendAddTrack(cid: string, name: string, type: TrackType): void {
+  sendAddTrack(cid: string, name: string, type: TrackType, dimension?: Track.Dimension): void {
+    const req: any = {
+      cid,
+      name,
+      type,
+    };
+    if (dimension) {
+      req.width = dimension.width;
+      req.height = dimension.height;
+    }
     this.sendRequest({
-      addTrack: {
-        cid,
-        name,
-        type,
-      },
+      addTrack: AddTrackRequest.fromPartial(req),
     });
   }
 

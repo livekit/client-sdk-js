@@ -1,9 +1,8 @@
 import log from 'loglevel';
 import {
-  AudioPresets,
   VideoCodec,
-  VideoEncoding,
-  VideoPresets,
+  VideoEncoding, VideoPreset, VideoPresets,
+  VideoPresets43,
 } from '../../options';
 import { ParticipantInfo } from '../../proto/livekit_models';
 import { DataPacket, DataPacket_Kind } from '../../proto/livekit_rtc';
@@ -90,7 +89,7 @@ export default class LocalParticipant extends Participant {
     const cid = track.mediaStreamTrack.id;
 
     // create track publication from track
-    const ti = await this.engine.addTrack(cid, track.name, track.kind);
+    const ti = await this.engine.addTrack(cid, track.name, track.kind, track.dimension);
     const publication = new LocalTrackPublication(track.kind, ti, track);
 
     let encodings: RTCRtpEncodingParameters[] | undefined;
@@ -103,10 +102,10 @@ export default class LocalParticipant extends Participant {
         settings.height,
         options,
       );
-    } else if (track.kind === Track.Kind.Audio) {
+    } else if (track.kind === Track.Kind.Audio && options?.audioBitrate) {
       encodings = [
         {
-          maxBitrate: options?.audioBitrate || AudioPresets.speech.maxBitrate,
+          maxBitrate: options?.audioBitrate,
         },
       ];
     }
@@ -348,10 +347,16 @@ export default class LocalParticipant extends Participant {
     width?: number,
     height?: number,
     options?: TrackPublishOptions,
-  ): RTCRtpEncodingParameters[] {
+  ): RTCRtpEncodingParameters[] | undefined {
     let encodings: RTCRtpEncodingParameters[];
 
     let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
+
+    if ((!videoEncoding && !options?.simulcast) || !width || !height) {
+      // don't set encoding when we are not simulcasting and user isn't restricting
+      // encoding parameters
+      return undefined;
+    }
 
     if (!videoEncoding) {
       // find the right encoding based on width/height
@@ -359,7 +364,7 @@ export default class LocalParticipant extends Participant {
       log.debug('using video encoding', videoEncoding);
     }
 
-    if (options?.simulcast && width && height) {
+    if (options?.simulcast) {
       encodings = [
         {
           rid: 'f',
@@ -367,22 +372,18 @@ export default class LocalParticipant extends Participant {
           maxFramerate: videoEncoding.maxFramerate,
         },
       ];
-      let scaledWidth = width / 2;
-      if (scaledWidth >= simulcastMinWidth) {
+
+      if (height >= 540) {
         encodings.push({
           rid: 'h',
           scaleResolutionDownBy: 2.0,
           maxBitrate: videoEncoding.maxBitrate / 3.5,
-          maxFramerate: videoEncoding.maxFramerate,
+          maxFramerate: 30,
         });
-      }
-      scaledWidth = width / 4;
-      if (scaledWidth >= simulcastMinWidth) {
         encodings.push({
           rid: 'q',
           scaleResolutionDownBy: 4.0,
-          maxBitrate: videoEncoding.maxBitrate / 7,
-          maxFramerate: videoEncoding.maxFramerate,
+          maxFramerate: VideoPresets.qvga.encoding.maxFramerate,
         });
       }
     } else {
@@ -392,7 +393,7 @@ export default class LocalParticipant extends Participant {
     return encodings;
   }
 
-  private orderedPresets = [
+  private presets169 = [
     VideoPresets.qvga,
     VideoPresets.vga,
     VideoPresets.qhd,
@@ -400,15 +401,30 @@ export default class LocalParticipant extends Participant {
     VideoPresets.fhd,
   ];
 
+  private presets43 = [
+    VideoPresets43.qvga,
+    VideoPresets43.vga,
+    VideoPresets43.qhd,
+    VideoPresets43.hd,
+    VideoPresets43.fhd,
+  ];
+
   private determineAppropriateEncoding(
-    width?: number,
-    height?: number,
+    width: number,
+    height: number,
   ): VideoEncoding {
-    let { encoding } = VideoPresets.vga;
+    const aspect = width / height;
+    let presets: VideoPreset[];
+    if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
+      presets = this.presets169;
+    } else {
+      presets = this.presets43;
+    }
+    let { encoding } = presets[0];
 
     if (width && height) {
-      for (let i = 0; i < this.orderedPresets.length; i += 1) {
-        const preset = this.orderedPresets[i];
+      for (let i = 0; i < presets.length; i += 1) {
+        const preset = presets[i];
         if (
           width >= parseLongConstraint(preset.resolution.width)
           && height >= parseLongConstraint(preset.resolution.height)

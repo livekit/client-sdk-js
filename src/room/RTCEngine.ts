@@ -107,7 +107,12 @@ export default class RTCEngine extends EventEmitter {
     this.client.close();
   }
 
-  addTrack(cid: string, name: string, kind: Track.Kind): Promise<TrackInfo> {
+  addTrack(
+    cid: string,
+    name: string,
+    kind: Track.Kind,
+    dimension?: Track.Dimension,
+  ): Promise<TrackInfo> {
     if (this.pendingTrackResolvers[cid]) {
       throw new TrackInvalidError(
         'a track with the same ID has already been published',
@@ -115,7 +120,7 @@ export default class RTCEngine extends EventEmitter {
     }
     return new Promise<TrackInfo>((resolve) => {
       this.pendingTrackResolvers[cid] = resolve;
-      this.client.sendAddTrack(cid, name, Track.kindToProto(kind));
+      this.client.sendAddTrack(cid, name, Track.kindToProto(kind), dimension);
     });
   }
 

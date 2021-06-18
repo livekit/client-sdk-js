@@ -128,6 +128,11 @@ export namespace Track {
   export type SID = string;
   export type Priority = 'low' | 'standard' | 'high';
 
+  export interface Dimension {
+    width: number;
+    height: number;
+  }
+
   /** @internal */
   export function kindToProto(k: Kind): TrackType {
     switch (k) {

@@ -11,6 +11,7 @@ export default class LocalTrackPublication extends TrackPublication {
   constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
     super(kind, ti.sid, ti.name);
 
+    this.updateInfo(ti);
     this.setTrack(track);
   }
 

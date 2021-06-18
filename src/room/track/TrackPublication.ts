@@ -16,6 +16,12 @@ export default class TrackPublication extends EventEmitter {
 
   track?: Track;
 
+  /** dimension of the original published stream, video-only */
+  dimension?: Track.Dimension;
+
+  /** true if track was simulcasted to server, video-only */
+  simulcasted?: boolean;
+
   protected metadataMuted: boolean = false;
 
   constructor(kind: Track.Kind, id: string, name: string) {
@@ -71,5 +77,12 @@ export default class TrackPublication extends EventEmitter {
   updateInfo(info: TrackInfo) {
     this.trackSid = info.sid;
     this.trackName = info.name;
+    if (this.kind === Track.Kind.Video && info.width > 0) {
+      this.dimension = {
+        width: info.width,
+        height: info.height,
+      };
+      this.simulcasted = info.simulcast;
+    }
   }
 }
