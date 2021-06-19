@@ -41,7 +41,7 @@ export interface SignalClient {
   sendAnswer(answer: RTCSessionDescriptionInit): void;
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget): void;
   sendMuteTrack(trackSid: string, muted: boolean): void;
-  sendAddTrack(cid: string, name: string, type: TrackType, dimension?: Track.Dimension): void;
+  sendAddTrack(cid: string, name: string, type: TrackType, dimensions?: Track.Dimensions): void;
   sendUpdateTrackSettings(settings: UpdateTrackSettings): void;
   sendUpdateSubscription(sub: UpdateSubscription): void;
   sendLeave(): void;
@@ -232,15 +232,15 @@ export class WSSignalClient {
     });
   }
 
-  sendAddTrack(cid: string, name: string, type: TrackType, dimension?: Track.Dimension): void {
+  sendAddTrack(cid: string, name: string, type: TrackType, dimensions?: Track.Dimensions): void {
     const req: any = {
       cid,
       name,
       type,
     };
-    if (dimension) {
-      req.width = dimension.width;
-      req.height = dimension.height;
+    if (dimensions) {
+      req.width = dimensions.width;
+      req.height = dimensions.height;
     }
     this.sendRequest({
       addTrack: AddTrackRequest.fromPartial(req),

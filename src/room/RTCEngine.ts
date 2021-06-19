@@ -111,7 +111,7 @@ export default class RTCEngine extends EventEmitter {
     cid: string,
     name: string,
     kind: Track.Kind,
-    dimension?: Track.Dimension,
+    dimension?: Track.Dimensions,
   ): Promise<TrackInfo> {
     if (this.pendingTrackResolvers[cid]) {
       throw new TrackInvalidError(

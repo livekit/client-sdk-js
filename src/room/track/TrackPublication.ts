@@ -17,7 +17,7 @@ export default class TrackPublication extends EventEmitter {
   track?: Track;
 
   /** dimension of the original published stream, video-only */
-  dimension?: Track.Dimension;
+  dimensions?: Track.Dimensions;
 
   /** true if track was simulcasted to server, video-only */
   simulcasted?: boolean;
@@ -78,7 +78,7 @@ export default class TrackPublication extends EventEmitter {
     this.trackSid = info.sid;
     this.trackName = info.name;
     if (this.kind === Track.Kind.Video && info.width > 0) {
-      this.dimension = {
+      this.dimensions = {
         width: info.width,
         height: info.height,
       };

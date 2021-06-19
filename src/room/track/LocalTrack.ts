@@ -23,7 +23,7 @@ export default class LocalTrack extends Track {
     return this.mediaStreamTrack.id;
   }
 
-  get dimension(): Track.Dimension | undefined {
+  get dimensions(): Track.Dimensions | undefined {
     if (this.kind !== Track.Kind.Video) {
       return undefined;
     }

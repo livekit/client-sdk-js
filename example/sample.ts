@@ -13,7 +13,6 @@ import {
   RoomEvent,
   Track,
   VideoPresets,
-  VideoPresets43,
 } from '../src/index';
 import { DataPacket_Kind } from '../src/proto/livekit_rtc';
 
@@ -174,7 +173,7 @@ window.connectToRoom = async (
     logLevel: LogLevel.debug,
     audio: true,
     video: {
-      resolution: VideoPresets43.hd.resolution,
+      resolution: VideoPresets.qhd.resolution,
     },
     simulcast,
   });

@@ -128,7 +128,7 @@ export namespace Track {
   export type SID = string;
   export type Priority = 'low' | 'standard' | 'high';
 
-  export interface Dimension {
+  export interface Dimensions {
     width: number;
     height: number;
   }

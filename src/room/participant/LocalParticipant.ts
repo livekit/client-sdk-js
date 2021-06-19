@@ -87,7 +87,7 @@ export default class LocalParticipant extends Participant {
     const cid = track.mediaStreamTrack.id;
 
     // create track publication from track
-    const ti = await this.engine.addTrack(cid, track.name, track.kind, track.dimension);
+    const ti = await this.engine.addTrack(cid, track.name, track.kind, track.dimensions);
     const publication = new LocalTrackPublication(track.kind, ti, track);
 
     let encodings: RTCRtpEncodingParameters[] | undefined;
@@ -371,17 +371,30 @@ export default class LocalParticipant extends Participant {
         },
       ];
 
-      if (height >= 540) {
+      const presets = this.presetsForResolution(width, height);
+      const midPreset = presets[1];
+      const lowPreset = presets[0];
+      // if resolution is high enough, we would send both h and q res..
+      // otherwise only send h
+      if (height / 2 >= midPreset.height) {
         encodings.push({
           rid: 'h',
-          scaleResolutionDownBy: 2.0,
-          maxBitrate: videoEncoding.maxBitrate / 3.5,
-          maxFramerate: 30,
+          scaleResolutionDownBy: height / midPreset.height,
+          maxBitrate: midPreset.encoding.maxBitrate,
+          maxFramerate: midPreset.encoding.maxFramerate,
         });
         encodings.push({
           rid: 'q',
-          scaleResolutionDownBy: 4.0,
-          maxFramerate: VideoPresets.qvga.encoding.maxFramerate,
+          scaleResolutionDownBy: height / lowPreset.height,
+          maxBitrate: lowPreset.encoding.maxBitrate,
+          maxFramerate: lowPreset.encoding.maxFramerate,
+        });
+      } else {
+        encodings.push({
+          rid: 'h',
+          scaleResolutionDownBy: height / lowPreset.height,
+          maxBitrate: lowPreset.encoding.maxBitrate,
+          maxFramerate: lowPreset.encoding.maxFramerate,
         });
       }
     } else {
@@ -411,36 +424,24 @@ export default class LocalParticipant extends Participant {
     width: number,
     height: number,
   ): VideoEncoding {
-    const aspect = width / height;
-    let presets: VideoPreset[];
-    if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
-      presets = this.presets169;
-    } else {
-      presets = this.presets43;
-    }
+    const presets = this.presetsForResolution(width, height);
     let { encoding } = presets[0];
 
-    if (width && height) {
-      for (let i = 0; i < presets.length; i += 1) {
-        const preset = presets[i];
-        if (
-          width >= parseLongConstraint(preset.resolution.width)
-          && height >= parseLongConstraint(preset.resolution.height)
-        ) {
-          encoding = preset.encoding;
-        }
+    for (let i = 0; i < presets.length; i += 1) {
+      const preset = presets[i];
+      if (width >= preset.width && height >= preset.height) {
+        encoding = preset.encoding;
       }
     }
 
     return encoding;
   }
-}
 
-function parseLongConstraint(constrain: ConstrainULong): number {
-  if (typeof constrain === 'number') {
-    return constrain;
+  private presetsForResolution(width: number, height: number): VideoPreset[] {
+    const aspect = width / height;
+    if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
+      return this.presets169;
+    }
+    return this.presets43;
   }
-  return (
-    constrain.exact || constrain.ideal || constrain.min || constrain.max || 0
-  );
 }

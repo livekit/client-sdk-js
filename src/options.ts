@@ -143,9 +143,31 @@ export interface VideoEncoding {
   maxFramerate: number;
 }
 
-export interface VideoPreset {
-  resolution: VideoResolutionConstraint;
+export class VideoPreset {
   encoding: VideoEncoding;
+
+  width: number;
+
+  height: number;
+
+  constructor(width: number, height: number, maxBitrate: number, maxFramerate: number) {
+    this.width = width;
+    this.height = height;
+    this.encoding = {
+      maxBitrate,
+      maxFramerate,
+    };
+  }
+
+  get resolution(): VideoResolutionConstraint {
+    return {
+      width: { ideal: this.width },
+      height: { ideal: this.height },
+      frameRate: {
+        ideal: this.encoding.maxFramerate,
+      },
+    };
+  }
 }
 
 export interface AudioPreset {
@@ -169,169 +191,21 @@ export namespace AudioPresets {
 /**
  * Sane presets for video resolution/encoding
  */
-export namespace VideoPresets {
-  /** 320x180 @ 15fps, 125kbps  */
-  export const qvga: VideoPreset = {
-    resolution: {
-      width: { ideal: 320 },
-      height: { ideal: 180 },
-      frameRate: {
-        ideal: 15,
-        max: 30,
-      },
-    },
-    encoding: {
-      maxBitrate: 125_000,
-      maxFramerate: 15.0,
-    },
-  };
-
-  /** 640x360 @ 30fps, 400kbps  */
-  export const vga: VideoPreset = {
-    resolution: {
-      width: { ideal: 640 },
-      height: { ideal: 360 },
-      frameRate: {
-        ideal: 30,
-        max: 60,
-      },
-    },
-    encoding: {
-      maxBitrate: 400_000,
-      maxFramerate: 30.0,
-    },
-  };
-
-  /** 960x540 @ 30fps, 800kbps  */
-  export const qhd: VideoPreset = {
-    resolution: {
-      width: { ideal: 960 },
-      height: { ideal: 540 },
-      frameRate: {
-        ideal: 30,
-        max: 60,
-      },
-    },
-    encoding: {
-      maxBitrate: 800_000,
-      maxFramerate: 30.0,
-    },
-  };
-
-  /** 720p @ 30fps, 2.5mbps  */
-  export const hd: VideoPreset = {
-    resolution: {
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      frameRate: {
-        ideal: 30,
-        max: 60,
-      },
-    },
-    encoding: {
-      maxBitrate: 2_500_000,
-      maxFramerate: 30.0,
-    },
-  };
-
-  /** 1080p @ 30fps, 4mbps  */
-  export const fhd: VideoPreset = {
-    resolution: {
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
-      frameRate: {
-        ideal: 30,
-        max: 60,
-      },
-    },
-    encoding: {
-      maxBitrate: 4_000_000,
-      maxFramerate: 30.0,
-    },
-  };
-}
+export const VideoPresets = {
+  qvga: new VideoPreset(320, 180, 125_000, 15),
+  vga: new VideoPreset(640, 360, 400_000, 30),
+  qhd: new VideoPreset(960, 540, 800_000, 30),
+  hd: new VideoPreset(1280, 720, 2_500_000, 30),
+  fhd: new VideoPreset(1920, 1080, 4_000_000, 30),
+};
 
 /**
  * Four by three presets
  */
-export namespace VideoPresets43 {
-  /** 240x180 @ 15fps, 100kbps  */
-  export const qvga: VideoPreset = {
-    resolution: {
-      width: { ideal: 240 },
-      height: { ideal: 180 },
-      frameRate: {
-        ideal: 15,
-        max: 30,
-      },
-    },
-    encoding: {
-      maxBitrate: 100_000,
-      maxFramerate: 15.0,
-    },
-  };
-
-  /** 480x360 @ 30fps, 320kbps  */
-  export const vga: VideoPreset = {
-    resolution: {
-      width: { ideal: 480 },
-      height: { ideal: 360 },
-      frameRate: {
-        ideal: 30,
-        max: 60,
-      },
-    },
-    encoding: {
-      maxBitrate: 320_000,
-      maxFramerate: 30.0,
-    },
-  };
-
-  /** 720x540 @ 30fps, 640kbps  */
-  export const qhd: VideoPreset = {
-    resolution: {
-      width: { ideal: 720 },
-      height: { ideal: 540 },
-      frameRate: {
-        ideal: 30,
-        max: 60,
-      },
-    },
-    encoding: {
-      maxBitrate: 640_000,
-      maxFramerate: 30.0,
-    },
-  };
-
-  /** 720p @ 30fps, 2mbps  */
-  export const hd: VideoPreset = {
-    resolution: {
-      width: { ideal: 960 },
-      height: { ideal: 720 },
-      frameRate: {
-        ideal: 30,
-        max: 60,
-      },
-    },
-    encoding: {
-      maxBitrate: 2_000_000,
-      maxFramerate: 30.0,
-    },
-  };
-
-  /** 1080p @ 30fps, 3.2mbps  */
-  export const fhd: VideoPreset = {
-    resolution: {
-      width: { ideal: 1440 },
-      height: { ideal: 1080 },
-      frameRate: {
-        ideal: 30,
-        max: 60,
-      },
-    },
-    encoding: {
-      maxBitrate: 3_200_000,
-      maxFramerate: 30.0,
-    },
-  };
-}
+export const VideoPresets43 = {
+  qvga: new VideoPreset(240, 180, 100_000, 15),
+  vga: new VideoPreset(480, 360, 320_000, 30),
+  qhd: new VideoPreset(720, 540, 640_000, 30),
+  hd: new VideoPreset(960, 720, 2_000_000, 30),
+  fhd: new VideoPreset(1440, 1080, 3_200_000, 30),
+};
