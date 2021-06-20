@@ -39,6 +39,10 @@ export default class RemoteTrackPublication extends TrackPublication {
     return super.isSubscribed;
   }
 
+  get isEnabled(): boolean {
+    return !this.disabled;
+  }
+
   /**
    * disable server from sending down data for this track. this is useful when
    * the participant is off screen, you may disable streaming down their video
