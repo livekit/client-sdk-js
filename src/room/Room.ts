@@ -173,6 +173,9 @@ class Room extends EventEmitter {
   }
 
   private handleDisconnect() {
+    if (this.state === RoomState.Disconnected) {
+      return;
+    }
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
         if (pub.track) {
