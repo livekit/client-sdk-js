@@ -240,8 +240,8 @@ export default class LocalParticipant extends Participant {
    */
   publishData(data: Uint8Array, kind: DataPacket_Kind,
     destination?: RemoteParticipant[] | string[]) {
-    if (data.length > 15_000) {
-      throw new PublishDataError('data cannot be larger than 15k');
+    if (data.length > 14_000) {
+      throw new PublishDataError('data cannot be larger than 14k');
     }
 
     const dest: string[] = [];
@@ -376,7 +376,7 @@ export default class LocalParticipant extends Participant {
       const lowPreset = presets[0];
       // if resolution is high enough, we would send both h and q res..
       // otherwise only send h
-      if (height / 2 >= midPreset.height) {
+      if (height * 0.7 >= midPreset.height) {
         encodings.push({
           rid: 'h',
           scaleResolutionDownBy: height / midPreset.height,

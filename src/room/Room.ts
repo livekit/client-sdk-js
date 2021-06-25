@@ -178,10 +178,7 @@ class Room extends EventEmitter {
     }
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
-        if (pub.track) {
-          pub.track.stop();
-          pub.track.detach();
-        }
+        p.unpublishTrack(pub.trackSid);
       });
     });
     this.localParticipant.tracks.forEach((pub) => {
