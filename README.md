@@ -107,6 +107,10 @@ videoTrack.mute();
 room.localParticipant.unpublishTrack(videoTrack);
 ```
 
+### Configuring logging
+
+This library uses (loglevel)[] for its internal logs. You can change the effective log level with the `logLevel` field in `ConnectOptions`.
+
 ## Examples
 
 ### SDK Sample
