@@ -16,7 +16,7 @@ import { sleep, useLegacyAPI } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
-const maxReconnectRetries = 10;
+const maxReconnectRetries = 5;
 
 export default class RTCEngine extends EventEmitter {
   publisher?: PCTransport;
@@ -298,7 +298,7 @@ export default class RTCEngine extends EventEmitter {
       return;
     }
 
-    const delay = (this.reconnectAttempts * this.reconnectAttempts) * 500;
+    const delay = (this.reconnectAttempts * this.reconnectAttempts) * 300;
     setTimeout(() => {
       this.reconnect()
         .then(() => {

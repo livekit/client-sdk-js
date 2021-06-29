@@ -133,6 +133,7 @@ export class WSSignalClient {
     }
     return new Promise<JoinResponse | void>((resolve, reject) => {
       log.debug('connecting to', url);
+      this.ws = undefined;
       const ws = new WebSocket(url);
       ws.binaryType = 'arraybuffer';
       ws.onerror = (ev: Event) => {
