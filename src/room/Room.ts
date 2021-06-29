@@ -153,6 +153,10 @@ class Room extends EventEmitter {
 
       this.engine.once(EngineEvent.Connected, () => {
         clearTimeout(connectTimeout);
+
+        // also hook unload event
+        window.addEventListener('beforeunload', this.disconnect);
+
         resolve(this);
       });
     });
@@ -161,12 +165,12 @@ class Room extends EventEmitter {
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
-  disconnect() {
+  disconnect = () => {
     // send leave
     this.engine.client.sendLeave();
     this.engine.close();
     this.handleDisconnect();
-  }
+  };
 
   private onTrackAdded(
     mediaTrack: MediaStreamTrack,
@@ -197,6 +201,7 @@ class Room extends EventEmitter {
     });
     this.participants.clear();
     this.activeSpeakers = [];
+    window.removeEventListener('beforeunload', this.disconnect);
     this.emit(RoomEvent.Disconnected);
     this.state = RoomState.Disconnected;
   }
