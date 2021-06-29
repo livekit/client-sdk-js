@@ -8,15 +8,15 @@ import {
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
-import { TrackInvalidError } from './errors';
+import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
 import { Track } from './track/Track';
-import { useLegacyAPI } from './utils';
+import { sleep, useLegacyAPI } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
-const maxWSRetries = 10;
+const maxReconnectRetries = 5;
 
 export default class RTCEngine extends EventEmitter {
   publisher?: PCTransport;
@@ -33,26 +33,23 @@ export default class RTCEngine extends EventEmitter {
 
   reliableDC?: RTCDataChannel;
 
-  rtcConnected: boolean = false;
-
   iceConnected: boolean = false;
 
-  pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
+  isClosed: boolean = true;
 
-  disconnectTimeout?: ReturnType<typeof setTimeout>;
+  pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
 
   // keep join info around for reconnect
   url?: string;
 
   token?: string;
 
-  numRetries: number;
+  reconnectAttempts: number = 0;
 
   constructor(client: SignalClient, config?: RTCConfiguration) {
     super();
     this.client = client;
     this.rtcConfig = config || {};
-    this.numRetries = 0;
     this.useLegacy = useLegacyAPI();
     log.trace('creating RTCEngine', 'useLegacy', this.useLegacy);
   }
@@ -62,6 +59,7 @@ export default class RTCEngine extends EventEmitter {
     this.token = token;
 
     const joinResponse = await this.client.join(url, token, this.useLegacy, opts);
+    this.isClosed = false;
 
     if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
       const rtcIceServers: RTCIceServer[] = [];
@@ -88,14 +86,14 @@ export default class RTCEngine extends EventEmitter {
     }
 
     // create offer
-    const offer = await this.publisher.pc.createOffer();
-    await this.publisher.pc.setLocalDescription(offer);
+    await this.negotiate();
 
-    this.client.sendOffer(offer);
     return joinResponse;
   }
 
   close() {
+    this.isClosed = true;
+
     if (this.publisher) {
       this.publisher.pc.getSenders().forEach((sender) => {
         this.publisher?.pc.removeTrack(sender);
@@ -149,7 +147,7 @@ export default class RTCEngine extends EventEmitter {
     };
 
     this.publisher.pc.onnegotiationneeded = () => {
-      if (!this.rtcConnected) {
+      if (this.publisher?.pc.iceConnectionState === 'new') {
         return;
       }
       this.negotiate();
@@ -161,30 +159,14 @@ export default class RTCEngine extends EventEmitter {
       }
       if (this.publisher.pc.iceConnectionState === 'connected') {
         log.trace('ICE connected');
-        if (this.disconnectTimeout) {
-          clearTimeout(this.disconnectTimeout);
-          this.disconnectTimeout = undefined;
-        }
         if (!this.iceConnected) {
           this.iceConnected = true;
           this.emit(EngineEvent.Connected);
         }
-      } else if (this.publisher.pc.iceConnectionState === 'disconnected') {
+      } else if (this.publisher.pc.iceConnectionState === 'failed') {
+        this.iceConnected = false;
         log.trace('ICE disconnected');
-        if (this.disconnectTimeout) {
-          return;
-        }
-        // Safari sends ICE disconnect during negotiation, it'll reconnect
-        // once server responds
-        // We'll trigger disconnect after a long delay if we are in the waiting-for-server-answer
-        // state
-        const delay = this.publisher.pc.signalingState === 'have-local-offer' ? 3000 : 100;
-        this.disconnectTimeout = setTimeout(() => {
-          this.disconnectTimeout = undefined;
-          this.iceConnected = false;
-          this.emit(EngineEvent.Disconnected);
-          this.close();
-        }, delay);
+        this.handleDisconnect('peerconnection');
       }
     };
 
@@ -225,9 +207,6 @@ export default class RTCEngine extends EventEmitter {
         this.publisher.pc.signalingState,
       );
       await this.publisher.setRemoteDescription(sd);
-
-      // consider connected
-      if (!this.rtcConnected) this.onRTCConnected();
     };
 
     // add candidate on trickle
@@ -279,7 +258,9 @@ export default class RTCEngine extends EventEmitter {
       this.emit(EngineEvent.SpeakersUpdate, speakers);
     };
 
-    this.client.onClose = this.handleWSClose;
+    this.client.onClose = () => {
+      this.handleDisconnect('signal');
+    };
 
     this.client.onLeave = () => {
       this.close();
@@ -301,14 +282,15 @@ export default class RTCEngine extends EventEmitter {
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
   // continues to work, we can reconnect to websocket to continue the session
   // after a number of retries, we'll close and give up permanently
-  private handleWSClose = () => {
-    if (!this.iceConnected) {
+  private handleDisconnect = (connection: string) => {
+    if (this.isClosed) {
       return;
     }
-    if (this.numRetries >= maxWSRetries) {
+    log.debug(`${connection} disconnected`);
+    if (this.reconnectAttempts >= maxReconnectRetries) {
       log.info(
         'could not connect to signal after',
-        maxWSRetries,
+        maxReconnectRetries,
         'attempts. giving up',
       );
       this.close();
@@ -316,36 +298,80 @@ export default class RTCEngine extends EventEmitter {
       return;
     }
 
-    const delay = (this.numRetries * this.numRetries) * 500;
+    const delay = (this.reconnectAttempts * this.reconnectAttempts) * 300;
     setTimeout(() => {
-      if (this.iceConnected && this.url && this.token) {
-        log.info('reconnecting to signal connection, attempt', this.numRetries);
-        this.client
-          .reconnect(this.url, this.token)
-          .then(() => {
-            this.numRetries = 0;
-          })
-          .catch(this.handleWSClose);
-      }
+      this.reconnect()
+        .then(() => {
+          this.reconnectAttempts = 0;
+        })
+        .catch(this.handleDisconnect);
     }, delay);
-    this.numRetries += 1;
   };
 
-  private async negotiate() {
+  private async reconnect(): Promise<void> {
+    if (this.isClosed) {
+      return;
+    }
+    if (!this.url || !this.token) {
+      throw new ConnectionError('could not reconnect, url or token not saved');
+    }
+    log.info('reconnecting to signal connection, attempt', this.reconnectAttempts);
+
+    if (this.reconnectAttempts === 0) {
+      this.emit(EngineEvent.Reconnecting);
+    }
+    this.reconnectAttempts += 1;
+
+    await this.client.reconnect(this.url, this.token);
+
+    // trigger publisher reconnect
+    if (!this.publisher || !this.subscriber) {
+      throw new UnexpectedConnectionState('publisher and subscriber connections unset');
+    }
+    this.publisher.restartingIce = true;
+    this.subscriber.restartingIce = true;
+
+    // @ts-ignore
+    if (this.publisher.pc.restartIce) {
+      // @ts-ignore
+      this.publisher.pc.restartIce();
+    } else {
+      await this.negotiate({ iceRestart: true });
+    }
+
+    const startTime = (new Date()).getTime();
+
+    while ((new Date()).getTime() - startTime < 10 * 1000) {
+      if (this.iceConnected) {
+        // reconnect success
+        this.emit(EngineEvent.Reconnected);
+        return;
+      }
+      await sleep(500);
+    }
+
+    // have not reconnected, throw
+    throw new ConnectionError('could not establish ICE connection');
+  }
+
+  private async negotiate(options?: RTCOfferOptions) {
     if (!this.publisher) {
       return;
     }
-    // TODO: what if signaling state changed? will need to queue and retry
-    log.debug('starting to negotiate', this.publisher.pc.signalingState);
-    const offer = await this.publisher.pc.createOffer();
-    await this.publisher.pc.setLocalDescription(offer);
-    this.client.sendOffer(offer);
-  }
 
-  // signaling channel connected
-  private onRTCConnected() {
-    log.debug('RTC connected');
-    this.rtcConnected = true;
+    const { pc } = this.publisher;
+    if (pc.remoteDescription && pc.signalingState === 'have-local-offer') {
+      // it's still waiting for the last offer, and it won't be able to create
+      // a new offer in this state. We'll reuse the last remote description to
+      // get it out of this state
+      await pc.setRemoteDescription(pc.remoteDescription);
+    }
+
+    // TODO: what if signaling state changed? will need to queue and retry
+    log.debug('starting to negotiate', pc.signalingState);
+    const offer = await pc.createOffer(options);
+    await pc.setLocalDescription(offer);
+    this.client.sendOffer(offer);
   }
 
   private emitTrackEvent = (

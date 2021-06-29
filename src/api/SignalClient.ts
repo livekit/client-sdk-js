@@ -133,6 +133,7 @@ export class WSSignalClient {
     }
     return new Promise<JoinResponse | void>((resolve, reject) => {
       log.debug('connecting to', url);
+      this.ws = undefined;
       const ws = new WebSocket(url);
       ws.binaryType = 'arraybuffer';
       ws.onerror = (ev: Event) => {
@@ -319,7 +320,7 @@ function fromProtoSessionDescription(
   sd: SessionDescription,
 ): RTCSessionDescriptionInit {
   const rsd: RTCSessionDescriptionInit = {
-    type: undefined,
+    type: 'offer',
     sdp: sd.sdp,
   };
   switch (sd.type) {

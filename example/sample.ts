@@ -169,14 +169,24 @@ window.connectToRoom = async (
   token: string,
   simulcast: boolean = false,
 ) => {
-  const room = await connect(url, token, {
-    logLevel: LogLevel.debug,
-    audio: true,
-    video: {
-      resolution: VideoPresets.qhd.resolution,
-    },
-    simulcast,
-  });
+  let room: Room;
+  try {
+    room = await connect(url, token, {
+      logLevel: LogLevel.debug,
+      audio: true,
+      video: {
+        resolution: VideoPresets.qhd.resolution,
+      },
+      simulcast,
+    });
+  } catch (error) {
+    let message: any = error;
+    if (error.message) {
+      message = error.message;
+    }
+    appendLog('could not connect to room', message);
+    return;
+  }
 
   window.currentRoom = room;
   appendLog('connected to room', room.name);
@@ -189,7 +199,9 @@ window.connectToRoom = async (
     .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
     .on(RoomEvent.DataReceived, handleData)
     .on(RoomEvent.ActiveSpeakersChanged, handleSpeakerChanged)
-    .on(RoomEvent.Disconnected, handleRoomDisconnect);
+    .on(RoomEvent.Disconnected, handleRoomDisconnect)
+    .on(RoomEvent.Reconnecting, () => appendLog('Reconnecting to room'))
+    .on(RoomEvent.Reconnected, () => appendLog('Successfully reconnected!'));
 
   appendLog('room participants', room.participants.keys());
   room.participants.forEach((participant) => {

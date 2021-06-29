@@ -9,7 +9,19 @@
  */
 export enum RoomEvent {
   /**
-   * When disconnected from room
+   * When the connection to the server has been interrupted and it's attempting
+   * to reconnect.
+   */
+  Reconnecting = 'reconnecting',
+
+  /**
+   * Fires when a reconnection has been successful.
+   */
+  Reconnected = 'reconnected',
+
+  /**
+   * When disconnected from room. This fires when room.disconnect() is called or
+   * when an unrecoverable connection issue had occured
    */
   Disconnected = 'disconnected',
 
@@ -127,6 +139,8 @@ export enum ParticipantEvent {
 export enum EngineEvent {
   Connected = 'connected',
   Disconnected = 'disconnected',
+  Reconnecting = 'reconnecting',
+  Reconnected = 'reconnected',
   ParticipantUpdate = 'participantUpdate',
   MediaTrackAdded = 'mediaTrackAdded',
   SpeakersUpdate = 'speakersUpdate',

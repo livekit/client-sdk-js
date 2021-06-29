@@ -3,12 +3,14 @@ export default class PCTransport {
 
   pendingCandidates: RTCIceCandidateInit[] = [];
 
+  restartingIce: boolean = false;
+
   constructor(config?: RTCConfiguration) {
     this.pc = new RTCPeerConnection(config);
   }
 
   async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
-    if (this.pc.remoteDescription) {
+    if (this.pc.remoteDescription && !this.restartingIce) {
       return this.pc.addIceCandidate(candidate);
     }
     this.pendingCandidates.push(candidate);

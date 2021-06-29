@@ -87,6 +87,16 @@ class Room extends EventEmitter {
     this.engine.on(EngineEvent.SpeakersUpdate, this.handleSpeakerUpdate);
 
     this.engine.on(EngineEvent.DataPacketReceived, this.handleDataPacket);
+
+    this.engine.on(EngineEvent.Reconnecting, () => {
+      this.state = RoomState.Reconnecting;
+      this.emit(RoomEvent.Reconnecting);
+    });
+
+    this.engine.on(EngineEvent.Reconnected, () => {
+      this.state = RoomState.Connected;
+      this.emit(RoomEvent.Reconnected);
+    });
   }
 
   /** @internal */
