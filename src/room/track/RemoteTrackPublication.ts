@@ -15,7 +15,7 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected disabled: boolean = false;
 
-  protected videoQuality: VideoQuality = VideoQuality.HIGH;
+  protected currentVideoQuality: VideoQuality = VideoQuality.HIGH;
 
   /**
    * Subscribe or unsubscribe to this remote track
@@ -27,7 +27,6 @@ export default class RemoteTrackPublication extends TrackPublication {
     const sub: UpdateSubscription = {
       trackSids: [this.trackSid],
       subscribe: this.subscribed,
-      quality: this.videoQuality,
     };
     this.emit(TrackEvent.UpdateSubscription, sub);
   }
@@ -50,6 +49,9 @@ export default class RemoteTrackPublication extends TrackPublication {
    * @param enabled
    */
   setEnabled(enabled: boolean) {
+    if (this.disabled === !enabled) {
+      return;
+    }
     this.disabled = !enabled;
 
     this.emitTrackUpdate();
@@ -62,10 +64,17 @@ export default class RemoteTrackPublication extends TrackPublication {
    * bandwidth does not allow, server will automatically reduce quality to
    * optimize for uninterrupted video
    */
-  setVideoQuality(quality: VideoQuality) {
-    this.videoQuality = quality;
+  set videoQuality(quality: VideoQuality) {
+    if (this.currentVideoQuality === quality) {
+      return;
+    }
+    this.currentVideoQuality = quality;
 
     this.emitTrackUpdate();
+  }
+
+  get videoQuality(): VideoQuality {
+    return this.currentVideoQuality;
   }
 
   /** @internal */
@@ -79,7 +88,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     const settings: UpdateTrackSettings = {
       trackSids: [this.trackSid],
       disabled: this.disabled,
-      quality: this.videoQuality,
+      quality: this.currentVideoQuality,
     };
 
     this.emit(TrackEvent.UpdateSettings, settings);
