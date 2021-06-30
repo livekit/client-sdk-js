@@ -178,7 +178,6 @@ export interface SpeakerInfo {
 export interface UpdateSubscription {
   trackSids: string[];
   subscribe: boolean;
-  quality: VideoQuality;
 }
 
 export interface UpdateTrackSettings {
@@ -1560,11 +1559,7 @@ export const SpeakerInfo = {
   },
 };
 
-const baseUpdateSubscription: object = {
-  trackSids: "",
-  subscribe: false,
-  quality: 0,
-};
+const baseUpdateSubscription: object = { trackSids: "", subscribe: false };
 
 export const UpdateSubscription = {
   encode(
@@ -1576,9 +1571,6 @@ export const UpdateSubscription = {
     }
     if (message.subscribe === true) {
       writer.uint32(16).bool(message.subscribe);
-    }
-    if (message.quality !== 0) {
-      writer.uint32(32).int32(message.quality);
     }
     return writer;
   },
@@ -1596,9 +1588,6 @@ export const UpdateSubscription = {
           break;
         case 2:
           message.subscribe = reader.bool();
-          break;
-        case 4:
-          message.quality = reader.int32() as any;
           break;
         default:
           reader.skipType(tag & 7);
@@ -1621,11 +1610,6 @@ export const UpdateSubscription = {
     } else {
       message.subscribe = false;
     }
-    if (object.quality !== undefined && object.quality !== null) {
-      message.quality = videoQualityFromJSON(object.quality);
-    } else {
-      message.quality = 0;
-    }
     return message;
   },
 
@@ -1637,8 +1621,6 @@ export const UpdateSubscription = {
       obj.trackSids = [];
     }
     message.subscribe !== undefined && (obj.subscribe = message.subscribe);
-    message.quality !== undefined &&
-      (obj.quality = videoQualityToJSON(message.quality));
     return obj;
   },
 
@@ -1654,11 +1636,6 @@ export const UpdateSubscription = {
       message.subscribe = object.subscribe;
     } else {
       message.subscribe = false;
-    }
-    if (object.quality !== undefined && object.quality !== null) {
-      message.quality = object.quality;
-    } else {
-      message.quality = 0;
     }
     return message;
   },
