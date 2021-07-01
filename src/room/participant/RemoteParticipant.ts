@@ -101,7 +101,6 @@ export default class RemoteParticipant extends Participant {
     let track: RemoteTrack;
     if (isVideo) {
       track = new RemoteVideoTrack(mediaTrack, sid, receiver);
-      (<RemoteVideoTrack>track).startMonitor();
     } else {
       track = new RemoteAudioTrack(mediaTrack, sid, receiver);
     }

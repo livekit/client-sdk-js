@@ -18,7 +18,9 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   startMonitor() {
-    setTimeout(this.monitorSender, monitorFrequency);
+    setTimeout(() => {
+      this.monitorSender();
+    }, monitorFrequency);
   }
 
   stop() {
@@ -112,7 +114,9 @@ export default class LocalVideoTrack extends LocalTrack {
 
     // compare and findout
     this.prevStats = stats;
-    setTimeout(this.monitorSender, monitorFrequency);
+    setTimeout(() => {
+      this.monitorSender();
+    }, monitorFrequency);
   };
 
   private handleStats(prev: VideoSenderStats, curr: VideoSenderStats) {
