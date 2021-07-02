@@ -126,7 +126,9 @@ export default class LocalParticipant extends Participant {
       track.startMonitor();
     }
 
-    this.setPreferredCodec(transceiver, track.kind, options?.videoCodec);
+    if (options?.videoCodec) {
+      this.setPreferredCodec(transceiver, track.kind, options?.videoCodec);
+    }
     this.addTrackPublication(publication);
 
     // send event for publication
