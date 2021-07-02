@@ -112,12 +112,12 @@ export default class LocalParticipant extends Participant {
       throw new UnexpectedConnectionState('publisher is closed');
     }
     log.debug('publishing with encodings', encodings);
+    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+    if (encodings) {
+      transceiverInit.sendEncodings = encodings;
+    }
     const transceiver = this.engine.publisher.pc.addTransceiver(
-      track.mediaStreamTrack,
-      {
-        direction: 'sendonly',
-        sendEncodings: encodings,
-      },
+      track.mediaStreamTrack, transceiverInit,
     );
 
     // store RTPSender
