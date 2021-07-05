@@ -1,4 +1,4 @@
-import { DataPacket_Kind } from './proto/livekit_rtc';
+import { DataPacket_Kind, VideoQuality } from './proto/livekit_rtc';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant from './room/participant/Participant';
 import RemoteParticipant from './room/participant/RemoteParticipant';
@@ -35,4 +35,5 @@ export {
   RemoteVideoTrack,
   RemoteTrackPublication,
   TrackPublication,
+  VideoQuality,
 };
