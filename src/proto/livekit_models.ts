@@ -49,6 +49,12 @@ export interface Room {
   maxParticipants: number;
   creationTime: number;
   turnPassword: string;
+  enabledCodecs: Codec[];
+}
+
+export interface Codec {
+  mime: string;
+  fmtpLine: string;
 }
 
 export interface ParticipantInfo {
@@ -164,6 +170,9 @@ export const Room = {
     if (message.turnPassword !== "") {
       writer.uint32(50).string(message.turnPassword);
     }
+    for (const v of message.enabledCodecs) {
+      Codec.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -171,6 +180,7 @@ export const Room = {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseRoom } as Room;
+    message.enabledCodecs = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -192,6 +202,9 @@ export const Room = {
         case 6:
           message.turnPassword = reader.string();
           break;
+        case 7:
+          message.enabledCodecs.push(Codec.decode(reader, reader.uint32()));
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -202,6 +215,7 @@ export const Room = {
 
   fromJSON(object: any): Room {
     const message = { ...baseRoom } as Room;
+    message.enabledCodecs = [];
     if (object.sid !== undefined && object.sid !== null) {
       message.sid = String(object.sid);
     } else {
@@ -235,6 +249,11 @@ export const Room = {
     } else {
       message.turnPassword = "";
     }
+    if (object.enabledCodecs !== undefined && object.enabledCodecs !== null) {
+      for (const e of object.enabledCodecs) {
+        message.enabledCodecs.push(Codec.fromJSON(e));
+      }
+    }
     return message;
   },
 
@@ -250,11 +269,19 @@ export const Room = {
       (obj.creationTime = message.creationTime);
     message.turnPassword !== undefined &&
       (obj.turnPassword = message.turnPassword);
+    if (message.enabledCodecs) {
+      obj.enabledCodecs = message.enabledCodecs.map((e) =>
+        e ? Codec.toJSON(e) : undefined
+      );
+    } else {
+      obj.enabledCodecs = [];
+    }
     return obj;
   },
 
   fromPartial(object: DeepPartial<Room>): Room {
     const message = { ...baseRoom } as Room;
+    message.enabledCodecs = [];
     if (object.sid !== undefined && object.sid !== null) {
       message.sid = object.sid;
     } else {
@@ -287,6 +314,83 @@ export const Room = {
       message.turnPassword = object.turnPassword;
     } else {
       message.turnPassword = "";
+    }
+    if (object.enabledCodecs !== undefined && object.enabledCodecs !== null) {
+      for (const e of object.enabledCodecs) {
+        message.enabledCodecs.push(Codec.fromPartial(e));
+      }
+    }
+    return message;
+  },
+};
+
+const baseCodec: object = { mime: "", fmtpLine: "" };
+
+export const Codec = {
+  encode(message: Codec, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.mime !== "") {
+      writer.uint32(10).string(message.mime);
+    }
+    if (message.fmtpLine !== "") {
+      writer.uint32(18).string(message.fmtpLine);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): Codec {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseCodec } as Codec;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.mime = reader.string();
+          break;
+        case 2:
+          message.fmtpLine = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Codec {
+    const message = { ...baseCodec } as Codec;
+    if (object.mime !== undefined && object.mime !== null) {
+      message.mime = String(object.mime);
+    } else {
+      message.mime = "";
+    }
+    if (object.fmtpLine !== undefined && object.fmtpLine !== null) {
+      message.fmtpLine = String(object.fmtpLine);
+    } else {
+      message.fmtpLine = "";
+    }
+    return message;
+  },
+
+  toJSON(message: Codec): unknown {
+    const obj: any = {};
+    message.mime !== undefined && (obj.mime = message.mime);
+    message.fmtpLine !== undefined && (obj.fmtpLine = message.fmtpLine);
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<Codec>): Codec {
+    const message = { ...baseCodec } as Codec;
+    if (object.mime !== undefined && object.mime !== null) {
+      message.mime = object.mime;
+    } else {
+      message.mime = "";
+    }
+    if (object.fmtpLine !== undefined && object.fmtpLine !== null) {
+      message.fmtpLine = object.fmtpLine;
+    } else {
+      message.fmtpLine = "";
     }
     return message;
   },

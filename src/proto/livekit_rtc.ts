@@ -97,6 +97,8 @@ export interface SignalRequest {
   trackSetting?: UpdateTrackSettings | undefined;
   /** Immediately terminate session */
   leave?: LeaveRequest | undefined;
+  /** Set active published layers */
+  simulcast?: SetSimulcastLayers | undefined;
 }
 
 export interface SignalResponse {
@@ -137,8 +139,10 @@ export interface MuteTrackRequest {
   muted: boolean;
 }
 
-/** empty */
-export interface NegotiationRequest {}
+export interface SetSimulcastLayers {
+  trackSid: string;
+  layers: VideoQuality[];
+}
 
 export interface JoinResponse {
   room?: Room;
@@ -186,8 +190,13 @@ export interface UpdateTrackSettings {
   quality: VideoQuality;
 }
 
-/** empty */
-export interface LeaveRequest {}
+export interface LeaveRequest {
+  /**
+   * sent when server initiates the disconnect due to server-restart
+   * indicates clients should attempt full-reconnect sequence
+   */
+  canReconnect: boolean;
+}
 
 export interface ICEServer {
   urls: string[];
@@ -289,6 +298,12 @@ export const SignalRequest = {
     if (message.leave !== undefined) {
       LeaveRequest.encode(message.leave, writer.uint32(66).fork()).ldelim();
     }
+    if (message.simulcast !== undefined) {
+      SetSimulcastLayers.encode(
+        message.simulcast,
+        writer.uint32(74).fork()
+      ).ldelim();
+    }
     return writer;
   },
 
@@ -328,6 +343,12 @@ export const SignalRequest = {
           break;
         case 8:
           message.leave = LeaveRequest.decode(reader, reader.uint32());
+          break;
+        case 9:
+          message.simulcast = SetSimulcastLayers.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -379,6 +400,11 @@ export const SignalRequest = {
     } else {
       message.leave = undefined;
     }
+    if (object.simulcast !== undefined && object.simulcast !== null) {
+      message.simulcast = SetSimulcastLayers.fromJSON(object.simulcast);
+    } else {
+      message.simulcast = undefined;
+    }
     return message;
   },
 
@@ -415,6 +441,10 @@ export const SignalRequest = {
     message.leave !== undefined &&
       (obj.leave = message.leave
         ? LeaveRequest.toJSON(message.leave)
+        : undefined);
+    message.simulcast !== undefined &&
+      (obj.simulcast = message.simulcast
+        ? SetSimulcastLayers.toJSON(message.simulcast)
         : undefined);
     return obj;
   },
@@ -464,6 +494,11 @@ export const SignalRequest = {
       message.leave = LeaveRequest.fromPartial(object.leave);
     } else {
       message.leave = undefined;
+    }
+    if (object.simulcast !== undefined && object.simulcast !== null) {
+      message.simulcast = SetSimulcastLayers.fromPartial(object.simulcast);
+    } else {
+      message.simulcast = undefined;
     }
     return message;
   },
@@ -974,23 +1009,45 @@ export const MuteTrackRequest = {
   },
 };
 
-const baseNegotiationRequest: object = {};
+const baseSetSimulcastLayers: object = { trackSid: "", layers: 0 };
 
-export const NegotiationRequest = {
+export const SetSimulcastLayers = {
   encode(
-    _: NegotiationRequest,
+    message: SetSimulcastLayers,
     writer: _m0.Writer = _m0.Writer.create()
   ): _m0.Writer {
+    if (message.trackSid !== "") {
+      writer.uint32(10).string(message.trackSid);
+    }
+    writer.uint32(18).fork();
+    for (const v of message.layers) {
+      writer.int32(v);
+    }
+    writer.ldelim();
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): NegotiationRequest {
+  decode(input: _m0.Reader | Uint8Array, length?: number): SetSimulcastLayers {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseNegotiationRequest } as NegotiationRequest;
+    const message = { ...baseSetSimulcastLayers } as SetSimulcastLayers;
+    message.layers = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
+        case 1:
+          message.trackSid = reader.string();
+          break;
+        case 2:
+          if ((tag & 7) === 2) {
+            const end2 = reader.uint32() + reader.pos;
+            while (reader.pos < end2) {
+              message.layers.push(reader.int32() as any);
+            }
+          } else {
+            message.layers.push(reader.int32() as any);
+          }
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -999,18 +1056,46 @@ export const NegotiationRequest = {
     return message;
   },
 
-  fromJSON(_: any): NegotiationRequest {
-    const message = { ...baseNegotiationRequest } as NegotiationRequest;
+  fromJSON(object: any): SetSimulcastLayers {
+    const message = { ...baseSetSimulcastLayers } as SetSimulcastLayers;
+    message.layers = [];
+    if (object.trackSid !== undefined && object.trackSid !== null) {
+      message.trackSid = String(object.trackSid);
+    } else {
+      message.trackSid = "";
+    }
+    if (object.layers !== undefined && object.layers !== null) {
+      for (const e of object.layers) {
+        message.layers.push(videoQualityFromJSON(e));
+      }
+    }
     return message;
   },
 
-  toJSON(_: NegotiationRequest): unknown {
+  toJSON(message: SetSimulcastLayers): unknown {
     const obj: any = {};
+    message.trackSid !== undefined && (obj.trackSid = message.trackSid);
+    if (message.layers) {
+      obj.layers = message.layers.map((e) => videoQualityToJSON(e));
+    } else {
+      obj.layers = [];
+    }
     return obj;
   },
 
-  fromPartial(_: DeepPartial<NegotiationRequest>): NegotiationRequest {
-    const message = { ...baseNegotiationRequest } as NegotiationRequest;
+  fromPartial(object: DeepPartial<SetSimulcastLayers>): SetSimulcastLayers {
+    const message = { ...baseSetSimulcastLayers } as SetSimulcastLayers;
+    message.layers = [];
+    if (object.trackSid !== undefined && object.trackSid !== null) {
+      message.trackSid = object.trackSid;
+    } else {
+      message.trackSid = "";
+    }
+    if (object.layers !== undefined && object.layers !== null) {
+      for (const e of object.layers) {
+        message.layers.push(e);
+      }
+    }
     return message;
   },
 };
@@ -1745,13 +1830,16 @@ export const UpdateTrackSettings = {
   },
 };
 
-const baseLeaveRequest: object = {};
+const baseLeaveRequest: object = { canReconnect: false };
 
 export const LeaveRequest = {
   encode(
-    _: LeaveRequest,
+    message: LeaveRequest,
     writer: _m0.Writer = _m0.Writer.create()
   ): _m0.Writer {
+    if (message.canReconnect === true) {
+      writer.uint32(8).bool(message.canReconnect);
+    }
     return writer;
   },
 
@@ -1762,6 +1850,9 @@ export const LeaveRequest = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
+        case 1:
+          message.canReconnect = reader.bool();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1770,18 +1861,30 @@ export const LeaveRequest = {
     return message;
   },
 
-  fromJSON(_: any): LeaveRequest {
+  fromJSON(object: any): LeaveRequest {
     const message = { ...baseLeaveRequest } as LeaveRequest;
+    if (object.canReconnect !== undefined && object.canReconnect !== null) {
+      message.canReconnect = Boolean(object.canReconnect);
+    } else {
+      message.canReconnect = false;
+    }
     return message;
   },
 
-  toJSON(_: LeaveRequest): unknown {
+  toJSON(message: LeaveRequest): unknown {
     const obj: any = {};
+    message.canReconnect !== undefined &&
+      (obj.canReconnect = message.canReconnect);
     return obj;
   },
 
-  fromPartial(_: DeepPartial<LeaveRequest>): LeaveRequest {
+  fromPartial(object: DeepPartial<LeaveRequest>): LeaveRequest {
     const message = { ...baseLeaveRequest } as LeaveRequest;
+    if (object.canReconnect !== undefined && object.canReconnect !== null) {
+      message.canReconnect = object.canReconnect;
+    } else {
+      message.canReconnect = false;
+    }
     return message;
   },
 };
