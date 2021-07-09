@@ -268,9 +268,18 @@ export default class RTCEngine extends EventEmitter {
     };
   }
 
-  private handleDataMessage = (message: MessageEvent) => {
+  private handleDataMessage = async (message: MessageEvent) => {
     // decode
-    const dp = DataPacket.decode(new Uint8Array(message.data));
+    let buffer: ArrayBuffer | undefined;
+    if (message.data instanceof ArrayBuffer) {
+      buffer = message.data;
+    } else if (message.data instanceof Blob) {
+      buffer = await message.data.arrayBuffer();
+    } else {
+      log.error('unsupported data type', message.data);
+      return;
+    }
+    const dp = DataPacket.decode(new Uint8Array(buffer));
     if (dp.speaker) {
       // dispatch speaker updates
       this.emit(EngineEvent.SpeakersUpdate, dp.speaker.speakers);
