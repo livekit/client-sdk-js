@@ -257,7 +257,7 @@ export class WSSignalClient {
   }
 
   sendLeave() {
-    this.sendRequest({ leave: {} });
+    this.sendRequest(SignalRequest.fromPartial({ leave: {} }));
   }
 
   sendRequest(req: SignalRequest) {
