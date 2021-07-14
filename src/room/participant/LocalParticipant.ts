@@ -128,7 +128,7 @@ export default class LocalParticipant extends Participant {
     }
 
     if (options?.videoCodec) {
-      this.setPreferredCodec(transceiver, track.kind, options?.videoCodec);
+      this.setPreferredCodec(transceiver, track.kind, options.videoCodec);
     }
     this.addTrackPublication(publication);
 
@@ -328,7 +328,7 @@ export default class LocalParticipant extends Participant {
   private setPreferredCodec(
     transceiver: RTCRtpTransceiver,
     kind: Track.Kind,
-    videoCodec: VideoCodec = 'vp8',
+    videoCodec: VideoCodec,
   ) {
     if (!('getCapabilities' in RTCRtpSender)) {
       return;
