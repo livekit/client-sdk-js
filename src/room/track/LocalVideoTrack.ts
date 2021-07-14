@@ -159,6 +159,9 @@ export default class LocalVideoTrack extends LocalTrack {
       return;
     }
 
+    this.numDowngrades = 0;
+    this.numSuccesses = 0;
+
     const params = this.sender.getParameters();
     params.encodings = this.encodings;
     log.debug('setting publishing quality. max quality', maxQuality, 'encodings', params.encodings);
@@ -223,8 +226,6 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     if (nextQuality !== currentQuality) {
-      this.numDowngrades = 0;
-      this.numSuccesses = 0;
       this.setPublishingQuality(nextQuality);
     }
 
