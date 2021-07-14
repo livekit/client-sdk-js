@@ -89,6 +89,7 @@ export default class LocalParticipant extends Participant {
     // create track publication from track
     const ti = await this.engine.addTrack(cid, track.name, track.kind, track.dimensions);
     const publication = new LocalTrackPublication(track.kind, ti, track);
+    track.sid = ti.sid;
 
     let encodings: RTCRtpEncodingParameters[] | undefined;
     // for video
@@ -123,11 +124,11 @@ export default class LocalParticipant extends Participant {
     // store RTPSender
     track.sender = transceiver.sender;
     if (track instanceof LocalVideoTrack) {
-      track.startMonitor();
+      track.startMonitor(this.engine.client);
     }
 
     if (options?.videoCodec) {
-      this.setPreferredCodec(transceiver, track.kind, options?.videoCodec);
+      this.setPreferredCodec(transceiver, track.kind, options.videoCodec);
     }
     this.addTrackPublication(publication);
 
@@ -327,7 +328,7 @@ export default class LocalParticipant extends Participant {
   private setPreferredCodec(
     transceiver: RTCRtpTransceiver,
     kind: Track.Kind,
-    videoCodec: VideoCodec = 'vp8',
+    videoCodec: VideoCodec,
   ) {
     if (!('getCapabilities' in RTCRtpSender)) {
       return;
