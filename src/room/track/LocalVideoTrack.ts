@@ -31,10 +31,10 @@ export default class LocalVideoTrack extends LocalTrack {
   private numSuccesses = 0;
 
   // keep track of times we had to disable a track
-  private disableCount: { [rid: string]: number } = {
-    f: 0,
-    h: 0,
-    q: 0,
+  private disableCount: { [number: string]: number } = {
+    2: 0,
+    1: 0,
+    0: 0,
   };
 
   private encodings?: RTCRtpEncodingParameters[];
@@ -214,10 +214,12 @@ export default class LocalVideoTrack extends LocalTrack {
 
     let nextQuality: VideoQuality = currentQuality;
     if (this.numDowngrades > DOWNGRADES_TO_STEP_DOWN && currentQuality > VideoQuality.LOW) {
-      this.disableCount[rid] += 1;
+      this.disableCount[currentQuality] += 1;
       nextQuality = currentQuality - 1;
     } else if (this.numSuccesses > SUCCESSES_TO_STEP_UP && currentQuality < VideoQuality.HIGH) {
-      nextQuality = currentQuality + 1;
+      if (this.disableCount[currentQuality + 1] <= MAX_QUALITY_ATTEMPTS) {
+        nextQuality = currentQuality + 1;
+      }
     }
 
     if (nextQuality !== currentQuality) {
