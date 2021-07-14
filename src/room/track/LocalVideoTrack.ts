@@ -1,12 +1,43 @@
 import log from 'loglevel';
+import { SignalClient } from '../../api/SignalClient';
+import { VideoQuality } from '../../proto/livekit_rtc';
 import { monitorFrequency, VideoSenderStats } from '../stats';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 
+// number of downgrades to turn off highest quality layer
+const DOWNGRADES_TO_STEP_DOWN = 2;
+
+// number of successes to turn on next higher layer
+const SUCCESSES_TO_STEP_UP = 4;
+
+// once it's disabled this number of times, it will be turned off for the rest
+// of the session
+const MAX_QUALITY_ATTEMPTS = 3;
+
 const ridOrder = ['f', 'h', 'q'];
 
 export default class LocalVideoTrack extends LocalTrack {
+  /* internal */
+  signalClient?: SignalClient;
+
   private prevStats?: VideoSenderStats[];
+
+  // simulcast controls
+  // consecutive downgrades, reset when we have a success
+  private numDowngrades = 0;
+
+  // consecutive successes, reset when we have a downgrade
+  private numSuccesses = 0;
+
+  // keep track of times we had to disable a track
+  private disableCount: { [rid: string]: number } = {
+    f: 0,
+    h: 0,
+    q: 0,
+  };
+
+  private encodings?: RTCRtpEncodingParameters[];
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -17,7 +48,22 @@ export default class LocalVideoTrack extends LocalTrack {
     this.constraints = constraints || {};
   }
 
-  startMonitor() {
+  get isSimulcast(): boolean {
+    if (this.sender?.getParameters().encodings.length === 3) {
+      return true;
+    }
+    return false;
+  }
+
+  /* internal */
+  startMonitor(signalClient: SignalClient) {
+    // only monitor simulcast streams
+    if (!this.isSimulcast) {
+      return;
+    }
+
+    this.signalClient = signalClient;
+
     setTimeout(() => {
       this.monitorSender();
     }, monitorFrequency);
@@ -83,8 +129,8 @@ export default class LocalVideoTrack extends LocalTrack {
 
     // sort by rid, so that f, h, q is the ordering
     items.sort((a, b): number => {
-      const ai = ridOrder.indexOf(a.rid!);
-      const bi = ridOrder.indexOf(b.rid!);
+      const ai = ridOrder.indexOf(a.rid);
+      const bi = ridOrder.indexOf(b.rid);
       if (ai === bi) {
         return 0;
       }
@@ -94,26 +140,93 @@ export default class LocalVideoTrack extends LocalTrack {
     return items;
   }
 
+  setPublishingQuality(maxQuality: VideoQuality) {
+    if (!this.isSimulcast || !this.encodings) {
+      return;
+    }
+
+    let hasChanged = false;
+    this.encodings.forEach((encoding) => {
+      const quality = videoQualityForRid(encoding.rid ?? '');
+      const active = quality <= maxQuality;
+      if (active !== encoding.active) {
+        hasChanged = true;
+        encoding.active = active;
+      }
+    });
+
+    if (!hasChanged || !this.sender || !this.sid) {
+      return;
+    }
+
+    const params = this.sender.getParameters();
+    params.encodings = this.encodings;
+    log.debug('setting publishing quality. max quality', maxQuality, 'encodings', params.encodings);
+    this.sender.setParameters(params);
+
+    const layers: VideoQuality[] = [];
+    for (let q = VideoQuality.LOW; q <= maxQuality; q += 1) {
+      layers.push(q);
+    }
+    this.signalClient?.sendSetSimulcastLayers(this.sid, layers);
+  }
+
   private monitorSender = async () => {
     if (!this.sender) {
       return;
     }
     const stats = await this.getSenderStats();
+    const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));
 
-    if (this.prevStats) {
-      if (this.prevStats.length !== stats.length) {
-        // can't compare if length different
-        log.warn('number of tracks changed', stats);
-        return;
-      }
+    const params = this.sender.getParameters();
+    this.encodings = params.encodings;
 
-      for (let i = 0; i < this.prevStats.length; i += 1) {
-        this.handleStats(this.prevStats[i], stats[i]);
+    let bestEncoding: RTCRtpEncodingParameters | undefined;
+    this.encodings.forEach((encoding) => {
+      // skip inactive encodings
+      if (bestEncoding === undefined && encoding.active) {
+        bestEncoding = encoding;
       }
+    });
+
+    if (!bestEncoding) {
+      return;
+    }
+    const rid: string = bestEncoding.rid ?? '';
+    const sendStats = statsMap.get(rid);
+    if (!sendStats) {
+      return;
     }
 
-    // compare and findout
-    this.prevStats = stats;
+    const isLimited = sendStats.qualityLimitationReason === 'bandwidth' || sendStats.qualityLimitationReason === 'cpu';
+    if (isLimited) {
+      this.numDowngrades += 1;
+      this.numSuccesses = 0;
+    } else {
+      this.numSuccesses += 1;
+      this.numDowngrades = 0;
+    }
+
+    const currentQuality = videoQualityForRid(rid);
+    if (currentQuality === VideoQuality.UNRECOGNIZED) {
+      return;
+    }
+
+    let nextQuality: VideoQuality = currentQuality;
+    if (this.numDowngrades > DOWNGRADES_TO_STEP_DOWN && currentQuality > VideoQuality.LOW) {
+      this.disableCount[rid] += 1;
+      nextQuality = currentQuality - 1;
+    } else if (this.numSuccesses > SUCCESSES_TO_STEP_UP && currentQuality < VideoQuality.HIGH) {
+      nextQuality = currentQuality + 1;
+    }
+
+    if (nextQuality !== currentQuality) {
+      this.numDowngrades = 0;
+      this.numSuccesses = 0;
+      this.setPublishingQuality(nextQuality);
+    }
+
+    // this.prevStats = stats;
     setTimeout(() => {
       this.monitorSender();
     }, monitorFrequency);
@@ -139,5 +252,18 @@ export default class LocalVideoTrack extends LocalTrack {
         curr,
       );
     }
+  }
+}
+
+function videoQualityForRid(rid: string): VideoQuality {
+  switch (rid) {
+    case 'f':
+      return VideoQuality.HIGH;
+    case 'h':
+      return VideoQuality.MEDIUM;
+    case 'q':
+      return VideoQuality.LOW;
+    default:
+      return VideoQuality.UNRECOGNIZED;
   }
 }

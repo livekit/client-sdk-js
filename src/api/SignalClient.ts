@@ -12,6 +12,7 @@ import {
   TrackPublishedResponse,
   UpdateSubscription,
   UpdateTrackSettings,
+  VideoQuality,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
 import { Track } from '../room/track/Track';
@@ -44,6 +45,7 @@ export interface SignalClient {
   sendAddTrack(cid: string, name: string, type: TrackType, dimensions?: Track.Dimensions): void;
   sendUpdateTrackSettings(settings: UpdateTrackSettings): void;
   sendUpdateSubscription(sub: UpdateSubscription): void;
+  sendSetSimulcastLayers(sid: Track.SID, layers: VideoQuality[]): void;
   sendLeave(): void;
   close(): void;
 
@@ -254,6 +256,15 @@ export class WSSignalClient {
 
   sendUpdateSubscription(sub: UpdateSubscription) {
     this.sendRequest({ subscription: sub });
+  }
+
+  sendSetSimulcastLayers(sid: Track.SID, layers: VideoQuality[]): void {
+    this.sendRequest({
+      simulcast: {
+        trackSid: sid,
+        layers,
+      },
+    });
   }
 
   sendLeave() {
