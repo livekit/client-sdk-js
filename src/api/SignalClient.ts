@@ -123,25 +123,37 @@ export class WSSignalClient {
     token: string,
     opts: ConnectOpts,
   ): Promise<JoinResponse | void> {
-    url += `/rtc?access_token=${token}&protocol=${protocolVersion}`;
+    url += '/rtc';
+    let params = `?access_token=${token}&protocol=${protocolVersion}`;
     if (opts.reconnect) {
-      url += '&reconnect=1';
+      params += '&reconnect=1';
     }
     if (opts.usePlanB) {
-      url += '&planb=1';
+      params += '&planb=1';
     }
     if (opts.autoSubscribe !== undefined) {
-      url += `&auto_subscribe=${opts.autoSubscribe ? '1' : '0'}`;
+      params += `&auto_subscribe=${opts.autoSubscribe ? '1' : '0'}`;
     }
+
     return new Promise<JoinResponse | void>((resolve, reject) => {
-      log.debug('connecting to', url);
+      log.debug('connecting to', url + params);
       this.ws = undefined;
-      const ws = new WebSocket(url);
+      const ws = new WebSocket(url + params);
       ws.binaryType = 'arraybuffer';
-      ws.onerror = (ev: Event) => {
+
+      ws.onerror = async (ev: Event) => {
         if (!this.ws) {
-          // not yet connected, reject
-          reject(new ConnectionError('Could not connect'));
+          try {
+            const resp = await fetch(`http${url.substr(2)}/validate${params}`);
+            if (!resp.ok) {
+              const msg = await resp.text();
+              reject(new ConnectionError(msg));
+            } else {
+              reject(new ConnectionError('Internal error'));
+            }
+          } catch (e) {
+            reject(new ConnectionError(e));
+          }
           return;
         }
         // other errors, handle
