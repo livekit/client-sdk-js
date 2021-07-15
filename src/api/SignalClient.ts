@@ -118,7 +118,7 @@ export class WSSignalClient {
     });
   }
 
-  async connect(
+  connect(
     url: string,
     token: string,
     opts: ConnectOpts,
