@@ -184,7 +184,7 @@ window.connectToRoom = async (
     if (error.message) {
       message = error.message;
     }
-    appendLog('could not connect to room', message);
+    appendLog('could not connect:', message);
     return;
   }
 
