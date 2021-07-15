@@ -123,8 +123,8 @@ export class WSSignalClient {
     token: string,
     opts: ConnectOpts,
   ): Promise<JoinResponse | void> {
-    url += '/rtc'
-    var params = `?access_token=${token}&protocol=${protocolVersion}`;
+    url += '/rtc';
+    let params = `?access_token=${token}&protocol=${protocolVersion}`;
     if (opts.reconnect) {
       params += '&reconnect=1';
     }
@@ -136,22 +136,22 @@ export class WSSignalClient {
     }
 
     return new Promise<JoinResponse | void>((resolve, reject) => {
-      log.debug('connecting to', url+params);
+      log.debug('connecting to', url + params);
       this.ws = undefined;
-      const ws = new WebSocket(url+params);
+      const ws = new WebSocket(url + params);
       ws.binaryType = 'arraybuffer';
 
       ws.onerror = async (ev: Event) => {
         if (!this.ws) {
           try {
-            const resp = await fetch('http'+url.substr(2)+'/validate'+params);
+            const resp = await fetch(`http${url.substr(2)}/validate${params}`);
             if (!resp.ok) {
-              const msg = await resp.text()
+              const msg = await resp.text();
               reject(new ConnectionError(msg));
             } else {
               reject(new ConnectionError('Internal error'));
             }
-          } catch(e) {
+          } catch (e) {
             reject(new ConnectionError(e));
           }
           return;
