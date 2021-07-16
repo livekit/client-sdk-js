@@ -1,4 +1,4 @@
-export const monitorFrequency = 5000;
+export const monitorFrequency = 2000;
 
 // key stats for senders and receivers
 interface SenderStats {
@@ -37,12 +37,16 @@ export interface VideoSenderStats extends SenderStats {
 
   frameHeight: number;
 
+  framesSent: number;
+
   // bandwidth, cpu, other, none
   qualityLimitationReason: string;
 
   qualityLimitationResolutionChanges: number;
 
   retransmittedPacketsSent: number;
+
+  timestamp: number;
 }
 
 interface ReceiverStats {
