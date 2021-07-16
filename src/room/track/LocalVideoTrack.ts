@@ -211,15 +211,26 @@ export default class LocalVideoTrack extends LocalTrack {
     }
     const currentQuality = videoQualityForRid(rid);
 
+    // adaptive simulcast algorithm notes (dz)
+    // Chrome (and other browsers) will automatically pause the highest layer
+    // when it runs into bandwidth limitations. When that happens, it would not
+    // be able to send any new frames between the two stats checks.
+
+    // We need to set that layer to inactive intentionally, because chrome tends
+    // to flicker, meaning it will attempt to send that layer again shortly
+    // afterwards, flip-flopping every few seconds. We want to avoid that.
+    //
+    // We also have to notify the server that the layer isn't available, so
+    // the SFU could stop serving it to clients.
     if (sendStats.qualityLimitationResolutionChanges
         - lastStats.qualityLimitationResolutionChanges > 0) {
       this.lastQualityChange = new Date().getTime();
     }
 
-    // frames have been sending ok, consider upgrading quality
     // log.debug('frameSent', sendStats.framesSent, 'lastSent', lastStats.framesSent,
     //   'elapsed', sendStats.timestamp - lastStats.timestamp);
     if (sendStats.framesSent - lastStats.framesSent > 0) {
+      // frames have been sending ok, consider upgrading quality
       if (currentQuality === VideoQuality.HIGH || !this.lastQualityChange) return;
 
       if ((new Date()).getTime() - this.lastQualityChange < MIN_UPGRADE_DELAY) {
