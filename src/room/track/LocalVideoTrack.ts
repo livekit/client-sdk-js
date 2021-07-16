@@ -42,7 +42,7 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   get isSimulcast(): boolean {
-    if (this.sender?.getParameters().encodings.length === 3) {
+    if (this.sender && this.sender.getParameters().encodings.length > 1) {
       return true;
     }
     return false;
@@ -141,12 +141,16 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     let hasChanged = false;
+    const layers: VideoQuality[] = [];
     this.encodings.forEach((encoding) => {
       const quality = videoQualityForRid(encoding.rid ?? '');
       const active = quality <= maxQuality;
       if (active !== encoding.active) {
         hasChanged = true;
         encoding.active = active;
+      }
+      if (active) {
+        layers.push(quality);
       }
     });
 
@@ -156,10 +160,6 @@ export default class LocalVideoTrack extends LocalTrack {
 
     this.lastQualityChange = new Date().getTime();
 
-    const layers: VideoQuality[] = [];
-    for (let q = VideoQuality.LOW; q <= maxQuality; q += 1) {
-      layers.push(q);
-    }
     this.signalClient?.sendSetSimulcastLayers(this.sid, layers);
 
     const params = this.sender.getParameters();
