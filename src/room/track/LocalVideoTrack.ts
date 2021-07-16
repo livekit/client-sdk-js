@@ -5,11 +5,8 @@ import { monitorFrequency, VideoSenderStats } from '../stats';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 
-// number of downgrades to turn off highest quality layer
-const DOWNGRADES_TO_STEP_DOWN = 2;
-
-// number of successes to turn on next higher layer
-const SUCCESSES_TO_STEP_UP = 4;
+// upgrade only if smooth sailing for 3 mins;
+const MIN_UPGRADE_DELAY = 3 * 60 * 1000;
 
 // once it's disabled this number of times, it will be turned off for the rest
 // of the session
@@ -21,14 +18,10 @@ export default class LocalVideoTrack extends LocalTrack {
   /* internal */
   signalClient?: SignalClient;
 
-  private prevStats?: VideoSenderStats[];
+  private prevStats?: Map<string, VideoSenderStats>;
 
-  // simulcast controls
-  // consecutive downgrades, reset when we have a success
-  private numDowngrades = 0;
-
-  // consecutive successes, reset when we have a downgrade
-  private numSuccesses = 0;
+  // last time it had a change in quality
+  private lastQualityChange?: number;
 
   // keep track of times we had to disable a track
   private disableCount: { [number: string]: number } = {
@@ -108,6 +101,8 @@ export default class LocalVideoTrack extends LocalTrack {
           pliCount: v.pliCount,
           nackCount: v.nackCount,
           packetsSent: v.packetsSent,
+          framesSent: v.framesSent,
+          timestamp: v.timestamp,
           rid: v.rid,
           retransmittedPacketsSent: v.retransmittedPacketsSent,
           qualityLimitationReason: v.qualityLimitationReason,
@@ -159,19 +154,18 @@ export default class LocalVideoTrack extends LocalTrack {
       return;
     }
 
-    this.numDowngrades = 0;
-    this.numSuccesses = 0;
-
-    const params = this.sender.getParameters();
-    params.encodings = this.encodings;
-    log.debug('setting publishing quality. max quality', maxQuality, 'encodings', params.encodings);
-    this.sender.setParameters(params);
+    this.lastQualityChange = new Date().getTime();
 
     const layers: VideoQuality[] = [];
     for (let q = VideoQuality.LOW; q <= maxQuality; q += 1) {
       layers.push(q);
     }
     this.signalClient?.sendSetSimulcastLayers(this.sid, layers);
+
+    const params = this.sender.getParameters();
+    params.encodings = this.encodings;
+    log.debug('setting publishing quality. max quality', maxQuality);
+    this.sender.setParameters(params);
   }
 
   private monitorSender = async () => {
@@ -181,6 +175,20 @@ export default class LocalVideoTrack extends LocalTrack {
     const stats = await this.getSenderStats();
     const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));
 
+    if (this.prevStats && this.isSimulcast) {
+      this.checkAndUpdateSimulcast(statsMap);
+    }
+
+    this.prevStats = statsMap;
+    setTimeout(() => {
+      this.monitorSender();
+    }, monitorFrequency);
+  };
+
+  private checkAndUpdateSimulcast(statsMap: Map<string, VideoSenderStats>) {
+    if (!this.sender) {
+      return;
+    }
     const params = this.sender.getParameters();
     this.encodings = params.encodings;
 
@@ -197,64 +205,59 @@ export default class LocalVideoTrack extends LocalTrack {
     }
     const rid: string = bestEncoding.rid ?? '';
     const sendStats = statsMap.get(rid);
-    if (!sendStats) {
+    const lastStats = this.prevStats?.get(rid);
+    if (!sendStats || !lastStats) {
+      return;
+    }
+    const currentQuality = videoQualityForRid(rid);
+
+    // adaptive simulcast algorithm notes (dz)
+    // Chrome (and other browsers) will automatically pause the highest layer
+    // when it runs into bandwidth limitations. When that happens, it would not
+    // be able to send any new frames between the two stats checks.
+
+    // We need to set that layer to inactive intentionally, because chrome tends
+    // to flicker, meaning it will attempt to send that layer again shortly
+    // afterwards, flip-flopping every few seconds. We want to avoid that.
+    //
+    // We also have to notify the server that the layer isn't available, so
+    // the SFU could stop serving it to clients.
+    if (sendStats.qualityLimitationResolutionChanges
+        - lastStats.qualityLimitationResolutionChanges > 0) {
+      this.lastQualityChange = new Date().getTime();
+    }
+
+    // log.debug('frameSent', sendStats.framesSent, 'lastSent', lastStats.framesSent,
+    //   'elapsed', sendStats.timestamp - lastStats.timestamp);
+    if (sendStats.framesSent - lastStats.framesSent > 0) {
+      // frames have been sending ok, consider upgrading quality
+      if (currentQuality === VideoQuality.HIGH || !this.lastQualityChange) return;
+
+      if ((new Date()).getTime() - this.lastQualityChange < MIN_UPGRADE_DELAY) {
+        return;
+      }
+      const nextQuality = currentQuality + 1;
+
+      if (this.disableCount[nextQuality] >= MAX_QUALITY_ATTEMPTS) {
+        return;
+      }
+      log.debug('upgrading video quality to', nextQuality);
+      this.setPublishingQuality(nextQuality);
       return;
     }
 
-    const isLimited = sendStats.qualityLimitationReason === 'bandwidth' || sendStats.qualityLimitationReason === 'cpu';
-    if (isLimited) {
-      this.numDowngrades += 1;
-      this.numSuccesses = 0;
-    } else {
-      this.numSuccesses += 1;
-      this.numDowngrades = 0;
-    }
-
-    const currentQuality = videoQualityForRid(rid);
     if (currentQuality === VideoQuality.UNRECOGNIZED) {
       return;
     }
 
-    let nextQuality: VideoQuality = currentQuality;
-    if (this.numDowngrades > DOWNGRADES_TO_STEP_DOWN && currentQuality > VideoQuality.LOW) {
-      this.disableCount[currentQuality] += 1;
-      nextQuality = currentQuality - 1;
-    } else if (this.numSuccesses > SUCCESSES_TO_STEP_UP && currentQuality < VideoQuality.HIGH) {
-      if (this.disableCount[currentQuality + 1] <= MAX_QUALITY_ATTEMPTS) {
-        nextQuality = currentQuality + 1;
-      }
+    if (currentQuality === VideoQuality.LOW) {
+      // already the lowest quality, nothing we can do
+      return;
     }
 
-    if (nextQuality !== currentQuality) {
-      this.setPublishingQuality(nextQuality);
-    }
-
-    // this.prevStats = stats;
-    setTimeout(() => {
-      this.monitorSender();
-    }, monitorFrequency);
-  };
-
-  private handleStats(prev: VideoSenderStats, curr: VideoSenderStats) {
-    const pliDelta = curr.pliCount - prev.pliCount;
-    const nackDelta = curr.nackCount - prev.nackCount;
-    const qualityLimited = curr.qualityLimitationReason && curr.qualityLimitationReason !== 'none';
-    if (pliDelta > 0 || qualityLimited) {
-      log.debug(
-        'detected publisher quality issue',
-        'track',
-        this.id,
-        'rid',
-        curr.rid,
-        'pliDelta',
-        pliDelta,
-        'nackDelta',
-        nackDelta,
-        'qualityLimited',
-        curr.qualityLimitationReason,
-        curr,
-      );
-    }
+    log.debug('downgrading video quality to', currentQuality - 1);
+    this.disableCount[currentQuality] += 1;
+    this.setPublishingQuality(currentQuality - 1);
   }
 }
 
