@@ -116,6 +116,8 @@ function detachTrack(
   if (element.srcObject instanceof MediaStream) {
     const mediaStream = element.srcObject;
     mediaStream.removeTrack(track);
+    element.srcObject = null;
+    element.src = '';
   }
 }
 
