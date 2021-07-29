@@ -30,6 +30,7 @@ declare global {
     disconnectSignal: any;
     disconnectRoom: any;
     currentRoom: any;
+    startAudio: any;
   }
 }
 
@@ -201,7 +202,14 @@ window.connectToRoom = async (
     .on(RoomEvent.ActiveSpeakersChanged, handleSpeakerChanged)
     .on(RoomEvent.Disconnected, handleRoomDisconnect)
     .on(RoomEvent.Reconnecting, () => appendLog('Reconnecting to room'))
-    .on(RoomEvent.Reconnected, () => appendLog('Successfully reconnected!'));
+    .on(RoomEvent.Reconnected, () => appendLog('Successfully reconnected!'))
+    .on(RoomEvent.AudioPlaybackStatusChanged, () => {
+      if (room.canPlaybackAudio) {
+        $('start-audio-button')?.setAttribute('disabled', 'true');
+      } else {
+        $('start-audio-button')?.removeAttribute('disabled');
+      }
+    });
 
   appendLog('room participants', room.participants.keys());
   room.participants.forEach((participant) => {
@@ -320,6 +328,10 @@ window.disconnectRoom = () => {
   if (currentRoom) {
     currentRoom.disconnect();
   }
+};
+
+window.startAudio = () => {
+  currentRoom.startAudio();
 };
 
 async function publishLocalVideo(track: LocalVideoTrack) {

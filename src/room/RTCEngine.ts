@@ -96,7 +96,11 @@ export default class RTCEngine extends EventEmitter {
 
     if (this.publisher) {
       this.publisher.pc.getSenders().forEach((sender) => {
-        this.publisher?.pc.removeTrack(sender);
+        try {
+          this.publisher?.pc.removeTrack(sender);
+        } catch (e) {
+          log.warn('could not removeTrack', e);
+        }
       });
       this.publisher.close();
       this.publisher = undefined;

@@ -173,7 +173,11 @@ export default class LocalParticipant extends Participant {
       const senders = this.engine.publisher.pc.getSenders();
       senders.forEach((sender) => {
         if (sender.track === mediaStreamTrack) {
-          this.engine.publisher?.pc.removeTrack(sender);
+          try {
+            this.engine.publisher?.pc.removeTrack(sender);
+          } catch (e) {
+            log.warn('unpublishTrack', 'failed to remove track', e);
+          }
         }
       });
     }
