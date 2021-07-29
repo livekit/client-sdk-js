@@ -51,6 +51,10 @@ export default class TrackPublication extends EventEmitter {
     return this.metadataMuted;
   }
 
+  get isEnabled(): boolean {
+    return true;
+  }
+
   get isSubscribed(): boolean {
     return this.track !== undefined;
   }
