@@ -258,6 +258,7 @@ window.toggleVideo = async () => {
   if (videoTrack) {
     appendLog('turning video off');
     currentRoom.localParticipant.unpublishTrack(videoTrack);
+    videoTrack.detach();
     videoTrack = undefined;
     const video = getMyVideo();
     if (video) video.remove();

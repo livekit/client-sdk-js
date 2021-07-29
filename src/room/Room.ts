@@ -249,6 +249,7 @@ class Room extends EventEmitter {
     this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
 
+  // updates are sent only when there's a change to speaker ordering
   private handleSpeakerUpdate = (speakers: SpeakerInfo[]) => {
     const activeSpeakers: Participant[] = [];
     const seenSids: any = {};
