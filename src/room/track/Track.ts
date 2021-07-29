@@ -1,5 +1,10 @@
 import { EventEmitter } from 'events';
 import { TrackType } from '../../proto/livekit_models';
+import { TrackEvent } from '../events';
+
+// keep old audio elements when detached, we would re-use them since on iOS
+// Safari tracks which audio elements have been "blessed" by the user.
+const recycledElements: Array<HTMLAudioElement> = [];
 
 export class Track extends EventEmitter {
   kind: Track.Kind;
@@ -32,15 +37,24 @@ export class Track extends EventEmitter {
       elementType = 'video';
     }
     if (!element) {
-      element = <HTMLMediaElement>document.createElement(elementType);
-      element.autoplay = true;
-      if (element instanceof HTMLVideoElement) {
-        (<HTMLVideoElement>element).playsInline = true;
+      if (elementType === 'audio') {
+        recycledElements.forEach((e) => {
+          if (e.parentElement === null && !element) {
+            element = e;
+          }
+        });
+        if (element) {
+          // remove it from pool
+          recycledElements.splice(recycledElements.indexOf(element), 1);
+        }
       }
-    } else {
-      if (element instanceof HTMLVideoElement) {
-        (<HTMLVideoElement>element).playsInline = true;
+      if (!element) {
+        element = <HTMLMediaElement>document.createElement(elementType);
       }
+    }
+
+    if (element instanceof HTMLVideoElement) {
+      element.playsInline = true;
       element.autoplay = true;
     }
 
@@ -51,6 +65,17 @@ export class Track extends EventEmitter {
 
     attachToElement(this.mediaStreamTrack, element);
     this.attachedElements.push(element);
+
+    if (element instanceof HTMLAudioElement) {
+      // manually play audio to detect audio playback status
+      element.play()
+        .then(() => {
+          this.emit(TrackEvent.AudioPlaybackStarted);
+        })
+        .catch((e) => {
+          this.emit(TrackEvent.AudioPlaybackFailed, e);
+        });
+    }
 
     return element;
   }
@@ -67,6 +92,7 @@ export class Track extends EventEmitter {
       }
       return element;
     }
+
     const detached: HTMLMediaElement[] = [];
     this.attachedElements.forEach((elm) => {
       detachTrack(this.mediaStreamTrack, elm);
@@ -118,6 +144,20 @@ function detachTrack(
     mediaStream.removeTrack(track);
     element.srcObject = null;
     element.src = '';
+  }
+
+  if (element instanceof HTMLAudioElement) {
+    // we only need to re-use a single element
+    let shouldCache = true;
+    element.pause();
+    recycledElements.forEach((e) => {
+      if (!e.parentElement) {
+        shouldCache = false;
+      }
+    });
+    if (shouldCache) {
+      recycledElements.push(element);
+    }
   }
 }
 

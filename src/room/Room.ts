@@ -7,12 +7,15 @@ import {
 } from '../proto/livekit_models';
 import { DataPacket_Kind, SpeakerInfo, UserPacket } from '../proto/livekit_rtc';
 import { ConnectionError, UnsupportedServer } from './errors';
-import { EngineEvent, ParticipantEvent, RoomEvent } from './events';
+import {
+  EngineEvent, ParticipantEvent, RoomEvent, TrackEvent,
+} from './events';
 import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine from './RTCEngine';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
+import { Track } from './track/Track';
 import TrackPublication from './track/TrackPublication';
 import { RemoteTrack } from './track/types';
 import { unpackStreamId } from './utils';
@@ -55,6 +58,8 @@ class Room extends EventEmitter {
 
   /** the current participant */
   localParticipant!: LocalParticipant;
+
+  private audioEnabled = true;
 
   /** @internal */
   constructor(client: SignalClient, config?: RTCConfiguration) {
@@ -161,6 +166,41 @@ class Room extends EventEmitter {
       });
     });
   };
+
+  /**
+   * Browsers have different policies regarding audio playback. Most requiring
+   * some form of user interaction (click/tap/etc).
+   * In those cases, audio will be silent until a click/tap triggering one of the following
+   * - `startAudio`
+   * - `getUserMedia`
+   */
+  async startAudio() {
+    const elements: Array<HTMLMediaElement> = [];
+    this.participants.forEach((p) => {
+      p.audioTracks.forEach((t) => {
+        if (t.track) {
+          t.track.attachedElements.forEach((e) => {
+            elements.push(e);
+          });
+        }
+      });
+    });
+
+    try {
+      await Promise.all(elements.map((e) => e.play()));
+      this.handleAudioPlaybackStarted();
+    } catch (err) {
+      this.handleAudioPlaybackFailed(err);
+      throw err;
+    }
+  }
+
+  /**
+   * Returns true if audio playback is enabled
+   */
+  get canPlaybackAudio(): boolean {
+    return this.audioEnabled;
+  }
 
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
@@ -299,6 +339,23 @@ class Room extends EventEmitter {
     participant.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
   };
 
+  private handleAudioPlaybackStarted = () => {
+    if (this.canPlaybackAudio) {
+      return;
+    }
+    this.audioEnabled = true;
+    this.emit(RoomEvent.AudioPlaybackStatusChanged, true);
+  };
+
+  private handleAudioPlaybackFailed = (e: any) => {
+    log.warn('could not playback audio', e);
+    if (!this.canPlaybackAudio) {
+      return;
+    }
+    this.audioEnabled = false;
+    this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
+  };
+
   private getOrCreateParticipant(
     id: string,
     info?: ParticipantInfo,
@@ -330,6 +387,11 @@ class Room extends EventEmitter {
       participant.on(
         ParticipantEvent.TrackSubscribed,
         (track: RemoteTrack, publication: RemoteTrackPublication) => {
+          // monitor playback status
+          if (track.kind === Track.Kind.Audio) {
+            track.on(TrackEvent.AudioPlaybackStarted, this.handleAudioPlaybackStarted);
+            track.on(TrackEvent.AudioPlaybackFailed, this.handleAudioPlaybackFailed);
+          }
           this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
         },
       );

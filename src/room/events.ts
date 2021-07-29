@@ -120,6 +120,8 @@ export enum RoomEvent {
    * args (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]])
    */
   DataReceived = 'dataReceived',
+
+  AudioPlaybackStatusChanged = 'audioPlaybackChanged',
 }
 
 export enum ParticipantEvent {
@@ -155,4 +157,8 @@ export enum TrackEvent {
   UpdateSettings = 'updateSettings',
   /** @internal */
   UpdateSubscription = 'updateSubscription',
+  /** @internal */
+  AudioPlaybackStarted = 'audioPlaybackStarted',
+  /** @internal */
+  AudioPlaybackFailed = 'audioPlaybackFailed',
 }

@@ -5,24 +5,10 @@ import LocalTrack from './room/track/LocalTrack';
  * publish those tracks to the room.
  */
 export interface ConnectOptions extends CreateLocalTracksOptions {
-  /** see [[TrackPublishOptions.videoEncoding]] */
-  videoEncoding?: VideoEncoding;
-
-  /** see [[TrackPublishOptions.videoCodec]] */
-  videoCodec?: VideoCodec;
-
-  /** see [[TrackPublishOptions.audioBitrate]] */
-  audioBitrate?: number;
-
-  /** see [[TrackPublishOptions.simulcast]] */
-  simulcast?: boolean;
-
   /** autosubscribe to room tracks upon connect, defaults to true */
   autoSubscribe?: boolean;
 
-  /**
-   * configures LiveKit internal log level
-   */
+  /** configures LiveKit internal log level */
   logLevel?: LogLevel;
 
   /**
@@ -35,6 +21,18 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
    * [[createLocalTracks]]. when this is passed in, it'll ignore audio and video options
    */
   tracks?: LocalTrack[] | MediaStreamTrack[];
+
+  /** see [[TrackPublishOptions.videoEncoding]] */
+  videoEncoding?: VideoEncoding;
+
+  /** see [[TrackPublishOptions.videoCodec]] */
+  videoCodec?: VideoCodec;
+
+  /** see [[TrackPublishOptions.audioBitrate]] */
+  audioBitrate?: number;
+
+  /** see [[TrackPublishOptions.simulcast]] */
+  simulcast?: boolean;
 }
 
 export enum LogLevel {
