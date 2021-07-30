@@ -89,6 +89,7 @@ export class Track extends EventEmitter {
       const idx = this.attachedElements.indexOf(element);
       if (idx >= 0) {
         this.attachedElements.splice(idx, 1);
+        this.recycleElement(element);
       }
       return element;
     }
@@ -97,6 +98,7 @@ export class Track extends EventEmitter {
     this.attachedElements.forEach((elm) => {
       detachTrack(this.mediaStreamTrack, elm);
       detached.push(elm);
+      this.recycleElement(elm);
     });
 
     // remove all tracks
@@ -106,6 +108,22 @@ export class Track extends EventEmitter {
 
   stop() {
     this.mediaStreamTrack.stop();
+  }
+
+  private recycleElement(element: HTMLMediaElement) {
+    if (element instanceof HTMLAudioElement) {
+    // we only need to re-use a single element
+      let shouldCache = true;
+      element.pause();
+      recycledElements.forEach((e) => {
+        if (!e.parentElement) {
+          shouldCache = false;
+        }
+      });
+      if (shouldCache) {
+        recycledElements.push(element);
+      }
+    }
   }
 }
 
@@ -135,7 +153,7 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
 }
 
 /** @internal */
-function detachTrack(
+export function detachTrack(
   track: MediaStreamTrack,
   element: HTMLMediaElement,
 ) {
@@ -143,21 +161,6 @@ function detachTrack(
     const mediaStream = element.srcObject;
     mediaStream.removeTrack(track);
     element.srcObject = null;
-    element.src = '';
-  }
-
-  if (element instanceof HTMLAudioElement) {
-    // we only need to re-use a single element
-    let shouldCache = true;
-    element.pause();
-    recycledElements.forEach((e) => {
-      if (!e.parentElement) {
-        shouldCache = false;
-      }
-    });
-    if (shouldCache) {
-      recycledElements.push(element);
-    }
   }
 }
 

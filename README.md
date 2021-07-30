@@ -92,6 +92,8 @@ See [access token docs](https://docs.livekit.io/guides/access-tokens) for detail
 
 ### Manually publish, mute, unpublish
 
+When a video track is muted, the camera indicator will be turned off. When the video is unmuted, the same camera source and capture settings will be re-aquired.
+
 ```typescript
 import { createLocalVideoTrack } from 'livekit-client';
 
@@ -109,7 +111,7 @@ room.localParticipant.unpublishTrack(videoTrack);
 
 ### Audio playback
 
-Browsers can be restrictive regarding if audio could be played without user interaction. What each browser considers as user interaction can also be different (with Safari on iOS being the most restrictive). Some browser considers clicking on a button unrelated to audio as interaction, others require audio element's `play` function to be triggered by a onclick event.
+Browsers can be restrictive regarding if audio could be played without user interaction. What each browser considers as user interaction can also be different (with Safari on iOS being the most restrictive). Some browser considers clicking on a button unrelated to audio as interaction, others require audio element's `play` function to be triggered by an onclick event.
 
 LiveKit will attempt to autoplay all audio tracks when you attach them to audio elements. However, if that fails, we'll notify you via `RoomEvent.AudioPlaybackStatusChanged`. `Room.canPlayAudio` will indicate if audio playback is permitted. (Note: LiveKit takes an optimistic approach so it's possible for this value to change from `true` to `false` when we encounter a browser error.
 
@@ -128,6 +130,22 @@ room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
       });
     }
   }
+});
+```
+
+### Switching input devices
+
+At any point after publishing, you can switch the input devices and other capture settings on both audio and video tracks. For example, switching between regular and selfie camera or changing microphone inputs. This is performed with `restartTrack` on the `LocalAudioTrack` or `LocalVideoTrack`.
+
+```typescript
+await room.localParticipant.publishTrack(videoTrack);
+await room.localParticipant.publishTrack(audioTrack);
+
+await videoTrack.restartTrack({
+  facingMode: 'environment',
+});
+await audioTrack.restartTrack({
+  deviceId: 'microphoneId',
 });
 ```
 

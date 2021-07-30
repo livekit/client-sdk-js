@@ -3,10 +3,14 @@ import { SignalClient } from '../../api/SignalClient';
 import { VideoQuality } from '../../proto/livekit_rtc';
 import { monitorFrequency, VideoSenderStats } from '../stats';
 import LocalTrack from './LocalTrack';
+import { CreateVideoTrackOptions } from './options';
 import { Track } from './Track';
 
-// upgrade only if smooth sailing for 3 mins;
-const MIN_UPGRADE_DELAY = 3 * 60 * 1000;
+// upgrade delay for diff qualities
+const QUALITY_UPGRADE_DELAY: { [key: string]: number } = {
+  h: 120 * 1000,
+  q: 60 * 1000,
+};
 
 // once it's disabled this number of times, it will be turned off for the rest
 // of the session
@@ -37,8 +41,7 @@ export default class LocalVideoTrack extends LocalTrack {
     name?: string,
     constraints?: MediaTrackConstraints,
   ) {
-    super(mediaTrack, Track.Kind.Video, name);
-    this.constraints = constraints || {};
+    super(mediaTrack, Track.Kind.Video, name, constraints);
   }
 
   get isSimulcast(): boolean {
@@ -54,7 +57,6 @@ export default class LocalVideoTrack extends LocalTrack {
     if (!this.isSimulcast) {
       return;
     }
-
     this.signalClient = signalClient;
 
     setTimeout(() => {
@@ -64,7 +66,19 @@ export default class LocalVideoTrack extends LocalTrack {
 
   stop() {
     this.sender = undefined;
+    this.mediaStreamTrack.getConstraints();
     super.stop();
+  }
+
+  mute(): LocalTrack {
+    // also stop the track, so that camera indicator is turned off
+    this.mediaStreamTrack.stop();
+    return super.mute();
+  }
+
+  unmute(): LocalTrack {
+    this.restartTrack();
+    return super.unmute();
   }
 
   async getSenderStats(): Promise<VideoSenderStats[]> {
@@ -168,6 +182,17 @@ export default class LocalVideoTrack extends LocalTrack {
     this.sender.setParameters(params);
   }
 
+  async restartTrack(options?: CreateVideoTrackOptions) {
+    let constraints: MediaTrackConstraints | undefined;
+    if (options) {
+      const streamConstraints = LocalTrack.constraintsForOptions({ video: options });
+      if (typeof streamConstraints.video !== 'boolean') {
+        constraints = streamConstraints.video;
+      }
+    }
+    await this.restart(constraints);
+  }
+
   private monitorSender = async () => {
     if (!this.sender) {
       return;
@@ -186,7 +211,7 @@ export default class LocalVideoTrack extends LocalTrack {
   };
 
   private checkAndUpdateSimulcast(statsMap: Map<string, VideoSenderStats>) {
-    if (!this.sender) {
+    if (!this.sender || this.isMuted) {
       return;
     }
     const params = this.sender.getParameters();
@@ -233,10 +258,11 @@ export default class LocalVideoTrack extends LocalTrack {
       // frames have been sending ok, consider upgrading quality
       if (currentQuality === VideoQuality.HIGH || !this.lastQualityChange) return;
 
-      if ((new Date()).getTime() - this.lastQualityChange < MIN_UPGRADE_DELAY) {
+      const nextQuality = currentQuality + 1;
+      const upgradeDelay = QUALITY_UPGRADE_DELAY[rid];
+      if (!upgradeDelay || (new Date()).getTime() - this.lastQualityChange < upgradeDelay) {
         return;
       }
-      const nextQuality = currentQuality + 1;
 
       if (this.disableCount[nextQuality] >= MAX_QUALITY_ATTEMPTS) {
         return;
