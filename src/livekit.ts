@@ -2,19 +2,16 @@ import log from 'loglevel';
 import { WSSignalClient } from './api/SignalClient';
 import {
   ConnectOptions,
-  CreateAudioTrackOptions,
-  CreateLocalTrackOptions,
-  CreateLocalTracksOptions,
-  CreateVideoTrackOptions,
   LogLevel,
-  VideoPresets,
 } from './options';
 import { TrackInvalidError } from './room/errors';
 import Room from './room/Room';
 import LocalAudioTrack from './room/track/LocalAudioTrack';
 import LocalTrack from './room/track/LocalTrack';
 import LocalVideoTrack from './room/track/LocalVideoTrack';
-import { TrackPublishOptions } from './room/track/options';
+import {
+  CreateAudioTrackOptions, CreateLocalTracksOptions, CreateVideoTrackOptions, TrackPublishOptions,
+} from './room/track/options';
 import { Track } from './room/track/Track';
 
 export { version } from './version';
@@ -136,58 +133,39 @@ export async function createLocalAudioTrack(
 export async function createLocalTracks(
   options?: CreateLocalTracksOptions,
 ): Promise<Array<LocalTrack>> {
-  const constraints: MediaStreamConstraints = {};
   if (!options) options = {};
   if (options.audio === undefined) options.audio = {};
 
-  // default video options
-  const videoOptions: MediaTrackConstraints = {
-
-    ...VideoPresets.qhd.resolution,
-  };
-  if (typeof options.video === 'object' && options.video) {
-    Object.assign(videoOptions, options.video);
-    if (options.video.resolution) {
-      Object.assign(videoOptions, options.video.resolution);
-    }
-  }
-
-  if (options.video === false) {
-    constraints.video = false;
-  } else {
-    // use defaults
-    constraints.video = videoOptions;
-  }
-  constraints.audio = options.audio;
-
-  const stream = await navigator.mediaDevices.getUserMedia(constraints);
-  const tracks: LocalTrack[] = [];
-  stream.getTracks().forEach((mediaStreamTrack) => {
-    let trackOptions = mediaStreamTrack.kind === 'audio' ? options!.audio : options!.video;
+  const constraints = LocalTrack.constraintsForOptions(options);
+  const stream = await navigator.mediaDevices.getUserMedia(
+    constraints,
+  );
+  return stream.getTracks().map((mediaStreamTrack) => {
+    const isAudio = mediaStreamTrack.kind === 'audio';
+    let trackOptions = isAudio ? options!.audio : options!.video;
     if (typeof trackOptions === 'boolean' || !trackOptions) {
       trackOptions = {};
     }
-    tracks.push(createLocalTrack(mediaStreamTrack, trackOptions));
+    let trackConstraints: MediaTrackConstraints | undefined;
+    const conOrBool = isAudio ? constraints.audio : constraints.video;
+    if (typeof conOrBool !== 'boolean') {
+      trackConstraints = conOrBool;
+    }
+    return createLocalTrack(mediaStreamTrack, trackOptions?.name, trackConstraints);
   });
-
-  return tracks;
 }
 
 /** @internal */
 function createLocalTrack(
   mediaStreamTrack: MediaStreamTrack,
-  options: CreateLocalTrackOptions,
+  name?: string,
+  constraints?: MediaTrackConstraints,
 ): LocalTrack {
-  let name: string | undefined;
-  if (options instanceof Object && options.name) {
-    name = options.name;
-  }
-
   switch (mediaStreamTrack.kind) {
     case 'audio':
-      return new LocalAudioTrack(mediaStreamTrack, name, options);
+      return new LocalAudioTrack(mediaStreamTrack, name, constraints);
     case 'video':
-      return new LocalVideoTrack(mediaStreamTrack, name, options);
+      return new LocalVideoTrack(mediaStreamTrack, name, constraints);
     default:
       throw new TrackInvalidError(
         `unsupported track type: ${mediaStreamTrack.kind}`,

@@ -1,22 +1,20 @@
 import log from 'loglevel';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import { attachToElement, Track } from './Track';
+import { CreateLocalTracksOptions, VideoPresets } from './options';
+import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {
-  protected constraints: MediaTrackConstraints;
-
   /** @internal */
   sender?: RTCRtpSender;
 
-  constructor(
-    mediaTrack: MediaStreamTrack,
-    kind: Track.Kind,
-    name?: string,
-    constraints?: MediaTrackConstraints,
-  ) {
+  protected constraints: MediaTrackConstraints;
+
+  protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind,
+    name?: string, constraints?: MediaTrackConstraints) {
     super(mediaTrack, kind, name);
-    this.constraints = constraints || {};
+    this.constraints = constraints ?? mediaTrack.getConstraints();
+    log.debug('track created, constraints', this.constraints);
   }
 
   get id(): string {
@@ -38,6 +36,31 @@ export default class LocalTrack extends Track {
     return undefined;
   }
 
+  static constraintsForOptions(options: CreateLocalTracksOptions):
+  MediaStreamConstraints {
+    const constraints: MediaStreamConstraints = {};
+
+    // default video options
+    const videoOptions: MediaTrackConstraints = {
+      ...VideoPresets.qhd.resolution,
+    };
+    if (typeof options.video === 'object' && options.video) {
+      Object.assign(videoOptions, options.video);
+      if (options.video.resolution) {
+        Object.assign(videoOptions, options.video.resolution);
+      }
+    }
+
+    if (options.video === false) {
+      constraints.video = false;
+    } else {
+    // use defaults
+      constraints.video = videoOptions;
+    }
+    constraints.audio = options.audio;
+    return constraints;
+  }
+
   mute(): LocalTrack {
     this.setTrackMuted(true);
     return this;
@@ -48,16 +71,14 @@ export default class LocalTrack extends Track {
     return this;
   }
 
-  async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {
+  protected async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {
     if (!this.sender) {
       throw new TrackInvalidError('unable to restart an unpublished track');
     }
     if (!constraints) {
       constraints = this.constraints;
     }
-
-    // copy existing elements and detach
-    this.mediaStreamTrack.stop();
+    log.debug('restarting track with constraints', constraints);
 
     const streamConstraints: MediaStreamConstraints = {
       audio: false,
@@ -75,7 +96,12 @@ export default class LocalTrack extends Track {
     const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
     const newTrack = mediaStream.getTracks()[0];
     log.info('re-acquired MediaStreamTrack');
-    this.constraints = constraints;
+
+    // detach and reattach
+    this.mediaStreamTrack.stop();
+    this.attachedElements.forEach((el) => {
+      detachTrack(this.mediaStreamTrack, el);
+    });
 
     newTrack.enabled = this.mediaStreamTrack.enabled;
     await this.sender.replaceTrack(newTrack);
@@ -84,6 +110,8 @@ export default class LocalTrack extends Track {
     this.attachedElements.forEach((el) => {
       attachToElement(newTrack, el);
     });
+
+    this.constraints = constraints;
     return this;
   }
 

@@ -1,9 +1,4 @@
 import log from 'loglevel';
-import {
-  VideoCodec,
-  VideoEncoding, VideoPreset, VideoPresets,
-  VideoPresets43,
-} from '../../options';
 import { ParticipantInfo } from '../../proto/livekit_models';
 import { DataPacket, DataPacket_Kind } from '../../proto/livekit_rtc';
 import {
@@ -17,7 +12,12 @@ import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack from '../track/LocalVideoTrack';
-import { TrackPublishOptions } from '../track/options';
+import {
+  TrackPublishOptions,
+  VideoCodec,
+  VideoEncoding, VideoPreset, VideoPresets,
+  VideoPresets43,
+} from '../track/options';
 import { Track } from '../track/Track';
 import Participant from './Participant';
 import RemoteParticipant from './RemoteParticipant';

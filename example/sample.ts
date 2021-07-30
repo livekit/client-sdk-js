@@ -1,6 +1,5 @@
 import {
-  connect,
-  createLocalVideoTrack,
+  connect, CreateVideoTrackOptions,
   LocalAudioTrack,
   LocalTrack,
   LocalVideoTrack,
@@ -22,7 +21,6 @@ declare global {
   interface Window {
     connectWithFormInput: any;
     connectToRoom: any;
-    toggleVideo: any;
     shareScreen: any;
     muteVideo: any;
     muteAudio: any;
@@ -31,6 +29,7 @@ declare global {
     disconnectRoom: any;
     currentRoom: any;
     startAudio: any;
+    flipVideo: any;
   }
 }
 
@@ -261,22 +260,6 @@ window.muteAudio = () => {
   }
 };
 
-window.toggleVideo = async () => {
-  if (!currentRoom) return;
-  if (videoTrack) {
-    appendLog('turning video off');
-    currentRoom.localParticipant.unpublishTrack(videoTrack);
-    videoTrack.detach();
-    videoTrack = undefined;
-    const video = getMyVideo();
-    if (video) video.remove();
-  } else {
-    appendLog('turning video on');
-    videoTrack = await createLocalVideoTrack();
-    await publishLocalVideo(videoTrack);
-  }
-};
-
 window.enterText = () => {
   const textField = <HTMLInputElement>$('entry');
   if (textField.value) {
@@ -334,6 +317,19 @@ window.startAudio = () => {
   currentRoom.startAudio();
 };
 
+let isFacingForward = true;
+window.flipVideo = () => {
+  if (!videoTrack) {
+    return;
+  }
+  isFacingForward = !isFacingForward;
+  const options: CreateVideoTrackOptions = {
+    resolution: VideoPresets.qhd.resolution,
+    facingMode: isFacingForward ? 'user' : 'environment',
+  };
+  videoTrack.restartTrack(options);
+};
+
 async function publishLocalVideo(track: LocalVideoTrack) {
   await currentRoom.localParticipant.publishTrack(track);
   const video = track.attach();
@@ -349,6 +345,7 @@ function setButtonsForState(connected: boolean) {
     'share-screen-button',
     'disconnect-ws-button',
     'disconnect-room-button',
+    'flip-video-button',
   ];
   const disconnectedSet = ['connect-button'];
 

@@ -1,6 +1,6 @@
 import { TrackEvent } from '../events';
 import { VideoReceiverStats } from '../stats';
-import { Track } from './Track';
+import { attachToElement, detachTrack, Track } from './Track';
 
 export default class RemoteVideoTrack extends Track {
   /** @internal */
@@ -25,6 +25,15 @@ export default class RemoteVideoTrack extends Track {
       this.isMuted = muted;
       this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
     }
+
+    this.attachedElements.forEach((element) => {
+      // detach or attach
+      if (muted) {
+        detachTrack(this.mediaStreamTrack, element);
+      } else {
+        attachToElement(this.mediaStreamTrack, element);
+      }
+    });
   }
 
   stop() {
