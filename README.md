@@ -111,9 +111,9 @@ room.localParticipant.unpublishTrack(videoTrack);
 
 ### Audio playback
 
-Browsers can be restrictive regarding if audio could be played without user interaction. What each browser considers as user interaction can also be different (with Safari on iOS being the most restrictive). Some browser considers clicking on a button unrelated to audio as interaction, others require audio element's `play` function to be triggered by an onclick event.
+Browsers can be restrictive with regards to audio playback that is not initiated by user interaction. What each browser considers as user interaction can vary by vendor (for example, Safari on iOS is very restrictive).
 
-LiveKit will attempt to autoplay all audio tracks when you attach them to audio elements. However, if that fails, we'll notify you via `RoomEvent.AudioPlaybackStatusChanged`. `Room.canPlayAudio` will indicate if audio playback is permitted. (Note: LiveKit takes an optimistic approach so it's possible for this value to change from `true` to `false` when we encounter a browser error.
+LiveKit will attempt to autoplay all audio tracks when you attach them to audio elements. However, if that fails, we'll notify you via `RoomEvent.AudioPlaybackStatusChanged`. `Room.canPlayAudio` will indicate if audio playback is permitted. LiveKit takes an optimistic approach so it's possible for this value to change from `true` to `false` when we encounter a browser error.
 
 In the case user interaction is required, LiveKit provides `Room.startAudio` to start audio playback. This function must be triggered in an onclick or ontap event handler. In the same session, once audio playback is successful, additional audio tracks can be played without further user interactions.
 
@@ -151,7 +151,7 @@ await audioTrack.restartTrack({
 
 ### Configuring logging
 
-This library uses (loglevel)[] for its internal logs. You can change the effective log level with the `logLevel` field in `ConnectOptions`.
+This library uses [loglevel](https://github.com/pimterry/loglevel) for its internal logs. You can change the effective log level with the `logLevel` field in `ConnectOptions`.
 
 ## Examples
 
