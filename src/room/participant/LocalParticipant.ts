@@ -339,10 +339,18 @@ export default class LocalParticipant extends Participant {
     }
     const cap = RTCRtpSender.getCapabilities(kind);
     if (!cap) return;
-    const selected = cap.codecs.find(
-      (c) => c.mimeType.toLowerCase() === `video/${videoCodec}`
-        || c.mimeType.toLowerCase() === 'audio/opus',
-    );
+    const selected = cap.codecs.find((c) => {
+      const codec = c.mimeType.toLowerCase();
+      const matchesVideoCodec = codec === `video/${videoCodec}`;
+
+      // for h264 codecs that have sdpFmtpLine available, use only if the
+      // profile-level-id is 42e01f for cross-browser compatibility
+      if (videoCodec === 'h264' && c.sdpFmtpLine) {
+        return matchesVideoCodec && c.sdpFmtpLine.includes('profile-level-id=42e01f');
+      }
+
+      return matchesVideoCodec || codec === 'audio/opus';
+    });
     if (selected && 'setCodecPreferences' in transceiver) {
       transceiver.setCodecPreferences([selected]);
     }
