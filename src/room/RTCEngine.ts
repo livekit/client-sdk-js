@@ -360,7 +360,7 @@ export default class RTCEngine extends EventEmitter {
         this.emit(EngineEvent.Reconnected);
         return;
       }
-      await sleep(500);
+      await sleep(100);
     }
 
     // have not reconnected, throw

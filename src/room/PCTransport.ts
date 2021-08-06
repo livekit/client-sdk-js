@@ -23,6 +23,7 @@ export default class PCTransport {
       this.pc.addIceCandidate(candidate);
     });
     this.pendingCandidates = [];
+    this.restartingIce = false;
   }
 
   close() {
