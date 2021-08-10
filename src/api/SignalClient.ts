@@ -123,6 +123,8 @@ export class WSSignalClient {
     token: string,
     opts: ConnectOpts,
   ): Promise<JoinResponse | void> {
+    // strip trailing slash
+    url = url.replace(/\/$/, '');
     url += '/rtc';
     let params = `?access_token=${token}&protocol=${protocolVersion}`;
     if (opts.reconnect) {
