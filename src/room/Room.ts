@@ -61,11 +61,21 @@ class Room extends EventEmitter {
 
   private audioEnabled = true;
 
+  private audioContext?: AudioContext;
+
   /** @internal */
   constructor(client: SignalClient, config?: RTCConfiguration) {
     super();
     this.participants = new Map();
     this.engine = new RTCEngine(client, config);
+
+    // by using an AudioContext, it reduces lag on audio elements
+    // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
+    // @ts-ignore
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) {
+      this.audioContext = new AudioContext();
+    }
 
     this.engine.on(
       EngineEvent.MediaTrackAdded,
@@ -241,6 +251,10 @@ class Room extends EventEmitter {
     });
     this.participants.clear();
     this.activeSpeakers = [];
+    if (this.audioContext) {
+      this.audioContext.close();
+      this.audioContext = undefined;
+    }
     window.removeEventListener('beforeunload', this.disconnect);
     this.emit(RoomEvent.Disconnected);
     this.state = RoomState.Disconnected;
