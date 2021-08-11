@@ -82,6 +82,9 @@ export default class LocalParticipant extends Participant {
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
+    track.mediaStreamTrack.addEventListener('ended', () => {
+      this.unpublishTrack(track);
+    });
 
     // get local track id for use during publishing
     const cid = track.mediaStreamTrack.id;
@@ -154,8 +157,6 @@ export default class LocalParticipant extends Participant {
     const publication = this.getPublicationForTrack(track);
 
     log.debug('unpublishTrack', 'unpublishing track', track);
-
-    // TODO: add logging
 
     if (!publication) {
       log.warn(

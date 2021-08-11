@@ -14,7 +14,6 @@ export default class LocalTrack extends Track {
     name?: string, constraints?: MediaTrackConstraints) {
     super(mediaTrack, kind, name);
     this.constraints = constraints ?? mediaTrack.getConstraints();
-    log.debug('track created, constraints', this.constraints);
   }
 
   get id(): string {
