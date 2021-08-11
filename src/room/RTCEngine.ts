@@ -3,6 +3,7 @@ import log from 'loglevel';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import { TrackInfo } from '../proto/livekit_models';
 import {
+  AddTrackRequest,
   DataPacket,
   JoinResponse,
   SignalTarget,
@@ -11,7 +12,6 @@ import {
 import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
-import { Track } from './track/Track';
 import { sleep, useLegacyAPI } from './utils';
 
 const lossyDataChannel = '_lossy';
@@ -112,20 +112,15 @@ export default class RTCEngine extends EventEmitter {
     this.client.close();
   }
 
-  addTrack(
-    cid: string,
-    name: string,
-    kind: Track.Kind,
-    dimension?: Track.Dimensions,
-  ): Promise<TrackInfo> {
-    if (this.pendingTrackResolvers[cid]) {
+  addTrack(req: AddTrackRequest): Promise<TrackInfo> {
+    if (this.pendingTrackResolvers[req.cid]) {
       throw new TrackInvalidError(
         'a track with the same ID has already been published',
       );
     }
     return new Promise<TrackInfo>((resolve) => {
-      this.pendingTrackResolvers[cid] = resolve;
-      this.client.sendAddTrack(cid, name, Track.kindToProto(kind), dimension);
+      this.pendingTrackResolvers[req.cid] = resolve;
+      this.client.sendAddTrack(req);
     });
   }
 

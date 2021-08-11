@@ -127,6 +127,8 @@ export interface AddTrackRequest {
   type: TrackType;
   width: number;
   height: number;
+  /** true to add track and initialize to muted */
+  muted: boolean;
 }
 
 export interface TrickleRequest {
@@ -731,6 +733,7 @@ const baseAddTrackRequest: object = {
   type: 0,
   width: 0,
   height: 0,
+  muted: false,
 };
 
 export const AddTrackRequest = {
@@ -752,6 +755,9 @@ export const AddTrackRequest = {
     }
     if (message.height !== 0) {
       writer.uint32(40).uint32(message.height);
+    }
+    if (message.muted === true) {
+      writer.uint32(48).bool(message.muted);
     }
     return writer;
   },
@@ -777,6 +783,9 @@ export const AddTrackRequest = {
           break;
         case 5:
           message.height = reader.uint32();
+          break;
+        case 6:
+          message.muted = reader.bool();
           break;
         default:
           reader.skipType(tag & 7);
@@ -813,6 +822,11 @@ export const AddTrackRequest = {
     } else {
       message.height = 0;
     }
+    if (object.muted !== undefined && object.muted !== null) {
+      message.muted = Boolean(object.muted);
+    } else {
+      message.muted = false;
+    }
     return message;
   },
 
@@ -823,6 +837,7 @@ export const AddTrackRequest = {
     message.type !== undefined && (obj.type = trackTypeToJSON(message.type));
     message.width !== undefined && (obj.width = message.width);
     message.height !== undefined && (obj.height = message.height);
+    message.muted !== undefined && (obj.muted = message.muted);
     return obj;
   },
 
@@ -852,6 +867,11 @@ export const AddTrackRequest = {
       message.height = object.height;
     } else {
       message.height = 0;
+    }
+    if (object.muted !== undefined && object.muted !== null) {
+      message.muted = object.muted;
+    } else {
+      message.muted = false;
     }
     return message;
   },

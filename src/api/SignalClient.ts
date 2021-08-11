@@ -1,6 +1,6 @@
 import log from 'loglevel';
 import 'webrtc-adapter';
-import { ParticipantInfo, TrackType } from '../proto/livekit_models';
+import { ParticipantInfo } from '../proto/livekit_models';
 import {
   AddTrackRequest,
   JoinResponse,
@@ -42,7 +42,7 @@ export interface SignalClient {
   sendAnswer(answer: RTCSessionDescriptionInit): void;
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget): void;
   sendMuteTrack(trackSid: string, muted: boolean): void;
-  sendAddTrack(cid: string, name: string, type: TrackType, dimensions?: Track.Dimensions): void;
+  sendAddTrack(req: AddTrackRequest): void;
   sendUpdateTrackSettings(settings: UpdateTrackSettings): void;
   sendUpdateSubscription(sub: UpdateSubscription): void;
   sendSetSimulcastLayers(sid: Track.SID, layers: VideoQuality[]): void;
@@ -249,16 +249,7 @@ export class WSSignalClient {
     });
   }
 
-  sendAddTrack(cid: string, name: string, type: TrackType, dimensions?: Track.Dimensions): void {
-    const req: any = {
-      cid,
-      name,
-      type,
-    };
-    if (dimensions) {
-      req.width = dimensions.width;
-      req.height = dimensions.height;
-    }
+  sendAddTrack(req: AddTrackRequest): void {
     this.sendRequest({
       addTrack: AddTrackRequest.fromPartial(req),
     });
