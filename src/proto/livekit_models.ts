@@ -65,6 +65,8 @@ export interface ParticipantInfo {
   metadata: string;
   /** timestamp when participant joined room */
   joinedAt: number;
+  /** hidden participant (used for recording) */
+  hidden: boolean;
 }
 
 export enum ParticipantInfo_State {
@@ -139,6 +141,36 @@ export interface TrackInfo {
 export interface DataMessage {
   text: string | undefined;
   binary: Uint8Array | undefined;
+}
+
+export interface RecordingTemplate {
+  layout: string;
+  wsUrl: string;
+  /** either token or room name required */
+  token: string;
+  roomName: string;
+}
+
+export interface RecordingS3Output {
+  bucket: string;
+  key: string;
+  /** optional */
+  accessKey: string;
+  secret: string;
+}
+
+export interface RecordingOptions {
+  /** 720p30, 720p60, 1080p30, or 1080p60 */
+  preset: string;
+  inputWidth: number;
+  inputHeight: number;
+  outputWidth: number;
+  outputHeight: number;
+  depth: number;
+  framerate: number;
+  audioBitrate: number;
+  audioFrequency: number;
+  videoBitrate: number;
 }
 
 const baseRoom: object = {
@@ -402,6 +434,7 @@ const baseParticipantInfo: object = {
   state: 0,
   metadata: "",
   joinedAt: 0,
+  hidden: false,
 };
 
 export const ParticipantInfo = {
@@ -426,6 +459,9 @@ export const ParticipantInfo = {
     }
     if (message.joinedAt !== 0) {
       writer.uint32(48).int64(message.joinedAt);
+    }
+    if (message.hidden === true) {
+      writer.uint32(56).bool(message.hidden);
     }
     return writer;
   },
@@ -455,6 +491,9 @@ export const ParticipantInfo = {
           break;
         case 6:
           message.joinedAt = longToNumber(reader.int64() as Long);
+          break;
+        case 7:
+          message.hidden = reader.bool();
           break;
         default:
           reader.skipType(tag & 7);
@@ -497,6 +536,11 @@ export const ParticipantInfo = {
     } else {
       message.joinedAt = 0;
     }
+    if (object.hidden !== undefined && object.hidden !== null) {
+      message.hidden = Boolean(object.hidden);
+    } else {
+      message.hidden = false;
+    }
     return message;
   },
 
@@ -515,6 +559,7 @@ export const ParticipantInfo = {
     }
     message.metadata !== undefined && (obj.metadata = message.metadata);
     message.joinedAt !== undefined && (obj.joinedAt = message.joinedAt);
+    message.hidden !== undefined && (obj.hidden = message.hidden);
     return obj;
   },
 
@@ -550,6 +595,11 @@ export const ParticipantInfo = {
       message.joinedAt = object.joinedAt;
     } else {
       message.joinedAt = 0;
+    }
+    if (object.hidden !== undefined && object.hidden !== null) {
+      message.hidden = object.hidden;
+    } else {
+      message.hidden = false;
     }
     return message;
   },
@@ -795,6 +845,462 @@ export const DataMessage = {
       message.binary = object.binary;
     } else {
       message.binary = undefined;
+    }
+    return message;
+  },
+};
+
+const baseRecordingTemplate: object = {
+  layout: "",
+  wsUrl: "",
+  token: "",
+  roomName: "",
+};
+
+export const RecordingTemplate = {
+  encode(
+    message: RecordingTemplate,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.layout !== "") {
+      writer.uint32(10).string(message.layout);
+    }
+    if (message.wsUrl !== "") {
+      writer.uint32(18).string(message.wsUrl);
+    }
+    if (message.token !== "") {
+      writer.uint32(26).string(message.token);
+    }
+    if (message.roomName !== "") {
+      writer.uint32(34).string(message.roomName);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): RecordingTemplate {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseRecordingTemplate } as RecordingTemplate;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.layout = reader.string();
+          break;
+        case 2:
+          message.wsUrl = reader.string();
+          break;
+        case 3:
+          message.token = reader.string();
+          break;
+        case 4:
+          message.roomName = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RecordingTemplate {
+    const message = { ...baseRecordingTemplate } as RecordingTemplate;
+    if (object.layout !== undefined && object.layout !== null) {
+      message.layout = String(object.layout);
+    } else {
+      message.layout = "";
+    }
+    if (object.wsUrl !== undefined && object.wsUrl !== null) {
+      message.wsUrl = String(object.wsUrl);
+    } else {
+      message.wsUrl = "";
+    }
+    if (object.token !== undefined && object.token !== null) {
+      message.token = String(object.token);
+    } else {
+      message.token = "";
+    }
+    if (object.roomName !== undefined && object.roomName !== null) {
+      message.roomName = String(object.roomName);
+    } else {
+      message.roomName = "";
+    }
+    return message;
+  },
+
+  toJSON(message: RecordingTemplate): unknown {
+    const obj: any = {};
+    message.layout !== undefined && (obj.layout = message.layout);
+    message.wsUrl !== undefined && (obj.wsUrl = message.wsUrl);
+    message.token !== undefined && (obj.token = message.token);
+    message.roomName !== undefined && (obj.roomName = message.roomName);
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<RecordingTemplate>): RecordingTemplate {
+    const message = { ...baseRecordingTemplate } as RecordingTemplate;
+    if (object.layout !== undefined && object.layout !== null) {
+      message.layout = object.layout;
+    } else {
+      message.layout = "";
+    }
+    if (object.wsUrl !== undefined && object.wsUrl !== null) {
+      message.wsUrl = object.wsUrl;
+    } else {
+      message.wsUrl = "";
+    }
+    if (object.token !== undefined && object.token !== null) {
+      message.token = object.token;
+    } else {
+      message.token = "";
+    }
+    if (object.roomName !== undefined && object.roomName !== null) {
+      message.roomName = object.roomName;
+    } else {
+      message.roomName = "";
+    }
+    return message;
+  },
+};
+
+const baseRecordingS3Output: object = {
+  bucket: "",
+  key: "",
+  accessKey: "",
+  secret: "",
+};
+
+export const RecordingS3Output = {
+  encode(
+    message: RecordingS3Output,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.bucket !== "") {
+      writer.uint32(10).string(message.bucket);
+    }
+    if (message.key !== "") {
+      writer.uint32(18).string(message.key);
+    }
+    if (message.accessKey !== "") {
+      writer.uint32(26).string(message.accessKey);
+    }
+    if (message.secret !== "") {
+      writer.uint32(34).string(message.secret);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): RecordingS3Output {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseRecordingS3Output } as RecordingS3Output;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.bucket = reader.string();
+          break;
+        case 2:
+          message.key = reader.string();
+          break;
+        case 3:
+          message.accessKey = reader.string();
+          break;
+        case 4:
+          message.secret = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RecordingS3Output {
+    const message = { ...baseRecordingS3Output } as RecordingS3Output;
+    if (object.bucket !== undefined && object.bucket !== null) {
+      message.bucket = String(object.bucket);
+    } else {
+      message.bucket = "";
+    }
+    if (object.key !== undefined && object.key !== null) {
+      message.key = String(object.key);
+    } else {
+      message.key = "";
+    }
+    if (object.accessKey !== undefined && object.accessKey !== null) {
+      message.accessKey = String(object.accessKey);
+    } else {
+      message.accessKey = "";
+    }
+    if (object.secret !== undefined && object.secret !== null) {
+      message.secret = String(object.secret);
+    } else {
+      message.secret = "";
+    }
+    return message;
+  },
+
+  toJSON(message: RecordingS3Output): unknown {
+    const obj: any = {};
+    message.bucket !== undefined && (obj.bucket = message.bucket);
+    message.key !== undefined && (obj.key = message.key);
+    message.accessKey !== undefined && (obj.accessKey = message.accessKey);
+    message.secret !== undefined && (obj.secret = message.secret);
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<RecordingS3Output>): RecordingS3Output {
+    const message = { ...baseRecordingS3Output } as RecordingS3Output;
+    if (object.bucket !== undefined && object.bucket !== null) {
+      message.bucket = object.bucket;
+    } else {
+      message.bucket = "";
+    }
+    if (object.key !== undefined && object.key !== null) {
+      message.key = object.key;
+    } else {
+      message.key = "";
+    }
+    if (object.accessKey !== undefined && object.accessKey !== null) {
+      message.accessKey = object.accessKey;
+    } else {
+      message.accessKey = "";
+    }
+    if (object.secret !== undefined && object.secret !== null) {
+      message.secret = object.secret;
+    } else {
+      message.secret = "";
+    }
+    return message;
+  },
+};
+
+const baseRecordingOptions: object = {
+  preset: "",
+  inputWidth: 0,
+  inputHeight: 0,
+  outputWidth: 0,
+  outputHeight: 0,
+  depth: 0,
+  framerate: 0,
+  audioBitrate: 0,
+  audioFrequency: 0,
+  videoBitrate: 0,
+};
+
+export const RecordingOptions = {
+  encode(
+    message: RecordingOptions,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.preset !== "") {
+      writer.uint32(10).string(message.preset);
+    }
+    if (message.inputWidth !== 0) {
+      writer.uint32(16).int32(message.inputWidth);
+    }
+    if (message.inputHeight !== 0) {
+      writer.uint32(24).int32(message.inputHeight);
+    }
+    if (message.outputWidth !== 0) {
+      writer.uint32(32).int32(message.outputWidth);
+    }
+    if (message.outputHeight !== 0) {
+      writer.uint32(40).int32(message.outputHeight);
+    }
+    if (message.depth !== 0) {
+      writer.uint32(48).int32(message.depth);
+    }
+    if (message.framerate !== 0) {
+      writer.uint32(56).int32(message.framerate);
+    }
+    if (message.audioBitrate !== 0) {
+      writer.uint32(64).int32(message.audioBitrate);
+    }
+    if (message.audioFrequency !== 0) {
+      writer.uint32(72).int32(message.audioFrequency);
+    }
+    if (message.videoBitrate !== 0) {
+      writer.uint32(80).int32(message.videoBitrate);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): RecordingOptions {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseRecordingOptions } as RecordingOptions;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.preset = reader.string();
+          break;
+        case 2:
+          message.inputWidth = reader.int32();
+          break;
+        case 3:
+          message.inputHeight = reader.int32();
+          break;
+        case 4:
+          message.outputWidth = reader.int32();
+          break;
+        case 5:
+          message.outputHeight = reader.int32();
+          break;
+        case 6:
+          message.depth = reader.int32();
+          break;
+        case 7:
+          message.framerate = reader.int32();
+          break;
+        case 8:
+          message.audioBitrate = reader.int32();
+          break;
+        case 9:
+          message.audioFrequency = reader.int32();
+          break;
+        case 10:
+          message.videoBitrate = reader.int32();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RecordingOptions {
+    const message = { ...baseRecordingOptions } as RecordingOptions;
+    if (object.preset !== undefined && object.preset !== null) {
+      message.preset = String(object.preset);
+    } else {
+      message.preset = "";
+    }
+    if (object.inputWidth !== undefined && object.inputWidth !== null) {
+      message.inputWidth = Number(object.inputWidth);
+    } else {
+      message.inputWidth = 0;
+    }
+    if (object.inputHeight !== undefined && object.inputHeight !== null) {
+      message.inputHeight = Number(object.inputHeight);
+    } else {
+      message.inputHeight = 0;
+    }
+    if (object.outputWidth !== undefined && object.outputWidth !== null) {
+      message.outputWidth = Number(object.outputWidth);
+    } else {
+      message.outputWidth = 0;
+    }
+    if (object.outputHeight !== undefined && object.outputHeight !== null) {
+      message.outputHeight = Number(object.outputHeight);
+    } else {
+      message.outputHeight = 0;
+    }
+    if (object.depth !== undefined && object.depth !== null) {
+      message.depth = Number(object.depth);
+    } else {
+      message.depth = 0;
+    }
+    if (object.framerate !== undefined && object.framerate !== null) {
+      message.framerate = Number(object.framerate);
+    } else {
+      message.framerate = 0;
+    }
+    if (object.audioBitrate !== undefined && object.audioBitrate !== null) {
+      message.audioBitrate = Number(object.audioBitrate);
+    } else {
+      message.audioBitrate = 0;
+    }
+    if (object.audioFrequency !== undefined && object.audioFrequency !== null) {
+      message.audioFrequency = Number(object.audioFrequency);
+    } else {
+      message.audioFrequency = 0;
+    }
+    if (object.videoBitrate !== undefined && object.videoBitrate !== null) {
+      message.videoBitrate = Number(object.videoBitrate);
+    } else {
+      message.videoBitrate = 0;
+    }
+    return message;
+  },
+
+  toJSON(message: RecordingOptions): unknown {
+    const obj: any = {};
+    message.preset !== undefined && (obj.preset = message.preset);
+    message.inputWidth !== undefined && (obj.inputWidth = message.inputWidth);
+    message.inputHeight !== undefined &&
+      (obj.inputHeight = message.inputHeight);
+    message.outputWidth !== undefined &&
+      (obj.outputWidth = message.outputWidth);
+    message.outputHeight !== undefined &&
+      (obj.outputHeight = message.outputHeight);
+    message.depth !== undefined && (obj.depth = message.depth);
+    message.framerate !== undefined && (obj.framerate = message.framerate);
+    message.audioBitrate !== undefined &&
+      (obj.audioBitrate = message.audioBitrate);
+    message.audioFrequency !== undefined &&
+      (obj.audioFrequency = message.audioFrequency);
+    message.videoBitrate !== undefined &&
+      (obj.videoBitrate = message.videoBitrate);
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<RecordingOptions>): RecordingOptions {
+    const message = { ...baseRecordingOptions } as RecordingOptions;
+    if (object.preset !== undefined && object.preset !== null) {
+      message.preset = object.preset;
+    } else {
+      message.preset = "";
+    }
+    if (object.inputWidth !== undefined && object.inputWidth !== null) {
+      message.inputWidth = object.inputWidth;
+    } else {
+      message.inputWidth = 0;
+    }
+    if (object.inputHeight !== undefined && object.inputHeight !== null) {
+      message.inputHeight = object.inputHeight;
+    } else {
+      message.inputHeight = 0;
+    }
+    if (object.outputWidth !== undefined && object.outputWidth !== null) {
+      message.outputWidth = object.outputWidth;
+    } else {
+      message.outputWidth = 0;
+    }
+    if (object.outputHeight !== undefined && object.outputHeight !== null) {
+      message.outputHeight = object.outputHeight;
+    } else {
+      message.outputHeight = 0;
+    }
+    if (object.depth !== undefined && object.depth !== null) {
+      message.depth = object.depth;
+    } else {
+      message.depth = 0;
+    }
+    if (object.framerate !== undefined && object.framerate !== null) {
+      message.framerate = object.framerate;
+    } else {
+      message.framerate = 0;
+    }
+    if (object.audioBitrate !== undefined && object.audioBitrate !== null) {
+      message.audioBitrate = object.audioBitrate;
+    } else {
+      message.audioBitrate = 0;
+    }
+    if (object.audioFrequency !== undefined && object.audioFrequency !== null) {
+      message.audioFrequency = object.audioFrequency;
+    } else {
+      message.audioFrequency = 0;
+    }
+    if (object.videoBitrate !== undefined && object.videoBitrate !== null) {
+      message.videoBitrate = object.videoBitrate;
+    } else {
+      message.videoBitrate = 0;
     }
     return message;
   },

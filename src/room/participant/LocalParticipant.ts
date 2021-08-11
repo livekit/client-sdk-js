@@ -1,6 +1,6 @@
 import log from 'loglevel';
 import { ParticipantInfo } from '../../proto/livekit_models';
-import { DataPacket, DataPacket_Kind } from '../../proto/livekit_rtc';
+import { AddTrackRequest, DataPacket, DataPacket_Kind } from '../../proto/livekit_rtc';
 import {
   PublishDataError,
   TrackInvalidError,
@@ -87,7 +87,17 @@ export default class LocalParticipant extends Participant {
     const cid = track.mediaStreamTrack.id;
 
     // create track publication from track
-    const ti = await this.engine.addTrack(cid, track.name, track.kind, track.dimensions);
+    const req = AddTrackRequest.fromPartial({
+      cid,
+      name: track.name,
+      type: Track.kindToProto(track.kind),
+      muted: track.isMuted,
+    });
+    if (track.dimensions) {
+      req.width = track.dimensions.width;
+      req.height = track.dimensions.height;
+    }
+    const ti = await this.engine.addTrack(req);
     const publication = new LocalTrackPublication(track.kind, ti, track);
     track.sid = ti.sid;
 
