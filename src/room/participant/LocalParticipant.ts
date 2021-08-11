@@ -230,17 +230,15 @@ export default class LocalParticipant extends Participant {
   updateInfo(info: ParticipantInfo) {
     super.updateInfo(info);
 
-    // match local track mute status to server
+    // match server track mute status to local
     info.tracks.forEach((ti) => {
       const pub = <LocalTrackPublication> this.tracks.get(ti.sid);
       if (!pub) {
         return;
       }
 
-      if (ti.muted && !pub.isMuted) {
-        pub.mute();
-      } else if (!ti.muted && pub.isMuted) {
-        pub.unmute();
+      if (ti.muted !== pub.isMuted) {
+        this.engine.updateMuteStatus(ti.sid, pub.isMuted);
       }
     });
   }
