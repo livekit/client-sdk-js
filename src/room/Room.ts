@@ -69,13 +69,7 @@ class Room extends EventEmitter {
     this.participants = new Map();
     this.engine = new RTCEngine(client, config);
 
-    // by using an AudioContext, it reduces lag on audio elements
-    // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
-    // @ts-ignore
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (AudioContext) {
-      this.audioContext = new AudioContext();
-    }
+    this.acquireAudioContext();
 
     this.engine.on(
       EngineEvent.MediaTrackAdded,
@@ -185,6 +179,8 @@ class Room extends EventEmitter {
    * - `getUserMedia`
    */
   async startAudio() {
+    this.acquireAudioContext();
+
     const elements: Array<HTMLMediaElement> = [];
     this.participants.forEach((p) => {
       p.audioTracks.forEach((t) => {
@@ -369,6 +365,19 @@ class Room extends EventEmitter {
     this.audioEnabled = false;
     this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
   };
+
+  private acquireAudioContext() {
+    if (this.audioContext) {
+      this.audioContext.close();
+    }
+    // by using an AudioContext, it reduces lag on audio elements
+    // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
+    // @ts-ignore
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (AudioContext) {
+      this.audioContext = new AudioContext();
+    }
+  }
 
   private getOrCreateParticipant(
     id: string,

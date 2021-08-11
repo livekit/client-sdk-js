@@ -65,6 +65,14 @@ export interface CreateVideoTrackOptions extends CreateLocalTrackOptions {
   resolution?: VideoResolutionConstraint;
 }
 
+export interface CreateScreenTrackOptions {
+  /** name of track, defaults to "screen" */
+  name?: string;
+
+  /** capture resolution, defaults to full HD */
+  resolution?: VideoResolutionConstraint;
+}
+
 export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
   /**
    * specifies whether automatic gain control is preferred and/or required

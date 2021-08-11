@@ -10,7 +10,8 @@ import LocalAudioTrack from './room/track/LocalAudioTrack';
 import LocalTrack from './room/track/LocalTrack';
 import LocalVideoTrack from './room/track/LocalVideoTrack';
 import {
-  CreateAudioTrackOptions, CreateLocalTracksOptions, CreateVideoTrackOptions, TrackPublishOptions,
+  CreateAudioTrackOptions, CreateLocalTracksOptions, CreateScreenTrackOptions,
+  CreateVideoTrackOptions, TrackPublishOptions, VideoPresets,
 } from './room/track/options';
 import { Track } from './room/track/Track';
 
@@ -124,6 +125,39 @@ export async function createLocalAudioTrack(
     video: false,
   });
   return <LocalAudioTrack>tracks[0];
+}
+
+/**
+ * Creates a [[LocalVideoTrack]] of screen capture with getDisplayMedia()
+ */
+export async function createLocalScreenTrack(
+  options?: CreateScreenTrackOptions,
+): Promise<LocalVideoTrack> {
+  if (options === undefined) {
+    options = {};
+  }
+  if (options.name === undefined) {
+    options.name = 'screen';
+  }
+  if (options.resolution === undefined) {
+    options.resolution = VideoPresets.fhd.resolution;
+  }
+
+  // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
+  // @ts-ignore
+  const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
+    audio: false,
+    video: {
+      width: options.resolution.width,
+      height: options.resolution.height,
+    },
+  });
+
+  const tracks = stream.getVideoTracks();
+  if (tracks.length === 0) {
+    throw new TrackInvalidError('no video track found');
+  }
+  return new LocalVideoTrack(tracks[0], options.name);
 }
 
 /**

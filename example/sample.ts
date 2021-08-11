@@ -1,5 +1,5 @@
 import {
-  connect, CreateVideoTrackOptions,
+  connect, createLocalScreenTrack, CreateVideoTrackOptions,
   LocalAudioTrack,
   LocalTrack,
   LocalVideoTrack,
@@ -279,24 +279,10 @@ window.shareScreen = async () => {
     return;
   }
 
-  const preset = VideoPresets.hd;
-  // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
-  // @ts-ignore
-  const ssMediaStream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
-    audio: false,
-    video: {
-      width: preset.resolution.width,
-      height: preset.resolution.height,
-    },
+  screenTrack = await createLocalScreenTrack();
+  await currentRoom.localParticipant.publishTrack(screenTrack, {
+    videoEncoding: VideoPresets.fhd.encoding,
   });
-  for (const t of ssMediaStream.getTracks()) {
-    screenTrack = new LocalVideoTrack(t, 'screen');
-    await currentRoom.localParticipant.publishTrack(t, {
-      videoEncoding: { maxFramerate: 30, maxBitrate: 3000000 },
-      videoCodec: 'h264',
-      simulcast: false,
-    });
-  }
 };
 
 window.disconnectSignal = () => {
