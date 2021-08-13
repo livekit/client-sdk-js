@@ -393,6 +393,7 @@ export default class LocalParticipant extends Participant {
         {
           rid: 'f',
           maxBitrate: videoEncoding.maxBitrate,
+          /* @ts-ignore */
           maxFramerate: videoEncoding.maxFramerate,
         },
       ];
@@ -407,12 +408,14 @@ export default class LocalParticipant extends Participant {
           rid: 'h',
           scaleResolutionDownBy: height / midPreset.height,
           maxBitrate: midPreset.encoding.maxBitrate,
+          /* @ts-ignore */
           maxFramerate: midPreset.encoding.maxFramerate,
         });
         encodings.push({
           rid: 'q',
           scaleResolutionDownBy: height / lowPreset.height,
           maxBitrate: lowPreset.encoding.maxBitrate,
+          /* @ts-ignore */
           maxFramerate: lowPreset.encoding.maxFramerate,
         });
       } else {
@@ -420,6 +423,7 @@ export default class LocalParticipant extends Participant {
           rid: 'h',
           scaleResolutionDownBy: height / lowPreset.height,
           maxBitrate: lowPreset.encoding.maxBitrate,
+          /* @ts-ignore */
           maxFramerate: lowPreset.encoding.maxFramerate,
         });
       }
