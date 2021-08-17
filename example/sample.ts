@@ -160,16 +160,22 @@ window.connectWithFormInput = () => {
   const url = (<HTMLInputElement>$('url')).value;
   const token = (<HTMLInputElement>$('token')).value;
   const simulcast = (<HTMLInputElement>$('simulcast')).checked;
+  const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
 
-  window.connectToRoom(url, token, simulcast);
+  window.connectToRoom(url, token, simulcast, forceTURN);
 };
 
 window.connectToRoom = async (
   url: string,
   token: string,
   simulcast: boolean = false,
+  forceTURN: boolean = false,
 ) => {
   let room: Room;
+  const rtcConfig: RTCConfiguration = {};
+  if (forceTURN) {
+    rtcConfig.iceTransportPolicy = 'relay';
+  }
   try {
     room = await connect(url, token, {
       logLevel: LogLevel.debug,
@@ -178,6 +184,7 @@ window.connectToRoom = async (
         resolution: VideoPresets.qhd.resolution,
       },
       simulcast,
+      rtcConfig,
     });
   } catch (error) {
     let message: any = error;
