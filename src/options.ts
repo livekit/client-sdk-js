@@ -18,6 +18,11 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   iceServers?: RTCIceServer[];
 
   /**
+   * use to override any RTCConfiguration options.
+   */
+  rtcConfig?: RTCConfiguration;
+
+  /**
    * Tracks to publish to the room after joining. These can be obtained by calling
    * [[createLocalTracks]]. when this is passed in, it'll ignore audio and video options
    */

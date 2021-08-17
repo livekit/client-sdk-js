@@ -49,7 +49,7 @@ export async function connect(
 
   log.setLevel(options.logLevel);
 
-  const config: RTCConfiguration = {};
+  const config: RTCConfiguration = options.rtcConfig ?? {};
   if (options.iceServers) {
     config.iceServers = options.iceServers;
   }
