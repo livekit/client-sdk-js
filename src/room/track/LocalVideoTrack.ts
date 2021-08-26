@@ -9,6 +9,9 @@ import { Track } from './Track';
 // upgrade delay for diff qualities
 const QUALITY_UPGRADE_DELAY = 60 * 1000;
 
+// avoid downgrading too quickly
+const QUALITY_DOWNGRADE_DELAY = 5 * 1000;
+
 const ridOrder = ['f', 'h', 'q'];
 
 export default class LocalVideoTrack extends LocalTrack {
@@ -19,6 +22,9 @@ export default class LocalVideoTrack extends LocalTrack {
 
   // last time it had a change in quality
   private lastQualityChange?: number;
+
+  // last time we made an explicit change
+  private lastExplicitQualityChange?: number;
 
   private encodings?: RTCRtpEncodingParameters[];
 
@@ -159,6 +165,7 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     this.lastQualityChange = new Date().getTime();
+    this.lastExplicitQualityChange = new Date().getTime();
 
     this.signalClient?.sendSetSimulcastLayers(this.sid, layers);
 
@@ -251,6 +258,11 @@ export default class LocalVideoTrack extends LocalTrack {
 
       log.debug('upgrading video quality to', nextQuality);
       this.setPublishingQuality(nextQuality);
+      return;
+    }
+
+    if (this.lastExplicitQualityChange
+      && ((new Date()).getTime() - this.lastExplicitQualityChange) < QUALITY_DOWNGRADE_DELAY) {
       return;
     }
 
