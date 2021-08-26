@@ -6,7 +6,7 @@ import LocalTrack from './LocalTrack';
 import { CreateVideoTrackOptions } from './options';
 import { Track } from './Track';
 
-// upgrade delay for diff qualities
+// delay before attempting to upgrade
 const QUALITY_UPGRADE_DELAY = 60 * 1000;
 
 // avoid downgrading too quickly
@@ -238,7 +238,7 @@ export default class LocalVideoTrack extends LocalTrack {
     // to flicker, meaning it will attempt to send that layer again shortly
     // afterwards, flip-flopping every few seconds. We want to avoid that.
     //
-    // Note: even after bandwidth recoevers, the flip-flopping behavior continues
+    // Note: even after bandwidth recovers, the flip-flopping behavior continues
     // this is possibly due to SFU-side PLI generation and imperfect bandwidth estimation
     if (sendStats.qualityLimitationResolutionChanges
         - lastStats.qualityLimitationResolutionChanges > 0) {
@@ -261,6 +261,8 @@ export default class LocalVideoTrack extends LocalTrack {
       return;
     }
 
+    // if we've upgraded or downgraded recently, give it a bit of time before
+    // downgrading again
     if (this.lastExplicitQualityChange
       && ((new Date()).getTime() - this.lastExplicitQualityChange) < QUALITY_DOWNGRADE_DELAY) {
       return;
