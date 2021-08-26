@@ -6,15 +6,11 @@ import LocalTrack from './LocalTrack';
 import { CreateVideoTrackOptions } from './options';
 import { Track } from './Track';
 
-// upgrade delay for diff qualities
-const QUALITY_UPGRADE_DELAY: { [key: string]: number } = {
-  h: 120 * 1000,
-  q: 60 * 1000,
-};
+// delay before attempting to upgrade
+const QUALITY_UPGRADE_DELAY = 60 * 1000;
 
-// once it's disabled this number of times, it will be turned off for the rest
-// of the session
-const MAX_QUALITY_ATTEMPTS = 3;
+// avoid downgrading too quickly
+const QUALITY_DOWNGRADE_DELAY = 5 * 1000;
 
 const ridOrder = ['f', 'h', 'q'];
 
@@ -27,12 +23,8 @@ export default class LocalVideoTrack extends LocalTrack {
   // last time it had a change in quality
   private lastQualityChange?: number;
 
-  // keep track of times we had to disable a track
-  private disableCount: { [number: string]: number } = {
-    2: 0,
-    1: 0,
-    0: 0,
-  };
+  // last time we made an explicit change
+  private lastExplicitQualityChange?: number;
 
   private encodings?: RTCRtpEncodingParameters[];
 
@@ -173,6 +165,7 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     this.lastQualityChange = new Date().getTime();
+    this.lastExplicitQualityChange = new Date().getTime();
 
     this.signalClient?.sendSetSimulcastLayers(this.sid, layers);
 
@@ -236,17 +229,17 @@ export default class LocalVideoTrack extends LocalTrack {
     }
     const currentQuality = videoQualityForRid(rid);
 
-    // adaptive simulcast algorithm notes (dz)
+    // adaptive simulcast algorithm notes (davidzhao)
     // Chrome (and other browsers) will automatically pause the highest layer
     // when it runs into bandwidth limitations. When that happens, it would not
     // be able to send any new frames between the two stats checks.
-
+    //
     // We need to set that layer to inactive intentionally, because chrome tends
     // to flicker, meaning it will attempt to send that layer again shortly
     // afterwards, flip-flopping every few seconds. We want to avoid that.
     //
-    // We also have to notify the server that the layer isn't available, so
-    // the SFU could stop serving it to clients.
+    // Note: even after bandwidth recovers, the flip-flopping behavior continues
+    // this is possibly due to SFU-side PLI generation and imperfect bandwidth estimation
     if (sendStats.qualityLimitationResolutionChanges
         - lastStats.qualityLimitationResolutionChanges > 0) {
       this.lastQualityChange = new Date().getTime();
@@ -259,16 +252,19 @@ export default class LocalVideoTrack extends LocalTrack {
       if (currentQuality === VideoQuality.HIGH || !this.lastQualityChange) return;
 
       const nextQuality = currentQuality + 1;
-      const upgradeDelay = QUALITY_UPGRADE_DELAY[rid];
-      if (!upgradeDelay || (new Date()).getTime() - this.lastQualityChange < upgradeDelay) {
+      if ((new Date()).getTime() - this.lastQualityChange < QUALITY_UPGRADE_DELAY) {
         return;
       }
 
-      if (this.disableCount[nextQuality] >= MAX_QUALITY_ATTEMPTS) {
-        return;
-      }
       log.debug('upgrading video quality to', nextQuality);
       this.setPublishingQuality(nextQuality);
+      return;
+    }
+
+    // if we've upgraded or downgraded recently, give it a bit of time before
+    // downgrading again
+    if (this.lastExplicitQualityChange
+      && ((new Date()).getTime() - this.lastExplicitQualityChange) < QUALITY_DOWNGRADE_DELAY) {
       return;
     }
 
@@ -282,7 +278,6 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     log.debug('downgrading video quality to', currentQuality - 1);
-    this.disableCount[currentQuality] += 1;
     this.setPublishingQuality(currentQuality - 1);
   }
 }
