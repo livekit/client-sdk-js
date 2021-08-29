@@ -69,6 +69,12 @@ export interface CreateScreenTrackOptions {
   /** name of track, defaults to "screen" */
   name?: string;
 
+  /**
+   * true to capture audio shared. browser support for audio capturing in
+   * screenshare is limited: https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia#browser_compatibility
+   */
+  audio?: boolean;
+
   /** capture resolution, defaults to full HD */
   resolution?: VideoResolutionConstraint;
 }

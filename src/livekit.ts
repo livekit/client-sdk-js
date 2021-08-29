@@ -128,11 +128,13 @@ export async function createLocalAudioTrack(
 }
 
 /**
- * Creates a [[LocalVideoTrack]] of screen capture with getDisplayMedia()
+ * Creates a screen capture tracks with getDisplayMedia().
+ * A LocalVideoTrack is always created and returned.
+ * If { audio: true }, and the browser supports audio capture, a LocalAudioTrack is also created.
  */
-export async function createLocalScreenTrack(
+export async function createLocalScreenTracks(
   options?: CreateScreenTrackOptions,
-): Promise<LocalVideoTrack> {
+): Promise<Array<LocalTrack>> {
   if (options === undefined) {
     options = {};
   }
@@ -146,7 +148,7 @@ export async function createLocalScreenTrack(
   // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
   // @ts-ignore
   const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
-    audio: false,
+    audio: options.audio ?? false,
     video: {
       width: options.resolution.width,
       height: options.resolution.height,
@@ -157,7 +159,13 @@ export async function createLocalScreenTrack(
   if (tracks.length === 0) {
     throw new TrackInvalidError('no video track found');
   }
-  return new LocalVideoTrack(tracks[0], options.name);
+  const localTracks: Array<LocalTrack> = [
+    new LocalVideoTrack(tracks[0], options.name),
+  ];
+  if (stream.getAudioTracks().length > 0) {
+    localTracks.push(new LocalAudioTrack(stream.getAudioTracks()[0], options.name));
+  }
+  return localTracks;
 }
 
 /**
