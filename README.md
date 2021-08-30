@@ -133,6 +133,26 @@ room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
 });
 ```
 
+### Screen share
+
+On desktop browsers, you may also share your screen with others. Refer to [browser compatibility](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia#browser_compatibility).
+
+Audio capture is supported only a subset of desktop browsers.
+
+```typescript
+const tracks = await createLocalScreenTracks({
+  // set to true in order to capture audio
+  audio: true,
+  // defaults to 1080p
+  resolution: VideoPresets.fhd.resolution,
+});
+
+tracks.forEach((track) => {
+  // publish video and audio of the screenshare
+  room.localParticipant.publishTrack(track);
+});
+```
+
 ### Switching input devices
 
 At any point after publishing, you can switch the input devices and other capture settings on both audio and video tracks. For example, switching between regular and selfie camera or changing microphone inputs. This is performed with `restartTrack` on the `LocalAudioTrack` or `LocalVideoTrack`.
@@ -166,4 +186,4 @@ This library uses [loglevel](https://github.com/pimterry/loglevel) for its inter
 | Chrome          | Windows, macOS, Linux | Android   |
 | Firefox         | Windows, macOS, Linux | Android   |
 | Safari          | macOS                 | iOS       |
-| Edge (Chromium) | Windows, macOS        |
+| Edge (Chromium) | Windows, macOS        |           |

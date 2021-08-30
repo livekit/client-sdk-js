@@ -1,5 +1,5 @@
 import {
-  connect, createLocalScreenTrack, CreateVideoTrackOptions,
+  connect, createLocalScreenTracks, CreateVideoTrackOptions,
   LocalAudioTrack,
   LocalTrack,
   LocalVideoTrack,
@@ -286,9 +286,19 @@ window.shareScreen = async () => {
     return;
   }
 
-  screenTrack = await createLocalScreenTrack();
-  await currentRoom.localParticipant.publishTrack(screenTrack, {
-    videoEncoding: VideoPresets.fhd.encoding,
+  const screenTracks = await createLocalScreenTracks({
+    audio: true,
+  });
+  screenTracks.forEach((track) => {
+    if (track instanceof LocalVideoTrack) {
+      screenTrack = track;
+      currentRoom.localParticipant.publishTrack(track, {
+        videoEncoding: VideoPresets.fhd.encoding,
+      });
+    } else {
+      // publish audio track as well
+      currentRoom.localParticipant.publishTrack(track);
+    }
   });
 };
 
