@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "0.11.2",
+  "version": "0.12.0",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "dist/index.js",
   "source": "src/index.ts",
