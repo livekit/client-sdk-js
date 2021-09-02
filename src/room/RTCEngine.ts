@@ -1,10 +1,9 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
-import { TrackInfo } from '../proto/livekit_models';
+import { DataPacket, TrackInfo } from '../proto/livekit_models';
 import {
   AddTrackRequest,
-  DataPacket,
   JoinResponse,
   SignalTarget,
   TrackPublishedResponse,
@@ -12,7 +11,7 @@ import {
 import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
-import { sleep, useLegacyAPI } from './utils';
+import { sleep } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -26,8 +25,6 @@ export default class RTCEngine extends EventEmitter {
   client: SignalClient;
 
   rtcConfig: RTCConfiguration;
-
-  useLegacy: boolean;
 
   lossyDC?: RTCDataChannel;
 
@@ -50,15 +47,13 @@ export default class RTCEngine extends EventEmitter {
     super();
     this.client = client;
     this.rtcConfig = config || {};
-    this.useLegacy = useLegacyAPI();
-    log.trace('creating RTCEngine', 'useLegacy', this.useLegacy);
   }
 
   async join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse> {
     this.url = url;
     this.token = token;
 
-    const joinResponse = await this.client.join(url, token, this.useLegacy, opts);
+    const joinResponse = await this.client.join(url, token, opts);
     this.isClosed = false;
 
     if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
@@ -76,10 +71,6 @@ export default class RTCEngine extends EventEmitter {
 
     // update ICE servers before creating PeerConnection
     if (!this.publisher) {
-      const conf: any = this.rtcConfig;
-      if (this.useLegacy) {
-        conf.sdpSemantics = 'plan-b';
-      }
       this.publisher = new PCTransport(this.rtcConfig);
       this.subscriber = new PCTransport(this.rtcConfig);
       this.configure();
@@ -169,18 +160,9 @@ export default class RTCEngine extends EventEmitter {
       }
     };
 
-    if (this.useLegacy) {
-      this.subscriber.pc.addEventListener('addstream', (ev: any) => {
-        const { stream } = ev;
-        stream.getTracks().forEach((t: MediaStreamTrack) => {
-          this.emitTrackEvent(t, stream);
-        });
-      });
-    } else {
-      this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
-        this.emitTrackEvent(ev.track, ev.streams[0], ev.receiver);
-      };
-    }
+    this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
+      this.emitTrackEvent(ev.track, ev.streams[0], ev.receiver);
+    };
 
     // data channels
     this.lossyDC = this.publisher.pc.createDataChannel(lossyDataChannel, {
@@ -264,6 +246,10 @@ export default class RTCEngine extends EventEmitter {
     this.client.onLeave = () => {
       this.close();
       this.emit(EngineEvent.Disconnected);
+    };
+
+    this.client.onRemoteMuteChanged = (trackSid, muted) => {
+      this.emit(EngineEvent.RemoteMuteChanged, trackSid, muted);
     };
   }
 

@@ -63,7 +63,7 @@ export interface ParticipantInfo {
   state: ParticipantInfo_State;
   tracks: TrackInfo[];
   metadata: string;
-  /** timestamp when participant joined room */
+  /** timestamp when participant joined room, in seconds */
   joinedAt: number;
   /** hidden participant (used for recording) */
   hidden: boolean;
@@ -137,40 +137,64 @@ export interface TrackInfo {
   simulcast: boolean;
 }
 
-/** old DataTrack message */
-export interface DataMessage {
-  text: string | undefined;
-  binary: Uint8Array | undefined;
+/** new DataPacket API */
+export interface DataPacket {
+  kind: DataPacket_Kind;
+  user?: UserPacket | undefined;
+  speaker?: ActiveSpeakerUpdate | undefined;
 }
 
-export interface RecordingTemplate {
-  layout: string;
-  wsUrl: string;
-  /** either token or room name required */
-  token: string;
-  roomName: string;
+export enum DataPacket_Kind {
+  RELIABLE = 0,
+  LOSSY = 1,
+  UNRECOGNIZED = -1,
 }
 
-export interface RecordingS3Output {
-  bucket: string;
-  key: string;
-  /** optional */
-  accessKey: string;
-  secret: string;
+export function dataPacket_KindFromJSON(object: any): DataPacket_Kind {
+  switch (object) {
+    case 0:
+    case "RELIABLE":
+      return DataPacket_Kind.RELIABLE;
+    case 1:
+    case "LOSSY":
+      return DataPacket_Kind.LOSSY;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return DataPacket_Kind.UNRECOGNIZED;
+  }
 }
 
-export interface RecordingOptions {
-  /** 720p30, 720p60, 1080p30, or 1080p60 */
-  preset: string;
-  inputWidth: number;
-  inputHeight: number;
-  outputWidth: number;
-  outputHeight: number;
-  depth: number;
-  framerate: number;
-  audioBitrate: number;
-  audioFrequency: number;
-  videoBitrate: number;
+export function dataPacket_KindToJSON(object: DataPacket_Kind): string {
+  switch (object) {
+    case DataPacket_Kind.RELIABLE:
+      return "RELIABLE";
+    case DataPacket_Kind.LOSSY:
+      return "LOSSY";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+export interface ActiveSpeakerUpdate {
+  speakers: SpeakerInfo[];
+}
+
+export interface SpeakerInfo {
+  sid: string;
+  /** audio level, 0-1.0, 1 is loudest */
+  level: number;
+  /** true if speaker is currently active */
+  active: boolean;
+}
+
+export interface UserPacket {
+  /** participant ID of user that sent the message */
+  participantSid: string;
+  /** user defined payload */
+  payload: Uint8Array;
+  /** the ID of the participants who will receive the message (the message will be sent to all the people in the room if this variable is empty) */
+  destinationSids: string[];
 }
 
 const baseRoom: object = {
@@ -773,128 +797,43 @@ export const TrackInfo = {
   },
 };
 
-const baseDataMessage: object = {};
+const baseDataPacket: object = { kind: 0 };
 
-export const DataMessage = {
+export const DataPacket = {
   encode(
-    message: DataMessage,
+    message: DataPacket,
     writer: _m0.Writer = _m0.Writer.create()
   ): _m0.Writer {
-    if (message.text !== undefined) {
-      writer.uint32(10).string(message.text);
+    if (message.kind !== 0) {
+      writer.uint32(8).int32(message.kind);
     }
-    if (message.binary !== undefined) {
-      writer.uint32(18).bytes(message.binary);
+    if (message.user !== undefined) {
+      UserPacket.encode(message.user, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.speaker !== undefined) {
+      ActiveSpeakerUpdate.encode(
+        message.speaker,
+        writer.uint32(26).fork()
+      ).ldelim();
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): DataMessage {
+  decode(input: _m0.Reader | Uint8Array, length?: number): DataPacket {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseDataMessage } as DataMessage;
+    const message = { ...baseDataPacket } as DataPacket;
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.text = reader.string();
+          message.kind = reader.int32() as any;
           break;
         case 2:
-          message.binary = reader.bytes();
-          break;
-        default:
-          reader.skipType(tag & 7);
-          break;
-      }
-    }
-    return message;
-  },
-
-  fromJSON(object: any): DataMessage {
-    const message = { ...baseDataMessage } as DataMessage;
-    if (object.text !== undefined && object.text !== null) {
-      message.text = String(object.text);
-    } else {
-      message.text = undefined;
-    }
-    if (object.binary !== undefined && object.binary !== null) {
-      message.binary = bytesFromBase64(object.binary);
-    }
-    return message;
-  },
-
-  toJSON(message: DataMessage): unknown {
-    const obj: any = {};
-    message.text !== undefined && (obj.text = message.text);
-    message.binary !== undefined &&
-      (obj.binary =
-        message.binary !== undefined
-          ? base64FromBytes(message.binary)
-          : undefined);
-    return obj;
-  },
-
-  fromPartial(object: DeepPartial<DataMessage>): DataMessage {
-    const message = { ...baseDataMessage } as DataMessage;
-    if (object.text !== undefined && object.text !== null) {
-      message.text = object.text;
-    } else {
-      message.text = undefined;
-    }
-    if (object.binary !== undefined && object.binary !== null) {
-      message.binary = object.binary;
-    } else {
-      message.binary = undefined;
-    }
-    return message;
-  },
-};
-
-const baseRecordingTemplate: object = {
-  layout: "",
-  wsUrl: "",
-  token: "",
-  roomName: "",
-};
-
-export const RecordingTemplate = {
-  encode(
-    message: RecordingTemplate,
-    writer: _m0.Writer = _m0.Writer.create()
-  ): _m0.Writer {
-    if (message.layout !== "") {
-      writer.uint32(10).string(message.layout);
-    }
-    if (message.wsUrl !== "") {
-      writer.uint32(18).string(message.wsUrl);
-    }
-    if (message.token !== "") {
-      writer.uint32(26).string(message.token);
-    }
-    if (message.roomName !== "") {
-      writer.uint32(34).string(message.roomName);
-    }
-    return writer;
-  },
-
-  decode(input: _m0.Reader | Uint8Array, length?: number): RecordingTemplate {
-    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseRecordingTemplate } as RecordingTemplate;
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1:
-          message.layout = reader.string();
-          break;
-        case 2:
-          message.wsUrl = reader.string();
+          message.user = UserPacket.decode(reader, reader.uint32());
           break;
         case 3:
-          message.token = reader.string();
-          break;
-        case 4:
-          message.roomName = reader.string();
+          message.speaker = ActiveSpeakerUpdate.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -904,111 +843,83 @@ export const RecordingTemplate = {
     return message;
   },
 
-  fromJSON(object: any): RecordingTemplate {
-    const message = { ...baseRecordingTemplate } as RecordingTemplate;
-    if (object.layout !== undefined && object.layout !== null) {
-      message.layout = String(object.layout);
+  fromJSON(object: any): DataPacket {
+    const message = { ...baseDataPacket } as DataPacket;
+    if (object.kind !== undefined && object.kind !== null) {
+      message.kind = dataPacket_KindFromJSON(object.kind);
     } else {
-      message.layout = "";
+      message.kind = 0;
     }
-    if (object.wsUrl !== undefined && object.wsUrl !== null) {
-      message.wsUrl = String(object.wsUrl);
+    if (object.user !== undefined && object.user !== null) {
+      message.user = UserPacket.fromJSON(object.user);
     } else {
-      message.wsUrl = "";
+      message.user = undefined;
     }
-    if (object.token !== undefined && object.token !== null) {
-      message.token = String(object.token);
+    if (object.speaker !== undefined && object.speaker !== null) {
+      message.speaker = ActiveSpeakerUpdate.fromJSON(object.speaker);
     } else {
-      message.token = "";
-    }
-    if (object.roomName !== undefined && object.roomName !== null) {
-      message.roomName = String(object.roomName);
-    } else {
-      message.roomName = "";
+      message.speaker = undefined;
     }
     return message;
   },
 
-  toJSON(message: RecordingTemplate): unknown {
+  toJSON(message: DataPacket): unknown {
     const obj: any = {};
-    message.layout !== undefined && (obj.layout = message.layout);
-    message.wsUrl !== undefined && (obj.wsUrl = message.wsUrl);
-    message.token !== undefined && (obj.token = message.token);
-    message.roomName !== undefined && (obj.roomName = message.roomName);
+    message.kind !== undefined &&
+      (obj.kind = dataPacket_KindToJSON(message.kind));
+    message.user !== undefined &&
+      (obj.user = message.user ? UserPacket.toJSON(message.user) : undefined);
+    message.speaker !== undefined &&
+      (obj.speaker = message.speaker
+        ? ActiveSpeakerUpdate.toJSON(message.speaker)
+        : undefined);
     return obj;
   },
 
-  fromPartial(object: DeepPartial<RecordingTemplate>): RecordingTemplate {
-    const message = { ...baseRecordingTemplate } as RecordingTemplate;
-    if (object.layout !== undefined && object.layout !== null) {
-      message.layout = object.layout;
+  fromPartial(object: DeepPartial<DataPacket>): DataPacket {
+    const message = { ...baseDataPacket } as DataPacket;
+    if (object.kind !== undefined && object.kind !== null) {
+      message.kind = object.kind;
     } else {
-      message.layout = "";
+      message.kind = 0;
     }
-    if (object.wsUrl !== undefined && object.wsUrl !== null) {
-      message.wsUrl = object.wsUrl;
+    if (object.user !== undefined && object.user !== null) {
+      message.user = UserPacket.fromPartial(object.user);
     } else {
-      message.wsUrl = "";
+      message.user = undefined;
     }
-    if (object.token !== undefined && object.token !== null) {
-      message.token = object.token;
+    if (object.speaker !== undefined && object.speaker !== null) {
+      message.speaker = ActiveSpeakerUpdate.fromPartial(object.speaker);
     } else {
-      message.token = "";
-    }
-    if (object.roomName !== undefined && object.roomName !== null) {
-      message.roomName = object.roomName;
-    } else {
-      message.roomName = "";
+      message.speaker = undefined;
     }
     return message;
   },
 };
 
-const baseRecordingS3Output: object = {
-  bucket: "",
-  key: "",
-  accessKey: "",
-  secret: "",
-};
+const baseActiveSpeakerUpdate: object = {};
 
-export const RecordingS3Output = {
+export const ActiveSpeakerUpdate = {
   encode(
-    message: RecordingS3Output,
+    message: ActiveSpeakerUpdate,
     writer: _m0.Writer = _m0.Writer.create()
   ): _m0.Writer {
-    if (message.bucket !== "") {
-      writer.uint32(10).string(message.bucket);
-    }
-    if (message.key !== "") {
-      writer.uint32(18).string(message.key);
-    }
-    if (message.accessKey !== "") {
-      writer.uint32(26).string(message.accessKey);
-    }
-    if (message.secret !== "") {
-      writer.uint32(34).string(message.secret);
+    for (const v of message.speakers) {
+      SpeakerInfo.encode(v!, writer.uint32(10).fork()).ldelim();
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): RecordingS3Output {
+  decode(input: _m0.Reader | Uint8Array, length?: number): ActiveSpeakerUpdate {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseRecordingS3Output } as RecordingS3Output;
+    const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
+    message.speakers = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.bucket = reader.string();
-          break;
-        case 2:
-          message.key = reader.string();
-          break;
-        case 3:
-          message.accessKey = reader.string();
-          break;
-        case 4:
-          message.secret = reader.string();
+          message.speakers.push(SpeakerInfo.decode(reader, reader.uint32()));
           break;
         default:
           reader.skipType(tag & 7);
@@ -1018,153 +929,75 @@ export const RecordingS3Output = {
     return message;
   },
 
-  fromJSON(object: any): RecordingS3Output {
-    const message = { ...baseRecordingS3Output } as RecordingS3Output;
-    if (object.bucket !== undefined && object.bucket !== null) {
-      message.bucket = String(object.bucket);
-    } else {
-      message.bucket = "";
-    }
-    if (object.key !== undefined && object.key !== null) {
-      message.key = String(object.key);
-    } else {
-      message.key = "";
-    }
-    if (object.accessKey !== undefined && object.accessKey !== null) {
-      message.accessKey = String(object.accessKey);
-    } else {
-      message.accessKey = "";
-    }
-    if (object.secret !== undefined && object.secret !== null) {
-      message.secret = String(object.secret);
-    } else {
-      message.secret = "";
+  fromJSON(object: any): ActiveSpeakerUpdate {
+    const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
+    message.speakers = [];
+    if (object.speakers !== undefined && object.speakers !== null) {
+      for (const e of object.speakers) {
+        message.speakers.push(SpeakerInfo.fromJSON(e));
+      }
     }
     return message;
   },
 
-  toJSON(message: RecordingS3Output): unknown {
+  toJSON(message: ActiveSpeakerUpdate): unknown {
     const obj: any = {};
-    message.bucket !== undefined && (obj.bucket = message.bucket);
-    message.key !== undefined && (obj.key = message.key);
-    message.accessKey !== undefined && (obj.accessKey = message.accessKey);
-    message.secret !== undefined && (obj.secret = message.secret);
+    if (message.speakers) {
+      obj.speakers = message.speakers.map((e) =>
+        e ? SpeakerInfo.toJSON(e) : undefined
+      );
+    } else {
+      obj.speakers = [];
+    }
     return obj;
   },
 
-  fromPartial(object: DeepPartial<RecordingS3Output>): RecordingS3Output {
-    const message = { ...baseRecordingS3Output } as RecordingS3Output;
-    if (object.bucket !== undefined && object.bucket !== null) {
-      message.bucket = object.bucket;
-    } else {
-      message.bucket = "";
-    }
-    if (object.key !== undefined && object.key !== null) {
-      message.key = object.key;
-    } else {
-      message.key = "";
-    }
-    if (object.accessKey !== undefined && object.accessKey !== null) {
-      message.accessKey = object.accessKey;
-    } else {
-      message.accessKey = "";
-    }
-    if (object.secret !== undefined && object.secret !== null) {
-      message.secret = object.secret;
-    } else {
-      message.secret = "";
+  fromPartial(object: DeepPartial<ActiveSpeakerUpdate>): ActiveSpeakerUpdate {
+    const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
+    message.speakers = [];
+    if (object.speakers !== undefined && object.speakers !== null) {
+      for (const e of object.speakers) {
+        message.speakers.push(SpeakerInfo.fromPartial(e));
+      }
     }
     return message;
   },
 };
 
-const baseRecordingOptions: object = {
-  preset: "",
-  inputWidth: 0,
-  inputHeight: 0,
-  outputWidth: 0,
-  outputHeight: 0,
-  depth: 0,
-  framerate: 0,
-  audioBitrate: 0,
-  audioFrequency: 0,
-  videoBitrate: 0,
-};
+const baseSpeakerInfo: object = { sid: "", level: 0, active: false };
 
-export const RecordingOptions = {
+export const SpeakerInfo = {
   encode(
-    message: RecordingOptions,
+    message: SpeakerInfo,
     writer: _m0.Writer = _m0.Writer.create()
   ): _m0.Writer {
-    if (message.preset !== "") {
-      writer.uint32(10).string(message.preset);
+    if (message.sid !== "") {
+      writer.uint32(10).string(message.sid);
     }
-    if (message.inputWidth !== 0) {
-      writer.uint32(16).int32(message.inputWidth);
+    if (message.level !== 0) {
+      writer.uint32(21).float(message.level);
     }
-    if (message.inputHeight !== 0) {
-      writer.uint32(24).int32(message.inputHeight);
-    }
-    if (message.outputWidth !== 0) {
-      writer.uint32(32).int32(message.outputWidth);
-    }
-    if (message.outputHeight !== 0) {
-      writer.uint32(40).int32(message.outputHeight);
-    }
-    if (message.depth !== 0) {
-      writer.uint32(48).int32(message.depth);
-    }
-    if (message.framerate !== 0) {
-      writer.uint32(56).int32(message.framerate);
-    }
-    if (message.audioBitrate !== 0) {
-      writer.uint32(64).int32(message.audioBitrate);
-    }
-    if (message.audioFrequency !== 0) {
-      writer.uint32(72).int32(message.audioFrequency);
-    }
-    if (message.videoBitrate !== 0) {
-      writer.uint32(80).int32(message.videoBitrate);
+    if (message.active === true) {
+      writer.uint32(24).bool(message.active);
     }
     return writer;
   },
 
-  decode(input: _m0.Reader | Uint8Array, length?: number): RecordingOptions {
+  decode(input: _m0.Reader | Uint8Array, length?: number): SpeakerInfo {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseRecordingOptions } as RecordingOptions;
+    const message = { ...baseSpeakerInfo } as SpeakerInfo;
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.preset = reader.string();
+          message.sid = reader.string();
           break;
         case 2:
-          message.inputWidth = reader.int32();
+          message.level = reader.float();
           break;
         case 3:
-          message.inputHeight = reader.int32();
-          break;
-        case 4:
-          message.outputWidth = reader.int32();
-          break;
-        case 5:
-          message.outputHeight = reader.int32();
-          break;
-        case 6:
-          message.depth = reader.int32();
-          break;
-        case 7:
-          message.framerate = reader.int32();
-          break;
-        case 8:
-          message.audioBitrate = reader.int32();
-          break;
-        case 9:
-          message.audioFrequency = reader.int32();
-          break;
-        case 10:
-          message.videoBitrate = reader.int32();
+          message.active = reader.bool();
           break;
         default:
           reader.skipType(tag & 7);
@@ -1174,133 +1007,159 @@ export const RecordingOptions = {
     return message;
   },
 
-  fromJSON(object: any): RecordingOptions {
-    const message = { ...baseRecordingOptions } as RecordingOptions;
-    if (object.preset !== undefined && object.preset !== null) {
-      message.preset = String(object.preset);
+  fromJSON(object: any): SpeakerInfo {
+    const message = { ...baseSpeakerInfo } as SpeakerInfo;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = String(object.sid);
     } else {
-      message.preset = "";
+      message.sid = "";
     }
-    if (object.inputWidth !== undefined && object.inputWidth !== null) {
-      message.inputWidth = Number(object.inputWidth);
+    if (object.level !== undefined && object.level !== null) {
+      message.level = Number(object.level);
     } else {
-      message.inputWidth = 0;
+      message.level = 0;
     }
-    if (object.inputHeight !== undefined && object.inputHeight !== null) {
-      message.inputHeight = Number(object.inputHeight);
+    if (object.active !== undefined && object.active !== null) {
+      message.active = Boolean(object.active);
     } else {
-      message.inputHeight = 0;
-    }
-    if (object.outputWidth !== undefined && object.outputWidth !== null) {
-      message.outputWidth = Number(object.outputWidth);
-    } else {
-      message.outputWidth = 0;
-    }
-    if (object.outputHeight !== undefined && object.outputHeight !== null) {
-      message.outputHeight = Number(object.outputHeight);
-    } else {
-      message.outputHeight = 0;
-    }
-    if (object.depth !== undefined && object.depth !== null) {
-      message.depth = Number(object.depth);
-    } else {
-      message.depth = 0;
-    }
-    if (object.framerate !== undefined && object.framerate !== null) {
-      message.framerate = Number(object.framerate);
-    } else {
-      message.framerate = 0;
-    }
-    if (object.audioBitrate !== undefined && object.audioBitrate !== null) {
-      message.audioBitrate = Number(object.audioBitrate);
-    } else {
-      message.audioBitrate = 0;
-    }
-    if (object.audioFrequency !== undefined && object.audioFrequency !== null) {
-      message.audioFrequency = Number(object.audioFrequency);
-    } else {
-      message.audioFrequency = 0;
-    }
-    if (object.videoBitrate !== undefined && object.videoBitrate !== null) {
-      message.videoBitrate = Number(object.videoBitrate);
-    } else {
-      message.videoBitrate = 0;
+      message.active = false;
     }
     return message;
   },
 
-  toJSON(message: RecordingOptions): unknown {
+  toJSON(message: SpeakerInfo): unknown {
     const obj: any = {};
-    message.preset !== undefined && (obj.preset = message.preset);
-    message.inputWidth !== undefined && (obj.inputWidth = message.inputWidth);
-    message.inputHeight !== undefined &&
-      (obj.inputHeight = message.inputHeight);
-    message.outputWidth !== undefined &&
-      (obj.outputWidth = message.outputWidth);
-    message.outputHeight !== undefined &&
-      (obj.outputHeight = message.outputHeight);
-    message.depth !== undefined && (obj.depth = message.depth);
-    message.framerate !== undefined && (obj.framerate = message.framerate);
-    message.audioBitrate !== undefined &&
-      (obj.audioBitrate = message.audioBitrate);
-    message.audioFrequency !== undefined &&
-      (obj.audioFrequency = message.audioFrequency);
-    message.videoBitrate !== undefined &&
-      (obj.videoBitrate = message.videoBitrate);
+    message.sid !== undefined && (obj.sid = message.sid);
+    message.level !== undefined && (obj.level = message.level);
+    message.active !== undefined && (obj.active = message.active);
     return obj;
   },
 
-  fromPartial(object: DeepPartial<RecordingOptions>): RecordingOptions {
-    const message = { ...baseRecordingOptions } as RecordingOptions;
-    if (object.preset !== undefined && object.preset !== null) {
-      message.preset = object.preset;
+  fromPartial(object: DeepPartial<SpeakerInfo>): SpeakerInfo {
+    const message = { ...baseSpeakerInfo } as SpeakerInfo;
+    if (object.sid !== undefined && object.sid !== null) {
+      message.sid = object.sid;
     } else {
-      message.preset = "";
+      message.sid = "";
     }
-    if (object.inputWidth !== undefined && object.inputWidth !== null) {
-      message.inputWidth = object.inputWidth;
+    if (object.level !== undefined && object.level !== null) {
+      message.level = object.level;
     } else {
-      message.inputWidth = 0;
+      message.level = 0;
     }
-    if (object.inputHeight !== undefined && object.inputHeight !== null) {
-      message.inputHeight = object.inputHeight;
+    if (object.active !== undefined && object.active !== null) {
+      message.active = object.active;
     } else {
-      message.inputHeight = 0;
+      message.active = false;
     }
-    if (object.outputWidth !== undefined && object.outputWidth !== null) {
-      message.outputWidth = object.outputWidth;
-    } else {
-      message.outputWidth = 0;
+    return message;
+  },
+};
+
+const baseUserPacket: object = { participantSid: "", destinationSids: "" };
+
+export const UserPacket = {
+  encode(
+    message: UserPacket,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.participantSid !== "") {
+      writer.uint32(10).string(message.participantSid);
     }
-    if (object.outputHeight !== undefined && object.outputHeight !== null) {
-      message.outputHeight = object.outputHeight;
-    } else {
-      message.outputHeight = 0;
+    if (message.payload.length !== 0) {
+      writer.uint32(18).bytes(message.payload);
     }
-    if (object.depth !== undefined && object.depth !== null) {
-      message.depth = object.depth;
-    } else {
-      message.depth = 0;
+    for (const v of message.destinationSids) {
+      writer.uint32(26).string(v!);
     }
-    if (object.framerate !== undefined && object.framerate !== null) {
-      message.framerate = object.framerate;
-    } else {
-      message.framerate = 0;
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): UserPacket {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseUserPacket } as UserPacket;
+    message.destinationSids = [];
+    message.payload = new Uint8Array();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.participantSid = reader.string();
+          break;
+        case 2:
+          message.payload = reader.bytes();
+          break;
+        case 3:
+          message.destinationSids.push(reader.string());
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
     }
-    if (object.audioBitrate !== undefined && object.audioBitrate !== null) {
-      message.audioBitrate = object.audioBitrate;
+    return message;
+  },
+
+  fromJSON(object: any): UserPacket {
+    const message = { ...baseUserPacket } as UserPacket;
+    message.destinationSids = [];
+    message.payload = new Uint8Array();
+    if (object.participantSid !== undefined && object.participantSid !== null) {
+      message.participantSid = String(object.participantSid);
     } else {
-      message.audioBitrate = 0;
+      message.participantSid = "";
     }
-    if (object.audioFrequency !== undefined && object.audioFrequency !== null) {
-      message.audioFrequency = object.audioFrequency;
-    } else {
-      message.audioFrequency = 0;
+    if (object.payload !== undefined && object.payload !== null) {
+      message.payload = bytesFromBase64(object.payload);
     }
-    if (object.videoBitrate !== undefined && object.videoBitrate !== null) {
-      message.videoBitrate = object.videoBitrate;
+    if (
+      object.destinationSids !== undefined &&
+      object.destinationSids !== null
+    ) {
+      for (const e of object.destinationSids) {
+        message.destinationSids.push(String(e));
+      }
+    }
+    return message;
+  },
+
+  toJSON(message: UserPacket): unknown {
+    const obj: any = {};
+    message.participantSid !== undefined &&
+      (obj.participantSid = message.participantSid);
+    message.payload !== undefined &&
+      (obj.payload = base64FromBytes(
+        message.payload !== undefined ? message.payload : new Uint8Array()
+      ));
+    if (message.destinationSids) {
+      obj.destinationSids = message.destinationSids.map((e) => e);
     } else {
-      message.videoBitrate = 0;
+      obj.destinationSids = [];
+    }
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<UserPacket>): UserPacket {
+    const message = { ...baseUserPacket } as UserPacket;
+    message.destinationSids = [];
+    if (object.participantSid !== undefined && object.participantSid !== null) {
+      message.participantSid = object.participantSid;
+    } else {
+      message.participantSid = "";
+    }
+    if (object.payload !== undefined && object.payload !== null) {
+      message.payload = object.payload;
+    } else {
+      message.payload = new Uint8Array();
+    }
+    if (
+      object.destinationSids !== undefined &&
+      object.destinationSids !== null
+    ) {
+      for (const e of object.destinationSids) {
+        message.destinationSids.push(e);
+      }
     }
     return message;
   },
@@ -1333,13 +1192,20 @@ const btoa: (bin: string) => string =
   ((bin) => globalThis.Buffer.from(bin, "binary").toString("base64"));
 function base64FromBytes(arr: Uint8Array): string {
   const bin: string[] = [];
-  for (let i = 0; i < arr.byteLength; ++i) {
-    bin.push(String.fromCharCode(arr[i]));
+  for (const byte of arr) {
+    bin.push(String.fromCharCode(byte));
   }
   return btoa(bin.join(""));
 }
 
-type Builtin = Date | Function | Uint8Array | string | number | undefined;
+type Builtin =
+  | Date
+  | Function
+  | Uint8Array
+  | string
+  | number
+  | boolean
+  | undefined;
 export type DeepPartial<T> = T extends Builtin
   ? T
   : T extends Array<infer U>

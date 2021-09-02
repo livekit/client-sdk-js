@@ -2,10 +2,9 @@ import { EventEmitter } from 'events';
 import log from 'loglevel';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import {
-  ParticipantInfo,
-  ParticipantInfo_State,
+  DataPacket_Kind, ParticipantInfo,
+  ParticipantInfo_State, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
-import { DataPacket_Kind, SpeakerInfo, UserPacket } from '../proto/livekit_rtc';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
   EngineEvent, ParticipantEvent, RoomEvent, TrackEvent,

@@ -1,6 +1,5 @@
 import {
-  connect, createLocalScreenTracks, CreateVideoTrackOptions,
-  LocalAudioTrack,
+  connect, createLocalScreenTracks, CreateVideoTrackOptions, DataPacket_Kind, LocalAudioTrack,
   LocalTrack,
   LocalVideoTrack,
   LogLevel,
@@ -10,10 +9,8 @@ import {
   RemoteTrack,
   Room,
   RoomEvent,
-  Track,
-  VideoPresets,
+  Track, VideoPresets,
 } from '../src/index';
-import { DataPacket_Kind } from '../src/proto/livekit_rtc';
 
 const $ = (id: string) => document.getElementById(id);
 

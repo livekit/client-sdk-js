@@ -1,12 +1,11 @@
 import log from 'loglevel';
-import { ParticipantInfo } from '../../proto/livekit_models';
-import { AddTrackRequest, DataPacket, DataPacket_Kind } from '../../proto/livekit_rtc';
+import { DataPacket, DataPacket_Kind } from '../../proto/livekit_models';
+import { AddTrackRequest } from '../../proto/livekit_rtc';
 import {
-  PublishDataError,
   TrackInvalidError,
   UnexpectedConnectionState,
 } from '../errors';
-import { ParticipantEvent, TrackEvent } from '../events';
+import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
@@ -39,6 +38,18 @@ export default class LocalParticipant extends Participant {
     this.videoTracks = new Map();
     this.tracks = new Map();
     this.engine = engine;
+
+    this.engine.on(EngineEvent.RemoteMuteChanged, (trackSid: string, muted: boolean) => {
+      const pub = this.tracks.get(trackSid);
+      if (!pub || !pub.track) {
+        return;
+      }
+      if (muted) {
+        pub.mute();
+      } else {
+        pub.unmute();
+      }
+    });
   }
 
   /**
@@ -226,25 +237,6 @@ export default class LocalParticipant extends Participant {
     return null;
   }
 
-  /** @internal */
-  updateInfo(info: ParticipantInfo) {
-    super.updateInfo(info);
-
-    // match local track mute status to server
-    info.tracks.forEach((ti) => {
-      const pub = <LocalTrackPublication> this.tracks.get(ti.sid);
-      if (!pub) {
-        return;
-      }
-
-      if (ti.muted && !pub.isMuted) {
-        pub.mute();
-      } else if (!ti.muted && pub.isMuted) {
-        pub.unmute();
-      }
-    });
-  }
-
   /**
    * Publish a new data payload to the room. Data will be forwarded to each
    * participant in the room if the destination argument is empty
@@ -258,10 +250,6 @@ export default class LocalParticipant extends Participant {
    */
   publishData(data: Uint8Array, kind: DataPacket_Kind,
     destination?: RemoteParticipant[] | string[]) {
-    if (data.length > 14_000) {
-      throw new PublishDataError('data cannot be larger than 14k');
-    }
-
     const dest: string[] = [];
     if (destination !== undefined) {
       destination.forEach((val : any) => {
@@ -291,14 +279,14 @@ export default class LocalParticipant extends Participant {
   }
 
   /** @internal */
-  onTrackUnmuted = (track: LocalVideoTrack | LocalAudioTrack) => {
+  onTrackUnmuted = (track: LocalTrack) => {
     this.onTrackMuted(track, false);
   };
 
   // when the local track changes in mute status, we'll notify server as such
   /** @internal */
   onTrackMuted = (
-    track: LocalVideoTrack | LocalAudioTrack,
+    track: LocalTrack,
     muted?: boolean,
   ) => {
     if (muted === undefined) {
