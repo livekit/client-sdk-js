@@ -147,6 +147,7 @@ export enum EngineEvent {
   MediaTrackAdded = 'mediaTrackAdded',
   SpeakersUpdate = 'speakersUpdate',
   DataPacketReceived = 'dataPacketReceived',
+  RemoteMuteChanged = 'remoteMuteChanged',
 }
 
 export enum TrackEvent {

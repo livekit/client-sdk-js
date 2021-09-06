@@ -1,6 +1,6 @@
 import log from 'loglevel';
 import 'webrtc-adapter';
-import { ParticipantInfo } from '../proto/livekit_models';
+import { ParticipantInfo, SpeakerInfo } from '../proto/livekit_models';
 import {
   AddTrackRequest,
   JoinResponse,
@@ -8,7 +8,6 @@ import {
   SignalRequest,
   SignalResponse,
   SignalTarget,
-  SpeakerInfo,
   TrackPublishedResponse,
   UpdateSubscription,
   UpdateTrackSettings,
@@ -21,7 +20,6 @@ import { protocolVersion } from '../version';
 // internal options
 interface ConnectOpts {
   autoSubscribe?: boolean;
-  usePlanB?: boolean;
   /** internal */
   reconnect?: boolean;
 }
@@ -36,7 +34,7 @@ export interface SignalOptions {
  * so that it
  */
 export interface SignalClient {
-  join(url: string, token: string, usePlanB?: boolean, opts?: SignalOptions): Promise<JoinResponse>;
+  join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse>;
   reconnect(url: string, token: string): Promise<void>;
   sendOffer(offer: RTCSessionDescriptionInit): void;
   sendAnswer(answer: RTCSessionDescriptionInit): void;
@@ -65,6 +63,8 @@ export interface SignalClient {
   onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
   // when active speakers changed
   onActiveSpeakersChanged?: (res: SpeakerInfo[]) => void;
+  // when track was muted/unmuted by the server
+  onRemoteMuteChanged?: (trackSid: string, muted: boolean) => void;
   onLeave?: () => void;
 }
 
@@ -90,6 +90,8 @@ export class WSSignalClient {
 
   onActiveSpeakersChanged?: (res: SpeakerInfo[]) => void;
 
+  onRemoteMuteChanged?: (trackSid: string, muted: boolean) => void;
+
   onLeave?: () => void;
 
   ws?: WebSocket;
@@ -102,11 +104,9 @@ export class WSSignalClient {
   async join(
     url: string,
     token: string,
-    planB: boolean = false,
     opts?: SignalOptions,
   ): Promise<JoinResponse> {
     const res = await this.connect(url, token, {
-      usePlanB: planB,
       autoSubscribe: opts?.autoSubscribe,
     });
     return res as JoinResponse;
@@ -129,9 +129,6 @@ export class WSSignalClient {
     let params = `?access_token=${token}&protocol=${protocolVersion}`;
     if (opts.reconnect) {
       params += '&reconnect=1';
-    }
-    if (opts.usePlanB) {
-      params += '&planb=1';
     }
     if (opts.autoSubscribe !== undefined) {
       params += `&auto_subscribe=${opts.autoSubscribe ? '1' : '0'}`;
@@ -321,6 +318,10 @@ export class WSSignalClient {
     } else if (msg.leave) {
       if (this.onLeave) {
         this.onLeave();
+      }
+    } else if (msg.mute) {
+      if (this.onRemoteMuteChanged) {
+        this.onRemoteMuteChanged(msg.mute.sid, msg.mute.muted);
       }
     } else {
       log.warn('unsupported message', msg);
