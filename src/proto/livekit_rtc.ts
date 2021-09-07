@@ -155,6 +155,8 @@ export interface JoinResponse {
   otherParticipants: ParticipantInfo[];
   serverVersion: string;
   iceServers: ICEServer[];
+  /** use subscriber as the primary PeerConnection */
+  subscriberPrimary: boolean;
 }
 
 export interface TrackPublishedResponse {
@@ -1083,7 +1085,10 @@ export const SetSimulcastLayers = {
   },
 };
 
-const baseJoinResponse: object = { serverVersion: "" };
+const baseJoinResponse: object = {
+  serverVersion: "",
+  subscriberPrimary: false,
+};
 
 export const JoinResponse = {
   encode(
@@ -1107,6 +1112,9 @@ export const JoinResponse = {
     }
     for (const v of message.iceServers) {
       ICEServer.encode(v!, writer.uint32(42).fork()).ldelim();
+    }
+    if (message.subscriberPrimary === true) {
+      writer.uint32(48).bool(message.subscriberPrimary);
     }
     return writer;
   },
@@ -1136,6 +1144,9 @@ export const JoinResponse = {
           break;
         case 5:
           message.iceServers.push(ICEServer.decode(reader, reader.uint32()));
+          break;
+        case 6:
+          message.subscriberPrimary = reader.bool();
           break;
         default:
           reader.skipType(tag & 7);
@@ -1177,6 +1188,14 @@ export const JoinResponse = {
         message.iceServers.push(ICEServer.fromJSON(e));
       }
     }
+    if (
+      object.subscriberPrimary !== undefined &&
+      object.subscriberPrimary !== null
+    ) {
+      message.subscriberPrimary = Boolean(object.subscriberPrimary);
+    } else {
+      message.subscriberPrimary = false;
+    }
     return message;
   },
 
@@ -1204,6 +1223,8 @@ export const JoinResponse = {
     } else {
       obj.iceServers = [];
     }
+    message.subscriberPrimary !== undefined &&
+      (obj.subscriberPrimary = message.subscriberPrimary);
     return obj;
   },
 
@@ -1238,6 +1259,14 @@ export const JoinResponse = {
       for (const e of object.iceServers) {
         message.iceServers.push(ICEServer.fromPartial(e));
       }
+    }
+    if (
+      object.subscriberPrimary !== undefined &&
+      object.subscriberPrimary !== null
+    ) {
+      message.subscriberPrimary = object.subscriberPrimary;
+    } else {
+      message.subscriberPrimary = false;
     }
     return message;
   },
