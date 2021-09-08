@@ -44,7 +44,8 @@ export default class RTCEngine extends EventEmitter {
 
   private pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
 
-  // true if publisher connection is needed
+  // true if publisher connection has already been established.
+  // this is helpful to know if we need to restart ICE on the publisher connection
   private hasPublished: boolean = false;
 
   // keep join info around for reconnect
@@ -69,8 +70,6 @@ export default class RTCEngine extends EventEmitter {
 
     this.subscriberPrimary = joinResponse.subscriberPrimary;
     if (!this.publisher) {
-      this.publisher = new PCTransport(this.rtcConfig);
-      this.subscriber = new PCTransport(this.rtcConfig);
       this.configure(joinResponse);
     }
 
@@ -121,7 +120,7 @@ export default class RTCEngine extends EventEmitter {
 
   private configure(joinResponse: JoinResponse) {
     // already configured
-    if (!this.publisher || !this.subscriber) {
+    if (this.publisher || this.subscriber) {
       return;
     }
 
@@ -139,9 +138,11 @@ export default class RTCEngine extends EventEmitter {
       this.rtcConfig.iceServers = rtcIceServers;
     }
 
+    this.publisher = new PCTransport(this.rtcConfig);
+    this.subscriber = new PCTransport(this.rtcConfig);
+
     this.publisher.pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
-
       log.trace('adding ICE candidate for peer', ev.candidate);
       this.client.sendIceCandidate(ev.candidate, SignalTarget.PUBLISHER);
     };
@@ -154,6 +155,8 @@ export default class RTCEngine extends EventEmitter {
     let primaryPC = this.publisher.pc;
     if (joinResponse.subscriberPrimary) {
       primaryPC = this.subscriber.pc;
+      // in subscriber primary mode, server side opens sub data channels.
+      this.subscriber.pc.ondatachannel = this.handleDataChannel;
     }
     primaryPC.oniceconnectionstatechange = () => {
       if (primaryPC.iceConnectionState === 'connected') {
@@ -173,8 +176,6 @@ export default class RTCEngine extends EventEmitter {
       this.emitTrackEvent(ev.track, ev.streams[0], ev.receiver);
     };
 
-    this.subscriber.pc.ondatachannel = this.handleDataChannel;
-
     // data channels
     this.lossyDC = this.publisher.pc.createDataChannel(lossyDataChannel, {
       // will drop older packets that arrive
@@ -185,7 +186,7 @@ export default class RTCEngine extends EventEmitter {
       ordered: true,
     });
 
-    // also handle messages over the pub channel
+    // also handle messages over the pub channel, for backwards compatibility
     this.lossyDC.onmessage = this.handleDataMessage;
     this.reliableDC.onmessage = this.handleDataMessage;
 
@@ -269,12 +270,14 @@ export default class RTCEngine extends EventEmitter {
     if (!channel) {
       return;
     }
-    channel.onmessage = this.handleDataMessage;
     if (channel.label === reliableDataChannel) {
       this.reliableDCSub = channel;
     } else if (channel.label === lossyDataChannel) {
       this.lossyDCSub = channel;
+    } else {
+      return;
     }
+    channel.onmessage = this.handleDataMessage;
   };
 
   private handleDataMessage = async (message: MessageEvent) => {
@@ -409,6 +412,8 @@ export default class RTCEngine extends EventEmitter {
       }
       await sleep(50);
     }
+
+    throw new ConnectionError('could not establish publisher connection');
   }
 
   /** @internal */
