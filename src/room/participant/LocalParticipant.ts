@@ -389,7 +389,7 @@ export default class LocalParticipant extends Participant {
       const lowPreset = presets[0];
       // if resolution is high enough, we would send both h and q res..
       // otherwise only send h
-      if (height * 0.7 >= midPreset.height) {
+      if (width >= 960) {
         encodings.push({
           rid: 'h',
           scaleResolutionDownBy: height / midPreset.height,
