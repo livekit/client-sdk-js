@@ -152,6 +152,10 @@ export default class RTCEngine extends EventEmitter {
       this.client.sendIceCandidate(ev.candidate, SignalTarget.SUBSCRIBER);
     };
 
+    this.publisher.onOffer = (offer) => {
+      this.client.sendOffer(offer);
+    };
+
     let primaryPC = this.publisher.pc;
     if (joinResponse.subscriberPrimary) {
       primaryPC = this.subscriber.pc;
@@ -173,7 +177,7 @@ export default class RTCEngine extends EventEmitter {
     };
 
     this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
-      this.emitTrackEvent(ev.track, ev.streams[0], ev.receiver);
+      this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
 
     // data channels
@@ -353,14 +357,7 @@ export default class RTCEngine extends EventEmitter {
 
     // only restart publisher if it's needed
     if (this.hasPublished) {
-      this.publisher.restartingIce = true;
-      // @ts-ignore
-      if (this.publisher.pc.restartIce) {
-      // @ts-ignore
-        this.publisher.pc.restartIce();
-      } else {
-        await this.negotiate({ iceRestart: true });
-      }
+      await this.publisher.createAndSendOffer({ iceRestart: true });
     }
 
     const startTime = (new Date()).getTime();
@@ -417,33 +414,13 @@ export default class RTCEngine extends EventEmitter {
   }
 
   /** @internal */
-  async negotiate(options?: RTCOfferOptions) {
+  async negotiate() {
     if (!this.publisher) {
       return;
     }
 
     this.hasPublished = true;
 
-    const { pc } = this.publisher;
-    if (pc.remoteDescription && pc.signalingState === 'have-local-offer') {
-      // it's still waiting for the last offer, and it won't be able to create
-      // a new offer in this state. We'll reuse the last remote description to
-      // get it out of this state
-      await pc.setRemoteDescription(pc.remoteDescription);
-    }
-
-    // TODO: what if signaling state changed? will need to queue and retry
-    log.debug('starting to negotiate', pc.signalingState);
-    const offer = await pc.createOffer(options);
-    await pc.setLocalDescription(offer);
-    this.client.sendOffer(offer);
+    this.publisher.negotiate();
   }
-
-  private emitTrackEvent = (
-    track: MediaStreamTrack,
-    stream: MediaStream,
-    receiver?: RTCRtpReceiver,
-  ) => {
-    this.emit(EngineEvent.MediaTrackAdded, track, stream, receiver);
-  };
 }

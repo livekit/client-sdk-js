@@ -23,6 +23,7 @@
     "events": "^3.3.0",
     "loglevel": "^1.7.1",
     "protobufjs": "^6.10.2",
+    "ts-debounce": "^3.0.0",
     "webrtc-adapter": "^7.7.1"
   },
   "devDependencies": {
