@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import log from 'loglevel';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
-import { DataPacket, TrackInfo } from '../proto/livekit_models';
+import { DataPacket, DataPacket_Kind, TrackInfo } from '../proto/livekit_models';
 import {
   AddTrackRequest,
   JoinResponse,
@@ -16,7 +16,9 @@ import { sleep } from './utils';
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const maxReconnectRetries = 5;
+export const maxICEConnectTimeout = 5 * 1000;
 
+/** @internal */
 export default class RTCEngine extends EventEmitter {
   publisher?: PCTransport;
 
@@ -24,24 +26,34 @@ export default class RTCEngine extends EventEmitter {
 
   client: SignalClient;
 
-  rtcConfig: RTCConfiguration;
+  private rtcConfig: RTCConfiguration;
 
-  lossyDC?: RTCDataChannel;
+  private lossyDC?: RTCDataChannel;
 
-  reliableDC?: RTCDataChannel;
+  private lossyDCSub?: RTCDataChannel;
 
-  iceConnected: boolean = false;
+  private reliableDC?: RTCDataChannel;
 
-  isClosed: boolean = true;
+  private reliableDCSub?: RTCDataChannel;
 
-  pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
+  private subscriberPrimary: boolean = false;
+
+  private iceConnected: boolean = false;
+
+  private isClosed: boolean = true;
+
+  private pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
+
+  // true if publisher connection has already been established.
+  // this is helpful to know if we need to restart ICE on the publisher connection
+  private hasPublished: boolean = false;
 
   // keep join info around for reconnect
-  url?: string;
+  private url?: string;
 
-  token?: string;
+  private token?: string;
 
-  reconnectAttempts: number = 0;
+  private reconnectAttempts: number = 0;
 
   constructor(client: SignalClient, config?: RTCConfiguration) {
     super();
@@ -56,28 +68,15 @@ export default class RTCEngine extends EventEmitter {
     const joinResponse = await this.client.join(url, token, opts);
     this.isClosed = false;
 
-    if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
-      const rtcIceServers: RTCIceServer[] = [];
-      joinResponse.iceServers.forEach((iceServer) => {
-        const rtcIceServer: RTCIceServer = {
-          urls: iceServer.urls,
-        };
-        if (iceServer.username) rtcIceServer.username = iceServer.username;
-        if (iceServer.credential) { rtcIceServer.credential = iceServer.credential; }
-        rtcIceServers.push(rtcIceServer);
-      });
-      this.rtcConfig.iceServers = rtcIceServers;
-    }
-
-    // update ICE servers before creating PeerConnection
+    this.subscriberPrimary = joinResponse.subscriberPrimary;
     if (!this.publisher) {
-      this.publisher = new PCTransport(this.rtcConfig);
-      this.subscriber = new PCTransport(this.rtcConfig);
-      this.configure();
+      this.configure(joinResponse);
     }
 
     // create offer
-    await this.negotiate();
+    if (!this.subscriberPrimary) {
+      await this.negotiate();
+    }
 
     return joinResponse;
   }
@@ -119,14 +118,31 @@ export default class RTCEngine extends EventEmitter {
     this.client.sendMuteTrack(trackSid, muted);
   }
 
-  private configure() {
-    if (!this.publisher || !this.subscriber) {
+  private configure(joinResponse: JoinResponse) {
+    // already configured
+    if (this.publisher || this.subscriber) {
       return;
     }
 
+    // update ICE servers before creating PeerConnection
+    if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
+      const rtcIceServers: RTCIceServer[] = [];
+      joinResponse.iceServers.forEach((iceServer) => {
+        const rtcIceServer: RTCIceServer = {
+          urls: iceServer.urls,
+        };
+        if (iceServer.username) rtcIceServer.username = iceServer.username;
+        if (iceServer.credential) { rtcIceServer.credential = iceServer.credential; }
+        rtcIceServers.push(rtcIceServer);
+      });
+      this.rtcConfig.iceServers = rtcIceServers;
+    }
+
+    this.publisher = new PCTransport(this.rtcConfig);
+    this.subscriber = new PCTransport(this.rtcConfig);
+
     this.publisher.pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
-
       log.trace('adding ICE candidate for peer', ev.candidate);
       this.client.sendIceCandidate(ev.candidate, SignalTarget.PUBLISHER);
     };
@@ -136,24 +152,24 @@ export default class RTCEngine extends EventEmitter {
       this.client.sendIceCandidate(ev.candidate, SignalTarget.SUBSCRIBER);
     };
 
-    this.publisher.pc.onnegotiationneeded = () => {
-      if (this.publisher?.pc.iceConnectionState === 'new') {
-        return;
-      }
-      this.negotiate();
+    this.publisher.onOffer = (offer) => {
+      this.client.sendOffer(offer);
     };
 
-    this.publisher.pc.oniceconnectionstatechange = () => {
-      if (!this.publisher) {
-        return;
-      }
-      if (this.publisher.pc.iceConnectionState === 'connected') {
+    let primaryPC = this.publisher.pc;
+    if (joinResponse.subscriberPrimary) {
+      primaryPC = this.subscriber.pc;
+      // in subscriber primary mode, server side opens sub data channels.
+      this.subscriber.pc.ondatachannel = this.handleDataChannel;
+    }
+    primaryPC.oniceconnectionstatechange = () => {
+      if (primaryPC.iceConnectionState === 'connected') {
         log.trace('ICE connected');
         if (!this.iceConnected) {
           this.iceConnected = true;
           this.emit(EngineEvent.Connected);
         }
-      } else if (this.publisher.pc.iceConnectionState === 'failed') {
+      } else if (primaryPC.iceConnectionState === 'failed') {
         this.iceConnected = false;
         log.trace('ICE disconnected');
         this.handleDisconnect('peerconnection');
@@ -161,19 +177,20 @@ export default class RTCEngine extends EventEmitter {
     };
 
     this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
-      this.emitTrackEvent(ev.track, ev.streams[0], ev.receiver);
+      this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
 
     // data channels
     this.lossyDC = this.publisher.pc.createDataChannel(lossyDataChannel, {
       // will drop older packets that arrive
       ordered: true,
-      maxRetransmits: 1,
+      maxRetransmits: 0,
     });
     this.reliableDC = this.publisher.pc.createDataChannel(reliableDataChannel, {
       ordered: true,
     });
 
+    // also handle messages over the pub channel, for backwards compatibility
     this.lossyDC.onmessage = this.handleDataMessage;
     this.reliableDC.onmessage = this.handleDataMessage;
 
@@ -253,6 +270,20 @@ export default class RTCEngine extends EventEmitter {
     };
   }
 
+  private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
+    if (!channel) {
+      return;
+    }
+    if (channel.label === reliableDataChannel) {
+      this.reliableDCSub = channel;
+    } else if (channel.label === lossyDataChannel) {
+      this.lossyDCSub = channel;
+    } else {
+      return;
+    }
+    channel.onmessage = this.handleDataMessage;
+  };
+
   private handleDataMessage = async (message: MessageEvent) => {
     // decode
     let buffer: ArrayBuffer | undefined;
@@ -322,20 +353,16 @@ export default class RTCEngine extends EventEmitter {
     if (!this.publisher || !this.subscriber) {
       throw new UnexpectedConnectionState('publisher and subscriber connections unset');
     }
-    this.publisher.restartingIce = true;
     this.subscriber.restartingIce = true;
 
-    // @ts-ignore
-    if (this.publisher.pc.restartIce) {
-      // @ts-ignore
-      this.publisher.pc.restartIce();
-    } else {
-      await this.negotiate({ iceRestart: true });
+    // only restart publisher if it's needed
+    if (this.hasPublished) {
+      await this.publisher.createAndSendOffer({ iceRestart: true });
     }
 
     const startTime = (new Date()).getTime();
 
-    while ((new Date()).getTime() - startTime < 10 * 1000) {
+    while ((new Date()).getTime() - startTime < maxICEConnectTimeout * 2) {
       if (this.iceConnected) {
         // reconnect success
         this.emit(EngineEvent.Reconnected);
@@ -348,31 +375,52 @@ export default class RTCEngine extends EventEmitter {
     throw new ConnectionError('could not establish ICE connection');
   }
 
-  private async negotiate(options?: RTCOfferOptions) {
+  /* @internal */
+  async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
+    const msg = DataPacket.encode(packet).finish();
+
+    // make sure we do have a data connection
+    await this.ensurePublisherConnected();
+
+    if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
+      this.lossyDC.send(msg);
+    } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
+      this.reliableDC.send(msg);
+    }
+  }
+
+  private async ensurePublisherConnected() {
+    if (!this.subscriberPrimary) {
+      return;
+    }
+
+    if (this.publisher && this.publisher.pc.iceConnectionState === 'connected') {
+      return;
+    }
+
+    // start negotiation
+    await this.negotiate();
+
+    // wait until publisher ICE connected
+    const endTime = (new Date()).getTime() + maxICEConnectTimeout;
+    while ((new Date()).getTime() < endTime) {
+      if (this.publisher && this.publisher.pc.iceConnectionState === 'connected') {
+        return;
+      }
+      await sleep(50);
+    }
+
+    throw new ConnectionError('could not establish publisher connection');
+  }
+
+  /** @internal */
+  async negotiate() {
     if (!this.publisher) {
       return;
     }
 
-    const { pc } = this.publisher;
-    if (pc.remoteDescription && pc.signalingState === 'have-local-offer') {
-      // it's still waiting for the last offer, and it won't be able to create
-      // a new offer in this state. We'll reuse the last remote description to
-      // get it out of this state
-      await pc.setRemoteDescription(pc.remoteDescription);
-    }
+    this.hasPublished = true;
 
-    // TODO: what if signaling state changed? will need to queue and retry
-    log.debug('starting to negotiate', pc.signalingState);
-    const offer = await pc.createOffer(options);
-    await pc.setLocalDescription(offer);
-    this.client.sendOffer(offer);
+    this.publisher.negotiate();
   }
-
-  private emitTrackEvent = (
-    track: MediaStreamTrack,
-    stream: MediaStream,
-    receiver?: RTCRtpReceiver,
-  ) => {
-    this.emit(EngineEvent.MediaTrackAdded, track, stream, receiver);
-  };
 }

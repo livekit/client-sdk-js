@@ -144,6 +144,7 @@ export default class LocalParticipant extends Participant {
     const transceiver = this.engine.publisher.pc.addTransceiver(
       track.mediaStreamTrack, transceiverInit,
     );
+    this.engine.negotiate();
 
     // store RTPSender
     track.sender = transceiver.sender;
@@ -197,6 +198,7 @@ export default class LocalParticipant extends Participant {
         if (sender.track === mediaStreamTrack) {
           try {
             this.engine.publisher?.pc.removeTrack(sender);
+            this.engine.negotiate();
           } catch (e) {
             log.warn('unpublishTrack', 'failed to remove track', e);
           }
@@ -248,7 +250,7 @@ export default class LocalParticipant extends Participant {
    * packets, use Lossy.
    * @param destination the participants who will receive the message
    */
-  publishData(data: Uint8Array, kind: DataPacket_Kind,
+  async publishData(data: Uint8Array, kind: DataPacket_Kind,
     destination?: RemoteParticipant[] | string[]) {
     const dest: string[] = [];
     if (destination !== undefined) {
@@ -270,12 +272,7 @@ export default class LocalParticipant extends Participant {
       },
     };
 
-    const msg = DataPacket.encode(packet).finish();
-    if (kind === DataPacket_Kind.LOSSY && this.engine.lossyDC) {
-      this.engine.lossyDC.send(msg);
-    } else if (kind === DataPacket_Kind.RELIABLE && this.engine.reliableDC) {
-      this.engine.reliableDC.send(msg);
-    }
+    await this.engine.sendDataPacket(packet, kind);
   }
 
   /** @internal */
@@ -351,6 +348,7 @@ export default class LocalParticipant extends Participant {
       return matchesVideoCodec || codec === 'audio/opus';
     });
     if (selected && 'setCodecPreferences' in transceiver) {
+      // @ts-ignore
       transceiver.setCodecPreferences([selected]);
     }
   }

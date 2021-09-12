@@ -12,7 +12,7 @@ import {
 import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import RTCEngine from './RTCEngine';
+import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import TrackPublication from './track/TrackPublication';
@@ -157,7 +157,7 @@ class Room extends EventEmitter {
         // timeout
         this.engine.close();
         reject(new ConnectionError('could not connect after timeout'));
-      }, 5 * 1000);
+      }, maxICEConnectTimeout);
 
       this.engine.once(EngineEvent.Connected, () => {
         clearTimeout(connectTimeout);

@@ -151,7 +151,7 @@ export class WSSignalClient {
               reject(new ConnectionError('Internal error'));
             }
           } catch (e) {
-            reject(new ConnectionError(e));
+            reject(new ConnectionError('server was not reachable'));
           }
           return;
         }
