@@ -170,9 +170,12 @@ export default class RTCEngine extends EventEmitter {
           this.emit(EngineEvent.Connected);
         }
       } else if (primaryPC.iceConnectionState === 'failed') {
-        this.iceConnected = false;
         log.trace('ICE disconnected');
-        this.handleDisconnect('peerconnection');
+        if (this.iceConnected) {
+          this.iceConnected = false;
+
+          this.handleDisconnect('peerconnection');
+        }
       }
     };
 
