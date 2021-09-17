@@ -15,7 +15,7 @@ import {
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
 import { Track } from '../room/track/Track';
-import { protocolVersion } from '../version';
+import { protocolVersion, version } from '../version';
 
 // internal options
 interface ConnectOpts {
@@ -61,8 +61,8 @@ export interface SignalClient {
   onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
   // when track is published successfully
   onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
-  // when active speakers changed
-  onActiveSpeakersChanged?: (res: SpeakerInfo[]) => void;
+  // speaker status has changed
+  onSpeakersChanged?: (res: SpeakerInfo[]) => void;
   // when track was muted/unmuted by the server
   onRemoteMuteChanged?: (trackSid: string, muted: boolean) => void;
   onLeave?: () => void;
@@ -88,7 +88,7 @@ export class WSSignalClient {
 
   onNegotiateRequested?: () => void;
 
-  onActiveSpeakersChanged?: (res: SpeakerInfo[]) => void;
+  onSpeakersChanged?: (res: SpeakerInfo[]) => void;
 
   onRemoteMuteChanged?: (trackSid: string, muted: boolean) => void;
 
@@ -126,7 +126,7 @@ export class WSSignalClient {
     // strip trailing slash
     url = url.replace(/\/$/, '');
     url += '/rtc';
-    let params = `?access_token=${token}&protocol=${protocolVersion}`;
+    let params = `?access_token=${token}&protocol=${protocolVersion}&sdk=js&version=${version}`;
     if (opts.reconnect) {
       params += '&reconnect=1';
     }
@@ -311,9 +311,9 @@ export class WSSignalClient {
       if (this.onLocalTrackPublished) {
         this.onLocalTrackPublished(msg.trackPublished);
       }
-    } else if (msg.speaker) {
-      if (this.onActiveSpeakersChanged) {
-        this.onActiveSpeakersChanged(msg.speaker.speakers);
+    } else if (msg.speakersChanged) {
+      if (this.onSpeakersChanged) {
+        this.onSpeakersChanged(msg.speakersChanged.speakers);
       }
     } else if (msg.leave) {
       if (this.onLeave) {

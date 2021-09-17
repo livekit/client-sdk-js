@@ -255,8 +255,8 @@ export default class RTCEngine extends EventEmitter {
       resolve(res.track!);
     };
 
-    this.client.onActiveSpeakersChanged = (speakers) => {
-      this.emit(EngineEvent.SpeakersUpdate, speakers);
+    this.client.onSpeakersChanged = (speakers) => {
+      this.emit(EngineEvent.SpeakersChanged, speakers);
     };
 
     this.client.onClose = () => {
@@ -301,7 +301,7 @@ export default class RTCEngine extends EventEmitter {
     const dp = DataPacket.decode(new Uint8Array(buffer));
     if (dp.speaker) {
       // dispatch speaker updates
-      this.emit(EngineEvent.SpeakersUpdate, dp.speaker.speakers);
+      this.emit(EngineEvent.ActiveSpeakersUpdate, dp.speaker.speakers);
     } else if (dp.user) {
       this.emit(EngineEvent.DataPacketReceived, dp.user, dp.kind);
     }

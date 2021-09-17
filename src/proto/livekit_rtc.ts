@@ -6,7 +6,7 @@ import {
   Room,
   ParticipantInfo,
   TrackInfo,
-  ActiveSpeakerUpdate,
+  SpeakerInfo,
   trackTypeFromJSON,
   trackTypeToJSON,
 } from "./livekit_models";
@@ -115,12 +115,12 @@ export interface SignalResponse {
   update?: ParticipantUpdate | undefined;
   /** sent to the participant when their track has been published */
   trackPublished?: TrackPublishedResponse | undefined;
-  /** list of active speakers */
-  speaker?: ActiveSpeakerUpdate | undefined;
   /** Immediately terminate session */
   leave?: LeaveRequest | undefined;
   /** server initiated mute */
   mute?: MuteTrackRequest | undefined;
+  /** indicates changes to speaker status, including when they've gone to not speaking */
+  speakersChanged?: SpeakersChanged | undefined;
 }
 
 export interface AddTrackRequest {
@@ -197,6 +197,10 @@ export interface ICEServer {
   urls: string[];
   username: string;
   credential: string;
+}
+
+export interface SpeakersChanged {
+  speakers: SpeakerInfo[];
 }
 
 const baseSignalRequest: object = {};
@@ -488,17 +492,17 @@ export const SignalResponse = {
         writer.uint32(50).fork()
       ).ldelim();
     }
-    if (message.speaker !== undefined) {
-      ActiveSpeakerUpdate.encode(
-        message.speaker,
-        writer.uint32(58).fork()
-      ).ldelim();
-    }
     if (message.leave !== undefined) {
       LeaveRequest.encode(message.leave, writer.uint32(66).fork()).ldelim();
     }
     if (message.mute !== undefined) {
       MuteTrackRequest.encode(message.mute, writer.uint32(74).fork()).ldelim();
+    }
+    if (message.speakersChanged !== undefined) {
+      SpeakersChanged.encode(
+        message.speakersChanged,
+        writer.uint32(82).fork()
+      ).ldelim();
     }
     return writer;
   },
@@ -531,14 +535,17 @@ export const SignalResponse = {
             reader.uint32()
           );
           break;
-        case 7:
-          message.speaker = ActiveSpeakerUpdate.decode(reader, reader.uint32());
-          break;
         case 8:
           message.leave = LeaveRequest.decode(reader, reader.uint32());
           break;
         case 9:
           message.mute = MuteTrackRequest.decode(reader, reader.uint32());
+          break;
+        case 10:
+          message.speakersChanged = SpeakersChanged.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -582,11 +589,6 @@ export const SignalResponse = {
     } else {
       message.trackPublished = undefined;
     }
-    if (object.speaker !== undefined && object.speaker !== null) {
-      message.speaker = ActiveSpeakerUpdate.fromJSON(object.speaker);
-    } else {
-      message.speaker = undefined;
-    }
     if (object.leave !== undefined && object.leave !== null) {
       message.leave = LeaveRequest.fromJSON(object.leave);
     } else {
@@ -596,6 +598,16 @@ export const SignalResponse = {
       message.mute = MuteTrackRequest.fromJSON(object.mute);
     } else {
       message.mute = undefined;
+    }
+    if (
+      object.speakersChanged !== undefined &&
+      object.speakersChanged !== null
+    ) {
+      message.speakersChanged = SpeakersChanged.fromJSON(
+        object.speakersChanged
+      );
+    } else {
+      message.speakersChanged = undefined;
     }
     return message;
   },
@@ -624,10 +636,6 @@ export const SignalResponse = {
       (obj.trackPublished = message.trackPublished
         ? TrackPublishedResponse.toJSON(message.trackPublished)
         : undefined);
-    message.speaker !== undefined &&
-      (obj.speaker = message.speaker
-        ? ActiveSpeakerUpdate.toJSON(message.speaker)
-        : undefined);
     message.leave !== undefined &&
       (obj.leave = message.leave
         ? LeaveRequest.toJSON(message.leave)
@@ -635,6 +643,10 @@ export const SignalResponse = {
     message.mute !== undefined &&
       (obj.mute = message.mute
         ? MuteTrackRequest.toJSON(message.mute)
+        : undefined);
+    message.speakersChanged !== undefined &&
+      (obj.speakersChanged = message.speakersChanged
+        ? SpeakersChanged.toJSON(message.speakersChanged)
         : undefined);
     return obj;
   },
@@ -673,11 +685,6 @@ export const SignalResponse = {
     } else {
       message.trackPublished = undefined;
     }
-    if (object.speaker !== undefined && object.speaker !== null) {
-      message.speaker = ActiveSpeakerUpdate.fromPartial(object.speaker);
-    } else {
-      message.speaker = undefined;
-    }
     if (object.leave !== undefined && object.leave !== null) {
       message.leave = LeaveRequest.fromPartial(object.leave);
     } else {
@@ -687,6 +694,16 @@ export const SignalResponse = {
       message.mute = MuteTrackRequest.fromPartial(object.mute);
     } else {
       message.mute = undefined;
+    }
+    if (
+      object.speakersChanged !== undefined &&
+      object.speakersChanged !== null
+    ) {
+      message.speakersChanged = SpeakersChanged.fromPartial(
+        object.speakersChanged
+      );
+    } else {
+      message.speakersChanged = undefined;
     }
     return message;
   },
@@ -1836,6 +1853,73 @@ export const ICEServer = {
       message.credential = object.credential;
     } else {
       message.credential = "";
+    }
+    return message;
+  },
+};
+
+const baseSpeakersChanged: object = {};
+
+export const SpeakersChanged = {
+  encode(
+    message: SpeakersChanged,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    for (const v of message.speakers) {
+      SpeakerInfo.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SpeakersChanged {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseSpeakersChanged } as SpeakersChanged;
+    message.speakers = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.speakers.push(SpeakerInfo.decode(reader, reader.uint32()));
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SpeakersChanged {
+    const message = { ...baseSpeakersChanged } as SpeakersChanged;
+    message.speakers = [];
+    if (object.speakers !== undefined && object.speakers !== null) {
+      for (const e of object.speakers) {
+        message.speakers.push(SpeakerInfo.fromJSON(e));
+      }
+    }
+    return message;
+  },
+
+  toJSON(message: SpeakersChanged): unknown {
+    const obj: any = {};
+    if (message.speakers) {
+      obj.speakers = message.speakers.map((e) =>
+        e ? SpeakerInfo.toJSON(e) : undefined
+      );
+    } else {
+      obj.speakers = [];
+    }
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<SpeakersChanged>): SpeakersChanged {
+    const message = { ...baseSpeakersChanged } as SpeakersChanged;
+    message.speakers = [];
+    if (object.speakers !== undefined && object.speakers !== null) {
+      for (const e of object.speakers) {
+        message.speakers.push(SpeakerInfo.fromPartial(e));
+      }
     }
     return message;
   },
