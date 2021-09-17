@@ -56,7 +56,21 @@ export default class LocalTrack extends Track {
     // use defaults
       constraints.video = videoOptions;
     }
-    constraints.audio = options.audio;
+
+    // default audio options
+    const audioOptions: MediaTrackConstraints = {
+      echoCancellation: true,
+      /* @ts-ignore */
+      noiseSuppression: true,
+    };
+    if (typeof options.audio === 'object' && options.audio) {
+      Object.assign(audioOptions, options.audio);
+    }
+    if (options.audio === false) {
+      constraints.audio = false;
+    } else {
+      constraints.audio = audioOptions;
+    }
     return constraints;
   }
 
