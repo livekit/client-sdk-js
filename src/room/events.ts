@@ -145,7 +145,8 @@ export enum EngineEvent {
   Reconnected = 'reconnected',
   ParticipantUpdate = 'participantUpdate',
   MediaTrackAdded = 'mediaTrackAdded',
-  SpeakersUpdate = 'speakersUpdate',
+  ActiveSpeakersUpdate = 'activeSpeakersUpdate',
+  SpeakersChanged = 'speakersChanged',
   DataPacketReceived = 'dataPacketReceived',
   RemoteMuteChanged = 'remoteMuteChanged',
 }

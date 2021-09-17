@@ -92,8 +92,8 @@ class Room extends EventEmitter {
       },
     );
 
-    this.engine.on(EngineEvent.SpeakersUpdate, this.handleSpeakerUpdate);
-
+    this.engine.on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate);
+    this.engine.on(EngineEvent.SpeakersChanged, this.handleSpeakersChanged);
     this.engine.on(EngineEvent.DataPacketReceived, this.handleDataPacket);
 
     this.engine.on(EngineEvent.Reconnecting, () => {
@@ -299,7 +299,7 @@ class Room extends EventEmitter {
   }
 
   // updates are sent only when there's a change to speaker ordering
-  private handleSpeakerUpdate = (speakers: SpeakerInfo[]) => {
+  private handleActiveSpeakersUpdate = (speakers: SpeakerInfo[]) => {
     const activeSpeakers: Participant[] = [];
     const seenSids: any = {};
     speakers.forEach((speaker) => {
@@ -329,6 +329,35 @@ class Room extends EventEmitter {
       }
     });
 
+    this.activeSpeakers = activeSpeakers;
+    this.emit(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
+  };
+
+  // process list of changed speakers
+  private handleSpeakersChanged = (speakerUpdates: SpeakerInfo[]) => {
+    const lastSpeakers = new Map<string, Participant>();
+    this.activeSpeakers.forEach((p) => {
+      lastSpeakers.set(p.sid, p);
+    });
+    speakerUpdates.forEach((speaker) => {
+      let p: Participant | undefined = this.participants.get(speaker.sid);
+      if (speaker.sid === this.localParticipant.sid) {
+        p = this.localParticipant;
+      }
+      if (!p) {
+        return;
+      }
+      p.audioLevel = speaker.level;
+      p.setIsSpeaking(speaker.active);
+
+      if (speaker.active) {
+        lastSpeakers.set(speaker.sid, p);
+      } else {
+        lastSpeakers.delete(speaker.sid);
+      }
+    });
+    const activeSpeakers = Array.from(lastSpeakers.values());
+    activeSpeakers.sort((a, b) => b.audioLevel - a.audioLevel);
     this.activeSpeakers = activeSpeakers;
     this.emit(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
   };
