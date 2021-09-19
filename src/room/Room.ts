@@ -368,13 +368,11 @@ class Room extends EventEmitter {
   ) => {
     // find the participant
     const participant = this.participants.get(userPacket.participantSid);
-    if (!participant) {
-      return;
-    }
+
     this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind);
 
     // also emit on the participant
-    participant.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
+    participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
   };
 
   private handleAudioPlaybackStarted = () => {
