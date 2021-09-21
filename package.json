@@ -34,7 +34,7 @@
     "eslint-plugin-import": "^2.22.0",
     "gh-pages": "^3.2.3",
     "ts-loader": "^8.1.0",
-    "ts-proto": "1.82.5",
+    "ts-proto": "1.83.1",
     "typedoc": "^0.20.35",
     "typedoc-plugin-no-inherit": "^1.2.0",
     "typescript": "~4.2.3",

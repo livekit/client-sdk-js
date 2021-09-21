@@ -73,10 +73,14 @@ function trackUnsubscribed(
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-function handleData(msg: Uint8Array, participant: RemoteParticipant) {
+function handleData(msg: Uint8Array, participant?: RemoteParticipant) {
   const str = decoder.decode(msg);
   const chat = <HTMLTextAreaElement>$('chat');
-  chat.value += `${participant.identity}: ${str}\n`;
+  let from = 'server';
+  if (participant) {
+    from = participant.identity;
+  }
+  chat.value += `${from}: ${str}\n`;
 }
 
 function handleSpeakerChanged(speakers: Participant[]) {
