@@ -138,6 +138,13 @@ class Room extends EventEmitter {
           this.emit(RoomEvent.MetadataChanged, metadata, p);
         },
       );
+      this.localParticipant.on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
+        this.emit(RoomEvent.TrackMuted, pub, this.localParticipant);
+      });
+
+      this.localParticipant.on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
+        this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
+      });
 
       // populate remote participants, these should not trigger new events
       joinResponse.otherParticipants.forEach((info) => {
