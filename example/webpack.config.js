@@ -5,8 +5,14 @@ module.exports = {
   mode: 'development',
   devtool: 'inline-source-map',
   devServer: {
-    open: true,
-    contentBase: __dirname,
+    host: '0.0.0.0',
+    open: {
+      target: 'http://localhost:8080/',
+    },
+    port: 8080,
+    static: {
+      directory: __dirname,
+    },
   },
   module: {
     rules: [

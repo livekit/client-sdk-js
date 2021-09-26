@@ -123,6 +123,9 @@ export class WSSignalClient {
     token: string,
     opts: ConnectOpts,
   ): Promise<JoinResponse | void> {
+    if (url.startsWith('http')) {
+      url = url.replace('http', 'ws');
+    }
     // strip trailing slash
     url = url.replace(/\/$/, '');
     url += '/rtc';
