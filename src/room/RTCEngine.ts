@@ -30,10 +30,12 @@ export default class RTCEngine extends EventEmitter {
 
   private lossyDC?: RTCDataChannel;
 
+  // @ts-ignore noUnusedLocals
   private lossyDCSub?: RTCDataChannel;
 
   private reliableDC?: RTCDataChannel;
 
+  // @ts-ignore noUnusedLocals
   private reliableDCSub?: RTCDataChannel;
 
   private subscriberPrimary: boolean = false;

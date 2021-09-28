@@ -6,6 +6,7 @@ export default class RemoteVideoTrack extends Track {
   /** @internal */
   receiver?: RTCRtpReceiver;
 
+  // @ts-ignore noUnusedLocals
   private prevStats?: VideoReceiverStats;
 
   constructor(
