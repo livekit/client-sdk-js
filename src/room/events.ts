@@ -120,7 +120,7 @@ export enum RoomEvent {
    *
    * args: (string)
    */
-   RoomMetadataChanged = 'roomMetadataChanged',
+  RoomMetadataChanged = 'roomMetadataChanged',
 
   /**
    * Data received from another participant.

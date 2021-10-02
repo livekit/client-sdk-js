@@ -406,7 +406,7 @@ class Room extends EventEmitter {
   private handleRoomUpdate = (r: Room) => {
     this.metadata = r.metadata;
     this.emit(RoomEvent.RoomMetadataChanged, r.metadata);
-  }
+  };
 
   private acquireAudioContext() {
     if (this.audioContext) {
