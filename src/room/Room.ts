@@ -58,6 +58,9 @@ class Room extends EventEmitter {
   /** the current participant */
   localParticipant!: LocalParticipant;
 
+  /** room metadata */
+  metadata: string | undefined = undefined;
+
   private audioEnabled = true;
 
   private audioContext?: AudioContext;
@@ -92,6 +95,7 @@ class Room extends EventEmitter {
       },
     );
 
+    this.engine.on(EngineEvent.RoomUpdate, this.handleRoomUpdate);
     this.engine.on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate);
     this.engine.on(EngineEvent.SpeakersChanged, this.handleSpeakersChanged);
     this.engine.on(EngineEvent.DataPacketReceived, this.handleDataPacket);
@@ -398,6 +402,11 @@ class Room extends EventEmitter {
     this.audioEnabled = false;
     this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
   };
+
+  private handleRoomUpdate = (r: Room) => {
+    this.metadata = r.metadata;
+    this.emit(RoomEvent.RoomMetadataChanged, r.metadata);
+  }
 
   private acquireAudioContext() {
     if (this.audioContext) {

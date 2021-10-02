@@ -113,6 +113,16 @@ export enum RoomEvent {
   MetadataChanged = 'metadataChanged',
 
   /**
+   * Room metadata is a simple way for app-specific state to be pushed to
+   * all users.
+   * When RoomService.UpdateRoomMetadata is called to change a room's state,
+   * *all*  participants in the room will fire this event.
+   *
+   * args: (string)
+   */
+   RoomMetadataChanged = 'roomMetadataChanged',
+
+  /**
    * Data received from another participant.
    * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
    * All participants in the room will receive the messages sent to the room.
@@ -149,6 +159,7 @@ export enum EngineEvent {
   SpeakersChanged = 'speakersChanged',
   DataPacketReceived = 'dataPacketReceived',
   RemoteMuteChanged = 'remoteMuteChanged',
+  RoomUpdate = 'roomUpdate',
 }
 
 export enum TrackEvent {
