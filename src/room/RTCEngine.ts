@@ -273,6 +273,10 @@ export default class RTCEngine extends EventEmitter {
     this.client.onRemoteMuteChanged = (trackSid, muted) => {
       this.emit(EngineEvent.RemoteMuteChanged, trackSid, muted);
     };
+
+    this.client.onRoomUpdate = (room) => {
+      this.emit(EngineEvent.RoomUpdate, room)
+    }
   }
 
   private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {

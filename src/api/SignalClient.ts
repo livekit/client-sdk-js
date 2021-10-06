@@ -1,6 +1,6 @@
 import log from 'loglevel';
 import 'webrtc-adapter';
-import { ParticipantInfo, SpeakerInfo } from '../proto/livekit_models';
+import { ParticipantInfo, Room, SpeakerInfo } from '../proto/livekit_models';
 import {
   AddTrackRequest,
   JoinResponse,
@@ -65,6 +65,8 @@ export interface SignalClient {
   onSpeakersChanged?: (res: SpeakerInfo[]) => void;
   // when track was muted/unmuted by the server
   onRemoteMuteChanged?: (trackSid: string, muted: boolean) => void;
+  // when room metadata has changed
+  onRoomUpdate?: (room: Room) => void;
   onLeave?: () => void;
 }
 
@@ -91,6 +93,8 @@ export class WSSignalClient {
   onSpeakersChanged?: (res: SpeakerInfo[]) => void;
 
   onRemoteMuteChanged?: (trackSid: string, muted: boolean) => void;
+
+  onRoomUpdate?: (room: Room) => void;
 
   onLeave?: () => void;
 
@@ -325,6 +329,10 @@ export class WSSignalClient {
     } else if (msg.mute) {
       if (this.onRemoteMuteChanged) {
         this.onRemoteMuteChanged(msg.mute.sid, msg.mute.muted);
+      }
+    } else if(msg.roomUpdate) {
+      if(this.onRoomUpdate) {
+        this.onRoomUpdate(msg.roomUpdate.room!);
       }
     } else {
       log.warn('unsupported message', msg);
