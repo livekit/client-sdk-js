@@ -493,6 +493,7 @@ class Room extends EventEmitter {
       participant.on(
         ParticipantEvent.MetadataChanged,
         (metadata: object, p: Participant) => {
+          this.emit(RoomEvent.ParticipantMetadataChanged, metadata, p);
           this.emit(RoomEvent.MetadataChanged, metadata, p);
         },
       );
