@@ -330,8 +330,8 @@ export class WSSignalClient {
       if (this.onRemoteMuteChanged) {
         this.onRemoteMuteChanged(msg.mute.sid, msg.mute.muted);
       }
-    } else if(msg.roomUpdate) {
-      if(this.onRoomUpdate) {
+    } else if (msg.roomUpdate) {
+      if (this.onRoomUpdate) {
         this.onRoomUpdate(msg.roomUpdate.room!);
       }
     } else {

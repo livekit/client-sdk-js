@@ -275,8 +275,8 @@ export default class RTCEngine extends EventEmitter {
     };
 
     this.client.onRoomUpdate = (room) => {
-      this.emit(EngineEvent.RoomUpdate, room)
-    }
+      this.emit(EngineEvent.RoomUpdate, room);
+    };
   }
 
   private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {

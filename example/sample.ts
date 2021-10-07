@@ -212,6 +212,9 @@ window.connectToRoom = async (
     .on(RoomEvent.Reconnected, () => appendLog('Successfully reconnected!'))
     .on(RoomEvent.TrackMuted, (pub: TrackPublication, p: Participant) => appendLog('track was muted', pub.trackSid, p.identity))
     .on(RoomEvent.TrackUnmuted, (pub: TrackPublication, p: Participant) => appendLog('track was unmuted', pub.trackSid, p.identity))
+    .on(RoomEvent.RoomMetadataChanged, (metadata) => {
+      console.log("new metadata for room", metadata);
+    })
     .on(RoomEvent.AudioPlaybackStatusChanged, () => {
       if (room.canPlaybackAudio) {
         $('start-audio-button')?.setAttribute('disabled', 'true');
