@@ -103,14 +103,31 @@ export enum RoomEvent {
   ActiveSpeakersChanged = 'activeSpeakersChanged',
 
   /**
+   * @deprecated Use ParticipantMetadataChanged instead
+   * @internal
+   */
+  MetadataChanged = 'metadataChanged',
+
+  /**
    * Participant metadata is a simple way for app-specific state to be pushed to
    * all users.
    * When RoomService.UpdateParticipantMetadata is called to change a participant's
    * state, *all*  participants in the room will fire this event.
    *
    * args: (prevMetadata: string, [[Participant]])
+   *
    */
-  MetadataChanged = 'metadataChanged',
+  ParticipantMetadataChanged = 'participantMetaDataChanged',
+
+  /**
+   * Room metadata is a simple way for app-specific state to be pushed to
+   * all users.
+   * When RoomService.UpdateRoomMetadata is called to change a room's state,
+   * *all*  participants in the room will fire this event.
+   *
+   * args: (string)
+   */
+  RoomMetadataChanged = 'roomMetadataChanged',
 
   /**
    * Data received from another participant.
@@ -133,6 +150,7 @@ export enum ParticipantEvent {
   TrackMuted = 'trackMuted',
   TrackUnmuted = 'trackUnmuted',
   MetadataChanged = 'metadataChanged',
+  ParticipantMetadataChanged = 'participantMetadataChanged',
   DataReceived = 'dataReceived',
   IsSpeakingChanged = 'isSpeakingChanged',
 }
@@ -149,6 +167,7 @@ export enum EngineEvent {
   SpeakersChanged = 'speakersChanged',
   DataPacketReceived = 'dataPacketReceived',
   RemoteMuteChanged = 'remoteMuteChanged',
+  RoomUpdate = 'roomUpdate',
 }
 
 export enum TrackEvent {

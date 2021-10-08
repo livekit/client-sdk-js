@@ -3,7 +3,7 @@ import log from 'loglevel';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import {
   DataPacket_Kind, ParticipantInfo,
-  ParticipantInfo_State, SpeakerInfo, UserPacket,
+  ParticipantInfo_State, SpeakerInfo, UserPacket, Room as RoomModel,
 } from '../proto/livekit_models';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
@@ -58,6 +58,9 @@ class Room extends EventEmitter {
   /** the current participant */
   localParticipant!: LocalParticipant;
 
+  /** room metadata */
+  metadata: string | undefined = undefined;
+
   private audioEnabled = true;
 
   private audioContext?: AudioContext;
@@ -92,6 +95,7 @@ class Room extends EventEmitter {
       },
     );
 
+    this.engine.on(EngineEvent.RoomUpdate, this.handleRoomUpdate);
     this.engine.on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate);
     this.engine.on(EngineEvent.SpeakersChanged, this.handleSpeakersChanged);
     this.engine.on(EngineEvent.DataPacketReceived, this.handleDataPacket);
@@ -399,6 +403,11 @@ class Room extends EventEmitter {
     this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
   };
 
+  private handleRoomUpdate = (r: RoomModel) => {
+    this.metadata = r.metadata;
+    this.emit(RoomEvent.RoomMetadataChanged, r.metadata);
+  };
+
   private acquireAudioContext() {
     if (this.audioContext) {
       this.audioContext.close();
@@ -484,6 +493,7 @@ class Room extends EventEmitter {
       participant.on(
         ParticipantEvent.MetadataChanged,
         (metadata: object, p: Participant) => {
+          this.emit(RoomEvent.ParticipantMetadataChanged, metadata, p);
           this.emit(RoomEvent.MetadataChanged, metadata, p);
         },
       );

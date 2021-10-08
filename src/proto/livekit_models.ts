@@ -50,6 +50,8 @@ export interface Room {
   creationTime: number;
   turnPassword: string;
   enabledCodecs: Codec[];
+  metadata: string;
+  numParticipants: number;
 }
 
 export interface Codec {
@@ -197,6 +199,13 @@ export interface UserPacket {
   destinationSids: string[];
 }
 
+export interface RecordingResult {
+  id: string;
+  error: string;
+  duration: number;
+  location: string;
+}
+
 const baseRoom: object = {
   sid: "",
   name: "",
@@ -204,6 +213,8 @@ const baseRoom: object = {
   maxParticipants: 0,
   creationTime: 0,
   turnPassword: "",
+  metadata: "",
+  numParticipants: 0,
 };
 
 export const Room = {
@@ -228,6 +239,12 @@ export const Room = {
     }
     for (const v of message.enabledCodecs) {
       Codec.encode(v!, writer.uint32(58).fork()).ldelim();
+    }
+    if (message.metadata !== "") {
+      writer.uint32(66).string(message.metadata);
+    }
+    if (message.numParticipants !== 0) {
+      writer.uint32(72).uint32(message.numParticipants);
     }
     return writer;
   },
@@ -260,6 +277,12 @@ export const Room = {
           break;
         case 7:
           message.enabledCodecs.push(Codec.decode(reader, reader.uint32()));
+          break;
+        case 8:
+          message.metadata = reader.string();
+          break;
+        case 9:
+          message.numParticipants = reader.uint32();
           break;
         default:
           reader.skipType(tag & 7);
@@ -310,6 +333,19 @@ export const Room = {
         message.enabledCodecs.push(Codec.fromJSON(e));
       }
     }
+    if (object.metadata !== undefined && object.metadata !== null) {
+      message.metadata = String(object.metadata);
+    } else {
+      message.metadata = "";
+    }
+    if (
+      object.numParticipants !== undefined &&
+      object.numParticipants !== null
+    ) {
+      message.numParticipants = Number(object.numParticipants);
+    } else {
+      message.numParticipants = 0;
+    }
     return message;
   },
 
@@ -332,6 +368,9 @@ export const Room = {
     } else {
       obj.enabledCodecs = [];
     }
+    message.metadata !== undefined && (obj.metadata = message.metadata);
+    message.numParticipants !== undefined &&
+      (obj.numParticipants = message.numParticipants);
     return obj;
   },
 
@@ -375,6 +414,19 @@ export const Room = {
       for (const e of object.enabledCodecs) {
         message.enabledCodecs.push(Codec.fromPartial(e));
       }
+    }
+    if (object.metadata !== undefined && object.metadata !== null) {
+      message.metadata = object.metadata;
+    } else {
+      message.metadata = "";
+    }
+    if (
+      object.numParticipants !== undefined &&
+      object.numParticipants !== null
+    ) {
+      message.numParticipants = object.numParticipants;
+    } else {
+      message.numParticipants = 0;
     }
     return message;
   },
@@ -1160,6 +1212,120 @@ export const UserPacket = {
       for (const e of object.destinationSids) {
         message.destinationSids.push(e);
       }
+    }
+    return message;
+  },
+};
+
+const baseRecordingResult: object = {
+  id: "",
+  error: "",
+  duration: 0,
+  location: "",
+};
+
+export const RecordingResult = {
+  encode(
+    message: RecordingResult,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.error !== "") {
+      writer.uint32(18).string(message.error);
+    }
+    if (message.duration !== 0) {
+      writer.uint32(24).int64(message.duration);
+    }
+    if (message.location !== "") {
+      writer.uint32(34).string(message.location);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): RecordingResult {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseRecordingResult } as RecordingResult;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.id = reader.string();
+          break;
+        case 2:
+          message.error = reader.string();
+          break;
+        case 3:
+          message.duration = longToNumber(reader.int64() as Long);
+          break;
+        case 4:
+          message.location = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RecordingResult {
+    const message = { ...baseRecordingResult } as RecordingResult;
+    if (object.id !== undefined && object.id !== null) {
+      message.id = String(object.id);
+    } else {
+      message.id = "";
+    }
+    if (object.error !== undefined && object.error !== null) {
+      message.error = String(object.error);
+    } else {
+      message.error = "";
+    }
+    if (object.duration !== undefined && object.duration !== null) {
+      message.duration = Number(object.duration);
+    } else {
+      message.duration = 0;
+    }
+    if (object.location !== undefined && object.location !== null) {
+      message.location = String(object.location);
+    } else {
+      message.location = "";
+    }
+    return message;
+  },
+
+  toJSON(message: RecordingResult): unknown {
+    const obj: any = {};
+    message.id !== undefined && (obj.id = message.id);
+    message.error !== undefined && (obj.error = message.error);
+    message.duration !== undefined && (obj.duration = message.duration);
+    message.location !== undefined && (obj.location = message.location);
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<RecordingResult>): RecordingResult {
+    const message = { ...baseRecordingResult } as RecordingResult;
+    if (object.id !== undefined && object.id !== null) {
+      message.id = object.id;
+    } else {
+      message.id = "";
+    }
+    if (object.error !== undefined && object.error !== null) {
+      message.error = object.error;
+    } else {
+      message.error = "";
+    }
+    if (object.duration !== undefined && object.duration !== null) {
+      message.duration = object.duration;
+    } else {
+      message.duration = 0;
+    }
+    if (object.location !== undefined && object.location !== null) {
+      message.location = object.location;
+    } else {
+      message.location = "";
     }
     return message;
   },

@@ -121,6 +121,8 @@ export interface SignalResponse {
   mute?: MuteTrackRequest | undefined;
   /** indicates changes to speaker status, including when they've gone to not speaking */
   speakersChanged?: SpeakersChanged | undefined;
+  /** sent when metadata of the room has changed */
+  roomUpdate?: RoomUpdate | undefined;
 }
 
 export interface AddTrackRequest {
@@ -201,6 +203,10 @@ export interface ICEServer {
 
 export interface SpeakersChanged {
   speakers: SpeakerInfo[];
+}
+
+export interface RoomUpdate {
+  room?: Room;
 }
 
 const baseSignalRequest: object = {};
@@ -504,6 +510,9 @@ export const SignalResponse = {
         writer.uint32(82).fork()
       ).ldelim();
     }
+    if (message.roomUpdate !== undefined) {
+      RoomUpdate.encode(message.roomUpdate, writer.uint32(90).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -546,6 +555,9 @@ export const SignalResponse = {
             reader,
             reader.uint32()
           );
+          break;
+        case 11:
+          message.roomUpdate = RoomUpdate.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -609,6 +621,11 @@ export const SignalResponse = {
     } else {
       message.speakersChanged = undefined;
     }
+    if (object.roomUpdate !== undefined && object.roomUpdate !== null) {
+      message.roomUpdate = RoomUpdate.fromJSON(object.roomUpdate);
+    } else {
+      message.roomUpdate = undefined;
+    }
     return message;
   },
 
@@ -647,6 +664,10 @@ export const SignalResponse = {
     message.speakersChanged !== undefined &&
       (obj.speakersChanged = message.speakersChanged
         ? SpeakersChanged.toJSON(message.speakersChanged)
+        : undefined);
+    message.roomUpdate !== undefined &&
+      (obj.roomUpdate = message.roomUpdate
+        ? RoomUpdate.toJSON(message.roomUpdate)
         : undefined);
     return obj;
   },
@@ -704,6 +725,11 @@ export const SignalResponse = {
       );
     } else {
       message.speakersChanged = undefined;
+    }
+    if (object.roomUpdate !== undefined && object.roomUpdate !== null) {
+      message.roomUpdate = RoomUpdate.fromPartial(object.roomUpdate);
+    } else {
+      message.roomUpdate = undefined;
     }
     return message;
   },
@@ -1920,6 +1946,65 @@ export const SpeakersChanged = {
       for (const e of object.speakers) {
         message.speakers.push(SpeakerInfo.fromPartial(e));
       }
+    }
+    return message;
+  },
+};
+
+const baseRoomUpdate: object = {};
+
+export const RoomUpdate = {
+  encode(
+    message: RoomUpdate,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.room !== undefined) {
+      Room.encode(message.room, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): RoomUpdate {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseRoomUpdate } as RoomUpdate;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.room = Room.decode(reader, reader.uint32());
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RoomUpdate {
+    const message = { ...baseRoomUpdate } as RoomUpdate;
+    if (object.room !== undefined && object.room !== null) {
+      message.room = Room.fromJSON(object.room);
+    } else {
+      message.room = undefined;
+    }
+    return message;
+  },
+
+  toJSON(message: RoomUpdate): unknown {
+    const obj: any = {};
+    message.room !== undefined &&
+      (obj.room = message.room ? Room.toJSON(message.room) : undefined);
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<RoomUpdate>): RoomUpdate {
+    const message = { ...baseRoomUpdate } as RoomUpdate;
+    if (object.room !== undefined && object.room !== null) {
+      message.room = Room.fromPartial(object.room);
+    } else {
+      message.room = undefined;
     }
     return message;
   },
