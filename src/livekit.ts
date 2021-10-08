@@ -17,6 +17,16 @@ import { Track } from './room/track/Track';
 
 export { version } from './version';
 
+let audioAllowed: boolean | undefined;
+export function isAudioCaptureAllowed(): boolean | undefined {
+  return audioAllowed;
+}
+
+let videoAllowed: boolean | undefined;
+export function isVideoCaptureAllowed(): boolean | undefined {
+  return videoAllowed;
+}
+
 /**
  * Connects to a LiveKit room
  *
@@ -179,9 +189,30 @@ export async function createLocalTracks(
   if (options.audio === undefined) options.audio = {};
 
   const constraints = LocalTrack.constraintsForOptions(options);
-  const stream = await navigator.mediaDevices.getUserMedia(
-    constraints,
-  );
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia(
+      constraints,
+    );
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'NotAllowedError') {
+      if (options.audio) {
+        audioAllowed = false;
+      }
+      if (options.video) {
+        videoAllowed = false;
+      }
+    }
+    throw e;
+  }
+
+  if (options.audio) {
+    audioAllowed = true;
+  }
+  if (options.video) {
+    videoAllowed = true;
+  }
+
   return stream.getTracks().map((mediaStreamTrack) => {
     const isAudio = mediaStreamTrack.kind === 'audio';
     let trackOptions = isAudio ? options!.audio : options!.video;
