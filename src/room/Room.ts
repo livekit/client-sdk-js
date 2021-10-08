@@ -3,7 +3,7 @@ import log from 'loglevel';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import {
   DataPacket_Kind, ParticipantInfo,
-  ParticipantInfo_State, SpeakerInfo, UserPacket,
+  ParticipantInfo_State, SpeakerInfo, UserPacket, Room as RoomModel,
 } from '../proto/livekit_models';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
@@ -403,7 +403,7 @@ class Room extends EventEmitter {
     this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
   };
 
-  private handleRoomUpdate = (r: Room) => {
+  private handleRoomUpdate = (r: RoomModel) => {
     this.metadata = r.metadata;
     this.emit(RoomEvent.RoomMetadataChanged, r.metadata);
   };
