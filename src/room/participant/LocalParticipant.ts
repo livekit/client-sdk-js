@@ -112,7 +112,6 @@ export default class LocalParticipant extends Participant {
       req.width = track.dimensions.width;
       req.height = track.dimensions.height;
     }
-    console.error('req: ', req);	// REMOVE
     const ti = await this.engine.addTrack(req);
     const publication = new LocalTrackPublication(track.kind, ti, track);
     track.sid = ti.sid;
