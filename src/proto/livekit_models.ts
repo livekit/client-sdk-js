@@ -137,6 +137,8 @@ export interface TrackInfo {
   height: number;
   /** true if track is simulcasted */
   simulcast: boolean;
+  /** true if DTX (Discontinuous Transmission) is disabled for audio */
+  disableDtx: boolean;
 }
 
 /** new DataPacket API */
@@ -197,13 +199,6 @@ export interface UserPacket {
   payload: Uint8Array;
   /** the ID of the participants who will receive the message (the message will be sent to all the people in the room if this variable is empty) */
   destinationSids: string[];
-}
-
-export interface RecordingResult {
-  id: string;
-  error: string;
-  duration: number;
-  location: string;
 }
 
 const baseRoom: object = {
@@ -689,6 +684,7 @@ const baseTrackInfo: object = {
   width: 0,
   height: 0,
   simulcast: false,
+  disableDtx: false,
 };
 
 export const TrackInfo = {
@@ -716,6 +712,9 @@ export const TrackInfo = {
     }
     if (message.simulcast === true) {
       writer.uint32(56).bool(message.simulcast);
+    }
+    if (message.disableDtx === true) {
+      writer.uint32(64).bool(message.disableDtx);
     }
     return writer;
   },
@@ -747,6 +746,9 @@ export const TrackInfo = {
           break;
         case 7:
           message.simulcast = reader.bool();
+          break;
+        case 8:
+          message.disableDtx = reader.bool();
           break;
         default:
           reader.skipType(tag & 7);
@@ -793,6 +795,11 @@ export const TrackInfo = {
     } else {
       message.simulcast = false;
     }
+    if (object.disableDtx !== undefined && object.disableDtx !== null) {
+      message.disableDtx = Boolean(object.disableDtx);
+    } else {
+      message.disableDtx = false;
+    }
     return message;
   },
 
@@ -805,6 +812,7 @@ export const TrackInfo = {
     message.width !== undefined && (obj.width = message.width);
     message.height !== undefined && (obj.height = message.height);
     message.simulcast !== undefined && (obj.simulcast = message.simulcast);
+    message.disableDtx !== undefined && (obj.disableDtx = message.disableDtx);
     return obj;
   },
 
@@ -844,6 +852,11 @@ export const TrackInfo = {
       message.simulcast = object.simulcast;
     } else {
       message.simulcast = false;
+    }
+    if (object.disableDtx !== undefined && object.disableDtx !== null) {
+      message.disableDtx = object.disableDtx;
+    } else {
+      message.disableDtx = false;
     }
     return message;
   },
@@ -1212,120 +1225,6 @@ export const UserPacket = {
       for (const e of object.destinationSids) {
         message.destinationSids.push(e);
       }
-    }
-    return message;
-  },
-};
-
-const baseRecordingResult: object = {
-  id: "",
-  error: "",
-  duration: 0,
-  location: "",
-};
-
-export const RecordingResult = {
-  encode(
-    message: RecordingResult,
-    writer: _m0.Writer = _m0.Writer.create()
-  ): _m0.Writer {
-    if (message.id !== "") {
-      writer.uint32(10).string(message.id);
-    }
-    if (message.error !== "") {
-      writer.uint32(18).string(message.error);
-    }
-    if (message.duration !== 0) {
-      writer.uint32(24).int64(message.duration);
-    }
-    if (message.location !== "") {
-      writer.uint32(34).string(message.location);
-    }
-    return writer;
-  },
-
-  decode(input: _m0.Reader | Uint8Array, length?: number): RecordingResult {
-    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseRecordingResult } as RecordingResult;
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1:
-          message.id = reader.string();
-          break;
-        case 2:
-          message.error = reader.string();
-          break;
-        case 3:
-          message.duration = longToNumber(reader.int64() as Long);
-          break;
-        case 4:
-          message.location = reader.string();
-          break;
-        default:
-          reader.skipType(tag & 7);
-          break;
-      }
-    }
-    return message;
-  },
-
-  fromJSON(object: any): RecordingResult {
-    const message = { ...baseRecordingResult } as RecordingResult;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = String(object.id);
-    } else {
-      message.id = "";
-    }
-    if (object.error !== undefined && object.error !== null) {
-      message.error = String(object.error);
-    } else {
-      message.error = "";
-    }
-    if (object.duration !== undefined && object.duration !== null) {
-      message.duration = Number(object.duration);
-    } else {
-      message.duration = 0;
-    }
-    if (object.location !== undefined && object.location !== null) {
-      message.location = String(object.location);
-    } else {
-      message.location = "";
-    }
-    return message;
-  },
-
-  toJSON(message: RecordingResult): unknown {
-    const obj: any = {};
-    message.id !== undefined && (obj.id = message.id);
-    message.error !== undefined && (obj.error = message.error);
-    message.duration !== undefined && (obj.duration = message.duration);
-    message.location !== undefined && (obj.location = message.location);
-    return obj;
-  },
-
-  fromPartial(object: DeepPartial<RecordingResult>): RecordingResult {
-    const message = { ...baseRecordingResult } as RecordingResult;
-    if (object.id !== undefined && object.id !== null) {
-      message.id = object.id;
-    } else {
-      message.id = "";
-    }
-    if (object.error !== undefined && object.error !== null) {
-      message.error = object.error;
-    } else {
-      message.error = "";
-    }
-    if (object.duration !== undefined && object.duration !== null) {
-      message.duration = object.duration;
-    } else {
-      message.duration = 0;
-    }
-    if (object.location !== undefined && object.location !== null) {
-      message.location = object.location;
-    } else {
-      message.location = "";
     }
     return message;
   },
