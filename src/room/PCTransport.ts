@@ -68,7 +68,7 @@ export default class PCTransport {
 
     // actually negotiate
     log.debug('starting to negotiate');
-    const offer = await this.pc.createOffer({ ...options, voiceActivityDetection: true });
+    const offer = await this.pc.createOffer(options);
     await this.pc.setLocalDescription(offer);
     this.onOffer(offer);
   }
