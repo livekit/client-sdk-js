@@ -101,7 +101,7 @@ export async function connect(
         || track.kind === Track.Kind.Audio
       ) {
         trackOptions.audioBitrate = options.audioBitrate;
-        trackOptions.audioOptimizeBandwidth = options.audioOptimizeBandwidth;
+        trackOptions.dtx = options.dtx;
       }
 
       await room.localParticipant.publishTrack(

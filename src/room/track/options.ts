@@ -24,9 +24,9 @@ export interface TrackPublishOptions {
   audioBitrate?: number;
 
   /**
-   * optimize audio bandwidth, defaults to true
+   * dtx (Discontinuous Tranmission of audio), defaults to true
    */
-  audioOptimizeBandwidth?: boolean;
+  dtx?: boolean;
 
   /**
    * use simulcast, defaults to false.
