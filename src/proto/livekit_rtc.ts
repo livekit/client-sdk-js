@@ -134,6 +134,8 @@ export interface AddTrackRequest {
   height: number;
   /** true to add track and initialize to muted */
   muted: boolean;
+  /** true if DTX (Discontinuous Transmission) is disabled for audio */
+  disableDtx: boolean;
 }
 
 export interface TrickleRequest {
@@ -742,6 +744,7 @@ const baseAddTrackRequest: object = {
   width: 0,
   height: 0,
   muted: false,
+  disableDtx: false,
 };
 
 export const AddTrackRequest = {
@@ -766,6 +769,9 @@ export const AddTrackRequest = {
     }
     if (message.muted === true) {
       writer.uint32(48).bool(message.muted);
+    }
+    if (message.disableDtx === true) {
+      writer.uint32(56).bool(message.disableDtx);
     }
     return writer;
   },
@@ -794,6 +800,9 @@ export const AddTrackRequest = {
           break;
         case 6:
           message.muted = reader.bool();
+          break;
+        case 7:
+          message.disableDtx = reader.bool();
           break;
         default:
           reader.skipType(tag & 7);
@@ -835,6 +844,11 @@ export const AddTrackRequest = {
     } else {
       message.muted = false;
     }
+    if (object.disableDtx !== undefined && object.disableDtx !== null) {
+      message.disableDtx = Boolean(object.disableDtx);
+    } else {
+      message.disableDtx = false;
+    }
     return message;
   },
 
@@ -846,6 +860,7 @@ export const AddTrackRequest = {
     message.width !== undefined && (obj.width = message.width);
     message.height !== undefined && (obj.height = message.height);
     message.muted !== undefined && (obj.muted = message.muted);
+    message.disableDtx !== undefined && (obj.disableDtx = message.disableDtx);
     return obj;
   },
 
@@ -880,6 +895,11 @@ export const AddTrackRequest = {
       message.muted = object.muted;
     } else {
       message.muted = false;
+    }
+    if (object.disableDtx !== undefined && object.disableDtx !== null) {
+      message.disableDtx = object.disableDtx;
+    } else {
+      message.disableDtx = false;
     }
     return message;
   },

@@ -106,6 +106,7 @@ export default class LocalParticipant extends Participant {
       name: track.name,
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
+      disableDtx: !(options?.dtx ?? true),
     });
     if (track.dimensions) {
       req.width = track.dimensions.width;

@@ -24,6 +24,11 @@ export interface TrackPublishOptions {
   audioBitrate?: number;
 
   /**
+   * dtx (Discontinuous Tranmission of audio), defaults to true
+   */
+  dtx?: boolean;
+
+  /**
    * use simulcast, defaults to false.
    * When using simulcast, LiveKit will publish up to three version of the stream at varying qualiti
    */

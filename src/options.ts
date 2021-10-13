@@ -37,6 +37,9 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   /** see [[TrackPublishOptions.audioBitrate]] */
   audioBitrate?: number;
 
+  /** see [[TrackPublishOptions.dtx]] */
+  dtx?: boolean;
+
   /** see [[TrackPublishOptions.simulcast]] */
   simulcast?: boolean;
 }
