@@ -5,7 +5,7 @@ import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
-import DeviceManager, { DeviceKind } from './DeviceManager';
+import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
   EngineEvent, ParticipantEvent, RoomEvent, TrackEvent,
@@ -26,6 +26,12 @@ export enum RoomState {
   Connected = 'connected',
   Reconnecting = 'reconnecting',
 }
+
+const mediaDeviceKinds: MediaDeviceKind[] = [
+  'audioinput',
+  'audiooutput',
+  'videoinput',
+];
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -113,12 +119,35 @@ class Room extends EventEmitter {
     });
   }
 
-  static getLocalDevices(kind: DeviceKind): Promise<MediaDeviceInfo[]> {
+  /**
+   * getLocalDevices abstracts navigator.mediaDevices.enumerateDevices.
+   * In particular, it handles Chrome's unique behavior of creating `default`
+   * devices. When encountered, it'll be removed from the list of devices.
+   * The actual default device will be placed at top.
+   * @param kind
+   * @returns a list of available local devices
+   */
+  static getLocalDevices(kind: MediaDeviceKind): Promise<MediaDeviceInfo[]> {
     return DeviceManager.getInstance().getDevices(kind);
   }
 
-  static setDefaultDevice(kind: DeviceKind, deviceId: string) {
+  /**
+   * Sets the default device to use for the MediaDeviceKind. Subsequent tracks
+   * created will be using the specified device.
+   *
+   * @param kind
+   * @param deviceId set to undefined to clear the default
+   * @returns
+   */
+  static setDefaultDevice(kind: MediaDeviceKind, deviceId: string | undefined) {
     return DeviceManager.getInstance().setDefaultDevice(kind, deviceId);
+  }
+
+  /**
+   * @returns the default device set by the user. If no device is explicitly set, returns undefined
+   */
+  static getDefaultDevice(kind: MediaDeviceKind): string | undefined {
+    return DeviceManager.getInstance().getDefaultDevice(kind);
   }
 
   /** @internal */
@@ -186,6 +215,7 @@ class Room extends EventEmitter {
 
         // also hook unload event
         window.addEventListener('beforeunload', this.disconnect);
+        navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
 
         resolve(this);
       });
@@ -255,23 +285,23 @@ class Room extends EventEmitter {
    *
    * Note: setting AudioOutput is not supported on some browsers. See [setSinkId](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/setSinkId#browser_compatibility)
    *
-   * @param kind use `DeviceKind.VideoInput` for camera track,
-   *  `DeviceKind.AudioInput` for microphone track,
-   *  `DeviceKind.AudioOutput` to set speaker for all incoming audio tracks
+   * @param kind use `videoinput` for camera track,
+   *  `audioinput` for microphone track,
+   *  `audiooutput` to set speaker for all incoming audio tracks
    * @param deviceId
    */
-  async switchActiveDevice(kind: DeviceKind, deviceId: string) {
-    if (kind === DeviceKind.AudioInput) {
+  async switchActiveDevice(kind: MediaDeviceKind, deviceId: string) {
+    if (kind === 'audioinput') {
       const tracks = Array
         .from(this.localParticipant.audioTracks.values())
         .filter((track) => !track.isMuted && track.source === Track.Source.Microphone);
       await Promise.all(tracks.map((t) => t.audioTrack?.restartTrack({ deviceId })));
-    } else if (kind === DeviceKind.VideoInput) {
+    } else if (kind === 'videoinput') {
       const tracks = Array
         .from(this.localParticipant.videoTracks.values())
         .filter((track) => !track.isMuted && track.source === Track.Source.Camera);
       await Promise.all(tracks.map((t) => t.videoTrack?.restartTrack({ deviceId })));
-    } else if (kind === DeviceKind.AudioOutput) {
+    } else if (kind === 'audiooutput') {
       const elements: HTMLMediaElement[] = [];
       this.participants.forEach((p) => {
         p.audioTracks.forEach((t) => {
@@ -326,6 +356,7 @@ class Room extends EventEmitter {
       this.audioContext = undefined;
     }
     window.removeEventListener('beforeunload', this.disconnect);
+    navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
     this.emit(RoomEvent.Disconnected);
     this.state = RoomState.Disconnected;
   }
@@ -465,6 +496,20 @@ class Room extends EventEmitter {
     }
     this.audioEnabled = false;
     this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
+  };
+
+  private handleDeviceChange = async () => {
+    // ensure default devices still exist, if not, clear them out
+    const mananger = DeviceManager.getInstance();
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    mediaDeviceKinds.forEach(async (kind) => {
+      const deviceId = mananger.getDefaultDevice(kind);
+      const device = devices.find((d) => d.deviceId === deviceId && d.kind === kind);
+      if (!device) {
+        mananger.setDefaultDevice(kind, undefined);
+      }
+    });
+    this.emit(RoomEvent.MediaDevicesChanged);
   };
 
   private handleRoomUpdate = (r: RoomModel) => {

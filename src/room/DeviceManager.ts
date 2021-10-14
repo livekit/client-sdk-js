@@ -1,14 +1,8 @@
-export enum DeviceKind {
-  AudioInput = 'audioinput',
-  AudioOutput = 'audiooutput',
-  VideoInput = 'videoinput',
-}
-
 export default class DeviceManager {
   private static instance?: DeviceManager;
 
   // kind => deviceId
-  defaultDevices: Map<DeviceKind, string> = new Map();
+  defaultDevices: Map<MediaDeviceKind, string> = new Map();
 
   static getInstance(): DeviceManager {
     if (this.instance === undefined) {
@@ -17,7 +11,7 @@ export default class DeviceManager {
     return this.instance;
   }
 
-  async getDevices(kind: DeviceKind): Promise<MediaDeviceInfo[]> {
+  async getDevices(kind: MediaDeviceKind): Promise<MediaDeviceInfo[]> {
     let devices = await navigator.mediaDevices.enumerateDevices();
     devices = devices.filter((device) => device.kind === kind);
     // Chrome returns 'default' devices, we would filter them out, but put the default
@@ -39,11 +33,15 @@ export default class DeviceManager {
     return devices;
   }
 
-  setDefaultDevice(kind: DeviceKind, deviceId: string) {
-    this.defaultDevices.set(kind, deviceId);
+  setDefaultDevice(kind: MediaDeviceKind, deviceId: string | undefined) {
+    if (deviceId === undefined) {
+      this.defaultDevices.delete(kind);
+    } else {
+      this.defaultDevices.set(kind, deviceId);
+    }
   }
 
-  getDefaultDevice(kind: DeviceKind): string | undefined {
+  getDefaultDevice(kind: MediaDeviceKind): string | undefined {
     return this.defaultDevices.get(kind);
   }
 }

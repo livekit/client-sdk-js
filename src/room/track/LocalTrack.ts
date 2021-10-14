@@ -1,5 +1,5 @@
 import log from 'loglevel';
-import DeviceManager, { DeviceKind } from '../DeviceManager';
+import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import { CreateLocalTracksOptions, VideoPresets } from './options';
@@ -42,7 +42,7 @@ export default class LocalTrack extends Track {
 
     // default video options
     const videoOptions: MediaTrackConstraints = {
-      deviceId: DeviceManager.getInstance().getDefaultDevice(DeviceKind.VideoInput),
+      deviceId: DeviceManager.getInstance().getDefaultDevice('videoinput'),
       ...VideoPresets.qhd.resolution,
     };
     if (typeof options.video === 'object' && options.video) {
@@ -61,7 +61,7 @@ export default class LocalTrack extends Track {
 
     // default audio options
     const audioOptions: MediaTrackConstraints = {
-      deviceId: DeviceManager.getInstance().getDefaultDevice(DeviceKind.AudioInput),
+      deviceId: DeviceManager.getInstance().getDefaultDevice('audioinput'),
       echoCancellation: true,
       /* @ts-ignore */
       noiseSuppression: true,
@@ -92,7 +92,7 @@ export default class LocalTrack extends Track {
 
     // resolve actual device id if it's 'default': Chrome returns it when no
     // device has been chosen
-    const kind = this.kind === Track.Kind.Audio ? DeviceKind.AudioInput : DeviceKind.VideoInput;
+    const kind = this.kind === Track.Kind.Audio ? 'audioinput' : 'videoinput';
     const devices = await DeviceManager.getInstance().getDevices(kind);
 
     const device = devices.find((d) => d.groupId === groupId && d.deviceId !== 'default');

@@ -15,6 +15,7 @@ declare global {
   interface Window {
     connectWithFormInput: any;
     connectToRoom: any;
+    handleDeviceSelected: any;
     shareScreen: any;
     muteVideo: any;
     muteAudio: any;
@@ -195,13 +196,21 @@ window.connectToRoom = async (
   if (forceTURN) {
     rtcConfig.iceTransportPolicy = 'relay';
   }
+  const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
+  let audioOptions = true;
+  let videoOptions: boolean | CreateVideoTrackOptions = {
+    resolution: VideoPresets.qhd.resolution,
+  };
+  if (!shouldPublish) {
+    audioOptions = false;
+    videoOptions = false;
+  }
+
   try {
     room = await connect(url, token, {
       logLevel: LogLevel.debug,
-      audio: true,
-      video: {
-        resolution: VideoPresets.qhd.resolution,
-      },
+      audio: audioOptions,
+      video: videoOptions,
       simulcast,
       rtcConfig,
     });
@@ -214,7 +223,6 @@ window.connectToRoom = async (
     return;
   }
 
-  window.currentRoom = room;
   appendLog('connected to room', room.name);
   setButtonsForState(true);
   currentRoom = room;
@@ -231,8 +239,9 @@ window.connectToRoom = async (
     .on(RoomEvent.TrackMuted, (pub: TrackPublication, p: Participant) => appendLog('track was muted', pub.trackSid, p.identity))
     .on(RoomEvent.TrackUnmuted, (pub: TrackPublication, p: Participant) => appendLog('track was unmuted', pub.trackSid, p.identity))
     .on(RoomEvent.RoomMetadataChanged, (metadata) => {
-      console.log('new metadata for room', metadata);
+      appendLog('new metadata for room', metadata);
     })
+    .on(RoomEvent.MediaDevicesChanged, handleDevicesChanged)
     .on(RoomEvent.AudioPlaybackStatusChanged, () => {
       if (room.canPlaybackAudio) {
         $('start-audio-button')?.setAttribute('disabled', 'true');
@@ -351,6 +360,22 @@ window.flipVideo = () => {
   videoPub.videoTrack?.restartTrack(options);
 };
 
+window.handleDeviceSelected = async (e: Event) => {
+  const deviceId = (<HTMLSelectElement>e.target).value;
+  const elementId = (<HTMLSelectElement>e.target).id;
+  const kind = elementMapping[elementId];
+  if (!kind || !deviceId) {
+    return;
+  }
+
+  Room.setDefaultDevice(kind, deviceId);
+  if (currentRoom) {
+    await currentRoom.switchActiveDevice(kind, deviceId);
+  }
+};
+
+setTimeout(handleDevicesChanged, 100);
+
 async function attachLocalVideo() {
   const videoPub = currentRoom.localParticipant.getTrack(Track.Source.Camera);
   const videoTrack = videoPub?.videoTrack;
@@ -385,4 +410,50 @@ function setButtonsForState(connected: boolean) {
 
 function getMyVideo() {
   return <HTMLVideoElement>document.querySelector('#local-video video');
+}
+
+const elementMapping: { [k: string]: MediaDeviceKind } = {
+  'video-input': 'videoinput',
+  'audio-input': 'audioinput',
+  'audio-output': 'audiooutput',
+};
+async function handleDevicesChanged() {
+  Promise.all(Object.keys(elementMapping).map(async (id) => {
+    const kind = elementMapping[id];
+    if (!kind) {
+      return;
+    }
+    const devices = await Room.getLocalDevices(kind);
+    const element = <HTMLSelectElement>$(id);
+    populateSelect(kind, element, devices, Room.getDefaultDevice(kind));
+  }));
+}
+
+function populateSelect(
+  kind: MediaDeviceKind,
+  element: HTMLSelectElement,
+  devices: MediaDeviceInfo[],
+  selectedDeviceId?: string,
+) {
+  // clear all elements
+  element.innerHTML = '';
+  const initialOption = document.createElement('option');
+  if (kind === 'audioinput') {
+    initialOption.text = 'Audio Input (default)';
+  } else if (kind === 'videoinput') {
+    initialOption.text = 'Video Input (default)';
+  } else if (kind === 'audiooutput') {
+    initialOption.text = 'Audio Output (default)';
+  }
+  element.appendChild(initialOption);
+
+  for (const device of devices) {
+    const option = document.createElement('option');
+    option.text = device.label;
+    option.value = device.deviceId;
+    if (device.deviceId === selectedDeviceId) {
+      option.selected = true;
+    }
+    element.appendChild(option);
+  }
 }

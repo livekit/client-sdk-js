@@ -26,6 +26,11 @@ export enum RoomEvent {
   Disconnected = 'disconnected',
 
   /**
+   * When input or output devices on the machine have changed.
+   */
+  MediaDevicesChanged = 'mediaDevicesChanged',
+
+  /**
    * When a [[RemoteParticipant]] joins *after* the local
    * participant. It will not emit events for participants that are already
    * in the room

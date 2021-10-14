@@ -52,7 +52,19 @@
             </div>
 
             <div class="form-group row">
-              <div class="col-md-3"></div>
+              <div class="col-md-2 offset-md-1">
+                <div class="form-check">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    id="publish-option"
+                    checked
+                  />
+                  <label for="checkbox" class="form-check-label">
+                    Publish
+                  </label>
+                </div>
+              </div>
               <div class="col-md-2">
                 <div class="form-check">
                   <input
@@ -155,6 +167,25 @@
                 >
                   Enable Audio
                 </button>
+              </div>
+            </div>
+
+            <!-- video devices -->
+            <div class="form-group row">
+              <div class="col-md-4">
+                <select id="video-input" class="custom-select" onchange="handleDeviceSelected(event)">
+                  <option selected>Video Input (default)</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <select id="audio-input" class="custom-select" onchange="handleDeviceSelected(event)">
+                  <option selected>Audio Input (default)</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <select id="audio-output" class="custom-select" onchange="handleDeviceSelected(event)">
+                  <option selected>Audio Output (default)</option>
+                </select>
               </div>
             </div>
 
