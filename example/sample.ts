@@ -247,6 +247,7 @@ window.connectToRoom = async (
       if (room.canPlaybackAudio) {
         $('start-audio-button')?.setAttribute('disabled', 'true');
       } else {
+        console.error('got can playback audio');	// REMOVE
         $('start-audio-button')?.removeAttribute('disabled');
       }
     });
@@ -387,7 +388,6 @@ async function publishLocalVideo(track: LocalVideoTrack) {
 
 function setButtonsForState(connected: boolean) {
   const connectedSet = [
-    'toggle-video-button',
     'mute-video-button',
     'mute-audio-button',
     'share-screen-button',
