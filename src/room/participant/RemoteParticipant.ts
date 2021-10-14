@@ -111,6 +111,7 @@ export default class RemoteParticipant extends Participant {
     } else {
       track = new RemoteAudioTrack(mediaTrack, sid, receiver);
     }
+    track.start();
 
     publication.setTrack(track);
     // set track name etc

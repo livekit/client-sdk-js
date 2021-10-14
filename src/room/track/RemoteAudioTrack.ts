@@ -22,4 +22,14 @@ export default class RemoteAudioTrack extends Track {
       this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
     }
   }
+
+  start() {
+    // use `enabled` of track to enable re-use of transceiver
+    super.enable();
+  }
+
+  stop() {
+    // use `enabled` of track to enable re-use of transceiver
+    super.disable();
+  }
 }

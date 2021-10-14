@@ -140,6 +140,38 @@ function handleRoomDisconnect() {
   appendLog('disconnected from room');
   setButtonsForState(false);
   $('local-video')!.innerHTML = '';
+
+  // clear the chat area on disconnect
+  clearChat();
+
+  // clear remote area on disconnect
+  clearRemoteArea();
+}
+
+function setButtonState(buttonId: string, buttonText: string, isActive: boolean) {
+  const el = $(buttonId);
+  if (!el) return;
+
+  el.innerHTML = buttonText;
+  if (isActive) {
+    el.classList.add('active');
+  } else {
+    el.classList.remove('active');
+  }
+}
+
+function clearChat() {
+  const chat = <HTMLTextAreaElement>$('chat');
+  chat.value = '';
+}
+
+function clearRemoteArea() {
+  const el = $('remote-area');
+  if (!el) return;
+
+  while (el.firstChild) {
+    el.removeChild(el.firstChild);
+  }
 }
 
 let currentRoom: Room;
@@ -230,6 +262,7 @@ window.muteVideo = () => {
     if (video) {
       video.style.display = 'none';
     }
+    setButtonState('mute-video-button', 'Unmute Video', true);
   } else {
     appendLog('enabling video');
     currentRoom.localParticipant.setTrackEnabled(Track.Source.Camera, true);
@@ -237,6 +270,7 @@ window.muteVideo = () => {
       video.style.display = '';
     }
     attachLocalVideo();
+    setButtonState('mute-video-button', 'Mute Video', false);
   }
 };
 
@@ -247,9 +281,11 @@ window.muteAudio = () => {
   if (isEnabled) {
     appendLog('muting audio');
     currentRoom.localParticipant.setTrackEnabled(Track.Source.Microphone, false);
+    setButtonState('mute-audio-button', 'Unmute Audio', true);
   } else {
     appendLog('unmuting audio');
     currentRoom.localParticipant.setTrackEnabled(Track.Source.Microphone, true);
+    setButtonState('mute-audio-button', 'Mute Audio', false);
   }
 };
 
@@ -271,6 +307,11 @@ window.shareScreen = async () => {
   const screenPub = currentRoom.localParticipant.getTrack(Track.Source.ScreenShare);
 
   currentRoom.localParticipant.setTrackEnabled(Track.Source.ScreenShare, !screenPub);
+  if (screenPub) {
+    setButtonState('share-screen-button', 'Stop Share Screen', true);
+  } else {
+    setButtonState('share-screen-button', 'Share Screen', false);
+  }
 };
 
 window.disconnectSignal = () => {
@@ -297,6 +338,11 @@ window.flipVideo = () => {
   if (!videoPub) {
     return;
   }
+  if (isFacingForward) {
+    setButtonState('flip-video-button', 'Unflip Video', true);
+  } else {
+    setButtonState('flip-video-button', 'Flip Video', false);
+  }
   isFacingForward = !isFacingForward;
   const options: CreateVideoTrackOptions = {
     resolution: VideoPresets.qhd.resolution,
@@ -321,7 +367,6 @@ async function attachLocalVideo() {
 
 function setButtonsForState(connected: boolean) {
   const connectedSet = [
-    'toggle-video-button',
     'mute-video-button',
     'mute-audio-button',
     'share-screen-button',
