@@ -37,7 +37,13 @@ export default class RemoteVideoTrack extends Track {
     });
   }
 
+  start() {
+    // use `enabled` of track to enable re-use of transceiver
+    super.enable();
+  }
+
   stop() {
-    super.stop();
+    // use `enabled` of track to enable re-use of transceiver
+    super.disable();
   }
 }
