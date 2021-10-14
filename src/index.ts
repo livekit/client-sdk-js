@@ -1,5 +1,6 @@
 import { DataPacket_Kind } from './proto/livekit_models';
 import { VideoQuality } from './proto/livekit_rtc';
+import { DeviceKind } from './room/DeviceManager';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant from './room/participant/Participant';
 import RemoteParticipant from './room/participant/RemoteParticipant';
@@ -25,6 +26,7 @@ export * from './version';
 export {
   Room,
   RoomState,
+  DeviceKind,
   DataPacket_Kind,
   Participant,
   RemoteParticipant,

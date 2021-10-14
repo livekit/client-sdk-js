@@ -5,7 +5,7 @@ import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
-import DeviceManager from './DeviceManager';
+import DeviceManager, { DeviceKind } from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
   EngineEvent, ParticipantEvent, RoomEvent, TrackEvent,
@@ -60,8 +60,6 @@ class Room extends EventEmitter {
   /** the current participant */
   localParticipant!: LocalParticipant;
 
-  localDevices: DeviceManager;
-
   /** room metadata */
   metadata: string | undefined = undefined;
 
@@ -74,7 +72,6 @@ class Room extends EventEmitter {
     super();
     this.participants = new Map();
     this.engine = new RTCEngine(client, config);
-    this.localDevices = new DeviceManager();
 
     this.acquireAudioContext();
 
@@ -114,6 +111,14 @@ class Room extends EventEmitter {
       this.state = RoomState.Connected;
       this.emit(RoomEvent.Reconnected);
     });
+  }
+
+  static getLocalDevices(kind: DeviceKind): Promise<MediaDeviceInfo[]> {
+    return DeviceManager.getInstance().getDevices(kind);
+  }
+
+  static setDefaultDevice(kind: DeviceKind, deviceId: string) {
+    return DeviceManager.getInstance().setDefaultDevice(kind, deviceId);
   }
 
   /** @internal */
@@ -188,6 +193,16 @@ class Room extends EventEmitter {
   };
 
   /**
+   * disconnects the room, emits [[RoomEvent.Disconnected]]
+   */
+  disconnect = () => {
+    // send leave
+    this.engine.client.sendLeave();
+    this.engine.close();
+    this.handleDisconnect();
+  };
+
+  /**
    * Set default publish options
    */
   set defaultPublishOptions(opts: TrackPublishDefaults) {
@@ -236,14 +251,46 @@ class Room extends EventEmitter {
   }
 
   /**
-   * disconnects the room, emits [[RoomEvent.Disconnected]]
+   * Switches all active device used in this room to the given device.
+   *
+   * Note: setting AudioOutput is not supported on some browsers. See [setSinkId](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/setSinkId#browser_compatibility)
+   *
+   * @param kind use `DeviceKind.VideoInput` for camera track,
+   *  `DeviceKind.AudioInput` for microphone track,
+   *  `DeviceKind.AudioOutput` to set speaker for all incoming audio tracks
+   * @param deviceId
    */
-  disconnect = () => {
-    // send leave
-    this.engine.client.sendLeave();
-    this.engine.close();
-    this.handleDisconnect();
-  };
+  async switchActiveDevice(kind: DeviceKind, deviceId: string) {
+    if (kind === DeviceKind.AudioInput) {
+      const tracks = Array
+        .from(this.localParticipant.audioTracks.values())
+        .filter((track) => !track.isMuted && track.source === Track.Source.Microphone);
+      await Promise.all(tracks.map((t) => t.audioTrack?.restartTrack({ deviceId })));
+    } else if (kind === DeviceKind.VideoInput) {
+      const tracks = Array
+        .from(this.localParticipant.videoTracks.values())
+        .filter((track) => !track.isMuted && track.source === Track.Source.Camera);
+      await Promise.all(tracks.map((t) => t.videoTrack?.restartTrack({ deviceId })));
+    } else if (kind === DeviceKind.AudioOutput) {
+      const elements: HTMLMediaElement[] = [];
+      this.participants.forEach((p) => {
+        p.audioTracks.forEach((t) => {
+          if (t.isSubscribed && t.track) {
+            t.track.attachedElements.forEach((e) => {
+              elements.push(e);
+            });
+          }
+        });
+      });
+
+      await Promise.all(elements.map(async (e) => {
+        if ('setSinkId' in e) {
+          /* @ts-ignore */
+          await e.setSinkId(deviceId);
+        }
+      }));
+    }
+  }
 
   private onTrackAdded(
     mediaTrack: MediaStreamTrack,

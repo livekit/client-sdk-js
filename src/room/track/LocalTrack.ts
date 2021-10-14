@@ -41,6 +41,7 @@ export default class LocalTrack extends Track {
 
     // default video options
     const videoOptions: MediaTrackConstraints = {
+      deviceId: DeviceManager.getInstance().getDefaultDevice(DeviceKind.VideoInput),
       ...VideoPresets.qhd.resolution,
     };
     if (typeof options.video === 'object' && options.video) {
@@ -59,6 +60,7 @@ export default class LocalTrack extends Track {
 
     // default audio options
     const audioOptions: MediaTrackConstraints = {
+      deviceId: DeviceManager.getInstance().getDefaultDevice(DeviceKind.AudioInput),
       echoCancellation: true,
       /* @ts-ignore */
       noiseSuppression: true,
@@ -72,6 +74,29 @@ export default class LocalTrack extends Track {
       constraints.audio = audioOptions;
     }
     return constraints;
+  }
+
+  /**
+   * @returns DeviceID of the device that is currently being used for this track
+   */
+  async getDeviceId(): Promise<string | undefined> {
+    // screen share doesn't have a usable device id
+    if (this.source === Track.Source.ScreenShare) {
+      return;
+    }
+    const { deviceId, groupId } = this.mediaStreamTrack.getSettings();
+    if (deviceId !== 'default') {
+      return deviceId;
+    }
+
+    // resolve actual device id if it's 'default': Chrome returns it when no
+    // device has been chosen
+    const kind = this.kind === Track.Kind.Audio ? DeviceKind.AudioInput : DeviceKind.VideoInput;
+    const devices = await DeviceManager.getInstance().getDevices(kind);
+
+    const device = devices.find((d) => d.groupId === groupId && d.deviceId !== 'default');
+
+    return device?.deviceId;
   }
 
   mute(): LocalTrack {

@@ -176,7 +176,7 @@ export namespace Track {
   export type SID = string;
   export enum Source {
     Camera = 'camera',
-    Microphone = 'mic',
+    Microphone = 'microphone',
     ScreenShare = 'screen_share',
     Unknown = 'unknown',
   }
