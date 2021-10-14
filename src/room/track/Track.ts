@@ -110,6 +110,14 @@ export class Track extends EventEmitter {
     this.mediaStreamTrack.stop();
   }
 
+  protected enable() {
+    this.mediaStreamTrack.enabled = true;
+  }
+
+  protected disable() {
+    this.mediaStreamTrack.enabled = false;
+  }
+
   private recycleElement(element: HTMLMediaElement) {
     if (element instanceof HTMLAudioElement) {
     // we only need to re-use a single element
