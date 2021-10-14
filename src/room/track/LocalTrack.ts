@@ -1,4 +1,5 @@
 import log from 'loglevel';
+import DeviceManager, { DeviceKind } from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import { CreateLocalTracksOptions, VideoPresets } from './options';
