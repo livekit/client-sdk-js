@@ -42,6 +42,50 @@ export function trackTypeToJSON(object: TrackType): string {
   }
 }
 
+export enum TrackSource {
+  UNKNOWN = 0,
+  CAMERA = 1,
+  MICROPHONE = 2,
+  SCREEN_SHARE = 3,
+  UNRECOGNIZED = -1,
+}
+
+export function trackSourceFromJSON(object: any): TrackSource {
+  switch (object) {
+    case 0:
+    case "UNKNOWN":
+      return TrackSource.UNKNOWN;
+    case 1:
+    case "CAMERA":
+      return TrackSource.CAMERA;
+    case 2:
+    case "MICROPHONE":
+      return TrackSource.MICROPHONE;
+    case 3:
+    case "SCREEN_SHARE":
+      return TrackSource.SCREEN_SHARE;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return TrackSource.UNRECOGNIZED;
+  }
+}
+
+export function trackSourceToJSON(object: TrackSource): string {
+  switch (object) {
+    case TrackSource.UNKNOWN:
+      return "UNKNOWN";
+    case TrackSource.CAMERA:
+      return "CAMERA";
+    case TrackSource.MICROPHONE:
+      return "MICROPHONE";
+    case TrackSource.SCREEN_SHARE:
+      return "SCREEN_SHARE";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 export interface Room {
   sid: string;
   name: string;
@@ -139,6 +183,8 @@ export interface TrackInfo {
   simulcast: boolean;
   /** true if DTX (Discontinuous Transmission) is disabled for audio */
   disableDtx: boolean;
+  /** source of media */
+  source: TrackSource;
 }
 
 /** new DataPacket API */
@@ -685,6 +731,7 @@ const baseTrackInfo: object = {
   height: 0,
   simulcast: false,
   disableDtx: false,
+  source: 0,
 };
 
 export const TrackInfo = {
@@ -715,6 +762,9 @@ export const TrackInfo = {
     }
     if (message.disableDtx === true) {
       writer.uint32(64).bool(message.disableDtx);
+    }
+    if (message.source !== 0) {
+      writer.uint32(72).int32(message.source);
     }
     return writer;
   },
@@ -749,6 +799,9 @@ export const TrackInfo = {
           break;
         case 8:
           message.disableDtx = reader.bool();
+          break;
+        case 9:
+          message.source = reader.int32() as any;
           break;
         default:
           reader.skipType(tag & 7);
@@ -800,6 +853,11 @@ export const TrackInfo = {
     } else {
       message.disableDtx = false;
     }
+    if (object.source !== undefined && object.source !== null) {
+      message.source = trackSourceFromJSON(object.source);
+    } else {
+      message.source = 0;
+    }
     return message;
   },
 
@@ -813,6 +871,8 @@ export const TrackInfo = {
     message.height !== undefined && (obj.height = message.height);
     message.simulcast !== undefined && (obj.simulcast = message.simulcast);
     message.disableDtx !== undefined && (obj.disableDtx = message.disableDtx);
+    message.source !== undefined &&
+      (obj.source = trackSourceToJSON(message.source));
     return obj;
   },
 
@@ -857,6 +917,11 @@ export const TrackInfo = {
       message.disableDtx = object.disableDtx;
     } else {
       message.disableDtx = false;
+    }
+    if (object.source !== undefined && object.source !== null) {
+      message.source = object.source;
+    } else {
+      message.source = 0;
     }
     return message;
   },

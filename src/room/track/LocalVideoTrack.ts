@@ -63,13 +63,17 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   mute(): LocalTrack {
-    // also stop the track, so that camera indicator is turned off
-    this.mediaStreamTrack.stop();
+    if (this.source === Track.Source.Camera) {
+      // also stop the track, so that camera indicator is turned off
+      this.mediaStreamTrack.stop();
+    }
     return super.mute();
   }
 
   unmute(): LocalTrack {
-    this.restartTrack();
+    if (this.source === Track.Source.Camera) {
+      this.restartTrack();
+    }
     return super.unmute();
   }
 

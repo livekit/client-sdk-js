@@ -1,8 +1,5 @@
 import {
-  connect, createLocalScreenTracks, CreateVideoTrackOptions, DataPacket_Kind, LocalAudioTrack,
-  LocalTrack,
-  LocalVideoTrack,
-  LogLevel,
+  connect, CreateVideoTrackOptions, DataPacket_Kind, LocalTrack, LogLevel,
   Participant,
   ParticipantEvent,
   RemoteParticipant,
@@ -142,21 +139,10 @@ function participantDisconnected(participant: RemoteParticipant) {
 function handleRoomDisconnect() {
   appendLog('disconnected from room');
   setButtonsForState(false);
-  if (videoTrack) {
-    videoTrack.stop();
-    trackUnsubscribed(videoTrack);
-  }
-  if (audioTrack) {
-    audioTrack.stop();
-    trackUnsubscribed(audioTrack);
-  }
   $('local-video')!.innerHTML = '';
 }
 
 let currentRoom: Room;
-let videoTrack: LocalVideoTrack | undefined;
-let audioTrack: LocalAudioTrack;
-let screenTrack: LocalVideoTrack | undefined;
 window.connectWithFormInput = () => {
   const url = (<HTMLInputElement>$('url')).value;
   const token = (<HTMLInputElement>$('token')).value;
@@ -213,7 +199,7 @@ window.connectToRoom = async (
     .on(RoomEvent.TrackMuted, (pub: TrackPublication, p: Participant) => appendLog('track was muted', pub.trackSid, p.identity))
     .on(RoomEvent.TrackUnmuted, (pub: TrackPublication, p: Participant) => appendLog('track was unmuted', pub.trackSid, p.identity))
     .on(RoomEvent.RoomMetadataChanged, (metadata) => {
-      console.log("new metadata for room", metadata);
+      console.log('new metadata for room', metadata);
     })
     .on(RoomEvent.AudioPlaybackStatusChanged, () => {
       if (room.canPlaybackAudio) {
@@ -229,47 +215,41 @@ window.connectToRoom = async (
   });
 
   $('local-video')!.innerHTML = `${room.localParticipant.identity} (me)`;
-
-  // add already published tracks
-  currentRoom.localParticipant.tracks.forEach((publication) => {
-    if (publication.kind === Track.Kind.Video) {
-      videoTrack = <LocalVideoTrack>publication.track;
-      publishLocalVideo(videoTrack);
-    } else if (publication.kind === Track.Kind.Audio) {
-      // skip adding local audio track, to avoid your own sound
-      // only process local video tracks
-      audioTrack = <LocalAudioTrack>publication.track;
-    }
-  });
+  attachLocalVideo();
 };
 
 window.muteVideo = () => {
-  if (!currentRoom || !videoTrack) return;
+  if (!currentRoom) return;
   const video = getMyVideo();
-  if (!videoTrack.isMuted) {
-    appendLog('muting video');
-    videoTrack.mute();
+  const videoPub = currentRoom.localParticipant.getTrack(Track.Source.Camera);
+  const isEnabled = !videoPub?.isMuted ?? false;
+  if (isEnabled) {
+    appendLog('disabling video');
+    currentRoom.localParticipant.setTrackEnabled(Track.Source.Camera, false);
     // hide from display
     if (video) {
       video.style.display = 'none';
     }
   } else {
-    appendLog('unmuting video');
-    videoTrack.unmute();
+    appendLog('enabling video');
+    currentRoom.localParticipant.setTrackEnabled(Track.Source.Camera, true);
     if (video) {
       video.style.display = '';
     }
+    attachLocalVideo();
   }
 };
 
 window.muteAudio = () => {
-  if (!currentRoom || !audioTrack) return;
-  if (!audioTrack.isMuted) {
+  if (!currentRoom) return;
+  const audioPub = currentRoom.localParticipant.getTrack(Track.Source.Microphone);
+  const isEnabled = !audioPub?.isMuted ?? false;
+  if (isEnabled) {
     appendLog('muting audio');
-    audioTrack.mute();
+    currentRoom.localParticipant.setTrackEnabled(Track.Source.Microphone, false);
   } else {
     appendLog('unmuting audio');
-    audioTrack.unmute();
+    currentRoom.localParticipant.setTrackEnabled(Track.Source.Microphone, true);
   }
 };
 
@@ -286,26 +266,11 @@ window.enterText = () => {
 };
 
 window.shareScreen = async () => {
-  if (screenTrack !== undefined) {
-    currentRoom.localParticipant.unpublishTrack(screenTrack);
-    screenTrack = undefined;
-    return;
-  }
+  if (!currentRoom) return;
 
-  const screenTracks = await createLocalScreenTracks({
-    audio: true,
-  });
-  screenTracks.forEach((track) => {
-    if (track instanceof LocalVideoTrack) {
-      screenTrack = track;
-      currentRoom.localParticipant.publishTrack(track, {
-        videoEncoding: VideoPresets.fhd.encoding,
-      });
-    } else {
-      // publish audio track as well
-      currentRoom.localParticipant.publishTrack(track);
-    }
-  });
+  const screenPub = currentRoom.localParticipant.getTrack(Track.Source.ScreenShare);
+
+  currentRoom.localParticipant.setTrackEnabled(Track.Source.ScreenShare, !screenPub);
 };
 
 window.disconnectSignal = () => {
@@ -328,7 +293,8 @@ window.startAudio = () => {
 
 let isFacingForward = true;
 window.flipVideo = () => {
-  if (!videoTrack) {
+  const videoPub = currentRoom.localParticipant.getTrack(Track.Source.Camera);
+  if (!videoPub) {
     return;
   }
   isFacingForward = !isFacingForward;
@@ -336,14 +302,21 @@ window.flipVideo = () => {
     resolution: VideoPresets.qhd.resolution,
     facingMode: isFacingForward ? 'user' : 'environment',
   };
-  videoTrack.restartTrack(options);
+  videoPub.videoTrack?.restartTrack(options);
 };
 
-async function publishLocalVideo(track: LocalVideoTrack) {
-  await currentRoom.localParticipant.publishTrack(track);
-  const video = track.attach();
-  video.style.transform = 'scale(-1, 1)';
-  $('local-video')!.appendChild(video);
+async function attachLocalVideo() {
+  const videoPub = currentRoom.localParticipant.getTrack(Track.Source.Camera);
+  const videoTrack = videoPub?.videoTrack;
+  if (!videoTrack) {
+    return;
+  }
+
+  if (videoTrack.attachedElements.length === 0) {
+    const video = videoTrack.attach();
+    video.style.transform = 'scale(-1, 1)';
+    $('local-video')!.appendChild(video);
+  }
 }
 
 function setButtonsForState(connected: boolean) {

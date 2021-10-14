@@ -3,8 +3,9 @@ import log from 'loglevel';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import {
   DataPacket_Kind, ParticipantInfo,
-  ParticipantInfo_State, SpeakerInfo, UserPacket, Room as RoomModel,
+  ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
+import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
   EngineEvent, ParticipantEvent, RoomEvent, TrackEvent,
@@ -13,6 +14,7 @@ import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
+import { TrackPublishDefaults } from './track/options';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import TrackPublication from './track/TrackPublication';
@@ -58,6 +60,8 @@ class Room extends EventEmitter {
   /** the current participant */
   localParticipant!: LocalParticipant;
 
+  localDevices: DeviceManager;
+
   /** room metadata */
   metadata: string | undefined = undefined;
 
@@ -70,6 +74,7 @@ class Room extends EventEmitter {
     super();
     this.participants = new Map();
     this.engine = new RTCEngine(client, config);
+    this.localDevices = new DeviceManager();
 
     this.acquireAudioContext();
 
@@ -134,6 +139,7 @@ class Room extends EventEmitter {
         pi.identity,
         this.engine,
       );
+
       this.localParticipant.updateInfo(pi);
       // forward metadata changed for the local participant
       this.localParticipant.on(
@@ -180,6 +186,17 @@ class Room extends EventEmitter {
       });
     });
   };
+
+  /**
+   * Set default publish options
+   */
+  set defaultPublishOptions(opts: TrackPublishDefaults) {
+    this.localParticipant.defaultPublishOptions = opts;
+  }
+
+  get defaultPublishOptions(): TrackPublishDefaults {
+    return this.localParticipant.defaultPublishOptions;
+  }
 
   /**
    * Browsers have different policies regarding audio playback. Most requiring
@@ -252,8 +269,8 @@ class Room extends EventEmitter {
       });
     });
     this.localParticipant.tracks.forEach((pub) => {
-      pub.track?.stop();
       pub.track?.detach();
+      pub.track?.stop();
     });
     this.participants.clear();
     this.activeSpeakers = [];

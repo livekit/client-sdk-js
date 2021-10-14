@@ -423,7 +423,7 @@ export default class RTCEngine extends EventEmitter {
   }
 
   /** @internal */
-  async negotiate() {
+  negotiate() {
     if (!this.publisher) {
       return;
     }

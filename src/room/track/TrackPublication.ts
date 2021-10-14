@@ -16,6 +16,8 @@ export default class TrackPublication extends EventEmitter {
 
   track?: Track;
 
+  source: Track.Source;
+
   /** dimension of the original published stream, video-only */
   dimensions?: Track.Dimensions;
 
@@ -29,6 +31,7 @@ export default class TrackPublication extends EventEmitter {
     this.kind = kind;
     this.trackSid = id;
     this.trackName = name;
+    this.source = Track.Source.Unknown;
   }
 
   /** @internal */
@@ -81,6 +84,7 @@ export default class TrackPublication extends EventEmitter {
   updateInfo(info: TrackInfo) {
     this.trackSid = info.sid;
     this.trackName = info.name;
+    this.source = Track.sourceFromProto(info.source);
     if (this.kind === Track.Kind.Video && info.width > 0) {
       this.dimensions = {
         width: info.width,
