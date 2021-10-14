@@ -151,6 +151,34 @@ function handleRoomDisconnect() {
     trackUnsubscribed(audioTrack);
   }
   $('local-video')!.innerHTML = '';
+
+  // clear the chat area on disconnect
+  clearChat();
+
+  // clear remote area on disconnect
+  clearRemoteArea();
+}
+
+function setButtonState(buttonId: string, buttonText: string, isActive: boolean) {
+  const el = $(buttonId);
+  if (!el) return;
+
+  el.innerHTML = buttonText;
+  isActive ? el.classList.add('active') : el.classList.remove('active');
+}
+
+function clearChat() {
+  const chat = <HTMLTextAreaElement>$('chat');
+  chat.value = '';
+}
+
+function clearRemoteArea() {
+  const el = $('remote-area');
+  if (!el) return;
+
+  while (el.firstChild) {
+    el.removeChild(el.firstChild);
+  }
 }
 
 let currentRoom: Room;
@@ -253,12 +281,14 @@ window.muteVideo = () => {
     if (video) {
       video.style.display = 'none';
     }
+    setButtonState('mute-video-button', 'Unmute Video', true);
   } else {
     appendLog('unmuting video');
     videoTrack.unmute();
     if (video) {
       video.style.display = '';
     }
+    setButtonState('mute-video-button', 'Mute Video', false);
   }
 };
 
@@ -267,9 +297,11 @@ window.muteAudio = () => {
   if (!audioTrack.isMuted) {
     appendLog('muting audio');
     audioTrack.mute();
+    setButtonState('mute-audio-button', 'Unmute Audio', true);
   } else {
     appendLog('unmuting audio');
     audioTrack.unmute();
+    setButtonState('mute-audio-button', 'Mute Audio', false);
   }
 };
 
@@ -289,6 +321,7 @@ window.shareScreen = async () => {
   if (screenTrack !== undefined) {
     currentRoom.localParticipant.unpublishTrack(screenTrack);
     screenTrack = undefined;
+    setButtonState('share-screen-button', 'Share Screen', false);
     return;
   }
 
@@ -306,6 +339,7 @@ window.shareScreen = async () => {
       currentRoom.localParticipant.publishTrack(track);
     }
   });
+  setButtonState('share-screen-button', 'Stop Share Screen', true);
 };
 
 window.disconnectSignal = () => {
@@ -331,6 +365,11 @@ window.flipVideo = () => {
   if (!videoTrack) {
     return;
   }
+  if (isFacingForward) {
+    setButtonState('flip-video-button', 'Unflip Video', true);
+  } else {
+    setButtonState('flip-video-button', 'Flip Video', false);
+  }
   isFacingForward = !isFacingForward;
   const options: CreateVideoTrackOptions = {
     resolution: VideoPresets.qhd.resolution,
@@ -348,7 +387,6 @@ async function publishLocalVideo(track: LocalVideoTrack) {
 
 function setButtonsForState(connected: boolean) {
   const connectedSet = [
-    'toggle-video-button',
     'mute-video-button',
     'mute-audio-button',
     'share-screen-button',
