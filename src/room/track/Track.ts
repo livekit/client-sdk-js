@@ -110,11 +110,11 @@ export class Track extends EventEmitter {
     this.mediaStreamTrack.stop();
   }
 
-  enable() {
+  protected enable() {
     this.mediaStreamTrack.enabled = true;
   }
 
-  disable() {
+  protected disable() {
     this.mediaStreamTrack.enabled = false;
   }
 
