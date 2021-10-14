@@ -247,7 +247,6 @@ window.connectToRoom = async (
       if (room.canPlaybackAudio) {
         $('start-audio-button')?.setAttribute('disabled', 'true');
       } else {
-        console.error('got can playback audio');	// REMOVE
         $('start-audio-button')?.removeAttribute('disabled');
       }
     });
