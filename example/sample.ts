@@ -364,11 +364,11 @@ window.handleDeviceSelected = async (e: Event) => {
   const deviceId = (<HTMLSelectElement>e.target).value;
   const elementId = (<HTMLSelectElement>e.target).id;
   const kind = elementMapping[elementId];
-  if (!kind || !deviceId) {
+  if (!kind) {
     return;
   }
 
-  Room.setDefaultDevice(kind, deviceId);
+  Room.setDefaultDevice(kind, deviceId || undefined);
   if (currentRoom) {
     await currentRoom.switchActiveDevice(kind, deviceId);
   }
