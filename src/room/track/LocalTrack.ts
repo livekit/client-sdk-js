@@ -86,18 +86,9 @@ export default class LocalTrack extends Track {
       return;
     }
     const { deviceId, groupId } = this.mediaStreamTrack.getSettings();
-    if (deviceId !== 'default') {
-      return deviceId;
-    }
-
-    // resolve actual device id if it's 'default': Chrome returns it when no
-    // device has been chosen
     const kind = this.kind === Track.Kind.Audio ? 'audioinput' : 'videoinput';
-    const devices = await DeviceManager.getInstance().getDevices(kind);
 
-    const device = devices.find((d) => d.groupId === groupId && d.deviceId !== 'default');
-
-    return device?.deviceId;
+    return DeviceManager.getInstance().normalizeDeviceId(kind, deviceId, groupId);
   }
 
   mute(): LocalTrack {

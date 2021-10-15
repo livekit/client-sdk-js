@@ -76,6 +76,19 @@ export default class Participant extends EventEmitter {
     }
   }
 
+  /**
+   * Finds the first track that matches the track's name.
+   * @param name
+   * @returns
+   */
+  getTrackByName(name: string): TrackPublication | undefined {
+    for (const [, pub] of this.tracks) {
+      if (pub.trackName === name) {
+        return pub;
+      }
+    }
+  }
+
   /** when participant joined the room */
   get joinedAt(): Date | undefined {
     if (this.participantInfo) {

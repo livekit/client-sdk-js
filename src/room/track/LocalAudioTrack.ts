@@ -13,6 +13,17 @@ export default class LocalAudioTrack extends LocalTrack {
     super(mediaTrack, Track.Kind.Audio, name, constraints);
   }
 
+  async setDeviceId(deviceId: string) {
+    if (this.constraints.deviceId === deviceId) {
+      return;
+    }
+    this.constraints.deviceId = deviceId;
+    await this.restartTrack();
+    if (this.isMuted) {
+      this.mediaStreamTrack.enabled = false;
+    }
+  }
+
   async restartTrack(options?: CreateAudioTrackOptions) {
     let constraints: MediaTrackConstraints | undefined;
     if (options) {

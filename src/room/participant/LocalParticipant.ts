@@ -64,14 +64,58 @@ export default class LocalParticipant extends Participant {
     }
   }
 
+  getTrackByName(name: string): LocalTrackPublication | undefined {
+    const track = super.getTrackByName(name);
+    if (track) {
+      return track as LocalTrackPublication;
+    }
+  }
+
+  /**
+   * Enable or disable a participant's camera track.
+   *
+   * If a track has already published, it'll mute or unmute the track.
+   */
+  setCameraEnabled(enabled: boolean): Promise<void> {
+    return this.setTrackEnabled(Track.Source.Camera, enabled);
+  }
+
+  get isCameraEnabled(): boolean {
+    const track = this.getTrack(Track.Source.Camera);
+    return !(track?.isMuted ?? true);
+  }
+
+  /**
+   * Enable or disable a participant's microphone track.
+   *
+   * If a track has already published, it'll mute or unmute the track.
+   */
+  setMicrophoneEnabled(enabled: boolean): Promise<void> {
+    return this.setTrackEnabled(Track.Source.Microphone, enabled);
+  }
+
+  get isMicrophoneEnabled(): boolean {
+    const track = this.getTrack(Track.Source.Microphone);
+    return !(track?.isMuted ?? true);
+  }
+
+  /**
+   * Start or stop sharing a participant's screen
+   */
+  setScreenShareEnabled(enabled: boolean): Promise<void> {
+    return this.setTrackEnabled(Track.Source.ScreenShare, enabled);
+  }
+
+  get isScreenShareEnabled(): boolean {
+    const track = this.getTrack(Track.Source.ScreenShare);
+    return !!track;
+  }
+
   /**
    * Enable or disable publishing for a track by source. This serves as a simple
    * way to manage the common tracks (camera, mic, or screen share)
-   *
-   * If a track has already published, it'll mute or unmute the track instead of
-   * unpublish/republish.
    */
-  async setTrackEnabled(source: Track.Source, enabled: boolean): Promise<void> {
+  private async setTrackEnabled(source: Track.Source, enabled: boolean): Promise<void> {
     const track = this.getTrack(source);
     if (enabled) {
       if (track) {

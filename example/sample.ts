@@ -17,8 +17,8 @@ declare global {
     connectToRoom: any;
     handleDeviceSelected: any;
     shareScreen: any;
-    muteVideo: any;
-    muteAudio: any;
+    toggleVideo: any;
+    toggleAudio: any;
     enterText: any;
     disconnectSignal: any;
     disconnectRoom: any;
@@ -224,9 +224,10 @@ window.connectToRoom = async (
   }
 
   appendLog('connected to room', room.name);
-  setButtonsForState(true);
   currentRoom = room;
   window.currentRoom = room;
+  setButtonsForState(true);
+  updateButtonsForPublishState();
 
   room
     .on(RoomEvent.ParticipantConnected, participantConnected)
@@ -259,43 +260,37 @@ window.connectToRoom = async (
   attachLocalVideo();
 };
 
-window.muteVideo = () => {
+window.toggleVideo = async () => {
   if (!currentRoom) return;
   const video = getMyVideo();
-  const videoPub = currentRoom.localParticipant.getTrack(Track.Source.Camera);
-  const isEnabled = !videoPub?.isMuted ?? false;
-  if (isEnabled) {
+  if (currentRoom.localParticipant.isCameraEnabled) {
     appendLog('disabling video');
-    currentRoom.localParticipant.setTrackEnabled(Track.Source.Camera, false);
+    await currentRoom.localParticipant.setCameraEnabled(false);
     // hide from display
     if (video) {
       video.style.display = 'none';
     }
-    setButtonState('mute-video-button', 'Unmute Video', true);
   } else {
     appendLog('enabling video');
-    currentRoom.localParticipant.setTrackEnabled(Track.Source.Camera, true);
+    await currentRoom.localParticipant.setCameraEnabled(true);
+    attachLocalVideo();
     if (video) {
       video.style.display = '';
     }
-    attachLocalVideo();
-    setButtonState('mute-video-button', 'Mute Video', false);
   }
+  updateButtonsForPublishState();
 };
 
-window.muteAudio = () => {
+window.toggleAudio = async () => {
   if (!currentRoom) return;
-  const audioPub = currentRoom.localParticipant.getTrack(Track.Source.Microphone);
-  const isEnabled = !audioPub?.isMuted ?? false;
-  if (isEnabled) {
-    appendLog('muting audio');
-    currentRoom.localParticipant.setTrackEnabled(Track.Source.Microphone, false);
-    setButtonState('mute-audio-button', 'Unmute Audio', true);
+  if (currentRoom.localParticipant.isMicrophoneEnabled) {
+    appendLog('disabling audio');
+    await currentRoom.localParticipant.setMicrophoneEnabled(false);
   } else {
-    appendLog('unmuting audio');
-    currentRoom.localParticipant.setTrackEnabled(Track.Source.Microphone, true);
-    setButtonState('mute-audio-button', 'Mute Audio', false);
+    appendLog('enabling audio');
+    await currentRoom.localParticipant.setMicrophoneEnabled(true);
   }
+  updateButtonsForPublishState();
 };
 
 window.enterText = () => {
@@ -313,14 +308,15 @@ window.enterText = () => {
 window.shareScreen = async () => {
   if (!currentRoom) return;
 
-  const screenPub = currentRoom.localParticipant.getTrack(Track.Source.ScreenShare);
-
-  currentRoom.localParticipant.setTrackEnabled(Track.Source.ScreenShare, !screenPub);
-  if (screenPub) {
-    setButtonState('share-screen-button', 'Stop Screen Share', true);
+  if (currentRoom.localParticipant.isScreenShareEnabled) {
+    appendLog('stopping screen share');
+    await currentRoom.localParticipant.setScreenShareEnabled(false);
   } else {
-    setButtonState('share-screen-button', 'Share Screen', false);
+    appendLog('starting screen share');
+    await currentRoom.localParticipant.setScreenShareEnabled(true);
+    appendLog('started screen share');
   }
+  updateButtonsForPublishState();
 };
 
 window.disconnectSignal = () => {
@@ -392,8 +388,8 @@ async function attachLocalVideo() {
 
 function setButtonsForState(connected: boolean) {
   const connectedSet = [
-    'mute-video-button',
-    'mute-audio-button',
+    'toggle-video-button',
+    'toggle-audio-button',
     'share-screen-button',
     'disconnect-ws-button',
     'disconnect-room-button',
@@ -456,4 +452,32 @@ function populateSelect(
     }
     element.appendChild(option);
   }
+}
+
+function updateButtonsForPublishState() {
+  if (!currentRoom) {
+    return;
+  }
+  const lp = currentRoom.localParticipant;
+
+  // video
+  setButtonState(
+    'toggle-video-button',
+    `${lp.isCameraEnabled ? 'Disable' : 'Enable'} Video`,
+    lp.isCameraEnabled,
+  );
+
+  // audio
+  setButtonState(
+    'toggle-audio-button',
+    `${lp.isMicrophoneEnabled ? 'Disable' : 'Enable'} Audio`,
+    lp.isMicrophoneEnabled,
+  );
+
+  // screen share
+  setButtonState(
+    'share-screen-button',
+    lp.isScreenShareEnabled ? 'Stop Screen Share' : 'Share Screen',
+    lp.isScreenShareEnabled,
+  );
 }

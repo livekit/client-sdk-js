@@ -64,6 +64,13 @@ export default class RemoteParticipant extends Participant {
     }
   }
 
+  getTrackByName(name: string): RemoteTrackPublication | undefined {
+    const track = super.getTrackByName(name);
+    if (track) {
+      return track as RemoteTrackPublication;
+    }
+  }
+
   /** @internal */
   addSubscribedMediaTrack(
     mediaTrack: MediaStreamTrack,

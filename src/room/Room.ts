@@ -27,12 +27,6 @@ export enum RoomState {
   Reconnecting = 'reconnecting',
 }
 
-const mediaDeviceKinds: MediaDeviceKind[] = [
-  'audioinput',
-  'audiooutput',
-  'videoinput',
-];
-
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
  * Participants in a room can publish tracks, and subscribe to others' tracks.
@@ -294,13 +288,13 @@ class Room extends EventEmitter {
     if (kind === 'audioinput') {
       const tracks = Array
         .from(this.localParticipant.audioTracks.values())
-        .filter((track) => !track.isMuted && track.source === Track.Source.Microphone);
-      await Promise.all(tracks.map((t) => t.audioTrack?.restartTrack({ deviceId })));
+        .filter((track) => track.source === Track.Source.Microphone);
+      await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceId)));
     } else if (kind === 'videoinput') {
       const tracks = Array
         .from(this.localParticipant.videoTracks.values())
-        .filter((track) => !track.isMuted && track.source === Track.Source.Camera);
-      await Promise.all(tracks.map((t) => t.videoTrack?.restartTrack({ deviceId })));
+        .filter((track) => track.source === Track.Source.Camera);
+      await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceId)));
     } else if (kind === 'audiooutput') {
       const elements: HTMLMediaElement[] = [];
       this.participants.forEach((p) => {
@@ -502,7 +496,7 @@ class Room extends EventEmitter {
     // ensure default devices still exist, if not, clear them out
     const mananger = DeviceManager.getInstance();
     const devices = await navigator.mediaDevices.enumerateDevices();
-    mediaDeviceKinds.forEach(async (kind) => {
+    DeviceManager.mediaDeviceKinds.forEach(async (kind) => {
       const deviceId = mananger.getDefaultDevice(kind);
       const device = devices.find((d) => d.deviceId === deviceId && d.kind === kind);
       if (!device) {

@@ -179,6 +179,18 @@ export default class LocalVideoTrack extends LocalTrack {
     this.sender.setParameters(params);
   }
 
+  async setDeviceId(deviceId: string) {
+    if (this.constraints.deviceId === deviceId) {
+      return;
+    }
+    this.constraints.deviceId = deviceId;
+    // when video is muted, underlying media stream track is stopped and
+    // will be restarted later
+    if (!this.isMuted) {
+      await this.restartTrack();
+    }
+  }
+
   async restartTrack(options?: CreateVideoTrackOptions) {
     let constraints: MediaTrackConstraints | undefined;
     if (options) {
