@@ -1,2 +1,2 @@
 export const version = '0.12.2';
-export const protocolVersion = 4;
+export const protocolVersion = 3;

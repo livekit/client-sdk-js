@@ -428,7 +428,7 @@ export default class LocalParticipant extends Participant {
     }
     const useSimulcast = !isScreenShare && options?.simulcast;
 
-    if ((!videoEncoding && useSimulcast) || !width || !height) {
+    if ((!videoEncoding && !useSimulcast) || !width || !height) {
       // don't set encoding when we are not simulcasting and user isn't restricting
       // encoding parameters
       return undefined;

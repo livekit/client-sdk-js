@@ -6,8 +6,7 @@ import {
 } from './options';
 import Room from './room/Room';
 import { createLocalTracks } from './room/track/create';
-import { TrackPublishOptions } from './room/track/options';
-import { Track } from './room/track/Track';
+import LocalTrack from './room/track/LocalTrack';
 
 export { version } from './version';
 
@@ -78,30 +77,9 @@ export async function connect(
   }
 
   if (tracks) {
-    for (let i = 0; i < tracks.length; i += 1) {
-      const track = tracks[i];
-      // translate publish options
-      const trackOptions: TrackPublishOptions = {};
-      if (
-        track.kind === Track.Kind.Video.toString()
-        || track.kind === Track.Kind.Video
-      ) {
-        trackOptions.videoCodec = options?.videoCodec;
-        trackOptions.videoEncoding = options?.videoEncoding;
-        trackOptions.simulcast = options?.simulcast;
-      } else if (
-        track.kind === Track.Kind.Audio.toString()
-        || track.kind === Track.Kind.Audio
-      ) {
-        trackOptions.audioBitrate = options.audioBitrate;
-        trackOptions.dtx = options.dtx;
-      }
-
-      await room.localParticipant.publishTrack(
-        track,
-        trackOptions,
-      );
-    }
+    await Promise.all(tracks.map(
+      (track: LocalTrack | MediaStreamTrack) => room.localParticipant.publishTrack(track),
+    ));
   }
 
   return room;

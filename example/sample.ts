@@ -317,7 +317,7 @@ window.shareScreen = async () => {
 
   currentRoom.localParticipant.setTrackEnabled(Track.Source.ScreenShare, !screenPub);
   if (screenPub) {
-    setButtonState('share-screen-button', 'Stop Share Screen', true);
+    setButtonState('share-screen-button', 'Stop Screen Share', true);
   } else {
     setButtonState('share-screen-button', 'Share Screen', false);
   }
@@ -341,21 +341,21 @@ window.startAudio = () => {
   currentRoom.startAudio();
 };
 
-let isFacingForward = true;
+let isFrontFacing = true;
 window.flipVideo = () => {
   const videoPub = currentRoom.localParticipant.getTrack(Track.Source.Camera);
   if (!videoPub) {
     return;
   }
-  if (isFacingForward) {
-    setButtonState('flip-video-button', 'Unflip Video', true);
+  if (isFrontFacing) {
+    setButtonState('flip-video-button', 'Front Camera', false);
   } else {
-    setButtonState('flip-video-button', 'Flip Video', false);
+    setButtonState('flip-video-button', 'Back Camera', false);
   }
-  isFacingForward = !isFacingForward;
+  isFrontFacing = !isFrontFacing;
   const options: CreateVideoTrackOptions = {
     resolution: VideoPresets.qhd.resolution,
-    facingMode: isFacingForward ? 'user' : 'environment',
+    facingMode: isFrontFacing ? 'user' : 'environment',
   };
   videoPub.videoTrack?.restartTrack(options);
 };
