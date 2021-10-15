@@ -3,12 +3,15 @@ import Long from "long";
 import _m0 from "protobufjs/minimal";
 import {
   TrackType,
+  TrackSource,
   Room,
   ParticipantInfo,
   TrackInfo,
   SpeakerInfo,
   trackTypeFromJSON,
+  trackSourceFromJSON,
   trackTypeToJSON,
+  trackSourceToJSON,
 } from "./livekit_models";
 
 export const protobufPackage = "livekit";
@@ -136,6 +139,7 @@ export interface AddTrackRequest {
   muted: boolean;
   /** true if DTX (Discontinuous Transmission) is disabled for audio */
   disableDtx: boolean;
+  source: TrackSource;
 }
 
 export interface TrickleRequest {
@@ -745,6 +749,7 @@ const baseAddTrackRequest: object = {
   height: 0,
   muted: false,
   disableDtx: false,
+  source: 0,
 };
 
 export const AddTrackRequest = {
@@ -772,6 +777,9 @@ export const AddTrackRequest = {
     }
     if (message.disableDtx === true) {
       writer.uint32(56).bool(message.disableDtx);
+    }
+    if (message.source !== 0) {
+      writer.uint32(64).int32(message.source);
     }
     return writer;
   },
@@ -803,6 +811,9 @@ export const AddTrackRequest = {
           break;
         case 7:
           message.disableDtx = reader.bool();
+          break;
+        case 8:
+          message.source = reader.int32() as any;
           break;
         default:
           reader.skipType(tag & 7);
@@ -849,6 +860,11 @@ export const AddTrackRequest = {
     } else {
       message.disableDtx = false;
     }
+    if (object.source !== undefined && object.source !== null) {
+      message.source = trackSourceFromJSON(object.source);
+    } else {
+      message.source = 0;
+    }
     return message;
   },
 
@@ -861,6 +877,8 @@ export const AddTrackRequest = {
     message.height !== undefined && (obj.height = message.height);
     message.muted !== undefined && (obj.muted = message.muted);
     message.disableDtx !== undefined && (obj.disableDtx = message.disableDtx);
+    message.source !== undefined &&
+      (obj.source = trackSourceToJSON(message.source));
     return obj;
   },
 
@@ -900,6 +918,11 @@ export const AddTrackRequest = {
       message.disableDtx = object.disableDtx;
     } else {
       message.disableDtx = false;
+    }
+    if (object.source !== undefined && object.source !== null) {
+      message.source = object.source;
+    } else {
+      message.source = 0;
     }
     return message;
   },

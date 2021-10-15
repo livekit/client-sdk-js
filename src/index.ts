@@ -13,10 +13,11 @@ import RemoteTrackPublication from './room/track/RemoteTrackPublication';
 import RemoteVideoTrack from './room/track/RemoteVideoTrack';
 import TrackPublication from './room/track/TrackPublication';
 
-export * from './livekit';
+export * from './connect';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';
+export * from './room/track/create';
 export * from './room/track/options';
 export * from './room/track/Track';
 export * from './room/track/types';

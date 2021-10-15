@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { TrackType } from '../../proto/livekit_models';
+import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { TrackEvent } from '../events';
 
 // keep old audio elements when detached, we would re-use them since on iOS
@@ -17,6 +17,8 @@ export class Track extends EventEmitter {
 
   isMuted: boolean = false;
 
+  source: Track.Source;
+
   /**
    * sid is set after track is published to server, or if it's a remote track
    */
@@ -27,6 +29,7 @@ export class Track extends EventEmitter {
     this.kind = kind;
     this.mediaStreamTrack = mediaTrack;
     this.name = name || '';
+    this.source = Track.Source.Unknown;
   }
 
   attach(): HTMLMediaElement;
@@ -179,7 +182,12 @@ export namespace Track {
     Unknown = 'unknown',
   }
   export type SID = string;
-  export type Priority = 'low' | 'standard' | 'high';
+  export enum Source {
+    Camera = 'camera',
+    Microphone = 'microphone',
+    ScreenShare = 'screen_share',
+    Unknown = 'unknown',
+  }
 
   export interface Dimensions {
     width: number;
@@ -207,6 +215,34 @@ export namespace Track {
         return Kind.Video;
       default:
         return Kind.Unknown;
+    }
+  }
+
+  /** @internal */
+  export function sourceToProto(s: Source): TrackSource {
+    switch (s) {
+      case Source.Camera:
+        return TrackSource.CAMERA;
+      case Source.Microphone:
+        return TrackSource.MICROPHONE;
+      case Source.ScreenShare:
+        return TrackSource.SCREEN_SHARE;
+      default:
+        return TrackSource.UNRECOGNIZED;
+    }
+  }
+
+  /** @internal */
+  export function sourceFromProto(s: TrackSource): Source {
+    switch (s) {
+      case TrackSource.CAMERA:
+        return Source.Camera;
+      case TrackSource.MICROPHONE:
+        return Source.Microphone;
+      case TrackSource.SCREEN_SHARE:
+        return Source.ScreenShare;
+      default:
+        return Source.Unknown;
     }
   }
 }

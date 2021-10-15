@@ -7,13 +7,15 @@ import {
 } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import RTCEngine from '../RTCEngine';
+import {
+  createLocalAudioTrack, createLocalScreenTracks, createLocalVideoTrack,
+} from '../track/create';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack from '../track/LocalVideoTrack';
 import {
-  TrackPublishOptions,
-  VideoCodec,
+  ScreenSharePresets, TrackPublishOptions, VideoCodec,
   VideoEncoding, VideoPreset, VideoPresets,
   VideoPresets43,
 } from '../track/options';
@@ -30,6 +32,9 @@ export default class LocalParticipant extends Participant {
 
   /** map of track sid => all published tracks */
   tracks: Map<string, LocalTrackPublication>;
+
+  /** @internal */
+  defaultPublishOptions: TrackPublishOptions = {};
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine) {
@@ -52,6 +57,97 @@ export default class LocalParticipant extends Participant {
     });
   }
 
+  getTrack(source: Track.Source): LocalTrackPublication | undefined {
+    const track = super.getTrack(source);
+    if (track) {
+      return track as LocalTrackPublication;
+    }
+  }
+
+  getTrackByName(name: string): LocalTrackPublication | undefined {
+    const track = super.getTrackByName(name);
+    if (track) {
+      return track as LocalTrackPublication;
+    }
+  }
+
+  /**
+   * Enable or disable a participant's camera track.
+   *
+   * If a track has already published, it'll mute or unmute the track.
+   */
+  setCameraEnabled(enabled: boolean): Promise<void> {
+    return this.setTrackEnabled(Track.Source.Camera, enabled);
+  }
+
+  get isCameraEnabled(): boolean {
+    const track = this.getTrack(Track.Source.Camera);
+    return !(track?.isMuted ?? true);
+  }
+
+  /**
+   * Enable or disable a participant's microphone track.
+   *
+   * If a track has already published, it'll mute or unmute the track.
+   */
+  setMicrophoneEnabled(enabled: boolean): Promise<void> {
+    return this.setTrackEnabled(Track.Source.Microphone, enabled);
+  }
+
+  get isMicrophoneEnabled(): boolean {
+    const track = this.getTrack(Track.Source.Microphone);
+    return !(track?.isMuted ?? true);
+  }
+
+  /**
+   * Start or stop sharing a participant's screen
+   */
+  setScreenShareEnabled(enabled: boolean): Promise<void> {
+    return this.setTrackEnabled(Track.Source.ScreenShare, enabled);
+  }
+
+  get isScreenShareEnabled(): boolean {
+    const track = this.getTrack(Track.Source.ScreenShare);
+    return !!track;
+  }
+
+  /**
+   * Enable or disable publishing for a track by source. This serves as a simple
+   * way to manage the common tracks (camera, mic, or screen share)
+   */
+  private async setTrackEnabled(source: Track.Source, enabled: boolean): Promise<void> {
+    const track = this.getTrack(source);
+    if (enabled) {
+      if (track) {
+        track.unmute();
+      } else {
+        let localTrack: LocalTrack | undefined;
+        switch (source) {
+          case Track.Source.Camera:
+            localTrack = await createLocalVideoTrack();
+            break;
+          case Track.Source.Microphone:
+            localTrack = await createLocalAudioTrack();
+            break;
+          case Track.Source.ScreenShare:
+            [localTrack] = await createLocalScreenTracks({ audio: false });
+            break;
+          default:
+            throw new TrackInvalidError(source);
+        }
+
+        await this.publishTrack(localTrack);
+      }
+    } else if (track && track.track) {
+      // screenshare cannot be muted, unpublish instead
+      if (source === Track.Source.ScreenShare) {
+        this.unpublishTrack(track.track);
+      } else {
+        track.mute();
+      }
+    }
+  }
+
   /**
    * Publish a new track to the room
    * @param track
@@ -61,6 +157,9 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
+    const opts: TrackPublishOptions = {};
+    Object.assign(opts, this.defaultPublishOptions, options);
+
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
@@ -106,8 +205,10 @@ export default class LocalParticipant extends Participant {
       name: track.name,
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
-      disableDtx: !(options?.dtx ?? true),
+      source: Track.sourceToProto(track.source),
+      disableDtx: !(opts?.dtx ?? true),
     });
+
     if (track.dimensions) {
       req.width = track.dimensions.width;
       req.height = track.dimensions.height;
@@ -121,15 +222,18 @@ export default class LocalParticipant extends Participant {
     if (track.kind === Track.Kind.Video) {
       // TODO: support react native, which doesn't expose getSettings
       const settings = track.mediaStreamTrack.getSettings();
+      const width = settings.width ?? track.dimensions?.width;
+      const height = settings.height ?? track.dimensions?.height;
       encodings = this.computeVideoEncodings(
-        settings.width,
-        settings.height,
-        options,
+        track.source === Track.Source.ScreenShare,
+        width,
+        height,
+        opts,
       );
-    } else if (track.kind === Track.Kind.Audio && options?.audioBitrate) {
+    } else if (track.kind === Track.Kind.Audio && opts.audioBitrate) {
       encodings = [
         {
-          maxBitrate: options?.audioBitrate,
+          maxBitrate: opts.audioBitrate,
         },
       ];
     }
@@ -153,8 +257,8 @@ export default class LocalParticipant extends Participant {
       track.startMonitor(this.engine.client);
     }
 
-    if (options?.videoCodec) {
-      this.setPreferredCodec(transceiver, track.kind, options.videoCodec);
+    if (opts.videoCodec) {
+      this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
     }
     this.addTrackPublication(publication);
 
@@ -355,6 +459,7 @@ export default class LocalParticipant extends Participant {
   }
 
   private computeVideoEncodings(
+    isScreenShare: boolean,
     width?: number,
     height?: number,
     options?: TrackPublishOptions,
@@ -362,8 +467,12 @@ export default class LocalParticipant extends Participant {
     let encodings: RTCRtpEncodingParameters[];
 
     let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
+    if (isScreenShare) {
+      videoEncoding = options?.screenShareEncoding;
+    }
+    const useSimulcast = !isScreenShare && options?.simulcast;
 
-    if ((!videoEncoding && !options?.simulcast) || !width || !height) {
+    if ((!videoEncoding && !useSimulcast) || !width || !height) {
       // don't set encoding when we are not simulcasting and user isn't restricting
       // encoding parameters
       return undefined;
@@ -371,11 +480,11 @@ export default class LocalParticipant extends Participant {
 
     if (!videoEncoding) {
       // find the right encoding based on width/height
-      videoEncoding = this.determineAppropriateEncoding(width, height);
+      videoEncoding = this.determineAppropriateEncoding(isScreenShare, width, height);
       log.debug('using video encoding', videoEncoding);
     }
 
-    if (options?.simulcast) {
+    if (useSimulcast) {
       encodings = [
         {
           rid: 'f',
@@ -385,7 +494,7 @@ export default class LocalParticipant extends Participant {
         },
       ];
 
-      const presets = this.presetsForResolution(width, height);
+      const presets = this.presetsForResolution(isScreenShare, width, height);
       const midPreset = presets[1];
       const lowPreset = presets[0];
       // if resolution is high enough, we would send both h and q res..
@@ -437,11 +546,20 @@ export default class LocalParticipant extends Participant {
     VideoPresets43.fhd,
   ];
 
+  private presetsScreenShare = [
+    ScreenSharePresets.vga,
+    ScreenSharePresets.hd_8,
+    ScreenSharePresets.hd_15,
+    ScreenSharePresets.fhd_15,
+    ScreenSharePresets.fhd_30,
+  ];
+
   private determineAppropriateEncoding(
+    isScreenShare: boolean,
     width: number,
     height: number,
   ): VideoEncoding {
-    const presets = this.presetsForResolution(width, height);
+    const presets = this.presetsForResolution(isScreenShare, width, height);
     let { encoding } = presets[0];
 
     for (let i = 0; i < presets.length; i += 1) {
@@ -454,7 +572,12 @@ export default class LocalParticipant extends Participant {
     return encoding;
   }
 
-  private presetsForResolution(width: number, height: number): VideoPreset[] {
+  private presetsForResolution(
+    isScreenShare: boolean, width: number, height: number,
+  ): VideoPreset[] {
+    if (isScreenShare) {
+      return this.presetsScreenShare;
+    }
     const aspect = width / height;
     if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
       return this.presets169;

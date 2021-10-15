@@ -1,17 +1,15 @@
-/**
- * Options when publishing tracks
- */
-export interface TrackPublishOptions {
-  /**
-   * set a track name
-   */
-  name?: string;
+import { Track } from './Track';
 
+export interface TrackPublishDefaults {
   /**
-   * encoding parameters, if empty, LiveKit will automatically select an appropriate
-   * encoding based on bitrate
+   * encoding parameters for camera track
    */
   videoEncoding?: VideoEncoding;
+
+  /**
+   * encoding parameters for screen share track
+   */
+  screenShareEncoding?: VideoEncoding;
 
   /**
    * codec, defaults to vp8
@@ -33,6 +31,21 @@ export interface TrackPublishOptions {
    * When using simulcast, LiveKit will publish up to three version of the stream at varying qualiti
    */
   simulcast?: boolean;
+}
+
+/**
+ * Options when publishing tracks
+ */
+export interface TrackPublishOptions extends TrackPublishDefaults {
+  /**
+   * set a track name
+   */
+  name?: string;
+
+  /**
+   * Source of track, camera, microphone, or screen
+   */
+  source?: Track.Source;
 }
 
 export interface CreateLocalTracksOptions {
@@ -211,4 +224,12 @@ export const VideoPresets43 = {
   qhd: new VideoPreset(720, 540, 640_000, 30),
   hd: new VideoPreset(960, 720, 2_000_000, 30),
   fhd: new VideoPreset(1440, 1080, 3_200_000, 30),
+};
+
+export const ScreenSharePresets = {
+  vga: new VideoPreset(640, 360, 200_000, 3),
+  hd_8: new VideoPreset(1280, 720, 400_000, 5),
+  hd_15: new VideoPreset(1280, 720, 1_250_000, 15),
+  fhd_15: new VideoPreset(1920, 1080, 2_000_000, 15),
+  fhd_30: new VideoPreset(1920, 1080, 4_000_000, 30),
 };

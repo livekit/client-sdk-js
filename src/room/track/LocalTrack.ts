@@ -1,4 +1,5 @@
 import log from 'loglevel';
+import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import { CreateLocalTracksOptions, VideoPresets } from './options';
@@ -41,6 +42,7 @@ export default class LocalTrack extends Track {
 
     // default video options
     const videoOptions: MediaTrackConstraints = {
+      deviceId: DeviceManager.getInstance().getDefaultDevice('videoinput'),
       ...VideoPresets.qhd.resolution,
     };
     if (typeof options.video === 'object' && options.video) {
@@ -59,6 +61,7 @@ export default class LocalTrack extends Track {
 
     // default audio options
     const audioOptions: MediaTrackConstraints = {
+      deviceId: DeviceManager.getInstance().getDefaultDevice('audioinput'),
       echoCancellation: true,
       /* @ts-ignore */
       noiseSuppression: true,
@@ -72,6 +75,20 @@ export default class LocalTrack extends Track {
       constraints.audio = audioOptions;
     }
     return constraints;
+  }
+
+  /**
+   * @returns DeviceID of the device that is currently being used for this track
+   */
+  async getDeviceId(): Promise<string | undefined> {
+    // screen share doesn't have a usable device id
+    if (this.source === Track.Source.ScreenShare) {
+      return;
+    }
+    const { deviceId, groupId } = this.mediaStreamTrack.getSettings();
+    const kind = this.kind === Track.Kind.Audio ? 'audioinput' : 'videoinput';
+
+    return DeviceManager.getInstance().normalizeDeviceId(kind, deviceId, groupId);
   }
 
   mute(): LocalTrack {

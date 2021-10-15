@@ -48,6 +48,47 @@ export default class Participant extends EventEmitter {
     return Array.from(this.tracks.values());
   }
 
+  /**
+   * Finds the first track that matches the source filter, for example, getting
+   * the user's camera track with getTrackBySource(Track.Source.Camera).
+   * @param source
+   * @returns
+   */
+  getTrack(source: Track.Source): TrackPublication | undefined {
+    if (source === Track.Source.Unknown) {
+      return;
+    }
+    for (const [, pub] of this.tracks) {
+      if (pub.source === source) {
+        return pub;
+      }
+      if (pub.source === Track.Source.Unknown) {
+        if (source === Track.Source.Microphone && pub.kind === Track.Kind.Audio) {
+          return pub;
+        }
+        if (source === Track.Source.Camera && pub.kind === Track.Kind.Video && pub.trackName !== 'screen') {
+          return pub;
+        }
+        if (source === Track.Source.ScreenShare && pub.kind === Track.Kind.Video && pub.trackName === 'screen') {
+          return pub;
+        }
+      }
+    }
+  }
+
+  /**
+   * Finds the first track that matches the track's name.
+   * @param name
+   * @returns
+   */
+  getTrackByName(name: string): TrackPublication | undefined {
+    for (const [, pub] of this.tracks) {
+      if (pub.trackName === name) {
+        return pub;
+      }
+    }
+  }
+
   /** when participant joined the room */
   get joinedAt(): Date | undefined {
     if (this.participantInfo) {

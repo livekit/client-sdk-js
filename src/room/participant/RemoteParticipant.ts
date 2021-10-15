@@ -57,6 +57,20 @@ export default class RemoteParticipant extends Participant {
     });
   }
 
+  getTrack(source: Track.Source): RemoteTrackPublication | undefined {
+    const track = super.getTrack(source);
+    if (track) {
+      return track as RemoteTrackPublication;
+    }
+  }
+
+  getTrackByName(name: string): RemoteTrackPublication | undefined {
+    const track = super.getTrackByName(name);
+    if (track) {
+      return track as RemoteTrackPublication;
+    }
+  }
+
   /** @internal */
   addSubscribedMediaTrack(
     mediaTrack: MediaStreamTrack,
@@ -110,6 +124,7 @@ export default class RemoteParticipant extends Participant {
     // set track name etc
     track.name = publication.trackName;
     track.sid = publication.trackSid;
+    track.source = publication.source;
     // keep publication's muted status
     track.isMuted = publication.isMuted;
 

@@ -28,13 +28,13 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
    */
   tracks?: LocalTrack[] | MediaStreamTrack[];
 
-  /** see [[TrackPublishOptions.videoEncoding]] */
+  /** default [[TrackPublishOptions.videoEncoding]] for published tracks */
   videoEncoding?: VideoEncoding;
 
-  /** see [[TrackPublishOptions.videoCodec]] */
+  /** default [[TrackPublishOptions.videoCodec]] for published tracks */
   videoCodec?: VideoCodec;
 
-  /** see [[TrackPublishOptions.audioBitrate]] */
+  /** default [[TrackPublishOptions.audioBitrate]] for published tracks */
   audioBitrate?: number;
 
   /** see [[TrackPublishOptions.dtx]] */

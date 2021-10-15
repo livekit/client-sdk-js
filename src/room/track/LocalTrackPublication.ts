@@ -1,11 +1,11 @@
 import { TrackInfo } from '../../proto/livekit_models';
+import LocalAudioTrack from './LocalAudioTrack';
 import LocalTrack from './LocalTrack';
+import LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
 import TrackPublication from './TrackPublication';
 
 export default class LocalTrackPublication extends TrackPublication {
-  priority?: Track.Priority;
-
   track?: LocalTrack;
 
   constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
@@ -20,6 +20,14 @@ export default class LocalTrackPublication extends TrackPublication {
       return this.track.isMuted;
     }
     return super.isMuted;
+  }
+
+  get audioTrack(): LocalAudioTrack | undefined {
+    return super.audioTrack as LocalAudioTrack | undefined;
+  }
+
+  get videoTrack(): LocalVideoTrack | undefined {
+    return super.videoTrack as LocalVideoTrack | undefined;
   }
 
   /**

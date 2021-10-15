@@ -63,13 +63,17 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   mute(): LocalTrack {
-    // also stop the track, so that camera indicator is turned off
-    this.mediaStreamTrack.stop();
+    if (this.source === Track.Source.Camera) {
+      // also stop the track, so that camera indicator is turned off
+      this.mediaStreamTrack.stop();
+    }
     return super.mute();
   }
 
   unmute(): LocalTrack {
-    this.restartTrack();
+    if (this.source === Track.Source.Camera) {
+      this.restartTrack();
+    }
     return super.unmute();
   }
 
@@ -173,6 +177,18 @@ export default class LocalVideoTrack extends LocalTrack {
     params.encodings = this.encodings;
     log.debug('setting publishing quality. max quality', maxQuality);
     this.sender.setParameters(params);
+  }
+
+  async setDeviceId(deviceId: string) {
+    if (this.constraints.deviceId === deviceId) {
+      return;
+    }
+    this.constraints.deviceId = deviceId;
+    // when video is muted, underlying media stream track is stopped and
+    // will be restarted later
+    if (!this.isMuted) {
+      await this.restartTrack();
+    }
   }
 
   async restartTrack(options?: CreateVideoTrackOptions) {
