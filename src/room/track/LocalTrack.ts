@@ -1,4 +1,5 @@
 import log from 'loglevel';
+import { getTrackDefaults } from '../defaults';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
@@ -45,6 +46,12 @@ export default class LocalTrack extends Track {
       deviceId: DeviceManager.getInstance().getDefaultDevice('videoinput'),
       ...VideoPresets.qhd.resolution,
     };
+    const defaults = getTrackDefaults();
+    if (defaults.videoResolution) {
+      videoOptions.width = defaults.videoResolution.width;
+      videoOptions.height = defaults.videoResolution.height;
+      videoOptions.frameRate = defaults.videoResolution.frameRate;
+    }
     if (typeof options.video === 'object' && options.video) {
       Object.assign(videoOptions, options.video);
       if (options.video.resolution) {

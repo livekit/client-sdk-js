@@ -56,7 +56,7 @@ export async function connect(
   });
 
   // save default publish options
-  room.defaultPublishOptions = {
+  room.defaultTrackOptions = {
     audioBitrate: options.audioBitrate,
     dtx: options.dtx,
     simulcast: options.simulcast,

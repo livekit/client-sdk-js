@@ -7,6 +7,11 @@ export interface TrackPublishDefaults {
   videoEncoding?: VideoEncoding;
 
   /**
+   * default video capture resolution
+   */
+  videoResolution?: VideoResolution;
+
+  /**
    * encoding parameters for screen share track
    */
   screenShareEncoding?: VideoEncoding;
@@ -80,7 +85,7 @@ export interface CreateVideoTrackOptions extends CreateLocalTrackOptions {
    */
   facingMode?: ConstrainDOMString;
 
-  resolution?: VideoResolutionConstraint;
+  resolution?: VideoResolution;
 }
 
 export interface CreateScreenTrackOptions {
@@ -94,7 +99,7 @@ export interface CreateScreenTrackOptions {
   audio?: boolean;
 
   /** capture resolution, defaults to full HD */
-  resolution?: VideoResolutionConstraint;
+  resolution?: VideoResolution;
 }
 
 export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
@@ -148,15 +153,15 @@ export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
  * }
  * ```
  */
-export interface VideoResolutionConstraint {
-  width: ConstrainULong;
-  height: ConstrainULong;
-  frameRate?: ConstrainDouble;
+export interface VideoResolution {
+  width: number;
+  height: number;
+  frameRate?: number;
 }
 
 export interface VideoEncoding {
   maxBitrate: number;
-  maxFramerate: number;
+  maxFramerate?: number;
 }
 
 export class VideoPreset {
@@ -175,13 +180,11 @@ export class VideoPreset {
     };
   }
 
-  get resolution(): VideoResolutionConstraint {
+  get resolution(): VideoResolution {
     return {
-      width: { ideal: this.width },
-      height: { ideal: this.height },
-      frameRate: {
-        ideal: this.encoding.maxFramerate,
-      },
+      width: this.width,
+      height: this.height,
+      frameRate: this.encoding.maxFramerate,
     };
   }
 }

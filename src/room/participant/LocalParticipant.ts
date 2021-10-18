@@ -1,6 +1,7 @@
 import log from 'loglevel';
 import { DataPacket, DataPacket_Kind } from '../../proto/livekit_models';
 import { AddTrackRequest } from '../../proto/livekit_rtc';
+import { getTrackDefaults } from '../defaults';
 import {
   TrackInvalidError,
   UnexpectedConnectionState,
@@ -32,9 +33,6 @@ export default class LocalParticipant extends Participant {
 
   /** map of track sid => all published tracks */
   tracks: Map<string, LocalTrackPublication>;
-
-  /** @internal */
-  defaultPublishOptions: TrackPublishOptions = {};
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine) {
@@ -158,7 +156,7 @@ export default class LocalParticipant extends Participant {
     options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
     const opts: TrackPublishOptions = {};
-    Object.assign(opts, this.defaultPublishOptions, options);
+    Object.assign(opts, getTrackDefaults(), options);
 
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {

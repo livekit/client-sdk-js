@@ -5,6 +5,7 @@ import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
+import { getTrackDefaults, setTrackDefaults } from './defaults';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
@@ -229,12 +230,12 @@ class Room extends EventEmitter {
   /**
    * Set default publish options
    */
-  set defaultPublishOptions(opts: TrackPublishDefaults) {
-    this.localParticipant.defaultPublishOptions = opts;
+  set defaultTrackOptions(opts: TrackPublishDefaults) {
+    setTrackDefaults(opts);
   }
 
-  get defaultPublishOptions(): TrackPublishDefaults {
-    return this.localParticipant.defaultPublishOptions;
+  get defaultTrackOptions(): TrackPublishDefaults {
+    return getTrackDefaults();
   }
 
   /**
