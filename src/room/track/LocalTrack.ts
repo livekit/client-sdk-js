@@ -71,6 +71,8 @@ export default class LocalTrack extends Track {
       deviceId: DeviceManager.getInstance().getDefaultDevice('audioinput'),
       echoCancellation: true,
       /* @ts-ignore */
+      autoGainControl: true,
+      /* @ts-ignore */
       noiseSuppression: true,
     };
     if (typeof options.audio === 'object' && options.audio) {

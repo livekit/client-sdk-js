@@ -56,13 +56,14 @@ export async function connect(
   });
 
   // save default publish options
-  room.defaultTrackOptions = {
-    audioBitrate: options.audioBitrate,
-    dtx: options.dtx,
-    simulcast: options.simulcast,
-    videoCodec: options.videoCodec,
-    videoEncoding: options.videoEncoding,
-  };
+  const defaultOptions = room.defaultTrackOptions;
+  if (options.audioBitrate) defaultOptions.audioBitrate = options.audioBitrate;
+  if (options.dtx) defaultOptions.dtx = options.dtx;
+  if (options.simulcast) defaultOptions.simulcast = options.simulcast;
+  if (options.videoEncoding) defaultOptions.videoEncoding = options.videoEncoding;
+  if (options.videoCodec) defaultOptions.videoCodec = options.videoCodec;
+
+  room.defaultTrackOptions = defaultOptions;
 
   // add tracks if available
   let { tracks } = options;
