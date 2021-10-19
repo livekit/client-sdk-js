@@ -33,14 +33,14 @@ export default class LocalTrackPublication extends TrackPublication {
   /**
    * Mute the track associated with this publication
    */
-  mute() {
-    this.track?.mute();
+  async mute() {
+    return this.track?.mute();
   }
 
   /**
    * Unmute track associated with this publication
    */
-  unmute() {
-    this.track?.unmute();
+  async unmute() {
+    return this.track?.unmute();
   }
 }
