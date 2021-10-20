@@ -4,6 +4,7 @@ import {
   ParticipantEvent,
   RemoteParticipant,
   RemoteTrack,
+  RemoteTrackPublication,
   Room,
   RoomEvent,
   Track, TrackPublication, VideoPresets,
@@ -59,6 +60,7 @@ function trackSubscribed(
 
 function trackUnsubscribed(
   track: RemoteTrack | LocalTrack,
+  pub?: RemoteTrackPublication,
   participant?: Participant,
 ) {
   let logName = track.name;
