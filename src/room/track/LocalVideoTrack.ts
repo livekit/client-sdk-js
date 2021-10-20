@@ -62,19 +62,21 @@ export default class LocalVideoTrack extends LocalTrack {
     super.stop();
   }
 
-  mute(): LocalTrack {
+  async mute(): Promise<LocalVideoTrack> {
     if (this.source === Track.Source.Camera) {
       // also stop the track, so that camera indicator is turned off
       this.mediaStreamTrack.stop();
     }
-    return super.mute();
+    await super.mute();
+    return this;
   }
 
-  unmute(): LocalTrack {
+  async unmute(): Promise<LocalVideoTrack> {
     if (this.source === Track.Source.Camera) {
-      this.restartTrack();
+      await this.restartTrack();
     }
-    return super.unmute();
+    await super.unmute();
+    return this;
   }
 
   async getSenderStats(): Promise<VideoSenderStats[]> {

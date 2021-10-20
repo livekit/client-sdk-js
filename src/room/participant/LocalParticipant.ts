@@ -117,7 +117,7 @@ export default class LocalParticipant extends Participant {
     const track = this.getTrack(source);
     if (enabled) {
       if (track) {
-        track.unmute();
+        await track.unmute();
       } else {
         let localTrack: LocalTrack | undefined;
         switch (source) {
@@ -141,7 +141,7 @@ export default class LocalParticipant extends Participant {
       if (source === Track.Source.ScreenShare) {
         this.unpublishTrack(track.track);
       } else {
-        track.mute();
+        await track.mute();
       }
     }
   }

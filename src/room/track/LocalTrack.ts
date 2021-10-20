@@ -100,12 +100,12 @@ export default class LocalTrack extends Track {
     return DeviceManager.getInstance().normalizeDeviceId(kind, deviceId, groupId);
   }
 
-  mute(): LocalTrack {
+  async mute(): Promise<LocalTrack> {
     this.setTrackMuted(true);
     return this;
   }
 
-  unmute(): LocalTrack {
+  async unmute(): Promise<LocalTrack> {
     this.setTrackMuted(false);
     return this;
   }
