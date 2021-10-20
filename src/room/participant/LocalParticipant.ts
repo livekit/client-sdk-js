@@ -78,11 +78,6 @@ export default class LocalParticipant extends Participant {
     return this.setTrackEnabled(Track.Source.Camera, enabled);
   }
 
-  get isCameraEnabled(): boolean {
-    const track = this.getTrack(Track.Source.Camera);
-    return !(track?.isMuted ?? true);
-  }
-
   /**
    * Enable or disable a participant's microphone track.
    *
@@ -92,21 +87,11 @@ export default class LocalParticipant extends Participant {
     return this.setTrackEnabled(Track.Source.Microphone, enabled);
   }
 
-  get isMicrophoneEnabled(): boolean {
-    const track = this.getTrack(Track.Source.Microphone);
-    return !(track?.isMuted ?? true);
-  }
-
   /**
    * Start or stop sharing a participant's screen
    */
   setScreenShareEnabled(enabled: boolean): Promise<void> {
     return this.setTrackEnabled(Track.Source.ScreenShare, enabled);
-  }
-
-  get isScreenShareEnabled(): boolean {
-    const track = this.getTrack(Track.Source.ScreenShare);
-    return !!track;
   }
 
   /**

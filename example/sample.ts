@@ -123,8 +123,8 @@ function participantConnected(participant: RemoteParticipant) {
   participant.on(ParticipantEvent.TrackSubscribed, (track) => {
     trackSubscribed(div, track, participant);
   });
-  participant.on(ParticipantEvent.TrackUnsubscribed, (track) => {
-    trackUnsubscribed(track, participant);
+  participant.on(ParticipantEvent.TrackUnsubscribed, (track, pub) => {
+    trackUnsubscribed(track, pub, participant);
   });
 
   participant.tracks.forEach((publication) => {

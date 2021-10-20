@@ -89,6 +89,21 @@ export default class Participant extends EventEmitter {
     }
   }
 
+  get isCameraEnabled(): boolean {
+    const track = this.getTrack(Track.Source.Camera);
+    return !(track?.isMuted ?? true);
+  }
+
+  get isMicrophoneEnabled(): boolean {
+    const track = this.getTrack(Track.Source.Microphone);
+    return !(track?.isMuted ?? true);
+  }
+
+  get isScreenShareEnabled(): boolean {
+    const track = this.getTrack(Track.Source.ScreenShare);
+    return !!track;
+  }
+
   /** when participant joined the room */
   get joinedAt(): Date | undefined {
     if (this.participantInfo) {
