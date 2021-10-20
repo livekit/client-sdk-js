@@ -144,8 +144,8 @@ export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
  *
  * ```typescript
  * {
- *   width: { ideal: 960 },
- *   height: { ideal: 540 },
+ *   width: 960,
+ *   height: 540,
  *   frameRate: {
  *     ideal: 30,
  *     max: 60,
