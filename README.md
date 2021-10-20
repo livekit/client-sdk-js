@@ -6,6 +6,8 @@
 
 Docs and guides at [https://docs.livekit.io](https://docs.livekit.io)
 
+[SDK reference](https://docs.livekit.io/client-sdk-js/)
+
 ## Installation
 
 ### Yarn
@@ -90,23 +92,88 @@ In order to connect to a room, you need to first create an access token.
 
 See [access token docs](https://docs.livekit.io/guides/access-tokens) for details
 
-### Manually publish, mute, unpublish
+### Handling common track types
 
-When a video track is muted, the camera indicator will be turned off. When the video is unmuted, the same camera source and capture settings will be re-aquired.
+While LiveKit is designed to be flexible, we've added a few shortcuts that makes working with common track types simple. For a user's camera, microphone, and screen share, you can enable them with the following `LocalParticipant` methods:
 
 ```typescript
-import { createLocalVideoTrack } from 'livekit-client';
+const p = room.localParticipant;
+// turn on the local user's camera and mic, this may trigger a browser prompt
+// to ensure permissions are granted
+await p.setCameraEnabled(true);
+await p.setMicrophoneEnabled(true);
 
-const videoTrack = await createLocalVideoTrack();
+// start sharing the user's screen, this will trigger a browser prompt to select
+// the screen to share.
+await p.setScreenShareEnabled(true);
 
-const publication = await room.localParticipant.publishTrack(videoTrack, {
+// disable camera to mute them, when muted, the user's camera indicator will be turned off
+await p.setCameraEnabled(false);
+```
+
+Similarly, you can access these common track types on the other participants' end.
+
+```typescript
+// get a RemoteParticipant by their sid
+const p = room.participants.get('participant-sid');
+if (p) {
+  // if the other user has enabled their camera, attach it to a new HTMLVideoElement
+  if (p.isCameraEnabled) {
+    const track = p.getTrack(Track.Source.Camera);
+    if (track?.isSubscribed) {
+      const videoElement = track.attach()
+      // do something with the element
+    }
+  }
+}
+```
+
+### Advanced track manipulation
+
+LiveKit lets you publish any track as long as it can be represented by a MediaStreamTrack. You can specify a name on the track in order to identify it later.
+
+```typescript
+
+const pub = await room.localParticipant.publishTrack(mediaStreamTrack, {
   name: 'mytrack',
   simulcast: true,
+  // if this should be treated like a camera feed, tag it as such
+  // supported known sources are .Camera, .Microphone, .ScreenShare
+  source: Track.Source.Camera,
+})
+
+// you may mute or unpublish the track later
+pub.setMuted(true);
+
+room.localParticipant.unpublishTrack(mediaStreamTrack)
+```
+
+### Device management APIs
+
+Users may have multiple input and output devices available. LiveKit will automatically use the one that's deemed as the `default` device on the system. You may also list and specify an alternative device to use.
+
+We use the same deviceId as one returned by [MediaDevices.enumerateDevices()](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/enumerateDevices).
+
+#### Example listing and selecting a camera device
+
+```typescript
+// list all microphone devices
+const devices = await Room.getLocalDevices('audioinput');
+
+// select last device
+const device = devices[devices.length-1];
+
+// in the current room, switch to the selected device and set
+// it as default audioinput in the future.
+await room.switchActiveDevice('audioinput', device.deviceId);
+```
+
+You can also switch devices given a constraint. This could be useful on mobile devices to switch to a back-facing camera:
+
+```typescript
+await videoTrack.restartTrack({
+  facingMode: 'environment',
 });
-
-videoTrack.mute();
-
-room.localParticipant.unpublishTrack(videoTrack);
 ```
 
 ### Audio playback
@@ -123,49 +190,13 @@ room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
     // UI is necessary.
     ...
     button.onclick = () => {
-      // this function *must* be triggered in an click/tap handler.
+      // startAudio *must* be called in an click/tap handler.
       room.startAudio().then(() => {
         // successful, UI can be removed now
         button.remove();
       });
     }
   }
-});
-```
-
-### Screen share
-
-On desktop browsers, you may also share your screen with others. Refer to [browser compatibility](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia#browser_compatibility).
-
-Audio capture is supported only a subset of desktop browsers.
-
-```typescript
-const tracks = await createLocalScreenTracks({
-  // set to true in order to capture audio
-  audio: true,
-  // defaults to 1080p
-  resolution: VideoPresets.fhd.resolution,
-});
-
-tracks.forEach((track) => {
-  // publish video and audio of the screenshare
-  room.localParticipant.publishTrack(track);
-});
-```
-
-### Switching input devices
-
-At any point after publishing, you can switch the input devices and other capture settings on both audio and video tracks. For example, switching between regular and selfie camera or changing microphone inputs. This is performed with `restartTrack` on the `LocalAudioTrack` or `LocalVideoTrack`.
-
-```typescript
-await room.localParticipant.publishTrack(videoTrack);
-await room.localParticipant.publishTrack(audioTrack);
-
-await videoTrack.restartTrack({
-  facingMode: 'environment',
-});
-await audioTrack.restartTrack({
-  deviceId: 'microphoneId',
 });
 ```
 
