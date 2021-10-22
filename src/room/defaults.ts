@@ -1,11 +1,27 @@
-import { TrackPublishDefaults } from './track/options';
+import { TrackCaptureDefaults, TrackPublishDefaults, VideoPresets } from './track/options';
 
-let trackDefaults: TrackPublishDefaults = {};
+let publishDefaults: TrackPublishDefaults = {};
 
-export function getTrackDefaults(): TrackPublishDefaults {
-  return trackDefaults;
+let captureDefaults: TrackCaptureDefaults = {
+  autoGainControl: true,
+  channelCount: 1,
+  echoCancellation: true,
+  noiseSuppression: true,
+  videoResolution: VideoPresets.qhd.resolution,
+};
+
+export function getTrackPublishDefaults(): TrackPublishDefaults {
+  return publishDefaults;
 }
 
-export function setTrackDefaults(defaults: TrackPublishDefaults) {
-  trackDefaults = defaults;
+export function setTrackPublishDefaults(defaults: TrackPublishDefaults) {
+  publishDefaults = defaults;
+}
+
+export function getTrackCaptureDefaults(): TrackCaptureDefaults {
+  return captureDefaults;
+}
+
+export function setTrackCaptureDefaults(defaults: TrackCaptureDefaults) {
+  captureDefaults = defaults;
 }

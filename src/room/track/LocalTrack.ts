@@ -1,9 +1,9 @@
 import log from 'loglevel';
-import { getTrackDefaults } from '../defaults';
+import { getTrackCaptureDefaults } from '../defaults';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import { CreateLocalTracksOptions, VideoPresets } from './options';
+import { CreateLocalTracksOptions } from './options';
 import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {
@@ -37,16 +37,14 @@ export default class LocalTrack extends Track {
     return undefined;
   }
 
-  static constraintsForOptions(options: CreateLocalTracksOptions):
-  MediaStreamConstraints {
+  static constraintsForOptions(options: CreateLocalTracksOptions): MediaStreamConstraints {
     const constraints: MediaStreamConstraints = {};
 
     // default video options
+    const defaults = getTrackCaptureDefaults();
     const videoOptions: MediaTrackConstraints = {
-      deviceId: DeviceManager.getInstance().getDefaultDevice('videoinput'),
-      ...VideoPresets.qhd.resolution,
+      deviceId: defaults.videoDeviceId,
     };
-    const defaults = getTrackDefaults();
     if (defaults.videoResolution) {
       videoOptions.width = defaults.videoResolution.width;
       videoOptions.height = defaults.videoResolution.height;
@@ -68,12 +66,13 @@ export default class LocalTrack extends Track {
 
     // default audio options
     const audioOptions: MediaTrackConstraints = {
-      deviceId: DeviceManager.getInstance().getDefaultDevice('audioinput'),
-      echoCancellation: true,
+      deviceId: defaults.audioDeviceId,
+      echoCancellation: defaults.echoCancellation,
       /* @ts-ignore */
-      autoGainControl: true,
+      autoGainControl: defaults.autoGainControl,
       /* @ts-ignore */
-      noiseSuppression: true,
+      noiseSuppression: defaults.noiseSuppression,
+      channelCount: defaults.channelCount,
     };
     if (typeof options.audio === 'object' && options.audio) {
       Object.assign(audioOptions, options.audio);

@@ -26,7 +26,8 @@ export async function createLocalTracks(
   options?: CreateLocalTracksOptions,
 ): Promise<Array<LocalTrack>> {
   if (!options) options = {};
-  if (options.audio === undefined) options.audio = {};
+  if (options.audio === false) options.audio = {};
+  if (options.video !== false) options.video = {};
 
   const constraints = LocalTrack.constraintsForOptions(options);
   let stream: MediaStream;

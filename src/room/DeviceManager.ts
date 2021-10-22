@@ -9,9 +9,6 @@ export default class DeviceManager {
     'videoinput',
   ];
 
-  // kind => deviceId
-  defaultDevices: Map<MediaDeviceKind, string> = new Map();
-
   static getInstance(): DeviceManager {
     if (this.instance === undefined) {
       this.instance = new DeviceManager();
@@ -56,17 +53,5 @@ export default class DeviceManager {
     const device = devices.find((d) => d.groupId === groupId && d.deviceId !== defaultId);
 
     return device?.deviceId;
-  }
-
-  setDefaultDevice(kind: MediaDeviceKind, deviceId: string | undefined) {
-    if (deviceId === undefined) {
-      this.defaultDevices.delete(kind);
-    } else {
-      this.defaultDevices.set(kind, deviceId);
-    }
-  }
-
-  getDefaultDevice(kind: MediaDeviceKind): string | undefined {
-    return this.defaultDevices.get(kind);
   }
 }

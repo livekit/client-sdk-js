@@ -17,12 +17,10 @@ export { version } from './version';
  * connect('wss://myhost.livekit.io', token, {
  *   // publish audio and video tracks on joining
  *   audio: true,
- *   video: {
- *     resolution: VideoPresets.hd,
- *     facingMode: {
- *       ideal: "user",
- *     }
- *   }
+ *   video: true,
+ *   captureDefaults: {
+ *    facingMode: 'user',
+ *   },
  * })
  * ```
  * @param url URL to LiveKit server
@@ -56,31 +54,25 @@ export async function connect(
   });
 
   // save default publish options
-  const defaultOptions = room.defaultTrackOptions;
-  if (options.audioBitrate) defaultOptions.audioBitrate = options.audioBitrate;
-  if (options.dtx) defaultOptions.dtx = options.dtx;
-  if (options.simulcast) defaultOptions.simulcast = options.simulcast;
-  if (options.videoEncoding) defaultOptions.videoEncoding = options.videoEncoding;
-  if (options.videoCodec) defaultOptions.videoCodec = options.videoCodec;
-
-  room.defaultTrackOptions = defaultOptions;
-
-  // add tracks if available
-  let { tracks } = options;
-
-  if (!tracks) {
-    if (options.audio || options.video) {
-      tracks = await createLocalTracks({
-        audio: options.audio,
-        video: options.video,
-      });
-    }
+  if (options.publishDefaults) {
+    room.defaultPublishOptions = options.publishDefaults;
+  }
+  if (options.captureDefaults) {
+    room.defaultCaptureOptions = options.captureDefaults;
   }
 
-  if (tracks) {
-    await Promise.all(tracks.map(
-      (track: LocalTrack | MediaStreamTrack) => room.localParticipant.publishTrack(track),
-    ));
+  const publishAudio: boolean = options.audio;
+  const publishVideo: boolean = options.video;
+  if (publishAudio || publishVideo) {
+    setTimeout(async () => {
+      const tracks = await createLocalTracks({
+        audio: publishAudio,
+        video: publishVideo,
+      });
+      await Promise.all(tracks.map(
+        (track: LocalTrack | MediaStreamTrack) => room.localParticipant.publishTrack(track),
+      ));
+    });
   }
 
   return room;

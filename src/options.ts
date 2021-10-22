@@ -1,5 +1,6 @@
-import LocalTrack from './room/track/LocalTrack';
-import { CreateLocalTracksOptions, VideoCodec, VideoEncoding } from './room/track/options';
+import {
+  CreateLocalTracksOptions, TrackCaptureDefaults, TrackPublishDefaults,
+} from './room/track/options';
 
 /**
  * if video or audio tracks are created as part of [[connect]], it'll automatically
@@ -23,25 +24,28 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   rtcConfig?: RTCConfiguration;
 
   /**
-   * Tracks to publish to the room after joining. These can be obtained by calling
-   * [[createLocalTracks]]. when this is passed in, it'll ignore audio and video options
+   * capture and publish audio track on connect, defaults to false
+   *
+   * If this option is used, you will not be notified if user denies capture permission.
    */
-  tracks?: LocalTrack[] | MediaStreamTrack[];
+  audio?: boolean;
 
-  /** default [[TrackPublishOptions.videoEncoding]] for published tracks */
-  videoEncoding?: VideoEncoding;
+  /**
+   * capture and publish video track on connect, defaults to false
+   *
+   * If this option is used, you will not be notified if user denies capture permission.
+   */
+  video?: boolean;
 
-  /** default [[TrackPublishOptions.videoCodec]] for published tracks */
-  videoCodec?: VideoCodec;
+  /**
+   * default options to use when capturing user media
+   */
+  captureDefaults?: TrackCaptureDefaults;
 
-  /** default [[TrackPublishOptions.audioBitrate]] for published tracks */
-  audioBitrate?: number;
-
-  /** see [[TrackPublishOptions.dtx]] */
-  dtx?: boolean;
-
-  /** see [[TrackPublishOptions.simulcast]] */
-  simulcast?: boolean;
+  /**
+   * default options to use when publishing tracks
+   */
+  publishDefaults?: TrackPublishDefaults;
 }
 
 export enum LogLevel {

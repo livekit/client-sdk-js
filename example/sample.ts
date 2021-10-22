@@ -1,5 +1,5 @@
 import {
-  connect, CreateVideoTrackOptions, DataPacket_Kind, LocalTrack, LogLevel,
+  connect, CreateVideoTrackOptions, DataPacket_Kind, LocalTrack, LocalTrackPublication, LogLevel,
   Participant,
   ParticipantEvent,
   RemoteParticipant,
@@ -194,22 +194,16 @@ window.connectToRoom = async (
     rtcConfig.iceTransportPolicy = 'relay';
   }
   const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
-  let audioOptions = true;
-  let videoOptions: boolean | CreateVideoTrackOptions = {
-    resolution: VideoPresets.qhd.resolution,
-  };
-  if (!shouldPublish) {
-    audioOptions = false;
-    videoOptions = false;
-  }
 
   try {
     room = await connect(url, token, {
       logLevel: LogLevel.debug,
-      audio: audioOptions,
-      video: videoOptions,
-      simulcast,
       rtcConfig,
+      audio: shouldPublish,
+      video: shouldPublish,
+      publishDefaults: {
+        simulcast,
+      },
     });
   } catch (error) {
     let message: any = error;
@@ -236,6 +230,11 @@ window.connectToRoom = async (
     .on(RoomEvent.Reconnected, () => appendLog('Successfully reconnected!'))
     .on(RoomEvent.TrackMuted, (pub: TrackPublication, p: Participant) => appendLog('track was muted', pub.trackSid, p.identity))
     .on(RoomEvent.TrackUnmuted, (pub: TrackPublication, p: Participant) => appendLog('track was unmuted', pub.trackSid, p.identity))
+    .on(RoomEvent.LocalTrackPublished, (pub: LocalTrackPublication) => {
+      if (pub.kind === Track.Kind.Video) {
+        attachLocalVideo();
+      }
+    })
     .on(RoomEvent.RoomMetadataChanged, (metadata) => {
       appendLog('new metadata for room', metadata);
     })
@@ -254,7 +253,6 @@ window.connectToRoom = async (
   });
 
   $('local-video')!.innerHTML = `${room.localParticipant.identity} (me)`;
-  attachLocalVideo();
 };
 
 window.toggleVideo = async () => {
@@ -353,6 +351,7 @@ window.flipVideo = () => {
   videoPub.videoTrack?.restartTrack(options);
 };
 
+const defaultDevices = new Map<MediaDeviceKind, string>();
 window.handleDeviceSelected = async (e: Event) => {
   const deviceId = (<HTMLSelectElement>e.target).value;
   const elementId = (<HTMLSelectElement>e.target).id;
@@ -361,7 +360,8 @@ window.handleDeviceSelected = async (e: Event) => {
     return;
   }
 
-  Room.setDefaultDevice(kind, deviceId || undefined);
+  defaultDevices.set(kind, deviceId);
+
   if (currentRoom) {
     await currentRoom.switchActiveDevice(kind, deviceId);
   }
@@ -418,7 +418,7 @@ async function handleDevicesChanged() {
     }
     const devices = await Room.getLocalDevices(kind);
     const element = <HTMLSelectElement>$(id);
-    populateSelect(kind, element, devices, Room.getDefaultDevice(kind));
+    populateSelect(kind, element, devices, defaultDevices.get(kind));
   }));
 }
 
