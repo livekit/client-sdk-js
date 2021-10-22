@@ -49,7 +49,10 @@ export enum RoomEvent {
 
   /**
    * When a new track is published to room *after* the local
-   * participant has joined. It will not fire for tracks that are already published
+   * participant has joined. It will not fire for tracks that are already published.
+   *
+   * A track published doesn't mean the participant has subscribed to it. It's
+   * simply reflecting the state of the room.
    *
    * args: ([[RemoteTrackPublication]], [[RemoteParticipant]])
    */
@@ -98,6 +101,11 @@ export enum RoomEvent {
    * args: ([[TrackPublication]], [[Participant]])
    */
   TrackUnmuted = 'trackUnmuted',
+
+  /**
+   * A track was published successfully
+   */
+  LocalTrackPublished = 'localTrackPublished',
 
   /**
    * Active speakers changed. List of speakers are ordered by their audio level.
@@ -154,6 +162,7 @@ export enum ParticipantEvent {
   TrackUnsubscribed = 'trackUnsubscribed',
   TrackMuted = 'trackMuted',
   TrackUnmuted = 'trackUnmuted',
+  LocalTrackPublished = 'localTrackPublished',
   MetadataChanged = 'metadataChanged',
   ParticipantMetadataChanged = 'participantMetadataChanged',
   DataReceived = 'dataReceived',

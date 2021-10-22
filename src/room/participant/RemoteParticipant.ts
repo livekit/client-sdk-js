@@ -130,6 +130,9 @@ export default class RemoteParticipant extends Participant {
 
     // when media track is ended, fire the event
     mediaTrack.onended = () => {
+      if (publication) {
+        publication.track = undefined;
+      }
       this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
     };
     this.emit(ParticipantEvent.TrackSubscribed, track, publication);
@@ -215,12 +218,15 @@ export default class RemoteParticipant extends Participant {
     }
 
     // also send unsubscribe, if track is actively subscribed
-    if (publication.track) {
-      const { track } = publication;
+    const { track } = publication;
+    if (track) {
+      const { isSubscribed } = publication;
       track.stop();
       publication.setTrack(undefined);
       // always send unsubscribed, since apps may rely on this
-      this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
+      if (isSubscribed) {
+        this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
+      }
     }
     if (sendUnpublish) { this.emit(ParticipantEvent.TrackUnpublished, publication); }
   }

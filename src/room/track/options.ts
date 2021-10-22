@@ -7,11 +7,6 @@ export interface TrackPublishDefaults {
   videoEncoding?: VideoEncoding;
 
   /**
-   * default video capture resolution
-   */
-  videoResolution?: VideoResolution;
-
-  /**
    * encoding parameters for screen share track
    */
   screenShareEncoding?: VideoEncoding;
@@ -33,9 +28,52 @@ export interface TrackPublishDefaults {
 
   /**
    * use simulcast, defaults to false.
-   * When using simulcast, LiveKit will publish up to three version of the stream at varying qualiti
+   * When using simulcast, LiveKit will publish up to three version of the stream
+   * at various resolutions.
    */
   simulcast?: boolean;
+}
+
+export interface TrackCaptureDefaults {
+  /**
+   * default device to use for microphone capture
+   */
+  audioDeviceId?: string;
+
+  /**
+   * specifies whether automatic gain control is preferred, defaults to true
+   */
+  autoGainControl?: boolean;
+
+  /**
+   * the channel count or range of channel counts which are acceptable and/or required
+   */
+  channelCount?: number;
+
+  /**
+   * whether or not echo cancellation is preferred, defaults to true
+   */
+  echoCancellation?: boolean;
+
+  /**
+   * whether noise suppression is preferred, defaults to true
+   */
+  noiseSuppression?: boolean;
+
+  /**
+   * set if a particular video facing mode is preferred
+   */
+  videoFacingMode?: 'user' | 'environment' | 'left' | 'right';
+
+  /**
+   * default device to use for camera capture
+   */
+  videoDeviceId?: string;
+
+  /**
+   * default video capture resolution
+   */
+  videoResolution?: VideoResolution;
 }
 
 /**

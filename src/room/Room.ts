@@ -5,7 +5,10 @@ import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
-import { getTrackDefaults, setTrackDefaults } from './defaults';
+import {
+  getTrackCaptureDefaults, getTrackPublishDefaults,
+  setTrackCaptureDefaults, setTrackPublishDefaults,
+} from './defaults';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
@@ -15,7 +18,7 @@ import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
-import { TrackPublishDefaults } from './track/options';
+import { TrackCaptureDefaults, TrackPublishDefaults } from './track/options';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import TrackPublication from './track/TrackPublication';
@@ -126,25 +129,6 @@ class Room extends EventEmitter {
     return DeviceManager.getInstance().getDevices(kind);
   }
 
-  /**
-   * Sets the default device to use for the MediaDeviceKind. Subsequent tracks
-   * created will be using the specified device.
-   *
-   * @param kind
-   * @param deviceId set to undefined to clear the default
-   * @returns
-   */
-  static setDefaultDevice(kind: MediaDeviceKind, deviceId: string | undefined) {
-    return DeviceManager.getInstance().setDefaultDevice(kind, deviceId);
-  }
-
-  /**
-   * @returns the default device set by the user. If no device is explicitly set, returns undefined
-   */
-  static getDefaultDevice(kind: MediaDeviceKind): string | undefined {
-    return DeviceManager.getInstance().getDefaultDevice(kind);
-  }
-
   /** @internal */
   connect = async (url: string, token: string, opts?: SignalOptions): Promise<Room> => {
     // guard against calling connect
@@ -183,6 +167,10 @@ class Room extends EventEmitter {
 
       this.localParticipant.on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
         this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
+      });
+
+      this.localParticipant.on(ParticipantEvent.LocalTrackPublished, (pub: TrackPublication) => {
+        this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
       });
 
       // populate remote participants, these should not trigger new events
@@ -230,12 +218,20 @@ class Room extends EventEmitter {
   /**
    * Set default publish options
    */
-  set defaultTrackOptions(opts: TrackPublishDefaults) {
-    setTrackDefaults(opts);
+  set defaultPublishOptions(opts: TrackPublishDefaults) {
+    setTrackPublishDefaults(opts);
   }
 
-  get defaultTrackOptions(): TrackPublishDefaults {
-    return getTrackDefaults();
+  get defaultPublishOptions(): TrackPublishDefaults {
+    return getTrackPublishDefaults();
+  }
+
+  set defaultCaptureOptions(opts: TrackCaptureDefaults) {
+    setTrackCaptureDefaults(opts);
+  }
+
+  get defaultCaptureOptions(): TrackCaptureDefaults {
+    return getTrackCaptureDefaults();
   }
 
   /**
@@ -291,11 +287,13 @@ class Room extends EventEmitter {
         .from(this.localParticipant.audioTracks.values())
         .filter((track) => track.source === Track.Source.Microphone);
       await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceId)));
+      this.defaultCaptureOptions.audioDeviceId = deviceId;
     } else if (kind === 'videoinput') {
       const tracks = Array
         .from(this.localParticipant.videoTracks.values())
         .filter((track) => track.source === Track.Source.Camera);
       await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceId)));
+      this.defaultCaptureOptions.videoDeviceId = deviceId;
     } else if (kind === 'audiooutput') {
       const elements: HTMLMediaElement[] = [];
       this.participants.forEach((p) => {
@@ -494,16 +492,6 @@ class Room extends EventEmitter {
   };
 
   private handleDeviceChange = async () => {
-    // ensure default devices still exist, if not, clear them out
-    const mananger = DeviceManager.getInstance();
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    DeviceManager.mediaDeviceKinds.forEach(async (kind) => {
-      const deviceId = mananger.getDefaultDevice(kind);
-      const device = devices.find((d) => d.deviceId === deviceId && d.kind === kind);
-      if (!device) {
-        mananger.setDefaultDevice(kind, undefined);
-      }
-    });
     this.emit(RoomEvent.MediaDevicesChanged);
   };
 
