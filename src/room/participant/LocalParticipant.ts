@@ -472,43 +472,50 @@ export default class LocalParticipant extends Participant {
     }
 
     if (useSimulcast) {
-      encodings = [
-        {
-          rid: 'f',
-          maxBitrate: videoEncoding.maxBitrate,
-          /* @ts-ignore */
-          maxFramerate: videoEncoding.maxFramerate,
-        },
-      ];
-
       const presets = this.presetsForResolution(isScreenShare, width, height);
       const midPreset = presets[1];
       const lowPreset = presets[0];
       // if resolution is high enough, we would send both h and q res..
       // otherwise only send h
       if (width >= 960) {
-        encodings.push({
-          rid: 'h',
-          scaleResolutionDownBy: height / midPreset.height,
-          maxBitrate: midPreset.encoding.maxBitrate,
-          /* @ts-ignore */
-          maxFramerate: midPreset.encoding.maxFramerate,
-        });
-        encodings.push({
-          rid: 'q',
-          scaleResolutionDownBy: height / lowPreset.height,
-          maxBitrate: lowPreset.encoding.maxBitrate,
-          /* @ts-ignore */
-          maxFramerate: lowPreset.encoding.maxFramerate,
-        });
+        encodings = [
+          {
+            rid: 'q',
+            scaleResolutionDownBy: height / lowPreset.height,
+            maxBitrate: lowPreset.encoding.maxBitrate,
+            /* @ts-ignore */
+            maxFramerate: lowPreset.encoding.maxFramerate,
+          },
+          {
+            rid: 'h',
+            scaleResolutionDownBy: height / midPreset.height,
+            maxBitrate: midPreset.encoding.maxBitrate,
+            /* @ts-ignore */
+            maxFramerate: midPreset.encoding.maxFramerate,
+          },
+          {
+            rid: 'f',
+            maxBitrate: videoEncoding.maxBitrate,
+            /* @ts-ignore */
+            maxFramerate: videoEncoding.maxFramerate,
+          },
+        ];
       } else {
-        encodings.push({
-          rid: 'h',
-          scaleResolutionDownBy: height / lowPreset.height,
-          maxBitrate: lowPreset.encoding.maxBitrate,
-          /* @ts-ignore */
-          maxFramerate: lowPreset.encoding.maxFramerate,
-        });
+        encodings = [
+          {
+            rid: 'q',
+            scaleResolutionDownBy: height / lowPreset.height,
+            maxBitrate: lowPreset.encoding.maxBitrate,
+            /* @ts-ignore */
+            maxFramerate: lowPreset.encoding.maxFramerate,
+          },
+          {
+            rid: 'h',
+            maxBitrate: videoEncoding.maxBitrate,
+            /* @ts-ignore */
+            maxFramerate: videoEncoding.maxFramerate,
+          },
+        ];
       }
     } else {
       encodings = [videoEncoding];

@@ -12,7 +12,7 @@ const QUALITY_UPGRADE_DELAY = 60 * 1000;
 // avoid downgrading too quickly
 const QUALITY_DOWNGRADE_DELAY = 5 * 1000;
 
-const ridOrder = ['f', 'h', 'q'];
+const ridOrder = ['q', 'h', 'f'];
 
 export default class LocalVideoTrack extends LocalTrack {
   /* internal */
@@ -134,16 +134,6 @@ export default class LocalVideoTrack extends LocalTrack {
       }
     });
 
-    // sort by rid, so that f, h, q is the ordering
-    items.sort((a, b): number => {
-      const ai = ridOrder.indexOf(a.rid);
-      const bi = ridOrder.indexOf(b.rid);
-      if (ai === bi) {
-        return 0;
-      }
-      return ai < bi ? -1 : 1;
-    });
-
     return items;
   }
 
@@ -231,7 +221,21 @@ export default class LocalVideoTrack extends LocalTrack {
     let bestEncoding: RTCRtpEncodingParameters | undefined;
     this.encodings.forEach((encoding) => {
       // skip inactive encodings
-      if (bestEncoding === undefined && encoding.active) {
+      if (!encoding.active) return;
+
+      if (bestEncoding === undefined) {
+        bestEncoding = encoding;
+      } else if (
+        bestEncoding.rid
+        && encoding.rid
+        && ridOrder.indexOf(bestEncoding.rid) < ridOrder.indexOf(encoding.rid)
+      ) {
+        bestEncoding = encoding;
+      } else if (
+        bestEncoding.maxBitrate !== undefined
+        && encoding.maxBitrate !== undefined
+        && bestEncoding.maxBitrate < encoding.maxBitrate
+      ) {
         bestEncoding = encoding;
       }
     });
