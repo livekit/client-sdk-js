@@ -475,8 +475,17 @@ export default class LocalParticipant extends Participant {
       const presets = this.presetsForResolution(isScreenShare, width, height);
       const midPreset = presets[1];
       const lowPreset = presets[0];
-      // if resolution is high enough, we would send both h and q res..
-      // otherwise only send h
+      // if resolution is high enough, we would send [f, h, q] res..
+      // otherwise only send [h, q]
+      // NOTE:
+      //   1. Ordering of these encodings is important. Chrome seems
+      //      to use the index into encodings to decide which layer
+      //      to disable when constrained (bandwidth or CPU). So,
+      //      encodings should be ordered in increasing spatial
+      //      resolution order.
+      //   2. ion-sfu translates rids into layers. So, all encodings
+      //      should have the base layer `q` and then more added
+      //      based on other conditions.
       if (width >= 960) {
         encodings = [
           {
