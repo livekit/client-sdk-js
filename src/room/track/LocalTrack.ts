@@ -71,7 +71,7 @@ export default class LocalTrack extends Track {
       /* @ts-ignore */
       autoGainControl: defaults.autoGainControl,
       /* @ts-ignore */
-      noiseSuppression: defaults.echoCancellation,
+      noiseSuppression: defaults.noiseSuppression,
       channelCount: defaults.channelCount,
     };
     if (typeof options.audio === 'object' && options.audio) {
