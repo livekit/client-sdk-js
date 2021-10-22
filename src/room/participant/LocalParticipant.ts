@@ -475,8 +475,8 @@ export default class LocalParticipant extends Participant {
       const presets = this.presetsForResolution(isScreenShare, width, height);
       const midPreset = presets[1];
       const lowPreset = presets[0];
-      // if resolution is high enough, we would send [f, h, q] res..
-      // otherwise only send [h, q]
+      // if resolution is high enough, we would send [q, h, f] res..
+      // otherwise only send [q, h]
       // NOTE:
       //   1. Ordering of these encodings is important. Chrome seems
       //      to use the index into encodings to decide which layer
