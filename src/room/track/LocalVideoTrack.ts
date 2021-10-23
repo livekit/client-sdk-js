@@ -160,7 +160,6 @@ export default class LocalVideoTrack extends LocalTrack {
       return;
     }
 
-    this.lastQualityChange = new Date().getTime();
     this.lastExplicitQualityChange = new Date().getTime();
 
     this.signalClient?.sendSetSimulcastLayers(this.sid, layers);
@@ -282,6 +281,12 @@ export default class LocalVideoTrack extends LocalTrack {
       this.setPublishingQuality(nextQuality);
       return;
     }
+
+    // if best layer has not sent anything, do not downgrade till the
+    // best layer starts sending something. It is possible that the
+    // browser has not started some layer(s) due to cpu/bandwidth
+    // constraints
+    if (sendStats.framesSent === 0) return;
 
     // if we've upgraded or downgraded recently, give it a bit of time before
     // downgrading again
