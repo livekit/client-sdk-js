@@ -283,6 +283,12 @@ export default class LocalVideoTrack extends LocalTrack {
       return;
     }
 
+    // if best layer has not sent anything, do not downgrade till the
+    // best layer starts sending something. It is possible that the
+    // browser has not started some layer(s) due to cpu/bandwidth
+    // constraints
+    if (sendStats.framesSent === 0) return;
+
     // if we've upgraded or downgraded recently, give it a bit of time before
     // downgrading again
     if (this.lastExplicitQualityChange
