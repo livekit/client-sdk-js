@@ -161,6 +161,7 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     this.lastExplicitQualityChange = new Date().getTime();
+    this.lastQualityChange = new Date().getTime();
 
     this.signalClient?.sendSetSimulcastLayers(this.sid, layers);
 
