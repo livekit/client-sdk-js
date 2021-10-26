@@ -180,7 +180,7 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
     track.mediaStreamTrack.addEventListener('ended', () => {
-      this.unpublishTrack(track);
+      this.unpublishTrack(track, true);
     });
 
     // get local track id for use during publishing
@@ -256,6 +256,7 @@ export default class LocalParticipant extends Participant {
 
   unpublishTrack(
     track: LocalTrack | MediaStreamTrack,
+    sendUnpublish?: boolean,
   ): LocalTrackPublication | null {
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
@@ -310,6 +311,8 @@ export default class LocalParticipant extends Participant {
       default:
         break;
     }
+
+    if (sendUnpublish) this.emit(ParticipantEvent.TrackUnpublished, publication);
 
     return publication;
   }
