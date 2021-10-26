@@ -179,7 +179,7 @@ export default class LocalParticipant extends Participant {
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
-    track.mediaStreamTrack.addEventListener('ended', () => {
+    track.on(TrackEvent.Ended, () => {
       this.unpublishTrack(track);
     });
 

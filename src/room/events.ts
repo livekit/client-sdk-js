@@ -104,6 +104,8 @@ export enum RoomEvent {
 
   /**
    * A track was published successfully
+   *
+   * args: ([[LocalTrackPublication]], [[LocalParticipant]])
    */
   LocalTrackPublished = 'localTrackPublished',
 
@@ -188,6 +190,7 @@ export enum TrackEvent {
   Message = 'message',
   Muted = 'muted',
   Unmuted = 'unmuted',
+  Ended = 'ended',
   /** @internal */
   UpdateSettings = 'updateSettings',
   /** @internal */

@@ -15,6 +15,7 @@ export default class LocalTrack extends Track {
   protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind,
     name?: string, constraints?: MediaTrackConstraints) {
     super(mediaTrack, kind, name);
+    this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
     this.constraints = constraints ?? mediaTrack.getConstraints();
   }
 
@@ -129,19 +130,22 @@ export default class LocalTrack extends Track {
       streamConstraints.audio = constraints;
     }
 
-    // TODO: for safari, there is a bug that might cause this to be wonky
-    // _workaroundWebKitBug1208516
-    const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
-    const newTrack = mediaStream.getTracks()[0];
-    log.info('re-acquired MediaStreamTrack');
-
-    // detach and reattach
-    this.mediaStreamTrack.stop();
+    // detach
     this.attachedElements.forEach((el) => {
       detachTrack(this.mediaStreamTrack, el);
     });
+    this.mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+    // on Safari, the old audio track must be stopped before attempting to acquire
+    // the new track, otherwise the new track will stop with
+    // 'A MediaStreamTrack ended due to a capture failure`
+    this.mediaStreamTrack.stop();
 
-    newTrack.enabled = this.mediaStreamTrack.enabled;
+    // create new track and attach
+    const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
+    const newTrack = mediaStream.getTracks()[0];
+    newTrack.addEventListener('ended', this.handleEnded);
+    log.debug('re-acquired MediaStreamTrack');
+
     await this.sender.replaceTrack(newTrack);
     this.mediaStreamTrack = newTrack;
 
@@ -162,4 +166,8 @@ export default class LocalTrack extends Track {
     this.mediaStreamTrack.enabled = !muted;
     this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
   }
+
+  private handleEnded = () => {
+    this.emit(TrackEvent.Ended);
+  };
 }

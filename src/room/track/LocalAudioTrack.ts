@@ -18,9 +18,8 @@ export default class LocalAudioTrack extends LocalTrack {
       return;
     }
     this.constraints.deviceId = deviceId;
-    await this.restartTrack();
-    if (this.isMuted) {
-      this.mediaStreamTrack.enabled = false;
+    if (!this.isMuted) {
+      await this.restartTrack();
     }
   }
 
