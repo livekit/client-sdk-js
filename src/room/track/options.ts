@@ -191,10 +191,12 @@ export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
  * }
  * ```
  */
+
 export interface VideoResolution {
   width: number;
   height: number;
   frameRate?: number;
+  aspectRatio?: number;
 }
 
 export interface VideoEncoding {
