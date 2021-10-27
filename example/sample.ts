@@ -1,5 +1,6 @@
 import {
   connect, CreateVideoTrackOptions, DataPacket_Kind, LocalTrack, LocalTrackPublication, LogLevel,
+  MediaDeviceFailure,
   Participant,
   ParticipantEvent,
   RemoteParticipant,
@@ -245,6 +246,10 @@ window.connectToRoom = async (
       } else {
         $('start-audio-button')?.removeAttribute('disabled');
       }
+    })
+    .on(RoomEvent.MediaDevicesError, (e: Error) => {
+      const failure = MediaDeviceFailure.getFailure(e);
+      appendLog('media device failure', failure);
     });
 
   appendLog('room participants', room.participants.keys());

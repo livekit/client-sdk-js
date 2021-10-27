@@ -149,11 +149,27 @@ export enum RoomEvent {
    * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
    * All participants in the room will receive the messages sent to the room.
    *
-   * args (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]])
+   * args: (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]])
    */
   DataReceived = 'dataReceived',
 
+  /**
+   * LiveKit will attempt to autoplay all audio tracks when you attach them to
+   * audio elements. However, if that fails, we'll notify you via AudioPlaybackStatusChanged.
+   * `Room.canPlayAudio` will indicate if audio playback is permitted.
+   */
   AudioPlaybackStatusChanged = 'audioPlaybackChanged',
+
+  /**
+   * When we have encountered an error while attempting to create a track.
+   * The errors take place in getUserMedia().
+   * Use MediaDeviceFailure.getFailure(error) to get the reason of failure.
+   * [[getAudioCreateError]] and [[getVideoCreateError]] will indicate if it had
+   * an error while creating the audio or video track respectively.
+   *
+   * args: (error: Error)
+   */
+  MediaDevicesError = 'mediaDevicesError',
 }
 
 export enum ParticipantEvent {
@@ -169,6 +185,9 @@ export enum ParticipantEvent {
   ParticipantMetadataChanged = 'participantMetadataChanged',
   DataReceived = 'dataReceived',
   IsSpeakingChanged = 'isSpeakingChanged',
+  // fired only on LocalParticipant
+  /** @internal */
+  MediaDevicesError = 'mediaDevicesError',
 }
 
 /** @internal */

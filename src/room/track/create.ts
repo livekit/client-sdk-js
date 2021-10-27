@@ -8,18 +8,23 @@ import {
 } from './options';
 import { Track } from './Track';
 
-let audioAllowed: boolean | undefined;
-export function isAudioCaptureAllowed(): boolean | undefined {
-  return audioAllowed;
+let audioError: Error | undefined;
+export function getAudioCreateError(): Error | undefined {
+  return audioError;
+}
+export function clearAudioError() {
+  audioError = undefined;
 }
 
-let videoAllowed: boolean | undefined;
-export function isVideoCaptureAllowed(): boolean | undefined {
-  return videoAllowed;
+let videoError: Error | undefined;
+export function getVideoCreateError(): Error | undefined {
+  return videoError;
 }
 
 /**
- * creates a local video and audio track at the same time
+ * Creates a local video and audio track at the same time. When acquiring both
+ * audio and video tracks together, it'll display a single permission prompt to
+ * the user instead of two separate ones.
  * @param options
  */
 export async function createLocalTracks(
@@ -30,28 +35,29 @@ export async function createLocalTracks(
   if (options.video === true) options.video = {};
 
   const constraints = LocalTrack.constraintsForOptions(options);
-  let stream: MediaStream;
+  let stream: MediaStream | undefined;
   try {
     stream = await navigator.mediaDevices.getUserMedia(
       constraints,
     );
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'NotAllowedError') {
-      if (options.audio) {
-        audioAllowed = false;
+  } catch (err) {
+    if (err instanceof Error) {
+      if (constraints.audio) {
+        audioError = err;
       }
-      if (options.video) {
-        videoAllowed = false;
+      if (constraints.video) {
+        videoError = err;
       }
     }
-    throw e;
+
+    throw err;
   }
 
-  if (options.audio) {
-    audioAllowed = true;
+  if (constraints.audio) {
+    audioError = undefined;
   }
-  if (options.video) {
-    videoAllowed = true;
+  if (constraints.video) {
+    videoError = undefined;
   }
 
   return stream.getTracks().map((mediaStreamTrack) => {

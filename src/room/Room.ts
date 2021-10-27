@@ -155,23 +155,31 @@ class Room extends EventEmitter {
 
       this.localParticipant.updateInfo(pi);
       // forward metadata changed for the local participant
-      this.localParticipant.on(
-        ParticipantEvent.MetadataChanged,
-        (metadata: object, p: Participant) => {
-          this.emit(RoomEvent.MetadataChanged, metadata, p);
-        },
-      );
-      this.localParticipant.on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
-        this.emit(RoomEvent.TrackMuted, pub, this.localParticipant);
-      });
-
-      this.localParticipant.on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
-        this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
-      });
-
-      this.localParticipant.on(ParticipantEvent.LocalTrackPublished, (pub: TrackPublication) => {
-        this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
-      });
+      this.localParticipant
+        .on(
+          ParticipantEvent.MetadataChanged,
+          (metadata: object, p: Participant) => {
+            this.emit(RoomEvent.MetadataChanged, metadata, p);
+          },
+        )
+        .on(
+          ParticipantEvent.ParticipantMetadataChanged,
+          (metadata: object, p: Participant) => {
+            this.emit(RoomEvent.ParticipantMetadataChanged, metadata, p);
+          },
+        )
+        .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
+          this.emit(RoomEvent.TrackMuted, pub, this.localParticipant);
+        })
+        .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
+          this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
+        })
+        .on(ParticipantEvent.LocalTrackPublished, (pub: TrackPublication) => {
+          this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
+        })
+        .on(ParticipantEvent.MediaDevicesError, (e: Error) => {
+          this.emit(RoomEvent.MediaDevicesError, e);
+        });
 
       // populate remote participants, these should not trigger new events
       joinResponse.otherParticipants.forEach((info) => {

@@ -4,8 +4,10 @@ import {
   ConnectOptions,
   LogLevel,
 } from './options';
+import { MediaDeviceFailure } from './room/errors';
+import { RoomEvent } from './room/events';
 import Room from './room/Room';
-import { createLocalTracks } from './room/track/create';
+import { clearAudioError, createLocalTracks } from './room/track/create';
 import LocalTrack from './room/track/LocalTrack';
 
 export { version } from './version';
@@ -65,10 +67,35 @@ export async function connect(
   const publishVideo: boolean = options.video;
   if (publishAudio || publishVideo) {
     setTimeout(async () => {
-      const tracks = await createLocalTracks({
-        audio: publishAudio,
-        video: publishVideo,
-      });
+      let tracks: LocalTrack[] | undefined;
+      try {
+        tracks = await createLocalTracks({
+          audio: publishAudio,
+          video: publishVideo,
+        });
+      } catch (e) {
+        const errKind = MediaDeviceFailure.getFailure(e);
+        // when audio and video are both requested, give audio only a shot
+        if (
+          (errKind === MediaDeviceFailure.NotFound || errKind === MediaDeviceFailure.DeviceInUse)
+          && publishAudio && publishVideo
+        ) {
+          try {
+            tracks = await createLocalTracks({
+              audio: publishAudio,
+              video: false,
+            });
+            clearAudioError();
+          } catch (audioErr) {
+            // ignore
+          }
+        }
+
+        room.emit(RoomEvent.MediaDevicesError, e);
+        log.error('could not create media', e);
+        return;
+      }
+
       await Promise.all(tracks.map(
         (track: LocalTrack | MediaStreamTrack) => room.localParticipant.publishTrack(track),
       ));
