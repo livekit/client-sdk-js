@@ -17,6 +17,10 @@ export default class PCTransport {
     this.pc = new RTCPeerConnection(config);
   }
 
+  get isICEConnected(): boolean {
+    return this.pc.iceConnectionState === 'connected' || this.pc.iceConnectionState === 'completed';
+  }
+
   async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
     if (this.pc.remoteDescription && !this.restartingIce) {
       return this.pc.addIceCandidate(candidate);

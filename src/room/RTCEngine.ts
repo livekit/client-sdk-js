@@ -403,23 +403,23 @@ export default class RTCEngine extends EventEmitter {
       return;
     }
 
-    if (this.publisher && this.publisher.pc.iceConnectionState === 'connected') {
+    if (this.publisher && this.publisher.isICEConnected) {
       return;
     }
 
     // start negotiation
-    await this.negotiate();
+    this.negotiate();
 
     // wait until publisher ICE connected
     const endTime = (new Date()).getTime() + maxICEConnectTimeout;
     while ((new Date()).getTime() < endTime) {
-      if (this.publisher && this.publisher.pc.iceConnectionState === 'connected') {
+      if (this.publisher && this.publisher.isICEConnected) {
         return;
       }
       await sleep(50);
     }
 
-    throw new ConnectionError('could not establish publisher connection');
+    throw new ConnectionError(`could not establish publisher connection, state ${this.publisher?.pc.iceConnectionState}`);
   }
 
   /** @internal */
