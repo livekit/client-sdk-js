@@ -176,6 +176,20 @@ await videoTrack.restartTrack({
 });
 ```
 
+#### Handling device failures
+
+When creating tracks using LiveKit APIs (`connect`, `createLocalTracks`, `setCameraEnabled`, etc), it's possible to encounter errors with the underlying media device. In those cases, LiveKit will emit `RoomEvent.MediaDevicesError`.
+
+You can use the helper `MediaDeviceFailure.getFailure(error)` to determine specific reason for the error.
+
+* `PermissionDenied` - the user disallowed capturing devices
+* `NotFound` - the particular device isn't available
+* `DeviceInUse` - device is in use by another process (happens on Windows)
+
+These distinctions enables you to provide more specific messaging to the user.
+
+You could also retrieve the last error with `getLastAudioCreateError` and `getLastVideoCreateError`.
+
 ### Audio playback
 
 Browsers can be restrictive with regards to audio playback that is not initiated by user interaction. What each browser considers as user interaction can vary by vendor (for example, Safari on iOS is very restrictive).
