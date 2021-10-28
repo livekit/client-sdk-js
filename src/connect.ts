@@ -75,6 +75,10 @@ export async function connect(
         });
       } catch (e) {
         const errKind = MediaDeviceFailure.getFailure(e);
+        log.warn('received error while creating media', errKind);
+        if (e instanceof Error) {
+          log.warn(e.message);
+        }
         // when audio and video are both requested, give audio only a shot
         if (
           (errKind === MediaDeviceFailure.NotFound || errKind === MediaDeviceFailure.DeviceInUse)
@@ -91,9 +95,11 @@ export async function connect(
           }
         }
 
-        room.emit(RoomEvent.MediaDevicesError, e);
-        log.error('could not create media', e);
-        return;
+        if (!tracks) {
+          room.emit(RoomEvent.MediaDevicesError, e);
+          log.error('could not create media', e);
+          return;
+        }
       }
 
       await Promise.all(tracks.map(
