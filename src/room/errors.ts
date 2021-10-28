@@ -48,8 +48,8 @@ export enum MediaDeviceFailure {
 }
 
 export namespace MediaDeviceFailure {
-  export function getFailure(error: any): MediaDeviceFailure {
-    if (error.name) {
+  export function getFailure(error: any): MediaDeviceFailure | undefined {
+    if (error && 'name' in error) {
       if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
         return MediaDeviceFailure.NotFound;
       }
@@ -59,7 +59,7 @@ export namespace MediaDeviceFailure {
       if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
         return MediaDeviceFailure.DeviceInUse;
       }
+      return MediaDeviceFailure.Other;
     }
-    return MediaDeviceFailure.Other;
   }
 }
