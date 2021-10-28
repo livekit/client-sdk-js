@@ -235,6 +235,7 @@ window.connectToRoom = async (
       if (pub.kind === Track.Kind.Video) {
         attachLocalVideo();
       }
+      updateButtonsForPublishState();
     })
     .on(RoomEvent.RoomMetadataChanged, (metadata) => {
       appendLog('new metadata for room', metadata);
