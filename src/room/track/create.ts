@@ -9,15 +9,12 @@ import {
 import { Track } from './Track';
 
 let audioError: Error | undefined;
-export function getAudioCreateError(): Error | undefined {
+export function getLastAudioCreateError(): Error | undefined {
   return audioError;
-}
-export function clearAudioError() {
-  audioError = undefined;
 }
 
 let videoError: Error | undefined;
-export function getVideoCreateError(): Error | undefined {
+export function getLastVideoCreateError(): Error | undefined {
   return videoError;
 }
 

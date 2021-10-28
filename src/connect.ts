@@ -7,7 +7,7 @@ import {
 import { MediaDeviceFailure } from './room/errors';
 import { RoomEvent } from './room/events';
 import Room from './room/Room';
-import { clearAudioError, createLocalTracks } from './room/track/create';
+import { createLocalTracks } from './room/track/create';
 import LocalTrack from './room/track/LocalTrack';
 
 export { version } from './version';
@@ -89,7 +89,6 @@ export async function connect(
               audio: publishAudio,
               video: false,
             });
-            clearAudioError();
           } catch (audioErr) {
             // ignore
           }
