@@ -24,18 +24,19 @@ export default class LocalAudioTrack extends LocalTrack {
   }
 
   async mute(): Promise<LocalAudioTrack> {
-    if (this.source === Track.Source.Microphone) {
-      // also stop the track, so that camera indicator is turned off
-      this.mediaStreamTrack.stop();
-    }
+    // disabled special handling as it will cause BT headsets to switch communication modes
+    // if (this.source === Track.Source.Microphone) {
+    //   // also stop the track, so that microphone indicator is turned off
+    //   this.mediaStreamTrack.stop();
+    // }
     await super.mute();
     return this;
   }
 
   async unmute(): Promise<LocalAudioTrack> {
-    if (this.source === Track.Source.Microphone) {
-      await this.restartTrack();
-    }
+    // if (this.source === Track.Source.Microphone) {
+    //   await this.restartTrack();
+    // }
     await super.unmute();
     return this;
   }
