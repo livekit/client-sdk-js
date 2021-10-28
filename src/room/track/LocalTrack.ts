@@ -1,4 +1,4 @@
-import log from 'loglevel';
+import log from '../../logger';
 import { getTrackCaptureDefaults } from '../defaults';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';

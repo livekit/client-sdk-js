@@ -1,4 +1,4 @@
-import log from 'loglevel';
+import log from '../../logger';
 import { SignalClient } from '../../api/SignalClient';
 import { VideoQuality } from '../../proto/livekit_rtc';
 import { monitorFrequency, VideoSenderStats } from '../stats';

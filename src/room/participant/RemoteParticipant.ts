@@ -1,4 +1,4 @@
-import log from 'loglevel';
+import log from '../../logger';
 import { SignalClient } from '../../api/SignalClient';
 import { ParticipantInfo } from '../../proto/livekit_models';
 import {
