@@ -105,18 +105,25 @@ export default class LocalParticipant extends Participant {
         await track.unmute();
       } else {
         let localTrack: LocalTrack | undefined;
-        switch (source) {
-          case Track.Source.Camera:
-            localTrack = await createLocalVideoTrack();
-            break;
-          case Track.Source.Microphone:
-            localTrack = await createLocalAudioTrack();
-            break;
-          case Track.Source.ScreenShare:
-            [localTrack] = await createLocalScreenTracks({ audio: false });
-            break;
-          default:
-            throw new TrackInvalidError(source);
+        try {
+          switch (source) {
+            case Track.Source.Camera:
+              localTrack = await createLocalVideoTrack();
+              break;
+            case Track.Source.Microphone:
+              localTrack = await createLocalAudioTrack();
+              break;
+            case Track.Source.ScreenShare:
+              [localTrack] = await createLocalScreenTracks({ audio: false });
+              break;
+            default:
+              throw new TrackInvalidError(source);
+          }
+        } catch (e) {
+          if (e instanceof Error && !(e instanceof TrackInvalidError)) {
+            this.emit(ParticipantEvent.MediaDevicesError, e);
+          }
+          throw e;
         }
 
         await this.publishTrack(localTrack);

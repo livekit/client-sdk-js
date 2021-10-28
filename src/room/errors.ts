@@ -36,3 +36,30 @@ export class PublishDataError extends LivekitError {
     super(13, message || 'Unable to publish data');
   }
 }
+
+export enum MediaDeviceFailure {
+  // user rejected permissions
+  PermissionDenied = 'PermissionDenied',
+  // device is not available
+  NotFound = 'NotFound',
+  // device is in use. On Windows, only a single tab may get access to a device at a time.
+  DeviceInUse = 'DeviceInUse',
+  Other = 'Other',
+}
+
+export namespace MediaDeviceFailure {
+  export function getFailure(error: any): MediaDeviceFailure {
+    if (error.name) {
+      if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        return MediaDeviceFailure.NotFound;
+      }
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        return MediaDeviceFailure.PermissionDenied;
+      }
+      if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        return MediaDeviceFailure.DeviceInUse;
+      }
+    }
+    return MediaDeviceFailure.Other;
+  }
+}
