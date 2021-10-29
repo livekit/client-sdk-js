@@ -182,6 +182,9 @@ export default class LocalParticipant extends Participant {
     if (opts.source) {
       track.source = opts.source;
     }
+    if (opts.name) {
+      track.name = opts.name;
+    }
 
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
