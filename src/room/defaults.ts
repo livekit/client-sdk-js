@@ -1,6 +1,10 @@
-import { TrackCaptureDefaults, TrackPublishDefaults, VideoPresets } from './track/options';
+import {
+  AudioPresets, TrackCaptureDefaults, TrackPublishDefaults, VideoPresets,
+} from './track/options';
 
-let publishDefaults: TrackPublishDefaults = {};
+let publishDefaults: TrackPublishDefaults = {
+  audioBitrate: AudioPresets.speech.maxBitrate,
+};
 
 let captureDefaults: TrackCaptureDefaults = {
   autoGainControl: true,

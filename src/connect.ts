@@ -1,5 +1,5 @@
-import log from './logger';
 import { WSSignalClient } from './api/SignalClient';
+import log from './logger';
 import {
   ConnectOptions,
   LogLevel,
@@ -57,10 +57,10 @@ export async function connect(
 
   // save default publish options
   if (options.publishDefaults) {
-    room.defaultPublishOptions = options.publishDefaults;
+    Object.assign(room.defaultPublishOptions, options.publishDefaults);
   }
   if (options.captureDefaults) {
-    room.defaultCaptureOptions = options.captureDefaults;
+    Object.assign(room.defaultCaptureOptions, options.captureDefaults);
   }
 
   const publishAudio: boolean = options.audio;
