@@ -1,4 +1,4 @@
-import log from 'loglevel';
+import log from './logger';
 import { WSSignalClient } from './api/SignalClient';
 import {
   ConnectOptions,

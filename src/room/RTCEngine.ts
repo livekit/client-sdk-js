@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import log from 'loglevel';
+import log from '../logger';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import { DataPacket, DataPacket_Kind, TrackInfo } from '../proto/livekit_models';
 import {

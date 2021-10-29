@@ -1,5 +1,5 @@
-import log from 'loglevel';
 import { debounce } from 'ts-debounce';
+import log from '../logger';
 
 /** @internal */
 export default class PCTransport {

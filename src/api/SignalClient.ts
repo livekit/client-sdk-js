@@ -1,4 +1,4 @@
-import log from 'loglevel';
+import log from '../logger';
 import 'webrtc-adapter';
 import { ParticipantInfo, Room, SpeakerInfo } from '../proto/livekit_models';
 import {
