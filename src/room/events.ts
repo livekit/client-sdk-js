@@ -103,11 +103,23 @@ export enum RoomEvent {
   TrackUnmuted = 'trackUnmuted',
 
   /**
-   * A track was published successfully
+   * A local track was published successfully. This event is helpful to know
+   * when to update your local UI with the newly published track.
    *
    * args: ([[LocalTrackPublication]], [[LocalParticipant]])
    */
   LocalTrackPublished = 'localTrackPublished',
+
+  /**
+   * A local track was unpublished. This event is helpful to know when to remove
+   * the local track from your UI.
+   *
+   * When a user stops sharing their screen by pressing "End" on the browser UI,
+   * this event will also fire.
+   *
+   * args: ([[LocalTrackPublication]], [[LocalParticipant]])
+   */
+  LocalTrackUnpublished = 'localTrackUnpublished',
 
   /**
    * Active speakers changed. List of speakers are ordered by their audio level.
@@ -181,6 +193,7 @@ export enum ParticipantEvent {
   TrackMuted = 'trackMuted',
   TrackUnmuted = 'trackUnmuted',
   LocalTrackPublished = 'localTrackPublished',
+  LocalTrackUnpublished = 'localTrackUnpublished',
   MetadataChanged = 'metadataChanged',
   ParticipantMetadataChanged = 'participantMetadataChanged',
   DataReceived = 'dataReceived',

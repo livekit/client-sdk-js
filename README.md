@@ -55,7 +55,8 @@ connect('ws://localhost:7800', token, {
     .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
     .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
     .on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakerChange)
-    .on(RoomEvent.Disconnected, handleDisconnect);
+    .on(RoomEvent.Disconnected, handleDisconnect)
+    .on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
 });
 
 function handleTrackSubscribed(
@@ -76,6 +77,14 @@ function handleTrackUnsubscribed(
   participant: RemoteParticipant
 ) {
   // remove tracks from all attached elements
+  track.detach();
+}
+
+function handleLocalTrackUnpublished(
+  track: LocalTrackPublication,
+  participant: LocalParticipant,
+) {
+  // when local tracks are ended, update UI to remove them from rendering
   track.detach();
 }
 

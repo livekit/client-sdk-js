@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
-import log from '../logger';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
+import log from '../logger';
 import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
@@ -18,6 +18,7 @@ import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
+import LocalTrackPublication from './track/LocalTrackPublication';
 import { TrackCaptureDefaults, TrackPublishDefaults } from './track/options';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
@@ -174,8 +175,11 @@ class Room extends EventEmitter {
         .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
           this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
         })
-        .on(ParticipantEvent.LocalTrackPublished, (pub: TrackPublication) => {
+        .on(ParticipantEvent.LocalTrackPublished, (pub: LocalTrackPublication) => {
           this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
+        })
+        .on(ParticipantEvent.LocalTrackUnpublished, (pub: LocalTrackPublication) => {
+          this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
         })
         .on(ParticipantEvent.MediaDevicesError, (e: Error) => {
           this.emit(RoomEvent.MediaDevicesError, e);
