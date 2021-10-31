@@ -179,7 +179,7 @@ class Room extends EventEmitter {
           this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
         })
         .on(ParticipantEvent.LocalTrackUnpublished, (pub: LocalTrackPublication) => {
-          this.emit(ParticipantEvent.LocalTrackUnpublished, pub, this.localParticipant);
+          this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
         })
         .on(ParticipantEvent.MediaDevicesError, (e: Error) => {
           this.emit(RoomEvent.MediaDevicesError, e);
