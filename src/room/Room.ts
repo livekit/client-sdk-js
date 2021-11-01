@@ -233,10 +233,6 @@ class Room extends EventEmitter {
     this.engine.client.sendLeave();
     this.engine.close();
     this.handleDisconnect();
-
-    if (this.connectionMonitorInterval !== undefined) {
-      clearInterval(this.connectionMonitorInterval);
-    }
   };
 
   /**
@@ -276,6 +272,11 @@ class Room extends EventEmitter {
         type: 'outbound-rtp',
         hasData: false,
       };
+
+      if (this.engine.subscriber?.pc.connectionState === 'disconnected') {
+        clearInterval(this.connectionMonitorInterval);
+        return;
+      }
 
       const fromPublisher = await this.engine.publisher?.pc.getStats();
 
