@@ -39,6 +39,7 @@ export async function connect(
   options.logLevel ||= LogLevel.info;
   if (options.audio === undefined) options.audio = false;
   if (options.video === undefined) options.video = false;
+  if (options.enableConnectionMonitor === undefined) options.enableConnectionMonitor = false;
 
   log.setLevel(options.logLevel);
 
@@ -48,7 +49,7 @@ export async function connect(
   }
 
   const client = new WSSignalClient();
-  const room = new Room(client, config);
+  const room = new Room(client, config, options.enableConnectionMonitor);
 
   // connect to room
   await room.connect(url, token, {

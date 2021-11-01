@@ -18,13 +18,14 @@ import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
+import { monitorFrequency, ConnectionStatus } from './stats';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import { TrackCaptureDefaults, TrackPublishDefaults } from './track/options';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import TrackPublication from './track/TrackPublication';
 import { RemoteTrack } from './track/types';
-import { unpackStreamId } from './utils';
+import { getConnectionStatus, unpackStreamId } from './utils';
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -72,8 +73,10 @@ class Room extends EventEmitter {
 
   private audioContext?: AudioContext;
 
+  private connectionMonitorInterval: any = undefined;
+
   /** @internal */
-  constructor(client: SignalClient, config?: RTCConfiguration) {
+  constructor(client: SignalClient, config?: RTCConfiguration, enableConnectionMonitor: boolean = false) {
     super();
     this.participants = new Map();
     this.engine = new RTCEngine(client, config);
@@ -116,16 +119,20 @@ class Room extends EventEmitter {
       this.state = RoomState.Connected;
       this.emit(RoomEvent.Reconnected);
     });
+
+    if(enableConnectionMonitor){
+      this.startConnectionMonitoring();
+    }
   }
 
   /**
-   * getLocalDevices abstracts navigator.mediaDevices.enumerateDevices.
-   * In particular, it handles Chrome's unique behavior of creating `default`
-   * devices. When encountered, it'll be removed from the list of devices.
-   * The actual default device will be placed at top.
-   * @param kind
-   * @returns a list of available local devices
-   */
+ * getLocalDevices abstracts navigator.mediaDevices.enumerateDevices.
+ * In particular, it handles Chrome's unique behavior of creating `default`
+ * devices. When encountered, it'll be removed from the list of devices.
+ * The actual default device will be placed at top.
+ * @param kind
+ * @returns a list of available local devices
+ */
   static getLocalDevices(kind: MediaDeviceKind): Promise<MediaDeviceInfo[]> {
     return DeviceManager.getInstance().getDevices(kind);
   }
@@ -225,7 +232,126 @@ class Room extends EventEmitter {
     this.engine.client.sendLeave();
     this.engine.close();
     this.handleDisconnect();
+
+    if(this.connectionMonitorInterval !== undefined){
+      clearInterval(this.connectionMonitorInterval);
+    }
   };
+
+  /**
+   * Start connection monitoring based on inbound-rtp and outbound-rtp
+   */
+
+  startConnectionMonitoring = async () => {
+
+    let previousAudioDataFromPublisher: RTCStatsReport, previousVideoDataFromPublisher: RTCStatsReport, previousAudioDataFromSubscriber: RTCStatsReport, previousVideoDataFromSubscriber: RTCStatsReport;
+
+    this.connectionMonitorInterval = setInterval(async () => {
+
+      let status: ConnectionStatus = {
+        "audio": {
+          outbound: 0,
+          inbound: 0,
+          jitter: 0,
+          packetsLost: 0,
+        },
+        "video": {
+          outbound: 0,
+          inbound: 0,
+          jitter: 0,
+          packetsLost: 0,
+        }
+      };
+
+      let currentAudioData: any = {
+        kind: "audio",
+        type: "outbound-rtp",
+        hasData: false
+      };
+
+      let currentVideoData: any = {
+        kind: "video",
+        type: "outbound-rtp",
+        hasData: false
+      };
+
+      let fromPublisher = await this.engine.publisher?.pc.getStats();
+
+      fromPublisher?.forEach((report: any) => {
+        if (report.kind === "audio" && report.type === "outbound-rtp" ) {
+          currentAudioData[report.id] = report;
+          currentAudioData.hasData = true;
+        }
+        if (report.kind === "video" && report.type === "outbound-rtp") {
+          currentVideoData[report.id] = report;
+          currentVideoData.hasData = true;
+        }
+      });
+
+      if (currentAudioData.hasData) {
+        let result = await getConnectionStatus(currentAudioData, previousAudioDataFromPublisher);
+        status.audio.outbound = result.audio.outbound;
+
+        previousAudioDataFromPublisher = currentAudioData;
+      }
+
+      if (currentVideoData.hasData) {
+        let result = await getConnectionStatus(currentVideoData, previousVideoDataFromPublisher);
+        status.video.outbound = result.video.outbound;
+
+        previousVideoDataFromPublisher = currentVideoData;
+      }
+
+      currentAudioData = {
+        kind: "audio",
+        type: "inbound-rtp",
+        hasData: false
+      };
+
+      currentVideoData = {
+        kind: "video",
+        type: "inbound-rtp",
+        hasData: false
+      };
+
+      let fromSubscriber = await this.engine.subscriber?.pc.getStats();
+
+      fromSubscriber?.forEach((report: any) => {
+        if (report.kind === "audio" && report.type === "inbound-rtp") {
+          currentAudioData[report.id] = report;
+          currentAudioData.hasData = true;
+        }
+
+        if (report.kind === "video" && report.type === "inbound-rtp") {
+          currentVideoData[report.id] = report;
+          currentVideoData.hasData = true;
+        }
+      });
+
+      if (currentAudioData.hasData) {
+        let result = await getConnectionStatus(currentAudioData, previousAudioDataFromSubscriber);
+        
+        status.audio.inbound = result.audio.inbound;
+        status.audio.jitter = result.audio.jitter;
+        status.audio.packetsLost = result.audio.packetsLost;
+
+        previousAudioDataFromSubscriber = currentAudioData;
+      }
+
+      if (currentVideoData.hasData) {
+        let result = await getConnectionStatus(currentVideoData, previousVideoDataFromSubscriber);
+        
+        status.video.inbound = result.video.inbound;
+        status.video.jitter = result.video.jitter;
+        status.video.packetsLost = result.video.packetsLost;
+
+        previousVideoDataFromSubscriber = currentVideoData;
+      }
+
+      this.emit(RoomEvent.ConnectionStatus, status);
+
+    }, monitorFrequency);
+  }
 
   /**
    * Set default publish options

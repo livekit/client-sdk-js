@@ -46,6 +46,11 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
    * default options to use when publishing tracks
    */
   publishDefaults?: TrackPublishDefaults;
+
+  /**
+   * Option to enable connection monitor based on webrtc stats
+   */
+  enableConnectionMonitor?: boolean;
 }
 
 export enum LogLevel {

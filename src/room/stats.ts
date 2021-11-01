@@ -80,3 +80,28 @@ export interface VideoReceiverStats extends ReceiverStats {
 
   nackCount: number;
 }
+
+export interface ConnectionStatus {
+  "audio": {
+
+    outbound: number,
+
+    inbound: number,
+
+    jitter: number,
+    
+    packetsLost: number,
+    
+  },
+  "video": {
+
+    outbound: number,
+
+    inbound: number,
+
+    jitter: number,
+
+    packetsLost: number,
+
+  }
+}

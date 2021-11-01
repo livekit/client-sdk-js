@@ -182,6 +182,15 @@ export enum RoomEvent {
    * args: (error: Error)
    */
   MediaDevicesError = 'mediaDevicesError',
+
+  /**
+   * Get webrtc-stats for video and audio
+   * This will send stats periodically based on monitorFrequency value
+   * outbound indicates upload and inbound indicates download
+   * args: (stats: ConnectionStatus)
+   */
+
+  ConnectionStatus = 'connectionStatus',
 }
 
 export enum ParticipantEvent {
