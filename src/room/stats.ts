@@ -82,18 +82,17 @@ export interface VideoReceiverStats extends ReceiverStats {
 }
 
 export interface ConnectionStatus {
-  "audio": {
+  'audio': {
 
     outbound: number,
 
     inbound: number,
 
     jitter: number,
-    
+
     packetsLost: number,
-    
   },
-  "video": {
+  'video': {
 
     outbound: number,
 
@@ -102,6 +101,5 @@ export interface ConnectionStatus {
     jitter: number,
 
     packetsLost: number,
-
   }
 }
