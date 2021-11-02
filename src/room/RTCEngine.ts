@@ -392,8 +392,14 @@ export default class RTCEngine extends EventEmitter {
     await this.ensurePublisherConnected();
 
     if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
+      if (this.lossyDC.readyState === 'connecting') {
+        await sleep(1000);
+      }
       this.lossyDC.send(msg);
     } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
+      if (this.reliableDC.readyState === 'connecting') {
+        await sleep(1000);
+      }
       this.reliableDC.send(msg);
     }
   }
