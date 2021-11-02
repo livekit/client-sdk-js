@@ -389,22 +389,16 @@ export default class RTCEngine extends EventEmitter {
     const msg = DataPacket.encode(packet).finish();
 
     // make sure we do have a data connection
-    await this.ensurePublisherConnected();
+    await this.ensurePublisherConnected(kind);
 
     if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
-      if (this.lossyDC.readyState === 'connecting') {
-        await sleep(1000);
-      }
       this.lossyDC.send(msg);
     } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
-      if (this.reliableDC.readyState === 'connecting') {
-        await sleep(1000);
-      }
       this.reliableDC.send(msg);
     }
   }
 
-  private async ensurePublisherConnected() {
+  private async ensurePublisherConnected(kind: DataPacket_Kind) {
     if (!this.subscriberPrimary) {
       return;
     }
@@ -420,7 +414,17 @@ export default class RTCEngine extends EventEmitter {
     const endTime = (new Date()).getTime() + maxICEConnectTimeout;
     while ((new Date()).getTime() < endTime) {
       if (this.publisher && this.publisher.isICEConnected) {
-        return;
+        let status: RTCDataChannelState = 'connecting';
+
+        if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
+          status = this.lossyDC.readyState;
+        } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
+          status = this.reliableDC.readyState;
+        }
+
+        if (status === 'open') {
+          return;
+        }
       }
       await sleep(50);
     }
