@@ -185,7 +185,7 @@ export enum RoomEvent {
 
   /**
    * Connection quality was changed for a Participant. It'll receive updates
-   * from the local participant, as well as any remote participant that we are
+   * from the local participant, as well as any [[RemoteParticipant]]s that we are
    * subscribed to.
    *
    * args: (connectionQuality: [[ConnectionQuality]], participant: [[Participant]])
