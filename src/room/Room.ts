@@ -5,6 +5,7 @@ import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
+import { ConnectionQualityUpdate } from '../proto/livekit_rtc';
 import {
   getTrackCaptureDefaults, getTrackPublishDefaults,
   setTrackCaptureDefaults, setTrackPublishDefaults,
@@ -15,7 +16,7 @@ import {
   EngineEvent, ParticipantEvent, RoomEvent, TrackEvent,
 } from './events';
 import LocalParticipant from './participant/LocalParticipant';
-import Participant from './participant/Participant';
+import Participant, { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
 import LocalTrackPublication from './track/LocalTrackPublication';
@@ -116,6 +117,8 @@ class Room extends EventEmitter {
       this.state = RoomState.Connected;
       this.emit(RoomEvent.Reconnected);
     });
+
+    this.engine.on(EngineEvent.ConnectionQualityUpdate, this.handleConnectionQualityUpdate);
   }
 
   /**
@@ -180,6 +183,9 @@ class Room extends EventEmitter {
         })
         .on(ParticipantEvent.LocalTrackUnpublished, (pub: LocalTrackPublication) => {
           this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
+        })
+        .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
+          this.emit(RoomEvent.ConnectionQualityChanged, quality, this.localParticipant);
         })
         .on(ParticipantEvent.MediaDevicesError, (e: Error) => {
           this.emit(RoomEvent.MediaDevicesError, e);
@@ -512,6 +518,19 @@ class Room extends EventEmitter {
     this.emit(RoomEvent.RoomMetadataChanged, r.metadata);
   };
 
+  private handleConnectionQualityUpdate = (update: ConnectionQualityUpdate) => {
+    update.updates.forEach((info) => {
+      if (info.participantSid === this.localParticipant.sid) {
+        this.localParticipant.setConnectionQuality(info.quality);
+        return;
+      }
+      const participant = this.participants.get(info.participantSid);
+      if (participant) {
+        participant.setConnectionQuality(info.quality);
+      }
+    });
+  };
+
   private acquireAudioContext() {
     if (this.audioContext) {
       this.audioContext.close();
@@ -546,61 +565,44 @@ class Room extends EventEmitter {
 
       // trackPublished is only fired for tracks added after both local participant
       // and remote participant joined the room
-      participant.on(
-        ParticipantEvent.TrackPublished,
-        (trackPublication: RemoteTrackPublication) => {
+      participant
+        .on(ParticipantEvent.TrackPublished, (trackPublication: RemoteTrackPublication) => {
           this.emit(RoomEvent.TrackPublished, trackPublication, participant);
-        },
-      );
-
-      participant.on(
-        ParticipantEvent.TrackSubscribed,
-        (track: RemoteTrack, publication: RemoteTrackPublication) => {
+        })
+        .on(ParticipantEvent.TrackSubscribed,
+          (track: RemoteTrack, publication: RemoteTrackPublication) => {
           // monitor playback status
-          if (track.kind === Track.Kind.Audio) {
-            track.on(TrackEvent.AudioPlaybackStarted, this.handleAudioPlaybackStarted);
-            track.on(TrackEvent.AudioPlaybackFailed, this.handleAudioPlaybackFailed);
-          }
-          this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
-        },
-      );
-
-      participant.on(
-        ParticipantEvent.TrackUnpublished,
-        (publication: RemoteTrackPublication) => {
+            if (track.kind === Track.Kind.Audio) {
+              track.on(TrackEvent.AudioPlaybackStarted, this.handleAudioPlaybackStarted);
+              track.on(TrackEvent.AudioPlaybackFailed, this.handleAudioPlaybackFailed);
+            }
+            this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
+          })
+        .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
           this.emit(RoomEvent.TrackUnpublished, publication, participant);
-        },
-      );
-
-      participant.on(
-        ParticipantEvent.TrackUnsubscribed,
-        (track: RemoteTrack, publication: RemoteTrackPublication) => {
-          this.emit(RoomEvent.TrackUnsubscribed, track, publication, participant);
-        },
-      );
-
-      participant.on(
-        ParticipantEvent.TrackSubscriptionFailed,
-        (sid: string) => {
+        })
+        .on(ParticipantEvent.TrackUnsubscribed,
+          (track: RemoteTrack, publication: RemoteTrackPublication) => {
+            this.emit(RoomEvent.TrackUnsubscribed, track, publication, participant);
+          })
+        .on(ParticipantEvent.TrackSubscriptionFailed, (sid: string) => {
           this.emit(RoomEvent.TrackSubscriptionFailed, sid, participant);
-        },
-      );
-
-      participant.on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
-        this.emit(RoomEvent.TrackMuted, pub, participant);
-      });
-
-      participant.on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
-        this.emit(RoomEvent.TrackUnmuted, pub, participant);
-      });
-
-      participant.on(
-        ParticipantEvent.MetadataChanged,
-        (metadata: object, p: Participant) => {
-          this.emit(RoomEvent.ParticipantMetadataChanged, metadata, p);
-          this.emit(RoomEvent.MetadataChanged, metadata, p);
-        },
-      );
+        })
+        .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
+          this.emit(RoomEvent.TrackMuted, pub, participant);
+        })
+        .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
+          this.emit(RoomEvent.TrackUnmuted, pub, participant);
+        })
+        .on(
+          ParticipantEvent.MetadataChanged, (metadata: object, p: Participant) => {
+            this.emit(RoomEvent.ParticipantMetadataChanged, metadata, p);
+            this.emit(RoomEvent.MetadataChanged, metadata, p);
+          },
+        )
+        .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
+          this.emit(RoomEvent.ConnectionQualityChanged, quality, participant);
+        });
     }
     return participant;
   }

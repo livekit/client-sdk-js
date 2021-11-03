@@ -1,7 +1,7 @@
 import { DataPacket_Kind } from './proto/livekit_models';
 import { VideoQuality } from './proto/livekit_rtc';
 import LocalParticipant from './room/participant/LocalParticipant';
-import Participant from './room/participant/Participant';
+import Participant, { ConnectionQuality } from './room/participant/Participant';
 import RemoteParticipant from './room/participant/RemoteParticipant';
 import Room, { RoomState } from './room/Room';
 import LocalAudioTrack from './room/track/LocalAudioTrack';
@@ -26,6 +26,7 @@ export {
   Room,
   RoomState,
   DataPacket_Kind,
+  ConnectionQuality,
   Participant,
   RemoteParticipant,
   LocalParticipant,

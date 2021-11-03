@@ -182,6 +182,15 @@ export enum RoomEvent {
    * args: (error: Error)
    */
   MediaDevicesError = 'mediaDevicesError',
+
+  /**
+   * Connection quality was changed for a Participant. It'll receive updates
+   * from the local participant, as well as any [[RemoteParticipant]]s that we are
+   * subscribed to.
+   *
+   * args: (connectionQuality: [[ConnectionQuality]], participant: [[Participant]])
+   */
+  ConnectionQualityChanged = 'connectionQualityChanged',
 }
 
 export enum ParticipantEvent {
@@ -198,6 +207,7 @@ export enum ParticipantEvent {
   ParticipantMetadataChanged = 'participantMetadataChanged',
   DataReceived = 'dataReceived',
   IsSpeakingChanged = 'isSpeakingChanged',
+  ConnectionQualityChanged = 'connectionQualityChanged',
   // fired only on LocalParticipant
   /** @internal */
   MediaDevicesError = 'mediaDevicesError',
@@ -216,6 +226,7 @@ export enum EngineEvent {
   DataPacketReceived = 'dataPacketReceived',
   RemoteMuteChanged = 'remoteMuteChanged',
   RoomUpdate = 'roomUpdate',
+  ConnectionQualityUpdate = 'connectionQualityUpdate',
 }
 
 export enum TrackEvent {

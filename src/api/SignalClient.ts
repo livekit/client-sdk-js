@@ -1,8 +1,9 @@
-import log from '../logger';
 import 'webrtc-adapter';
+import log from '../logger';
 import { ParticipantInfo, Room, SpeakerInfo } from '../proto/livekit_models';
 import {
   AddTrackRequest,
+  ConnectionQualityUpdate,
   JoinResponse,
   SessionDescription,
   SignalRequest,
@@ -11,10 +12,8 @@ import {
   TrackPublishedResponse,
   UpdateSubscription,
   UpdateTrackSettings,
-  VideoQuality,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
-import { Track } from '../room/track/Track';
 import { protocolVersion, version } from '../version';
 
 // internal options
@@ -43,7 +42,6 @@ export interface SignalClient {
   sendAddTrack(req: AddTrackRequest): void;
   sendUpdateTrackSettings(settings: UpdateTrackSettings): void;
   sendUpdateSubscription(sub: UpdateSubscription): void;
-  sendSetSimulcastLayers(sid: Track.SID, layers: VideoQuality[]): void;
   sendLeave(): void;
   close(): void;
 
@@ -67,6 +65,8 @@ export interface SignalClient {
   onRemoteMuteChanged?: (trackSid: string, muted: boolean) => void;
   // when room metadata has changed
   onRoomUpdate?: (room: Room) => void;
+  // when connection quality has changed
+  onConnectionQuality?: (update: ConnectionQualityUpdate) => void;
   onLeave?: () => void;
 }
 
@@ -95,6 +95,8 @@ export class WSSignalClient {
   onRemoteMuteChanged?: (trackSid: string, muted: boolean) => void;
 
   onRoomUpdate?: (room: Room) => void;
+
+  onConnectionQuality?: (update: ConnectionQualityUpdate) => void;
 
   onLeave?: () => void;
 
@@ -267,15 +269,6 @@ export class WSSignalClient {
     this.sendRequest({ subscription: sub });
   }
 
-  sendSetSimulcastLayers(sid: Track.SID, layers: VideoQuality[]): void {
-    this.sendRequest({
-      simulcast: {
-        trackSid: sid,
-        layers,
-      },
-    });
-  }
-
   sendLeave() {
     this.sendRequest(SignalRequest.fromPartial({ leave: {} }));
   }
@@ -333,6 +326,10 @@ export class WSSignalClient {
     } else if (msg.roomUpdate) {
       if (this.onRoomUpdate) {
         this.onRoomUpdate(msg.roomUpdate.room!);
+      }
+    } else if (msg.connectionQuality) {
+      if (this.onConnectionQuality) {
+        this.onConnectionQuality(msg.connectionQuality);
       }
     } else {
       log.warn('unsupported message', msg);
