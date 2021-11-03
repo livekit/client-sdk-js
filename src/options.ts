@@ -1,6 +1,7 @@
 import {
   CreateLocalTracksOptions, TrackCaptureDefaults, TrackPublishDefaults,
 } from './room/track/options';
+import { ConnectionMonitorOption } from './room/stats';
 
 /**
  * if video or audio tracks are created as part of [[connect]], it'll automatically
@@ -50,7 +51,7 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   /**
    * Option to enable connection monitor based on webrtc stats
    */
-  enableConnectionMonitor?: boolean;
+  connectionMonitor?: ConnectionMonitorOption;
 }
 
 export enum LogLevel {

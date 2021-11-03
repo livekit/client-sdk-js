@@ -81,6 +81,13 @@ export interface VideoReceiverStats extends ReceiverStats {
   nackCount: number;
 }
 
+export interface ConnectionMonitorOption {
+  enabled: boolean,
+
+  /** frequency value in milliseconds. 1 second = 1000 milliseconds  */
+  frequency?: number,
+}
+
 export interface ConnectionStatus {
   'audio': {
 

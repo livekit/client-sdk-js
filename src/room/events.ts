@@ -185,7 +185,8 @@ export enum RoomEvent {
 
   /**
    * Get webrtc-stats for video and audio
-   * This will send stats periodically based on monitorFrequency value
+   * This will send stats periodically based on frequency value
+   * by default monitorFrequency value
    * outbound indicates upload and inbound indicates download
    * args: (stats: ConnectionStatus)
    */

@@ -18,7 +18,7 @@ import LocalParticipant from './participant/LocalParticipant';
 import Participant from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
-import { monitorFrequency, ConnectionStatus } from './stats';
+import { monitorFrequency, ConnectionStatus, ConnectionMonitorOption } from './stats';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import { TrackCaptureDefaults, TrackPublishDefaults } from './track/options';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
@@ -77,7 +77,7 @@ class Room extends EventEmitter {
 
   /** @internal */
   constructor(client: SignalClient, config?: RTCConfiguration,
-    enableConnectionMonitor: boolean = false) {
+    connectionMonitor?: ConnectionMonitorOption) {
     super();
     this.participants = new Map();
     this.engine = new RTCEngine(client, config);
@@ -121,8 +121,10 @@ class Room extends EventEmitter {
       this.emit(RoomEvent.Reconnected);
     });
 
-    if (enableConnectionMonitor) {
-      this.startConnectionMonitoring();
+    if (connectionMonitor !== undefined) {
+      if (connectionMonitor.enabled) {
+        this.startConnectionMonitoring(connectionMonitor.frequency);
+      }
     }
   }
 
@@ -239,11 +241,11 @@ class Room extends EventEmitter {
    * Start connection monitoring based on inbound-rtp and outbound-rtp
    */
 
-  startConnectionMonitoring = async () => {
-    let previousAudioDataFromPublisher: RTCStatsReport;
-    let previousVideoDataFromPublisher: RTCStatsReport;
-    let previousAudioDataFromSubscriber: RTCStatsReport;
-    let previousVideoDataFromSubscriber: RTCStatsReport;
+  startConnectionMonitoring = async (frequency?: number) => {
+    let previousAudioDataFromPublisher: any;
+    let previousVideoDataFromPublisher: any;
+    let previousAudioDataFromSubscriber: any;
+    let previousVideoDataFromSubscriber: any;
 
     this.connectionMonitorInterval = setInterval(async () => {
       const status: ConnectionStatus = {
@@ -349,7 +351,7 @@ class Room extends EventEmitter {
         previousVideoDataFromSubscriber = currentVideoData;
       }
       this.emit(RoomEvent.ConnectionStatus, status);
-    }, monitorFrequency);
+    }, frequency === undefined ? monitorFrequency : frequency);
   };
 
   /**
