@@ -1,5 +1,5 @@
-import log from '../../logger';
 import { SignalClient } from '../../api/SignalClient';
+import log from '../../logger';
 import { VideoQuality } from '../../proto/livekit_rtc';
 import { monitorFrequency, VideoSenderStats } from '../stats';
 import LocalTrack from './LocalTrack';
@@ -162,8 +162,6 @@ export default class LocalVideoTrack extends LocalTrack {
 
     this.lastQualityChange = new Date().getTime();
     this.lastExplicitQualityChange = new Date().getTime();
-
-    this.signalClient?.sendSetSimulcastLayers(this.sid, layers);
 
     const params = this.sender.getParameters();
     params.encodings = this.encodings;

@@ -86,6 +86,44 @@ export function trackSourceToJSON(object: TrackSource): string {
   }
 }
 
+export enum ConnectionQuality {
+  POOR = 0,
+  GOOD = 1,
+  EXCELLENT = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function connectionQualityFromJSON(object: any): ConnectionQuality {
+  switch (object) {
+    case 0:
+    case "POOR":
+      return ConnectionQuality.POOR;
+    case 1:
+    case "GOOD":
+      return ConnectionQuality.GOOD;
+    case 2:
+    case "EXCELLENT":
+      return ConnectionQuality.EXCELLENT;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ConnectionQuality.UNRECOGNIZED;
+  }
+}
+
+export function connectionQualityToJSON(object: ConnectionQuality): string {
+  switch (object) {
+    case ConnectionQuality.POOR:
+      return "POOR";
+    case ConnectionQuality.GOOD:
+      return "GOOD";
+    case ConnectionQuality.EXCELLENT:
+      return "EXCELLENT";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 export interface Room {
   sid: string;
   name: string;

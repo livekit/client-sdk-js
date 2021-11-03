@@ -1,11 +1,28 @@
 import { EventEmitter } from 'events';
-import { ParticipantInfo } from '../../proto/livekit_models';
+import { ConnectionQuality as ProtoQuality, ParticipantInfo } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { Track } from '../track/Track';
 import TrackPublication from '../track/TrackPublication';
 
-export type AudioTrackMap = { [key: string]: TrackPublication };
-export type VideoTrackMap = { [key: string]: TrackPublication };
+export enum ConnectionQuality {
+  Excellent = 'excellent',
+  Good = 'good',
+  Poor = 'poor',
+  Unknown = 'unknown',
+}
+
+function qualityFromProto(q: ProtoQuality): ConnectionQuality {
+  switch (q) {
+    case ProtoQuality.EXCELLENT:
+      return ConnectionQuality.Excellent;
+    case ProtoQuality.GOOD:
+      return ConnectionQuality.Good;
+    case ProtoQuality.POOR:
+      return ConnectionQuality.Poor;
+    default:
+      return ConnectionQuality.Unknown;
+  }
+}
 
 export default class Participant extends EventEmitter {
   protected participantInfo?: ParticipantInfo;
@@ -33,6 +50,8 @@ export default class Participant extends EventEmitter {
   metadata?: string;
 
   lastSpokeAt?: Date | undefined;
+
+  private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
   /** @internal */
   constructor(sid: string, identity: string) {
@@ -89,6 +108,10 @@ export default class Participant extends EventEmitter {
     }
   }
 
+  get connectionQuality(): ConnectionQuality {
+    return this._connectionQuality;
+  }
+
   get isCameraEnabled(): boolean {
     const track = this.getTrack(Track.Source.Camera);
     return !(track?.isMuted ?? true);
@@ -142,6 +165,15 @@ export default class Participant extends EventEmitter {
       this.lastSpokeAt = new Date();
     }
     this.emit(ParticipantEvent.IsSpeakingChanged, speaking);
+  }
+
+  /** @internal */
+  setConnectionQuality(q: ProtoQuality) {
+    const prevQuality = this._connectionQuality;
+    this._connectionQuality = qualityFromProto(q);
+    if (prevQuality !== this._connectionQuality) {
+      this.emit(ParticipantEvent.ConnectionQualityChanged, this._connectionQuality);
+    }
   }
 
   protected addTrackPublication(publication: TrackPublication) {

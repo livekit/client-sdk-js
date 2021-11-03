@@ -7,11 +7,14 @@ import {
   Room,
   ParticipantInfo,
   TrackInfo,
+  ConnectionQuality,
   SpeakerInfo,
   trackTypeFromJSON,
   trackSourceFromJSON,
   trackTypeToJSON,
   trackSourceToJSON,
+  connectionQualityFromJSON,
+  connectionQualityToJSON,
 } from "./livekit_models";
 
 export const protobufPackage = "livekit";
@@ -101,8 +104,6 @@ export interface SignalRequest {
   trackSetting?: UpdateTrackSettings | undefined;
   /** Immediately terminate session */
   leave?: LeaveRequest | undefined;
-  /** Set active published layers */
-  simulcast?: SetSimulcastLayers | undefined;
 }
 
 export interface SignalResponse {
@@ -126,6 +127,8 @@ export interface SignalResponse {
   speakersChanged?: SpeakersChanged | undefined;
   /** sent when metadata of the room has changed */
   roomUpdate?: RoomUpdate | undefined;
+  /** when connection quality changed */
+  connectionQuality?: ConnectionQualityUpdate | undefined;
 }
 
 export interface AddTrackRequest {
@@ -152,11 +155,6 @@ export interface MuteTrackRequest {
   muted: boolean;
 }
 
-export interface SetSimulcastLayers {
-  trackSid: string;
-  layers: VideoQuality[];
-}
-
 export interface JoinResponse {
   room?: Room;
   participant?: ParticipantInfo;
@@ -165,6 +163,11 @@ export interface JoinResponse {
   iceServers: ICEServer[];
   /** use subscriber as the primary PeerConnection */
   subscriberPrimary: boolean;
+  /**
+   * when the current server isn't available, return alternate url to retry connection
+   * when this is set, the other fields will be largely empty
+   */
+  alternativeUrl: string;
 }
 
 export interface TrackPublishedResponse {
@@ -189,8 +192,14 @@ export interface UpdateSubscription {
 
 export interface UpdateTrackSettings {
   trackSids: string[];
+  /** when true, the track is placed in a paused state, with no new data returned */
   disabled: boolean;
+  /** deprecated in favor of width & height */
   quality: VideoQuality;
+  /** for video, width to receive */
+  width: number;
+  /** for video, height to receive */
+  height: number;
 }
 
 export interface LeaveRequest {
@@ -213,6 +222,15 @@ export interface SpeakersChanged {
 
 export interface RoomUpdate {
   room?: Room;
+}
+
+export interface ConnectionQualityInfo {
+  participantSid: string;
+  quality: ConnectionQuality;
+}
+
+export interface ConnectionQualityUpdate {
+  updates: ConnectionQualityInfo[];
 }
 
 const baseSignalRequest: object = {};
@@ -261,12 +279,6 @@ export const SignalRequest = {
     if (message.leave !== undefined) {
       LeaveRequest.encode(message.leave, writer.uint32(66).fork()).ldelim();
     }
-    if (message.simulcast !== undefined) {
-      SetSimulcastLayers.encode(
-        message.simulcast,
-        writer.uint32(74).fork()
-      ).ldelim();
-    }
     return writer;
   },
 
@@ -306,12 +318,6 @@ export const SignalRequest = {
           break;
         case 8:
           message.leave = LeaveRequest.decode(reader, reader.uint32());
-          break;
-        case 9:
-          message.simulcast = SetSimulcastLayers.decode(
-            reader,
-            reader.uint32()
-          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -363,11 +369,6 @@ export const SignalRequest = {
     } else {
       message.leave = undefined;
     }
-    if (object.simulcast !== undefined && object.simulcast !== null) {
-      message.simulcast = SetSimulcastLayers.fromJSON(object.simulcast);
-    } else {
-      message.simulcast = undefined;
-    }
     return message;
   },
 
@@ -404,10 +405,6 @@ export const SignalRequest = {
     message.leave !== undefined &&
       (obj.leave = message.leave
         ? LeaveRequest.toJSON(message.leave)
-        : undefined);
-    message.simulcast !== undefined &&
-      (obj.simulcast = message.simulcast
-        ? SetSimulcastLayers.toJSON(message.simulcast)
         : undefined);
     return obj;
   },
@@ -457,11 +454,6 @@ export const SignalRequest = {
       message.leave = LeaveRequest.fromPartial(object.leave);
     } else {
       message.leave = undefined;
-    }
-    if (object.simulcast !== undefined && object.simulcast !== null) {
-      message.simulcast = SetSimulcastLayers.fromPartial(object.simulcast);
-    } else {
-      message.simulcast = undefined;
     }
     return message;
   },
@@ -519,6 +511,12 @@ export const SignalResponse = {
     if (message.roomUpdate !== undefined) {
       RoomUpdate.encode(message.roomUpdate, writer.uint32(90).fork()).ldelim();
     }
+    if (message.connectionQuality !== undefined) {
+      ConnectionQualityUpdate.encode(
+        message.connectionQuality,
+        writer.uint32(98).fork()
+      ).ldelim();
+    }
     return writer;
   },
 
@@ -564,6 +562,12 @@ export const SignalResponse = {
           break;
         case 11:
           message.roomUpdate = RoomUpdate.decode(reader, reader.uint32());
+          break;
+        case 12:
+          message.connectionQuality = ConnectionQualityUpdate.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -632,6 +636,16 @@ export const SignalResponse = {
     } else {
       message.roomUpdate = undefined;
     }
+    if (
+      object.connectionQuality !== undefined &&
+      object.connectionQuality !== null
+    ) {
+      message.connectionQuality = ConnectionQualityUpdate.fromJSON(
+        object.connectionQuality
+      );
+    } else {
+      message.connectionQuality = undefined;
+    }
     return message;
   },
 
@@ -674,6 +688,10 @@ export const SignalResponse = {
     message.roomUpdate !== undefined &&
       (obj.roomUpdate = message.roomUpdate
         ? RoomUpdate.toJSON(message.roomUpdate)
+        : undefined);
+    message.connectionQuality !== undefined &&
+      (obj.connectionQuality = message.connectionQuality
+        ? ConnectionQualityUpdate.toJSON(message.connectionQuality)
         : undefined);
     return obj;
   },
@@ -736,6 +754,16 @@ export const SignalResponse = {
       message.roomUpdate = RoomUpdate.fromPartial(object.roomUpdate);
     } else {
       message.roomUpdate = undefined;
+    }
+    if (
+      object.connectionQuality !== undefined &&
+      object.connectionQuality !== null
+    ) {
+      message.connectionQuality = ConnectionQualityUpdate.fromPartial(
+        object.connectionQuality
+      );
+    } else {
+      message.connectionQuality = undefined;
     }
     return message;
   },
@@ -1080,100 +1108,10 @@ export const MuteTrackRequest = {
   },
 };
 
-const baseSetSimulcastLayers: object = { trackSid: "", layers: 0 };
-
-export const SetSimulcastLayers = {
-  encode(
-    message: SetSimulcastLayers,
-    writer: _m0.Writer = _m0.Writer.create()
-  ): _m0.Writer {
-    if (message.trackSid !== "") {
-      writer.uint32(10).string(message.trackSid);
-    }
-    writer.uint32(18).fork();
-    for (const v of message.layers) {
-      writer.int32(v);
-    }
-    writer.ldelim();
-    return writer;
-  },
-
-  decode(input: _m0.Reader | Uint8Array, length?: number): SetSimulcastLayers {
-    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseSetSimulcastLayers } as SetSimulcastLayers;
-    message.layers = [];
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1:
-          message.trackSid = reader.string();
-          break;
-        case 2:
-          if ((tag & 7) === 2) {
-            const end2 = reader.uint32() + reader.pos;
-            while (reader.pos < end2) {
-              message.layers.push(reader.int32() as any);
-            }
-          } else {
-            message.layers.push(reader.int32() as any);
-          }
-          break;
-        default:
-          reader.skipType(tag & 7);
-          break;
-      }
-    }
-    return message;
-  },
-
-  fromJSON(object: any): SetSimulcastLayers {
-    const message = { ...baseSetSimulcastLayers } as SetSimulcastLayers;
-    message.layers = [];
-    if (object.trackSid !== undefined && object.trackSid !== null) {
-      message.trackSid = String(object.trackSid);
-    } else {
-      message.trackSid = "";
-    }
-    if (object.layers !== undefined && object.layers !== null) {
-      for (const e of object.layers) {
-        message.layers.push(videoQualityFromJSON(e));
-      }
-    }
-    return message;
-  },
-
-  toJSON(message: SetSimulcastLayers): unknown {
-    const obj: any = {};
-    message.trackSid !== undefined && (obj.trackSid = message.trackSid);
-    if (message.layers) {
-      obj.layers = message.layers.map((e) => videoQualityToJSON(e));
-    } else {
-      obj.layers = [];
-    }
-    return obj;
-  },
-
-  fromPartial(object: DeepPartial<SetSimulcastLayers>): SetSimulcastLayers {
-    const message = { ...baseSetSimulcastLayers } as SetSimulcastLayers;
-    message.layers = [];
-    if (object.trackSid !== undefined && object.trackSid !== null) {
-      message.trackSid = object.trackSid;
-    } else {
-      message.trackSid = "";
-    }
-    if (object.layers !== undefined && object.layers !== null) {
-      for (const e of object.layers) {
-        message.layers.push(e);
-      }
-    }
-    return message;
-  },
-};
-
 const baseJoinResponse: object = {
   serverVersion: "",
   subscriberPrimary: false,
+  alternativeUrl: "",
 };
 
 export const JoinResponse = {
@@ -1201,6 +1139,9 @@ export const JoinResponse = {
     }
     if (message.subscriberPrimary === true) {
       writer.uint32(48).bool(message.subscriberPrimary);
+    }
+    if (message.alternativeUrl !== "") {
+      writer.uint32(58).string(message.alternativeUrl);
     }
     return writer;
   },
@@ -1233,6 +1174,9 @@ export const JoinResponse = {
           break;
         case 6:
           message.subscriberPrimary = reader.bool();
+          break;
+        case 7:
+          message.alternativeUrl = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -1282,6 +1226,11 @@ export const JoinResponse = {
     } else {
       message.subscriberPrimary = false;
     }
+    if (object.alternativeUrl !== undefined && object.alternativeUrl !== null) {
+      message.alternativeUrl = String(object.alternativeUrl);
+    } else {
+      message.alternativeUrl = "";
+    }
     return message;
   },
 
@@ -1311,6 +1260,8 @@ export const JoinResponse = {
     }
     message.subscriberPrimary !== undefined &&
       (obj.subscriberPrimary = message.subscriberPrimary);
+    message.alternativeUrl !== undefined &&
+      (obj.alternativeUrl = message.alternativeUrl);
     return obj;
   },
 
@@ -1353,6 +1304,11 @@ export const JoinResponse = {
       message.subscriberPrimary = object.subscriberPrimary;
     } else {
       message.subscriberPrimary = false;
+    }
+    if (object.alternativeUrl !== undefined && object.alternativeUrl !== null) {
+      message.alternativeUrl = object.alternativeUrl;
+    } else {
+      message.alternativeUrl = "";
     }
     return message;
   },
@@ -1669,6 +1625,8 @@ const baseUpdateTrackSettings: object = {
   trackSids: "",
   disabled: false,
   quality: 0,
+  width: 0,
+  height: 0,
 };
 
 export const UpdateTrackSettings = {
@@ -1684,6 +1642,12 @@ export const UpdateTrackSettings = {
     }
     if (message.quality !== 0) {
       writer.uint32(32).int32(message.quality);
+    }
+    if (message.width !== 0) {
+      writer.uint32(40).uint32(message.width);
+    }
+    if (message.height !== 0) {
+      writer.uint32(48).uint32(message.height);
     }
     return writer;
   },
@@ -1704,6 +1668,12 @@ export const UpdateTrackSettings = {
           break;
         case 4:
           message.quality = reader.int32() as any;
+          break;
+        case 5:
+          message.width = reader.uint32();
+          break;
+        case 6:
+          message.height = reader.uint32();
           break;
         default:
           reader.skipType(tag & 7);
@@ -1731,6 +1701,16 @@ export const UpdateTrackSettings = {
     } else {
       message.quality = 0;
     }
+    if (object.width !== undefined && object.width !== null) {
+      message.width = Number(object.width);
+    } else {
+      message.width = 0;
+    }
+    if (object.height !== undefined && object.height !== null) {
+      message.height = Number(object.height);
+    } else {
+      message.height = 0;
+    }
     return message;
   },
 
@@ -1744,6 +1724,8 @@ export const UpdateTrackSettings = {
     message.disabled !== undefined && (obj.disabled = message.disabled);
     message.quality !== undefined &&
       (obj.quality = videoQualityToJSON(message.quality));
+    message.width !== undefined && (obj.width = message.width);
+    message.height !== undefined && (obj.height = message.height);
     return obj;
   },
 
@@ -1764,6 +1746,16 @@ export const UpdateTrackSettings = {
       message.quality = object.quality;
     } else {
       message.quality = 0;
+    }
+    if (object.width !== undefined && object.width !== null) {
+      message.width = object.width;
+    } else {
+      message.width = 0;
+    }
+    if (object.height !== undefined && object.height !== null) {
+      message.height = object.height;
+    } else {
+      message.height = 0;
     }
     return message;
   },
@@ -2048,6 +2040,168 @@ export const RoomUpdate = {
       message.room = Room.fromPartial(object.room);
     } else {
       message.room = undefined;
+    }
+    return message;
+  },
+};
+
+const baseConnectionQualityInfo: object = { participantSid: "", quality: 0 };
+
+export const ConnectionQualityInfo = {
+  encode(
+    message: ConnectionQualityInfo,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.participantSid !== "") {
+      writer.uint32(10).string(message.participantSid);
+    }
+    if (message.quality !== 0) {
+      writer.uint32(16).int32(message.quality);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number
+  ): ConnectionQualityInfo {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseConnectionQualityInfo } as ConnectionQualityInfo;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.participantSid = reader.string();
+          break;
+        case 2:
+          message.quality = reader.int32() as any;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ConnectionQualityInfo {
+    const message = { ...baseConnectionQualityInfo } as ConnectionQualityInfo;
+    if (object.participantSid !== undefined && object.participantSid !== null) {
+      message.participantSid = String(object.participantSid);
+    } else {
+      message.participantSid = "";
+    }
+    if (object.quality !== undefined && object.quality !== null) {
+      message.quality = connectionQualityFromJSON(object.quality);
+    } else {
+      message.quality = 0;
+    }
+    return message;
+  },
+
+  toJSON(message: ConnectionQualityInfo): unknown {
+    const obj: any = {};
+    message.participantSid !== undefined &&
+      (obj.participantSid = message.participantSid);
+    message.quality !== undefined &&
+      (obj.quality = connectionQualityToJSON(message.quality));
+    return obj;
+  },
+
+  fromPartial(
+    object: DeepPartial<ConnectionQualityInfo>
+  ): ConnectionQualityInfo {
+    const message = { ...baseConnectionQualityInfo } as ConnectionQualityInfo;
+    if (object.participantSid !== undefined && object.participantSid !== null) {
+      message.participantSid = object.participantSid;
+    } else {
+      message.participantSid = "";
+    }
+    if (object.quality !== undefined && object.quality !== null) {
+      message.quality = object.quality;
+    } else {
+      message.quality = 0;
+    }
+    return message;
+  },
+};
+
+const baseConnectionQualityUpdate: object = {};
+
+export const ConnectionQualityUpdate = {
+  encode(
+    message: ConnectionQualityUpdate,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    for (const v of message.updates) {
+      ConnectionQualityInfo.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number
+  ): ConnectionQualityUpdate {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = {
+      ...baseConnectionQualityUpdate,
+    } as ConnectionQualityUpdate;
+    message.updates = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.updates.push(
+            ConnectionQualityInfo.decode(reader, reader.uint32())
+          );
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ConnectionQualityUpdate {
+    const message = {
+      ...baseConnectionQualityUpdate,
+    } as ConnectionQualityUpdate;
+    message.updates = [];
+    if (object.updates !== undefined && object.updates !== null) {
+      for (const e of object.updates) {
+        message.updates.push(ConnectionQualityInfo.fromJSON(e));
+      }
+    }
+    return message;
+  },
+
+  toJSON(message: ConnectionQualityUpdate): unknown {
+    const obj: any = {};
+    if (message.updates) {
+      obj.updates = message.updates.map((e) =>
+        e ? ConnectionQualityInfo.toJSON(e) : undefined
+      );
+    } else {
+      obj.updates = [];
+    }
+    return obj;
+  },
+
+  fromPartial(
+    object: DeepPartial<ConnectionQualityUpdate>
+  ): ConnectionQualityUpdate {
+    const message = {
+      ...baseConnectionQualityUpdate,
+    } as ConnectionQualityUpdate;
+    message.updates = [];
+    if (object.updates !== undefined && object.updates !== null) {
+      for (const e of object.updates) {
+        message.updates.push(ConnectionQualityInfo.fromPartial(e));
+      }
     }
     return message;
   },

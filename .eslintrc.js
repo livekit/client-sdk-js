@@ -11,6 +11,7 @@ module.exports = {
     'no-restricted-syntax': 'off',
     'consistent-return': 'off',
     'class-methods-use-this': 'off',
+    'no-underscore-dangle': 'off',
     '@typescript-eslint/no-use-before-define': 'off',
   },
 };

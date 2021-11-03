@@ -10,6 +10,7 @@ import {
   RoomEvent,
   Track, TrackPublication, VideoPresets,
 } from '../src/index';
+import { ConnectionQuality } from '../src/room/participant/Participant';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -251,7 +252,11 @@ window.connectToRoom = async (
     .on(RoomEvent.MediaDevicesError, (e: Error) => {
       const failure = MediaDeviceFailure.getFailure(e);
       appendLog('media device failure', failure);
-    });
+    })
+    .on(RoomEvent.ConnectionQualityChanged,
+      (quality: ConnectionQuality, participant: Participant) => {
+        appendLog('connection quality changed', participant.identity, quality);
+      });
 
   appendLog('room participants', room.participants.keys());
   room.participants.forEach((participant) => {

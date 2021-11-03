@@ -1,9 +1,10 @@
 import { EventEmitter } from 'events';
-import log from '../logger';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
+import log from '../logger';
 import { DataPacket, DataPacket_Kind, TrackInfo } from '../proto/livekit_models';
 import {
   AddTrackRequest,
+  ConnectionQualityUpdate,
   JoinResponse,
   SignalTarget,
   TrackPublishedResponse,
@@ -276,6 +277,10 @@ export default class RTCEngine extends EventEmitter {
 
     this.client.onRoomUpdate = (room) => {
       this.emit(EngineEvent.RoomUpdate, room);
+    };
+
+    this.client.onConnectionQuality = (update: ConnectionQualityUpdate) => {
+      this.emit(EngineEvent.ConnectionQualityUpdate, update);
     };
   }
 

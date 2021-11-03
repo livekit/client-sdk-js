@@ -85,11 +85,11 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   protected emitTrackUpdate() {
-    const settings: UpdateTrackSettings = {
+    const settings: UpdateTrackSettings = UpdateTrackSettings.fromPartial({
       trackSids: [this.trackSid],
       disabled: this.disabled,
       quality: this.currentVideoQuality,
-    };
+    });
 
     this.emit(TrackEvent.UpdateSettings, settings);
   }
