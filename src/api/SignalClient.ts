@@ -332,7 +332,7 @@ export class WSSignalClient {
         this.onConnectionQuality(msg.connectionQuality);
       }
     } else {
-      log.warn('unsupported message', msg);
+      log.debug('unsupported message', msg);
     }
   }
 
