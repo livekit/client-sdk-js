@@ -4,6 +4,7 @@ import {
 
 let publishDefaults: TrackPublishDefaults = {
   audioBitrate: AudioPresets.speech.maxBitrate,
+  stopMicTrackOnMute: false,
 };
 
 let captureDefaults: TrackCaptureDefaults = {
