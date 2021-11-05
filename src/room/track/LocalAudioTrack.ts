@@ -1,9 +1,13 @@
+import log from '../../logger';
 import LocalTrack from './LocalTrack';
 import { CreateAudioTrackOptions } from './options';
 import { Track } from './Track';
 
 export default class LocalAudioTrack extends LocalTrack {
   sender?: RTCRtpSender;
+
+  /** @internal */
+  stopOnMute: boolean = false;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -25,18 +29,20 @@ export default class LocalAudioTrack extends LocalTrack {
 
   async mute(): Promise<LocalAudioTrack> {
     // disabled special handling as it will cause BT headsets to switch communication modes
-    // if (this.source === Track.Source.Microphone) {
-    //   // also stop the track, so that microphone indicator is turned off
-    //   this.mediaStreamTrack.stop();
-    // }
+    if (this.source === Track.Source.Microphone && this.stopOnMute) {
+      log.debug('stopping mic track');
+      // also stop the track, so that microphone indicator is turned off
+      this.mediaStreamTrack.stop();
+    }
     await super.mute();
     return this;
   }
 
   async unmute(): Promise<LocalAudioTrack> {
-    // if (this.source === Track.Source.Microphone) {
-    //   await this.restartTrack();
-    // }
+    if (this.source === Track.Source.Microphone && this.stopOnMute) {
+      log.debug('reacquiring mic track');
+      await this.restartTrack();
+    }
     await super.unmute();
     return this;
   }

@@ -185,6 +185,9 @@ export default class LocalParticipant extends Participant {
     if (opts.name) {
       track.name = opts.name;
     }
+    if (opts.stopMicTrackOnMute && track instanceof LocalAudioTrack) {
+      track.stopOnMute = true;
+    }
 
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
