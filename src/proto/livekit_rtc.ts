@@ -912,46 +912,14 @@ export const AddTrackRequest = {
 
   fromPartial(object: DeepPartial<AddTrackRequest>): AddTrackRequest {
     const message = { ...baseAddTrackRequest } as AddTrackRequest;
-    if (object.cid !== undefined && object.cid !== null) {
-      message.cid = object.cid;
-    } else {
-      message.cid = "";
-    }
-    if (object.name !== undefined && object.name !== null) {
-      message.name = object.name;
-    } else {
-      message.name = "";
-    }
-    if (object.type !== undefined && object.type !== null) {
-      message.type = object.type;
-    } else {
-      message.type = 0;
-    }
-    if (object.width !== undefined && object.width !== null) {
-      message.width = object.width;
-    } else {
-      message.width = 0;
-    }
-    if (object.height !== undefined && object.height !== null) {
-      message.height = object.height;
-    } else {
-      message.height = 0;
-    }
-    if (object.muted !== undefined && object.muted !== null) {
-      message.muted = object.muted;
-    } else {
-      message.muted = false;
-    }
-    if (object.disableDtx !== undefined && object.disableDtx !== null) {
-      message.disableDtx = object.disableDtx;
-    } else {
-      message.disableDtx = false;
-    }
-    if (object.source !== undefined && object.source !== null) {
-      message.source = object.source;
-    } else {
-      message.source = 0;
-    }
+    message.cid = object.cid ?? "";
+    message.name = object.name ?? "";
+    message.type = object.type ?? 0;
+    message.width = object.width ?? 0;
+    message.height = object.height ?? 0;
+    message.muted = object.muted ?? false;
+    message.disableDtx = object.disableDtx ?? false;
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -1019,16 +987,8 @@ export const TrickleRequest = {
 
   fromPartial(object: DeepPartial<TrickleRequest>): TrickleRequest {
     const message = { ...baseTrickleRequest } as TrickleRequest;
-    if (object.candidateInit !== undefined && object.candidateInit !== null) {
-      message.candidateInit = object.candidateInit;
-    } else {
-      message.candidateInit = "";
-    }
-    if (object.target !== undefined && object.target !== null) {
-      message.target = object.target;
-    } else {
-      message.target = 0;
-    }
+    message.candidateInit = object.candidateInit ?? "";
+    message.target = object.target ?? 0;
     return message;
   },
 };
@@ -1094,16 +1054,8 @@ export const MuteTrackRequest = {
 
   fromPartial(object: DeepPartial<MuteTrackRequest>): MuteTrackRequest {
     const message = { ...baseMuteTrackRequest } as MuteTrackRequest;
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = object.sid;
-    } else {
-      message.sid = "";
-    }
-    if (object.muted !== undefined && object.muted !== null) {
-      message.muted = object.muted;
-    } else {
-      message.muted = false;
-    }
+    message.sid = object.sid ?? "";
+    message.muted = object.muted ?? false;
     return message;
   },
 };
@@ -1267,8 +1219,6 @@ export const JoinResponse = {
 
   fromPartial(object: DeepPartial<JoinResponse>): JoinResponse {
     const message = { ...baseJoinResponse } as JoinResponse;
-    message.otherParticipants = [];
-    message.iceServers = [];
     if (object.room !== undefined && object.room !== null) {
       message.room = Room.fromPartial(object.room);
     } else {
@@ -1279,6 +1229,7 @@ export const JoinResponse = {
     } else {
       message.participant = undefined;
     }
+    message.otherParticipants = [];
     if (
       object.otherParticipants !== undefined &&
       object.otherParticipants !== null
@@ -1287,29 +1238,15 @@ export const JoinResponse = {
         message.otherParticipants.push(ParticipantInfo.fromPartial(e));
       }
     }
-    if (object.serverVersion !== undefined && object.serverVersion !== null) {
-      message.serverVersion = object.serverVersion;
-    } else {
-      message.serverVersion = "";
-    }
+    message.serverVersion = object.serverVersion ?? "";
+    message.iceServers = [];
     if (object.iceServers !== undefined && object.iceServers !== null) {
       for (const e of object.iceServers) {
         message.iceServers.push(ICEServer.fromPartial(e));
       }
     }
-    if (
-      object.subscriberPrimary !== undefined &&
-      object.subscriberPrimary !== null
-    ) {
-      message.subscriberPrimary = object.subscriberPrimary;
-    } else {
-      message.subscriberPrimary = false;
-    }
-    if (object.alternativeUrl !== undefined && object.alternativeUrl !== null) {
-      message.alternativeUrl = object.alternativeUrl;
-    } else {
-      message.alternativeUrl = "";
-    }
+    message.subscriberPrimary = object.subscriberPrimary ?? false;
+    message.alternativeUrl = object.alternativeUrl ?? "";
     return message;
   },
 };
@@ -1381,11 +1318,7 @@ export const TrackPublishedResponse = {
     object: DeepPartial<TrackPublishedResponse>
   ): TrackPublishedResponse {
     const message = { ...baseTrackPublishedResponse } as TrackPublishedResponse;
-    if (object.cid !== undefined && object.cid !== null) {
-      message.cid = object.cid;
-    } else {
-      message.cid = "";
-    }
+    message.cid = object.cid ?? "";
     if (object.track !== undefined && object.track !== null) {
       message.track = TrackInfo.fromPartial(object.track);
     } else {
@@ -1456,16 +1389,8 @@ export const SessionDescription = {
 
   fromPartial(object: DeepPartial<SessionDescription>): SessionDescription {
     const message = { ...baseSessionDescription } as SessionDescription;
-    if (object.type !== undefined && object.type !== null) {
-      message.type = object.type;
-    } else {
-      message.type = "";
-    }
-    if (object.sdp !== undefined && object.sdp !== null) {
-      message.sdp = object.sdp;
-    } else {
-      message.sdp = "";
-    }
+    message.type = object.type ?? "";
+    message.sdp = object.sdp ?? "";
     return message;
   },
 };
@@ -1612,11 +1537,7 @@ export const UpdateSubscription = {
         message.trackSids.push(e);
       }
     }
-    if (object.subscribe !== undefined && object.subscribe !== null) {
-      message.subscribe = object.subscribe;
-    } else {
-      message.subscribe = false;
-    }
+    message.subscribe = object.subscribe ?? false;
     return message;
   },
 };
@@ -1737,26 +1658,10 @@ export const UpdateTrackSettings = {
         message.trackSids.push(e);
       }
     }
-    if (object.disabled !== undefined && object.disabled !== null) {
-      message.disabled = object.disabled;
-    } else {
-      message.disabled = false;
-    }
-    if (object.quality !== undefined && object.quality !== null) {
-      message.quality = object.quality;
-    } else {
-      message.quality = 0;
-    }
-    if (object.width !== undefined && object.width !== null) {
-      message.width = object.width;
-    } else {
-      message.width = 0;
-    }
-    if (object.height !== undefined && object.height !== null) {
-      message.height = object.height;
-    } else {
-      message.height = 0;
-    }
+    message.disabled = object.disabled ?? false;
+    message.quality = object.quality ?? 0;
+    message.width = object.width ?? 0;
+    message.height = object.height ?? 0;
     return message;
   },
 };
@@ -1811,11 +1716,7 @@ export const LeaveRequest = {
 
   fromPartial(object: DeepPartial<LeaveRequest>): LeaveRequest {
     const message = { ...baseLeaveRequest } as LeaveRequest;
-    if (object.canReconnect !== undefined && object.canReconnect !== null) {
-      message.canReconnect = object.canReconnect;
-    } else {
-      message.canReconnect = false;
-    }
+    message.canReconnect = object.canReconnect ?? false;
     return message;
   },
 };
@@ -1905,16 +1806,8 @@ export const ICEServer = {
         message.urls.push(e);
       }
     }
-    if (object.username !== undefined && object.username !== null) {
-      message.username = object.username;
-    } else {
-      message.username = "";
-    }
-    if (object.credential !== undefined && object.credential !== null) {
-      message.credential = object.credential;
-    } else {
-      message.credential = "";
-    }
+    message.username = object.username ?? "";
+    message.credential = object.credential ?? "";
     return message;
   },
 };
@@ -2113,16 +2006,8 @@ export const ConnectionQualityInfo = {
     object: DeepPartial<ConnectionQualityInfo>
   ): ConnectionQualityInfo {
     const message = { ...baseConnectionQualityInfo } as ConnectionQualityInfo;
-    if (object.participantSid !== undefined && object.participantSid !== null) {
-      message.participantSid = object.participantSid;
-    } else {
-      message.participantSid = "";
-    }
-    if (object.quality !== undefined && object.quality !== null) {
-      message.quality = object.quality;
-    } else {
-      message.quality = 0;
-    }
+    message.participantSid = object.participantSid ?? "";
+    message.quality = object.quality ?? 0;
     return message;
   },
 };

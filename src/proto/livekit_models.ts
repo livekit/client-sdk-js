@@ -455,58 +455,20 @@ export const Room = {
 
   fromPartial(object: DeepPartial<Room>): Room {
     const message = { ...baseRoom } as Room;
+    message.sid = object.sid ?? "";
+    message.name = object.name ?? "";
+    message.emptyTimeout = object.emptyTimeout ?? 0;
+    message.maxParticipants = object.maxParticipants ?? 0;
+    message.creationTime = object.creationTime ?? 0;
+    message.turnPassword = object.turnPassword ?? "";
     message.enabledCodecs = [];
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = object.sid;
-    } else {
-      message.sid = "";
-    }
-    if (object.name !== undefined && object.name !== null) {
-      message.name = object.name;
-    } else {
-      message.name = "";
-    }
-    if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
-      message.emptyTimeout = object.emptyTimeout;
-    } else {
-      message.emptyTimeout = 0;
-    }
-    if (
-      object.maxParticipants !== undefined &&
-      object.maxParticipants !== null
-    ) {
-      message.maxParticipants = object.maxParticipants;
-    } else {
-      message.maxParticipants = 0;
-    }
-    if (object.creationTime !== undefined && object.creationTime !== null) {
-      message.creationTime = object.creationTime;
-    } else {
-      message.creationTime = 0;
-    }
-    if (object.turnPassword !== undefined && object.turnPassword !== null) {
-      message.turnPassword = object.turnPassword;
-    } else {
-      message.turnPassword = "";
-    }
     if (object.enabledCodecs !== undefined && object.enabledCodecs !== null) {
       for (const e of object.enabledCodecs) {
         message.enabledCodecs.push(Codec.fromPartial(e));
       }
     }
-    if (object.metadata !== undefined && object.metadata !== null) {
-      message.metadata = object.metadata;
-    } else {
-      message.metadata = "";
-    }
-    if (
-      object.numParticipants !== undefined &&
-      object.numParticipants !== null
-    ) {
-      message.numParticipants = object.numParticipants;
-    } else {
-      message.numParticipants = 0;
-    }
+    message.metadata = object.metadata ?? "";
+    message.numParticipants = object.numParticipants ?? 0;
     return message;
   },
 };
@@ -569,16 +531,8 @@ export const Codec = {
 
   fromPartial(object: DeepPartial<Codec>): Codec {
     const message = { ...baseCodec } as Codec;
-    if (object.mime !== undefined && object.mime !== null) {
-      message.mime = object.mime;
-    } else {
-      message.mime = "";
-    }
-    if (object.fmtpLine !== undefined && object.fmtpLine !== null) {
-      message.fmtpLine = object.fmtpLine;
-    } else {
-      message.fmtpLine = "";
-    }
+    message.mime = object.mime ?? "";
+    message.fmtpLine = object.fmtpLine ?? "";
     return message;
   },
 };
@@ -720,42 +674,18 @@ export const ParticipantInfo = {
 
   fromPartial(object: DeepPartial<ParticipantInfo>): ParticipantInfo {
     const message = { ...baseParticipantInfo } as ParticipantInfo;
+    message.sid = object.sid ?? "";
+    message.identity = object.identity ?? "";
+    message.state = object.state ?? 0;
     message.tracks = [];
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = object.sid;
-    } else {
-      message.sid = "";
-    }
-    if (object.identity !== undefined && object.identity !== null) {
-      message.identity = object.identity;
-    } else {
-      message.identity = "";
-    }
-    if (object.state !== undefined && object.state !== null) {
-      message.state = object.state;
-    } else {
-      message.state = 0;
-    }
     if (object.tracks !== undefined && object.tracks !== null) {
       for (const e of object.tracks) {
         message.tracks.push(TrackInfo.fromPartial(e));
       }
     }
-    if (object.metadata !== undefined && object.metadata !== null) {
-      message.metadata = object.metadata;
-    } else {
-      message.metadata = "";
-    }
-    if (object.joinedAt !== undefined && object.joinedAt !== null) {
-      message.joinedAt = object.joinedAt;
-    } else {
-      message.joinedAt = 0;
-    }
-    if (object.hidden !== undefined && object.hidden !== null) {
-      message.hidden = object.hidden;
-    } else {
-      message.hidden = false;
-    }
+    message.metadata = object.metadata ?? "";
+    message.joinedAt = object.joinedAt ?? 0;
+    message.hidden = object.hidden ?? false;
     return message;
   },
 };
@@ -916,51 +846,15 @@ export const TrackInfo = {
 
   fromPartial(object: DeepPartial<TrackInfo>): TrackInfo {
     const message = { ...baseTrackInfo } as TrackInfo;
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = object.sid;
-    } else {
-      message.sid = "";
-    }
-    if (object.type !== undefined && object.type !== null) {
-      message.type = object.type;
-    } else {
-      message.type = 0;
-    }
-    if (object.name !== undefined && object.name !== null) {
-      message.name = object.name;
-    } else {
-      message.name = "";
-    }
-    if (object.muted !== undefined && object.muted !== null) {
-      message.muted = object.muted;
-    } else {
-      message.muted = false;
-    }
-    if (object.width !== undefined && object.width !== null) {
-      message.width = object.width;
-    } else {
-      message.width = 0;
-    }
-    if (object.height !== undefined && object.height !== null) {
-      message.height = object.height;
-    } else {
-      message.height = 0;
-    }
-    if (object.simulcast !== undefined && object.simulcast !== null) {
-      message.simulcast = object.simulcast;
-    } else {
-      message.simulcast = false;
-    }
-    if (object.disableDtx !== undefined && object.disableDtx !== null) {
-      message.disableDtx = object.disableDtx;
-    } else {
-      message.disableDtx = false;
-    }
-    if (object.source !== undefined && object.source !== null) {
-      message.source = object.source;
-    } else {
-      message.source = 0;
-    }
+    message.sid = object.sid ?? "";
+    message.type = object.type ?? 0;
+    message.name = object.name ?? "";
+    message.muted = object.muted ?? false;
+    message.width = object.width ?? 0;
+    message.height = object.height ?? 0;
+    message.simulcast = object.simulcast ?? false;
+    message.disableDtx = object.disableDtx ?? false;
+    message.source = object.source ?? 0;
     return message;
   },
 };
@@ -1046,11 +940,7 @@ export const DataPacket = {
 
   fromPartial(object: DeepPartial<DataPacket>): DataPacket {
     const message = { ...baseDataPacket } as DataPacket;
-    if (object.kind !== undefined && object.kind !== null) {
-      message.kind = object.kind;
-    } else {
-      message.kind = 0;
-    }
+    message.kind = object.kind ?? 0;
     if (object.user !== undefined && object.user !== null) {
       message.user = UserPacket.fromPartial(object.user);
     } else {
@@ -1205,21 +1095,9 @@ export const SpeakerInfo = {
 
   fromPartial(object: DeepPartial<SpeakerInfo>): SpeakerInfo {
     const message = { ...baseSpeakerInfo } as SpeakerInfo;
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = object.sid;
-    } else {
-      message.sid = "";
-    }
-    if (object.level !== undefined && object.level !== null) {
-      message.level = object.level;
-    } else {
-      message.level = 0;
-    }
-    if (object.active !== undefined && object.active !== null) {
-      message.active = object.active;
-    } else {
-      message.active = false;
-    }
+    message.sid = object.sid ?? "";
+    message.level = object.level ?? 0;
+    message.active = object.active ?? false;
     return message;
   },
 };
@@ -1310,17 +1188,9 @@ export const UserPacket = {
 
   fromPartial(object: DeepPartial<UserPacket>): UserPacket {
     const message = { ...baseUserPacket } as UserPacket;
+    message.participantSid = object.participantSid ?? "";
+    message.payload = object.payload ?? new Uint8Array();
     message.destinationSids = [];
-    if (object.participantSid !== undefined && object.participantSid !== null) {
-      message.participantSid = object.participantSid;
-    } else {
-      message.participantSid = "";
-    }
-    if (object.payload !== undefined && object.payload !== null) {
-      message.payload = object.payload;
-    } else {
-      message.payload = new Uint8Array();
-    }
     if (
       object.destinationSids !== undefined &&
       object.destinationSids !== null

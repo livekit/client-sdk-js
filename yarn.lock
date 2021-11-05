@@ -3369,10 +3369,10 @@ ts-proto-descriptors@^1.2.1:
     long "^4.0.0"
     protobufjs "^6.8.8"
 
-ts-proto@1.83.1:
-  version "1.83.1"
-  resolved "https://registry.yarnpkg.com/ts-proto/-/ts-proto-1.83.1.tgz#763cf86264d7e1836dec7319ecd71994fca17fe5"
-  integrity sha512-pAB7FKIqMKjTnakvMyBB7VeIeXPl+3YPWGfp03laSRf7tGTtrt8xV9jyrLB1WU5vSzusYbz57kBCt4lqbZULqw==
+ts-proto@^1.85.0:
+  version "1.85.0"
+  resolved "https://registry.yarnpkg.com/ts-proto/-/ts-proto-1.85.0.tgz#a46925423a4df576f2fcf483d0d4b1ff2530d0ea"
+  integrity sha512-wYDzMl8LVqV8K65oI463KSIkfAxd3ulzMqZD+5NYWawwKfkJVNfTXjK847NJEHt4UBxSLZ0+aBjuc++cFNAUvw==
   dependencies:
     "@types/object-hash" "^1.3.0"
     dataloader "^1.4.0"
@@ -3428,10 +3428,10 @@ typedoc-default-themes@^0.12.10:
   resolved "https://registry.yarnpkg.com/typedoc-default-themes/-/typedoc-default-themes-0.12.10.tgz#614c4222fe642657f37693ea62cad4dafeddf843"
   integrity sha512-fIS001cAYHkyQPidWXmHuhs8usjP5XVJjWB8oZGqkTowZaz3v7g3KDZeeqE82FBrmkAnIBOY3jgy7lnPnqATbA==
 
-typedoc-plugin-no-inherit@^1.2.0:
-  version "1.3.1"
-  resolved "https://registry.yarnpkg.com/typedoc-plugin-no-inherit/-/typedoc-plugin-no-inherit-1.3.1.tgz#c0b1c81c91bb1d03f1303622c3791dd4f4b576f3"
-  integrity sha512-3fdPHRaIcCVV1W5gJYpZTdZL+F2VZTlUMd3Hw9xIv931ILh18CcD8IfxZtTtOijJRuKbgRLJ+J/+hVlgCbq1RQ==
+typedoc-plugin-no-inherit@1.3.0:
+  version "1.3.0"
+  resolved "https://registry.yarnpkg.com/typedoc-plugin-no-inherit/-/typedoc-plugin-no-inherit-1.3.0.tgz#8fd3b01d7fe48767bd827f933ff53e00f90005c0"
+  integrity sha512-Om4yu8sDHkHWi6FcOYUbg6fv2jh7kS51xbuZ/zs4VEtO5bJwTkO8FlzRUyDrTA3puxvF9XcoottntD0mpEgULg==
 
 typedoc@^0.20.35:
   version "0.20.37"
