@@ -32,6 +32,16 @@ export interface TrackPublishDefaults {
    * at various resolutions.
    */
   simulcast?: boolean;
+
+  /**
+   * For local tracks, stop the underlying MediaStreamTrack when the track is muted (or paused)
+   * on some platforms, this option is necessary to disable the microphone recording indicator.
+   * Note: when this is enabled, and BT devices are connected, they will transition between
+   * profiles (e.g. HFP to A2DP) and there will be an audible difference in playback.
+   *
+   * defaults to false
+   */
+  stopMicTrackOnMute?: boolean;
 }
 
 export interface TrackCaptureDefaults {
