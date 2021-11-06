@@ -48,7 +48,10 @@ export async function connect(
   }
 
   const client = new WSSignalClient();
-  const room = new Room(client, config);
+  const room = new Room(client, {
+    rtcConfig: options.rtcConfig,
+    autoManageVideo: options.autoManageVideo,
+  });
 
   // connect to room
   await room.connect(url, token, {

@@ -1,5 +1,5 @@
-import log from '../../logger';
 import { SignalClient } from '../../api/SignalClient';
+import log from '../../logger';
 import { ParticipantInfo } from '../../proto/livekit_models';
 import {
   UpdateSubscription,
@@ -76,6 +76,7 @@ export default class RemoteParticipant extends Participant {
     mediaTrack: MediaStreamTrack,
     sid: Track.SID,
     receiver?: RTCRtpReceiver,
+    autoManageVideo?: boolean,
     triesLeft?: number,
   ) {
     // find the track publication
@@ -106,7 +107,7 @@ export default class RemoteParticipant extends Participant {
 
       if (triesLeft === undefined) triesLeft = 20;
       setTimeout(() => {
-        this.addSubscribedMediaTrack(mediaTrack, sid, receiver, triesLeft! - 1);
+        this.addSubscribedMediaTrack(mediaTrack, sid, receiver, autoManageVideo, triesLeft! - 1);
       }, 150);
       return;
     }
@@ -120,6 +121,7 @@ export default class RemoteParticipant extends Participant {
     }
     track.start();
 
+    publication.autoManageVideo = autoManageVideo;
     publication.setTrack(track);
     // set track name etc
     track.name = publication.trackName;

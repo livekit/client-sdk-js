@@ -33,6 +33,12 @@ export enum RoomState {
   Reconnecting = 'reconnecting',
 }
 
+export interface RoomOptions {
+  autoManageVideo?: boolean;
+
+  rtcConfig?: RTCConfiguration;
+}
+
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
  * Participants in a room can publish tracks, and subscribe to others' tracks.
@@ -69,15 +75,19 @@ class Room extends EventEmitter {
   /** room metadata */
   metadata: string | undefined = undefined;
 
+  /** @internal */
+  options: RoomOptions = {};
+
   private audioEnabled = true;
 
   private audioContext?: AudioContext;
 
   /** @internal */
-  constructor(client: SignalClient, config?: RTCConfiguration) {
+  constructor(client: SignalClient, options?: RoomOptions) {
     super();
     this.participants = new Map();
-    this.engine = new RTCEngine(client, config);
+    this.options = options || {};
+    this.engine = new RTCEngine(client, this.options.rtcConfig);
 
     this.acquireAudioContext();
 
@@ -344,7 +354,12 @@ class Room extends EventEmitter {
     if (!trackId || trackId === '') trackId = mediaTrack.id;
 
     const participant = this.getOrCreateParticipant(participantId);
-    participant.addSubscribedMediaTrack(mediaTrack, trackId, receiver);
+    participant.addSubscribedMediaTrack(
+      mediaTrack,
+      trackId,
+      receiver,
+      this.options.autoManageVideo,
+    );
   }
 
   private handleDisconnect() {
