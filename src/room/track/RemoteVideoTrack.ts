@@ -102,6 +102,7 @@ export default class RemoteVideoTrack extends Track {
 
   private stopObservingElement(element: HTMLMediaElement) {
     this.intersectionObserver.unobserve(element);
+    this.resizeObserver.unobserve(element);
     this.elementInfos = this.elementInfos.filter((info) => info.element !== element);
   }
 
