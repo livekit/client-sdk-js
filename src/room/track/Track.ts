@@ -186,6 +186,7 @@ export namespace Track {
     Camera = 'camera',
     Microphone = 'microphone',
     ScreenShare = 'screen_share',
+    ScreenShareAudio = 'screen_share_audio',
     Unknown = 'unknown',
   }
 
@@ -227,6 +228,8 @@ export namespace Track {
         return TrackSource.MICROPHONE;
       case Source.ScreenShare:
         return TrackSource.SCREEN_SHARE;
+      case Source.ScreenShareAudio:
+        return TrackSource.SCREEN_SHARE_AUDIO;
       default:
         return TrackSource.UNRECOGNIZED;
     }
@@ -241,6 +244,8 @@ export namespace Track {
         return Source.Microphone;
       case TrackSource.SCREEN_SHARE:
         return Source.ScreenShare;
+      case TrackSource.SCREEN_SHARE_AUDIO:
+        return Source.ScreenShareAudio;
       default:
         return Source.Unknown;
     }

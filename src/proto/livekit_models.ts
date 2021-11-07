@@ -47,6 +47,7 @@ export enum TrackSource {
   CAMERA = 1,
   MICROPHONE = 2,
   SCREEN_SHARE = 3,
+  SCREEN_SHARE_AUDIO = 4,
   UNRECOGNIZED = -1,
 }
 
@@ -64,6 +65,9 @@ export function trackSourceFromJSON(object: any): TrackSource {
     case 3:
     case "SCREEN_SHARE":
       return TrackSource.SCREEN_SHARE;
+    case 4:
+    case "SCREEN_SHARE_AUDIO":
+      return TrackSource.SCREEN_SHARE_AUDIO;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -81,6 +85,8 @@ export function trackSourceToJSON(object: TrackSource): string {
       return "MICROPHONE";
     case TrackSource.SCREEN_SHARE:
       return "SCREEN_SHARE";
+    case TrackSource.SCREEN_SHARE_AUDIO:
+      return "SCREEN_SHARE_AUDIO";
     default:
       return "UNKNOWN";
   }
