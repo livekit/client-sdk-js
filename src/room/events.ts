@@ -242,4 +242,8 @@ export enum TrackEvent {
   AudioPlaybackStarted = 'audioPlaybackStarted',
   /** @internal */
   AudioPlaybackFailed = 'audioPlaybackFailed',
+  /** @internal */
+  VisibilityChanged = 'visibilityChanged',
+  /** @internal */
+  VideoDimensionsChanged = 'videoDimensionsChanged',
 }

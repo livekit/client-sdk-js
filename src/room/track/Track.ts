@@ -32,7 +32,14 @@ export class Track extends EventEmitter {
     this.source = Track.Source.Unknown;
   }
 
+  /**
+   * creates a new HTMLAudioElement or HTMLVideoElement, attaches to it, and returns it
+   */
   attach(): HTMLMediaElement;
+
+  /**
+   * attaches track to an existing HTMLAudioElement or HTMLVideoElement
+   */
   attach(element: HTMLMediaElement): HTMLMediaElement;
   attach(element?: HTMLMediaElement): HTMLMediaElement {
     let elementType = 'audio';
@@ -83,7 +90,15 @@ export class Track extends EventEmitter {
     return element;
   }
 
+  /**
+   * Detaches from all attached elements
+   */
   detach(): HTMLMediaElement[];
+
+  /**
+   * Detach from a single element
+   * @param element
+   */
   detach(element: HTMLMediaElement): HTMLMediaElement;
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
     // detach from a single element

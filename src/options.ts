@@ -10,6 +10,17 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   /** autosubscribe to room tracks upon connect, defaults to true */
   autoSubscribe?: boolean;
 
+  /**
+   * automatically manage quality of subscribed video tracks, subscribe to the
+   * an appropriate resolution based on the size of the video elements that tracks
+   * are attached to.
+   *
+   * also observes the visibility of attached tracks and pauses receiving data
+   * if they are not visible.
+   *
+   */
+  autoManageVideo?: boolean;
+
   /** configures LiveKit internal log level */
   logLevel?: LogLevel;
 

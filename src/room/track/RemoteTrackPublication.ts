@@ -1,3 +1,4 @@
+import log from '../../logger';
 import { TrackInfo } from '../../proto/livekit_models';
 import {
   UpdateSubscription,
@@ -5,6 +6,8 @@ import {
   VideoQuality,
 } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
+import RemoteVideoTrack from './RemoteVideoTrack';
+import { Track } from './Track';
 import TrackPublication from './TrackPublication';
 import { RemoteTrack } from './types';
 
@@ -15,7 +18,9 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected disabled: boolean = false;
 
-  protected currentVideoQuality: VideoQuality = VideoQuality.HIGH;
+  protected currentVideoQuality?: VideoQuality = VideoQuality.HIGH;
+
+  protected videoDimensions?: Track.Dimensions;
 
   /**
    * Subscribe or unsubscribe to this remote track
@@ -49,7 +54,10 @@ export default class RemoteTrackPublication extends TrackPublication {
    * @param enabled
    */
   setEnabled(enabled: boolean) {
-    if (this.disabled === !enabled) {
+    if (this.isAutoManageVideo || !this.isSubscribed || this.disabled === !enabled) {
+      return;
+    }
+    if (this.track instanceof RemoteVideoTrack && this.track.isAutoManaged) {
       return;
     }
     this.disabled = !enabled;
@@ -65,16 +73,42 @@ export default class RemoteTrackPublication extends TrackPublication {
    * optimize for uninterrupted video
    */
   setVideoQuality(quality: VideoQuality) {
-    if (this.currentVideoQuality === quality) {
+    if (this.isAutoManageVideo || !this.isSubscribed || this.currentVideoQuality === quality) {
       return;
     }
     this.currentVideoQuality = quality;
+    this.videoDimensions = undefined;
 
     this.emitTrackUpdate();
   }
 
-  get videoQuality(): VideoQuality {
+  setVideoDimensions(dimensions: Track.Dimensions) {
+    if (!this.isSubscribed || this.isAutoManageVideo) {
+      return;
+    }
+    if (this.videoDimensions?.width === dimensions.width
+        && this.videoDimensions?.height === dimensions.height) {
+      return;
+    }
+    if (this.track instanceof RemoteVideoTrack) { this.videoDimensions = dimensions; }
+    this.currentVideoQuality = undefined;
+
+    this.emitTrackUpdate();
+  }
+
+  get videoQuality(): VideoQuality | undefined {
     return this.currentVideoQuality;
+  }
+
+  setTrack(track?: Track) {
+    if (this.track) {
+      // unregister listener
+      this.track.off(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
+      this.track.off(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
+    }
+    super.setTrack(track);
+    this.track?.on(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
+    this.track?.on(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
   }
 
   /** @internal */
@@ -84,12 +118,36 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.track?.setMuted(info.muted);
   }
 
+  protected get isAutoManageVideo(): boolean {
+    return this.track instanceof RemoteVideoTrack && this.track.isAutoManaged;
+  }
+
+  protected handleVisibilityChange = (visible: boolean) => {
+    log.debug(`automanage video visibility, visible=${visible}`);
+    this.disabled = !visible;
+    this.emitTrackUpdate();
+  };
+
+  protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
+    log.debug(`automanage video dimensions, ${dimensions.width}x${dimensions.height}`);
+    this.videoDimensions = dimensions;
+    this.emitTrackUpdate();
+  };
+
   protected emitTrackUpdate() {
     const settings: UpdateTrackSettings = UpdateTrackSettings.fromPartial({
       trackSids: [this.trackSid],
       disabled: this.disabled,
-      quality: this.currentVideoQuality,
     });
+    if (this.videoDimensions) {
+      settings.width = this.videoDimensions.width;
+      settings.height = this.videoDimensions.height;
+    } else if (this.currentVideoQuality) {
+      settings.quality = this.currentVideoQuality;
+    } else {
+      // defaults to high quality
+      settings.quality = VideoQuality.HIGH;
+    }
 
     this.emit(TrackEvent.UpdateSettings, settings);
   }
