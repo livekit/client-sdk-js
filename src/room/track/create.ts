@@ -142,7 +142,9 @@ export async function createLocalScreenTracks(
   screenVideo.source = Track.Source.ScreenShare;
   const localTracks: Array<LocalTrack> = [screenVideo];
   if (stream.getAudioTracks().length > 0) {
-    localTracks.push(new LocalAudioTrack(stream.getAudioTracks()[0], options.name));
+    const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0], options.name);
+    screenAudio.source = Track.Source.ScreenShareAudio;
+    localTracks.push(screenAudio);
   }
   return localTracks;
 }
