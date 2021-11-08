@@ -16,3 +16,21 @@ export function useLegacyAPI(): boolean {
 export async function sleep(duration: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, duration));
 }
+
+function roDispatchCallback(entries: ResizeObserverEntry[]) {
+  for (const entry of entries) {
+    (entry.target as ObservableMediaElement).handleResize(entry);
+  }
+}
+
+function ioDispatchCallback(entries: IntersectionObserverEntry[]) {
+  for (const entry of entries) {
+    (entry.target as ObservableMediaElement).handleVisibilityChanged(entry);
+  }
+}
+export const resizeObserver = new ResizeObserver(roDispatchCallback);
+export const intersectionObserver = new IntersectionObserver(ioDispatchCallback);
+export interface ObservableMediaElement extends HTMLMediaElement {
+  handleResize: (entry: ResizeObserverEntry) => void;
+  handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
+}
