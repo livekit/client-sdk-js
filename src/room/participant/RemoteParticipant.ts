@@ -115,13 +115,12 @@ export default class RemoteParticipant extends Participant {
     const isVideo = mediaTrack.kind === 'video';
     let track: RemoteTrack;
     if (isVideo) {
-      track = new RemoteVideoTrack(mediaTrack, sid, receiver);
+      track = new RemoteVideoTrack(mediaTrack, sid, receiver, autoManageVideo);
     } else {
       track = new RemoteAudioTrack(mediaTrack, sid, receiver);
     }
     track.start();
 
-    publication.autoManageVideo = autoManageVideo;
     publication.setTrack(track);
     // set track name etc
     track.name = publication.trackName;

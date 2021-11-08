@@ -1,5 +1,4 @@
 import { debounce } from 'ts-debounce';
-import log from '../../logger';
 import { TrackEvent } from '../events';
 import { VideoReceiverStats } from '../stats';
 import { attachToElement, detachTrack, Track } from './Track';
@@ -15,9 +14,11 @@ export default class RemoteVideoTrack extends Track {
 
   private elementInfos: ElementInfo[] = [];
 
-  private intersectionObserver: IntersectionObserver;
+  private intersectionObserver?: IntersectionObserver;
 
-  private resizeObserver: ResizeObserver;
+  private resizeObserver?: ResizeObserver;
+
+  private autoManaged?: boolean;
 
   private lastVisible?: boolean;
 
@@ -27,13 +28,21 @@ export default class RemoteVideoTrack extends Track {
     mediaTrack: MediaStreamTrack,
     sid: string,
     receiver?: RTCRtpReceiver,
+    autoManaged?: boolean,
   ) {
     super(mediaTrack, Track.Kind.Video);
     // override id to parsed ID
     this.sid = sid;
     this.receiver = receiver;
-    this.intersectionObserver = new IntersectionObserver(this.handleVisibilityChanged);
-    this.resizeObserver = new ResizeObserver(debounce(this.handleResize, REACTION_DELAY));
+    this.autoManaged = autoManaged;
+    if (this.isAutoManaged) {
+      this.intersectionObserver = new IntersectionObserver(this.handleVisibilityChanged);
+      this.resizeObserver = new ResizeObserver(debounce(this.handleResize, REACTION_DELAY));
+    }
+  }
+
+  get isAutoManaged(): boolean {
+    return this.autoManaged ?? false;
   }
 
   /** @internal */
@@ -61,15 +70,16 @@ export default class RemoteVideoTrack extends Track {
     }
     super.attach(element);
 
-    this.elementInfos.push({
-      element,
-      visible: true, // default visible
-      width: element.clientWidth,
-      height: element.clientHeight,
-    });
-    this.intersectionObserver.observe(element);
-    this.resizeObserver.observe(element);
-
+    if (this.intersectionObserver && this.resizeObserver) {
+      this.elementInfos.push({
+        element,
+        visible: true, // default visible
+        width: element.clientWidth,
+        height: element.clientHeight,
+      });
+      this.intersectionObserver.observe(element);
+      this.resizeObserver.observe(element);
+    }
     return element;
   }
 
@@ -101,8 +111,12 @@ export default class RemoteVideoTrack extends Track {
   }
 
   private stopObservingElement(element: HTMLMediaElement) {
-    this.intersectionObserver.unobserve(element);
-    this.resizeObserver.unobserve(element);
+    if (this.intersectionObserver) {
+      this.intersectionObserver.unobserve(element);
+    }
+    if (this.resizeObserver) {
+      this.resizeObserver.unobserve(element);
+    }
     this.elementInfos = this.elementInfos.filter((info) => info.element !== element);
   }
 
@@ -125,9 +139,6 @@ export default class RemoteVideoTrack extends Track {
       if (elementInfo) {
         elementInfo.width = contentRect.width;
         elementInfo.height = contentRect.height;
-        log.debug(
-          `RemoteVideoTrack ${this.sid} resized to ${elementInfo.width}x${elementInfo.height}`,
-        );
       }
     }
     this.updateDimensions();

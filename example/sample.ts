@@ -203,6 +203,7 @@ window.connectToRoom = async (
       rtcConfig,
       audio: shouldPublish,
       video: shouldPublish,
+      autoManageVideo: true,
       publishDefaults: {
         simulcast,
       },

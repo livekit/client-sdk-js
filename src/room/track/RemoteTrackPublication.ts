@@ -6,15 +6,13 @@ import {
   VideoQuality,
 } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
+import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
 import TrackPublication from './TrackPublication';
 import { RemoteTrack } from './types';
 
 export default class RemoteTrackPublication extends TrackPublication {
   track?: RemoteTrack;
-
-  /** @internal */
-  autoManageVideo?: boolean;
 
   protected subscribed?: boolean;
 
@@ -56,7 +54,10 @@ export default class RemoteTrackPublication extends TrackPublication {
    * @param enabled
    */
   setEnabled(enabled: boolean) {
-    if (this.autoManageVideo || this.disabled === !enabled) {
+    if (this.isAutoManageVideo || !this.isSubscribed || this.disabled === !enabled) {
+      return;
+    }
+    if (this.track instanceof RemoteVideoTrack && this.track.isAutoManaged) {
       return;
     }
     this.disabled = !enabled;
@@ -72,7 +73,7 @@ export default class RemoteTrackPublication extends TrackPublication {
    * optimize for uninterrupted video
    */
   setVideoQuality(quality: VideoQuality) {
-    if (this.autoManageVideo || this.currentVideoQuality === quality) {
+    if (this.isAutoManageVideo || !this.isSubscribed || this.currentVideoQuality === quality) {
       return;
     }
     this.currentVideoQuality = quality;
@@ -82,12 +83,14 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   setVideoDimensions(dimensions: Track.Dimensions) {
-    if (this.autoManageVideo) return;
+    if (!this.isSubscribed || this.isAutoManageVideo) {
+      return;
+    }
     if (this.videoDimensions?.width === dimensions.width
         && this.videoDimensions?.height === dimensions.height) {
       return;
     }
-    this.videoDimensions = dimensions;
+    if (this.track instanceof RemoteVideoTrack) { this.videoDimensions = dimensions; }
     this.currentVideoQuality = undefined;
 
     this.emitTrackUpdate();
@@ -115,19 +118,17 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.track?.setMuted(info.muted);
   }
 
+  protected get isAutoManageVideo(): boolean {
+    return this.track instanceof RemoteVideoTrack && this.track.isAutoManaged;
+  }
+
   protected handleVisibilityChange = (visible: boolean) => {
-    if (!this.autoManageVideo) {
-      return;
-    }
     log.debug(`automanage video visibility, visible=${visible}`);
     this.disabled = !visible;
     this.emitTrackUpdate();
   };
 
   protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
-    if (!this.autoManageVideo) {
-      return;
-    }
     log.debug(`automanage video dimensions, ${dimensions.width}x${dimensions.height}`);
     this.videoDimensions = dimensions;
     this.emitTrackUpdate();
