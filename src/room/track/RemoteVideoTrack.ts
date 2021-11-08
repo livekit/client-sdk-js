@@ -72,9 +72,9 @@ export default class RemoteVideoTrack extends Track {
       });
 
       (element as ObservableMediaElement)
-        .handleResize = debounce(this.handleResize, REACTION_DELAY);
+        .handleResize = this.debouncedHandleResize;
       (element as ObservableMediaElement)
-        .handleVisibilityChanged = debounce(this.handleVisibilityChanged, REACTION_DELAY);
+        .handleVisibilityChanged = this.debouncedHandleVisibilityChanged;
 
       intersectionObserver.observe(element);
       resizeObserver.observe(element);
@@ -125,6 +125,10 @@ export default class RemoteVideoTrack extends Track {
     this.updateVisibility();
   };
 
+  private readonly debouncedHandleVisibilityChanged = debounce(
+    this.handleVisibilityChanged, REACTION_DELAY,
+  );
+
   private handleResize = (entry: ResizeObserverEntry) => {
     const { target, contentRect } = entry;
     const elementInfo = this.elementInfos.find((info) => info.element === target);
@@ -134,6 +138,8 @@ export default class RemoteVideoTrack extends Track {
     }
     this.updateDimensions();
   };
+
+  private readonly debouncedHandleResize = debounce(this.handleResize, REACTION_DELAY);
 
   private updateVisibility() {
     const lastVisibilityChange = this.elementInfos.reduce(
