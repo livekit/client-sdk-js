@@ -9,6 +9,7 @@ import { RoomEvent } from './room/events';
 import Room from './room/Room';
 import { createLocalTracks } from './room/track/create';
 import LocalTrack from './room/track/LocalTrack';
+import { Track } from './room/track/Track';
 
 export { version } from './version';
 
@@ -68,6 +69,16 @@ export async function connect(
 
   const publishAudio: boolean = options.audio;
   const publishVideo: boolean = options.video;
+  const sources: Track.Source[] = [];
+  if (publishAudio) {
+    sources.push(Track.Source.Microphone);
+  }
+  if (publishVideo) {
+    sources.push(Track.Source.Camera);
+  }
+  // lock to prevent user from publishing the same sources
+  sources.forEach((s) => room.localParticipant.pendingPublishing.add(s));
+
   if (publishAudio || publishVideo) {
     setTimeout(async () => {
       let tracks: LocalTrack[] | undefined;
@@ -100,13 +111,18 @@ export async function connect(
         if (!tracks) {
           room.emit(RoomEvent.MediaDevicesError, e);
           log.error('could not create media', e);
+          sources.forEach((s) => room.localParticipant.pendingPublishing.delete(s));
           return;
         }
       }
 
-      await Promise.all(tracks.map(
-        (track: LocalTrack | MediaStreamTrack) => room.localParticipant.publishTrack(track),
-      ));
+      try {
+        await Promise.all(tracks.map(
+          (track: LocalTrack | MediaStreamTrack) => room.localParticipant.publishTrack(track),
+        ));
+      } finally {
+        sources.forEach((s) => room.localParticipant.pendingPublishing.delete(s));
+      }
     });
   }
 

@@ -19,7 +19,6 @@
     "deploy": "gh-pages -d example/dist"
   },
   "dependencies": {
-    "@types/ws": "^7.4.0",
     "events": "^3.3.0",
     "loglevel": "^1.7.1",
     "protobufjs": "^6.10.2",
@@ -27,6 +26,7 @@
     "webrtc-adapter": "^7.7.1"
   },
   "devDependencies": {
+    "@types/ws": "^7.4.0",
     "@typescript-eslint/eslint-plugin": "^4.31.2",
     "@webpack-cli/serve": "^1.5.2",
     "eslint": "^7.32.0",

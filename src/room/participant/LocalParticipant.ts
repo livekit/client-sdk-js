@@ -35,6 +35,9 @@ export default class LocalParticipant extends Participant {
   tracks: Map<string, LocalTrackPublication>;
 
   /** @internal */
+  pendingPublishing = new Set<Track.Source>();
+
+  /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine) {
     super(sid, identity);
     this.audioTracks = new Map();
@@ -99,12 +102,18 @@ export default class LocalParticipant extends Participant {
    * way to manage the common tracks (camera, mic, or screen share)
    */
   private async setTrackEnabled(source: Track.Source, enabled: boolean): Promise<void> {
+    log.debug('setTrackEnabled', source, enabled);
     const track = this.getTrack(source);
     if (enabled) {
       if (track) {
         await track.unmute();
       } else {
         let localTrack: LocalTrack | undefined;
+        if (this.pendingPublishing.has(source)) {
+          // no-op it's already been requested
+          return;
+        }
+        this.pendingPublishing.add(source);
         try {
           switch (source) {
             case Track.Source.Camera:
@@ -119,14 +128,16 @@ export default class LocalParticipant extends Participant {
             default:
               throw new TrackInvalidError(source);
           }
+
+          await this.publishTrack(localTrack);
         } catch (e) {
           if (e instanceof Error && !(e instanceof TrackInvalidError)) {
             this.emit(ParticipantEvent.MediaDevicesError, e);
           }
           throw e;
+        } finally {
+          this.pendingPublishing.delete(source);
         }
-
-        await this.publishTrack(localTrack);
       }
     } else if (track && track.track) {
       // screenshare cannot be muted, unpublish instead
