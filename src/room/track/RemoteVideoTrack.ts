@@ -1,6 +1,7 @@
 import { debounce } from 'ts-debounce';
 import { TrackEvent } from '../events';
 import { VideoReceiverStats } from '../stats';
+import { intersectionObserver, resizeObserver, ObservableMediaElement } from '../utils';
 import { attachToElement, detachTrack, Track } from './Track';
 
 const REACTION_DELAY = 1000;
@@ -13,10 +14,6 @@ export default class RemoteVideoTrack extends Track {
   private prevStats?: VideoReceiverStats;
 
   private elementInfos: ElementInfo[] = [];
-
-  private intersectionObserver?: IntersectionObserver;
-
-  private resizeObserver?: ResizeObserver;
 
   private autoManaged?: boolean;
 
@@ -35,10 +32,6 @@ export default class RemoteVideoTrack extends Track {
     this.sid = sid;
     this.receiver = receiver;
     this.autoManaged = autoManaged;
-    if (this.isAutoManaged) {
-      this.intersectionObserver = new IntersectionObserver(this.handleVisibilityChanged);
-      this.resizeObserver = new ResizeObserver(debounce(this.handleResize, REACTION_DELAY));
-    }
   }
 
   get isAutoManaged(): boolean {
@@ -70,15 +63,21 @@ export default class RemoteVideoTrack extends Track {
     }
     super.attach(element);
 
-    if (this.intersectionObserver && this.resizeObserver) {
+    if (this.autoManaged) {
       this.elementInfos.push({
         element,
         visible: true, // default visible
         width: element.clientWidth,
         height: element.clientHeight,
       });
-      this.intersectionObserver.observe(element);
-      this.resizeObserver.observe(element);
+
+      (element as ObservableMediaElement)
+        .handleResize = this.debouncedHandleResize;
+      (element as ObservableMediaElement)
+        .handleVisibilityChanged = this.debouncedHandleVisibilityChanged;
+
+      intersectionObserver.observe(element);
+      resizeObserver.observe(element);
     }
     return element;
   }
@@ -111,38 +110,36 @@ export default class RemoteVideoTrack extends Track {
   }
 
   private stopObservingElement(element: HTMLMediaElement) {
-    if (this.intersectionObserver) {
-      this.intersectionObserver.unobserve(element);
-    }
-    if (this.resizeObserver) {
-      this.resizeObserver.unobserve(element);
-    }
+    intersectionObserver?.unobserve(element);
+    resizeObserver?.unobserve(element);
     this.elementInfos = this.elementInfos.filter((info) => info.element !== element);
   }
 
-  private handleVisibilityChanged = (entries: IntersectionObserverEntry[]) => {
-    for (const entry of entries) {
-      const { target, isIntersecting } = entry;
-      const elementInfo = this.elementInfos.find((info) => info.element === target);
-      if (elementInfo) {
-        elementInfo.visible = isIntersecting;
-        elementInfo.visibilityChangedAt = Date.now();
-      }
+  private handleVisibilityChanged = (entry: IntersectionObserverEntry) => {
+    const { target, isIntersecting } = entry;
+    const elementInfo = this.elementInfos.find((info) => info.element === target);
+    if (elementInfo) {
+      elementInfo.visible = isIntersecting;
+      elementInfo.visibilityChangedAt = Date.now();
     }
     this.updateVisibility();
   };
 
-  private handleResize = (entries: ResizeObserverEntry[]) => {
-    for (const entry of entries) {
-      const { target, contentRect } = entry;
-      const elementInfo = this.elementInfos.find((info) => info.element === target);
-      if (elementInfo) {
-        elementInfo.width = contentRect.width;
-        elementInfo.height = contentRect.height;
-      }
+  private readonly debouncedHandleVisibilityChanged = debounce(
+    this.handleVisibilityChanged, REACTION_DELAY,
+  );
+
+  private handleResize = (entry: ResizeObserverEntry) => {
+    const { target, contentRect } = entry;
+    const elementInfo = this.elementInfos.find((info) => info.element === target);
+    if (elementInfo) {
+      elementInfo.width = contentRect.width;
+      elementInfo.height = contentRect.height;
     }
     this.updateDimensions();
   };
+
+  private readonly debouncedHandleResize = debounce(this.handleResize, REACTION_DELAY);
 
   private updateVisibility() {
     const lastVisibilityChange = this.elementInfos.reduce(
