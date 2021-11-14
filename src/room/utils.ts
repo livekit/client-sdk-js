@@ -28,8 +28,19 @@ function ioDispatchCallback(entries: IntersectionObserverEntry[]) {
     (entry.target as ObservableMediaElement).handleVisibilityChanged(entry);
   }
 }
-export const resizeObserver = new ResizeObserver(roDispatchCallback);
-export const intersectionObserver = new IntersectionObserver(ioDispatchCallback);
+
+let resizeObserver: ResizeObserver | null = null;
+export const getResizeObserver = () => {
+  if (!resizeObserver) resizeObserver = new ResizeObserver(roDispatchCallback);
+  return resizeObserver;
+};
+
+let intersectionObserver: IntersectionObserver | null = null;
+export const getIntersectionObserver = () => {
+  if (!intersectionObserver) intersectionObserver = new IntersectionObserver(ioDispatchCallback);
+  return intersectionObserver;
+};
+
 export interface ObservableMediaElement extends HTMLMediaElement {
   handleResize: (entry: ResizeObserverEntry) => void;
   handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
