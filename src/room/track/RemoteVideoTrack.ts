@@ -1,7 +1,7 @@
 import { debounce } from 'ts-debounce';
 import { TrackEvent } from '../events';
 import { VideoReceiverStats } from '../stats';
-import { intersectionObserver, resizeObserver, ObservableMediaElement } from '../utils';
+import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
 import { attachToElement, detachTrack, Track } from './Track';
 
 const REACTION_DELAY = 1000;
@@ -76,8 +76,8 @@ export default class RemoteVideoTrack extends Track {
       (element as ObservableMediaElement)
         .handleVisibilityChanged = this.debouncedHandleVisibilityChanged;
 
-      intersectionObserver.observe(element);
-      resizeObserver.observe(element);
+      getIntersectionObserver().observe(element);
+      getResizeObserver().observe(element);
     }
     return element;
   }
@@ -110,8 +110,8 @@ export default class RemoteVideoTrack extends Track {
   }
 
   private stopObservingElement(element: HTMLMediaElement) {
-    intersectionObserver?.unobserve(element);
-    resizeObserver?.unobserve(element);
+    getIntersectionObserver()?.unobserve(element);
+    getResizeObserver()?.unobserve(element);
     this.elementInfos = this.elementInfos.filter((info) => info.element !== element);
   }
 
