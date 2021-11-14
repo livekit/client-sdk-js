@@ -82,8 +82,6 @@ class Room extends EventEmitter {
 
   private audioContext?: AudioContext;
 
-  private disconnectCallbackRef = () => this.disconnect();
-
   /** @internal */
   constructor(client: SignalClient, options?: RoomOptions) {
     super();
@@ -227,7 +225,8 @@ class Room extends EventEmitter {
         clearTimeout(connectTimeout);
 
         // also hook unload event
-        window.addEventListener('beforeunload', this.disconnectCallbackRef);
+        // @ts-ignore
+        window.addEventListener('beforeunload', this.disconnect);
         navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
 
         resolve(this);
@@ -238,12 +237,12 @@ class Room extends EventEmitter {
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
-  disconnect(stopTracks = true): void {
+  disconnect = (stopTracks = true) => {
     // send leave
     this.engine.client.sendLeave();
     this.engine.close();
     this.handleDisconnect(stopTracks);
-  }
+  };
 
   /**
    * Set default publish options
@@ -385,7 +384,8 @@ class Room extends EventEmitter {
       this.audioContext.close();
       this.audioContext = undefined;
     }
-    window.removeEventListener('beforeunload', this.disconnectCallbackRef);
+    // @ts-ignore
+    window.removeEventListener('beforeunload', this.disconnect);
     navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
     this.emit(RoomEvent.Disconnected);
     this.state = RoomState.Disconnected;
