@@ -225,8 +225,7 @@ class Room extends EventEmitter {
         clearTimeout(connectTimeout);
 
         // also hook unload event
-        // @ts-ignore
-        window.addEventListener('beforeunload', this.disconnect);
+        window.addEventListener('beforeunload', this.onBeforeUnload);
         navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
 
         resolve(this);
@@ -242,6 +241,10 @@ class Room extends EventEmitter {
     this.engine.client.sendLeave();
     this.engine.close();
     this.handleDisconnect(stopTracks);
+  };
+
+  private onBeforeUnload = () => {
+    this.disconnect();
   };
 
   /**
@@ -384,8 +387,7 @@ class Room extends EventEmitter {
       this.audioContext.close();
       this.audioContext = undefined;
     }
-    // @ts-ignore
-    window.removeEventListener('beforeunload', this.disconnect);
+    window.removeEventListener('beforeunload', this.onBeforeUnload);
     navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
     this.emit(RoomEvent.Disconnected);
     this.state = RoomState.Disconnected;
