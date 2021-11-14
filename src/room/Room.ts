@@ -225,7 +225,7 @@ class Room extends EventEmitter {
         clearTimeout(connectTimeout);
 
         // also hook unload event
-        window.addEventListener('beforeunload', this.disconnect);
+        window.addEventListener('beforeunload', this.onBeforeUnload);
         navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
 
         resolve(this);
@@ -236,11 +236,15 @@ class Room extends EventEmitter {
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
-  disconnect = () => {
+  disconnect = (stopTracks = true) => {
     // send leave
     this.engine.client.sendLeave();
     this.engine.close();
-    this.handleDisconnect();
+    this.handleDisconnect(stopTracks);
+  };
+
+  private onBeforeUnload = () => {
+    this.disconnect();
   };
 
   /**
@@ -362,7 +366,7 @@ class Room extends EventEmitter {
     );
   }
 
-  private handleDisconnect() {
+  private handleDisconnect(shouldStopTracks = true) {
     if (this.state === RoomState.Disconnected) {
       return;
     }
@@ -371,17 +375,19 @@ class Room extends EventEmitter {
         p.unpublishTrack(pub.trackSid);
       });
     });
-    this.localParticipant.tracks.forEach((pub) => {
-      pub.track?.detach();
-      pub.track?.stop();
-    });
+    if (shouldStopTracks) {
+      this.localParticipant.tracks.forEach((pub) => {
+        pub.track?.detach();
+        pub.track?.stop();
+      });
+    }
     this.participants.clear();
     this.activeSpeakers = [];
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = undefined;
     }
-    window.removeEventListener('beforeunload', this.disconnect);
+    window.removeEventListener('beforeunload', this.onBeforeUnload);
     navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
     this.emit(RoomEvent.Disconnected);
     this.state = RoomState.Disconnected;
