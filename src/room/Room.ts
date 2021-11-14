@@ -236,12 +236,12 @@ class Room extends EventEmitter {
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
-  disconnect = () => {
-    // send leave
+  disconnect(): void;
+  disconnect(stopTracks = true): void {
     this.engine.client.sendLeave();
     this.engine.close();
-    this.handleDisconnect();
-  };
+    this.handleDisconnect(stopTracks);
+  }
 
   /**
    * Set default publish options
@@ -362,7 +362,7 @@ class Room extends EventEmitter {
     );
   }
 
-  private handleDisconnect() {
+  private handleDisconnect(shouldStopTracks = true) {
     if (this.state === RoomState.Disconnected) {
       return;
     }
@@ -371,10 +371,12 @@ class Room extends EventEmitter {
         p.unpublishTrack(pub.trackSid);
       });
     });
-    this.localParticipant.tracks.forEach((pub) => {
-      pub.track?.detach();
-      pub.track?.stop();
-    });
+    if (shouldStopTracks) {
+      this.localParticipant.tracks.forEach((pub) => {
+        pub.track?.detach();
+        pub.track?.stop();
+      });
+    }
     this.participants.clear();
     this.activeSpeakers = [];
     if (this.audioContext) {
