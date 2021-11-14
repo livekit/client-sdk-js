@@ -238,6 +238,7 @@ class Room extends EventEmitter {
    */
   disconnect(): void;
   disconnect(stopTracks = true): void {
+    // send leave
     this.engine.client.sendLeave();
     this.engine.close();
     this.handleDisconnect(stopTracks);
