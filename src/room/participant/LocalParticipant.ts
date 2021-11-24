@@ -280,7 +280,7 @@ export default class LocalParticipant extends Participant {
 
   unpublishTrack(
     track: LocalTrack | MediaStreamTrack,
-    closeTrack: boolean = true
+    closeTrack: boolean = true,
   ): LocalTrackPublication | null {
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
