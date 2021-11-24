@@ -300,8 +300,7 @@ export default class LocalParticipant extends Participant {
       track.removeListener(TrackEvent.Muted, this.onTrackMuted);
       track.removeListener(TrackEvent.Unmuted, this.onTrackUnmuted);
     }
-    if(closeTrack)
-      track.stop();
+    if (closeTrack) track.stop();
 
     let mediaStreamTrack: MediaStreamTrack;
     if (track instanceof MediaStreamTrack) {
