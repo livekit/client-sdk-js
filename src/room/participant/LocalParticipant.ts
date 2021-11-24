@@ -280,6 +280,7 @@ export default class LocalParticipant extends Participant {
 
   unpublishTrack(
     track: LocalTrack | MediaStreamTrack,
+    closeTrack: boolean = true
   ): LocalTrackPublication | null {
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
@@ -299,7 +300,8 @@ export default class LocalParticipant extends Participant {
       track.removeListener(TrackEvent.Muted, this.onTrackMuted);
       track.removeListener(TrackEvent.Unmuted, this.onTrackUnmuted);
     }
-    track.stop();
+    if(closeTrack)
+      track.stop();
 
     let mediaStreamTrack: MediaStreamTrack;
     if (track instanceof MediaStreamTrack) {
