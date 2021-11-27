@@ -47,9 +47,18 @@ import {
 connect('ws://localhost:7800', token, {
   audio: true,
   video: true,
+  // automatically manage video quality
+  autoManageVideo: true,
+  // default publish settings
+  publishDefaults: {
+    simulcast: true,
+  },
+  // default capture settings
+  captureDefaults: {
+    videoResolution: VideoPresets.hd.resolution,
+  },
 }).then((room) => {
   console.log('connected to room', room.name);
-  console.log('participants in room:', room.participants.size);
 
   room
     .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
