@@ -1,4 +1,4 @@
-name: Lint
+name: Test
 on:
   push:
     branches: [ main ]
@@ -6,7 +6,7 @@ on:
     branches: [ main ]
 
 jobs:
-  lint:
+  test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -29,5 +29,8 @@ jobs:
         npm install -g yarn
         yarn install
 
-    - name: Run ESLint
-      run: yarn exec eslint src
+    - name: ESLint
+      run: yarn lint
+
+    - name: Run Tests
+      run: yarn test

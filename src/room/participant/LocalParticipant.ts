@@ -235,7 +235,7 @@ export default class LocalParticipant extends Participant {
       const settings = track.mediaStreamTrack.getSettings();
       const width = settings.width ?? track.dimensions?.width;
       const height = settings.height ?? track.dimensions?.height;
-      encodings = this.computeVideoEncodings(
+      encodings = computeVideoEncodings(
         track.source === Track.Source.ScreenShare,
         width,
         height,
@@ -470,147 +470,151 @@ export default class LocalParticipant extends Participant {
       transceiver.setCodecPreferences([selected]);
     }
   }
+}
 
-  private computeVideoEncodings(
-    isScreenShare: boolean,
-    width?: number,
-    height?: number,
-    options?: TrackPublishOptions,
-  ): RTCRtpEncodingParameters[] | undefined {
-    let encodings: RTCRtpEncodingParameters[];
+export const presets169 = [
+  VideoPresets.qvga,
+  VideoPresets.vga,
+  VideoPresets.qhd,
+  VideoPresets.hd,
+  VideoPresets.fhd,
+];
 
-    let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
-    if (isScreenShare) {
-      videoEncoding = options?.screenShareEncoding;
+export const presets43 = [
+  VideoPresets43.qvga,
+  VideoPresets43.vga,
+  VideoPresets43.qhd,
+  VideoPresets43.hd,
+  VideoPresets43.fhd,
+];
+
+export const presetsScreenShare = [
+  ScreenSharePresets.vga,
+  ScreenSharePresets.hd_8,
+  ScreenSharePresets.hd_15,
+  ScreenSharePresets.fhd_15,
+  ScreenSharePresets.fhd_30,
+];
+
+export function computeVideoEncodings(
+  isScreenShare: boolean,
+  width?: number,
+  height?: number,
+  options?: TrackPublishOptions,
+): RTCRtpEncodingParameters[] | undefined {
+  let encodings: RTCRtpEncodingParameters[];
+
+  let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
+  if (isScreenShare) {
+    videoEncoding = options?.screenShareEncoding;
+  }
+  const useSimulcast = !isScreenShare && options?.simulcast;
+
+  if ((!videoEncoding && !useSimulcast) || !width || !height) {
+    // don't set encoding when we are not simulcasting and user isn't restricting
+    // encoding parameters
+    return undefined;
+  }
+
+  if (!videoEncoding) {
+    // find the right encoding based on width/height
+    videoEncoding = determineAppropriateEncoding(isScreenShare, width, height);
+    log.debug('using video encoding', videoEncoding);
+  }
+
+  if (useSimulcast) {
+    const presets = presetsForResolution(isScreenShare, width, height);
+    let midPreset: VideoPreset | undefined;
+    const lowPreset = presets[0];
+    if (presets.length > 1) {
+      [,midPreset] = presets;
     }
-    const useSimulcast = !isScreenShare && options?.simulcast;
 
-    if ((!videoEncoding && !useSimulcast) || !width || !height) {
-      // don't set encoding when we are not simulcasting and user isn't restricting
-      // encoding parameters
-      return undefined;
-    }
-
-    if (!videoEncoding) {
-      // find the right encoding based on width/height
-      videoEncoding = this.determineAppropriateEncoding(isScreenShare, width, height);
-      log.debug('using video encoding', videoEncoding);
-    }
-
-    if (useSimulcast) {
-      const presets = this.presetsForResolution(isScreenShare, width, height);
-      const midPreset = presets[1];
-      const lowPreset = presets[0];
-      // if resolution is high enough, we would send [q, h, f] res..
-      // otherwise only send [q, h]
-      // NOTE:
-      //   1. Ordering of these encodings is important. Chrome seems
-      //      to use the index into encodings to decide which layer
-      //      to disable when constrained (bandwidth or CPU). So,
-      //      encodings should be ordered in increasing spatial
-      //      resolution order.
-      //   2. ion-sfu translates rids into layers. So, all encodings
-      //      should have the base layer `q` and then more added
-      //      based on other conditions.
-      if (width >= 960) {
-        encodings = [
-          {
-            rid: 'q',
-            scaleResolutionDownBy: height / lowPreset.height,
-            maxBitrate: lowPreset.encoding.maxBitrate,
-            /* @ts-ignore */
-            maxFramerate: lowPreset.encoding.maxFramerate,
-          },
-          {
-            rid: 'h',
-            scaleResolutionDownBy: height / midPreset.height,
-            maxBitrate: midPreset.encoding.maxBitrate,
-            /* @ts-ignore */
-            maxFramerate: midPreset.encoding.maxFramerate,
-          },
-          {
-            rid: 'f',
-            maxBitrate: videoEncoding.maxBitrate,
-            /* @ts-ignore */
-            maxFramerate: videoEncoding.maxFramerate,
-          },
-        ];
-      } else {
-        encodings = [
-          {
-            rid: 'q',
-            scaleResolutionDownBy: height / lowPreset.height,
-            maxBitrate: lowPreset.encoding.maxBitrate,
-            /* @ts-ignore */
-            maxFramerate: lowPreset.encoding.maxFramerate,
-          },
-          {
-            rid: 'h',
-            maxBitrate: videoEncoding.maxBitrate,
-            /* @ts-ignore */
-            maxFramerate: videoEncoding.maxFramerate,
-          },
-        ];
-      }
+    // if resolution is high enough, we would send [q, h, f] res..
+    // otherwise only send [q, h]
+    // NOTE:
+    //   1. Ordering of these encodings is important. Chrome seems
+    //      to use the index into encodings to decide which layer
+    //      to disable when constrained (bandwidth or CPU). So,
+    //      encodings should be ordered in increasing spatial
+    //      resolution order.
+    //   2. ion-sfu translates rids into layers. So, all encodings
+    //      should have the base layer `q` and then more added
+    //      based on other conditions.
+    if (width >= 960 && midPreset) {
+      encodings = [
+        {
+          rid: 'q',
+          scaleResolutionDownBy: height / lowPreset.height,
+          maxBitrate: lowPreset.encoding.maxBitrate,
+          /* @ts-ignore */
+          maxFramerate: lowPreset.encoding.maxFramerate,
+        },
+        {
+          rid: 'h',
+          scaleResolutionDownBy: height / midPreset.height,
+          maxBitrate: midPreset.encoding.maxBitrate,
+          /* @ts-ignore */
+          maxFramerate: midPreset.encoding.maxFramerate,
+        },
+        {
+          rid: 'f',
+          maxBitrate: videoEncoding.maxBitrate,
+          /* @ts-ignore */
+          maxFramerate: videoEncoding.maxFramerate,
+        },
+      ];
     } else {
-      encodings = [videoEncoding];
+      encodings = [
+        {
+          rid: 'q',
+          scaleResolutionDownBy: height / lowPreset.height,
+          maxBitrate: lowPreset.encoding.maxBitrate,
+          /* @ts-ignore */
+          maxFramerate: lowPreset.encoding.maxFramerate,
+        },
+        {
+          rid: 'h',
+          maxBitrate: videoEncoding.maxBitrate,
+          /* @ts-ignore */
+          maxFramerate: videoEncoding.maxFramerate,
+        },
+      ];
     }
-
-    return encodings;
+  } else {
+    encodings = [videoEncoding];
   }
 
-  private presets169 = [
-    VideoPresets.qvga,
-    VideoPresets.vga,
-    VideoPresets.qhd,
-    VideoPresets.hd,
-    VideoPresets.fhd,
-  ];
+  return encodings;
+}
 
-  private presets43 = [
-    VideoPresets43.qvga,
-    VideoPresets43.vga,
-    VideoPresets43.qhd,
-    VideoPresets43.hd,
-    VideoPresets43.fhd,
-  ];
+export function determineAppropriateEncoding(
+  isScreenShare: boolean,
+  width: number,
+  height: number,
+): VideoEncoding {
+  const presets = presetsForResolution(isScreenShare, width, height);
+  let { encoding } = presets[0];
 
-  private presetsScreenShare = [
-    ScreenSharePresets.vga,
-    ScreenSharePresets.hd_8,
-    ScreenSharePresets.hd_15,
-    ScreenSharePresets.fhd_15,
-    ScreenSharePresets.fhd_30,
-  ];
-
-  private determineAppropriateEncoding(
-    isScreenShare: boolean,
-    width: number,
-    height: number,
-  ): VideoEncoding {
-    const presets = this.presetsForResolution(isScreenShare, width, height);
-    let { encoding } = presets[0];
-
-    for (let i = 0; i < presets.length; i += 1) {
-      const preset = presets[i];
-      if (width >= preset.width && height >= preset.height) {
-        encoding = preset.encoding;
-      }
+  for (let i = 0; i < presets.length; i += 1) {
+    const preset = presets[i];
+    if (width >= preset.width && height >= preset.height) {
+      encoding = preset.encoding;
     }
-
-    return encoding;
   }
 
-  private presetsForResolution(
-    isScreenShare: boolean, width: number, height: number,
-  ): VideoPreset[] {
-    if (isScreenShare) {
-      return this.presetsScreenShare;
-    }
-    const aspect = width / height;
-    if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
-      return this.presets169;
-    }
-    return this.presets43;
+  return encoding;
+}
+
+export function presetsForResolution(
+  isScreenShare: boolean, width: number, height: number,
+): VideoPreset[] {
+  if (isScreenShare) {
+    return presetsScreenShare;
   }
+  const aspect = width / height;
+  if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
+    return presets169;
+  }
+  return presets43;
 }
