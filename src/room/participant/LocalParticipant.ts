@@ -1,5 +1,7 @@
 import log from '../../logger';
-import { DataPacket, DataPacket_Kind } from '../../proto/livekit_models';
+import {
+  DataPacket, DataPacket_Kind,
+} from '../../proto/livekit_models';
 import { AddTrackRequest } from '../../proto/livekit_rtc';
 import { getTrackPublishDefaults } from '../defaults';
 import {
@@ -14,7 +16,7 @@ import {
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
-import LocalVideoTrack from '../track/LocalVideoTrack';
+import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import {
   ScreenSharePresets, TrackPublishOptions, VideoCodec,
   VideoEncoding, VideoPreset, VideoPresets,
@@ -207,12 +209,10 @@ export default class LocalParticipant extends Participant {
       this.unpublishTrack(track);
     });
 
-    // get local track id for use during publishing
-    const cid = track.mediaStreamTrack.id;
-
     // create track publication from track
     const req = AddTrackRequest.fromPartial({
-      cid,
+      // get local track id for use during publishing
+      cid: track.mediaStreamTrack.id,
       name: track.name,
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
@@ -220,27 +220,23 @@ export default class LocalParticipant extends Participant {
       disableDtx: !(opts?.dtx ?? true),
     });
 
-    if (track.dimensions) {
-      req.width = track.dimensions.width;
-      req.height = track.dimensions.height;
-    }
-    const ti = await this.engine.addTrack(req);
-    const publication = new LocalTrackPublication(track.kind, ti, track);
-    track.sid = ti.sid;
-
+    // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
-    // for video
     if (track.kind === Track.Kind.Video) {
       // TODO: support react native, which doesn't expose getSettings
       const settings = track.mediaStreamTrack.getSettings();
       const width = settings.width ?? track.dimensions?.width;
       const height = settings.height ?? track.dimensions?.height;
+      // width and height should be defined for video
+      req.width = width ?? 0;
+      req.height = height ?? 0;
       encodings = computeVideoEncodings(
         track.source === Track.Source.ScreenShare,
         width,
         height,
         opts,
       );
+      req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
     } else if (track.kind === Track.Kind.Audio && opts.audioBitrate) {
       encodings = [
         {
@@ -248,6 +244,10 @@ export default class LocalParticipant extends Participant {
         },
       ];
     }
+
+    const ti = await this.engine.addTrack(req);
+    const publication = new LocalTrackPublication(track.kind, ti, track);
+    track.sid = ti.sid;
 
     if (!this.engine.publisher) {
       throw new UnexpectedConnectionState('publisher is closed');
@@ -499,6 +499,8 @@ export const presetsScreenShare = [
   ScreenSharePresets.fhd_30,
 ];
 
+const videoRids = ['q', 'h', 'f'];
+
 /* @internal */
 export function computeVideoEncodings(
   isScreenShare: boolean,
@@ -506,8 +508,6 @@ export function computeVideoEncodings(
   height?: number,
   options?: TrackPublishOptions,
 ): RTCRtpEncodingParameters[] | undefined {
-  let encodings: RTCRtpEncodingParameters[];
-
   let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
@@ -517,7 +517,7 @@ export function computeVideoEncodings(
   if ((!videoEncoding && !useSimulcast) || !width || !height) {
     // don't set encoding when we are not simulcasting and user isn't restricting
     // encoding parameters
-    return undefined;
+    return;
   }
 
   if (!videoEncoding) {
@@ -526,70 +526,34 @@ export function computeVideoEncodings(
     log.debug('using video encoding', videoEncoding);
   }
 
-  if (useSimulcast) {
-    const presets = presetsForResolution(isScreenShare, width, height);
-    let midPreset: VideoPreset | undefined;
-    const lowPreset = presets[0];
-    if (presets.length > 1) {
-      [,midPreset] = presets;
-    }
-
-    // if resolution is high enough, we would send [q, h, f] res..
-    // otherwise only send [q, h]
-    // NOTE:
-    //   1. Ordering of these encodings is important. Chrome seems
-    //      to use the index into encodings to decide which layer
-    //      to disable when constrained (bandwidth or CPU). So,
-    //      encodings should be ordered in increasing spatial
-    //      resolution order.
-    //   2. ion-sfu translates rids into layers. So, all encodings
-    //      should have the base layer `q` and then more added
-    //      based on other conditions.
-    if (width >= 960 && midPreset) {
-      encodings = [
-        {
-          rid: 'q',
-          scaleResolutionDownBy: height / lowPreset.height,
-          maxBitrate: lowPreset.encoding.maxBitrate,
-          /* @ts-ignore */
-          maxFramerate: lowPreset.encoding.maxFramerate,
-        },
-        {
-          rid: 'h',
-          scaleResolutionDownBy: height / midPreset.height,
-          maxBitrate: midPreset.encoding.maxBitrate,
-          /* @ts-ignore */
-          maxFramerate: midPreset.encoding.maxFramerate,
-        },
-        {
-          rid: 'f',
-          maxBitrate: videoEncoding.maxBitrate,
-          /* @ts-ignore */
-          maxFramerate: videoEncoding.maxFramerate,
-        },
-      ];
-    } else {
-      encodings = [
-        {
-          rid: 'q',
-          scaleResolutionDownBy: height / lowPreset.height,
-          maxBitrate: lowPreset.encoding.maxBitrate,
-          /* @ts-ignore */
-          maxFramerate: lowPreset.encoding.maxFramerate,
-        },
-        {
-          rid: 'h',
-          maxBitrate: videoEncoding.maxBitrate,
-          /* @ts-ignore */
-          maxFramerate: videoEncoding.maxFramerate,
-        },
-      ];
-    }
-  } else {
-    encodings = [videoEncoding];
+  if (!useSimulcast) {
+    return [videoEncoding];
   }
 
-  return encodings;
+  const presets = presetsForResolution(isScreenShare, width, height);
+  let midPreset: VideoPreset | undefined;
+  const lowPreset = presets[0];
+  if (presets.length > 1) {
+    [,midPreset] = presets;
+  }
+  const original = new VideoPreset(
+    width, height, videoEncoding.maxBitrate, videoEncoding.maxFramerate,
+  );
+
+  const size = Math.max(width, height);
+  if (size >= 960 && midPreset) {
+    return encodingsFromPresets(width, height, [
+      lowPreset, midPreset, original,
+    ]);
+  }
+  if (size >= 500) {
+    return encodingsFromPresets(width, height, [
+      lowPreset, original,
+    ]);
+  }
+  return encodingsFromPresets(width, height, [
+    original,
+  ]);
 }
 
 /* @internal */
@@ -601,10 +565,14 @@ export function determineAppropriateEncoding(
   const presets = presetsForResolution(isScreenShare, width, height);
   let { encoding } = presets[0];
 
+  // handle portrait by swapping dimensions
+  const size = Math.max(width, height);
+
   for (let i = 0; i < presets.length; i += 1) {
     const preset = presets[i];
-    if (width >= preset.width && height >= preset.height) {
-      encoding = preset.encoding;
+    encoding = preset.encoding;
+    if (preset.width >= size) {
+      break;
     }
   }
 
@@ -618,9 +586,41 @@ export function presetsForResolution(
   if (isScreenShare) {
     return presetsScreenShare;
   }
-  const aspect = width / height;
+  const aspect = width > height ? width / height : height / width;
   if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
     return presets169;
   }
   return presets43;
+}
+
+// NOTE:
+//   1. Ordering of these encodings is important. Chrome seems
+//      to use the index into encodings to decide which layer
+//      to disable when constrained (bandwidth or CPU). So,
+//      encodings should be ordered in increasing spatial
+//      resolution order.
+//   2. ion-sfu translates rids into layers. So, all encodings
+//      should have the base layer `q` and then more added
+//      based on other conditions.
+// presets should be ordered by low, medium, high
+function encodingsFromPresets(
+  width: number,
+  height: number,
+  presets: VideoPreset[],
+): RTCRtpEncodingParameters[] {
+  const encodings: RTCRtpEncodingParameters[] = [];
+  presets.forEach((preset, idx) => {
+    if (idx >= videoRids.length) {
+      return;
+    }
+    const rid = videoRids[idx];
+    encodings.push({
+      rid,
+      scaleResolutionDownBy: height / preset.height,
+      maxBitrate: preset.encoding.maxBitrate,
+      /* @ts-ignore */
+      maxFramerate: preset.encoding.maxFramerate,
+    });
+  });
+  return encodings;
 }

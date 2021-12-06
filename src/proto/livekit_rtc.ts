@@ -7,12 +7,16 @@ import {
   Room,
   ParticipantInfo,
   TrackInfo,
+  VideoQuality,
   ConnectionQuality,
+  VideoLayer,
   SpeakerInfo,
   trackTypeFromJSON,
   trackSourceFromJSON,
   trackTypeToJSON,
   trackSourceToJSON,
+  videoQualityFromJSON,
+  videoQualityToJSON,
   connectionQualityFromJSON,
   connectionQualityToJSON,
 } from "./livekit_models";
@@ -51,39 +55,33 @@ export function signalTargetToJSON(object: SignalTarget): string {
   }
 }
 
-export enum VideoQuality {
-  LOW = 0,
-  MEDIUM = 1,
-  HIGH = 2,
+export enum StreamState {
+  ACTIVE = 0,
+  PAUSED = 1,
   UNRECOGNIZED = -1,
 }
 
-export function videoQualityFromJSON(object: any): VideoQuality {
+export function streamStateFromJSON(object: any): StreamState {
   switch (object) {
     case 0:
-    case "LOW":
-      return VideoQuality.LOW;
+    case "ACTIVE":
+      return StreamState.ACTIVE;
     case 1:
-    case "MEDIUM":
-      return VideoQuality.MEDIUM;
-    case 2:
-    case "HIGH":
-      return VideoQuality.HIGH;
+    case "PAUSED":
+      return StreamState.PAUSED;
     case -1:
     case "UNRECOGNIZED":
     default:
-      return VideoQuality.UNRECOGNIZED;
+      return StreamState.UNRECOGNIZED;
   }
 }
 
-export function videoQualityToJSON(object: VideoQuality): string {
+export function streamStateToJSON(object: StreamState): string {
   switch (object) {
-    case VideoQuality.LOW:
-      return "LOW";
-    case VideoQuality.MEDIUM:
-      return "MEDIUM";
-    case VideoQuality.HIGH:
-      return "HIGH";
+    case StreamState.ACTIVE:
+      return "ACTIVE";
+    case StreamState.PAUSED:
+      return "PAUSED";
     default:
       return "UNKNOWN";
   }
@@ -104,6 +102,11 @@ export interface SignalRequest {
   trackSetting?: UpdateTrackSettings | undefined;
   /** Immediately terminate session */
   leave?: LeaveRequest | undefined;
+  /**
+   * Set active published layers, deprecated in favor of automatic tracking
+   *    SetSimulcastLayers simulcast = 9;
+   */
+  updateLayers?: UpdateVideoLayers | undefined;
 }
 
 export interface SignalResponse {
@@ -129,6 +132,8 @@ export interface SignalResponse {
   roomUpdate?: RoomUpdate | undefined;
   /** when connection quality changed */
   connectionQuality?: ConnectionQualityUpdate | undefined;
+  /** when streamed tracks state changed */
+  streamStateUpdate?: StreamStateUpdate | undefined;
 }
 
 export interface AddTrackRequest {
@@ -136,6 +141,7 @@ export interface AddTrackRequest {
   cid: string;
   name: string;
   type: TrackType;
+  /** to be deprecated in favor of layers */
   width: number;
   height: number;
   /** true to add track and initialize to muted */
@@ -143,6 +149,7 @@ export interface AddTrackRequest {
   /** true if DTX (Discontinuous Transmission) is disabled for audio */
   disableDtx: boolean;
   source: TrackSource;
+  layers: VideoLayer[];
 }
 
 export interface TrickleRequest {
@@ -210,6 +217,12 @@ export interface LeaveRequest {
   canReconnect: boolean;
 }
 
+/** message to indicate published video track dimensions are changing */
+export interface UpdateVideoLayers {
+  trackSid: string;
+  layers: VideoLayer[];
+}
+
 export interface ICEServer {
   urls: string[];
   username: string;
@@ -231,6 +244,16 @@ export interface ConnectionQualityInfo {
 
 export interface ConnectionQualityUpdate {
   updates: ConnectionQualityInfo[];
+}
+
+export interface StreamStateInfo {
+  participantSid: string;
+  trackSid: string;
+  state: StreamState;
+}
+
+export interface StreamStateUpdate {
+  streamStates: StreamStateInfo[];
 }
 
 const baseSignalRequest: object = {};
@@ -279,6 +302,12 @@ export const SignalRequest = {
     if (message.leave !== undefined) {
       LeaveRequest.encode(message.leave, writer.uint32(66).fork()).ldelim();
     }
+    if (message.updateLayers !== undefined) {
+      UpdateVideoLayers.encode(
+        message.updateLayers,
+        writer.uint32(82).fork()
+      ).ldelim();
+    }
     return writer;
   },
 
@@ -318,6 +347,12 @@ export const SignalRequest = {
           break;
         case 8:
           message.leave = LeaveRequest.decode(reader, reader.uint32());
+          break;
+        case 10:
+          message.updateLayers = UpdateVideoLayers.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -369,6 +404,11 @@ export const SignalRequest = {
     } else {
       message.leave = undefined;
     }
+    if (object.updateLayers !== undefined && object.updateLayers !== null) {
+      message.updateLayers = UpdateVideoLayers.fromJSON(object.updateLayers);
+    } else {
+      message.updateLayers = undefined;
+    }
     return message;
   },
 
@@ -405,6 +445,10 @@ export const SignalRequest = {
     message.leave !== undefined &&
       (obj.leave = message.leave
         ? LeaveRequest.toJSON(message.leave)
+        : undefined);
+    message.updateLayers !== undefined &&
+      (obj.updateLayers = message.updateLayers
+        ? UpdateVideoLayers.toJSON(message.updateLayers)
         : undefined);
     return obj;
   },
@@ -454,6 +498,11 @@ export const SignalRequest = {
       message.leave = LeaveRequest.fromPartial(object.leave);
     } else {
       message.leave = undefined;
+    }
+    if (object.updateLayers !== undefined && object.updateLayers !== null) {
+      message.updateLayers = UpdateVideoLayers.fromPartial(object.updateLayers);
+    } else {
+      message.updateLayers = undefined;
     }
     return message;
   },
@@ -517,6 +566,12 @@ export const SignalResponse = {
         writer.uint32(98).fork()
       ).ldelim();
     }
+    if (message.streamStateUpdate !== undefined) {
+      StreamStateUpdate.encode(
+        message.streamStateUpdate,
+        writer.uint32(106).fork()
+      ).ldelim();
+    }
     return writer;
   },
 
@@ -565,6 +620,12 @@ export const SignalResponse = {
           break;
         case 12:
           message.connectionQuality = ConnectionQualityUpdate.decode(
+            reader,
+            reader.uint32()
+          );
+          break;
+        case 13:
+          message.streamStateUpdate = StreamStateUpdate.decode(
             reader,
             reader.uint32()
           );
@@ -646,6 +707,16 @@ export const SignalResponse = {
     } else {
       message.connectionQuality = undefined;
     }
+    if (
+      object.streamStateUpdate !== undefined &&
+      object.streamStateUpdate !== null
+    ) {
+      message.streamStateUpdate = StreamStateUpdate.fromJSON(
+        object.streamStateUpdate
+      );
+    } else {
+      message.streamStateUpdate = undefined;
+    }
     return message;
   },
 
@@ -692,6 +763,10 @@ export const SignalResponse = {
     message.connectionQuality !== undefined &&
       (obj.connectionQuality = message.connectionQuality
         ? ConnectionQualityUpdate.toJSON(message.connectionQuality)
+        : undefined);
+    message.streamStateUpdate !== undefined &&
+      (obj.streamStateUpdate = message.streamStateUpdate
+        ? StreamStateUpdate.toJSON(message.streamStateUpdate)
         : undefined);
     return obj;
   },
@@ -765,6 +840,16 @@ export const SignalResponse = {
     } else {
       message.connectionQuality = undefined;
     }
+    if (
+      object.streamStateUpdate !== undefined &&
+      object.streamStateUpdate !== null
+    ) {
+      message.streamStateUpdate = StreamStateUpdate.fromPartial(
+        object.streamStateUpdate
+      );
+    } else {
+      message.streamStateUpdate = undefined;
+    }
     return message;
   },
 };
@@ -809,6 +894,9 @@ export const AddTrackRequest = {
     if (message.source !== 0) {
       writer.uint32(64).int32(message.source);
     }
+    for (const v of message.layers) {
+      VideoLayer.encode(v!, writer.uint32(74).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -816,6 +904,7 @@ export const AddTrackRequest = {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseAddTrackRequest } as AddTrackRequest;
+    message.layers = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -843,6 +932,9 @@ export const AddTrackRequest = {
         case 8:
           message.source = reader.int32() as any;
           break;
+        case 9:
+          message.layers.push(VideoLayer.decode(reader, reader.uint32()));
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -853,6 +945,7 @@ export const AddTrackRequest = {
 
   fromJSON(object: any): AddTrackRequest {
     const message = { ...baseAddTrackRequest } as AddTrackRequest;
+    message.layers = [];
     if (object.cid !== undefined && object.cid !== null) {
       message.cid = String(object.cid);
     } else {
@@ -893,6 +986,11 @@ export const AddTrackRequest = {
     } else {
       message.source = 0;
     }
+    if (object.layers !== undefined && object.layers !== null) {
+      for (const e of object.layers) {
+        message.layers.push(VideoLayer.fromJSON(e));
+      }
+    }
     return message;
   },
 
@@ -907,6 +1005,13 @@ export const AddTrackRequest = {
     message.disableDtx !== undefined && (obj.disableDtx = message.disableDtx);
     message.source !== undefined &&
       (obj.source = trackSourceToJSON(message.source));
+    if (message.layers) {
+      obj.layers = message.layers.map((e) =>
+        e ? VideoLayer.toJSON(e) : undefined
+      );
+    } else {
+      obj.layers = [];
+    }
     return obj;
   },
 
@@ -920,6 +1025,12 @@ export const AddTrackRequest = {
     message.muted = object.muted ?? false;
     message.disableDtx = object.disableDtx ?? false;
     message.source = object.source ?? 0;
+    message.layers = [];
+    if (object.layers !== undefined && object.layers !== null) {
+      for (const e of object.layers) {
+        message.layers.push(VideoLayer.fromPartial(e));
+      }
+    }
     return message;
   },
 };
@@ -1721,6 +1832,86 @@ export const LeaveRequest = {
   },
 };
 
+const baseUpdateVideoLayers: object = { trackSid: "" };
+
+export const UpdateVideoLayers = {
+  encode(
+    message: UpdateVideoLayers,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.trackSid !== "") {
+      writer.uint32(10).string(message.trackSid);
+    }
+    for (const v of message.layers) {
+      VideoLayer.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): UpdateVideoLayers {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseUpdateVideoLayers } as UpdateVideoLayers;
+    message.layers = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.trackSid = reader.string();
+          break;
+        case 2:
+          message.layers.push(VideoLayer.decode(reader, reader.uint32()));
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UpdateVideoLayers {
+    const message = { ...baseUpdateVideoLayers } as UpdateVideoLayers;
+    message.layers = [];
+    if (object.trackSid !== undefined && object.trackSid !== null) {
+      message.trackSid = String(object.trackSid);
+    } else {
+      message.trackSid = "";
+    }
+    if (object.layers !== undefined && object.layers !== null) {
+      for (const e of object.layers) {
+        message.layers.push(VideoLayer.fromJSON(e));
+      }
+    }
+    return message;
+  },
+
+  toJSON(message: UpdateVideoLayers): unknown {
+    const obj: any = {};
+    message.trackSid !== undefined && (obj.trackSid = message.trackSid);
+    if (message.layers) {
+      obj.layers = message.layers.map((e) =>
+        e ? VideoLayer.toJSON(e) : undefined
+      );
+    } else {
+      obj.layers = [];
+    }
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<UpdateVideoLayers>): UpdateVideoLayers {
+    const message = { ...baseUpdateVideoLayers } as UpdateVideoLayers;
+    message.trackSid = object.trackSid ?? "";
+    message.layers = [];
+    if (object.layers !== undefined && object.layers !== null) {
+      for (const e of object.layers) {
+        message.layers.push(VideoLayer.fromPartial(e));
+      }
+    }
+    return message;
+  },
+};
+
 const baseICEServer: object = { urls: "", username: "", credential: "" };
 
 export const ICEServer = {
@@ -2086,6 +2277,161 @@ export const ConnectionQualityUpdate = {
     if (object.updates !== undefined && object.updates !== null) {
       for (const e of object.updates) {
         message.updates.push(ConnectionQualityInfo.fromPartial(e));
+      }
+    }
+    return message;
+  },
+};
+
+const baseStreamStateInfo: object = {
+  participantSid: "",
+  trackSid: "",
+  state: 0,
+};
+
+export const StreamStateInfo = {
+  encode(
+    message: StreamStateInfo,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.participantSid !== "") {
+      writer.uint32(10).string(message.participantSid);
+    }
+    if (message.trackSid !== "") {
+      writer.uint32(18).string(message.trackSid);
+    }
+    if (message.state !== 0) {
+      writer.uint32(24).int32(message.state);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): StreamStateInfo {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseStreamStateInfo } as StreamStateInfo;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.participantSid = reader.string();
+          break;
+        case 2:
+          message.trackSid = reader.string();
+          break;
+        case 3:
+          message.state = reader.int32() as any;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): StreamStateInfo {
+    const message = { ...baseStreamStateInfo } as StreamStateInfo;
+    if (object.participantSid !== undefined && object.participantSid !== null) {
+      message.participantSid = String(object.participantSid);
+    } else {
+      message.participantSid = "";
+    }
+    if (object.trackSid !== undefined && object.trackSid !== null) {
+      message.trackSid = String(object.trackSid);
+    } else {
+      message.trackSid = "";
+    }
+    if (object.state !== undefined && object.state !== null) {
+      message.state = streamStateFromJSON(object.state);
+    } else {
+      message.state = 0;
+    }
+    return message;
+  },
+
+  toJSON(message: StreamStateInfo): unknown {
+    const obj: any = {};
+    message.participantSid !== undefined &&
+      (obj.participantSid = message.participantSid);
+    message.trackSid !== undefined && (obj.trackSid = message.trackSid);
+    message.state !== undefined &&
+      (obj.state = streamStateToJSON(message.state));
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<StreamStateInfo>): StreamStateInfo {
+    const message = { ...baseStreamStateInfo } as StreamStateInfo;
+    message.participantSid = object.participantSid ?? "";
+    message.trackSid = object.trackSid ?? "";
+    message.state = object.state ?? 0;
+    return message;
+  },
+};
+
+const baseStreamStateUpdate: object = {};
+
+export const StreamStateUpdate = {
+  encode(
+    message: StreamStateUpdate,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    for (const v of message.streamStates) {
+      StreamStateInfo.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): StreamStateUpdate {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseStreamStateUpdate } as StreamStateUpdate;
+    message.streamStates = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.streamStates.push(
+            StreamStateInfo.decode(reader, reader.uint32())
+          );
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): StreamStateUpdate {
+    const message = { ...baseStreamStateUpdate } as StreamStateUpdate;
+    message.streamStates = [];
+    if (object.streamStates !== undefined && object.streamStates !== null) {
+      for (const e of object.streamStates) {
+        message.streamStates.push(StreamStateInfo.fromJSON(e));
+      }
+    }
+    return message;
+  },
+
+  toJSON(message: StreamStateUpdate): unknown {
+    const obj: any = {};
+    if (message.streamStates) {
+      obj.streamStates = message.streamStates.map((e) =>
+        e ? StreamStateInfo.toJSON(e) : undefined
+      );
+    } else {
+      obj.streamStates = [];
+    }
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<StreamStateUpdate>): StreamStateUpdate {
+    const message = { ...baseStreamStateUpdate } as StreamStateUpdate;
+    message.streamStates = [];
+    if (object.streamStates !== undefined && object.streamStates !== null) {
+      for (const e of object.streamStates) {
+        message.streamStates.push(StreamStateInfo.fromPartial(e));
       }
     }
     return message;

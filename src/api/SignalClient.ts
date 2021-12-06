@@ -1,6 +1,8 @@
 import 'webrtc-adapter';
 import log from '../logger';
-import { ParticipantInfo, Room, SpeakerInfo } from '../proto/livekit_models';
+import {
+  ParticipantInfo, Room, SpeakerInfo, VideoLayer,
+} from '../proto/livekit_models';
 import {
   AddTrackRequest,
   ConnectionQualityUpdate,
@@ -267,6 +269,15 @@ export class WSSignalClient {
 
   sendUpdateSubscription(sub: UpdateSubscription) {
     this.sendRequest({ subscription: sub });
+  }
+
+  sendUpdateVideoLayers(trackSid: string, layers: VideoLayer[]) {
+    this.sendRequest({
+      updateLayers: {
+        trackSid,
+        layers,
+      },
+    });
   }
 
   sendLeave() {

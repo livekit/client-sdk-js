@@ -1,9 +1,8 @@
 import log from '../../logger';
-import { TrackInfo } from '../../proto/livekit_models';
+import { TrackInfo, VideoQuality } from '../../proto/livekit_models';
 import {
   UpdateSubscription,
   UpdateTrackSettings,
-  VideoQuality,
 } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import RemoteVideoTrack from './RemoteVideoTrack';
