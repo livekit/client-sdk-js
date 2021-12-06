@@ -36,7 +36,7 @@ describe('determineAppropriateEncoding', () => {
   });
 });
 
-describe('computeVideoPublishSettings', () => {
+describe('computeVideoEncodings', () => {
   it('handles non-simulcast', () => {
     const encodings = computeVideoEncodings(false, 640, 480, {
       simulcast: false,
@@ -64,7 +64,9 @@ describe('computeVideoPublishSettings', () => {
     // ensure they are what we expect
     expect(encodings![0].rid).toBe('q');
     expect(encodings![0].maxBitrate).toBe(VideoPresets.qvga.encoding.maxBitrate);
+    expect(encodings![0].scaleResolutionDownBy).toBe(3);
     expect(encodings![1].rid).toBe('h');
+    expect(encodings![1].scaleResolutionDownBy).toBe(1.5);
     expect(encodings![2].rid).toBe('f');
   });
 
@@ -73,6 +75,8 @@ describe('computeVideoPublishSettings', () => {
       simulcast: true,
     });
     expect(encodings).toHaveLength(3);
+    expect(encodings![0].scaleResolutionDownBy).toBe(3);
+    expect(encodings![1].scaleResolutionDownBy).toBe(1.5);
     expect(encodings![2].maxBitrate).toBe(VideoPresets.qhd.encoding.maxBitrate);
   });
 
