@@ -278,10 +278,14 @@ export class WSSignalClient {
       throw new ConnectionError('cannot send signal request before connected');
     }
 
-    if (this.useJSON) {
-      this.ws.send(JSON.stringify(SignalRequest.toJSON(req)));
-    } else {
-      this.ws.send(SignalRequest.encode(req).finish());
+    try {
+      if (this.useJSON) {
+        this.ws.send(JSON.stringify(SignalRequest.toJSON(req)));
+      } else {
+        this.ws.send(SignalRequest.encode(req).finish());
+      }
+    } catch (e) {
+      log.error('error sending signal message', e);
     }
   }
 

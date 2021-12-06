@@ -4,6 +4,8 @@ import {
 
 let publishDefaults: TrackPublishDefaults = {
   audioBitrate: AudioPresets.speech.maxBitrate,
+  dtx: true,
+  simulcast: true,
   stopMicTrackOnMute: false,
 };
 

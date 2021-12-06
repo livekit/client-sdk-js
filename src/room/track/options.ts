@@ -27,8 +27,8 @@ export interface TrackPublishDefaults {
   dtx?: boolean;
 
   /**
-   * use simulcast, defaults to false.
-   * When using simulcast, LiveKit will publish up to three version of the stream
+   * use simulcast, defaults to true.
+   * When using simulcast, LiveKit will publish up to three versions of the stream
    * at various resolutions.
    */
   simulcast?: boolean;
