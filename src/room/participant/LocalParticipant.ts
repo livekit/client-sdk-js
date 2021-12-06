@@ -472,6 +472,7 @@ export default class LocalParticipant extends Participant {
   }
 }
 
+/* @internal */
 export const presets169 = [
   VideoPresets.qvga,
   VideoPresets.vga,
@@ -480,6 +481,7 @@ export const presets169 = [
   VideoPresets.fhd,
 ];
 
+/* @internal */
 export const presets43 = [
   VideoPresets43.qvga,
   VideoPresets43.vga,
@@ -488,6 +490,7 @@ export const presets43 = [
   VideoPresets43.fhd,
 ];
 
+/* @internal */
 export const presetsScreenShare = [
   ScreenSharePresets.vga,
   ScreenSharePresets.hd_8,
@@ -496,6 +499,7 @@ export const presetsScreenShare = [
   ScreenSharePresets.fhd_30,
 ];
 
+/* @internal */
 export function computeVideoEncodings(
   isScreenShare: boolean,
   width?: number,
@@ -588,6 +592,7 @@ export function computeVideoEncodings(
   return encodings;
 }
 
+/* @internal */
 export function determineAppropriateEncoding(
   isScreenShare: boolean,
   width: number,
@@ -606,6 +611,7 @@ export function determineAppropriateEncoding(
   return encoding;
 }
 
+/* @internal */
 export function presetsForResolution(
   isScreenShare: boolean, width: number, height: number,
 ): VideoPreset[] {
