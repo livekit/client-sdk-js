@@ -4,7 +4,7 @@ import { VideoReceiverStats } from '../stats';
 import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
 import { attachToElement, detachTrack, Track } from './Track';
 
-const REACTION_DELAY = 1000;
+const REACTION_DELAY = 100;
 
 export default class RemoteVideoTrack extends Track {
   /** @internal */
@@ -60,21 +60,20 @@ export default class RemoteVideoTrack extends Track {
   attach(element?: HTMLMediaElement): HTMLMediaElement {
     if (!element) {
       element = super.attach();
+    } else {
+      super.attach(element);
     }
-    super.attach(element);
 
     if (this.autoManaged) {
       this.elementInfos.push({
         element,
         visible: true, // default visible
-        width: element.clientWidth,
-        height: element.clientHeight,
       });
 
       (element as ObservableMediaElement)
         .handleResize = this.debouncedHandleResize;
       (element as ObservableMediaElement)
-        .handleVisibilityChanged = this.debouncedHandleVisibilityChanged;
+        .handleVisibilityChanged = this.handleVisibilityChanged;
 
       getIntersectionObserver().observe(element);
       getResizeObserver().observe(element);
@@ -125,21 +124,9 @@ export default class RemoteVideoTrack extends Track {
     this.updateVisibility();
   };
 
-  private readonly debouncedHandleVisibilityChanged = debounce(
-    this.handleVisibilityChanged, REACTION_DELAY,
-  );
-
-  private handleResize = (entry: ResizeObserverEntry) => {
-    const { target, contentRect } = entry;
-    const elementInfo = this.elementInfos.find((info) => info.element === target);
-    if (elementInfo) {
-      elementInfo.width = contentRect.width;
-      elementInfo.height = contentRect.height;
-    }
+  private readonly debouncedHandleResize = debounce(() => {
     this.updateDimensions();
-  };
-
-  private readonly debouncedHandleResize = debounce(this.handleResize, REACTION_DELAY);
+  }, REACTION_DELAY);
 
   private updateVisibility() {
     const lastVisibilityChange = this.elementInfos.reduce(
@@ -169,9 +156,9 @@ export default class RemoteVideoTrack extends Track {
     let maxHeight = 0;
     for (const info of this.elementInfos) {
       if (info.visible) {
-        if (info.width + info.height > maxWidth + maxHeight) {
-          maxWidth = info.width;
-          maxHeight = info.height;
+        if (info.element.clientWidth + info.element.clientHeight > maxWidth + maxHeight) {
+          maxWidth = info.element.clientWidth;
+          maxHeight = info.element.clientHeight;
         }
       }
     }
@@ -190,8 +177,6 @@ export default class RemoteVideoTrack extends Track {
 
 interface ElementInfo {
   element: HTMLMediaElement;
-  width: number;
-  height: number;
   visible: boolean;
   visibilityChangedAt?: number;
 }

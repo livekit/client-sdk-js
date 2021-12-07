@@ -123,13 +123,13 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   protected handleVisibilityChange = (visible: boolean) => {
-    log.debug(`automanage video visibility, visible=${visible}`);
+    log.debug('automanage video visibility', this.trackSid, `visible=${visible}`);
     this.disabled = !visible;
     this.emitTrackUpdate();
   };
 
   protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
-    log.debug(`automanage video dimensions, ${dimensions.width}x${dimensions.height}`);
+    log.debug('automanage video dimensions', this.trackSid, `${dimensions.width}x${dimensions.height}`);
     this.videoDimensions = dimensions;
     this.emitTrackUpdate();
   };
