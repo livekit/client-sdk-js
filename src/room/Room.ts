@@ -170,18 +170,12 @@ class Room extends EventEmitter {
       this.localParticipant.updateInfo(pi);
       // forward metadata changed for the local participant
       this.localParticipant
-        .on(
-          ParticipantEvent.MetadataChanged,
-          (metadata: object, p: Participant) => {
-            this.emit(RoomEvent.MetadataChanged, metadata, p);
-          },
-        )
-        .on(
-          ParticipantEvent.ParticipantMetadataChanged,
-          (metadata: object, p: Participant) => {
-            this.emit(RoomEvent.ParticipantMetadataChanged, metadata, p);
-          },
-        )
+        .on(ParticipantEvent.MetadataChanged, (metadata: object) => {
+          this.emit(RoomEvent.MetadataChanged, metadata, this.localParticipant);
+        })
+        .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: object) => {
+          this.emit(RoomEvent.ParticipantMetadataChanged, metadata, this.localParticipant);
+        })
         .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
           this.emit(RoomEvent.TrackMuted, pub, this.localParticipant);
         })
@@ -615,12 +609,12 @@ class Room extends EventEmitter {
         .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
           this.emit(RoomEvent.TrackUnmuted, pub, participant);
         })
-        .on(
-          ParticipantEvent.MetadataChanged, (metadata: object, p: Participant) => {
-            this.emit(RoomEvent.ParticipantMetadataChanged, metadata, p);
-            this.emit(RoomEvent.MetadataChanged, metadata, p);
-          },
-        )
+        .on(ParticipantEvent.MetadataChanged, (metadata: any) => {
+          this.emit(RoomEvent.MetadataChanged, metadata, participant);
+        })
+        .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: any) => {
+          this.emit(RoomEvent.ParticipantMetadataChanged, metadata, participant);
+        })
         .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
           this.emit(RoomEvent.ConnectionQualityChanged, quality, participant);
         });

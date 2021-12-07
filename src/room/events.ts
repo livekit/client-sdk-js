@@ -194,20 +194,127 @@ export enum RoomEvent {
 }
 
 export enum ParticipantEvent {
+  /**
+   * When a new track is published to room *after* the local
+   * participant has joined. It will not fire for tracks that are already published.
+   *
+   * A track published doesn't mean the participant has subscribed to it. It's
+   * simply reflecting the state of the room.
+   *
+   * args: ([[RemoteTrackPublication]])
+   */
   TrackPublished = 'trackPublished',
+
+  /**
+   * The [[LocalParticipant]] has subscribed to a new track. This event will **always**
+   * fire as long as new tracks are ready for use.
+   *
+   * args: ([[RemoteTrack]], [[RemoteTrackPublication]])
+   */
   TrackSubscribed = 'trackSubscribed',
+
+  /**
+   * Could not subscribe to a track
+   *
+   * args: (track sid)
+   */
   TrackSubscriptionFailed = 'trackSubscriptionFailed',
+
+  /**
+   * A local track was unpublished. This event is helpful to know when to remove
+   * the local track from your UI.
+   *
+   * When a user stops sharing their screen by pressing "End" on the browser UI,
+   * this event will also fire.
+   *
+   * args: ([[LocalTrackPublication]])
+   */
   TrackUnpublished = 'trackUnpublished',
+
+  /**
+   * A subscribed track is no longer available. Clients should listen to this
+   * event and ensure they detach tracks.
+   *
+   * args: ([[Track]], [[RemoteTrackPublication]])
+   */
   TrackUnsubscribed = 'trackUnsubscribed',
+
+  /**
+   * A track that was muted, fires on both [[RemoteParticipant]]s and [[LocalParticipant]]
+   *
+   * args: ([[TrackPublication]])
+   */
   TrackMuted = 'trackMuted',
+
+  /**
+   * A track that was unmuted, fires on both [[RemoteParticipant]]s and [[LocalParticipant]]
+   *
+   * args: ([[TrackPublication]])
+   */
   TrackUnmuted = 'trackUnmuted',
+
+  /**
+   * A local track was published successfully. This event is helpful to know
+   * when to update your local UI with the newly published track.
+   *
+   * args: ([[LocalTrackPublication]])
+   */
   LocalTrackPublished = 'localTrackPublished',
+
+  /**
+   * A local track was unpublished. This event is helpful to know when to remove
+   * the local track from your UI.
+   *
+   * When a user stops sharing their screen by pressing "End" on the browser UI,
+   * this event will also fire.
+   *
+   * args: ([[LocalTrackPublication]])
+   */
   LocalTrackUnpublished = 'localTrackUnpublished',
+
+  /**
+   * @deprecated Use ParticipantMetadataChanged instead
+   * @internal
+   */
   MetadataChanged = 'metadataChanged',
+
+  /**
+   * Participant metadata is a simple way for app-specific state to be pushed to
+   * all users.
+   * When RoomService.UpdateParticipantMetadata is called to change a participant's
+   * state, *all*  participants in the room will fire this event.
+   * To access the current metadata, see [[Participant.metadata]].
+   *
+   * args: (prevMetadata: string)
+   *
+   */
   ParticipantMetadataChanged = 'participantMetadataChanged',
+
+  /**
+   * Data received from this participant as sender.
+   * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
+   * All participants in the room will receive the messages sent to the room.
+   *
+   * args: (payload: Uint8Array, kind: [[DataPacket_Kind]])
+   */
   DataReceived = 'dataReceived',
+
+  /**
+   * Has apeaking status changed for the current participant
+   *
+   * args: (speaking: boolean)
+   */
   IsSpeakingChanged = 'isSpeakingChanged',
+
+  /**
+   * Connection quality was changed for a Participant. It'll receive updates
+   * from the local participant, as well as any [[RemoteParticipant]]s that we are
+   * subscribed to.
+   *
+   * args: (connectionQuality: [[ConnectionQuality]])
+   */
   ConnectionQualityChanged = 'connectionQualityChanged',
+
   // fired only on LocalParticipant
   /** @internal */
   MediaDevicesError = 'mediaDevicesError',
