@@ -300,7 +300,7 @@ export enum ParticipantEvent {
   DataReceived = 'dataReceived',
 
   /**
-   * Has apeaking status changed for the current participant
+   * Has speaking status changed for the current participant
    *
    * args: (speaking: boolean)
    */
