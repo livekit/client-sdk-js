@@ -1,6 +1,6 @@
 import { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
-import { VideoQuality } from '../../proto/livekit_rtc';
+import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import { monitorFrequency, VideoSenderStats } from '../stats';
 import LocalTrack from './LocalTrack';
 import { CreateVideoTrackOptions } from './options';
@@ -310,7 +310,7 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 }
 
-function videoQualityForRid(rid: string): VideoQuality {
+export function videoQualityForRid(rid: string): VideoQuality {
   switch (rid) {
     case 'f':
       return VideoQuality.HIGH;
@@ -321,4 +321,33 @@ function videoQualityForRid(rid: string): VideoQuality {
     default:
       return VideoQuality.UNRECOGNIZED;
   }
+}
+
+export function videoLayersFromEncodings(
+  width: number,
+  height: number,
+  encodings?: RTCRtpEncodingParameters[],
+): VideoLayer[] {
+  // default to a single layer, HQ
+  if (!encodings) {
+    return [{
+      quality: VideoQuality.HIGH,
+      width,
+      height,
+      bitrate: 0,
+    }];
+  }
+  return encodings.map((encoding) => {
+    const scale = encoding.scaleResolutionDownBy ?? 1;
+    let quality = videoQualityForRid(encoding.rid ?? '');
+    if (quality === VideoQuality.UNRECOGNIZED && encodings.length === 1) {
+      quality = VideoQuality.HIGH;
+    }
+    return {
+      quality,
+      width: width / scale,
+      height: height / scale,
+      bitrate: encoding.maxBitrate ?? 0,
+    };
+  });
 }

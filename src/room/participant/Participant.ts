@@ -154,7 +154,8 @@ export default class Participant extends EventEmitter {
     this.metadata = md;
 
     if (changed) {
-      this.emit(ParticipantEvent.MetadataChanged, prevMetadata);
+      this.emit(ParticipantEvent.MetadataChanged, prevMetadata, this);
+      this.emit(ParticipantEvent.ParticipantMetadataChanged, prevMetadata, this);
     }
   }
 

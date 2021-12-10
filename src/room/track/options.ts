@@ -221,7 +221,7 @@ export class VideoPreset {
 
   height: number;
 
-  constructor(width: number, height: number, maxBitrate: number, maxFramerate: number) {
+  constructor(width: number, height: number, maxBitrate: number, maxFramerate?: number) {
     this.width = width;
     this.height = height;
     this.encoding = {
