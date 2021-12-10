@@ -1,4 +1,5 @@
 import log from '../../logger';
+import { RoomOptions } from '../../options';
 import { DataPacket, DataPacket_Kind } from '../../proto/livekit_models';
 import { AddTrackRequest } from '../../proto/livekit_rtc';
 import { getTrackPublishDefaults } from '../defaults';
@@ -25,8 +26,6 @@ import Participant from './Participant';
 import RemoteParticipant from './RemoteParticipant';
 
 export default class LocalParticipant extends Participant {
-  private engine: RTCEngine;
-
   audioTracks: Map<string, LocalTrackPublication>;
 
   videoTracks: Map<string, LocalTrackPublication>;
@@ -37,13 +36,18 @@ export default class LocalParticipant extends Participant {
   /** @internal */
   pendingPublishing = new Set<Track.Source>();
 
+  private engine: RTCEngine;
+
+  private roomOptions?: RoomOptions;
+
   /** @internal */
-  constructor(sid: string, identity: string, engine: RTCEngine) {
+  constructor(sid: string, identity: string, engine: RTCEngine, options?: RoomOptions) {
     super(sid, identity);
     this.audioTracks = new Map();
     this.videoTracks = new Map();
     this.tracks = new Map();
     this.engine = engine;
+    this.roomOptions = options;
 
     this.engine.on(EngineEvent.RemoteMuteChanged, (trackSid: string, muted: boolean) => {
       const pub = this.tracks.get(trackSid);
@@ -299,7 +303,9 @@ export default class LocalParticipant extends Participant {
       track.removeListener(TrackEvent.Muted, this.onTrackMuted);
       track.removeListener(TrackEvent.Unmuted, this.onTrackUnmuted);
     }
-    track.stop();
+    if (this.roomOptions?.stopLocalTrackOnUnpublish ?? true) {
+      track.stop();
+    }
 
     let mediaStreamTrack: MediaStreamTrack;
     if (track instanceof MediaStreamTrack) {

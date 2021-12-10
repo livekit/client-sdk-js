@@ -1,4 +1,4 @@
-import { VideoPresets } from '../..';
+import { VideoPresets } from '../track/options';
 import { computeVideoEncodings } from './LocalParticipant';
 
 describe('computeVideoEncodings', () => {

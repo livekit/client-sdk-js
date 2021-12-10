@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
+import { RoomOptions } from '../options';
 import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
@@ -31,12 +32,6 @@ export enum RoomState {
   Disconnected = 'disconnected',
   Connected = 'connected',
   Reconnecting = 'reconnecting',
-}
-
-export interface RoomOptions {
-  autoManageVideo?: boolean;
-
-  rtcConfig?: RTCConfiguration;
 }
 
 /**
@@ -165,6 +160,7 @@ class Room extends EventEmitter {
         pi.sid,
         pi.identity,
         this.engine,
+        this.options,
       );
 
       this.localParticipant.updateInfo(pi);
