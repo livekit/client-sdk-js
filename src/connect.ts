@@ -52,6 +52,7 @@ export async function connect(
   const room = new Room(client, {
     rtcConfig: options.rtcConfig,
     autoManageVideo: options.autoManageVideo,
+    stopLocalTrackOnUnpublish: options.stopLocalTrackOnUnpublish,
   });
 
   // connect to room

@@ -2,6 +2,14 @@ import {
   CreateLocalTracksOptions, TrackCaptureDefaults, TrackPublishDefaults,
 } from './room/track/options';
 
+export interface RoomOptions {
+  autoManageVideo?: boolean;
+
+  rtcConfig?: RTCConfiguration;
+
+  stopLocalTrackOnUnpublish?: boolean;
+}
+
 /**
  * if video or audio tracks are created as part of [[connect]], it'll automatically
  * publish those tracks to the room.
@@ -57,6 +65,12 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
    * default options to use when publishing tracks
    */
   publishDefaults?: TrackPublishDefaults;
+
+  /**
+   * should local tracks be stopped when they are unpublished. defaults to true
+   * set this to false if you would prefer to clean up unpublished local tracks manually.
+   */
+  stopLocalTrackOnUnpublish?: boolean;
 }
 
 export enum LogLevel {
