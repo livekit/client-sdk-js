@@ -282,7 +282,7 @@ export const VideoPresets43 = {
 export const ScreenSharePresets = {
   vga: new VideoPreset(640, 360, 200_000, 3),
   hd_8: new VideoPreset(1280, 720, 400_000, 5),
-  hd_15: new VideoPreset(1280, 720, 1_250_000, 15),
-  fhd_15: new VideoPreset(1920, 1080, 2_000_000, 15),
-  fhd_30: new VideoPreset(1920, 1080, 4_000_000, 30),
+  hd_15: new VideoPreset(1280, 720, 800_000, 15),
+  fhd_15: new VideoPreset(1920, 1080, 1_500_000, 15),
+  fhd_30: new VideoPreset(1920, 1080, 3_000_000, 30),
 };

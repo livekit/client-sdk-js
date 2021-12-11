@@ -1,11 +1,12 @@
 import {
-  AudioPresets, TrackCaptureDefaults, TrackPublishDefaults, VideoPresets,
+  AudioPresets, ScreenSharePresets, TrackCaptureDefaults, TrackPublishDefaults, VideoPresets,
 } from './track/options';
 
 let publishDefaults: TrackPublishDefaults = {
   audioBitrate: AudioPresets.speech.maxBitrate,
   dtx: true,
   simulcast: true,
+  screenShareEncoding: ScreenSharePresets.hd_15.encoding,
   stopMicTrackOnMute: false,
 };
 
