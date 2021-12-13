@@ -16,13 +16,65 @@
     />
 
     <style>
-      .video-container {
+      #participants-area {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+      }
+      #participants-area > .participant {
+        width: 100%;
+      }
+      #participants-area > .participant::before {
+        content: "";
         display: inline-block;
+        width: 1px;
+        height: 0;
+        padding-bottom: calc(100% / (16/9));
+      }
+
+      .participant {
+        position: relative;
+        padding: 0;
+        margin: 0;
+        border-radius: 5px;
+        border: 3px solid rgba(0, 0, 0, 0);
+        overflow: hidden;
+      }
+
+      .participant video {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #aaa;
+        object-fit: cover;
         border-radius: 5px;
       }
 
-      .video-container video.speaking {
-        border: 4px solid rgba(94, 166, 190, 0.7);
+      .participant .info-bar {
+        position: absolute;
+        width: 100%;
+        bottom: 0;
+        display: grid;
+        color: #eee;
+        padding: 2px 8px 2px 8px;
+        background-color: rgba(0, 0, 0, 0.35);
+        grid-template-columns: 1fr auto 1fr;
+        z-index: 5;
+      }
+
+      .participant.speaking {
+        border: 3px solid rgba(94, 166, 190, 0.7);
+      }
+
+      .participant .mic-off {
+        color: #d33;
+        text-align: right;
+      }
+
+      .participant .mic-on {
+        text-align: right;
       }
     </style>
   </head>
@@ -52,7 +104,7 @@
             </div>
 
             <div class="form-group row">
-              <div class="col-md-2 offset-md-1">
+              <div class="col-md-2">
                 <div class="form-check">
                   <input
                     type="checkbox"
@@ -60,7 +112,7 @@
                     id="publish-option"
                     checked
                   />
-                  <label for="checkbox" class="form-check-label">
+                  <label for="publish-option" class="form-check-label">
                     Publish
                   </label>
                 </div>
@@ -73,8 +125,21 @@
                     id="simulcast"
                     checked
                   />
-                  <label for="checkbox" class="form-check-label">
+                  <label for="simulcast" class="form-check-label">
                     Simulcast
+                  </label>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="form-check">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    id="adaptive-video"
+                    checked
+                  />
+                  <label for="adaptive-video" class="form-check-label">
+                    Adaptive video
                   </label>
                 </div>
               </div>
@@ -85,7 +150,7 @@
                     class="form-check-input"
                     id="force-turn"
                   />
-                  <label for="checkbox" class="form-check-label">
+                  <label for="force-turn" class="form-check-label">
                     Force TURN
                   </label>
                 </div>
@@ -98,7 +163,7 @@
                   id="connect-button"
                   class="btn btn-primary mt-1"
                   type="button"
-                  onclick="connectWithFormInput()"
+                  onclick="appActions.connectWithFormInput()"
                 >
                   Connect
                 </button>
@@ -109,34 +174,34 @@
                   class="btn btn-secondary mt-1"
                   disabled
                   type="button"
-                  onclick="toggleAudio()"
+                  onclick="appActions.toggleAudio()"
                 >
-                  Enable Audio
+                  Enable Mic
                 </button>
                 <button
                   id="toggle-video-button"
                   class="btn btn-secondary mt-1"
                   disabled
                   type="button"
-                  onclick="toggleVideo()"
+                  onclick="appActions.toggleVideo()"
                 >
-                  Enable Video
+                  Enable Camera
                 </button>
                 <button
                   id="flip-video-button"
                   class="btn btn-secondary mt-1"
                   disabled
                   type="button"
-                  onclick="flipVideo()"
+                  onclick="appActions.flipVideo()"
                 >
-                  Back Camera
+                  Flip Camera
                 </button>
                 <button
                   id="share-screen-button"
                   class="btn btn-secondary mt-1"
                   disabled
                   type="button"
-                  onclick="shareScreen()"
+                  onclick="appActions.shareScreen()"
                 >
                   Share Screen
                 </button>
@@ -145,16 +210,16 @@
                   class="btn btn-warning mt-1"
                   disabled
                   type="button"
-                  onclick="disconnectSignal()"
+                  onclick="appActions.disconnectSignal()"
                 >
-                  WS Reconnect
+                  Signal Reconnect
                 </button>
                 <button
                   id="disconnect-room-button"
                   class="btn btn-danger mt-1"
                   disabled
                   type="button"
-                  onclick="disconnectRoom()"
+                  onclick="appActions.disconnectRoom()"
                 >
                   Disconnect
                 </button>
@@ -163,9 +228,9 @@
                   class="btn btn-secondary mt-1"
                   disabled
                   type="button"
-                  onclick="startAudio()"
+                  onclick="appActions.startAudio()"
                 >
-                  Enable Audio
+                  Start Audio
                 </button>
               </div>
             </div>
@@ -173,17 +238,17 @@
             <!-- video devices -->
             <div class="form-group row">
               <div class="col-md-4">
-                <select id="video-input" class="custom-select" onchange="handleDeviceSelected(event)">
+                <select id="video-input" class="custom-select" onchange="appActions.handleDeviceSelected(event)">
                   <option selected>Video Input (default)</option>
                 </select>
               </div>
               <div class="col-md-4">
-                <select id="audio-input" class="custom-select" onchange="handleDeviceSelected(event)">
+                <select id="audio-input" class="custom-select" onchange="appActions.handleDeviceSelected(event)">
                   <option selected>Audio Input (default)</option>
                 </select>
               </div>
               <div class="col-md-4">
-                <select id="audio-output" class="custom-select" onchange="handleDeviceSelected(event)">
+                <select id="audio-output" class="custom-select" onchange="appActions.handleDeviceSelected(event)">
                   <option selected>Audio Output (default)</option>
                 </select>
               </div>
@@ -211,22 +276,24 @@
             </div>
             <div class="col-md-1">
               <button
+                id="send-button"
                 class="btn btn-primary"
                 type="button"
-                onclick="enterText()"
+                onclick="appActions.enterText()"
+                disabled
               >
-                Enter
+                Send
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="row" id="remote-area"></div>
-      <div class="row" id="local-area">
-        <div class="col-md-6 video-container" id="local-video"></div>
+      <div id="participants-area" class="row">
       </div>
     </div>
     <script src="bundle.js"></script>
+    <!-- for icons -->
+    <script src="https://kit.fontawesome.com/7c1c4c7e9c.js" crossorigin="anonymous"></script>
   </body>
 </html>

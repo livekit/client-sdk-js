@@ -1,35 +1,231 @@
 import {
-  connect, CreateVideoTrackOptions, DataPacket_Kind, LocalTrack, LocalTrackPublication, LogLevel,
+  connect,
+  ConnectOptions,
+  CreateVideoTrackOptions,
+  DataPacket_Kind, LocalParticipant, LogLevel,
   MediaDeviceFailure,
   Participant,
   ParticipantEvent,
-  RemoteParticipant,
-  RemoteTrack,
-  RemoteTrackPublication,
-  Room,
-  RoomEvent,
-  Track, TrackPublication, VideoPresets,
+  RemoteParticipant, Room,
+  RoomEvent, Track, TrackPublication, VideoPresets,
 } from '../src/index';
 import { ConnectionQuality } from '../src/room/participant/Participant';
 
 const $ = (id: string) => document.getElementById(id);
 
+const state = {
+  isFrontFacing: false,
+  encoder: new TextEncoder(),
+  decoder: new TextDecoder(),
+  defaultDevices: new Map<MediaDeviceKind, string>(),
+};
+
+let currentRoom: Room | undefined;
+
+// handles actions from the HTML
+const appActions = {
+  connectWithFormInput: () => {
+    const url = (<HTMLInputElement>$('url')).value;
+    const token = (<HTMLInputElement>$('token')).value;
+    const simulcast = (<HTMLInputElement>$('simulcast')).checked;
+    const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
+    const adaptiveVideo = (<HTMLInputElement>$('adaptive-video')).checked;
+    const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
+
+    const options: ConnectOptions = {
+      logLevel: LogLevel.debug,
+      audio: shouldPublish,
+      video: shouldPublish,
+      autoManageVideo: adaptiveVideo,
+      publishDefaults: {
+        simulcast,
+      },
+    };
+    if (forceTURN) {
+      options.rtcConfig = {
+        iceTransportPolicy: 'relay',
+      };
+    }
+
+    appActions.connectToRoom(url, token, options);
+  },
+
+  connectToRoom: async (
+    url: string,
+    token: string,
+    options?: ConnectOptions,
+  ) => {
+    let room: Room;
+    try {
+      room = await connect(url, token, options);
+    } catch (error) {
+      let message: any = error;
+      if (error.message) {
+        message = error.message;
+      }
+      appendLog('could not connect:', message);
+      return;
+    }
+
+    appendLog('connected to room', room.name);
+    currentRoom = room;
+    window.currentRoom = room;
+    setButtonsForState(true);
+    updateButtonsForPublishState();
+
+    room
+      .on(RoomEvent.ParticipantConnected, participantConnected)
+      .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
+      .on(RoomEvent.DataReceived, handleData)
+      .on(RoomEvent.Disconnected, handleRoomDisconnect)
+      .on(RoomEvent.Reconnecting, () => appendLog('Reconnecting to room'))
+      .on(RoomEvent.Reconnected, () => appendLog('Successfully reconnected!'))
+      .on(RoomEvent.LocalTrackPublished, () => {
+        renderParticipant(room.localParticipant);
+        updateButtonsForPublishState();
+      })
+      .on(RoomEvent.LocalTrackUnpublished, () => {
+        renderParticipant(room.localParticipant);
+        updateButtonsForPublishState();
+      })
+      .on(RoomEvent.RoomMetadataChanged, (metadata) => {
+        appendLog('new metadata for room', metadata);
+      })
+      .on(RoomEvent.MediaDevicesChanged, handleDevicesChanged)
+      .on(RoomEvent.AudioPlaybackStatusChanged, () => {
+        if (room.canPlaybackAudio) {
+          $('start-audio-button')?.setAttribute('disabled', 'true');
+        } else {
+          $('start-audio-button')?.removeAttribute('disabled');
+        }
+      })
+      .on(RoomEvent.MediaDevicesError, (e: Error) => {
+        const failure = MediaDeviceFailure.getFailure(e);
+        appendLog('media device failure', failure);
+      })
+      .on(RoomEvent.ConnectionQualityChanged,
+        (quality: ConnectionQuality, participant: Participant) => {
+          appendLog('connection quality changed', participant.identity, quality);
+        });
+
+    appendLog('room participants', room.participants.keys());
+    room.participants.forEach((participant) => {
+      participantConnected(participant);
+    });
+    participantConnected(room.localParticipant);
+
+    $('local-video')!.innerHTML = `${room.localParticipant.identity} (me)`;
+  },
+
+  toggleAudio: async () => {
+    if (!currentRoom) return;
+    const enabled = currentRoom.localParticipant.isMicrophoneEnabled;
+    if (enabled) {
+      appendLog('disabling audio');
+    } else {
+      appendLog('enabling audio');
+    }
+    await currentRoom.localParticipant.setMicrophoneEnabled(!enabled);
+    updateButtonsForPublishState();
+  },
+
+  toggleVideo: async () => {
+    if (!currentRoom) return;
+    const enabled = currentRoom.localParticipant.isCameraEnabled;
+    if (enabled) {
+      appendLog('disabling video');
+    } else {
+      appendLog('enabling video');
+    }
+    await currentRoom.localParticipant.setCameraEnabled(!enabled);
+    renderParticipant(currentRoom.localParticipant);
+
+    // update display
+    updateButtonsForPublishState();
+  },
+
+  flipVideo: () => {
+    const videoPub = currentRoom?.localParticipant.getTrack(Track.Source.Camera);
+    if (!videoPub) {
+      return;
+    }
+    if (state.isFrontFacing) {
+      setButtonState('flip-video-button', 'Front Camera', false);
+    } else {
+      setButtonState('flip-video-button', 'Back Camera', false);
+    }
+    state.isFrontFacing = !state.isFrontFacing;
+    const options: CreateVideoTrackOptions = {
+      resolution: VideoPresets.qhd.resolution,
+      facingMode: state.isFrontFacing ? 'user' : 'environment',
+    };
+    videoPub.videoTrack?.restartTrack(options);
+  },
+
+  shareScreen: async () => {
+    if (!currentRoom) return;
+
+    const enabled = currentRoom.localParticipant.isScreenShareEnabled;
+    appendLog(`${enabled ? 'stopping' : 'starting'} screen share`);
+    await currentRoom.localParticipant.setScreenShareEnabled(!enabled);
+    updateButtonsForPublishState();
+  },
+
+  startAudio: () => {
+    currentRoom?.startAudio();
+  },
+
+  enterText: () => {
+    if (!currentRoom) return;
+    const textField = <HTMLInputElement>$('entry');
+    if (textField.value) {
+      const msg = state.encoder.encode(textField.value);
+      currentRoom.localParticipant.publishData(msg, DataPacket_Kind.RELIABLE);
+      (<HTMLTextAreaElement>(
+      $('chat')
+    )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
+      textField.value = '';
+    }
+  },
+
+  disconnectRoom: () => {
+    if (currentRoom) {
+      currentRoom.disconnect();
+    }
+  },
+
+  disconnectSignal: () => {
+    if (!currentRoom) return;
+    currentRoom.engine.client.close();
+    if (currentRoom.engine.client.onClose) {
+      currentRoom.engine.client.onClose('manual disconnect');
+    }
+  },
+
+  handleDeviceSelected: async (e: Event) => {
+    const deviceId = (<HTMLSelectElement>e.target).value;
+    const elementId = (<HTMLSelectElement>e.target).id;
+    const kind = elementMapping[elementId];
+    if (!kind) {
+      return;
+    }
+
+    state.defaultDevices.set(kind, deviceId);
+
+    if (currentRoom) {
+      await currentRoom.switchActiveDevice(kind, deviceId);
+    }
+  },
+};
+
 declare global {
   interface Window {
-    connectWithFormInput: any;
-    connectToRoom: any;
-    handleDeviceSelected: any;
-    shareScreen: any;
-    toggleVideo: any;
-    toggleAudio: any;
-    enterText: any;
-    disconnectSignal: any;
-    disconnectRoom: any;
     currentRoom: any;
-    startAudio: any;
-    flipVideo: any;
+    appActions: typeof appActions;
   }
 }
+
+window.appActions = appActions;
 
 function appendLog(...args: any[]) {
   const logger = $('log')!;
@@ -49,34 +245,96 @@ function appendLog(...args: any[]) {
   })();
 }
 
-function trackSubscribed(
-  div: HTMLDivElement,
-  track: Track,
-  participant: Participant,
-): HTMLMediaElement | null {
-  appendLog('track subscribed', track);
-  const element = track.attach();
-  div.appendChild(element);
-  return element;
-}
+// updates participant UI
+function renderParticipant(participant: Participant, remove: boolean = false) {
+  const container = $('participants-area');
+  if (!container) return;
+  let div = $(`participant-${participant.sid}`);
+  if (!div && !remove) {
+    div = document.createElement('div');
+    div.id = `participant-${participant.sid}`;
+    div.className = 'participant';
+    div.innerHTML = `
+      <video id="video-${participant.sid}"></video>
+      <audio id="audio-${participant.sid}"></audio>
+      <div class="info-bar">
+        <div id="name-${participant.sid}" class="name">
+        </div>
+        <div id="size-${participant.sid}" class="size">
+        </div>
+        <div id="mic-${participant.sid}" class="mic-on">
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
 
-function trackUnsubscribed(
-  track: RemoteTrack | LocalTrack,
-  pub?: RemoteTrackPublication,
-  participant?: Participant,
-) {
-  let logName = track.name;
-  if (track.sid) {
-    logName = track.sid;
+    const sizeElm = $(`size-${participant.sid}`);
+    const videoElm = <HTMLVideoElement>$(`video-${participant.sid}`);
+    videoElm?.addEventListener('resize', () => {
+      updateVideoSize(videoElm!, sizeElm!);
+    });
   }
-  appendLog('track unsubscribed', logName);
-  track.detach().forEach((element) => element.remove());
+  const videoElm = <HTMLVideoElement>$(`video-${participant.sid}`);
+  const audioELm = <HTMLAudioElement>$(`audio-${participant.sid}`);
+  if (remove) {
+    div?.remove();
+    if (videoElm) {
+      videoElm.srcObject = null;
+      videoElm.src = '';
+    }
+    if (audioELm) {
+      audioELm.srcObject = null;
+      audioELm.src = '';
+    }
+    return;
+  }
+
+  // update properties
+  $(`name-${participant.sid}`)!.innerHTML = participant.identity;
+  const micDiv = $(`mic-${participant.sid}`)!;
+  const cameraPub = participant.getTrack(Track.Source.Camera);
+  const micPub = participant.getTrack(Track.Source.Microphone);
+  if (participant.isSpeaking) {
+    div!.classList.add('speaking');
+  } else {
+    div!.classList.remove('speaking');
+  }
+
+  const cameraEnabled = cameraPub && cameraPub.isSubscribed && !cameraPub.isMuted;
+  if (cameraEnabled) {
+    cameraPub?.videoTrack?.attach(videoElm);
+    if (participant instanceof LocalParticipant) {
+      // flip
+      videoElm.style.transform = 'scale(-1, 1)';
+    }
+  } else if (cameraPub?.videoTrack) {
+    // detach manually whenever possible
+    cameraPub.videoTrack?.detach(videoElm);
+  } else {
+    videoElm.src = '';
+    videoElm.srcObject = null;
+  }
+
+  const micEnabled = micPub && micPub.isSubscribed && !micPub.isMuted;
+  if (micEnabled) {
+    if (!(participant instanceof LocalParticipant)) {
+      // don't attach local audio
+      micPub?.audioTrack?.attach(audioELm);
+    }
+    micDiv.className = 'mic-on';
+    micDiv.innerHTML = '<i class="fas fa-microphone"></i>';
+  } else {
+    micDiv.className = 'mic-off';
+    micDiv.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+  }
 }
 
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
+function updateVideoSize(element: HTMLVideoElement, target: HTMLElement) {
+  target.innerHTML = `(${element.videoWidth}x${element.videoHeight})`;
+}
+
 function handleData(msg: Uint8Array, participant?: RemoteParticipant) {
-  const str = decoder.decode(msg);
+  const str = state.decoder.decode(msg);
   const chat = <HTMLTextAreaElement>$('chat');
   let from = 'server';
   if (participant) {
@@ -85,67 +343,47 @@ function handleData(msg: Uint8Array, participant?: RemoteParticipant) {
   chat.value += `${from}: ${str}\n`;
 }
 
-function handleSpeakerChanged(speakers: Participant[]) {
-  // remove tags from all
-  currentRoom.participants.forEach((participant) => {
-    setParticipantSpeaking(participant, speakers.includes(participant));
-  });
-
-  // do the same for local participant
-  setParticipantSpeaking(
-    currentRoom.localParticipant,
-    speakers.includes(currentRoom.localParticipant),
-  );
-}
-
-function setParticipantSpeaking(participant: Participant, speaking: boolean) {
-  participant.videoTracks.forEach((publication) => {
-    const { track } = publication;
-    if (track && track.kind === Track.Kind.Video) {
-      track.attachedElements.forEach((element) => {
-        if (speaking) {
-          element.classList.add('speaking');
-        } else {
-          element.classList.remove('speaking');
-        }
-      });
-    }
-  });
-}
-
-function participantConnected(participant: RemoteParticipant) {
-  appendLog('participant', participant.sid, 'connected', participant.metadata);
-
-  const div = document.createElement('div');
-  div.id = participant.sid;
-  div.innerText = participant.identity;
-  div.className = 'col-md-6 video-container';
-  $('remote-area')?.appendChild(div);
-
-  participant.on(ParticipantEvent.TrackSubscribed, (track) => {
-    trackSubscribed(div, track, participant);
-  });
-  participant.on(ParticipantEvent.TrackUnsubscribed, (track, pub) => {
-    trackUnsubscribed(track, pub, participant);
-  });
+function participantConnected(participant: Participant) {
+  appendLog('participant', participant.identity, 'connected', participant.metadata);
+  participant
+    .on(ParticipantEvent.TrackSubscribed, (_, pub: TrackPublication) => {
+      appendLog('subscribed to track', pub.trackSid, participant.identity);
+      renderParticipant(participant);
+    })
+    .on(ParticipantEvent.TrackUnsubscribed, (_, pub: TrackPublication) => {
+      appendLog('unsubscribed from track', pub.trackSid);
+      renderParticipant(participant);
+    })
+    .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
+      appendLog('track was muted', pub.trackSid, participant.identity);
+      renderParticipant(participant);
+    })
+    .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
+      appendLog('track was unmuted', pub.trackSid, participant.identity);
+      renderParticipant(participant);
+    })
+    .on(ParticipantEvent.IsSpeakingChanged, () => {
+      renderParticipant(participant);
+    });
 }
 
 function participantDisconnected(participant: RemoteParticipant) {
   appendLog('participant', participant.sid, 'disconnected');
 
-  $(participant.sid)?.remove();
+  renderParticipant(participant, true);
 }
 
 function handleRoomDisconnect() {
+  if (!currentRoom) return;
   appendLog('disconnected from room');
   setButtonsForState(false);
-  $('local-video')!.innerHTML = '';
+  renderParticipant(currentRoom.localParticipant, true);
 
   // clear the chat area on disconnect
-  clearChat();
+  const chat = <HTMLTextAreaElement>$('chat');
+  chat.value = '';
 
-  // clear remote area on disconnect
-  clearRemoteArea();
+  currentRoom = undefined;
 }
 
 function setButtonState(buttonId: string, buttonText: string, isActive: boolean) {
@@ -160,240 +398,7 @@ function setButtonState(buttonId: string, buttonText: string, isActive: boolean)
   }
 }
 
-function clearChat() {
-  const chat = <HTMLTextAreaElement>$('chat');
-  chat.value = '';
-}
-
-function clearRemoteArea() {
-  const el = $('remote-area');
-  if (!el) return;
-
-  while (el.firstChild) {
-    el.removeChild(el.firstChild);
-  }
-}
-
-let currentRoom: Room;
-window.connectWithFormInput = () => {
-  const url = (<HTMLInputElement>$('url')).value;
-  const token = (<HTMLInputElement>$('token')).value;
-  const simulcast = (<HTMLInputElement>$('simulcast')).checked;
-  const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
-
-  window.connectToRoom(url, token, simulcast, forceTURN);
-};
-
-window.connectToRoom = async (
-  url: string,
-  token: string,
-  simulcast: boolean = false,
-  forceTURN: boolean = false,
-) => {
-  let room: Room;
-  const rtcConfig: RTCConfiguration = {};
-  if (forceTURN) {
-    rtcConfig.iceTransportPolicy = 'relay';
-  }
-  const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
-
-  try {
-    room = await connect(url, token, {
-      logLevel: LogLevel.debug,
-      rtcConfig,
-      audio: shouldPublish,
-      video: shouldPublish,
-      autoManageVideo: true,
-      publishDefaults: {
-        simulcast,
-      },
-    });
-  } catch (error) {
-    let message: any = error;
-    if (error.message) {
-      message = error.message;
-    }
-    appendLog('could not connect:', message);
-    return;
-  }
-
-  appendLog('connected to room', room.name);
-  currentRoom = room;
-  window.currentRoom = room;
-  setButtonsForState(true);
-  updateButtonsForPublishState();
-
-  room
-    .on(RoomEvent.ParticipantConnected, participantConnected)
-    .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
-    .on(RoomEvent.DataReceived, handleData)
-    .on(RoomEvent.ActiveSpeakersChanged, handleSpeakerChanged)
-    .on(RoomEvent.Disconnected, handleRoomDisconnect)
-    .on(RoomEvent.Reconnecting, () => appendLog('Reconnecting to room'))
-    .on(RoomEvent.Reconnected, () => appendLog('Successfully reconnected!'))
-    .on(RoomEvent.TrackMuted, (pub: TrackPublication, p: Participant) => appendLog('track was muted', pub.trackSid, p.identity))
-    .on(RoomEvent.TrackUnmuted, (pub: TrackPublication, p: Participant) => appendLog('track was unmuted', pub.trackSid, p.identity))
-    .on(RoomEvent.LocalTrackPublished, (pub: LocalTrackPublication) => {
-      if (pub.kind === Track.Kind.Video) {
-        attachLocalVideo();
-      }
-      updateButtonsForPublishState();
-    })
-    .on(RoomEvent.RoomMetadataChanged, (metadata) => {
-      appendLog('new metadata for room', metadata);
-    })
-    .on(RoomEvent.MediaDevicesChanged, handleDevicesChanged)
-    .on(RoomEvent.AudioPlaybackStatusChanged, () => {
-      if (room.canPlaybackAudio) {
-        $('start-audio-button')?.setAttribute('disabled', 'true');
-      } else {
-        $('start-audio-button')?.removeAttribute('disabled');
-      }
-    })
-    .on(RoomEvent.MediaDevicesError, (e: Error) => {
-      const failure = MediaDeviceFailure.getFailure(e);
-      appendLog('media device failure', failure);
-    })
-    .on(RoomEvent.ConnectionQualityChanged,
-      (quality: ConnectionQuality, participant: Participant) => {
-        appendLog('connection quality changed', participant.identity, quality);
-      });
-
-  appendLog('room participants', room.participants.keys());
-  room.participants.forEach((participant) => {
-    participantConnected(participant);
-  });
-
-  $('local-video')!.innerHTML = `${room.localParticipant.identity} (me)`;
-};
-
-window.toggleVideo = async () => {
-  if (!currentRoom) return;
-  const video = getMyVideo();
-  if (currentRoom.localParticipant.isCameraEnabled) {
-    appendLog('disabling video');
-    await currentRoom.localParticipant.setCameraEnabled(false);
-    // hide from display
-    if (video) {
-      video.style.display = 'none';
-    }
-  } else {
-    appendLog('enabling video');
-    await currentRoom.localParticipant.setCameraEnabled(true);
-    attachLocalVideo();
-    if (video) {
-      video.style.display = '';
-    }
-  }
-  updateButtonsForPublishState();
-};
-
-window.toggleAudio = async () => {
-  if (!currentRoom) return;
-  if (currentRoom.localParticipant.isMicrophoneEnabled) {
-    appendLog('disabling audio');
-    await currentRoom.localParticipant.setMicrophoneEnabled(false);
-  } else {
-    appendLog('enabling audio');
-    await currentRoom.localParticipant.setMicrophoneEnabled(true);
-  }
-  updateButtonsForPublishState();
-};
-
-window.enterText = () => {
-  const textField = <HTMLInputElement>$('entry');
-  if (textField.value) {
-    const msg = encoder.encode(textField.value);
-    currentRoom.localParticipant.publishData(msg, DataPacket_Kind.RELIABLE);
-    (<HTMLTextAreaElement>(
-      $('chat')
-    )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
-    textField.value = '';
-  }
-};
-
-window.shareScreen = async () => {
-  if (!currentRoom) return;
-
-  if (currentRoom.localParticipant.isScreenShareEnabled) {
-    appendLog('stopping screen share');
-    await currentRoom.localParticipant.setScreenShareEnabled(false);
-  } else {
-    appendLog('starting screen share');
-    await currentRoom.localParticipant.setScreenShareEnabled(true);
-    appendLog('started screen share');
-  }
-  updateButtonsForPublishState();
-};
-
-window.disconnectSignal = () => {
-  if (!currentRoom) return;
-  currentRoom.engine.client.close();
-  if (currentRoom.engine.client.onClose) {
-    currentRoom.engine.client.onClose('manual disconnect');
-  }
-};
-
-window.disconnectRoom = () => {
-  if (currentRoom) {
-    currentRoom.disconnect();
-  }
-};
-
-window.startAudio = () => {
-  currentRoom.startAudio();
-};
-
-let isFrontFacing = true;
-window.flipVideo = () => {
-  const videoPub = currentRoom.localParticipant.getTrack(Track.Source.Camera);
-  if (!videoPub) {
-    return;
-  }
-  if (isFrontFacing) {
-    setButtonState('flip-video-button', 'Front Camera', false);
-  } else {
-    setButtonState('flip-video-button', 'Back Camera', false);
-  }
-  isFrontFacing = !isFrontFacing;
-  const options: CreateVideoTrackOptions = {
-    resolution: VideoPresets.qhd.resolution,
-    facingMode: isFrontFacing ? 'user' : 'environment',
-  };
-  videoPub.videoTrack?.restartTrack(options);
-};
-
-const defaultDevices = new Map<MediaDeviceKind, string>();
-window.handleDeviceSelected = async (e: Event) => {
-  const deviceId = (<HTMLSelectElement>e.target).value;
-  const elementId = (<HTMLSelectElement>e.target).id;
-  const kind = elementMapping[elementId];
-  if (!kind) {
-    return;
-  }
-
-  defaultDevices.set(kind, deviceId);
-
-  if (currentRoom) {
-    await currentRoom.switchActiveDevice(kind, deviceId);
-  }
-};
-
 setTimeout(handleDevicesChanged, 100);
-
-async function attachLocalVideo() {
-  const videoPub = currentRoom.localParticipant.getTrack(Track.Source.Camera);
-  const videoTrack = videoPub?.videoTrack;
-  if (!videoTrack) {
-    return;
-  }
-
-  if (videoTrack.attachedElements.length === 0) {
-    const video = videoTrack.attach();
-    video.style.transform = 'scale(-1, 1)';
-    $('local-video')!.appendChild(video);
-  }
-}
 
 function setButtonsForState(connected: boolean) {
   const connectedSet = [
@@ -403,6 +408,7 @@ function setButtonsForState(connected: boolean) {
     'disconnect-ws-button',
     'disconnect-room-button',
     'flip-video-button',
+    'send-button',
   ];
   const disconnectedSet = ['connect-button'];
 
@@ -411,10 +417,6 @@ function setButtonsForState(connected: boolean) {
 
   toRemove.forEach((id) => $(id)?.removeAttribute('disabled'));
   toAdd.forEach((id) => $(id)?.setAttribute('disabled', 'true'));
-}
-
-function getMyVideo() {
-  return <HTMLVideoElement>document.querySelector('#local-video video');
 }
 
 const elementMapping: { [k: string]: MediaDeviceKind } = {
@@ -430,7 +432,7 @@ async function handleDevicesChanged() {
     }
     const devices = await Room.getLocalDevices(kind);
     const element = <HTMLSelectElement>$(id);
-    populateSelect(kind, element, devices, defaultDevices.get(kind));
+    populateSelect(kind, element, devices, state.defaultDevices.get(kind));
   }));
 }
 
