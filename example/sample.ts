@@ -7,7 +7,7 @@ import {
   Participant,
   ParticipantEvent,
   RemoteParticipant, Room,
-  RoomEvent, Track, TrackPublication, VideoPresets,
+  RoomEvent, RoomState, Track, TrackPublication, VideoPresets,
 } from '../src/index';
 import { ConnectionQuality } from '../src/room/participant/Participant';
 
@@ -37,6 +37,9 @@ const appActions = {
       audio: shouldPublish,
       video: shouldPublish,
       autoManageVideo: adaptiveVideo,
+      captureDefaults: {
+        videoResolution: VideoPresets.hd.resolution,
+      },
       publishDefaults: {
         simulcast,
       },
@@ -83,10 +86,12 @@ const appActions = {
       .on(RoomEvent.LocalTrackPublished, () => {
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
+        renderScreenShare();
       })
       .on(RoomEvent.LocalTrackUnpublished, () => {
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
+        renderScreenShare();
       })
       .on(RoomEvent.RoomMetadataChanged, (metadata) => {
         appendLog('new metadata for room', metadata);
@@ -113,8 +118,6 @@ const appActions = {
       participantConnected(participant);
     });
     participantConnected(room.localParticipant);
-
-    $('local-video')!.innerHTML = `${room.localParticipant.identity} (me)`;
   },
 
   toggleAudio: async () => {
@@ -191,6 +194,7 @@ const appActions = {
   disconnectRoom: () => {
     if (currentRoom) {
       currentRoom.disconnect();
+      renderParticipant(currentRoom.localParticipant, true);
     }
   },
 
@@ -226,6 +230,73 @@ declare global {
 }
 
 window.appActions = appActions;
+
+// --------------------------- event handlers ------------------------------- //
+
+function handleData(msg: Uint8Array, participant?: RemoteParticipant) {
+  const str = state.decoder.decode(msg);
+  const chat = <HTMLTextAreaElement>$('chat');
+  let from = 'server';
+  if (participant) {
+    from = participant.identity;
+  }
+  chat.value += `${from}: ${str}\n`;
+}
+
+function participantConnected(participant: Participant) {
+  appendLog('participant', participant.identity, 'connected', participant.metadata);
+  participant
+    .on(ParticipantEvent.TrackSubscribed, (_, pub: TrackPublication) => {
+      appendLog('subscribed to track', pub.trackSid, participant.identity);
+      renderParticipant(participant);
+      renderScreenShare();
+    })
+    .on(ParticipantEvent.TrackUnsubscribed, (_, pub: TrackPublication) => {
+      appendLog('unsubscribed from track', pub.trackSid);
+      renderParticipant(participant);
+      renderScreenShare();
+    })
+    .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
+      appendLog('track was muted', pub.trackSid, participant.identity);
+      renderParticipant(participant);
+    })
+    .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
+      appendLog('track was unmuted', pub.trackSid, participant.identity);
+      renderParticipant(participant);
+    })
+    .on(ParticipantEvent.IsSpeakingChanged, () => {
+      renderParticipant(participant);
+    });
+}
+
+function participantDisconnected(participant: RemoteParticipant) {
+  appendLog('participant', participant.sid, 'disconnected');
+
+  renderParticipant(participant, true);
+}
+
+function handleRoomDisconnect() {
+  if (!currentRoom) return;
+  appendLog('disconnected from room');
+  setButtonsForState(false);
+  renderParticipant(currentRoom.localParticipant, true);
+  currentRoom.participants.forEach((p) => {
+    renderParticipant(p, true);
+  });
+
+  const container = $('participants-area');
+  if (container) {
+    container.innerHTML = '';
+  }
+
+  // clear the chat area on disconnect
+  const chat = <HTMLTextAreaElement>$('chat');
+  chat.value = '';
+
+  currentRoom = undefined;
+}
+
+// -------------------------- rendering helpers ----------------------------- //
 
 function appendLog(...args: any[]) {
   const logger = $('log')!;
@@ -329,61 +400,38 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
   }
 }
 
+function renderScreenShare() {
+  const div = $('screenshare-area')!;
+  if (!currentRoom || currentRoom.state !== RoomState.Connected) {
+    div.style.display = 'none';
+    return;
+  }
+  let screenSharePub: TrackPublication | undefined = currentRoom.localParticipant.getTrack(
+    Track.Source.ScreenShare,
+  );
+  if (!screenSharePub) {
+    currentRoom.participants.forEach((p) => {
+      if (screenSharePub) {
+        return;
+      }
+      const pub = p.getTrack(Track.Source.ScreenShare);
+      if (pub?.isSubscribed) {
+        screenSharePub = pub;
+      }
+    });
+  }
+
+  if (screenSharePub) {
+    div.style.display = 'block';
+    const videoElm = <HTMLVideoElement>$('screenshare-video');
+    screenSharePub.videoTrack?.attach(videoElm);
+  } else {
+    div.style.display = 'none';
+  }
+}
+
 function updateVideoSize(element: HTMLVideoElement, target: HTMLElement) {
   target.innerHTML = `(${element.videoWidth}x${element.videoHeight})`;
-}
-
-function handleData(msg: Uint8Array, participant?: RemoteParticipant) {
-  const str = state.decoder.decode(msg);
-  const chat = <HTMLTextAreaElement>$('chat');
-  let from = 'server';
-  if (participant) {
-    from = participant.identity;
-  }
-  chat.value += `${from}: ${str}\n`;
-}
-
-function participantConnected(participant: Participant) {
-  appendLog('participant', participant.identity, 'connected', participant.metadata);
-  participant
-    .on(ParticipantEvent.TrackSubscribed, (_, pub: TrackPublication) => {
-      appendLog('subscribed to track', pub.trackSid, participant.identity);
-      renderParticipant(participant);
-    })
-    .on(ParticipantEvent.TrackUnsubscribed, (_, pub: TrackPublication) => {
-      appendLog('unsubscribed from track', pub.trackSid);
-      renderParticipant(participant);
-    })
-    .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
-      appendLog('track was muted', pub.trackSid, participant.identity);
-      renderParticipant(participant);
-    })
-    .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
-      appendLog('track was unmuted', pub.trackSid, participant.identity);
-      renderParticipant(participant);
-    })
-    .on(ParticipantEvent.IsSpeakingChanged, () => {
-      renderParticipant(participant);
-    });
-}
-
-function participantDisconnected(participant: RemoteParticipant) {
-  appendLog('participant', participant.sid, 'disconnected');
-
-  renderParticipant(participant, true);
-}
-
-function handleRoomDisconnect() {
-  if (!currentRoom) return;
-  appendLog('disconnected from room');
-  setButtonsForState(false);
-  renderParticipant(currentRoom.localParticipant, true);
-
-  // clear the chat area on disconnect
-  const chat = <HTMLTextAreaElement>$('chat');
-  chat.value = '';
-
-  currentRoom = undefined;
 }
 
 function setButtonState(buttonId: string, buttonText: string, isActive: boolean) {
