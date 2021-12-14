@@ -261,28 +261,28 @@ export namespace AudioPresets {
  * Sane presets for video resolution/encoding
  */
 export const VideoPresets = {
-  qvga: new VideoPreset(320, 180, 125_000, 15),
-  vga: new VideoPreset(640, 360, 400_000, 30),
-  qhd: new VideoPreset(960, 540, 800_000, 30),
-  hd: new VideoPreset(1280, 720, 2_500_000, 30),
-  fhd: new VideoPreset(1920, 1080, 4_000_000, 30),
+  qvga: new VideoPreset(320, 180, 120_000, 10),
+  vga: new VideoPreset(640, 360, 300_000, 20),
+  qhd: new VideoPreset(960, 540, 600_000, 25),
+  hd: new VideoPreset(1280, 720, 2_000_000, 30),
+  fhd: new VideoPreset(1920, 1080, 3_000_000, 30),
 };
 
 /**
  * Four by three presets
  */
 export const VideoPresets43 = {
-  qvga: new VideoPreset(240, 180, 100_000, 15),
-  vga: new VideoPreset(480, 360, 320_000, 30),
-  qhd: new VideoPreset(720, 540, 640_000, 30),
-  hd: new VideoPreset(960, 720, 2_000_000, 30),
-  fhd: new VideoPreset(1440, 1080, 3_200_000, 30),
+  qvga: new VideoPreset(240, 180, 90_000, 10),
+  vga: new VideoPreset(480, 360, 225_000, 20),
+  qhd: new VideoPreset(720, 540, 450_000, 25),
+  hd: new VideoPreset(960, 720, 1_500_000, 30),
+  fhd: new VideoPreset(1440, 1080, 2_800_000, 30),
 };
 
 export const ScreenSharePresets = {
   vga: new VideoPreset(640, 360, 200_000, 3),
   hd_8: new VideoPreset(1280, 720, 400_000, 5),
-  hd_15: new VideoPreset(1280, 720, 1_250_000, 15),
-  fhd_15: new VideoPreset(1920, 1080, 2_000_000, 15),
-  fhd_30: new VideoPreset(1920, 1080, 4_000_000, 30),
+  hd_15: new VideoPreset(1280, 720, 1_000_000, 15),
+  fhd_15: new VideoPreset(1920, 1080, 1_500_000, 15),
+  fhd_30: new VideoPreset(1920, 1080, 3_000_000, 30),
 };
