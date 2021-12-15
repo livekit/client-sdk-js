@@ -43,7 +43,7 @@ export default class LocalVideoTrack extends LocalTrack {
     return false;
   }
 
-  /* internal */
+  /* @internal */
   startMonitor(signalClient: SignalClient) {
     // only monitor simulcast streams
     if (!this.isSimulcast) {

@@ -53,6 +53,7 @@ export async function connect(
     rtcConfig: options.rtcConfig,
     autoManageVideo: options.autoManageVideo,
     stopLocalTrackOnUnpublish: options.stopLocalTrackOnUnpublish,
+    expDisableLayerPause: options.expDisableLayerPause,
   });
 
   // connect to room
