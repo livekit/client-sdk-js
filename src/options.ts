@@ -8,6 +8,12 @@ export interface RoomOptions {
   rtcConfig?: RTCConfiguration;
 
   stopLocalTrackOnUnpublish?: boolean;
+
+  /**
+   * @internal
+   * experimental flag, disable client managed layer pause when publishing capability is limited
+   */
+  expDisableLayerPause?: boolean;
 }
 
 /**
@@ -71,6 +77,12 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
    * set this to false if you would prefer to clean up unpublished local tracks manually.
    */
   stopLocalTrackOnUnpublish?: boolean;
+
+  /**
+   * @internal
+   * experimental flag, disable client managed layer pause when publishing capability is limited
+   */
+  expDisableLayerPause?: boolean;
 }
 
 export enum LogLevel {
