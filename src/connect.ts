@@ -1,20 +1,15 @@
-import { WSSignalClient } from './api/SignalClient';
-import log from './logger';
+import log, { LogLevel, setLogLevel } from './logger';
 import {
   ConnectOptions,
-  LogLevel,
 } from './options';
 import { MediaDeviceFailure } from './room/errors';
 import { RoomEvent } from './room/events';
 import Room from './room/Room';
-import { createLocalTracks } from './room/track/create';
-import LocalTrack from './room/track/LocalTrack';
-import { Track } from './room/track/Track';
 
 export { version } from './version';
 
 /**
- * Connects to a LiveKit room
+ * Connects to a LiveKit room, shorthand for `new Room()` and [[Room.connect]]
  *
  * ```typescript
  * connect('wss://myhost.livekit.io', token, {
@@ -35,95 +30,65 @@ export async function connect(
   token: string,
   options?: ConnectOptions,
 ): Promise<Room> {
-  // set defaults
-  options ||= {};
-  options.logLevel ||= LogLevel.info;
-  if (options.audio === undefined) options.audio = false;
-  if (options.video === undefined) options.video = false;
-
-  log.setLevel(options.logLevel);
+  options ??= {};
+  setLogLevel(options.logLevel ?? LogLevel.warn);
 
   const config: RTCConfiguration = options.rtcConfig ?? {};
   if (options.iceServers) {
     config.iceServers = options.iceServers;
   }
 
-  const client = new WSSignalClient();
-  const room = new Room(client, {
-    rtcConfig: options.rtcConfig,
-    autoManageVideo: options.autoManageVideo,
-    stopLocalTrackOnUnpublish: options.stopLocalTrackOnUnpublish,
-    expDisableLayerPause: options.expDisableLayerPause,
-  });
+  const room = new Room(options);
 
   // connect to room
-  await room.connect(url, token, {
-    autoSubscribe: options?.autoSubscribe,
-  });
+  await room.connect(url, token, options);
 
-  // save default publish options
-  if (options.publishDefaults) {
-    Object.assign(room.defaultPublishOptions, options.publishDefaults);
-  }
-  if (options.captureDefaults) {
-    Object.assign(room.defaultCaptureOptions, options.captureDefaults);
-  }
-
-  const publishAudio: boolean = options.audio;
-  const publishVideo: boolean = options.video;
-  const sources: Track.Source[] = [];
-  if (publishAudio) {
-    sources.push(Track.Source.Microphone);
-  }
-  if (publishVideo) {
-    sources.push(Track.Source.Camera);
-  }
-  // lock to prevent user from publishing the same sources
-  sources.forEach((s) => room.localParticipant.pendingPublishing.add(s));
+  const publishAudio: boolean = options.audio ?? false;
+  const publishVideo: boolean = options.video ?? false;
 
   if (publishAudio || publishVideo) {
     setTimeout(async () => {
-      let tracks: LocalTrack[] | undefined;
-      try {
-        tracks = await createLocalTracks({
-          audio: publishAudio,
-          video: publishVideo,
-        });
-      } catch (e) {
-        const errKind = MediaDeviceFailure.getFailure(e);
-        log.warn('received error while creating media', errKind);
-        if (e instanceof Error) {
-          log.warn(e.message);
-        }
-        // when audio and video are both requested, give audio only a shot
-        if (
-          (errKind === MediaDeviceFailure.NotFound || errKind === MediaDeviceFailure.DeviceInUse)
-          && publishAudio && publishVideo
-        ) {
-          try {
-            tracks = await createLocalTracks({
-              audio: publishAudio,
-              video: false,
-            });
-          } catch (audioErr) {
-            // ignore
+      // if publishing both
+      let err: any;
+      if (publishAudio && publishVideo) {
+        try {
+          await room.localParticipant.enableCameraAndMicrophone();
+        } catch (e) {
+          const errKind = MediaDeviceFailure.getFailure(e);
+          log.warn('received error while creating media', errKind);
+          if (e instanceof Error) {
+            log.warn(e.message);
+          }
+
+          // when it's a device issue, try to publish the other kind
+          if (errKind === MediaDeviceFailure.NotFound
+             || errKind === MediaDeviceFailure.DeviceInUse) {
+            try {
+              await room.localParticipant.setMicrophoneEnabled(true);
+            } catch (audioErr) {
+              err = audioErr;
+            }
+          } else {
+            err = e;
           }
         }
-
-        if (!tracks) {
-          room.emit(RoomEvent.MediaDevicesError, e);
-          log.error('could not create media', e);
-          sources.forEach((s) => room.localParticipant.pendingPublishing.delete(s));
-          return;
+      } else if (publishAudio) {
+        try {
+          await room.localParticipant.setMicrophoneEnabled(true);
+        } catch (e) {
+          err = e;
+        }
+      } else if (publishVideo) {
+        try {
+          await room.localParticipant.setCameraEnabled(true);
+        } catch (e) {
+          err = e;
         }
       }
 
-      try {
-        await Promise.all(tracks.map(
-          (track: LocalTrack | MediaStreamTrack) => room.localParticipant.publishTrack(track),
-        ));
-      } finally {
-        sources.forEach((s) => room.localParticipant.pendingPublishing.delete(s));
+      if (err) {
+        room.emit(RoomEvent.MediaDevicesError, err);
+        log.error('could not create media', err);
       }
     });
   }

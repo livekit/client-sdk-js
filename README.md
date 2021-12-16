@@ -44,29 +44,33 @@ import {
   Participant,
 } from 'livekit-client';
 
-connect('ws://localhost:7800', token, {
-  audio: true,
-  video: true,
+// creates a new room with options
+const room = new Room({
   // automatically manage video quality
   autoManageVideo: true,
-  // default publish settings
-  publishDefaults: {
-    simulcast: true,
-  },
-  // default capture settings
-  captureDefaults: {
-    videoResolution: VideoPresets.hd.resolution,
-  },
-}).then((room) => {
-  console.log('connected to room', room.name);
 
-  room
+  // default capture settings
+  videoCaptureDefaults: {
+    resolution: VideoPresets.hd.resolution,
+  }
+});
+
+// set up event listeners
+room
     .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
     .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
     .on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakerChange)
     .on(RoomEvent.Disconnected, handleDisconnect)
     .on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
+
+await room.connect('ws://localhost:7800', token, {
+  // don't subscribe to other participants automatically
+  autoSubscribe: false,
 });
+console.log('connected to room', room.name);
+
+// publish local camera and mic tracks
+await room.localParticipant.enableCameraAndMicrophone();
 
 function handleTrackSubscribed(
   track: RemoteTrack,

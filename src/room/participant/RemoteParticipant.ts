@@ -122,8 +122,7 @@ export default class RemoteParticipant extends Participant {
     track.start();
 
     publication.setTrack(track);
-    // set track name etc
-    track.name = publication.trackName;
+    // set track info
     track.sid = publication.trackSid;
     track.source = publication.source;
     // keep publication's muted status

@@ -1,16 +1,11 @@
 import { EventEmitter } from 'events';
-import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
-import { RoomOptions } from '../options';
+import { RoomConnectOptions, RoomOptions } from '../options';
 import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
 import { ConnectionQualityUpdate } from '../proto/livekit_rtc';
-import {
-  getTrackCaptureDefaults, getTrackPublishDefaults,
-  setTrackCaptureDefaults, setTrackPublishDefaults,
-} from './defaults';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
@@ -21,7 +16,14 @@ import Participant, { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
 import LocalTrackPublication from './track/LocalTrackPublication';
-import { TrackCaptureDefaults, TrackPublishDefaults } from './track/options';
+import {
+  AudioCaptureOptions,
+  AudioPresets,
+  ScreenSharePresets,
+  TrackPublishDefaults,
+  VideoCaptureOptions,
+  VideoPresets,
+} from './track/options';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import TrackPublication from './track/TrackPublication';
@@ -33,6 +35,25 @@ export enum RoomState {
   Connected = 'connected',
   Reconnecting = 'reconnecting',
 }
+
+const publishDefaults: TrackPublishDefaults = {
+  audioBitrate: AudioPresets.speech.maxBitrate,
+  dtx: true,
+  simulcast: true,
+  screenShareEncoding: ScreenSharePresets.hd_15.encoding,
+  stopMicTrackOnMute: false,
+};
+
+const audioDefaults: AudioCaptureOptions = {
+  autoGainControl: true,
+  channelCount: 1,
+  echoCancellation: true,
+  noiseSuppression: true,
+};
+
+const videoDefaults: VideoCaptureOptions = {
+  resolution: VideoPresets.qhd.resolution,
+};
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -59,30 +80,46 @@ class Room extends EventEmitter {
 
   // available after connected
   /** server assigned unique room id */
-  sid!: string;
+  sid: string = '';
 
   /** user assigned name, derived from JWT token */
-  name!: string;
+  name: string = '';
 
   /** the current participant */
-  localParticipant!: LocalParticipant;
+  localParticipant: LocalParticipant;
 
   /** room metadata */
   metadata: string | undefined = undefined;
 
-  /** @internal */
-  options: RoomOptions = {};
+  /** options of room */
+  options: RoomOptions;
 
   private audioEnabled = true;
 
   private audioContext?: AudioContext;
 
-  /** @internal */
-  constructor(client: SignalClient, options?: RoomOptions) {
+  constructor(options?: RoomOptions) {
     super();
     this.participants = new Map();
     this.options = options || {};
-    this.engine = new RTCEngine(client, this.options.rtcConfig);
+
+    this.options.audioCaptureDefaults = {
+      ...audioDefaults,
+      ...options?.audioCaptureDefaults,
+    };
+    this.options.videoCaptureDefaults = {
+      ...videoDefaults,
+      ...options?.videoCaptureDefaults,
+    };
+    this.options.publishDefaults = {
+      ...publishDefaults,
+      ...options?.publishDefaults,
+    };
+
+    this.engine = new RTCEngine();
+    this.localParticipant = new LocalParticipant(
+      '', '', this.engine, this.options,
+    );
 
     this.acquireAudioContext();
 
@@ -138,12 +175,15 @@ class Room extends EventEmitter {
     return DeviceManager.getInstance().getDevices(kind);
   }
 
-  /** @internal */
-  connect = async (url: string, token: string, opts?: SignalOptions): Promise<Room> => {
+  connect = async (url: string, token: string, opts?: RoomConnectOptions) => {
     // guard against calling connect
-    if (this.localParticipant) {
+    if (this.state !== RoomState.Disconnected) {
       log.warn('already connected to room', this.name);
-      return this;
+      return;
+    }
+
+    if (opts?.rtcConfig) {
+      this.engine.rtcConfig = opts.rtcConfig;
     }
 
     try {
@@ -238,25 +278,6 @@ class Room extends EventEmitter {
   };
 
   /**
-   * Set default publish options
-   */
-  set defaultPublishOptions(opts: TrackPublishDefaults) {
-    setTrackPublishDefaults(opts);
-  }
-
-  get defaultPublishOptions(): TrackPublishDefaults {
-    return getTrackPublishDefaults();
-  }
-
-  set defaultCaptureOptions(opts: TrackCaptureDefaults) {
-    setTrackCaptureDefaults(opts);
-  }
-
-  get defaultCaptureOptions(): TrackCaptureDefaults {
-    return getTrackCaptureDefaults();
-  }
-
-  /**
    * Browsers have different policies regarding audio playback. Most requiring
    * some form of user interaction (click/tap/etc).
    * In those cases, audio will be silent until a click/tap triggering one of the following
@@ -309,13 +330,13 @@ class Room extends EventEmitter {
         .from(this.localParticipant.audioTracks.values())
         .filter((track) => track.source === Track.Source.Microphone);
       await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceId)));
-      this.defaultCaptureOptions.audioDeviceId = deviceId;
+      this.options.audioCaptureDefaults!.deviceId = deviceId;
     } else if (kind === 'videoinput') {
       const tracks = Array
         .from(this.localParticipant.videoTracks.values())
         .filter((track) => track.source === Track.Source.Camera);
       await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceId)));
-      this.defaultCaptureOptions.videoDeviceId = deviceId;
+      this.options.videoCaptureDefaults!.deviceId = deviceId;
     } else if (kind === 'audiooutput') {
       const elements: HTMLMediaElement[] = [];
       this.participants.forEach((p) => {

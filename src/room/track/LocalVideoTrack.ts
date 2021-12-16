@@ -3,8 +3,9 @@ import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import { monitorFrequency, VideoSenderStats } from '../stats';
 import LocalTrack from './LocalTrack';
-import { CreateVideoTrackOptions } from './options';
+import { VideoCaptureOptions } from './options';
 import { Track } from './Track';
+import { constraintsForOptions } from './utils';
 
 // delay before attempting to upgrade
 const QUALITY_UPGRADE_DELAY = 60 * 1000;
@@ -30,10 +31,9 @@ export default class LocalVideoTrack extends LocalTrack {
 
   constructor(
     mediaTrack: MediaStreamTrack,
-    name?: string,
     constraints?: MediaTrackConstraints,
   ) {
-    super(mediaTrack, Track.Kind.Video, name, constraints);
+    super(mediaTrack, Track.Kind.Video, constraints);
   }
 
   get isSimulcast(): boolean {
@@ -183,10 +183,10 @@ export default class LocalVideoTrack extends LocalTrack {
     }
   }
 
-  async restartTrack(options?: CreateVideoTrackOptions) {
+  async restartTrack(options?: VideoCaptureOptions) {
     let constraints: MediaTrackConstraints | undefined;
     if (options) {
-      const streamConstraints = LocalTrack.constraintsForOptions({ video: options });
+      const streamConstraints = constraintsForOptions({ video: options });
       if (typeof streamConstraints.video !== 'boolean') {
         constraints = streamConstraints.video;
       }

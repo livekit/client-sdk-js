@@ -1,13 +1,11 @@
 import {
-  connect,
-  ConnectOptions,
-  CreateVideoTrackOptions,
-  DataPacket_Kind, LocalParticipant, LogLevel,
+  DataPacket_Kind, LocalParticipant,
   MediaDeviceFailure,
   Participant,
   ParticipantEvent,
-  RemoteParticipant, Room,
-  RoomEvent, RoomState, Track, TrackPublication, VideoPresets,
+  RemoteParticipant, Room, RoomConnectOptions, RoomEvent,
+  RoomOptions, RoomState, setLogLevel, Track, TrackPublication,
+  VideoCaptureOptions, VideoPresets,
 } from '../src/index';
 import { ConnectionQuality } from '../src/room/participant/Participant';
 
@@ -24,7 +22,7 @@ let currentRoom: Room | undefined;
 
 // handles actions from the HTML
 const appActions = {
-  connectWithFormInput: () => {
+  connectWithFormInput: async () => {
     const url = (<HTMLInputElement>$('url')).value;
     const token = (<HTMLInputElement>$('token')).value;
     const simulcast = (<HTMLInputElement>$('simulcast')).checked;
@@ -32,50 +30,39 @@ const appActions = {
     const adaptiveVideo = (<HTMLInputElement>$('adaptive-video')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
 
-    const options: ConnectOptions = {
-      logLevel: LogLevel.debug,
-      audio: shouldPublish,
-      video: shouldPublish,
+    setLogLevel('debug');
+
+    const roomOpts: RoomOptions = {
       autoManageVideo: adaptiveVideo,
-      captureDefaults: {
-        videoResolution: VideoPresets.hd.resolution,
-      },
       publishDefaults: {
         simulcast,
       },
+      videoCaptureDefaults: {
+        resolution: VideoPresets.hd.resolution,
+      },
     };
+
+    const connectOpts: RoomConnectOptions = {};
     if (forceTURN) {
-      options.rtcConfig = {
+      connectOpts.rtcConfig = {
         iceTransportPolicy: 'relay',
       };
     }
+    const room = await appActions.connectToRoom(url, token, roomOpts, connectOpts);
 
-    appActions.connectToRoom(url, token, options);
+    if (room && shouldPublish) {
+      await room.localParticipant.enableCameraAndMicrophone();
+      updateButtonsForPublishState();
+    }
   },
 
   connectToRoom: async (
     url: string,
     token: string,
-    options?: ConnectOptions,
-  ) => {
-    let room: Room;
-    try {
-      room = await connect(url, token, options);
-    } catch (error) {
-      let message: any = error;
-      if (error.message) {
-        message = error.message;
-      }
-      appendLog('could not connect:', message);
-      return;
-    }
-
-    appendLog('connected to room', room.name);
-    currentRoom = room;
-    window.currentRoom = room;
-    setButtonsForState(true);
-    updateButtonsForPublishState();
-
+    roomOptions?: RoomOptions,
+    connectOptions?: RoomConnectOptions,
+  ): Promise<Room | undefined> => {
+    const room = new Room(roomOptions);
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
       .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
@@ -113,11 +100,29 @@ const appActions = {
           appendLog('connection quality changed', participant.identity, quality);
         });
 
+    try {
+      await room.connect(url, token, connectOptions);
+    } catch (error) {
+      let message: any = error;
+      if (error.message) {
+        message = error.message;
+      }
+      appendLog('could not connect:', message);
+      return;
+    }
+
+    appendLog('connected to room', room.name);
+    currentRoom = room;
+    window.currentRoom = room;
+    setButtonsForState(true);
+
     appendLog('room participants', room.participants.keys());
     room.participants.forEach((participant) => {
       participantConnected(participant);
     });
     participantConnected(room.localParticipant);
+
+    return room;
   },
 
   toggleAudio: async () => {
@@ -158,7 +163,7 @@ const appActions = {
       setButtonState('flip-video-button', 'Back Camera', false);
     }
     state.isFrontFacing = !state.isFrontFacing;
-    const options: CreateVideoTrackOptions = {
+    const options: VideoCaptureOptions = {
       resolution: VideoPresets.qhd.resolution,
       facingMode: state.isFrontFacing ? 'user' : 'environment',
     };

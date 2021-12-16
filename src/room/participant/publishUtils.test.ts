@@ -6,7 +6,7 @@ import {
   presets43,
   presetsForResolution,
   presetsScreenShare,
-} from './LocalParticipant';
+} from './publishUtils';
 
 describe('presetsForResolution', () => {
   it('handles screenshare', () => {

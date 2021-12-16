@@ -44,48 +44,6 @@ export interface TrackPublishDefaults {
   stopMicTrackOnMute?: boolean;
 }
 
-export interface TrackCaptureDefaults {
-  /**
-   * default device to use for microphone capture
-   */
-  audioDeviceId?: string;
-
-  /**
-   * specifies whether automatic gain control is preferred, defaults to true
-   */
-  autoGainControl?: boolean;
-
-  /**
-   * the channel count or range of channel counts which are acceptable and/or required
-   */
-  channelCount?: number;
-
-  /**
-   * whether or not echo cancellation is preferred, defaults to true
-   */
-  echoCancellation?: boolean;
-
-  /**
-   * whether noise suppression is preferred, defaults to true
-   */
-  noiseSuppression?: boolean;
-
-  /**
-   * set if a particular video facing mode is preferred
-   */
-  videoFacingMode?: 'user' | 'environment' | 'left' | 'right';
-
-  /**
-   * default device to use for camera capture
-   */
-  videoDeviceId?: string;
-
-  /**
-   * default video capture resolution
-   */
-  videoResolution?: VideoResolution;
-}
-
 /**
  * Options when publishing tracks
  */
@@ -106,40 +64,31 @@ export interface CreateLocalTracksOptions {
    * audio track options, true to create with defaults. false if audio shouldn't be created
    * default true
    */
-  audio?: boolean | CreateAudioTrackOptions;
+  audio?: boolean | AudioCaptureOptions;
 
   /**
    * video track options, true to create with defaults. false if video shouldn't be created
    * default true
    */
-  video?: boolean | CreateVideoTrackOptions;
+  video?: boolean | VideoCaptureOptions;
 }
 
-export interface CreateLocalTrackOptions {
-  /** name of track */
-  name?: string;
-
+export interface VideoCaptureOptions {
   /**
    * A ConstrainDOMString object specifying a device ID or an array of device
    * IDs which are acceptable and/or required.
    */
   deviceId?: ConstrainDOMString;
-}
 
-export interface CreateVideoTrackOptions extends CreateLocalTrackOptions {
   /**
    * a facing or an array of facings which are acceptable and/or required.
-   * [valid options](https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode)
    */
-  facingMode?: ConstrainDOMString;
+  facingMode?: 'user' | 'environment' | 'left' | 'right';
 
   resolution?: VideoResolution;
 }
 
-export interface CreateScreenTrackOptions {
-  /** name of track, defaults to "screen" */
-  name?: string;
-
+export interface ScreenShareCaptureOptions {
   /**
    * true to capture audio shared. browser support for audio capturing in
    * screenshare is limited: https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia#browser_compatibility
@@ -150,7 +99,7 @@ export interface CreateScreenTrackOptions {
   resolution?: VideoResolution;
 }
 
-export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
+export interface AudioCaptureOptions {
   /**
    * specifies whether automatic gain control is preferred and/or required
    */
@@ -160,6 +109,12 @@ export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
    * the channel count or range of channel counts which are acceptable and/or required
    */
   channelCount?: ConstrainULong;
+
+  /**
+   * A ConstrainDOMString object specifying a device ID or an array of device
+   * IDs which are acceptable and/or required.
+   */
+  deviceId?: ConstrainDOMString;
 
   /**
    * whether or not echo cancellation is preferred and/or required
@@ -186,21 +141,6 @@ export interface CreateAudioTrackOptions extends CreateLocalTrackOptions {
    */
   sampleSize?: ConstrainULong;
 }
-
-/**
- * example
- *
- * ```typescript
- * {
- *   width: 960,
- *   height: 540,
- *   frameRate: {
- *     ideal: 30,
- *     max: 60,
- *   },
- * }
- * ```
- */
 
 export interface VideoResolution {
   width: number;
