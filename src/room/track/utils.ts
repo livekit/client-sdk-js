@@ -16,18 +16,24 @@ export function mergeDefaultOptions(
 
   // use defaults
   if (opts.audio) {
-    opts.audio = {
-      ...audioDefaults,
-      ...opts.audio,
-    };
+    mergeObjectWithoutOverwriting(opts.audio as Record<string, unknown>,
+      audioDefaults as Record<string, unknown>);
   }
   if (opts.video) {
-    opts.video = {
-      ...videoDefaults,
-      ...opts.video,
-    };
+    mergeObjectWithoutOverwriting(opts.video as Record<string, unknown>,
+      videoDefaults as Record<string, unknown>);
   }
   return opts;
+}
+
+function mergeObjectWithoutOverwriting(
+  mainObject: Record<string, unknown>,
+  objectToMerge: Record<string, unknown>,
+): Record<string, unknown> {
+  Object.keys(objectToMerge).forEach((key) => {
+    if (!mainObject[key]) mainObject[key] = objectToMerge[key];
+  });
+  return mainObject;
 }
 
 export function constraintsForOptions(options: CreateLocalTracksOptions): MediaStreamConstraints {
