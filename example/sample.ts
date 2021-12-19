@@ -265,6 +265,9 @@ function participantConnected(participant: Participant) {
     })
     .on(ParticipantEvent.IsSpeakingChanged, () => {
       renderParticipant(participant);
+    })
+    .on(ParticipantEvent.ConnectionQualityChanged, () => {
+      renderParticipant(participant);
     });
 }
 
@@ -333,7 +336,9 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         </div>
         <div id="size-${participant.sid}" class="size">
         </div>
-        <div id="mic-${participant.sid}" class="mic-on">
+        <div class="right">
+          <span id="signal-${participant.sid}"></span>
+          <span id="mic-${participant.sid}" class="mic-on"></span>
         </div>
       </div>
     `;
@@ -362,7 +367,8 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
   // update properties
   $(`name-${participant.sid}`)!.innerHTML = participant.identity;
-  const micDiv = $(`mic-${participant.sid}`)!;
+  const micElm = $(`mic-${participant.sid}`)!;
+  const signalElm = $(`signal-${participant.sid}`)!;
   const cameraPub = participant.getTrack(Track.Source.Camera);
   const micPub = participant.getTrack(Track.Source.Microphone);
   if (participant.isSpeaking) {
@@ -392,11 +398,23 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       // don't attach local audio
       micPub?.audioTrack?.attach(audioELm);
     }
-    micDiv.className = 'mic-on';
-    micDiv.innerHTML = '<i class="fas fa-microphone"></i>';
+    micElm.className = 'mic-on';
+    micElm.innerHTML = '<i class="fas fa-microphone"></i>';
   } else {
-    micDiv.className = 'mic-off';
-    micDiv.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+    micElm.className = 'mic-off';
+    micElm.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+  }
+
+  switch (participant.connectionQuality) {
+    case ConnectionQuality.Excellent:
+    case ConnectionQuality.Good:
+    case ConnectionQuality.Poor:
+      signalElm.className = `connection-${participant.connectionQuality}`;
+      signalElm.innerHTML = '<i class="fas fa-circle"></i>';
+      break;
+    default:
+      signalElm.innerHTML = '';
+      // do nothing
   }
 }
 
