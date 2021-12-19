@@ -199,7 +199,6 @@ const appActions = {
   disconnectRoom: () => {
     if (currentRoom) {
       currentRoom.disconnect();
-      renderParticipant(currentRoom.localParticipant, true);
     }
   },
 
@@ -271,6 +270,9 @@ function participantConnected(participant: Participant) {
     })
     .on(ParticipantEvent.IsSpeakingChanged, () => {
       renderParticipant(participant);
+    })
+    .on(ParticipantEvent.ConnectionQualityChanged, () => {
+      renderParticipant(participant);
     });
 }
 
@@ -288,6 +290,7 @@ function handleRoomDisconnect() {
   currentRoom.participants.forEach((p) => {
     renderParticipant(p, true);
   });
+  renderScreenShare();
 
   const container = $('participants-area');
   if (container) {
@@ -338,7 +341,9 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         </div>
         <div id="size-${participant.sid}" class="size">
         </div>
-        <div id="mic-${participant.sid}" class="mic-on">
+        <div class="right">
+          <span id="signal-${participant.sid}"></span>
+          <span id="mic-${participant.sid}" class="mic-on"></span>
         </div>
       </div>
     `;
@@ -346,9 +351,9 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
     const sizeElm = $(`size-${participant.sid}`);
     const videoElm = <HTMLVideoElement>$(`video-${participant.sid}`);
-    videoElm?.addEventListener('resize', () => {
+    videoElm.onresize = () => {
       updateVideoSize(videoElm!, sizeElm!);
-    });
+    };
   }
   const videoElm = <HTMLVideoElement>$(`video-${participant.sid}`);
   const audioELm = <HTMLAudioElement>$(`audio-${participant.sid}`);
@@ -367,7 +372,8 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
   // update properties
   $(`name-${participant.sid}`)!.innerHTML = participant.identity;
-  const micDiv = $(`mic-${participant.sid}`)!;
+  const micElm = $(`mic-${participant.sid}`)!;
+  const signalElm = $(`signal-${participant.sid}`)!;
   const cameraPub = participant.getTrack(Track.Source.Camera);
   const micPub = participant.getTrack(Track.Source.Microphone);
   if (participant.isSpeaking) {
@@ -397,11 +403,23 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       // don't attach local audio
       micPub?.audioTrack?.attach(audioELm);
     }
-    micDiv.className = 'mic-on';
-    micDiv.innerHTML = '<i class="fas fa-microphone"></i>';
+    micElm.className = 'mic-on';
+    micElm.innerHTML = '<i class="fas fa-microphone"></i>';
   } else {
-    micDiv.className = 'mic-off';
-    micDiv.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+    micElm.className = 'mic-off';
+    micElm.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+  }
+
+  switch (participant.connectionQuality) {
+    case ConnectionQuality.Excellent:
+    case ConnectionQuality.Good:
+    case ConnectionQuality.Poor:
+      signalElm.className = `connection-${participant.connectionQuality}`;
+      signalElm.innerHTML = '<i class="fas fa-circle"></i>';
+      break;
+    default:
+      signalElm.innerHTML = '';
+      // do nothing
   }
 }
 
@@ -411,6 +429,7 @@ function renderScreenShare() {
     div.style.display = 'none';
     return;
   }
+  let participant: Participant | undefined;
   let screenSharePub: TrackPublication | undefined = currentRoom.localParticipant.getTrack(
     Track.Source.ScreenShare,
   );
@@ -419,17 +438,25 @@ function renderScreenShare() {
       if (screenSharePub) {
         return;
       }
+      participant = p;
       const pub = p.getTrack(Track.Source.ScreenShare);
       if (pub?.isSubscribed) {
         screenSharePub = pub;
       }
     });
+  } else {
+    participant = currentRoom.localParticipant;
   }
 
-  if (screenSharePub) {
+  if (screenSharePub && participant) {
     div.style.display = 'block';
     const videoElm = <HTMLVideoElement>$('screenshare-video');
     screenSharePub.videoTrack?.attach(videoElm);
+    videoElm.onresize = () => {
+      updateVideoSize(videoElm, <HTMLSpanElement>$('screenshare-resolution'));
+    };
+    const infoElm = $('screenshare-info')!;
+    infoElm.innerHTML = `Screenshare from ${participant.identity}`;
   } else {
     div.style.display = 'none';
   }

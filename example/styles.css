@@ -38,13 +38,16 @@
 }
 
 #screenshare-area {
+  position: relative;
   margin-top: 1.25rem;
   margin-bottom: 1.25rem;
+  display: none;
 }
 
 #screenshare-area video {
   max-width: 900px;
   max-height: 900px;
+  border: 3px solid rgba(0, 0, 0, 0.5);
 }
 
 #participants-area {
@@ -103,8 +106,16 @@
   color: #eee;
   padding: 2px 8px 2px 8px;
   background-color: rgba(0, 0, 0, 0.35);
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(50px, auto) 1fr minmax(50px, auto);
   z-index: 5;
+}
+
+.participant .size {
+  text-align: center;
+}
+
+.participant .right {
+  text-align: right;
 }
 
 .participant.speaking {
@@ -118,4 +129,16 @@
 
 .participant .mic-on {
   text-align: right;
+}
+
+.participant .connection-excellent {
+  color: green;
+}
+
+.participant .connection-good {
+  color: orange;
+}
+
+.participant .connection-poor {
+  color: red;
 }
