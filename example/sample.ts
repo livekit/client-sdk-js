@@ -194,7 +194,6 @@ const appActions = {
   disconnectRoom: () => {
     if (currentRoom) {
       currentRoom.disconnect();
-      renderParticipant(currentRoom.localParticipant, true);
     }
   },
 
@@ -283,6 +282,7 @@ function handleRoomDisconnect() {
   currentRoom.participants.forEach((p) => {
     renderParticipant(p, true);
   });
+  renderScreenShare();
 
   const container = $('participants-area');
   if (container) {
@@ -341,9 +341,9 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
     const sizeElm = $(`size-${participant.sid}`);
     const videoElm = <HTMLVideoElement>$(`video-${participant.sid}`);
-    videoElm?.addEventListener('resize', () => {
+    videoElm.onresize = () => {
       updateVideoSize(videoElm!, sizeElm!);
-    });
+    };
   }
   const videoElm = <HTMLVideoElement>$(`video-${participant.sid}`);
   const audioELm = <HTMLAudioElement>$(`audio-${participant.sid}`);
@@ -406,6 +406,7 @@ function renderScreenShare() {
     div.style.display = 'none';
     return;
   }
+  let participant: Participant | undefined;
   let screenSharePub: TrackPublication | undefined = currentRoom.localParticipant.getTrack(
     Track.Source.ScreenShare,
   );
@@ -414,17 +415,25 @@ function renderScreenShare() {
       if (screenSharePub) {
         return;
       }
+      participant = p;
       const pub = p.getTrack(Track.Source.ScreenShare);
       if (pub?.isSubscribed) {
         screenSharePub = pub;
       }
     });
+  } else {
+    participant = currentRoom.localParticipant;
   }
 
-  if (screenSharePub) {
+  if (screenSharePub && participant) {
     div.style.display = 'block';
     const videoElm = <HTMLVideoElement>$('screenshare-video');
     screenSharePub.videoTrack?.attach(videoElm);
+    videoElm.onresize = () => {
+      updateVideoSize(videoElm, <HTMLSpanElement>$('screenshare-resolution'));
+    };
+    const infoElm = $('screenshare-info')!;
+    infoElm.innerHTML = `Screenshare from ${participant.identity}`;
   } else {
     div.style.display = 'none';
   }

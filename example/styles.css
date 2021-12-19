@@ -38,13 +38,16 @@
 }
 
 #screenshare-area {
+  position: relative;
   margin-top: 1.25rem;
   margin-bottom: 1.25rem;
+  display: none;
 }
 
 #screenshare-area video {
   max-width: 900px;
   max-height: 900px;
+  border: 3px solid rgba(0, 0, 0, 0.5);
 }
 
 #participants-area {

@@ -379,8 +379,8 @@ class Room extends EventEmitter {
     }
     window.removeEventListener('beforeunload', this.onBeforeUnload);
     navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
-    this.emit(RoomEvent.Disconnected);
     this.state = RoomState.Disconnected;
+    this.emit(RoomEvent.Disconnected);
   }
 
   private handleParticipantUpdates(participantInfos: ParticipantInfo[]) {
