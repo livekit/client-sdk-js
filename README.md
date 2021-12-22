@@ -143,7 +143,7 @@ if (p) {
   if (p.isCameraEnabled) {
     const track = p.getTrack(Track.Source.Camera);
     if (track?.isSubscribed) {
-      const videoElement = track.attach()
+      const videoElement = track.videoTrack?.attach()
       // do something with the element
     }
   }
