@@ -175,6 +175,7 @@ export class VideoPreset {
       width: this.width,
       height: this.height,
       frameRate: this.encoding.maxFramerate,
+      aspectRatio: this.width / this.height,
     };
   }
 }

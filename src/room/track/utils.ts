@@ -31,7 +31,7 @@ function mergeObjectWithoutOverwriting(
   objectToMerge: Record<string, unknown>,
 ): Record<string, unknown> {
   Object.keys(objectToMerge).forEach((key) => {
-    if (!mainObject[key]) mainObject[key] = objectToMerge[key];
+    if (mainObject[key] === undefined) mainObject[key] = objectToMerge[key];
   });
   return mainObject;
 }
@@ -41,17 +41,24 @@ export function constraintsForOptions(options: CreateLocalTracksOptions): MediaS
 
   if (options.video) {
     // default video options
-    const videoOptions: MediaTrackConstraints = {};
     if (typeof options.video === 'object') {
-      videoOptions.deviceId = options.video.deviceId;
-      videoOptions.facingMode = options.video.facingMode;
-      if (options.video.resolution) {
-        videoOptions.width = options.video.resolution.width;
-        videoOptions.height = options.video.resolution.height;
-        videoOptions.frameRate = options.video.resolution.frameRate;
-      }
+      const videoOptions: MediaTrackConstraints = {};
+      const target = videoOptions as Record<string, unknown>;
+      const source = options.video as Record<string, unknown>;
+      Object.keys(source).forEach((key) => {
+        switch (key) {
+          case 'resolution':
+            // flatten VideoResolution fields
+            mergeObjectWithoutOverwriting(target, source.resolution as Record<string, unknown>);
+            break;
+          default:
+            target[key] = source[key];
+        }
+      });
+      constraints.video = videoOptions;
+    } else {
+      constraints.video = options.video;
     }
-    constraints.video = videoOptions;
   } else {
     constraints.video = false;
   }

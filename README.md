@@ -12,13 +12,13 @@ Docs and guides at [https://docs.livekit.io](https://docs.livekit.io)
 
 ### Yarn
 
-```
+```shell
 yarn add livekit-client
 ```
 
 ### NPM
 
-```
+```shell
 npm install livekit-client --save
 ```
 

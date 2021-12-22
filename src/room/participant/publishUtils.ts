@@ -96,8 +96,8 @@ export function computeVideoEncodings(
   // NOTE:
   //   1. Ordering of these encodings is important. Chrome seems
   //      to use the index into encodings to decide which layer
-  //      to disable when constrained (bandwidth or CPU). So,
-  //      encodings should be ordered in increasing spatial
+  //      to disable when CPU constrained.
+  //      So encodings should be ordered in increasing spatial
   //      resolution order.
   //   2. ion-sfu translates rids into layers. So, all encodings
   //      should have the base layer `q` and then more added
