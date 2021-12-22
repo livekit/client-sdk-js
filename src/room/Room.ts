@@ -98,6 +98,10 @@ class Room extends EventEmitter {
 
   private audioContext?: AudioContext;
 
+  /**
+   * Creates a new Room, the primary construct for a LiveKit session.
+   * @param options
+   */
   constructor(options?: RoomOptions) {
     super();
     this.participants = new Map();
@@ -121,8 +125,6 @@ class Room extends EventEmitter {
     this.localParticipant = new LocalParticipant(
       '', '', this.engine, this.options,
     );
-
-    this.acquireAudioContext();
   }
 
   private createEngine() {
@@ -192,6 +194,8 @@ class Room extends EventEmitter {
 
     // recreate engine if previously disconnected
     this.createEngine();
+
+    this.acquireAudioContext();
 
     if (opts?.rtcConfig) {
       this.engine.rtcConfig = opts.rtcConfig;
