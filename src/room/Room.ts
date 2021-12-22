@@ -116,13 +116,21 @@ class Room extends EventEmitter {
       ...options?.publishDefaults,
     };
 
-    this.engine = new RTCEngine();
+    this.createEngine();
+
     this.localParticipant = new LocalParticipant(
       '', '', this.engine, this.options,
     );
 
     this.acquireAudioContext();
+  }
 
+  private createEngine() {
+    if (this.engine) {
+      return;
+    }
+
+    this.engine = new RTCEngine();
     this.engine.on(
       EngineEvent.MediaTrackAdded,
       (
@@ -181,6 +189,9 @@ class Room extends EventEmitter {
       log.warn('already connected to room', this.name);
       return;
     }
+
+    // recreate engine if previously disconnected
+    this.createEngine();
 
     if (opts?.rtcConfig) {
       this.engine.rtcConfig = opts.rtcConfig;
@@ -271,6 +282,8 @@ class Room extends EventEmitter {
     this.engine.client.sendLeave();
     this.engine.close();
     this.handleDisconnect(stopTracks);
+    /* @ts-ignore */
+    this.engine = undefined;
   };
 
   private onBeforeUnload = () => {

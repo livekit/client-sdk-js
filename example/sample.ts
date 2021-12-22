@@ -302,6 +302,7 @@ function handleRoomDisconnect() {
   chat.value = '';
 
   currentRoom = undefined;
+  window.currentRoom = undefined;
 }
 
 // -------------------------- rendering helpers ----------------------------- //

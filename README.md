@@ -63,6 +63,7 @@ room
     .on(RoomEvent.Disconnected, handleDisconnect)
     .on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
 
+// connect to room
 await room.connect('ws://localhost:7800', token, {
   // don't subscribe to other participants automatically
   autoSubscribe: false,

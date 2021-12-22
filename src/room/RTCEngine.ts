@@ -86,6 +86,7 @@ export default class RTCEngine extends EventEmitter {
   close() {
     this.isClosed = true;
 
+    this.removeAllListeners();
     if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
       this.publisher.pc.getSenders().forEach((sender) => {
         try {
