@@ -9,8 +9,6 @@ const recycledElements: Array<HTMLAudioElement> = [];
 export class Track extends EventEmitter {
   kind: Track.Kind;
 
-  name: string;
-
   mediaStreamTrack: MediaStreamTrack;
 
   attachedElements: HTMLMediaElement[] = [];
@@ -24,11 +22,10 @@ export class Track extends EventEmitter {
    */
   sid?: Track.SID;
 
-  protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind, name?: string) {
+  protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
     super();
     this.kind = kind;
     this.mediaStreamTrack = mediaTrack;
-    this.name = name || '';
     this.source = Track.Source.Unknown;
   }
 

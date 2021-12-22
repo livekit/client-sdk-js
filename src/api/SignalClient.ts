@@ -30,49 +30,8 @@ export interface SignalOptions {
   autoSubscribe?: boolean;
 }
 
-/**
- * RTCClient is the signaling layer of WebRTC, it's LiveKit's signaling protocol
- * so that it
- */
-export interface SignalClient {
-  join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse>;
-  reconnect(url: string, token: string): Promise<void>;
-  sendOffer(offer: RTCSessionDescriptionInit): void;
-  sendAnswer(answer: RTCSessionDescriptionInit): void;
-  sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget): void;
-  sendMuteTrack(trackSid: string, muted: boolean): void;
-  sendAddTrack(req: AddTrackRequest): void;
-  sendUpdateTrackSettings(settings: UpdateTrackSettings): void;
-  sendUpdateSubscription(sub: UpdateSubscription): void;
-  sendLeave(): void;
-  close(): void;
-
-  readonly isConnected: boolean;
-
-  // callbacks
-  onClose?: (reason: string) => void;
-  // server answered
-  onAnswer?: (sd: RTCSessionDescriptionInit) => void;
-  // handle server initiated negotiation
-  onOffer?: (sd: RTCSessionDescriptionInit) => void;
-  // when a new ICE candidate is made available
-  onTrickle?: (sd: RTCIceCandidateInit, target: SignalTarget) => void;
-  // when a participant has changed
-  onParticipantUpdate?: (updates: ParticipantInfo[]) => void;
-  // when track is published successfully
-  onLocalTrackPublished?: (res: TrackPublishedResponse) => void;
-  // speaker status has changed
-  onSpeakersChanged?: (res: SpeakerInfo[]) => void;
-  // when track was muted/unmuted by the server
-  onRemoteMuteChanged?: (trackSid: string, muted: boolean) => void;
-  // when room metadata has changed
-  onRoomUpdate?: (room: Room) => void;
-  // when connection quality has changed
-  onConnectionQuality?: (update: ConnectionQualityUpdate) => void;
-  onLeave?: () => void;
-}
-
-export class WSSignalClient {
+/** @internal */
+export class SignalClient {
   isConnected: boolean;
 
   useJSON: boolean;
@@ -212,6 +171,9 @@ export class WSSignalClient {
         log.debug('websocket connection closed', ev.reason);
         this.isConnected = false;
         if (this.onClose) this.onClose(ev.reason);
+        if (this.ws === ws) {
+          this.ws = undefined;
+        }
       };
     });
   }
@@ -220,6 +182,7 @@ export class WSSignalClient {
     this.isConnected = false;
     if (this.ws) this.ws.onclose = null;
     this.ws?.close();
+    this.ws = undefined;
   }
 
   // initial offer after joining

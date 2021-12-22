@@ -1,12 +1,42 @@
+import { LogLevel, LogLevelDesc } from './logger';
 import {
-  CreateLocalTracksOptions, TrackCaptureDefaults, TrackPublishDefaults,
+  AudioCaptureOptions, CreateLocalTracksOptions, TrackPublishDefaults, VideoCaptureOptions,
 } from './room/track/options';
 
+/**
+ * Options for when creating a new room
+ */
 export interface RoomOptions {
+  /**
+   * automatically manage quality of subscribed video tracks, subscribe to the
+   * an appropriate resolution based on the size of the video elements that
+   * tracks are attached to.
+   *
+   * also observes the visibility of attached tracks and pauses receiving data
+   * if they are not visible. when an attached element becomes visible again,
+   * the track resumes receiving data.
+   */
   autoManageVideo?: boolean;
 
-  rtcConfig?: RTCConfiguration;
+  /**
+   * default options to use when capturing user's audio
+   */
+  audioCaptureDefaults?: AudioCaptureOptions;
 
+  /**
+   * default options to use when capturing user's video
+   */
+  videoCaptureDefaults?: VideoCaptureOptions;
+
+  /**
+   * default options to use when publishing tracks
+   */
+  publishDefaults?: TrackPublishDefaults;
+
+  /**
+   * should local tracks be stopped when they are unpublished. defaults to true
+   * set this to false if you would prefer to clean up unpublished local tracks manually.
+   */
   stopLocalTrackOnUnpublish?: boolean;
 
   /**
@@ -14,6 +44,19 @@ export interface RoomOptions {
    * experimental flag, disable client managed layer pause when publishing capability is limited
    */
   expDisableLayerPause?: boolean;
+}
+
+/**
+ * Options for Room.connect()
+ */
+export interface RoomConnectOptions {
+  /** autosubscribe to room tracks after joining, defaults to true */
+  autoSubscribe?: boolean;
+
+  /**
+   * use to override any RTCConfiguration options.
+   */
+  rtcConfig?: RTCConfiguration;
 }
 
 /**
@@ -36,7 +79,7 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   autoManageVideo?: boolean;
 
   /** configures LiveKit internal log level */
-  logLevel?: LogLevel;
+  logLevel?: LogLevel | LogLevelDesc;
 
   /**
    * set ICE servers. When deployed correctly, LiveKit automatically uses the built-in TURN servers
@@ -63,9 +106,14 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   video?: boolean;
 
   /**
-   * default options to use when capturing user media
+   * default options to use when capturing user's audio
    */
-  captureDefaults?: TrackCaptureDefaults;
+  audioCaptureDefaults?: AudioCaptureOptions;
+
+  /**
+   * default options to use when capturing user's video
+   */
+  videoCaptureDefaults?: VideoCaptureOptions;
 
   /**
    * default options to use when publishing tracks
@@ -83,13 +131,4 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
    * experimental flag, disable client managed layer pause when publishing capability is limited
    */
   expDisableLayerPause?: boolean;
-}
-
-export enum LogLevel {
-  trace = 'trace',
-  debug = 'debug',
-  info = 'info',
-  warn = 'warn',
-  error = 'error',
-  silent = 'silent',
 }

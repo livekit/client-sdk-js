@@ -1,9 +1,7 @@
 import log from '../../logger';
-import { getTrackCaptureDefaults } from '../defaults';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import { CreateLocalTracksOptions } from './options';
 import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {
@@ -12,9 +10,10 @@ export default class LocalTrack extends Track {
 
   protected constraints: MediaTrackConstraints;
 
-  protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind,
-    name?: string, constraints?: MediaTrackConstraints) {
-    super(mediaTrack, kind, name);
+  protected constructor(
+    mediaTrack: MediaStreamTrack, kind: Track.Kind, constraints?: MediaTrackConstraints,
+  ) {
+    super(mediaTrack, kind);
     this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
     this.constraints = constraints ?? mediaTrack.getConstraints();
   }
@@ -36,54 +35,6 @@ export default class LocalTrack extends Track {
       };
     }
     return undefined;
-  }
-
-  static constraintsForOptions(options: CreateLocalTracksOptions): MediaStreamConstraints {
-    const constraints: MediaStreamConstraints = {};
-
-    // default video options
-    const defaults = getTrackCaptureDefaults();
-    const videoOptions: MediaTrackConstraints = {
-      deviceId: defaults.videoDeviceId,
-    };
-    if (defaults.videoResolution) {
-      videoOptions.width = defaults.videoResolution.width;
-      videoOptions.height = defaults.videoResolution.height;
-      videoOptions.frameRate = defaults.videoResolution.frameRate;
-    }
-    if (typeof options.video === 'object' && options.video) {
-      Object.assign(videoOptions, options.video);
-      if (options.video.resolution) {
-        Object.assign(videoOptions, options.video.resolution);
-      }
-    }
-
-    if (options.video === false) {
-      constraints.video = false;
-    } else {
-    // use defaults
-      constraints.video = videoOptions;
-    }
-
-    // default audio options
-    const audioOptions: MediaTrackConstraints = {
-      deviceId: defaults.audioDeviceId,
-      echoCancellation: defaults.echoCancellation,
-      /* @ts-ignore */
-      autoGainControl: defaults.autoGainControl,
-      /* @ts-ignore */
-      noiseSuppression: defaults.noiseSuppression,
-      channelCount: defaults.channelCount,
-    };
-    if (typeof options.audio === 'object' && options.audio) {
-      Object.assign(audioOptions, options.audio);
-    }
-    if (options.audio === false) {
-      constraints.audio = false;
-    } else {
-      constraints.audio = audioOptions;
-    }
-    return constraints;
   }
 
   /**

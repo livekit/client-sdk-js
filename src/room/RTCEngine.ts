@@ -27,7 +27,7 @@ export default class RTCEngine extends EventEmitter {
 
   client: SignalClient;
 
-  private rtcConfig: RTCConfiguration;
+  rtcConfig: RTCConfiguration = {};
 
   private lossyDC?: RTCDataChannel;
 
@@ -58,10 +58,9 @@ export default class RTCEngine extends EventEmitter {
 
   private reconnectAttempts: number = 0;
 
-  constructor(client: SignalClient, config?: RTCConfiguration) {
+  constructor() {
     super();
-    this.client = client;
-    this.rtcConfig = config || {};
+    this.client = new SignalClient();
   }
 
   async join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse> {
@@ -87,6 +86,7 @@ export default class RTCEngine extends EventEmitter {
   close() {
     this.isClosed = true;
 
+    this.removeAllListeners();
     if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
       this.publisher.pc.getSenders().forEach((sender) => {
         try {

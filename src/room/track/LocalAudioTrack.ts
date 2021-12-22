@@ -1,7 +1,8 @@
 import log from '../../logger';
 import LocalTrack from './LocalTrack';
-import { CreateAudioTrackOptions } from './options';
+import { AudioCaptureOptions } from './options';
 import { Track } from './Track';
+import { constraintsForOptions } from './utils';
 
 export default class LocalAudioTrack extends LocalTrack {
   sender?: RTCRtpSender;
@@ -9,12 +10,13 @@ export default class LocalAudioTrack extends LocalTrack {
   /** @internal */
   stopOnMute: boolean = false;
 
+  /** @internal */
+
   constructor(
     mediaTrack: MediaStreamTrack,
-    name?: string,
     constraints?: MediaTrackConstraints,
   ) {
-    super(mediaTrack, Track.Kind.Audio, name, constraints);
+    super(mediaTrack, Track.Kind.Audio, constraints);
   }
 
   async setDeviceId(deviceId: string) {
@@ -47,10 +49,10 @@ export default class LocalAudioTrack extends LocalTrack {
     return this;
   }
 
-  async restartTrack(options?: CreateAudioTrackOptions) {
+  async restartTrack(options?: AudioCaptureOptions) {
     let constraints: MediaTrackConstraints | undefined;
     if (options) {
-      const streamConstraints = LocalTrack.constraintsForOptions({ audio: options });
+      const streamConstraints = constraintsForOptions({ audio: options });
       if (typeof streamConstraints.audio !== 'boolean') {
         constraints = streamConstraints.audio;
       }
