@@ -20,10 +20,10 @@
   },
   "dependencies": {
     "events": "^3.3.0",
-    "loglevel": "^1.7.1",
-    "protobufjs": "^6.10.2",
+    "loglevel": "^1.8.0",
+    "protobufjs": "^6.11.2",
     "ts-debounce": "^3.0.0",
-    "webrtc-adapter": "^7.7.1"
+    "webrtc-adapter": "^8.1.0"
   },
   "devDependencies": {
     "@types/jest": "^27.0.3",
