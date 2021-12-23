@@ -27,9 +27,10 @@ npm install livekit-client --save
 Examples below are in TypeScript, if using JS/CommonJS imports replace import with:
 
 ```javascript
-const LiveKit = require('livekit-client');
+const livekit = require('livekit-client');
 
-LiveKit.connect(...);
+const room = new livekit.Room(...);
+await room.connect(...);
 ```
 
 ### Connecting to a room, publish video & audio
