@@ -3,9 +3,7 @@ import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
 import { DataPacket, DataPacket_Kind, TrackInfo } from '../proto/livekit_models';
 import {
-  AddTrackRequest,
-  ConnectionQualityUpdate,
-  JoinResponse,
+  AddTrackRequest, JoinResponse,
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
@@ -244,10 +242,6 @@ export default class RTCEngine extends EventEmitter {
       this.client.sendAnswer(answer);
     };
 
-    this.client.onParticipantUpdate = (updates) => {
-      this.emit(EngineEvent.ParticipantUpdate, updates);
-    };
-
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
       const resolve = this.pendingTrackResolvers[res.cid];
       if (!resolve) {
@@ -258,10 +252,6 @@ export default class RTCEngine extends EventEmitter {
       resolve(res.track!);
     };
 
-    this.client.onSpeakersChanged = (speakers) => {
-      this.emit(EngineEvent.SpeakersChanged, speakers);
-    };
-
     this.client.onClose = () => {
       this.handleDisconnect('signal');
     };
@@ -269,18 +259,6 @@ export default class RTCEngine extends EventEmitter {
     this.client.onLeave = () => {
       this.close();
       this.emit(EngineEvent.Disconnected);
-    };
-
-    this.client.onRemoteMuteChanged = (trackSid, muted) => {
-      this.emit(EngineEvent.RemoteMuteChanged, trackSid, muted);
-    };
-
-    this.client.onRoomUpdate = (room) => {
-      this.emit(EngineEvent.RoomUpdate, room);
-    };
-
-    this.client.onConnectionQuality = (update: ConnectionQualityUpdate) => {
-      this.emit(EngineEvent.ConnectionQualityUpdate, update);
     };
   }
 

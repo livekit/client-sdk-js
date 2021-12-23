@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
+import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 
 // keep old audio elements when detached, we would re-use them since on iOS
@@ -14,6 +15,8 @@ export class Track extends EventEmitter {
   attachedElements: HTMLMediaElement[] = [];
 
   isMuted: boolean = false;
+
+  streamState: Track.StreamState = Track.StreamState.Active;
 
   source: Track.Source;
 
@@ -202,6 +205,12 @@ export namespace Track {
     Unknown = 'unknown',
   }
 
+  export enum StreamState {
+    Active = 'active',
+    Paused = 'paused',
+    Unknown = 'unknown',
+  }
+
   export interface Dimensions {
     width: number;
     height: number;
@@ -260,6 +269,18 @@ export namespace Track {
         return Source.ScreenShareAudio;
       default:
         return Source.Unknown;
+    }
+  }
+
+  /** @internal */
+  export function streamStateFromProto(s: ProtoStreamState): StreamState {
+    switch (s) {
+      case ProtoStreamState.ACTIVE:
+        return StreamState.Active;
+      case ProtoStreamState.PAUSED:
+        return StreamState.Paused;
+      default:
+        return StreamState.Unknown;
     }
   }
 }

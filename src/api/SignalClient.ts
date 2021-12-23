@@ -11,6 +11,8 @@ import {
   SignalRequest,
   SignalResponse,
   SignalTarget,
+  StreamStateUpdate,
+  SubscribedQualityUpdate,
   TrackPublishedResponse,
   UpdateSubscription,
   UpdateTrackSettings,
@@ -58,6 +60,10 @@ export class SignalClient {
   onRoomUpdate?: (room: Room) => void;
 
   onConnectionQuality?: (update: ConnectionQualityUpdate) => void;
+
+  onStreamStateUpdate?: (update: StreamStateUpdate) => void;
+
+  onSubscribedQualityUpdate?: (update: SubscribedQualityUpdate) => void;
 
   onLeave?: () => void;
 
@@ -308,6 +314,14 @@ export class SignalClient {
     } else if (msg.connectionQuality) {
       if (this.onConnectionQuality) {
         this.onConnectionQuality(msg.connectionQuality);
+      }
+    } else if (msg.streamStateUpdate) {
+      if (this.onStreamStateUpdate) {
+        this.onStreamStateUpdate(msg.streamStateUpdate);
+      }
+    } else if (msg.subscribedQualityUpdate) {
+      if (this.onSubscribedQualityUpdate) {
+        this.onSubscribedQualityUpdate(msg.subscribedQualityUpdate);
       }
     } else {
       log.debug('unsupported message', msg);
