@@ -22,7 +22,7 @@ export interface TrackPublishDefaults {
   audioBitrate?: number;
 
   /**
-   * dtx (Discontinuous Tranmission of audio), defaults to true
+   * dtx (Discontinuous Transmission of audio), defaults to true
    */
   dtx?: boolean;
 
