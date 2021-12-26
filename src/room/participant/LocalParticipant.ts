@@ -353,9 +353,7 @@ export default class LocalParticipant extends Participant {
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
-    track.on(TrackEvent.Ended, () => {
-      this.unpublishTrack(track);
-    });
+    track.on(TrackEvent.Ended, this.onTrackUnpublish);
 
     // create track publication from track
     const req = AddTrackRequest.fromPartial({
@@ -457,6 +455,10 @@ export default class LocalParticipant extends Participant {
       mediaStreamTrack = track;
     } else {
       mediaStreamTrack = track.mediaStreamTrack;
+
+      track.off(TrackEvent.Muted, this.onTrackMuted);
+      track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
+      track.off(TrackEvent.Ended, this.onTrackUnpublish);
     }
 
     if (this.engine.publisher) {
@@ -565,6 +567,10 @@ export default class LocalParticipant extends Participant {
     }
 
     this.engine.updateMuteStatus(track.sid, muted);
+  };
+
+  onTrackUnpublish = (track: LocalTrack) => {
+    this.unpublishTrack(track);
   };
 
   private getPublicationForTrack(
