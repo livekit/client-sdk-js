@@ -253,6 +253,7 @@ class Room extends EventEmitter {
 
       this.name = joinResponse.room!.name;
       this.sid = joinResponse.room!.sid;
+      this.metadata = joinResponse.room!.metadata;
     } catch (err) {
       this.engine.close();
       throw err;
