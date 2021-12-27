@@ -283,12 +283,27 @@ class Room extends EventEmitter {
    */
   disconnect = (stopTracks = true) => {
     // send leave
-    this.engine.client.sendLeave();
-    this.engine.close();
+    if (this.engine) {
+      this.engine.client.sendLeave();
+      this.engine.close();
+    }
     this.handleDisconnect(stopTracks);
     /* @ts-ignore */
     this.engine = undefined;
   };
+
+  /**
+   * retrieves a participant by identity
+   * @param identity
+   * @returns
+   */
+  getParticipantByIdentity(identity: string): Participant | undefined {
+    for (const [, p] of this.participants) {
+      if (p.identity === identity) {
+        return p;
+      }
+    }
+  }
 
   private onBeforeUnload = () => {
     this.disconnect();
@@ -620,7 +635,7 @@ class Room extends EventEmitter {
         })
         .on(ParticipantEvent.TrackSubscribed,
           (track: RemoteTrack, publication: RemoteTrackPublication) => {
-          // monitor playback status
+            // monitor playback status
             if (track.kind === Track.Kind.Audio) {
               track.on(TrackEvent.AudioPlaybackStarted, this.handleAudioPlaybackStarted);
               track.on(TrackEvent.AudioPlaybackFailed, this.handleAudioPlaybackFailed);
