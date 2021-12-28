@@ -13,6 +13,8 @@ export enum LogLevel {
 
 const livekitLogger = log.getLogger('livekit');
 
+livekitLogger.setLevel(LogLevel.info);
+
 export default livekitLogger;
 
 export function setLogLevel(level: LogLevel | LogLevelDesc) {
