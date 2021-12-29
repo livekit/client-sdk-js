@@ -255,7 +255,8 @@ export class SignalClient {
 
   sendRequest(req: SignalRequest) {
     if (!this.ws) {
-      throw new ConnectionError('cannot send signal request before connected');
+      log.error('cannot send signal request before connected');
+      return;
     }
 
     try {
