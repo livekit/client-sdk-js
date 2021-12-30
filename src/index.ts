@@ -17,6 +17,7 @@ export * from './connect';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';
+export * from './room/track/create';
 export * from './room/track/options';
 export * from './room/track/Track';
 export * from './room/track/types';
