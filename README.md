@@ -212,7 +212,7 @@ You can use the helper `MediaDeviceFailure.getFailure(error)` to determine speci
 
 These distinctions enables you to provide more specific messaging to the user.
 
-You could also retrieve the last error with `getLastAudioCreateError` and `getLastVideoCreateError`.
+You could also retrieve the last error with `LocalParticipant.lastCameraError` and `LocalParticipant.lastMicrophoneError`.
 
 ### Audio playback
 

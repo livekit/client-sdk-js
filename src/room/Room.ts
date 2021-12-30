@@ -15,15 +15,8 @@ import LocalParticipant from './participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
+import { audioDefaults, publishDefaults, videoDefaults } from './track/defaults';
 import LocalTrackPublication from './track/LocalTrackPublication';
-import {
-  AudioCaptureOptions,
-  AudioPresets,
-  ScreenSharePresets,
-  TrackPublishDefaults,
-  VideoCaptureOptions,
-  VideoPresets,
-} from './track/options';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import TrackPublication from './track/TrackPublication';
@@ -35,25 +28,6 @@ export enum RoomState {
   Connected = 'connected',
   Reconnecting = 'reconnecting',
 }
-
-const publishDefaults: TrackPublishDefaults = {
-  audioBitrate: AudioPresets.speech.maxBitrate,
-  dtx: true,
-  simulcast: true,
-  screenShareEncoding: ScreenSharePresets.hd_15.encoding,
-  stopMicTrackOnMute: false,
-};
-
-const audioDefaults: AudioCaptureOptions = {
-  autoGainControl: true,
-  channelCount: 1,
-  echoCancellation: true,
-  noiseSuppression: true,
-};
-
-const videoDefaults: VideoCaptureOptions = {
-  resolution: VideoPresets.qhd.resolution,
-};
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
