@@ -121,6 +121,10 @@ export default class RTCEngine extends EventEmitter {
     this.client.sendMuteTrack(trackSid, muted);
   }
 
+  get dataSubscriberReadyState(): string | undefined {
+    return this.reliableDCSub?.readyState;
+  }
+
   private configure(joinResponse: JoinResponse) {
     // already configured
     if (this.publisher || this.subscriber) {
@@ -408,28 +412,25 @@ export default class RTCEngine extends EventEmitter {
       return;
     }
 
-    if (this.publisher && this.publisher.isICEConnected) {
-      return;
+    if (!this.publisher) {
+      throw new ConnectionError('publisher connection not set');
     }
 
-    // start negotiation
-    this.negotiate();
+    if (!this.publisher.isICEConnected && this.publisher.pc.iceConnectionState !== 'checking') {
+      // start negotiation
+      this.negotiate();
+    }
+
+    const targetChannel = this.dataChannelForKind(kind);
+    if (targetChannel?.readyState === 'open') {
+      return;
+    }
 
     // wait until publisher ICE connected
     const endTime = (new Date()).getTime() + maxICEConnectTimeout;
     while ((new Date()).getTime() < endTime) {
-      if (this.publisher && this.publisher.isICEConnected) {
-        let status: RTCDataChannelState = 'connecting';
-
-        if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
-          status = this.lossyDC.readyState;
-        } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
-          status = this.reliableDC.readyState;
-        }
-
-        if (status === 'open') {
-          return;
-        }
+      if (this.publisher.isICEConnected && this.dataChannelForKind(kind)?.readyState === 'open') {
+        return;
       }
       await sleep(50);
     }
@@ -446,5 +447,13 @@ export default class RTCEngine extends EventEmitter {
     this.hasPublished = true;
 
     this.publisher.negotiate();
+  }
+
+  private dataChannelForKind(kind: DataPacket_Kind): RTCDataChannel | undefined {
+    if (kind === DataPacket_Kind.LOSSY) {
+      return this.lossyDC;
+    } if (kind === DataPacket_Kind.RELIABLE) {
+      return this.reliableDC;
+    }
   }
 }
