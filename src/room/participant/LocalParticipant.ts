@@ -573,6 +573,9 @@ export default class LocalParticipant extends Participant {
   };
 
   private handleSubscribedQualityUpdate = (update: SubscribedQualityUpdate) => {
+    if (!this.roomOptions?.dynacast) {
+      return;
+    }
     const pub = this.videoTracks.get(update.trackSid);
     if (!pub) {
       log.warn('handleSubscribedQualityUpdate',

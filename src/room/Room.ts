@@ -178,6 +178,12 @@ class Room extends EventEmitter {
         throw new UnsupportedServer('unknown server version');
       }
 
+      if (joinResponse.serverVersion === '0.15.1' && this.options.dynacast) {
+        log.debug('disabling dynacast due to server version');
+        // dynacast has a bug in 0.15.1, so we cannot use it then
+        this.options.dynacast = false;
+      }
+
       this.state = RoomState.Connected;
       const pi = joinResponse.participant!;
       this.localParticipant = new LocalParticipant(
@@ -375,7 +381,7 @@ class Room extends EventEmitter {
       mediaTrack,
       trackId,
       receiver,
-      this.options.autoManageVideo,
+      this.options.adaptiveStream,
     );
   }
 
