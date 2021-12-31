@@ -31,6 +31,9 @@ export async function connect(
   options?: ConnectOptions,
 ): Promise<Room> {
   options ??= {};
+  if (options.adaptiveStream === undefined) {
+    options.adaptiveStream = options.autoManageVideo;
+  }
   setLogLevel(options.logLevel ?? LogLevel.warn);
 
   const config: RTCConfiguration = options.rtcConfig ?? {};

@@ -15,7 +15,7 @@ export default class RemoteVideoTrack extends Track {
 
   private elementInfos: ElementInfo[] = [];
 
-  private autoManaged?: boolean;
+  private adaptiveStream?: boolean;
 
   private lastVisible?: boolean;
 
@@ -25,17 +25,17 @@ export default class RemoteVideoTrack extends Track {
     mediaTrack: MediaStreamTrack,
     sid: string,
     receiver?: RTCRtpReceiver,
-    autoManaged?: boolean,
+    adaptiveStream?: boolean,
   ) {
     super(mediaTrack, Track.Kind.Video);
     // override id to parsed ID
     this.sid = sid;
     this.receiver = receiver;
-    this.autoManaged = autoManaged;
+    this.adaptiveStream = adaptiveStream;
   }
 
-  get isAutoManaged(): boolean {
-    return this.autoManaged ?? false;
+  get isAdaptiveStream(): boolean {
+    return this.adaptiveStream ?? false;
   }
 
   /** @internal */
@@ -64,7 +64,7 @@ export default class RemoteVideoTrack extends Track {
       super.attach(element);
     }
 
-    if (this.autoManaged) {
+    if (this.adaptiveStream) {
       this.elementInfos.push({
         element,
         visible: true, // default visible

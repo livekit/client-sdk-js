@@ -8,15 +8,22 @@ import {
  */
 export interface RoomOptions {
   /**
-   * automatically manage quality of subscribed video tracks, subscribe to the
-   * an appropriate resolution based on the size of the video elements that
-   * tracks are attached to.
+   * AdaptiveStream lets LiveKit automatically manage quality of subscribed
+   * video tracks to optimize for bandwidth and CPU.
+   * When attached video elements are visible, it'll choose an appropriate
+   * resolution based on the size of largest video element it's attached to.
    *
-   * also observes the visibility of attached tracks and pauses receiving data
-   * if they are not visible. when an attached element becomes visible again,
-   * the track resumes receiving data.
+   * When none of the video elements are visible, it'll temporarily pause
+   * the data flow until they are visible again.
    */
-  autoManageVideo?: boolean;
+  adaptiveStream?: boolean;
+
+  /**
+   * enable Dynacast, off by default. With Dynacast dynamically pauses
+   * video layers that are not being consumed by any subscribers, significantly
+   * reducing publishing CPU and bandwidth usage.
+   */
+  dynacast?: boolean;
 
   /**
    * default options to use when capturing user's audio
@@ -68,15 +75,20 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   autoSubscribe?: boolean;
 
   /**
-   * automatically manage quality of subscribed video tracks, subscribe to the
-   * an appropriate resolution based on the size of the video elements that tracks
-   * are attached to.
-   *
-   * also observes the visibility of attached tracks and pauses receiving data
-   * if they are not visible.
-   *
+   * see [[RoomOptions.adaptiveStream]]
+   */
+  adaptiveStream?: boolean;
+
+  /**
+   * alias for adaptiveStream
+   * @deprecated
    */
   autoManageVideo?: boolean;
+
+  /**
+   * see [[RoomOptions.dynacast]]
+   */
+  dynacast?: boolean;
 
   /** configures LiveKit internal log level */
   logLevel?: LogLevel | LogLevelDesc;

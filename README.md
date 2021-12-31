@@ -47,8 +47,11 @@ import {
 
 // creates a new room with options
 const room = new Room({
-  // automatically manage video quality
-  autoManageVideo: true,
+  // automatically manage subscribed video quality
+  adaptiveStream: true,
+
+  // optimize publishing bandwidth and CPU for simulcasted tracks
+  dynacast: true,
 
   // default capture settings
   videoCaptureDefaults: {
@@ -152,7 +155,21 @@ if (p) {
 }
 ```
 
-### Advanced track manipulation
+### Creating a track prior to creating a room
+
+In some cases, it may be useful to create a track before creating a room. For
+example, when building a staging area so the user may check their own camera.
+
+You can use our global track creation functions for this:
+
+```typescript
+const tracks = await createLocalTracks({
+  audio: true,
+  video: true,
+});
+```
+
+### Publish tracks from any source
 
 LiveKit lets you publish any track as long as it can be represented by a MediaStreamTrack. You can specify a name on the track in order to identify it later.
 

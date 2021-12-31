@@ -3,12 +3,12 @@ import { RoomOptions } from '../../options';
 import {
   DataPacket, DataPacket_Kind,
 } from '../../proto/livekit_models';
-import { AddTrackRequest } from '../../proto/livekit_rtc';
+import { AddTrackRequest, SubscribedQualityUpdate } from '../../proto/livekit_rtc';
 import {
   TrackInvalidError,
   UnexpectedConnectionState,
 } from '../errors';
-import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
+import { ParticipantEvent, TrackEvent } from '../events';
 import RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
@@ -53,7 +53,7 @@ export default class LocalParticipant extends Participant {
     this.engine = engine;
     this.roomOptions = options;
 
-    this.engine.on(EngineEvent.RemoteMuteChanged, (trackSid: string, muted: boolean) => {
+    this.engine.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
       const pub = this.tracks.get(trackSid);
       if (!pub || !pub.track) {
         return;
@@ -63,7 +63,9 @@ export default class LocalParticipant extends Participant {
       } else {
         pub.unmute();
       }
-    });
+    };
+
+    this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
   }
 
   get lastCameraError(): Error | undefined {
@@ -276,6 +278,7 @@ export default class LocalParticipant extends Participant {
       videoConstraints = {
         width: options.resolution.width,
         height: options.resolution.height,
+        frameRate: options.resolution.frameRate,
       };
     }
     // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
@@ -569,7 +572,20 @@ export default class LocalParticipant extends Participant {
     this.engine.updateMuteStatus(track.sid, muted);
   };
 
-  onTrackUnpublish = (track: LocalTrack) => {
+  private handleSubscribedQualityUpdate = (update: SubscribedQualityUpdate) => {
+    if (!this.roomOptions?.dynacast) {
+      return;
+    }
+    const pub = this.videoTracks.get(update.trackSid);
+    if (!pub) {
+      log.warn('handleSubscribedQualityUpdate',
+        'received subscribed quality update for unknown track', update.trackSid);
+      return;
+    }
+    pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
+  };
+
+  private onTrackUnpublish = (track: LocalTrack) => {
     this.unpublishTrack(track);
   };
 

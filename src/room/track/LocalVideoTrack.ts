@@ -1,6 +1,7 @@
 import { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
+import { SubscribedQuality } from '../../proto/livekit_rtc';
 import { monitorFrequency, VideoSenderStats } from '../stats';
 import LocalTrack from './LocalTrack';
 import { VideoCaptureOptions } from './options';
@@ -28,6 +29,9 @@ export default class LocalVideoTrack extends LocalTrack {
   private lastExplicitQualityChange?: number;
 
   private encodings?: RTCRtpEncodingParameters[];
+
+  // layers that are being subscribed to, and that we should publish
+  private activeQualities?: SubscribedQuality[];
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -194,6 +198,42 @@ export default class LocalVideoTrack extends LocalTrack {
     await this.restart(constraints);
   }
 
+  /**
+   * @internal
+   * Sets layers that should be publishing
+   */
+  setPublishingLayers(qualities: SubscribedQuality[]) {
+    log.debug('setting publishing layers', qualities);
+    if (!this.sender) {
+      return;
+    }
+    const params = this.sender.getParameters();
+    const { encodings } = params;
+    if (!encodings) {
+      return;
+    }
+
+    this.activeQualities = qualities;
+    let hasChanged = false;
+    encodings.forEach((encoding) => {
+      const quality = videoQualityForRid(encoding.rid ?? '');
+      const subscribedQuality = qualities.find((q) => q.quality === quality);
+      if (!subscribedQuality) {
+        return;
+      }
+      if (encoding.active !== subscribedQuality.enabled) {
+        hasChanged = true;
+        encoding.active = subscribedQuality.enabled;
+        log.debug(`setting layer ${subscribedQuality.quality} to ${encoding.active ? 'enabled' : 'disabled'}`);
+      }
+    });
+
+    if (hasChanged) {
+      params.encodings = encodings;
+      this.sender.setParameters(params);
+    }
+  }
+
   private monitorSender = async () => {
     if (!this.sender) {
       return;
@@ -275,6 +315,25 @@ export default class LocalVideoTrack extends LocalTrack {
 
       const nextQuality = currentQuality + 1;
       if ((new Date()).getTime() - this.lastQualityChange < QUALITY_UPGRADE_DELAY) {
+        return;
+      }
+
+      if (this.activeQualities
+        && this.activeQualities.some((q) => q.quality === nextQuality && !q.enabled)
+      ) {
+        // quality has been disabled by the server, so we should skip
+        return;
+      }
+
+      // we are already at the highest layer
+      let bestQuality = VideoQuality.LOW;
+      this.encodings?.forEach((encoding) => {
+        const quality = videoQualityForRid(encoding.rid ?? '');
+        if (quality > bestQuality) {
+          bestQuality = quality;
+        }
+      });
+      if (nextQuality > bestQuality) {
         return;
       }
 

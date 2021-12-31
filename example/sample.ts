@@ -26,14 +26,16 @@ const appActions = {
     const url = (<HTMLInputElement>$('url')).value;
     const token = (<HTMLInputElement>$('token')).value;
     const simulcast = (<HTMLInputElement>$('simulcast')).checked;
+    const dynacast = (<HTMLInputElement>$('dynacast')).checked;
     const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
-    const adaptiveVideo = (<HTMLInputElement>$('adaptive-video')).checked;
+    const adaptiveStream = (<HTMLInputElement>$('adaptive-stream')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
 
     setLogLevel('debug');
 
     const roomOpts: RoomOptions = {
-      autoManageVideo: adaptiveVideo,
+      adaptiveStream,
+      dynacast,
       publishDefaults: {
         simulcast,
       },
