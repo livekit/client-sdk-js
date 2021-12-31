@@ -176,6 +176,9 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
   });
 
   mediaStream.addTrack(track);
+  setTimeout(() => {
+    element.srcObject = mediaStream;
+  }, 1);
 }
 
 /** @internal */

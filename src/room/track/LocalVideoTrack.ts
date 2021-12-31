@@ -2,7 +2,7 @@ import { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import { SubscribedQuality } from '../../proto/livekit_rtc';
-import { monitorFrequency, VideoSenderStats } from '../stats';
+import { computeBitrate, monitorFrequency, VideoSenderStats } from '../stats';
 import LocalTrack from './LocalTrack';
 import { VideoCaptureOptions } from './options';
 import { Track } from './Track';
@@ -49,10 +49,6 @@ export default class LocalVideoTrack extends LocalTrack {
 
   /* @internal */
   startMonitor(signalClient: SignalClient) {
-    // only monitor simulcast streams
-    if (!this.isSimulcast) {
-      return;
-    }
     this.signalClient = signalClient;
 
     setTimeout(() => {
@@ -93,23 +89,8 @@ export default class LocalVideoTrack extends LocalTrack {
     const items: VideoSenderStats[] = [];
 
     const stats = await this.sender.getStats();
-    let sender: any;
     stats.forEach((v) => {
-      if (
-        v.type === 'track'
-        && v.trackIdentifier === this.mediaStreamTrack.id
-      ) {
-        sender = v;
-      }
-    });
-
-    if (!sender) {
-      return items;
-    }
-
-    // match the outbound-rtp items
-    stats.forEach((v) => {
-      if (v.type === 'outbound-rtp' && v.trackId === sender.id) {
+      if (v.type === 'outbound-rtp') {
         const vs: VideoSenderStats = {
           type: 'video',
           streamId: v.id,
@@ -119,9 +100,10 @@ export default class LocalVideoTrack extends LocalTrack {
           pliCount: v.pliCount,
           nackCount: v.nackCount,
           packetsSent: v.packetsSent,
+          bytesSent: v.bytesSent,
           framesSent: v.framesSent,
           timestamp: v.timestamp,
-          rid: v.rid,
+          rid: v.rid ?? '',
           retransmittedPacketsSent: v.retransmittedPacketsSent,
           qualityLimitationReason: v.qualityLimitationReason,
           qualityLimitationResolutionChanges:
@@ -236,6 +218,7 @@ export default class LocalVideoTrack extends LocalTrack {
 
   private monitorSender = async () => {
     if (!this.sender) {
+      this._currentBitrate = 0;
       return;
     }
     const stats = await this.getSenderStats();
@@ -243,6 +226,15 @@ export default class LocalVideoTrack extends LocalTrack {
 
     if (this.prevStats && this.isSimulcast) {
       this.checkAndUpdateSimulcast(statsMap);
+    }
+
+    if (this.prevStats) {
+      let totalBitrate = 0;
+      statsMap.forEach((s, key) => {
+        const prev = this.prevStats?.get(key);
+        totalBitrate += computeBitrate(s.bytesSent, prev?.bytesSent, s.timestamp, prev?.timestamp);
+      });
+      this._currentBitrate = totalBitrate;
     }
 
     this.prevStats = statsMap;

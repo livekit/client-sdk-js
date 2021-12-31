@@ -127,6 +127,8 @@ export default class RemoteParticipant extends Participant {
     track.source = publication.source;
     // keep publication's muted status
     track.isMuted = publication.isMuted;
+    track.receiver = receiver;
+    track.startMonitor();
 
     // when media track is ended, fire the event
     mediaTrack.onended = () => {

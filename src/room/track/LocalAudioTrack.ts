@@ -1,4 +1,5 @@
 import log from '../../logger';
+import { AudioSenderStats, computeBitrate, monitorFrequency } from '../stats';
 import LocalTrack from './LocalTrack';
 import { AudioCaptureOptions } from './options';
 import { Track } from './Track';
@@ -10,7 +11,7 @@ export default class LocalAudioTrack extends LocalTrack {
   /** @internal */
   stopOnMute: boolean = false;
 
-  /** @internal */
+  private prevStats?: AudioSenderStats;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -58,5 +59,57 @@ export default class LocalAudioTrack extends LocalTrack {
       }
     }
     await this.restart(constraints);
+  }
+
+  /* @internal */
+  startMonitor() {
+    setTimeout(() => {
+      this.monitorSender();
+    }, monitorFrequency);
+  }
+
+  private monitorSender = async () => {
+    if (!this.sender) {
+      this._currentBitrate = 0;
+      return;
+    }
+    const stats = await this.getSenderStats();
+
+    if (stats && this.prevStats) {
+      this._currentBitrate = computeBitrate(
+        stats.bytesSent, this.prevStats.bytesSent,
+        stats.timestamp, this.prevStats.timestamp,
+      );
+    }
+
+    this.prevStats = stats;
+    setTimeout(() => {
+      this.monitorSender();
+    }, monitorFrequency);
+  };
+
+  async getSenderStats(): Promise<AudioSenderStats | undefined> {
+    if (!this.sender) {
+      return undefined;
+    }
+
+    const stats = await this.sender.getStats();
+    let audioStats: AudioSenderStats | undefined;
+    stats.forEach((v) => {
+      if (v.type === 'outbound-rtp') {
+        audioStats = {
+          type: 'audio',
+          streamId: v.id,
+          packetsSent: v.packetsSent,
+          packetsLost: v.packetsLost,
+          bytesSent: v.bytesSent,
+          timestamp: v.timestamp,
+          roundTripTime: v.roundTripTime,
+          jitter: v.jitter,
+        };
+      }
+    });
+
+    return audioStats;
   }
 }
