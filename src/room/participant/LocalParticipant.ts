@@ -416,6 +416,8 @@ export default class LocalParticipant extends Participant {
     const disableLayerPause = this.roomOptions?.expDisableLayerPause ?? false;
     if (track instanceof LocalVideoTrack && !disableLayerPause) {
       track.startMonitor(this.engine.client);
+    } else if (track instanceof LocalAudioTrack) {
+      track.startMonitor();
     }
 
     if (opts.videoCodec) {

@@ -8,13 +8,12 @@ export function unpackStreamId(packed: string): string[] {
   return [packed, ''];
 }
 
-export function useLegacyAPI(): boolean {
-  // react native is using old stream based API
-  return typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
-}
-
 export async function sleep(duration: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, duration));
+}
+
+export function isFireFox(): boolean {
+  return navigator.userAgent.indexOf('Firefox') !== -1;
 }
 
 function roDispatchCallback(entries: ResizeObserverEntry[]) {

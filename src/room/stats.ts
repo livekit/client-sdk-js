@@ -5,6 +5,9 @@ interface SenderStats {
   /** number of packets sent */
   packetsSent?: number;
 
+  /** number of bytes sent */
+  bytesSent?: number;
+
   /** jitter as perceived by remote */
   jitter?: number;
 
@@ -16,6 +19,8 @@ interface SenderStats {
 
   /** ID of the outbound stream */
   streamId?: string;
+
+  timestamp: number;
 }
 
 export interface AudioSenderStats extends SenderStats {
@@ -45,8 +50,6 @@ export interface VideoSenderStats extends SenderStats {
   qualityLimitationResolutionChanges: number;
 
   retransmittedPacketsSent: number;
-
-  timestamp: number;
 }
 
 interface ReceiverStats {
@@ -58,7 +61,29 @@ interface ReceiverStats {
   /** number of packets sent */
   packetsReceived?: number;
 
+  bytesReceived?: number;
+
   streamId?: string;
+
+  jitter?: number;
+
+  timestamp: number;
+}
+
+export interface AudioReceiverStats extends ReceiverStats {
+  type: 'audio';
+
+  concealedSamples?: number;
+
+  concealmentEvents?: number;
+
+  silentConcealedSamples?: number;
+
+  silentConcealmentEvents?: number;
+
+  totalAudioEnergy?: number;
+
+  totalSamplesDuration?: number;
 }
 
 export interface VideoReceiverStats extends ReceiverStats {
@@ -70,13 +95,36 @@ export interface VideoReceiverStats extends ReceiverStats {
 
   framesReceived: number;
 
-  frameWidth: number;
+  frameWidth?: number;
 
-  frameHeight: number;
+  frameHeight?: number;
 
-  firCount: number;
+  firCount?: number;
 
-  pliCount: number;
+  pliCount?: number;
 
-  nackCount: number;
+  nackCount?: number;
+}
+
+export function computeBitrate<T extends ReceiverStats | SenderStats>(
+  currentStats: T,
+  prevStats?: T,
+): number {
+  if (!prevStats) {
+    return 0;
+  }
+  let bytesNow: number | undefined;
+  let bytesPrev: number | undefined;
+  if ('bytesReceived' in currentStats) {
+    bytesNow = (currentStats as ReceiverStats).bytesReceived;
+    bytesPrev = (prevStats as ReceiverStats).bytesReceived;
+  } else if ('bytesSent' in currentStats) {
+    bytesNow = (currentStats as SenderStats).bytesSent;
+    bytesPrev = (prevStats as SenderStats).bytesSent;
+  }
+  if (bytesNow === undefined || bytesPrev === undefined
+    || currentStats.timestamp === undefined || prevStats.timestamp === undefined) {
+    return 0;
+  }
+  return ((bytesNow - bytesPrev) * 8 * 1000) / (currentStats.timestamp - prevStats.timestamp);
 }
