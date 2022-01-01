@@ -41,7 +41,7 @@ describe('computeVideoEncodings', () => {
     const encodings = computeVideoEncodings(false, 640, 480, {
       simulcast: false,
     });
-    expect(encodings).toBeUndefined();
+    expect(encodings).toEqual([{}]);
   });
 
   it('respects client defined bitrate', () => {
