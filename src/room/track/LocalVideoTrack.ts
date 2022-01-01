@@ -49,7 +49,7 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   /* @internal */
-  startMonitor(signalClient: SignalClient) {
+  startMonitor(signalClient: SignalClient, disableLayerPause: boolean) {
     this.signalClient = signalClient;
     // save original encodings
     const params = this.sender?.getParameters();
@@ -58,7 +58,7 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     setTimeout(() => {
-      this.monitorSender();
+      this.monitorSender(disableLayerPause);
     }, monitorFrequency);
   }
 
@@ -228,7 +228,7 @@ export default class LocalVideoTrack extends LocalTrack {
     }
   }
 
-  private monitorSender = async () => {
+  private monitorSender = async (disableLayerPause: boolean) => {
     if (!this.sender) {
       this._currentBitrate = 0;
       return;
@@ -236,7 +236,7 @@ export default class LocalVideoTrack extends LocalTrack {
     const stats = await this.getSenderStats();
     const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));
 
-    if (this.prevStats && this.isSimulcast) {
+    if (!disableLayerPause && this.prevStats && this.isSimulcast) {
       this.checkAndUpdateSimulcast(statsMap);
     }
 
@@ -251,7 +251,7 @@ export default class LocalVideoTrack extends LocalTrack {
 
     this.prevStats = statsMap;
     setTimeout(() => {
-      this.monitorSender();
+      this.monitorSender(disableLayerPause);
     }, monitorFrequency);
   };
 

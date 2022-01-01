@@ -413,9 +413,9 @@ export default class LocalParticipant extends Participant {
 
     // store RTPSender
     track.sender = transceiver.sender;
-    const disableLayerPause = this.roomOptions?.expDisableLayerPause ?? false;
-    if (track instanceof LocalVideoTrack && !disableLayerPause) {
-      track.startMonitor(this.engine.client);
+    if (track instanceof LocalVideoTrack) {
+      const disableLayerPause = this.roomOptions?.expDisableLayerPause ?? false;
+      track.startMonitor(this.engine.client, disableLayerPause);
     } else if (track instanceof LocalAudioTrack) {
       track.startMonitor();
     }
