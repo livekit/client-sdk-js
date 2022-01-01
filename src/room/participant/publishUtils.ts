@@ -60,7 +60,7 @@ export function computeVideoEncodings(
   width?: number,
   height?: number,
   options?: TrackPublishOptions,
-): RTCRtpEncodingParameters[] | undefined {
+): RTCRtpEncodingParameters[] {
   let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
@@ -68,9 +68,9 @@ export function computeVideoEncodings(
   const useSimulcast = !isScreenShare && options?.simulcast;
 
   if ((!videoEncoding && !useSimulcast) || !width || !height) {
-    // don't set encoding when we are not simulcasting and user isn't restricting
-    // encoding parameters
-    return;
+    // when we aren't simulcasting, will need to return a single encoding without
+    // capping bandwidth. we always require a encoding for dynacast
+    return [{}];
   }
 
   if (!videoEncoding) {
