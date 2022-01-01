@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
+import { isFireFox } from '../utils';
 
 // keep old audio elements when detached, we would re-use them since on iOS
 // Safari tracks which audio elements have been "blessed" by the user.
@@ -176,9 +177,13 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
   });
 
   mediaStream.addTrack(track);
-  setTimeout(() => {
-    element.srcObject = mediaStream;
-  }, 1);
+  if (isFireFox()) {
+    // sometimes firefox doesn't render local video on the first try.
+    // It needs to be re-attached after a timeout.
+    setTimeout(() => {
+      element.srcObject = mediaStream;
+    }, 1);
+  }
 }
 
 /** @internal */
