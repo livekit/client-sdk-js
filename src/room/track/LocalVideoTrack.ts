@@ -244,7 +244,7 @@ export default class LocalVideoTrack extends LocalTrack {
       let totalBitrate = 0;
       statsMap.forEach((s, key) => {
         const prev = this.prevStats?.get(key);
-        totalBitrate += computeBitrate(s.bytesSent, prev?.bytesSent, s.timestamp, prev?.timestamp);
+        totalBitrate += computeBitrate(s, prev);
       });
       this._currentBitrate = totalBitrate;
     }

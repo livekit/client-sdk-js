@@ -46,11 +46,11 @@ export default class RemoteAudioTrack extends Track {
   /* @internal */
   startMonitor() {
     setTimeout(() => {
-      this.monitorSender();
+      this.monitorReceiver();
     }, monitorFrequency);
   }
 
-  private monitorSender = async () => {
+  private monitorReceiver = async () => {
     if (!this.receiver) {
       this._currentBitrate = 0;
       return;
@@ -58,15 +58,12 @@ export default class RemoteAudioTrack extends Track {
     const stats = await this.getReceiverStats();
 
     if (stats && this.prevStats) {
-      this._currentBitrate = computeBitrate(
-        stats.bytesReceived, this.prevStats.bytesReceived,
-        stats.timestamp, this.prevStats.timestamp,
-      );
+      this._currentBitrate = computeBitrate(stats, this.prevStats);
     }
 
     this.prevStats = stats;
     setTimeout(() => {
-      this.monitorSender();
+      this.monitorReceiver();
     }, monitorFrequency);
   };
 

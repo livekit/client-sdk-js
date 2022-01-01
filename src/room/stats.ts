@@ -106,13 +106,25 @@ export interface VideoReceiverStats extends ReceiverStats {
   nackCount?: number;
 }
 
-export function computeBitrate(
-  bytesNow?: number, bytesPrev?: number,
-  timeNow?: number, timePrev?: number,
+export function computeBitrate<T extends ReceiverStats | SenderStats>(
+  currentStats: T,
+  prevStats?: T,
 ): number {
-  if (bytesNow === undefined || bytesPrev === undefined || timeNow === undefined
-    || timePrev === undefined) {
+  if (!prevStats) {
     return 0;
   }
-  return ((bytesNow - bytesPrev) * 8 * 1000) / (timeNow - timePrev);
+  let bytesNow: number | undefined;
+  let bytesPrev: number | undefined;
+  if ('bytesReceived' in currentStats) {
+    bytesNow = (currentStats as ReceiverStats).bytesReceived;
+    bytesPrev = (prevStats as ReceiverStats).bytesReceived;
+  } else if ('bytesSent' in currentStats) {
+    bytesNow = (currentStats as SenderStats).bytesSent;
+    bytesPrev = (prevStats as SenderStats).bytesSent;
+  }
+  if (bytesNow === undefined || bytesPrev === undefined
+    || currentStats.timestamp === undefined || prevStats.timestamp === undefined) {
+    return 0;
+  }
+  return ((bytesNow - bytesPrev) * 8 * 1000) / (currentStats.timestamp - prevStats.timestamp);
 }
