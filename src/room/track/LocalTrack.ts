@@ -16,7 +16,6 @@ export default class LocalTrack extends Track {
     mediaTrack: MediaStreamTrack, kind: Track.Kind, constraints?: MediaTrackConstraints,
   ) {
     super(mediaTrack, kind);
-    this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
     this.constraints = constraints ?? mediaTrack.getConstraints();
   }
 
@@ -125,8 +124,20 @@ export default class LocalTrack extends Track {
     this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
   }
 
-  public dispose() {
-    this.mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+  public on(eventName: string | symbol, listener: (...args: any[]) => void): this {
+    super.on(eventName, listener);
+    if (eventName === TrackEvent.Ended) {
+      this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
+    }
+    return this;
+  }
+
+  public off(eventName: string | symbol, listener: (...args: any[]) => void): this {
+    super.off(eventName, listener);
+    if (eventName === TrackEvent.Ended) {
+      this.mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+    }
+    return this;
   }
 
   private handleEnded = () => {
