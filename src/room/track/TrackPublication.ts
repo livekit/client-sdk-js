@@ -36,8 +36,8 @@ export default class TrackPublication extends EventEmitter {
 
   /** @internal */
   setTrack(track?: Track) {
-    track?.off(TrackEvent.Muted, this.handleMuted);
-    track?.off(TrackEvent.Unmuted, this.handleUnmuted);
+    this.track?.off(TrackEvent.Muted, this.handleMuted);
+    this.track?.off(TrackEvent.Unmuted, this.handleUnmuted);
 
     this.track = track;
 
