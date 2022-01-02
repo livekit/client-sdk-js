@@ -394,12 +394,17 @@ class Room extends EventEmitter {
         p.unpublishTrack(pub.trackSid);
       });
     });
-    if (shouldStopTracks) {
-      this.localParticipant.tracks.forEach((pub) => {
+
+    this.localParticipant.tracks.forEach((pub) => {
+      if (pub.track) {
+        this.localParticipant.unpublishTrack(pub.track);
+      }
+      if (shouldStopTracks) {
         pub.track?.detach();
         pub.track?.stop();
-      });
-    }
+      }
+    });
+
     this.participants.clear();
     this.activeSpeakers = [];
     if (this.audioContext) {
