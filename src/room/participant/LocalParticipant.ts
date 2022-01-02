@@ -490,6 +490,8 @@ export default class LocalParticipant extends Participant {
         break;
     }
 
+    publication.dispose();
+
     this.emit(ParticipantEvent.LocalTrackUnpublished, publication);
 
     return publication;

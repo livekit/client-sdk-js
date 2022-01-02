@@ -44,8 +44,6 @@ export default class TrackPublication extends EventEmitter {
     this.track = track;
 
     if (track) {
-      track.off(TrackEvent.Muted, this.handleMuted);
-      track.off(TrackEvent.Unmuted, this.handleUnmuted);
       // forward events
       track.on(TrackEvent.Muted, this.handleMuted);
       track.on(TrackEvent.Unmuted, this.handleUnmuted);
@@ -102,5 +100,10 @@ export default class TrackPublication extends EventEmitter {
       };
       this.simulcasted = info.simulcast;
     }
+  }
+
+  dispose() {
+    this.track?.off(TrackEvent.Muted, this.handleMuted);
+    this.track?.off(TrackEvent.Unmuted, this.handleUnmuted);
   }
 }
