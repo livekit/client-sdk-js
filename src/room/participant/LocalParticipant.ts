@@ -448,8 +448,9 @@ export default class LocalParticipant extends Participant {
     }
 
     if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
-      track.removeListener(TrackEvent.Muted, this.onTrackMuted);
-      track.removeListener(TrackEvent.Unmuted, this.onTrackUnmuted);
+      track.off(TrackEvent.Muted, this.onTrackMuted);
+      track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
+      track.off(TrackEvent.Ended, this.onTrackUnpublish);
     }
     if (this.roomOptions?.stopLocalTrackOnUnpublish ?? true) {
       track.stop();
@@ -460,10 +461,6 @@ export default class LocalParticipant extends Participant {
       mediaStreamTrack = track;
     } else {
       mediaStreamTrack = track.mediaStreamTrack;
-
-      track.off(TrackEvent.Muted, this.onTrackMuted);
-      track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
-      track.off(TrackEvent.Ended, this.onTrackUnpublish);
     }
 
     if (this.engine.publisher) {
