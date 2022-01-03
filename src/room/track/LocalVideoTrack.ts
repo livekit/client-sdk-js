@@ -213,7 +213,6 @@ export default class LocalVideoTrack extends LocalTrack {
             encoding.maxFrameRate = this.encodings![idx].maxFrameRate;
           } else {
             encoding.scaleResolutionDownBy = 4;
-            encoding.maxBitrate = this.encodings![idx].maxBitrate;
             encoding.maxBitrate = 10;
             /* @ts-ignore */
             encoding.maxFrameRate = 2;
