@@ -10,6 +10,7 @@ import {
   VideoQuality,
   ConnectionQuality,
   VideoLayer,
+  ParticipantTracks,
   SpeakerInfo,
   trackTypeFromJSON,
   trackSourceFromJSON,
@@ -202,6 +203,7 @@ export interface ParticipantUpdate {
 export interface UpdateSubscription {
   trackSids: string[];
   subscribe: boolean;
+  participantTracks: ParticipantTracks[];
 }
 
 export interface UpdateTrackSettings {
@@ -1732,6 +1734,9 @@ export const UpdateSubscription = {
     if (message.subscribe === true) {
       writer.uint32(16).bool(message.subscribe);
     }
+    for (const v of message.participantTracks) {
+      ParticipantTracks.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -1740,6 +1745,7 @@ export const UpdateSubscription = {
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseUpdateSubscription } as UpdateSubscription;
     message.trackSids = [];
+    message.participantTracks = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1748,6 +1754,11 @@ export const UpdateSubscription = {
           break;
         case 2:
           message.subscribe = reader.bool();
+          break;
+        case 3:
+          message.participantTracks.push(
+            ParticipantTracks.decode(reader, reader.uint32())
+          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -1760,6 +1771,7 @@ export const UpdateSubscription = {
   fromJSON(object: any): UpdateSubscription {
     const message = { ...baseUpdateSubscription } as UpdateSubscription;
     message.trackSids = [];
+    message.participantTracks = [];
     if (object.trackSids !== undefined && object.trackSids !== null) {
       for (const e of object.trackSids) {
         message.trackSids.push(String(e));
@@ -1769,6 +1781,14 @@ export const UpdateSubscription = {
       message.subscribe = Boolean(object.subscribe);
     } else {
       message.subscribe = false;
+    }
+    if (
+      object.participantTracks !== undefined &&
+      object.participantTracks !== null
+    ) {
+      for (const e of object.participantTracks) {
+        message.participantTracks.push(ParticipantTracks.fromJSON(e));
+      }
     }
     return message;
   },
@@ -1781,6 +1801,13 @@ export const UpdateSubscription = {
       obj.trackSids = [];
     }
     message.subscribe !== undefined && (obj.subscribe = message.subscribe);
+    if (message.participantTracks) {
+      obj.participantTracks = message.participantTracks.map((e) =>
+        e ? ParticipantTracks.toJSON(e) : undefined
+      );
+    } else {
+      obj.participantTracks = [];
+    }
     return obj;
   },
 
@@ -1793,6 +1820,15 @@ export const UpdateSubscription = {
       }
     }
     message.subscribe = object.subscribe ?? false;
+    message.participantTracks = [];
+    if (
+      object.participantTracks !== undefined &&
+      object.participantTracks !== null
+    ) {
+      for (const e of object.participantTracks) {
+        message.participantTracks.push(ParticipantTracks.fromPartial(e));
+      }
+    }
     return message;
   },
 };
