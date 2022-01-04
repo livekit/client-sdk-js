@@ -136,7 +136,6 @@ export default class RemoteParticipant extends Participant {
         publication.track = undefined;
       }
       this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
-      this.removeAllListeners(ParticipantEvent.TrackUnsubscribed);
     };
     this.emit(ParticipantEvent.TrackSubscribed, track, publication);
 
@@ -229,7 +228,6 @@ export default class RemoteParticipant extends Participant {
       // always send unsubscribed, since apps may rely on this
       if (isSubscribed) {
         this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
-        this.removeAllListeners(ParticipantEvent.TrackUnsubscribed);
       }
     }
     if (sendUnpublish) { this.emit(ParticipantEvent.TrackUnpublished, publication); }
