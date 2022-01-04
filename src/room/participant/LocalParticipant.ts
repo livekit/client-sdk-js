@@ -3,7 +3,7 @@ import { RoomOptions } from '../../options';
 import {
   DataPacket, DataPacket_Kind,
 } from '../../proto/livekit_models';
-import { AddTrackRequest } from '../../proto/livekit_rtc';
+import { AddTrackRequest, TrackPublishedResponse } from '../../proto/livekit_rtc';
 import {
   TrackInvalidError,
   UnexpectedConnectionState,
@@ -626,5 +626,16 @@ export default class LocalParticipant extends Participant {
       // @ts-ignore
       transceiver.setCodecPreferences([selected]);
     }
+  }
+
+  publishedTracksInfo(): TrackPublishedResponse[] {
+    const infos: TrackPublishedResponse[] = []
+    this.tracks.forEach((track: LocalTrackPublication) => {
+      infos.push({
+        cid: track.track!.mediaStreamTrack.id,
+        track: track.trackInfo,
+      })
+    })
+    return infos
   }
 }

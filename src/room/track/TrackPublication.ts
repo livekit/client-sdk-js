@@ -24,6 +24,8 @@ export default class TrackPublication extends EventEmitter {
   /** true if track was simulcasted to server, video-only */
   simulcasted?: boolean;
 
+  trackInfo?: TrackInfo;
+
   protected metadataMuted: boolean = false;
 
   constructor(kind: Track.Kind, id: string, name: string) {
@@ -92,5 +94,6 @@ export default class TrackPublication extends EventEmitter {
       };
       this.simulcasted = info.simulcast;
     }
+    this.trackInfo = info
   }
 }

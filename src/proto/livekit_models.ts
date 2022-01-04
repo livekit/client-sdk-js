@@ -341,6 +341,12 @@ export interface UserPacket {
   destinationSids: string[];
 }
 
+export interface ParticipantTracks {
+  /** participant ID of participant to whom the tracks belong */
+  participantSid: string;
+  trackSids: string[];
+}
+
 const baseRoom: object = {
   sid: "",
   name: "",
@@ -1405,6 +1411,85 @@ export const UserPacket = {
     ) {
       for (const e of object.destinationSids) {
         message.destinationSids.push(e);
+      }
+    }
+    return message;
+  },
+};
+
+const baseParticipantTracks: object = { participantSid: "", trackSids: "" };
+
+export const ParticipantTracks = {
+  encode(
+    message: ParticipantTracks,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.participantSid !== "") {
+      writer.uint32(10).string(message.participantSid);
+    }
+    for (const v of message.trackSids) {
+      writer.uint32(18).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ParticipantTracks {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseParticipantTracks } as ParticipantTracks;
+    message.trackSids = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.participantSid = reader.string();
+          break;
+        case 2:
+          message.trackSids.push(reader.string());
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ParticipantTracks {
+    const message = { ...baseParticipantTracks } as ParticipantTracks;
+    message.trackSids = [];
+    if (object.participantSid !== undefined && object.participantSid !== null) {
+      message.participantSid = String(object.participantSid);
+    } else {
+      message.participantSid = "";
+    }
+    if (object.trackSids !== undefined && object.trackSids !== null) {
+      for (const e of object.trackSids) {
+        message.trackSids.push(String(e));
+      }
+    }
+    return message;
+  },
+
+  toJSON(message: ParticipantTracks): unknown {
+    const obj: any = {};
+    message.participantSid !== undefined &&
+      (obj.participantSid = message.participantSid);
+    if (message.trackSids) {
+      obj.trackSids = message.trackSids.map((e) => e);
+    } else {
+      obj.trackSids = [];
+    }
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<ParticipantTracks>): ParticipantTracks {
+    const message = { ...baseParticipantTracks } as ParticipantTracks;
+    message.participantSid = object.participantSid ?? "";
+    message.trackSids = [];
+    if (object.trackSids !== undefined && object.trackSids !== null) {
+      for (const e of object.trackSids) {
+        message.trackSids.push(e);
       }
     }
     return message;

@@ -68,6 +68,7 @@ export default class RTCEngine extends EventEmitter {
     this.token = token;
 
     const joinResponse = await this.client.join(url, token, opts);
+    this.emit(EngineEvent.SignalConnected)
     this.isClosed = false;
 
     this.subscriberPrimary = joinResponse.subscriberPrimary;
@@ -282,6 +283,18 @@ export default class RTCEngine extends EventEmitter {
     this.client.onConnectionQuality = (update: ConnectionQualityUpdate) => {
       this.emit(EngineEvent.ConnectionQualityUpdate, update);
     };
+
+    // this.client.onSubscriptionAnswer = async (sd) => {
+    //   if (!this.subscriber) {
+    //     return;
+    //   }
+    //   log.debug(
+    //     'received server offer',
+    //     sd.type,
+    //     this.subscriber.pc.signalingState,
+    //   );
+    //   await this.subscriber.setRemoteDescription(sd);
+    // }
   }
 
   private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
@@ -362,6 +375,7 @@ export default class RTCEngine extends EventEmitter {
     this.reconnectAttempts += 1;
 
     await this.client.reconnect(this.url, this.token);
+    this.emit(EngineEvent.SignalConnected)
 
     // trigger publisher reconnect
     if (!this.publisher || !this.subscriber) {

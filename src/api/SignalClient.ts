@@ -11,6 +11,7 @@ import {
   SignalRequest,
   SignalResponse,
   SignalTarget,
+  SyncState,
   TrackPublishedResponse,
   UpdateSubscription,
   UpdateTrackSettings,
@@ -23,6 +24,7 @@ interface ConnectOpts {
   autoSubscribe?: boolean;
   /** internal */
   reconnect?: boolean;
+  keepSubscribe ?: boolean;
 }
 
 // public options
@@ -61,6 +63,8 @@ export class SignalClient {
 
   onLeave?: () => void;
 
+  // onSubscriptionAnswer?: (sd : RTCSessionDescriptionInit) => void;
+
   ws?: WebSocket;
 
   constructor(useJSON: boolean = false) {
@@ -82,7 +86,8 @@ export class SignalClient {
   async reconnect(url: string, token: string): Promise<void> {
     await this.connect(url, token, {
       reconnect: true,
-    });
+      keepSubscribe: true,
+    })
   }
 
   connect(
@@ -102,6 +107,9 @@ export class SignalClient {
     }
     if (opts.autoSubscribe !== undefined) {
       params += `&auto_subscribe=${opts.autoSubscribe ? '1' : '0'}`;
+    }
+    if (opts.keepSubscribe) {
+      params += '&keep_subscribe=1';
     }
 
     return new Promise<JoinResponse | void>((resolve, reject) => {
@@ -234,6 +242,10 @@ export class SignalClient {
     this.sendRequest({ subscription: sub });
   }
 
+  sendSyncState(sync: SyncState) {
+    this.sendRequest({ syncState: sync })
+  }
+
   sendUpdateVideoLayers(trackSid: string, layers: VideoLayer[]) {
     this.sendRequest({
       updateLayers: {
@@ -339,7 +351,7 @@ function fromProtoSessionDescription(
   return rsd;
 }
 
-function toProtoSessionDescription(
+export function toProtoSessionDescription(
   rsd: RTCSessionDescription | RTCSessionDescriptionInit,
 ): SessionDescription {
   const sd: SessionDescription = {
