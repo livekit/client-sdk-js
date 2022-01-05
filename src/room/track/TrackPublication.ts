@@ -101,9 +101,4 @@ export default class TrackPublication extends EventEmitter {
       this.simulcasted = info.simulcast;
     }
   }
-
-  dispose() {
-    this.track?.off(TrackEvent.Muted, this.handleMuted);
-    this.track?.off(TrackEvent.Unmuted, this.handleUnmuted);
-  }
 }
