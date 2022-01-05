@@ -27,9 +27,10 @@ npm install livekit-client --save
 Examples below are in TypeScript, if using JS/CommonJS imports replace import with:
 
 ```javascript
-const LiveKit = require('livekit-client');
+const livekit = require('livekit-client');
 
-LiveKit.connect(...);
+const room = new livekit.Room(...);
+await room.connect(...);
 ```
 
 ### Connecting to a room, publish video & audio
@@ -46,8 +47,11 @@ import {
 
 // creates a new room with options
 const room = new Room({
-  // automatically manage video quality
-  autoManageVideo: true,
+  // automatically manage subscribed video quality
+  adaptiveStream: true,
+
+  // optimize publishing bandwidth and CPU for simulcasted tracks
+  dynacast: true,
 
   // default capture settings
   videoCaptureDefaults: {
@@ -151,7 +155,21 @@ if (p) {
 }
 ```
 
-### Advanced track manipulation
+### Creating a track prior to creating a room
+
+In some cases, it may be useful to create a track before creating a room. For
+example, when building a staging area so the user may check their own camera.
+
+You can use our global track creation functions for this:
+
+```typescript
+const tracks = await createLocalTracks({
+  audio: true,
+  video: true,
+});
+```
+
+### Publish tracks from any source
 
 LiveKit lets you publish any track as long as it can be represented by a MediaStreamTrack. You can specify a name on the track in order to identify it later.
 
@@ -211,7 +229,7 @@ You can use the helper `MediaDeviceFailure.getFailure(error)` to determine speci
 
 These distinctions enables you to provide more specific messaging to the user.
 
-You could also retrieve the last error with `getLastAudioCreateError` and `getLastVideoCreateError`.
+You could also retrieve the last error with `LocalParticipant.lastCameraError` and `LocalParticipant.lastMicrophoneError`.
 
 ### Audio playback
 

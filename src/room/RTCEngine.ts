@@ -3,9 +3,7 @@ import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
 import { DataPacket, DataPacket_Kind, TrackInfo } from '../proto/livekit_models';
 import {
-  AddTrackRequest,
-  ConnectionQualityUpdate,
-  JoinResponse,
+  AddTrackRequest, JoinResponse,
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
@@ -120,6 +118,10 @@ export default class RTCEngine extends EventEmitter {
 
   updateMuteStatus(trackSid: string, muted: boolean) {
     this.client.sendMuteTrack(trackSid, muted);
+  }
+
+  get dataSubscriberReadyState(): string | undefined {
+    return this.reliableDCSub?.readyState;
   }
 
   private configure(joinResponse: JoinResponse) {
@@ -245,10 +247,6 @@ export default class RTCEngine extends EventEmitter {
       this.client.sendAnswer(answer);
     };
 
-    this.client.onParticipantUpdate = (updates) => {
-      this.emit(EngineEvent.ParticipantUpdate, updates);
-    };
-
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
       const resolve = this.pendingTrackResolvers[res.cid];
       if (!resolve) {
@@ -259,10 +257,6 @@ export default class RTCEngine extends EventEmitter {
       resolve(res.track!);
     };
 
-    this.client.onSpeakersChanged = (speakers) => {
-      this.emit(EngineEvent.SpeakersChanged, speakers);
-    };
-
     this.client.onClose = () => {
       this.handleDisconnect('signal');
     };
@@ -271,30 +265,6 @@ export default class RTCEngine extends EventEmitter {
       this.close();
       this.emit(EngineEvent.Disconnected);
     };
-
-    this.client.onRemoteMuteChanged = (trackSid, muted) => {
-      this.emit(EngineEvent.RemoteMuteChanged, trackSid, muted);
-    };
-
-    this.client.onRoomUpdate = (room) => {
-      this.emit(EngineEvent.RoomUpdate, room);
-    };
-
-    this.client.onConnectionQuality = (update: ConnectionQualityUpdate) => {
-      this.emit(EngineEvent.ConnectionQualityUpdate, update);
-    };
-
-    // this.client.onSubscriptionAnswer = async (sd) => {
-    //   if (!this.subscriber) {
-    //     return;
-    //   }
-    //   log.debug(
-    //     'received server offer',
-    //     sd.type,
-    //     this.subscriber.pc.signalingState,
-    //   );
-    //   await this.subscriber.setRemoteDescription(sd);
-    // }
   }
 
   private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
@@ -422,28 +392,25 @@ export default class RTCEngine extends EventEmitter {
       return;
     }
 
-    if (this.publisher && this.publisher.isICEConnected) {
-      return;
+    if (!this.publisher) {
+      throw new ConnectionError('publisher connection not set');
     }
 
-    // start negotiation
-    this.negotiate();
+    if (!this.publisher.isICEConnected && this.publisher.pc.iceConnectionState !== 'checking') {
+      // start negotiation
+      this.negotiate();
+    }
+
+    const targetChannel = this.dataChannelForKind(kind);
+    if (targetChannel?.readyState === 'open') {
+      return;
+    }
 
     // wait until publisher ICE connected
     const endTime = (new Date()).getTime() + maxICEConnectTimeout;
     while ((new Date()).getTime() < endTime) {
-      if (this.publisher && this.publisher.isICEConnected) {
-        let status: RTCDataChannelState = 'connecting';
-
-        if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
-          status = this.lossyDC.readyState;
-        } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
-          status = this.reliableDC.readyState;
-        }
-
-        if (status === 'open') {
-          return;
-        }
+      if (this.publisher.isICEConnected && this.dataChannelForKind(kind)?.readyState === 'open') {
+        return;
       }
       await sleep(50);
     }
@@ -460,5 +427,13 @@ export default class RTCEngine extends EventEmitter {
     this.hasPublished = true;
 
     this.publisher.negotiate();
+  }
+
+  private dataChannelForKind(kind: DataPacket_Kind): RTCDataChannel | undefined {
+    if (kind === DataPacket_Kind.LOSSY) {
+      return this.lossyDC;
+    } if (kind === DataPacket_Kind.RELIABLE) {
+      return this.reliableDC;
+    }
   }
 }

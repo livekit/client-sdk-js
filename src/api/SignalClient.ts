@@ -12,6 +12,8 @@ import {
   SignalResponse,
   SignalTarget,
   SyncState,
+  StreamStateUpdate,
+  SubscribedQualityUpdate,
   TrackPublishedResponse,
   UpdateSubscription,
   UpdateTrackSettings,
@@ -60,6 +62,10 @@ export class SignalClient {
   onRoomUpdate?: (room: Room) => void;
 
   onConnectionQuality?: (update: ConnectionQualityUpdate) => void;
+
+  onStreamStateUpdate?: (update: StreamStateUpdate) => void;
+
+  onSubscribedQualityUpdate?: (update: SubscribedQualityUpdate) => void;
 
   onLeave?: () => void;
 
@@ -261,7 +267,8 @@ export class SignalClient {
 
   sendRequest(req: SignalRequest) {
     if (!this.ws) {
-      throw new ConnectionError('cannot send signal request before connected');
+      log.error('cannot send signal request before connected');
+      return;
     }
 
     try {
@@ -320,6 +327,14 @@ export class SignalClient {
     } else if (msg.connectionQuality) {
       if (this.onConnectionQuality) {
         this.onConnectionQuality(msg.connectionQuality);
+      }
+    } else if (msg.streamStateUpdate) {
+      if (this.onStreamStateUpdate) {
+        this.onStreamStateUpdate(msg.streamStateUpdate);
+      }
+    } else if (msg.subscribedQualityUpdate) {
+      if (this.onSubscribedQualityUpdate) {
+        this.onSubscribedQualityUpdate(msg.subscribedQualityUpdate);
       }
     } else {
       log.debug('unsupported message', msg);

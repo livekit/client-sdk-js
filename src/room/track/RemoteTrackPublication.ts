@@ -54,10 +54,10 @@ export default class RemoteTrackPublication extends TrackPublication {
    * @param enabled
    */
   setEnabled(enabled: boolean) {
-    if (this.isAutoManageVideo || !this.isSubscribed || this.disabled === !enabled) {
+    if (this.isAdaptiveStream || !this.isSubscribed || this.disabled === !enabled) {
       return;
     }
-    if (this.track instanceof RemoteVideoTrack && this.track.isAutoManaged) {
+    if (this.track instanceof RemoteVideoTrack && this.track.isAdaptiveStream) {
       return;
     }
     this.disabled = !enabled;
@@ -73,7 +73,7 @@ export default class RemoteTrackPublication extends TrackPublication {
    * optimize for uninterrupted video
    */
   setVideoQuality(quality: VideoQuality) {
-    if (this.isAutoManageVideo || !this.isSubscribed || this.currentVideoQuality === quality) {
+    if (this.isAdaptiveStream || !this.isSubscribed || this.currentVideoQuality === quality) {
       return;
     }
     this.currentVideoQuality = quality;
@@ -83,7 +83,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   setVideoDimensions(dimensions: Track.Dimensions) {
-    if (!this.isSubscribed || this.isAutoManageVideo) {
+    if (!this.isSubscribed || this.isAdaptiveStream) {
       return;
     }
     if (this.videoDimensions?.width === dimensions.width
@@ -118,18 +118,18 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.track?.setMuted(info.muted);
   }
 
-  protected get isAutoManageVideo(): boolean {
-    return this.track instanceof RemoteVideoTrack && this.track.isAutoManaged;
+  protected get isAdaptiveStream(): boolean {
+    return this.track instanceof RemoteVideoTrack && this.track.isAdaptiveStream;
   }
 
   protected handleVisibilityChange = (visible: boolean) => {
-    log.debug('automanage video visibility', this.trackSid, `visible=${visible}`);
+    log.debug('adaptivestream video visibility', this.trackSid, `visible=${visible}`);
     this.disabled = !visible;
     this.emitTrackUpdate();
   };
 
   protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
-    log.debug('automanage video dimensions', this.trackSid, `${dimensions.width}x${dimensions.height}`);
+    log.debug('adaptivestream video dimensions', this.trackSid, `${dimensions.width}x${dimensions.height}`);
     this.videoDimensions = dimensions;
     this.emitTrackUpdate();
   };

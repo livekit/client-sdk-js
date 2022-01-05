@@ -76,7 +76,7 @@ export default class RemoteParticipant extends Participant {
     mediaTrack: MediaStreamTrack,
     sid: Track.SID,
     receiver?: RTCRtpReceiver,
-    autoManageVideo?: boolean,
+    adaptiveStream?: boolean,
     triesLeft?: number,
   ) {
     // find the track publication
@@ -107,7 +107,7 @@ export default class RemoteParticipant extends Participant {
 
       if (triesLeft === undefined) triesLeft = 20;
       setTimeout(() => {
-        this.addSubscribedMediaTrack(mediaTrack, sid, receiver, autoManageVideo, triesLeft! - 1);
+        this.addSubscribedMediaTrack(mediaTrack, sid, receiver, adaptiveStream, triesLeft! - 1);
       }, 150);
       return;
     }
@@ -115,7 +115,7 @@ export default class RemoteParticipant extends Participant {
     const isVideo = mediaTrack.kind === 'video';
     let track: RemoteTrack;
     if (isVideo) {
-      track = new RemoteVideoTrack(mediaTrack, sid, receiver, autoManageVideo);
+      track = new RemoteVideoTrack(mediaTrack, sid, receiver, adaptiveStream);
     } else {
       track = new RemoteAudioTrack(mediaTrack, sid, receiver);
     }
@@ -127,6 +127,8 @@ export default class RemoteParticipant extends Participant {
     track.source = publication.source;
     // keep publication's muted status
     track.isMuted = publication.isMuted;
+    track.receiver = receiver;
+    track.startMonitor();
 
     // when media track is ended, fire the event
     mediaTrack.onended = () => {
@@ -134,7 +136,6 @@ export default class RemoteParticipant extends Participant {
         publication.track = undefined;
       }
       this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
-      this.removeAllListeners(ParticipantEvent.TrackUnsubscribed);
     };
     this.emit(ParticipantEvent.TrackSubscribed, track, publication);
 
@@ -227,7 +228,6 @@ export default class RemoteParticipant extends Participant {
       // always send unsubscribed, since apps may rely on this
       if (isSubscribed) {
         this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
-        this.removeAllListeners(ParticipantEvent.TrackUnsubscribed);
       }
     }
     if (sendUnpublish) { this.emit(ParticipantEvent.TrackUnpublished, publication); }

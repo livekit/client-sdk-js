@@ -166,6 +166,18 @@ export enum RoomEvent {
   DataReceived = 'dataReceived',
 
   /**
+   * StreamState indicates if a subscribed track has been paused by the SFU
+   * (typically this happens because of subscriber's bandwidth constraints)
+   *
+   * When bandwidth conditions allow, the track will be resumed automatically.
+   * TrackStreamStateChanged will also be emitted when that happens.
+   *
+   * args: (pub: [[RemoteTrackPublication]], streamState: [[Track.StreamState]],
+   *        participant: [[RemoteParticipant]])
+   */
+  TrackStreamStateChanged = 'trackStreamStateChanged',
+
+  /**
    * LiveKit will attempt to autoplay all audio tracks when you attach them to
    * audio elements. However, if that fails, we'll notify you via AudioPlaybackStatusChanged.
    * `Room.canPlayAudio` will indicate if audio playback is permitted.
@@ -315,6 +327,17 @@ export enum ParticipantEvent {
    */
   ConnectionQualityChanged = 'connectionQualityChanged',
 
+  /**
+   * StreamState indicates if a subscribed track has been paused by the SFU
+   * (typically this happens because of subscriber's bandwidth constraints)
+   *
+   * When bandwidth conditions allow, the track will be resumed automatically.
+   * TrackStreamStateChanged will also be emitted when that happens.
+   *
+   * args: (pub: [[RemoteTrackPublication]], streamState: [[Track.StreamState]])
+   */
+  TrackStreamStateChanged = 'trackStreamStateChanged',
+
   // fired only on LocalParticipant
   /** @internal */
   MediaDevicesError = 'mediaDevicesError',
@@ -330,11 +353,7 @@ export enum EngineEvent {
   ParticipantUpdate = 'participantUpdate',
   MediaTrackAdded = 'mediaTrackAdded',
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
-  SpeakersChanged = 'speakersChanged',
   DataPacketReceived = 'dataPacketReceived',
-  RemoteMuteChanged = 'remoteMuteChanged',
-  RoomUpdate = 'roomUpdate',
-  ConnectionQualityUpdate = 'connectionQualityUpdate',
 }
 
 export enum TrackEvent {

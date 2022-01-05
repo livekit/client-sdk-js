@@ -1,9 +1,11 @@
 import {
   DataPacket_Kind, LocalParticipant,
+  LocalTrack,
   MediaDeviceFailure,
   Participant,
   ParticipantEvent,
-  RemoteParticipant, Room, RoomConnectOptions, RoomEvent,
+  RemoteAudioTrack,
+  RemoteParticipant, RemoteVideoTrack, Room, RoomConnectOptions, RoomEvent,
   RoomOptions, RoomState, setLogLevel, Track, TrackPublication,
   VideoCaptureOptions, VideoPresets,
 } from '../src/index';
@@ -16,8 +18,8 @@ const state = {
   encoder: new TextEncoder(),
   decoder: new TextDecoder(),
   defaultDevices: new Map<MediaDeviceKind, string>(),
+  bitrateInterval: undefined as any,
 };
-
 let currentRoom: Room | undefined;
 
 // handles actions from the HTML
@@ -26,14 +28,16 @@ const appActions = {
     const url = (<HTMLInputElement>$('url')).value;
     const token = (<HTMLInputElement>$('token')).value;
     const simulcast = (<HTMLInputElement>$('simulcast')).checked;
+    const dynacast = (<HTMLInputElement>$('dynacast')).checked;
     const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
-    const adaptiveVideo = (<HTMLInputElement>$('adaptive-video')).checked;
+    const adaptiveStream = (<HTMLInputElement>$('adaptive-stream')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
 
     setLogLevel('debug');
 
     const roomOpts: RoomOptions = {
-      autoManageVideo: adaptiveVideo,
+      adaptiveStream,
+      dynacast,
       publishDefaults: {
         simulcast,
       },
@@ -54,6 +58,8 @@ const appActions = {
       await room.localParticipant.enableCameraAndMicrophone();
       updateButtonsForPublishState();
     }
+
+    state.bitrateInterval = setInterval(renderBitrate, 1000);
   },
 
   connectToRoom: async (
@@ -200,6 +206,9 @@ const appActions = {
     if (currentRoom) {
       currentRoom.disconnect();
     }
+    if (state.bitrateInterval) {
+      clearInterval(state.bitrateInterval);
+    }
   },
 
   disconnectSignal: () => {
@@ -340,7 +349,11 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       <div class="info-bar">
         <div id="name-${participant.sid}" class="name">
         </div>
-        <div id="size-${participant.sid}" class="size">
+        <div style="text-align: center;">
+          <span id="size-${participant.sid}" class="size">
+          </span>
+          <span id="bitrate-${participant.sid}" class="bitrate">
+          </span>
         </div>
         <div class="right">
           <span id="signal-${participant.sid}"></span>
@@ -385,11 +398,18 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
   const cameraEnabled = cameraPub && cameraPub.isSubscribed && !cameraPub.isMuted;
   if (cameraEnabled) {
-    cameraPub?.videoTrack?.attach(videoElm);
     if (participant instanceof LocalParticipant) {
       // flip
       videoElm.style.transform = 'scale(-1, 1)';
+    } else if (!cameraPub?.videoTrack?.attachedElements.includes(videoElm)) {
+      const startTime = Date.now();
+      // measure time to render
+      videoElm.addEventListener('loadeddata', () => {
+        const elapsed = Date.now() - startTime;
+        appendLog(`RemoteVideoTrack ${cameraPub?.trackSid} rendered in ${elapsed}ms`);
+      });
     }
+    cameraPub?.videoTrack?.attach(videoElm);
   } else if (cameraPub?.videoTrack) {
     // detach manually whenever possible
     cameraPub.videoTrack?.detach(videoElm);
@@ -460,6 +480,32 @@ function renderScreenShare() {
     infoElm.innerHTML = `Screenshare from ${participant.identity}`;
   } else {
     div.style.display = 'none';
+  }
+}
+
+function renderBitrate() {
+  if (!currentRoom || currentRoom.state !== RoomState.Connected) {
+    return;
+  }
+  const participants: Participant[] = [...currentRoom.participants.values()];
+  participants.push(currentRoom.localParticipant);
+
+  for (const p of participants) {
+    const elm = $(`bitrate-${p.sid}`);
+    let totalBitrate = 0;
+    for (const t of p.tracks.values()) {
+      if (t.track instanceof RemoteAudioTrack || t.track instanceof RemoteVideoTrack
+        || t.track instanceof LocalTrack) {
+        totalBitrate += t.track.currentBitrate;
+      }
+    }
+    let displayText = '';
+    if (totalBitrate > 0) {
+      displayText = `${Math.round(totalBitrate / 1024).toLocaleString()} kbps`;
+    }
+    if (elm) {
+      elm.innerHTML = displayText;
+    }
   }
 }
 

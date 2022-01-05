@@ -1,7 +1,9 @@
 import { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
-import { monitorFrequency, VideoSenderStats } from '../stats';
+import { SubscribedQuality } from '../../proto/livekit_rtc';
+import { computeBitrate, monitorFrequency, VideoSenderStats } from '../stats';
+import { isFireFox } from '../utils';
 import LocalTrack from './LocalTrack';
 import { VideoCaptureOptions } from './options';
 import { Track } from './Track';
@@ -29,6 +31,9 @@ export default class LocalVideoTrack extends LocalTrack {
 
   private encodings?: RTCRtpEncodingParameters[];
 
+  // layers that are being subscribed to, and that we should publish
+  private activeQualities?: SubscribedQuality[];
+
   constructor(
     mediaTrack: MediaStreamTrack,
     constraints?: MediaTrackConstraints,
@@ -44,15 +49,16 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   /* @internal */
-  startMonitor(signalClient: SignalClient) {
-    // only monitor simulcast streams
-    if (!this.isSimulcast) {
-      return;
-    }
+  startMonitor(signalClient: SignalClient, disableLayerPause: boolean) {
     this.signalClient = signalClient;
+    // save original encodings
+    const params = this.sender?.getParameters();
+    if (params) {
+      this.encodings = params.encodings;
+    }
 
     setTimeout(() => {
-      this.monitorSender();
+      this.monitorSender(disableLayerPause);
     }, monitorFrequency);
   }
 
@@ -89,23 +95,8 @@ export default class LocalVideoTrack extends LocalTrack {
     const items: VideoSenderStats[] = [];
 
     const stats = await this.sender.getStats();
-    let sender: any;
     stats.forEach((v) => {
-      if (
-        v.type === 'track'
-        && v.trackIdentifier === this.mediaStreamTrack.id
-      ) {
-        sender = v;
-      }
-    });
-
-    if (!sender) {
-      return items;
-    }
-
-    // match the outbound-rtp items
-    stats.forEach((v) => {
-      if (v.type === 'outbound-rtp' && v.trackId === sender.id) {
+      if (v.type === 'outbound-rtp') {
         const vs: VideoSenderStats = {
           type: 'video',
           streamId: v.id,
@@ -115,9 +106,10 @@ export default class LocalVideoTrack extends LocalTrack {
           pliCount: v.pliCount,
           nackCount: v.nackCount,
           packetsSent: v.packetsSent,
+          bytesSent: v.bytesSent,
           framesSent: v.framesSent,
           timestamp: v.timestamp,
-          rid: v.rid,
+          rid: v.rid ?? '',
           retransmittedPacketsSent: v.retransmittedPacketsSent,
           qualityLimitationReason: v.qualityLimitationReason,
           qualityLimitationResolutionChanges:
@@ -140,35 +132,15 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   setPublishingQuality(maxQuality: VideoQuality) {
-    if (!this.isSimulcast || !this.encodings) {
-      return;
+    const qualities: SubscribedQuality[] = [];
+    for (let q = VideoQuality.LOW; q <= VideoQuality.HIGH; q += 1) {
+      qualities.push({
+        quality: q,
+        enabled: q <= maxQuality,
+      });
     }
-
-    let hasChanged = false;
-    const layers: VideoQuality[] = [];
-    this.encodings.forEach((encoding) => {
-      const quality = videoQualityForRid(encoding.rid ?? '');
-      const active = quality <= maxQuality;
-      if (active !== encoding.active) {
-        hasChanged = true;
-        encoding.active = active;
-      }
-      if (active) {
-        layers.push(quality);
-      }
-    });
-
-    if (!hasChanged || !this.sender || !this.sid) {
-      return;
-    }
-
-    this.lastQualityChange = new Date().getTime();
-    this.lastExplicitQualityChange = new Date().getTime();
-
-    const params = this.sender.getParameters();
-    params.encodings = this.encodings;
     log.debug('setting publishing quality. max quality', maxQuality);
-    this.sender.setParameters(params);
+    this.setPublishingLayers(qualities);
   }
 
   async setDeviceId(deviceId: string) {
@@ -194,32 +166,102 @@ export default class LocalVideoTrack extends LocalTrack {
     await this.restart(constraints);
   }
 
-  private monitorSender = async () => {
+  /**
+   * @internal
+   * Sets layers that should be publishing
+   */
+  async setPublishingLayers(qualities: SubscribedQuality[]) {
+    log.debug('setting publishing layers', qualities);
+    if (!this.sender || !this.encodings) {
+      return;
+    }
+    const params = this.sender.getParameters();
+    const { encodings } = params;
+    if (!encodings) {
+      return;
+    }
+
+    if (encodings.length !== this.encodings.length) {
+      log.warn('cannot set publishing layers, encodings mismatch');
+      return;
+    }
+
+    this.activeQualities = qualities;
+    let hasChanged = false;
+    encodings.forEach((encoding, idx) => {
+      let rid = encoding.rid ?? '';
+      if (rid === '') {
+        rid = 'q';
+      }
+      const quality = videoQualityForRid(rid);
+      const subscribedQuality = qualities.find((q) => q.quality === quality);
+      if (!subscribedQuality) {
+        return;
+      }
+      if (encoding.active !== subscribedQuality.enabled) {
+        hasChanged = true;
+        encoding.active = subscribedQuality.enabled;
+        log.debug(`setting layer ${subscribedQuality.quality} to ${encoding.active ? 'enabled' : 'disabled'}`);
+
+        // FireFox does not support setting encoding.active to false, so we
+        // have a workaround of lowering its bitrate and resolution to the min.
+        if (isFireFox()) {
+          if (subscribedQuality.enabled) {
+            encoding.scaleResolutionDownBy = this.encodings![idx].scaleResolutionDownBy;
+            encoding.maxBitrate = this.encodings![idx].maxBitrate;
+            /* @ts-ignore */
+            encoding.maxFrameRate = this.encodings![idx].maxFrameRate;
+          } else {
+            encoding.scaleResolutionDownBy = 4;
+            encoding.maxBitrate = 10;
+            /* @ts-ignore */
+            encoding.maxFrameRate = 2;
+          }
+        }
+      }
+    });
+
+    if (hasChanged) {
+      params.encodings = encodings;
+      await this.sender.setParameters(params);
+    }
+  }
+
+  private monitorSender = async (disableLayerPause: boolean) => {
     if (!this.sender) {
+      this._currentBitrate = 0;
       return;
     }
     const stats = await this.getSenderStats();
     const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));
 
-    if (this.prevStats && this.isSimulcast) {
+    if (!disableLayerPause && this.prevStats && this.isSimulcast) {
       this.checkAndUpdateSimulcast(statsMap);
+    }
+
+    if (this.prevStats) {
+      let totalBitrate = 0;
+      statsMap.forEach((s, key) => {
+        const prev = this.prevStats?.get(key);
+        totalBitrate += computeBitrate(s, prev);
+      });
+      this._currentBitrate = totalBitrate;
     }
 
     this.prevStats = statsMap;
     setTimeout(() => {
-      this.monitorSender();
+      this.monitorSender(disableLayerPause);
     }, monitorFrequency);
   };
 
   private checkAndUpdateSimulcast(statsMap: Map<string, VideoSenderStats>) {
-    if (!this.sender || this.isMuted) {
+    if (!this.sender || this.isMuted || !this.encodings) {
       return;
     }
-    const params = this.sender.getParameters();
-    this.encodings = params.encodings;
 
     let bestEncoding: RTCRtpEncodingParameters | undefined;
-    this.encodings.forEach((encoding) => {
+    const { encodings } = this.sender.getParameters();
+    encodings.forEach((encoding) => {
       // skip inactive encodings
       if (!encoding.active) return;
 
@@ -275,6 +317,25 @@ export default class LocalVideoTrack extends LocalTrack {
 
       const nextQuality = currentQuality + 1;
       if ((new Date()).getTime() - this.lastQualityChange < QUALITY_UPGRADE_DELAY) {
+        return;
+      }
+
+      if (this.activeQualities
+        && this.activeQualities.some((q) => q.quality === nextQuality && !q.enabled)
+      ) {
+        // quality has been disabled by the server, so we should skip
+        return;
+      }
+
+      // we are already at the highest layer
+      let bestQuality = VideoQuality.LOW;
+      encodings.forEach((encoding) => {
+        const quality = videoQualityForRid(encoding.rid ?? '');
+        if (quality > bestQuality) {
+          bestQuality = quality;
+        }
+      });
+      if (nextQuality > bestQuality) {
         return;
       }
 

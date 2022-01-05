@@ -1,6 +1,6 @@
 import { debounce } from 'ts-debounce';
 import { TrackEvent } from '../events';
-import { VideoReceiverStats } from '../stats';
+import { computeBitrate, monitorFrequency, VideoReceiverStats } from '../stats';
 import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
 import { attachToElement, detachTrack, Track } from './Track';
 
@@ -15,27 +15,34 @@ export default class RemoteVideoTrack extends Track {
 
   private elementInfos: ElementInfo[] = [];
 
-  private autoManaged?: boolean;
+  private adaptiveStream?: boolean;
 
   private lastVisible?: boolean;
 
   private lastDimensions?: Track.Dimensions;
 
+  private _currentBitrate: number = 0;
+
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
     receiver?: RTCRtpReceiver,
-    autoManaged?: boolean,
+    adaptiveStream?: boolean,
   ) {
     super(mediaTrack, Track.Kind.Video);
     // override id to parsed ID
     this.sid = sid;
     this.receiver = receiver;
-    this.autoManaged = autoManaged;
+    this.adaptiveStream = adaptiveStream;
   }
 
-  get isAutoManaged(): boolean {
-    return this.autoManaged ?? false;
+  get isAdaptiveStream(): boolean {
+    return this.adaptiveStream ?? false;
+  }
+
+  /** current receive bits per second */
+  get currentBitrate(): number {
+    return this._currentBitrate;
   }
 
   /** @internal */
@@ -64,7 +71,7 @@ export default class RemoteVideoTrack extends Track {
       super.attach(element);
     }
 
-    if (this.autoManaged) {
+    if (this.adaptiveStream) {
       this.elementInfos.push({
         element,
         visible: true, // default visible
@@ -86,7 +93,7 @@ export default class RemoteVideoTrack extends Track {
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
     let detachedElements: HTMLMediaElement[] = [];
     if (element) {
-      detachedElements.push(element);
+      this.stopObservingElement(element);
       return super.detach(element);
     }
     detachedElements = super.detach();
@@ -106,6 +113,60 @@ export default class RemoteVideoTrack extends Track {
   stop() {
     // use `enabled` of track to enable re-use of transceiver
     super.disable();
+  }
+
+  /* @internal */
+  startMonitor() {
+    setTimeout(() => {
+      this.monitorReceiver();
+    }, monitorFrequency);
+  }
+
+  private monitorReceiver = async () => {
+    if (!this.receiver) {
+      this._currentBitrate = 0;
+      return;
+    }
+    const stats = await this.getReceiverStats();
+
+    if (stats && this.prevStats) {
+      this._currentBitrate = computeBitrate(stats, this.prevStats);
+    }
+
+    this.prevStats = stats;
+    setTimeout(() => {
+      this.monitorReceiver();
+    }, monitorFrequency);
+  };
+
+  private async getReceiverStats(): Promise<VideoReceiverStats | undefined> {
+    if (!this.receiver) {
+      return;
+    }
+
+    const stats = await this.receiver.getStats();
+    let receiverStats: VideoReceiverStats | undefined;
+    stats.forEach((v) => {
+      if (v.type === 'inbound-rtp') {
+        receiverStats = {
+          type: 'video',
+          framesDecoded: v.framesDecoded,
+          framesDropped: v.framesDropped,
+          framesReceived: v.framesReceived,
+          packetsReceived: v.packetsReceived,
+          packetsLost: v.packetsLost,
+          frameWidth: v.frameWidth,
+          frameHeight: v.frameHeight,
+          pliCount: v.pliCount,
+          firCount: v.firCount,
+          nackCount: v.nackCount,
+          jitter: v.jitter,
+          timestamp: v.timestamp,
+          bytesReceived: v.bytesReceived,
+        };
+      }
+    });
+    return receiverStats;
   }
 
   private stopObservingElement(element: HTMLMediaElement) {

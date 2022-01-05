@@ -5,7 +5,7 @@ import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
-import { ConnectionQualityUpdate } from '../proto/livekit_rtc';
+import { ConnectionQualityUpdate, StreamStateUpdate } from '../proto/livekit_rtc';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
@@ -15,15 +15,8 @@ import LocalParticipant from './participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
+import { audioDefaults, publishDefaults, videoDefaults } from './track/defaults';
 import LocalTrackPublication from './track/LocalTrackPublication';
-import {
-  AudioCaptureOptions,
-  AudioPresets,
-  ScreenSharePresets,
-  TrackPublishDefaults,
-  VideoCaptureOptions,
-  VideoPresets,
-} from './track/options';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import TrackPublication from './track/TrackPublication';
@@ -36,25 +29,6 @@ export enum RoomState {
   Connected = 'connected',
   Reconnecting = 'reconnecting',
 }
-
-const publishDefaults: TrackPublishDefaults = {
-  audioBitrate: AudioPresets.speech.maxBitrate,
-  dtx: true,
-  simulcast: true,
-  screenShareEncoding: ScreenSharePresets.hd_15.encoding,
-  stopMicTrackOnMute: false,
-};
-
-const audioDefaults: AudioCaptureOptions = {
-  autoGainControl: true,
-  channelCount: 1,
-  echoCancellation: true,
-  noiseSuppression: true,
-};
-
-const videoDefaults: VideoCaptureOptions = {
-  resolution: VideoPresets.qhd.resolution,
-};
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -152,16 +126,11 @@ class Room extends EventEmitter {
       this.handleDisconnect();
     });
 
-    this.engine.on(
-      EngineEvent.ParticipantUpdate,
-      (participants: ParticipantInfo[]) => {
-        this.handleParticipantUpdates(participants);
-      },
-    );
-
-    this.engine.on(EngineEvent.RoomUpdate, this.handleRoomUpdate);
+    this.engine.client.onParticipantUpdate = this.handleParticipantUpdates;
+    this.engine.client.onRoomUpdate = this.handleRoomUpdate;
+    this.engine.client.onSpeakersChanged = this.handleSpeakersChanged;
+    this.engine.client.onStreamStateUpdate = this.handleStreamStateUpdate;
     this.engine.on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate);
-    this.engine.on(EngineEvent.SpeakersChanged, this.handleSpeakersChanged);
     this.engine.on(EngineEvent.DataPacketReceived, this.handleDataPacket);
 
     this.engine.on(EngineEvent.Reconnecting, () => {
@@ -180,7 +149,7 @@ class Room extends EventEmitter {
       }
     });
 
-    this.engine.on(EngineEvent.ConnectionQualityUpdate, this.handleConnectionQualityUpdate);
+    this.engine.client.onConnectionQuality = this.handleConnectionQualityUpdate;
   }
 
   /**
@@ -219,6 +188,12 @@ class Room extends EventEmitter {
 
       if (!joinResponse.serverVersion) {
         throw new UnsupportedServer('unknown server version');
+      }
+
+      if (joinResponse.serverVersion === '0.15.1' && this.options.dynacast) {
+        log.debug('disabling dynacast due to server version');
+        // dynacast has a bug in 0.15.1, so we cannot use it then
+        this.options.dynacast = false;
       }
 
       this.state = RoomState.Connected;
@@ -265,6 +240,7 @@ class Room extends EventEmitter {
 
       this.name = joinResponse.room!.name;
       this.sid = joinResponse.room!.sid;
+      this.metadata = joinResponse.room!.metadata;
     } catch (err) {
       this.engine.close();
       throw err;
@@ -295,12 +271,27 @@ class Room extends EventEmitter {
    */
   disconnect = (stopTracks = true) => {
     // send leave
-    this.engine.client.sendLeave();
-    this.engine.close();
+    if (this.engine) {
+      this.engine.client.sendLeave();
+      this.engine.close();
+    }
     this.handleDisconnect(stopTracks);
     /* @ts-ignore */
     this.engine = undefined;
   };
+
+  /**
+   * retrieves a participant by identity
+   * @param identity
+   * @returns
+   */
+  getParticipantByIdentity(identity: string): Participant | undefined {
+    for (const [, p] of this.participants) {
+      if (p.identity === identity) {
+        return p;
+      }
+    }
+  }
 
   private onBeforeUnload = () => {
     this.disconnect();
@@ -402,7 +393,7 @@ class Room extends EventEmitter {
       mediaTrack,
       trackId,
       receiver,
-      this.options.autoManageVideo,
+      this.options.adaptiveStream,
     );
   }
 
@@ -433,7 +424,7 @@ class Room extends EventEmitter {
     this.emit(RoomEvent.Disconnected);
   }
 
-  private handleParticipantUpdates(participantInfos: ParticipantInfo[]) {
+  private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
       if (info.sid === this.localParticipant.sid) {
@@ -458,7 +449,7 @@ class Room extends EventEmitter {
         remoteParticipant.updateInfo(info);
       }
     });
-  }
+  };
 
   private handleParticipantDisconnected(
     sid: string,
@@ -538,6 +529,22 @@ class Room extends EventEmitter {
     activeSpeakers.sort((a, b) => b.audioLevel - a.audioLevel);
     this.activeSpeakers = activeSpeakers;
     this.emit(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
+  };
+
+  private handleStreamStateUpdate = (streamStateUpdate: StreamStateUpdate) => {
+    streamStateUpdate.streamStates.forEach((streamState) => {
+      const participant = this.participants.get(streamState.participantSid);
+      if (!participant) {
+        return;
+      }
+      const pub = participant.getTrackPublication(streamState.trackSid);
+      if (!pub || !pub.track) {
+        return;
+      }
+      pub.track.streamState = Track.streamStateFromProto(streamState.state);
+      participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
+      this.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState, participant);
+    });
   };
 
   private handleDataPacket = (
@@ -632,7 +639,7 @@ class Room extends EventEmitter {
         })
         .on(ParticipantEvent.TrackSubscribed,
           (track: RemoteTrack, publication: RemoteTrackPublication) => {
-          // monitor playback status
+            // monitor playback status
             if (track.kind === Track.Kind.Audio) {
               track.on(TrackEvent.AudioPlaybackStarted, this.handleAudioPlaybackStarted);
               track.on(TrackEvent.AudioPlaybackFailed, this.handleAudioPlaybackFailed);
