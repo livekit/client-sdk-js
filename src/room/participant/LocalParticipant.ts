@@ -449,21 +449,15 @@ export default class LocalParticipant extends Participant {
 
     track = publication.track;
 
-    if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
-      track.off(TrackEvent.Muted, this.onTrackMuted);
-      track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
-      track.off(TrackEvent.Ended, this.onTrackUnpublish);
-    }
+    track.off(TrackEvent.Muted, this.onTrackMuted);
+    track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
+    track.off(TrackEvent.Ended, this.onTrackUnpublish);
+
     if (this.roomOptions?.stopLocalTrackOnUnpublish ?? true) {
       track.stop();
     }
 
-    let mediaStreamTrack: MediaStreamTrack;
-    if (track instanceof MediaStreamTrack) {
-      mediaStreamTrack = track;
-    } else {
-      mediaStreamTrack = track.mediaStreamTrack;
-    }
+    const { mediaStreamTrack } = track;
 
     if (this.engine.publisher) {
       const senders = this.engine.publisher.pc.getSenders();
