@@ -125,7 +125,7 @@ export default class LocalTrack extends Track {
     this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
   }
 
-  handleEnded = () => {
+  private handleEnded = () => {
     this.emit(TrackEvent.Ended);
   };
 }
