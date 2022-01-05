@@ -438,7 +438,7 @@ export default class LocalParticipant extends Participant {
 
     log.debug('unpublishTrack', 'unpublishing track', track);
 
-    if (!publication) {
+    if (!publication || !publication.track) {
       log.warn(
         'unpublishTrack',
         'track was not unpublished because no publication was found',
@@ -446,6 +446,8 @@ export default class LocalParticipant extends Participant {
       );
       return null;
     }
+
+    track = publication.track;
 
     if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
       track.off(TrackEvent.Muted, this.onTrackMuted);
