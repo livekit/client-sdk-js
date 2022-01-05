@@ -125,10 +125,6 @@ export default class LocalTrack extends Track {
     this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
   }
 
-  public dispose() {
-    this.mediaStreamTrack?.removeEventListener('ended', this.handleEnded);
-  }
-
   handleEnded = () => {
     this.emit(TrackEvent.Ended);
   };
