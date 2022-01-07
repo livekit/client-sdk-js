@@ -56,7 +56,7 @@ export default class RemoteParticipant extends Participant {
       this.signalClient.sendUpdateSubscription(sub);
     });
     publication.on(TrackEvent.Ended, (track: RemoteTrack) => {
-      this.emit(ParticipantEvent.TrackUnsubscribed, track, this);
+      this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
     });
   }
 
@@ -126,18 +126,15 @@ export default class RemoteParticipant extends Participant {
     }
 
     // set track info
-    track.sid = publication.trackSid;
     track.source = publication.source;
     // keep publication's muted status
     track.isMuted = publication.isMuted;
     track.setMediaStream(mediaStream);
-
     track.start();
-    track.startMonitor();
 
     publication.setTrack(track);
 
-    this.emit(ParticipantEvent.TrackSubscribed, track, this);
+    this.emit(ParticipantEvent.TrackSubscribed, track, publication);
 
     return publication;
   }

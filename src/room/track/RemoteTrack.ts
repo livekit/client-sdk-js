@@ -6,8 +6,6 @@ export default abstract class RemoteTrack extends Track {
   /** @internal */
   receiver?: RTCRtpReceiver;
 
-  protected _currentBitrate: number = 0;
-
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
@@ -17,11 +15,6 @@ export default abstract class RemoteTrack extends Track {
     super(mediaTrack, kind);
     this.sid = sid;
     this.receiver = receiver;
-  }
-
-  /** current receive bits per second */
-  get currentBitrate(): number {
-    return this._currentBitrate;
   }
 
   /** @internal */
@@ -35,14 +28,17 @@ export default abstract class RemoteTrack extends Track {
   /** @internal */
   setMediaStream(stream: MediaStream) {
     // this is needed to determine when the track is finished
-    // we send streams down independently, so we can assume the track is finished
-    // when the stream is.
+    // we send each track down in its own MediaStream, so we can assume the
+    // current track is the only one that can be removed.
     stream.onremovetrack = () => {
+      this.receiver = undefined;
+      this._currentBitrate = 0;
       this.emit(TrackEvent.Ended, this);
     };
   }
 
   start() {
+    this.startMonitor();
     // use `enabled` of track to enable re-use of transceiver
     super.enable();
   }

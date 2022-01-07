@@ -7,6 +7,12 @@ export interface ParticipantTrackPermission {
   participantSid: string;
 
   /**
+   * Grant permission to all all tracks. Takes precedence over allowedTrackSids.
+   * false if unset.
+   */
+  allowAll?: boolean;
+
+  /**
    * The list of track ids that the target participant can subscribe to.
    * When unset, it'll allow all tracks to be subscribed by the participant.
    * When empty, this participant is disallowed from subscribing to any tracks.
@@ -15,9 +21,12 @@ export interface ParticipantTrackPermission {
 }
 
 export function trackPermissionToProto(perms: ParticipantTrackPermission): TrackPermission {
+  if (!perms.participantSid) {
+    throw new Error('Invalid track permission, missing participantSid');
+  }
   return {
     participantSid: perms.participantSid,
-    allTracks: perms.allowedTrackSids === undefined,
+    allTracks: perms.allowAll ?? false,
     trackSids: perms.allowedTrackSids || [],
   };
 }

@@ -20,7 +20,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     }
     const stats = await this.getReceiverStats();
 
-    if (stats && this.prevStats) {
+    if (stats && this.prevStats && this.receiver) {
       this._currentBitrate = computeBitrate(stats, this.prevStats);
     }
 

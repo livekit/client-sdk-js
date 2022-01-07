@@ -129,6 +129,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     }
     super.setTrack(track);
     if (track) {
+      track.sid = this.trackSid;
       track.on(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
       track.on(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
       track.on(TrackEvent.Ended, this.handleEnded);
