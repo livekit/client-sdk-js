@@ -2,15 +2,15 @@ import { debounce } from 'ts-debounce';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency, VideoReceiverStats } from '../stats';
 import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
+import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
 
 const REACTION_DELAY = 100;
 
-export default class RemoteVideoTrack extends Track {
+export default class RemoteVideoTrack extends RemoteTrack {
   /** @internal */
   receiver?: RTCRtpReceiver;
 
-  // @ts-ignore noUnusedLocals
   private prevStats?: VideoReceiverStats;
 
   private elementInfos: ElementInfo[] = [];
@@ -21,18 +21,13 @@ export default class RemoteVideoTrack extends Track {
 
   private lastDimensions?: Track.Dimensions;
 
-  private _currentBitrate: number = 0;
-
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
     receiver?: RTCRtpReceiver,
     adaptiveStream?: boolean,
   ) {
-    super(mediaTrack, Track.Kind.Video);
-    // override id to parsed ID
-    this.sid = sid;
-    this.receiver = receiver;
+    super(mediaTrack, sid, Track.Kind.Video, receiver);
     this.adaptiveStream = adaptiveStream;
   }
 
@@ -40,17 +35,9 @@ export default class RemoteVideoTrack extends Track {
     return this.adaptiveStream ?? false;
   }
 
-  /** current receive bits per second */
-  get currentBitrate(): number {
-    return this._currentBitrate;
-  }
-
   /** @internal */
   setMuted(muted: boolean) {
-    if (this.isMuted !== muted) {
-      this.isMuted = muted;
-      this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
-    }
+    super.setMuted(muted);
 
     this.attachedElements.forEach((element) => {
       // detach or attach
@@ -105,31 +92,14 @@ export default class RemoteVideoTrack extends Track {
     return detachedElements;
   }
 
-  start() {
-    // use `enabled` of track to enable re-use of transceiver
-    super.enable();
-  }
-
-  stop() {
-    // use `enabled` of track to enable re-use of transceiver
-    super.disable();
-  }
-
-  /* @internal */
-  startMonitor() {
-    setTimeout(() => {
-      this.monitorReceiver();
-    }, monitorFrequency);
-  }
-
-  private monitorReceiver = async () => {
+  protected monitorReceiver = async () => {
     if (!this.receiver) {
       this._currentBitrate = 0;
       return;
     }
     const stats = await this.getReceiverStats();
 
-    if (stats && this.prevStats) {
+    if (stats && this.prevStats && this.receiver) {
       this._currentBitrate = computeBitrate(stats, this.prevStats);
     }
 

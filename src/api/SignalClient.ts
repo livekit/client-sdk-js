@@ -13,9 +13,10 @@ import {
   SignalTarget,
   StreamStateUpdate,
   SubscribedQualityUpdate,
+  SubscriptionPermissionUpdate,
+  TrackPermission,
   TrackPublishedResponse,
-  UpdateSubscription,
-  UpdateTrackSettings,
+  UpdateSubscription, UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
 import { protocolVersion, version } from '../version';
@@ -64,6 +65,8 @@ export class SignalClient {
   onStreamStateUpdate?: (update: StreamStateUpdate) => void;
 
   onSubscribedQualityUpdate?: (update: SubscribedQualityUpdate) => void;
+
+  onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
 
   onLeave?: () => void;
 
@@ -249,6 +252,18 @@ export class SignalClient {
     });
   }
 
+  sendUpdateSubscriptionPermissions(
+    allParticipants: boolean,
+    trackPermissions: TrackPermission[],
+  ) {
+    this.sendRequest({
+      subscriptionPermissions: {
+        allParticipants,
+        trackPermissions,
+      },
+    });
+  }
+
   sendLeave() {
     this.sendRequest(SignalRequest.fromPartial({ leave: {} }));
   }
@@ -323,6 +338,10 @@ export class SignalClient {
     } else if (msg.subscribedQualityUpdate) {
       if (this.onSubscribedQualityUpdate) {
         this.onSubscribedQualityUpdate(msg.subscribedQualityUpdate);
+      }
+    } else if (msg.subscriptionPermissionUpdate) {
+      if (this.onSubscriptionPermissionUpdate) {
+        this.onSubscriptionPermissionUpdate(msg.subscriptionPermissionUpdate);
       }
     } else {
       log.debug('unsupported message', msg);

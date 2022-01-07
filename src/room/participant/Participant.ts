@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { ConnectionQuality as ProtoQuality, ParticipantInfo } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { Track } from '../track/Track';
-import TrackPublication from '../track/TrackPublication';
+import { TrackPublication } from '../track/TrackPublication';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',

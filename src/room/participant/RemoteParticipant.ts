@@ -10,7 +10,7 @@ import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
 import RemoteVideoTrack from '../track/RemoteVideoTrack';
 import { Track } from '../track/Track';
-import TrackPublication from '../track/TrackPublication';
+import { TrackPublication } from '../track/TrackPublication';
 import { RemoteTrack } from '../track/types';
 import Participant from './Participant';
 
@@ -55,6 +55,9 @@ export default class RemoteParticipant extends Participant {
     publication.on(TrackEvent.UpdateSubscription, (sub: UpdateSubscription) => {
       this.signalClient.sendUpdateSubscription(sub);
     });
+    publication.on(TrackEvent.Ended, (track: RemoteTrack) => {
+      this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
+    });
   }
 
   getTrack(source: Track.Source): RemoteTrackPublication | undefined {
@@ -75,6 +78,7 @@ export default class RemoteParticipant extends Participant {
   addSubscribedMediaTrack(
     mediaTrack: MediaStreamTrack,
     sid: Track.SID,
+    mediaStream: MediaStream,
     receiver?: RTCRtpReceiver,
     adaptiveStream?: boolean,
     triesLeft?: number,
@@ -107,7 +111,8 @@ export default class RemoteParticipant extends Participant {
 
       if (triesLeft === undefined) triesLeft = 20;
       setTimeout(() => {
-        this.addSubscribedMediaTrack(mediaTrack, sid, receiver, adaptiveStream, triesLeft! - 1);
+        this.addSubscribedMediaTrack(mediaTrack, sid, mediaStream,
+          receiver, adaptiveStream, triesLeft! - 1);
       }, 150);
       return;
     }
@@ -119,24 +124,16 @@ export default class RemoteParticipant extends Participant {
     } else {
       track = new RemoteAudioTrack(mediaTrack, sid, receiver);
     }
-    track.start();
 
-    publication.setTrack(track);
     // set track info
-    track.sid = publication.trackSid;
     track.source = publication.source;
     // keep publication's muted status
     track.isMuted = publication.isMuted;
-    track.receiver = receiver;
-    track.startMonitor();
+    track.setMediaStream(mediaStream);
+    track.start();
 
-    // when media track is ended, fire the event
-    mediaTrack.onended = () => {
-      if (publication) {
-        publication.track = undefined;
-      }
-      this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
-    };
+    publication.setTrack(track);
+
     this.emit(ParticipantEvent.TrackSubscribed, track, publication);
 
     return publication;

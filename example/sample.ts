@@ -1,11 +1,7 @@
 import {
-  DataPacket_Kind, LocalParticipant,
-  LocalTrack,
-  MediaDeviceFailure,
-  Participant,
-  ParticipantEvent,
-  RemoteAudioTrack,
-  RemoteParticipant, RemoteVideoTrack, Room, RoomConnectOptions, RoomEvent,
+  DataPacket_Kind, LocalParticipant, MediaDeviceFailure,
+  Participant, ParticipantEvent, RemoteParticipant, Room,
+  RoomConnectOptions, RoomEvent,
   RoomOptions, RoomState, setLogLevel, Track, TrackPublication,
   VideoCaptureOptions, VideoPresets,
 } from '../src/index';
@@ -404,18 +400,22 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     } else if (!cameraPub?.videoTrack?.attachedElements.includes(videoElm)) {
       const startTime = Date.now();
       // measure time to render
-      videoElm.addEventListener('loadeddata', () => {
+      videoElm.onloadeddata = () => {
         const elapsed = Date.now() - startTime;
         appendLog(`RemoteVideoTrack ${cameraPub?.trackSid} rendered in ${elapsed}ms`);
-      });
+      };
     }
     cameraPub?.videoTrack?.attach(videoElm);
-  } else if (cameraPub?.videoTrack) {
-    // detach manually whenever possible
-    cameraPub.videoTrack?.detach(videoElm);
   } else {
-    videoElm.src = '';
-    videoElm.srcObject = null;
+    // clear information display
+    $(`size-${participant.sid}`)!.innerHTML = '';
+    if (cameraPub?.videoTrack) {
+      // detach manually whenever possible
+      cameraPub.videoTrack?.detach(videoElm);
+    } else {
+      videoElm.src = '';
+      videoElm.srcObject = null;
+    }
   }
 
   const micEnabled = micPub && micPub.isSubscribed && !micPub.isMuted;
@@ -494,8 +494,7 @@ function renderBitrate() {
     const elm = $(`bitrate-${p.sid}`);
     let totalBitrate = 0;
     for (const t of p.tracks.values()) {
-      if (t.track instanceof RemoteAudioTrack || t.track instanceof RemoteVideoTrack
-        || t.track instanceof LocalTrack) {
+      if (t.track) {
         totalBitrate += t.track.currentBitrate;
       }
     }
