@@ -7,7 +7,7 @@ import RemoteAudioTrack from './RemoteAudioTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
 
-export default class TrackPublication extends EventEmitter {
+export class TrackPublication extends EventEmitter {
   kind: Track.Kind;
 
   trackName: string;
@@ -96,5 +96,13 @@ export default class TrackPublication extends EventEmitter {
       };
       this.simulcasted = info.simulcast;
     }
+  }
+}
+
+export namespace TrackPublication {
+  export enum SubscriptionStatus {
+    Subscribed = 'subscribed',
+    NotAllowed = 'not_allowed',
+    Unsubscribed = 'unsubscribed',
   }
 }

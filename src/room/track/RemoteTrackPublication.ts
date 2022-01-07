@@ -7,12 +7,16 @@ import {
 import { TrackEvent } from '../events';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
-import TrackPublication from './TrackPublication';
+import { TrackPublication } from './TrackPublication';
 import { RemoteTrack } from './types';
 
 export default class RemoteTrackPublication extends TrackPublication {
   track?: RemoteTrack;
 
+  /** @internal */
+  _allowed = true;
+
+  // keeps track of client's desire to subscribe to a track
   protected subscribed?: boolean;
 
   protected disabled: boolean = false;
@@ -36,8 +40,24 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.emit(TrackEvent.UpdateSubscription, sub);
   }
 
+  get subscriptionStatus(): TrackPublication.SubscriptionStatus {
+    if (this.subscribed === false || !super.isSubscribed) {
+      return TrackPublication.SubscriptionStatus.Unsubscribed;
+    }
+    if (!this._allowed) {
+      return TrackPublication.SubscriptionStatus.NotAllowed;
+    }
+    return TrackPublication.SubscriptionStatus.Subscribed;
+  }
+
+  /**
+   * Returns true if track is subscribed, and ready for playback
+   */
   get isSubscribed(): boolean {
     if (this.subscribed === false) {
+      return false;
+    }
+    if (!this._allowed) {
       return false;
     }
     return super.isSubscribed;
@@ -105,10 +125,14 @@ export default class RemoteTrackPublication extends TrackPublication {
       // unregister listener
       this.track.off(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
       this.track.off(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
+      this.track.off(TrackEvent.Ended, this.handleEnded);
     }
     super.setTrack(track);
-    this.track?.on(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
-    this.track?.on(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
+    if (track) {
+      track.on(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
+      track.on(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
+      track.on(TrackEvent.Ended, this.handleEnded);
+    }
   }
 
   /** @internal */
@@ -117,6 +141,10 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.metadataMuted = info.muted;
     this.track?.setMuted(info.muted);
   }
+
+  protected handleEnded = (track: RemoteTrack) => {
+    this.emit(TrackEvent.Ended, track);
+  };
 
   protected get isAdaptiveStream(): boolean {
     return this.track instanceof RemoteVideoTrack && this.track.isAdaptiveStream;
