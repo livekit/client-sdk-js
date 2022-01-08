@@ -103,7 +103,10 @@ const appActions = {
         });
 
     try {
+      const start = Date.now();
       await room.connect(url, token, connectOptions);
+      const elapsed = Date.now() - start;
+      appendLog(`successfully connected to ${room.name} in ${Math.round(elapsed)}ms`);
     } catch (error) {
       let message: any = error;
       if (error.message) {
@@ -112,13 +115,10 @@ const appActions = {
       appendLog('could not connect:', message);
       return;
     }
-
-    appendLog('connected to room', room.name);
     currentRoom = room;
     window.currentRoom = room;
     setButtonsForState(true);
 
-    appendLog('room participants', room.participants.keys());
     room.participants.forEach((participant) => {
       participantConnected(participant);
     });
