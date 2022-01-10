@@ -5,7 +5,7 @@ import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
-import { ConnectionQualityUpdate, StreamStateUpdate } from '../proto/livekit_rtc';
+import { ConnectionQualityUpdate, StreamStateUpdate, SubscriptionPermissionUpdate } from '../proto/livekit_rtc';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
@@ -19,7 +19,7 @@ import { audioDefaults, publishDefaults, videoDefaults } from './track/defaults'
 import LocalTrackPublication from './track/LocalTrackPublication';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
-import TrackPublication from './track/TrackPublication';
+import { TrackPublication } from './track/TrackPublication';
 import { RemoteTrack } from './track/types';
 import { unpackStreamId } from './utils';
 import { toProtoSessionDescription } from '../api/SignalClient';
@@ -130,6 +130,7 @@ class Room extends EventEmitter {
     this.engine.client.onRoomUpdate = this.handleRoomUpdate;
     this.engine.client.onSpeakersChanged = this.handleSpeakersChanged;
     this.engine.client.onStreamStateUpdate = this.handleStreamStateUpdate;
+    this.engine.client.onSubscriptionPermissionUpdate = this.handleSubscriptionPermissionUpdate;
     this.engine.on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate);
     this.engine.on(EngineEvent.DataPacketReceived, this.handleDataPacket);
 
@@ -392,6 +393,7 @@ class Room extends EventEmitter {
     participant.addSubscribedMediaTrack(
       mediaTrack,
       trackId,
+      stream,
       receiver,
       this.options.adaptiveStream,
     );
@@ -406,12 +408,17 @@ class Room extends EventEmitter {
         p.unpublishTrack(pub.trackSid);
       });
     });
-    if (shouldStopTracks) {
-      this.localParticipant.tracks.forEach((pub) => {
+
+    this.localParticipant.tracks.forEach((pub) => {
+      if (pub.track) {
+        this.localParticipant.unpublishTrack(pub.track);
+      }
+      if (shouldStopTracks) {
         pub.track?.detach();
         pub.track?.stop();
-      });
-    }
+      }
+    });
+
     this.participants.clear();
     this.activeSpeakers = [];
     if (this.audioContext) {
@@ -545,6 +552,23 @@ class Room extends EventEmitter {
       participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
       this.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState, participant);
     });
+  };
+
+  private handleSubscriptionPermissionUpdate = (update: SubscriptionPermissionUpdate) => {
+    const participant = this.participants.get(update.participantSid);
+    if (!participant) {
+      return;
+    }
+    const pub = participant.getTrackPublication(update.trackSid);
+    if (!pub) {
+      return;
+    }
+
+    pub._allowed = update.allowed;
+    participant.emit(ParticipantEvent.TrackSubscriptionPermissionChanged, pub,
+      pub.subscriptionStatus);
+    this.emit(ParticipantEvent.TrackSubscriptionPermissionChanged, pub,
+      pub.subscriptionStatus, participant);
   };
 
   private handleDataPacket = (

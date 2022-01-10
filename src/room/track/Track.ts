@@ -26,11 +26,18 @@ export class Track extends EventEmitter {
    */
   sid?: Track.SID;
 
+  protected _currentBitrate: number = 0;
+
   protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
     super();
     this.kind = kind;
     this.mediaStreamTrack = mediaTrack;
     this.source = Track.Source.Unknown;
+  }
+
+  /** current receive bits per second */
+  get currentBitrate(): number {
+    return this._currentBitrate;
   }
 
   /**

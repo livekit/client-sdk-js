@@ -1,9 +1,10 @@
 import { TrackInfo } from '../../proto/livekit_models';
+import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
-import TrackPublication from './TrackPublication';
+import { TrackPublication } from './TrackPublication';
 
 export default class LocalTrackPublication extends TrackPublication {
   track?: LocalTrack;
@@ -13,6 +14,18 @@ export default class LocalTrackPublication extends TrackPublication {
 
     this.updateInfo(ti);
     this.setTrack(track);
+  }
+
+  setTrack(track?: Track) {
+    if (this.track) {
+      this.track.off(TrackEvent.Ended, this.handleTrackEnded);
+    }
+
+    super.setTrack(track);
+
+    if (track) {
+      track.on(TrackEvent.Ended, this.handleTrackEnded);
+    }
   }
 
   get isMuted(): boolean {
@@ -43,4 +56,8 @@ export default class LocalTrackPublication extends TrackPublication {
   async unmute() {
     return this.track?.unmute();
   }
+
+  handleTrackEnded = (track: LocalTrack) => {
+    this.emit(TrackEvent.Ended, track);
+  };
 }

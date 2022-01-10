@@ -125,6 +125,8 @@ export enum RoomEvent {
    * Active speakers changed. List of speakers are ordered by their audio level.
    * loudest speakers first. This will include the LocalParticipant too.
    *
+   * Speaker updates are sent only to the publishing participant and their subscribers.
+   *
    * args: (Array<[[Participant]]>)
    */
   ActiveSpeakersChanged = 'activeSpeakersChanged',
@@ -166,6 +168,15 @@ export enum RoomEvent {
   DataReceived = 'dataReceived',
 
   /**
+   * Connection quality was changed for a Participant. It'll receive updates
+   * from the local participant, as well as any [[RemoteParticipant]]s that we are
+   * subscribed to.
+   *
+   * args: (connectionQuality: [[ConnectionQuality]], participant: [[Participant]])
+   */
+  ConnectionQualityChanged = 'connectionQualityChanged',
+
+  /**
    * StreamState indicates if a subscribed track has been paused by the SFU
    * (typically this happens because of subscriber's bandwidth constraints)
    *
@@ -176,6 +187,18 @@ export enum RoomEvent {
    *        participant: [[RemoteParticipant]])
    */
   TrackStreamStateChanged = 'trackStreamStateChanged',
+
+  /**
+   * One of subscribed tracks have changed its permissions for the current
+   * participant. If permission was revoked, then the track will no longer
+   * be subscribed. If permission was granted, a TrackSubscribed event will
+   * be emitted.
+   *
+   * args: (pub: [[RemoteTrackPublication]],
+   *        status: [[TrackPublication.SubscriptionStatus]],
+   *        participant: [[RemoteParticipant]])
+   */
+  TrackSubscriptionPermissionChanged = 'trackSubscriptionPermissionChanged',
 
   /**
    * LiveKit will attempt to autoplay all audio tracks when you attach them to
@@ -194,15 +217,6 @@ export enum RoomEvent {
    * args: (error: Error)
    */
   MediaDevicesError = 'mediaDevicesError',
-
-  /**
-   * Connection quality was changed for a Participant. It'll receive updates
-   * from the local participant, as well as any [[RemoteParticipant]]s that we are
-   * subscribed to.
-   *
-   * args: (connectionQuality: [[ConnectionQuality]], participant: [[Participant]])
-   */
-  ConnectionQualityChanged = 'connectionQualityChanged',
 }
 
 export enum ParticipantEvent {
@@ -247,7 +261,7 @@ export enum ParticipantEvent {
    * A subscribed track is no longer available. Clients should listen to this
    * event and ensure they detach tracks.
    *
-   * args: ([[Track]], [[RemoteTrackPublication]])
+   * args: ([[RemoteTrack]], [[RemoteTrackPublication]])
    */
   TrackUnsubscribed = 'trackUnsubscribed',
 
@@ -337,6 +351,17 @@ export enum ParticipantEvent {
    * args: (pub: [[RemoteTrackPublication]], streamState: [[Track.StreamState]])
    */
   TrackStreamStateChanged = 'trackStreamStateChanged',
+
+  /**
+   * One of subscribed tracks have changed its permissions for the current
+   * participant. If permission was revoked, then the track will no longer
+   * be subscribed. If permission was granted, a TrackSubscribed event will
+   * be emitted.
+   *
+   * args: (pub: [[RemoteTrackPublication]],
+   *        status: [[TrackPublication.SubscriptionStatus]])
+   */
+  TrackSubscriptionPermissionChanged = 'trackSubscriptionPermissionChanged',
 
   // fired only on LocalParticipant
   /** @internal */

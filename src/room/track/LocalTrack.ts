@@ -10,8 +10,6 @@ export default class LocalTrack extends Track {
 
   protected constraints: MediaTrackConstraints;
 
-  protected _currentBitrate: number = 0;
-
   protected constructor(
     mediaTrack: MediaStreamTrack, kind: Track.Kind, constraints?: MediaTrackConstraints,
   ) {
@@ -37,11 +35,6 @@ export default class LocalTrack extends Track {
       };
     }
     return undefined;
-  }
-
-  /** current send bits per second */
-  get currentBitrate(): number {
-    return this._currentBitrate;
   }
 
   /**
@@ -126,6 +119,6 @@ export default class LocalTrack extends Track {
   }
 
   private handleEnded = () => {
-    this.emit(TrackEvent.Ended);
+    this.emit(TrackEvent.Ended, this);
   };
 }

@@ -22,6 +22,7 @@ import {
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
 import Participant from './Participant';
+import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import { computeVideoEncodings, mediaTrackToLocalTrack } from './publishUtils';
 import RemoteParticipant from './RemoteParticipant';
 
@@ -438,7 +439,7 @@ export default class LocalParticipant extends Participant {
 
     log.debug('unpublishTrack', 'unpublishing track', track);
 
-    if (!publication) {
+    if (!publication || !publication.track) {
       log.warn(
         'unpublishTrack',
         'track was not unpublished because no publication was found',
@@ -447,24 +448,17 @@ export default class LocalParticipant extends Participant {
       return null;
     }
 
-    if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
-      track.removeListener(TrackEvent.Muted, this.onTrackMuted);
-      track.removeListener(TrackEvent.Unmuted, this.onTrackUnmuted);
-    }
+    track = publication.track;
+
+    track.off(TrackEvent.Muted, this.onTrackMuted);
+    track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
+    track.off(TrackEvent.Ended, this.onTrackUnpublish);
+
     if (this.roomOptions?.stopLocalTrackOnUnpublish ?? true) {
       track.stop();
     }
 
-    let mediaStreamTrack: MediaStreamTrack;
-    if (track instanceof MediaStreamTrack) {
-      mediaStreamTrack = track;
-    } else {
-      mediaStreamTrack = track.mediaStreamTrack;
-
-      track.off(TrackEvent.Muted, this.onTrackMuted);
-      track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
-      track.off(TrackEvent.Ended, this.onTrackUnpublish);
-    }
+    const { mediaStreamTrack } = track;
 
     if (this.engine.publisher) {
       const senders = this.engine.publisher.pc.getSenders();
@@ -493,6 +487,7 @@ export default class LocalParticipant extends Participant {
         break;
     }
 
+    publication.setTrack(undefined);
     this.emit(ParticipantEvent.LocalTrackUnpublished, publication);
 
     return publication;
@@ -551,14 +546,41 @@ export default class LocalParticipant extends Participant {
     await this.engine.sendDataPacket(packet, kind);
   }
 
+  /**
+   * Control who can subscribe to LocalParticipant's published tracks.
+   *
+   * By default, all participants can subscribe. This allows fine-grained control over
+   * who is able to subscribe at a participant and track level.
+   *
+   * Note: if access is given at a track-level (i.e. both [allParticipantsAllowed] and
+   * [ParticipantTrackPermission.allTracksAllowed] are false), any newer published tracks
+   * will not grant permissions to any participants and will require a subsequent
+   * permissions update to allow subscription.
+   *
+   * @param allParticipantsAllowed Allows all participants to subscribe all tracks.
+   *  Takes precedence over [[participantTrackPermissions]] if set to true.
+   *  By default this is set to true.
+   * @param participantTrackPermissions Full list of individual permissions per
+   *  participant/track. Any omitted participants will not receive any permissions.
+   */
+  setTrackSubscriptionPermissions(
+    allParticipantsAllowed: boolean,
+    participantTrackPermissions: ParticipantTrackPermission[] = [],
+  ) {
+    this.engine.client.sendUpdateSubscriptionPermissions(
+      allParticipantsAllowed,
+      participantTrackPermissions.map((p) => trackPermissionToProto(p)),
+    );
+  }
+
   /** @internal */
-  onTrackUnmuted = (track: LocalTrack) => {
+  private onTrackUnmuted = (track: LocalTrack) => {
     this.onTrackMuted(track, false);
   };
 
   // when the local track changes in mute status, we'll notify server as such
   /** @internal */
-  onTrackMuted = (
+  private onTrackMuted = (
     track: LocalTrack,
     muted?: boolean,
   ) => {

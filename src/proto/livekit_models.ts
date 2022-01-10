@@ -96,6 +96,7 @@ export enum VideoQuality {
   LOW = 0,
   MEDIUM = 1,
   HIGH = 2,
+  OFF = 3,
   UNRECOGNIZED = -1,
 }
 
@@ -110,6 +111,9 @@ export function videoQualityFromJSON(object: any): VideoQuality {
     case 2:
     case "HIGH":
       return VideoQuality.HIGH;
+    case 3:
+    case "OFF":
+      return VideoQuality.OFF;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -125,6 +129,8 @@ export function videoQualityToJSON(object: VideoQuality): string {
       return "MEDIUM";
     case VideoQuality.HIGH:
       return "HIGH";
+    case VideoQuality.OFF:
+      return "OFF";
     default:
       return "UNKNOWN";
   }

@@ -7,7 +7,7 @@ import RemoteAudioTrack from './RemoteAudioTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
 
-export default class TrackPublication extends EventEmitter {
+export class TrackPublication extends EventEmitter {
   kind: Track.Kind;
 
   trackName: string;
@@ -41,17 +41,17 @@ export default class TrackPublication extends EventEmitter {
 
   /** @internal */
   setTrack(track?: Track) {
+    if (this.track) {
+      this.track.off(TrackEvent.Muted, this.handleMuted);
+      this.track.off(TrackEvent.Unmuted, this.handleUnmuted);
+    }
+
     this.track = track;
 
     if (track) {
       // forward events
-      track.on(TrackEvent.Muted, () => {
-        this.emit(TrackEvent.Muted);
-      });
-
-      track.on(TrackEvent.Unmuted, () => {
-        this.emit(TrackEvent.Unmuted);
-      });
+      track.on(TrackEvent.Muted, this.handleMuted);
+      track.on(TrackEvent.Unmuted, this.handleUnmuted);
     }
   }
 
@@ -85,6 +85,14 @@ export default class TrackPublication extends EventEmitter {
     }
   }
 
+  handleMuted = () => {
+    this.emit(TrackEvent.Muted);
+  };
+
+  handleUnmuted = () => {
+    this.emit(TrackEvent.Unmuted);
+  };
+
   /** @internal */
   updateInfo(info: TrackInfo) {
     this.trackSid = info.sid;
@@ -99,5 +107,13 @@ export default class TrackPublication extends EventEmitter {
       this.simulcasted = info.simulcast;
     }
     this.trackInfo = info
+  }
+}
+
+export namespace TrackPublication {
+  export enum SubscriptionStatus {
+    Subscribed = 'subscribed',
+    NotAllowed = 'not_allowed',
+    Unsubscribed = 'unsubscribed',
   }
 }
