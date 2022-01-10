@@ -119,6 +119,6 @@ export default class LocalTrack extends Track {
   }
 
   private handleEnded = () => {
-    this.emit(TrackEvent.Ended);
+    this.emit(TrackEvent.Ended, this);
   };
 }
