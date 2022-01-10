@@ -39,17 +39,17 @@ export class TrackPublication extends EventEmitter {
 
   /** @internal */
   setTrack(track?: Track) {
+    if (this.track) {
+      this.track.off(TrackEvent.Muted, this.handleMuted);
+      this.track.off(TrackEvent.Unmuted, this.handleUnmuted);
+    }
+
     this.track = track;
 
     if (track) {
       // forward events
-      track.on(TrackEvent.Muted, () => {
-        this.emit(TrackEvent.Muted);
-      });
-
-      track.on(TrackEvent.Unmuted, () => {
-        this.emit(TrackEvent.Unmuted);
-      });
+      track.on(TrackEvent.Muted, this.handleMuted);
+      track.on(TrackEvent.Unmuted, this.handleUnmuted);
     }
   }
 
@@ -82,6 +82,14 @@ export class TrackPublication extends EventEmitter {
       return this.track;
     }
   }
+
+  handleMuted = () => {
+    this.emit(TrackEvent.Muted);
+  };
+
+  handleUnmuted = () => {
+    this.emit(TrackEvent.Unmuted);
+  };
 
   /** @internal */
   updateInfo(info: TrackInfo) {

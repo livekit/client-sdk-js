@@ -439,7 +439,7 @@ export default class LocalParticipant extends Participant {
 
     log.debug('unpublishTrack', 'unpublishing track', track);
 
-    if (!publication) {
+    if (!publication || !publication.track) {
       log.warn(
         'unpublishTrack',
         'track was not unpublished because no publication was found',
@@ -448,24 +448,17 @@ export default class LocalParticipant extends Participant {
       return null;
     }
 
-    if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
-      track.removeListener(TrackEvent.Muted, this.onTrackMuted);
-      track.removeListener(TrackEvent.Unmuted, this.onTrackUnmuted);
-    }
+    track = publication.track;
+
+    track.off(TrackEvent.Muted, this.onTrackMuted);
+    track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
+    track.off(TrackEvent.Ended, this.onTrackUnpublish);
+
     if (this.roomOptions?.stopLocalTrackOnUnpublish ?? true) {
       track.stop();
     }
 
-    let mediaStreamTrack: MediaStreamTrack;
-    if (track instanceof MediaStreamTrack) {
-      mediaStreamTrack = track;
-    } else {
-      mediaStreamTrack = track.mediaStreamTrack;
-
-      track.off(TrackEvent.Muted, this.onTrackMuted);
-      track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
-      track.off(TrackEvent.Ended, this.onTrackUnpublish);
-    }
+    const { mediaStreamTrack } = track;
 
     if (this.engine.publisher) {
       const senders = this.engine.publisher.pc.getSenders();
@@ -494,6 +487,7 @@ export default class LocalParticipant extends Participant {
         break;
     }
 
+    publication.setTrack(undefined);
     this.emit(ParticipantEvent.LocalTrackUnpublished, publication);
 
     return publication;
