@@ -26,7 +26,6 @@ interface ConnectOpts {
   autoSubscribe?: boolean;
   /** internal */
   reconnect?: boolean;
-  keepSubscribe ?: boolean;
 }
 
 // public options
@@ -92,7 +91,6 @@ export class SignalClient {
   async reconnect(url: string, token: string): Promise<void> {
     await this.connect(url, token, {
       reconnect: true,
-      keepSubscribe: true,
     })
   }
 
@@ -113,9 +111,6 @@ export class SignalClient {
     }
     if (opts.autoSubscribe !== undefined) {
       params += `&auto_subscribe=${opts.autoSubscribe ? '1' : '0'}`;
-    }
-    if (opts.keepSubscribe) {
-      params += '&keep_subscribe=1';
     }
 
     return new Promise<JoinResponse | void>((resolve, reject) => {
