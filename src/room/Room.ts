@@ -145,8 +145,8 @@ class Room extends EventEmitter {
     });
 
     this.engine.on(EngineEvent.SignalConnected, () => {
-      if (this.state == RoomState.Reconnecting) {
-        this.sendSyncState()
+      if (this.state === RoomState.Reconnecting) {
+        this.sendSyncState();
       }
     });
 
@@ -181,7 +181,7 @@ class Room extends EventEmitter {
       this.engine.rtcConfig = opts.rtcConfig;
     }
 
-    this.connOptions = opts
+    this.connOptions = opts;
 
     try {
       const joinResponse = await this.engine.join(url, token, opts);
@@ -700,18 +700,19 @@ class Room extends EventEmitter {
   }
 
   private sendSyncState() {
-    if (this.engine.subscriber == undefined || this.engine.subscriber.pc.localDescription == null) {
-      return
+    if (this.engine.subscriber === undefined
+      || this.engine.subscriber.pc.localDescription === null) {
+      return;
     }
-    const previousSdp = this.engine.subscriber.pc.localDescription
-    const sendUnsub = this.connOptions?.autoSubscribe || false
-    const trackSids = new Array<string>()
-    this.participants.forEach(participant => {
-      participant.tracks.forEach(track => {
-        if (track.isSubscribed != sendUnsub) {
-          trackSids.push(track.trackSid)
+    const previousSdp = this.engine.subscriber.pc.localDescription;
+    const sendUnsub = this.connOptions?.autoSubscribe || false;
+    const trackSids = new Array<string>();
+    this.participants.forEach((participant) => {
+      participant.tracks.forEach((track) => {
+        if (track.isSubscribed !== sendUnsub) {
+          trackSids.push(track.trackSid);
         }
-      })
+      });
     });
 
     this.engine.client.sendSyncState({
@@ -720,12 +721,12 @@ class Room extends EventEmitter {
         type: previousSdp.type,
       }),
       subscription: {
-        trackSids: trackSids,
+        trackSids,
         subscribe: !sendUnsub,
         participantTracks: [],
       },
       publishTracks: this.localParticipant.publishedTracksInfo(),
-    })
+    });
   }
 
   /** @internal */

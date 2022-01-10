@@ -669,13 +669,13 @@ export default class LocalParticipant extends Participant {
   }
 
   publishedTracksInfo(): TrackPublishedResponse[] {
-    const infos: TrackPublishedResponse[] = []
+    const infos: TrackPublishedResponse[] = [];
     this.tracks.forEach((track: LocalTrackPublication) => {
       infos.push({
         cid: track.track!.mediaStreamTrack.id,
         track: track.trackInfo,
-      })
-    })
-    return infos
+      });
+    });
+    return infos;
   }
 }

@@ -106,7 +106,7 @@ export class TrackPublication extends EventEmitter {
       };
       this.simulcasted = info.simulcast;
     }
-    this.trackInfo = info
+    this.trackInfo = info;
   }
 }
 

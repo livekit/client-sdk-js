@@ -92,7 +92,7 @@ export class SignalClient {
   async reconnect(url: string, token: string): Promise<void> {
     await this.connect(url, token, {
       reconnect: true,
-    })
+    });
   }
 
   connect(
@@ -245,7 +245,7 @@ export class SignalClient {
   }
 
   sendSyncState(sync: SyncState) {
-    this.sendRequest({ syncState: sync })
+    this.sendRequest({ syncState: sync });
   }
 
   sendUpdateVideoLayers(trackSid: string, layers: VideoLayer[]) {
