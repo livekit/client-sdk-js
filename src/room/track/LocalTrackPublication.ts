@@ -3,7 +3,7 @@ import LocalAudioTrack from './LocalAudioTrack';
 import LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
-import TrackPublication from './TrackPublication';
+import { TrackPublication } from './TrackPublication';
 import { TrackEvent } from '../events';
 
 export default class LocalTrackPublication extends TrackPublication {

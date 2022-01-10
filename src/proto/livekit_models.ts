@@ -96,6 +96,7 @@ export enum VideoQuality {
   LOW = 0,
   MEDIUM = 1,
   HIGH = 2,
+  OFF = 3,
   UNRECOGNIZED = -1,
 }
 
@@ -110,6 +111,9 @@ export function videoQualityFromJSON(object: any): VideoQuality {
     case 2:
     case "HIGH":
       return VideoQuality.HIGH;
+    case 3:
+    case "OFF":
+      return VideoQuality.OFF;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -125,6 +129,8 @@ export function videoQualityToJSON(object: VideoQuality): string {
       return "MEDIUM";
     case VideoQuality.HIGH:
       return "HIGH";
+    case VideoQuality.OFF:
+      return "OFF";
     default:
       return "UNKNOWN";
   }
@@ -196,6 +202,7 @@ export interface ParticipantInfo {
   joinedAt: number;
   hidden: boolean;
   recorder: boolean;
+  name: string;
 }
 
 export enum ParticipantInfo_State {
@@ -269,6 +276,8 @@ export interface TrackInfo {
   /** source of media */
   source: TrackSource;
   layers: VideoLayer[];
+  /** mime type of codec */
+  mimeType: string;
 }
 
 /** provide information about available spatial layers */
@@ -339,6 +348,12 @@ export interface UserPacket {
   payload: Uint8Array;
   /** the ID of the participants who will receive the message (the message will be sent to all the people in the room if this variable is empty) */
   destinationSids: string[];
+}
+
+export interface ParticipantTracks {
+  /** participant ID of participant to whom the tracks belong */
+  participantSid: string;
+  trackSids: string[];
 }
 
 const baseRoom: object = {
@@ -619,6 +634,7 @@ const baseParticipantInfo: object = {
   joinedAt: 0,
   hidden: false,
   recorder: false,
+  name: "",
 };
 
 export const ParticipantInfo = {
@@ -649,6 +665,9 @@ export const ParticipantInfo = {
     }
     if (message.recorder === true) {
       writer.uint32(64).bool(message.recorder);
+    }
+    if (message.name !== "") {
+      writer.uint32(74).string(message.name);
     }
     return writer;
   },
@@ -684,6 +703,9 @@ export const ParticipantInfo = {
           break;
         case 8:
           message.recorder = reader.bool();
+          break;
+        case 9:
+          message.name = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -736,6 +758,11 @@ export const ParticipantInfo = {
     } else {
       message.recorder = false;
     }
+    if (object.name !== undefined && object.name !== null) {
+      message.name = String(object.name);
+    } else {
+      message.name = "";
+    }
     return message;
   },
 
@@ -756,6 +783,7 @@ export const ParticipantInfo = {
     message.joinedAt !== undefined && (obj.joinedAt = message.joinedAt);
     message.hidden !== undefined && (obj.hidden = message.hidden);
     message.recorder !== undefined && (obj.recorder = message.recorder);
+    message.name !== undefined && (obj.name = message.name);
     return obj;
   },
 
@@ -774,6 +802,7 @@ export const ParticipantInfo = {
     message.joinedAt = object.joinedAt ?? 0;
     message.hidden = object.hidden ?? false;
     message.recorder = object.recorder ?? false;
+    message.name = object.name ?? "";
     return message;
   },
 };
@@ -788,6 +817,7 @@ const baseTrackInfo: object = {
   simulcast: false,
   disableDtx: false,
   source: 0,
+  mimeType: "",
 };
 
 export const TrackInfo = {
@@ -824,6 +854,9 @@ export const TrackInfo = {
     }
     for (const v of message.layers) {
       VideoLayer.encode(v!, writer.uint32(82).fork()).ldelim();
+    }
+    if (message.mimeType !== "") {
+      writer.uint32(90).string(message.mimeType);
     }
     return writer;
   },
@@ -865,6 +898,9 @@ export const TrackInfo = {
           break;
         case 10:
           message.layers.push(VideoLayer.decode(reader, reader.uint32()));
+          break;
+        case 11:
+          message.mimeType = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -927,6 +963,11 @@ export const TrackInfo = {
         message.layers.push(VideoLayer.fromJSON(e));
       }
     }
+    if (object.mimeType !== undefined && object.mimeType !== null) {
+      message.mimeType = String(object.mimeType);
+    } else {
+      message.mimeType = "";
+    }
     return message;
   },
 
@@ -949,6 +990,7 @@ export const TrackInfo = {
     } else {
       obj.layers = [];
     }
+    message.mimeType !== undefined && (obj.mimeType = message.mimeType);
     return obj;
   },
 
@@ -969,6 +1011,7 @@ export const TrackInfo = {
         message.layers.push(VideoLayer.fromPartial(e));
       }
     }
+    message.mimeType = object.mimeType ?? "";
     return message;
   },
 };
@@ -1405,6 +1448,85 @@ export const UserPacket = {
     ) {
       for (const e of object.destinationSids) {
         message.destinationSids.push(e);
+      }
+    }
+    return message;
+  },
+};
+
+const baseParticipantTracks: object = { participantSid: "", trackSids: "" };
+
+export const ParticipantTracks = {
+  encode(
+    message: ParticipantTracks,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.participantSid !== "") {
+      writer.uint32(10).string(message.participantSid);
+    }
+    for (const v of message.trackSids) {
+      writer.uint32(18).string(v!);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ParticipantTracks {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseParticipantTracks } as ParticipantTracks;
+    message.trackSids = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.participantSid = reader.string();
+          break;
+        case 2:
+          message.trackSids.push(reader.string());
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ParticipantTracks {
+    const message = { ...baseParticipantTracks } as ParticipantTracks;
+    message.trackSids = [];
+    if (object.participantSid !== undefined && object.participantSid !== null) {
+      message.participantSid = String(object.participantSid);
+    } else {
+      message.participantSid = "";
+    }
+    if (object.trackSids !== undefined && object.trackSids !== null) {
+      for (const e of object.trackSids) {
+        message.trackSids.push(String(e));
+      }
+    }
+    return message;
+  },
+
+  toJSON(message: ParticipantTracks): unknown {
+    const obj: any = {};
+    message.participantSid !== undefined &&
+      (obj.participantSid = message.participantSid);
+    if (message.trackSids) {
+      obj.trackSids = message.trackSids.map((e) => e);
+    } else {
+      obj.trackSids = [];
+    }
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<ParticipantTracks>): ParticipantTracks {
+    const message = { ...baseParticipantTracks } as ParticipantTracks;
+    message.participantSid = object.participantSid ?? "";
+    message.trackSids = [];
+    if (object.trackSids !== undefined && object.trackSids !== null) {
+      for (const e of object.trackSids) {
+        message.trackSids.push(e);
       }
     }
     return message;

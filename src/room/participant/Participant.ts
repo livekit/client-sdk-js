@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { ConnectionQuality as ProtoQuality, ParticipantInfo } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import { Track } from '../track/Track';
-import TrackPublication from '../track/TrackPublication';
+import { TrackPublication } from '../track/TrackPublication';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -45,6 +45,9 @@ export default class Participant extends EventEmitter {
 
   /** client assigned identity, encoded in JWT token */
   identity: string;
+
+  /** client assigned display name, encoded in JWT token */
+  name?: string;
 
   /** client metadata, opaque to livekit */
   metadata?: string;
@@ -142,6 +145,7 @@ export default class Participant extends EventEmitter {
   updateInfo(info: ParticipantInfo) {
     this.identity = info.identity;
     this.sid = info.sid;
+    this.name = info.name;
     this.setMetadata(info.metadata);
     // set this last so setMetadata can detect changes
     this.participantInfo = info;

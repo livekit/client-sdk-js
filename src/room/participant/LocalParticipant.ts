@@ -22,6 +22,7 @@ import {
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
 import Participant from './Participant';
+import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import { computeVideoEncodings, mediaTrackToLocalTrack } from './publishUtils';
 import RemoteParticipant from './RemoteParticipant';
 
@@ -545,14 +546,41 @@ export default class LocalParticipant extends Participant {
     await this.engine.sendDataPacket(packet, kind);
   }
 
+  /**
+   * Control who can subscribe to LocalParticipant's published tracks.
+   *
+   * By default, all participants can subscribe. This allows fine-grained control over
+   * who is able to subscribe at a participant and track level.
+   *
+   * Note: if access is given at a track-level (i.e. both [allParticipantsAllowed] and
+   * [ParticipantTrackPermission.allTracksAllowed] are false), any newer published tracks
+   * will not grant permissions to any participants and will require a subsequent
+   * permissions update to allow subscription.
+   *
+   * @param allParticipantsAllowed Allows all participants to subscribe all tracks.
+   *  Takes precedence over [[participantTrackPermissions]] if set to true.
+   *  By default this is set to true.
+   * @param participantTrackPermissions Full list of individual permissions per
+   *  participant/track. Any omitted participants will not receive any permissions.
+   */
+  setTrackSubscriptionPermissions(
+    allParticipantsAllowed: boolean,
+    participantTrackPermissions: ParticipantTrackPermission[] = [],
+  ) {
+    this.engine.client.sendUpdateSubscriptionPermissions(
+      allParticipantsAllowed,
+      participantTrackPermissions.map((p) => trackPermissionToProto(p)),
+    );
+  }
+
   /** @internal */
-  onTrackUnmuted = (track: LocalTrack) => {
+  private onTrackUnmuted = (track: LocalTrack) => {
     this.onTrackMuted(track, false);
   };
 
   // when the local track changes in mute status, we'll notify server as such
   /** @internal */
-  onTrackMuted = (
+  private onTrackMuted = (
     track: LocalTrack,
     muted?: boolean,
   ) => {

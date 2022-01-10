@@ -1,13 +1,8 @@
-import { TrackEvent } from '../events';
 import { AudioReceiverStats, computeBitrate, monitorFrequency } from '../stats';
+import RemoteTrack from './RemoteTrack';
 import { Track } from './Track';
 
-export default class RemoteAudioTrack extends Track {
-  /** @internal */
-  receiver?: RTCRtpReceiver;
-
-  private _currentBitrate: number = 0;
-
+export default class RemoteAudioTrack extends RemoteTrack {
   private prevStats?: AudioReceiverStats;
 
   constructor(
@@ -15,49 +10,17 @@ export default class RemoteAudioTrack extends Track {
     sid: string,
     receiver?: RTCRtpReceiver,
   ) {
-    super(mediaTrack, Track.Kind.Audio);
-    this.sid = sid;
-    this.receiver = receiver;
+    super(mediaTrack, sid, Track.Kind.Audio, receiver);
   }
 
-  /** current receive bits per second */
-  get currentBitrate(): number {
-    return this._currentBitrate;
-  }
-
-  /** @internal */
-  setMuted(muted: boolean) {
-    if (this.isMuted !== muted) {
-      this.isMuted = muted;
-      this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
-    }
-  }
-
-  start() {
-    // use `enabled` of track to enable re-use of transceiver
-    super.enable();
-  }
-
-  stop() {
-    // use `enabled` of track to enable re-use of transceiver
-    super.disable();
-  }
-
-  /* @internal */
-  startMonitor() {
-    setTimeout(() => {
-      this.monitorReceiver();
-    }, monitorFrequency);
-  }
-
-  private monitorReceiver = async () => {
+  protected monitorReceiver = async () => {
     if (!this.receiver) {
       this._currentBitrate = 0;
       return;
     }
     const stats = await this.getReceiverStats();
 
-    if (stats && this.prevStats) {
+    if (stats && this.prevStats && this.receiver) {
       this._currentBitrate = computeBitrate(stats, this.prevStats);
     }
 
@@ -67,7 +30,7 @@ export default class RemoteAudioTrack extends Track {
     }, monitorFrequency);
   };
 
-  private async getReceiverStats(): Promise<AudioReceiverStats | undefined> {
+  protected async getReceiverStats(): Promise<AudioReceiverStats | undefined> {
     if (!this.receiver) {
       return;
     }
