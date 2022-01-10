@@ -71,8 +71,6 @@ export class SignalClient {
 
   onLeave?: () => void;
 
-  // onSubscriptionAnswer?: (sd : RTCSessionDescriptionInit) => void;
-
   ws?: WebSocket;
 
   constructor(useJSON: boolean = false) {

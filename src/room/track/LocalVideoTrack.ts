@@ -396,6 +396,7 @@ export function videoLayersFromEncodings(
       width,
       height,
       bitrate: 0,
+      ssrc: 0,
     }];
   }
   return encodings.map((encoding) => {
@@ -409,6 +410,7 @@ export function videoLayersFromEncodings(
       width: width / scale,
       height: height / scale,
       bitrate: encoding.maxBitrate ?? 0,
+      ssrc: 0,
     };
   });
 }

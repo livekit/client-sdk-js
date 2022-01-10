@@ -278,6 +278,7 @@ export interface TrackInfo {
   layers: VideoLayer[];
   /** mime type of codec */
   mimeType: string;
+  mid: string;
 }
 
 /** provide information about available spatial layers */
@@ -288,6 +289,7 @@ export interface VideoLayer {
   height: number;
   /** target bitrate, server will measure actual */
   bitrate: number;
+  ssrc: number;
 }
 
 /** new DataPacket API */
@@ -818,6 +820,7 @@ const baseTrackInfo: object = {
   disableDtx: false,
   source: 0,
   mimeType: "",
+  mid: "",
 };
 
 export const TrackInfo = {
@@ -857,6 +860,9 @@ export const TrackInfo = {
     }
     if (message.mimeType !== "") {
       writer.uint32(90).string(message.mimeType);
+    }
+    if (message.mid !== "") {
+      writer.uint32(98).string(message.mid);
     }
     return writer;
   },
@@ -901,6 +907,9 @@ export const TrackInfo = {
           break;
         case 11:
           message.mimeType = reader.string();
+          break;
+        case 12:
+          message.mid = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -968,6 +977,11 @@ export const TrackInfo = {
     } else {
       message.mimeType = "";
     }
+    if (object.mid !== undefined && object.mid !== null) {
+      message.mid = String(object.mid);
+    } else {
+      message.mid = "";
+    }
     return message;
   },
 
@@ -991,6 +1005,7 @@ export const TrackInfo = {
       obj.layers = [];
     }
     message.mimeType !== undefined && (obj.mimeType = message.mimeType);
+    message.mid !== undefined && (obj.mid = message.mid);
     return obj;
   },
 
@@ -1012,11 +1027,18 @@ export const TrackInfo = {
       }
     }
     message.mimeType = object.mimeType ?? "";
+    message.mid = object.mid ?? "";
     return message;
   },
 };
 
-const baseVideoLayer: object = { quality: 0, width: 0, height: 0, bitrate: 0 };
+const baseVideoLayer: object = {
+  quality: 0,
+  width: 0,
+  height: 0,
+  bitrate: 0,
+  ssrc: 0,
+};
 
 export const VideoLayer = {
   encode(
@@ -1034,6 +1056,9 @@ export const VideoLayer = {
     }
     if (message.bitrate !== 0) {
       writer.uint32(32).uint32(message.bitrate);
+    }
+    if (message.ssrc !== 0) {
+      writer.uint32(40).uint32(message.ssrc);
     }
     return writer;
   },
@@ -1056,6 +1081,9 @@ export const VideoLayer = {
           break;
         case 4:
           message.bitrate = reader.uint32();
+          break;
+        case 5:
+          message.ssrc = reader.uint32();
           break;
         default:
           reader.skipType(tag & 7);
@@ -1087,6 +1115,11 @@ export const VideoLayer = {
     } else {
       message.bitrate = 0;
     }
+    if (object.ssrc !== undefined && object.ssrc !== null) {
+      message.ssrc = Number(object.ssrc);
+    } else {
+      message.ssrc = 0;
+    }
     return message;
   },
 
@@ -1097,6 +1130,7 @@ export const VideoLayer = {
     message.width !== undefined && (obj.width = message.width);
     message.height !== undefined && (obj.height = message.height);
     message.bitrate !== undefined && (obj.bitrate = message.bitrate);
+    message.ssrc !== undefined && (obj.ssrc = message.ssrc);
     return obj;
   },
 
@@ -1106,6 +1140,7 @@ export const VideoLayer = {
     message.width = object.width ?? 0;
     message.height = object.height ?? 0;
     message.bitrate = object.bitrate ?? 0;
+    message.ssrc = object.ssrc ?? 0;
     return message;
   },
 };

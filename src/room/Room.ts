@@ -703,34 +703,29 @@ class Room extends EventEmitter {
     if (this.engine.subscriber == undefined || this.engine.subscriber.pc.localDescription == null) {
       return
     }
-    // this.engine.subscriber.onOffer = (offer) => {
-      // in case of auto subscribe, send unsubscribe state
-      // else send subscribe state
-      const previousSdp = this.engine.subscriber.pc.localDescription
-      const sendUnsub = this.connOptions?.autoSubscribe || false
-      const trackSids = new Array<string>()
-      this.participants.forEach(participant => {
-        participant.tracks.forEach(track => {
-          if (track.isSubscribed != sendUnsub) {
-            trackSids.push(track.trackSid)
-          }
-        })
-      });
-
-      this.engine.client.sendSyncState({
-        offer: toProtoSessionDescription({
-          sdp: previousSdp.sdp,
-          type: previousSdp.type,
-        }),
-        subscription: {
-          trackSids: trackSids,
-          subscribe: !sendUnsub,
-          participantTracks: [],
-        },
-        publishTracks: this.localParticipant.publishedTracksInfo(),
+    const previousSdp = this.engine.subscriber.pc.localDescription
+    const sendUnsub = this.connOptions?.autoSubscribe || false
+    const trackSids = new Array<string>()
+    this.participants.forEach(participant => {
+      participant.tracks.forEach(track => {
+        if (track.isSubscribed != sendUnsub) {
+          trackSids.push(track.trackSid)
+        }
       })
-    // }
-    // this.engine.subscriber.createAndSendOffer({iceRestart: true})
+    });
+
+    this.engine.client.sendSyncState({
+      answer: toProtoSessionDescription({
+        sdp: previousSdp.sdp,
+        type: previousSdp.type,
+      }),
+      subscription: {
+        trackSids: trackSids,
+        subscribe: !sendUnsub,
+        participantTracks: [],
+      },
+      publishTracks: this.localParticipant.publishedTracksInfo(),
+    })
   }
 
   /** @internal */

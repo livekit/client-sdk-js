@@ -296,7 +296,7 @@ export interface SubscriptionPermissionUpdate {
 }
 
 export interface SyncState {
-  offer?: SessionDescription;
+  answer?: SessionDescription;
   subscription?: UpdateSubscription;
   publishTracks: TrackPublishedResponse[];
 }
@@ -3132,9 +3132,9 @@ export const SyncState = {
     message: SyncState,
     writer: _m0.Writer = _m0.Writer.create()
   ): _m0.Writer {
-    if (message.offer !== undefined) {
+    if (message.answer !== undefined) {
       SessionDescription.encode(
-        message.offer,
+        message.answer,
         writer.uint32(10).fork()
       ).ldelim();
     }
@@ -3159,7 +3159,7 @@ export const SyncState = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.offer = SessionDescription.decode(reader, reader.uint32());
+          message.answer = SessionDescription.decode(reader, reader.uint32());
           break;
         case 2:
           message.subscription = UpdateSubscription.decode(
@@ -3183,10 +3183,10 @@ export const SyncState = {
   fromJSON(object: any): SyncState {
     const message = { ...baseSyncState } as SyncState;
     message.publishTracks = [];
-    if (object.offer !== undefined && object.offer !== null) {
-      message.offer = SessionDescription.fromJSON(object.offer);
+    if (object.answer !== undefined && object.answer !== null) {
+      message.answer = SessionDescription.fromJSON(object.answer);
     } else {
-      message.offer = undefined;
+      message.answer = undefined;
     }
     if (object.subscription !== undefined && object.subscription !== null) {
       message.subscription = UpdateSubscription.fromJSON(object.subscription);
@@ -3203,9 +3203,9 @@ export const SyncState = {
 
   toJSON(message: SyncState): unknown {
     const obj: any = {};
-    message.offer !== undefined &&
-      (obj.offer = message.offer
-        ? SessionDescription.toJSON(message.offer)
+    message.answer !== undefined &&
+      (obj.answer = message.answer
+        ? SessionDescription.toJSON(message.answer)
         : undefined);
     message.subscription !== undefined &&
       (obj.subscription = message.subscription
@@ -3223,10 +3223,10 @@ export const SyncState = {
 
   fromPartial(object: DeepPartial<SyncState>): SyncState {
     const message = { ...baseSyncState } as SyncState;
-    if (object.offer !== undefined && object.offer !== null) {
-      message.offer = SessionDescription.fromPartial(object.offer);
+    if (object.answer !== undefined && object.answer !== null) {
+      message.answer = SessionDescription.fromPartial(object.answer);
     } else {
-      message.offer = undefined;
+      message.answer = undefined;
     }
     if (object.subscription !== undefined && object.subscription !== null) {
       message.subscription = UpdateSubscription.fromPartial(
