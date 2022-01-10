@@ -1,10 +1,10 @@
 import { TrackInfo } from '../../proto/livekit_models';
+import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
-import { TrackEvent } from '../events';
 
 export default class LocalTrackPublication extends TrackPublication {
   track?: LocalTrack;
@@ -57,7 +57,7 @@ export default class LocalTrackPublication extends TrackPublication {
     return this.track?.unmute();
   }
 
-  handleTrackEnded = () => {
-    this.emit(TrackEvent.Ended);
+  handleTrackEnded = (track: LocalTrack) => {
+    this.emit(TrackEvent.Ended, track);
   };
 }
