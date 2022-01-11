@@ -10,12 +10,10 @@ import {
   SessionDescription,
   SignalRequest,
   SignalResponse,
-  SignalTarget,
-  SyncState,
+  SignalTarget, SimulateScenario,
   StreamStateUpdate,
   SubscribedQualityUpdate,
-  SubscriptionPermissionUpdate,
-  TrackPermission,
+  SubscriptionPermissionUpdate, SyncState, TrackPermission,
   TrackPublishedResponse,
   UpdateSubscription, UpdateTrackSettings,
 } from '../proto/livekit_rtc';
@@ -266,6 +264,12 @@ export class SignalClient {
         allParticipants,
         trackPermissions,
       },
+    });
+  }
+
+  sendSimulateScenario(scenario: SimulateScenario) {
+    this.sendRequest({
+      simulate: scenario,
     });
   }
 

@@ -113,6 +113,8 @@ export interface SignalRequest {
   subscriptionPermissions?: UpdateSubscriptionPermissions | undefined;
   /** sync client's subscribe state to server during reconnect */
   syncState?: SyncState | undefined;
+  /** Simulate conditions, for client validations */
+  simulate?: SimulateScenario | undefined;
 }
 
 export interface SignalResponse {
@@ -301,6 +303,15 @@ export interface SyncState {
   publishTracks: TrackPublishedResponse[];
 }
 
+export interface SimulateScenario {
+  /** simulate N seconds of speaker activity */
+  speakerUpdate: number | undefined;
+  /** simulate local node failure */
+  nodeFailure: boolean | undefined;
+  /** simulate migration */
+  migration: boolean | undefined;
+}
+
 const baseSignalRequest: object = {};
 
 export const SignalRequest = {
@@ -362,6 +373,12 @@ export const SignalRequest = {
     if (message.syncState !== undefined) {
       SyncState.encode(message.syncState, writer.uint32(98).fork()).ldelim();
     }
+    if (message.simulate !== undefined) {
+      SimulateScenario.encode(
+        message.simulate,
+        writer.uint32(106).fork()
+      ).ldelim();
+    }
     return writer;
   },
 
@@ -414,6 +431,9 @@ export const SignalRequest = {
           break;
         case 12:
           message.syncState = SyncState.decode(reader, reader.uint32());
+          break;
+        case 13:
+          message.simulate = SimulateScenario.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -485,6 +505,11 @@ export const SignalRequest = {
     } else {
       message.syncState = undefined;
     }
+    if (object.simulate !== undefined && object.simulate !== null) {
+      message.simulate = SimulateScenario.fromJSON(object.simulate);
+    } else {
+      message.simulate = undefined;
+    }
     return message;
   },
 
@@ -533,6 +558,10 @@ export const SignalRequest = {
     message.syncState !== undefined &&
       (obj.syncState = message.syncState
         ? SyncState.toJSON(message.syncState)
+        : undefined);
+    message.simulate !== undefined &&
+      (obj.simulate = message.simulate
+        ? SimulateScenario.toJSON(message.simulate)
         : undefined);
     return obj;
   },
@@ -603,6 +632,11 @@ export const SignalRequest = {
       message.syncState = SyncState.fromPartial(object.syncState);
     } else {
       message.syncState = undefined;
+    }
+    if (object.simulate !== undefined && object.simulate !== null) {
+      message.simulate = SimulateScenario.fromPartial(object.simulate);
+    } else {
+      message.simulate = undefined;
     }
     return message;
   },
@@ -3241,6 +3275,88 @@ export const SyncState = {
         message.publishTracks.push(TrackPublishedResponse.fromPartial(e));
       }
     }
+    return message;
+  },
+};
+
+const baseSimulateScenario: object = {};
+
+export const SimulateScenario = {
+  encode(
+    message: SimulateScenario,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.speakerUpdate !== undefined) {
+      writer.uint32(8).int32(message.speakerUpdate);
+    }
+    if (message.nodeFailure !== undefined) {
+      writer.uint32(16).bool(message.nodeFailure);
+    }
+    if (message.migration !== undefined) {
+      writer.uint32(24).bool(message.migration);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SimulateScenario {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseSimulateScenario } as SimulateScenario;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.speakerUpdate = reader.int32();
+          break;
+        case 2:
+          message.nodeFailure = reader.bool();
+          break;
+        case 3:
+          message.migration = reader.bool();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SimulateScenario {
+    const message = { ...baseSimulateScenario } as SimulateScenario;
+    if (object.speakerUpdate !== undefined && object.speakerUpdate !== null) {
+      message.speakerUpdate = Number(object.speakerUpdate);
+    } else {
+      message.speakerUpdate = undefined;
+    }
+    if (object.nodeFailure !== undefined && object.nodeFailure !== null) {
+      message.nodeFailure = Boolean(object.nodeFailure);
+    } else {
+      message.nodeFailure = undefined;
+    }
+    if (object.migration !== undefined && object.migration !== null) {
+      message.migration = Boolean(object.migration);
+    } else {
+      message.migration = undefined;
+    }
+    return message;
+  },
+
+  toJSON(message: SimulateScenario): unknown {
+    const obj: any = {};
+    message.speakerUpdate !== undefined &&
+      (obj.speakerUpdate = message.speakerUpdate);
+    message.nodeFailure !== undefined &&
+      (obj.nodeFailure = message.nodeFailure);
+    message.migration !== undefined && (obj.migration = message.migration);
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<SimulateScenario>): SimulateScenario {
+    const message = { ...baseSimulateScenario } as SimulateScenario;
+    message.speakerUpdate = object.speakerUpdate ?? undefined;
+    message.nodeFailure = object.nodeFailure ?? undefined;
+    message.migration = object.migration ?? undefined;
     return message;
   },
 };

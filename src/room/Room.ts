@@ -1,11 +1,14 @@
 import { EventEmitter } from 'events';
+import { toProtoSessionDescription } from '../api/SignalClient';
 import log from '../logger';
 import { RoomConnectOptions, RoomOptions } from '../options';
 import {
   DataPacket_Kind, ParticipantInfo,
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
-import { ConnectionQualityUpdate, StreamStateUpdate, SubscriptionPermissionUpdate } from '../proto/livekit_rtc';
+import {
+  ConnectionQualityUpdate, SimulateScenario, StreamStateUpdate, SubscriptionPermissionUpdate,
+} from '../proto/livekit_rtc';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
@@ -22,7 +25,6 @@ import { Track } from './track/Track';
 import { TrackPublication } from './track/TrackPublication';
 import { RemoteTrack } from './track/types';
 import { unpackStreamId } from './utils';
-import { toProtoSessionDescription } from '../api/SignalClient';
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -291,6 +293,34 @@ class Room extends EventEmitter {
       if (p.identity === identity) {
         return p;
       }
+    }
+  }
+
+  /**
+   * @internal for testing
+   */
+  simulateScenario(scenario: string) {
+    let req: SimulateScenario | undefined;
+    switch (scenario) {
+      case 'speaker':
+        req = SimulateScenario.fromPartial({
+          speakerUpdate: 3,
+        });
+        break;
+      case 'node-failure':
+        req = SimulateScenario.fromPartial({
+          nodeFailure: true,
+        });
+        break;
+      case 'migration':
+        req = SimulateScenario.fromPartial({
+          migration: true,
+        });
+        break;
+      default:
+    }
+    if (req) {
+      this.engine.client.sendSimulateScenario(req);
     }
   }
 

@@ -151,15 +151,13 @@
               >
                 Share Screen
               </button>
-              <button
-                id="disconnect-ws-button"
-                class="btn btn-warning mt-1"
-                disabled
-                type="button"
-                onclick="appActions.disconnectSignal()"
-              >
-                Signal Reconnect
-              </button>
+              <select id="simulate-scenario" class="custom-select" style="width: auto;" onchange="appActions.handleScenario(event)">
+                <option value="" selected>Simulate</option>
+                <option value="signal-reconnect">Signal reconnect</option>
+                <option value="speaker">Speaker update</option>
+                <option value="node-failure">Node failure</option>
+                <option value="migration">Migration</option>
+              </select>
               <button
                 id="disconnect-room-button"
                 class="btn btn-danger mt-1"
