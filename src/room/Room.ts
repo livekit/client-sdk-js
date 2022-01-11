@@ -705,6 +705,12 @@ class Room extends EventEmitter {
       return;
     }
     const previousSdp = this.engine.subscriber.pc.localDescription;
+
+    /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
+          in this case, we send unsub tracks, so server add all tracks to this
+          subscribe pc and unsub special tracks from it.
+       2. autosubscribe off, we send subscribed tracks.
+    */
     const sendUnsub = this.connOptions?.autoSubscribe || false;
     const trackSids = new Array<string>();
     this.participants.forEach((participant) => {
