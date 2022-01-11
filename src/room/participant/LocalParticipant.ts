@@ -667,7 +667,7 @@ export default class LocalParticipant extends Participant {
       transceiver.setCodecPreferences([selected]);
     }
   }
-
+  /** @internal */
   publishedTracksInfo(): TrackPublishedResponse[] {
     const infos: TrackPublishedResponse[] = [];
     this.tracks.forEach((track: LocalTrackPublication) => {
