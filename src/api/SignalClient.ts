@@ -11,6 +11,7 @@ import {
   SignalRequest,
   SignalResponse,
   SignalTarget,
+  SyncState,
   StreamStateUpdate,
   SubscribedQualityUpdate,
   SubscriptionPermissionUpdate,
@@ -243,6 +244,10 @@ export class SignalClient {
     this.sendRequest({ subscription: sub });
   }
 
+  sendSyncState(sync: SyncState) {
+    this.sendRequest({ syncState: sync });
+  }
+
   sendUpdateVideoLayers(trackSid: string, layers: VideoLayer[]) {
     this.sendRequest({
       updateLayers: {
@@ -373,7 +378,7 @@ function fromProtoSessionDescription(
   return rsd;
 }
 
-function toProtoSessionDescription(
+export function toProtoSessionDescription(
   rsd: RTCSessionDescription | RTCSessionDescriptionInit,
 ): SessionDescription {
   const sd: SessionDescription = {

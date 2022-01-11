@@ -111,6 +111,8 @@ export interface SignalRequest {
   updateLayers?: UpdateVideoLayers | undefined;
   /** Update subscriber permissions */
   subscriptionPermissions?: UpdateSubscriptionPermissions | undefined;
+  /** sync client's subscribe state to server during reconnect */
+  syncState?: SyncState | undefined;
 }
 
 export interface SignalResponse {
@@ -293,6 +295,12 @@ export interface SubscriptionPermissionUpdate {
   allowed: boolean;
 }
 
+export interface SyncState {
+  answer?: SessionDescription;
+  subscription?: UpdateSubscription;
+  publishTracks: TrackPublishedResponse[];
+}
+
 const baseSignalRequest: object = {};
 
 export const SignalRequest = {
@@ -351,6 +359,9 @@ export const SignalRequest = {
         writer.uint32(90).fork()
       ).ldelim();
     }
+    if (message.syncState !== undefined) {
+      SyncState.encode(message.syncState, writer.uint32(98).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -400,6 +411,9 @@ export const SignalRequest = {
         case 11:
           message.subscriptionPermissions =
             UpdateSubscriptionPermissions.decode(reader, reader.uint32());
+          break;
+        case 12:
+          message.syncState = SyncState.decode(reader, reader.uint32());
           break;
         default:
           reader.skipType(tag & 7);
@@ -466,6 +480,11 @@ export const SignalRequest = {
     } else {
       message.subscriptionPermissions = undefined;
     }
+    if (object.syncState !== undefined && object.syncState !== null) {
+      message.syncState = SyncState.fromJSON(object.syncState);
+    } else {
+      message.syncState = undefined;
+    }
     return message;
   },
 
@@ -510,6 +529,10 @@ export const SignalRequest = {
     message.subscriptionPermissions !== undefined &&
       (obj.subscriptionPermissions = message.subscriptionPermissions
         ? UpdateSubscriptionPermissions.toJSON(message.subscriptionPermissions)
+        : undefined);
+    message.syncState !== undefined &&
+      (obj.syncState = message.syncState
+        ? SyncState.toJSON(message.syncState)
         : undefined);
     return obj;
   },
@@ -575,6 +598,11 @@ export const SignalRequest = {
         );
     } else {
       message.subscriptionPermissions = undefined;
+    }
+    if (object.syncState !== undefined && object.syncState !== null) {
+      message.syncState = SyncState.fromPartial(object.syncState);
+    } else {
+      message.syncState = undefined;
     }
     return message;
   },
@@ -3093,6 +3121,126 @@ export const SubscriptionPermissionUpdate = {
     message.participantSid = object.participantSid ?? "";
     message.trackSid = object.trackSid ?? "";
     message.allowed = object.allowed ?? false;
+    return message;
+  },
+};
+
+const baseSyncState: object = {};
+
+export const SyncState = {
+  encode(
+    message: SyncState,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.answer !== undefined) {
+      SessionDescription.encode(
+        message.answer,
+        writer.uint32(10).fork()
+      ).ldelim();
+    }
+    if (message.subscription !== undefined) {
+      UpdateSubscription.encode(
+        message.subscription,
+        writer.uint32(18).fork()
+      ).ldelim();
+    }
+    for (const v of message.publishTracks) {
+      TrackPublishedResponse.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SyncState {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseSyncState } as SyncState;
+    message.publishTracks = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.answer = SessionDescription.decode(reader, reader.uint32());
+          break;
+        case 2:
+          message.subscription = UpdateSubscription.decode(
+            reader,
+            reader.uint32()
+          );
+          break;
+        case 3:
+          message.publishTracks.push(
+            TrackPublishedResponse.decode(reader, reader.uint32())
+          );
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SyncState {
+    const message = { ...baseSyncState } as SyncState;
+    message.publishTracks = [];
+    if (object.answer !== undefined && object.answer !== null) {
+      message.answer = SessionDescription.fromJSON(object.answer);
+    } else {
+      message.answer = undefined;
+    }
+    if (object.subscription !== undefined && object.subscription !== null) {
+      message.subscription = UpdateSubscription.fromJSON(object.subscription);
+    } else {
+      message.subscription = undefined;
+    }
+    if (object.publishTracks !== undefined && object.publishTracks !== null) {
+      for (const e of object.publishTracks) {
+        message.publishTracks.push(TrackPublishedResponse.fromJSON(e));
+      }
+    }
+    return message;
+  },
+
+  toJSON(message: SyncState): unknown {
+    const obj: any = {};
+    message.answer !== undefined &&
+      (obj.answer = message.answer
+        ? SessionDescription.toJSON(message.answer)
+        : undefined);
+    message.subscription !== undefined &&
+      (obj.subscription = message.subscription
+        ? UpdateSubscription.toJSON(message.subscription)
+        : undefined);
+    if (message.publishTracks) {
+      obj.publishTracks = message.publishTracks.map((e) =>
+        e ? TrackPublishedResponse.toJSON(e) : undefined
+      );
+    } else {
+      obj.publishTracks = [];
+    }
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<SyncState>): SyncState {
+    const message = { ...baseSyncState } as SyncState;
+    if (object.answer !== undefined && object.answer !== null) {
+      message.answer = SessionDescription.fromPartial(object.answer);
+    } else {
+      message.answer = undefined;
+    }
+    if (object.subscription !== undefined && object.subscription !== null) {
+      message.subscription = UpdateSubscription.fromPartial(
+        object.subscription
+      );
+    } else {
+      message.subscription = undefined;
+    }
+    message.publishTracks = [];
+    if (object.publishTracks !== undefined && object.publishTracks !== null) {
+      for (const e of object.publishTracks) {
+        message.publishTracks.push(TrackPublishedResponse.fromPartial(e));
+      }
+    }
     return message;
   },
 };

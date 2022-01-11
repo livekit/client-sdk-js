@@ -22,6 +22,7 @@ import { Track } from './track/Track';
 import { TrackPublication } from './track/TrackPublication';
 import { RemoteTrack } from './track/types';
 import { unpackStreamId } from './utils';
+import { toProtoSessionDescription } from '../api/SignalClient';
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -67,6 +68,9 @@ class Room extends EventEmitter {
 
   /** options of room */
   options: RoomOptions;
+
+  /** connect options of room */
+  private connOptions?: RoomConnectOptions;
 
   private audioEnabled = true;
 
@@ -140,6 +144,12 @@ class Room extends EventEmitter {
       this.emit(RoomEvent.Reconnected);
     });
 
+    this.engine.on(EngineEvent.SignalConnected, () => {
+      if (this.state === RoomState.Reconnecting) {
+        this.sendSyncState();
+      }
+    });
+
     this.engine.client.onConnectionQuality = this.handleConnectionQualityUpdate;
   }
 
@@ -170,6 +180,8 @@ class Room extends EventEmitter {
     if (opts?.rtcConfig) {
       this.engine.rtcConfig = opts.rtcConfig;
     }
+
+    this.connOptions = opts;
 
     try {
       const joinResponse = await this.engine.join(url, token, opts);
@@ -685,6 +697,36 @@ class Room extends EventEmitter {
         });
     }
     return participant;
+  }
+
+  private sendSyncState() {
+    if (this.engine.subscriber === undefined
+      || this.engine.subscriber.pc.localDescription === null) {
+      return;
+    }
+    const previousSdp = this.engine.subscriber.pc.localDescription;
+    const sendUnsub = this.connOptions?.autoSubscribe || false;
+    const trackSids = new Array<string>();
+    this.participants.forEach((participant) => {
+      participant.tracks.forEach((track) => {
+        if (track.isSubscribed !== sendUnsub) {
+          trackSids.push(track.trackSid);
+        }
+      });
+    });
+
+    this.engine.client.sendSyncState({
+      answer: toProtoSessionDescription({
+        sdp: previousSdp.sdp,
+        type: previousSdp.type,
+      }),
+      subscription: {
+        trackSids,
+        subscribe: !sendUnsub,
+        participantTracks: [],
+      },
+      publishTracks: this.localParticipant.publishedTracksInfo(),
+    });
   }
 
   /** @internal */

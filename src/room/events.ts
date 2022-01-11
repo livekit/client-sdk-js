@@ -374,6 +374,7 @@ export enum EngineEvent {
   Disconnected = 'disconnected',
   Reconnecting = 'reconnecting',
   Reconnected = 'reconnected',
+  SignalConnected = 'singalConnected',
   MediaTrackAdded = 'mediaTrackAdded',
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
   DataPacketReceived = 'dataPacketReceived',

@@ -66,6 +66,7 @@ export default class RTCEngine extends EventEmitter {
     this.token = token;
 
     const joinResponse = await this.client.join(url, token, opts);
+    this.emit(EngineEvent.SignalConnected);
     this.isClosed = false;
 
     this.subscriberPrimary = joinResponse.subscriberPrimary;
@@ -344,6 +345,7 @@ export default class RTCEngine extends EventEmitter {
     this.reconnectAttempts += 1;
 
     await this.client.reconnect(this.url, this.token);
+    this.emit(EngineEvent.SignalConnected);
 
     // trigger publisher reconnect
     if (!this.publisher || !this.subscriber) {
