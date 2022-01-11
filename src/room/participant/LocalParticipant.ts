@@ -667,14 +667,17 @@ export default class LocalParticipant extends Participant {
       transceiver.setCodecPreferences([selected]);
     }
   }
+
   /** @internal */
   publishedTracksInfo(): TrackPublishedResponse[] {
     const infos: TrackPublishedResponse[] = [];
     this.tracks.forEach((track: LocalTrackPublication) => {
-      infos.push({
-        cid: track.track!.mediaStreamTrack.id,
-        track: track.trackInfo,
-      });
+      if (track.track !== undefined) {
+        infos.push({
+          cid: track.track.mediaStreamTrack.id,
+          track: track.trackInfo,
+        });
+      }
     });
     return infos;
   }

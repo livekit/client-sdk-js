@@ -27,6 +27,7 @@ export class TrackPublication extends EventEmitter {
   /** true if track was simulcasted to server, video-only */
   simulcasted?: boolean;
 
+  /** @internal */
   trackInfo?: TrackInfo;
 
   protected metadataMuted: boolean = false;
