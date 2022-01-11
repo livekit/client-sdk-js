@@ -70,7 +70,7 @@ class Room extends EventEmitter {
   options: RoomOptions;
 
   /** connect options of room */
-  connOptions?: RoomConnectOptions;
+  private connOptions?: RoomConnectOptions;
 
   private audioEnabled = true;
 
