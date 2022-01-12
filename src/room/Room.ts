@@ -329,6 +329,15 @@ class Room extends EventEmitter {
     }
   }
 
+  /**
+   * This will update previously used token with new one.
+   */
+  updateToken = (token: string) => {
+    if (token !== '') {
+      this.engine.updateToken(token);
+    }
+  };
+
   private onBeforeUnload = () => {
     this.disconnect();
   };

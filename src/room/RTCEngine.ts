@@ -120,6 +120,10 @@ export default class RTCEngine extends EventEmitter {
     this.client.sendMuteTrack(trackSid, muted);
   }
 
+  updateToken(token: string) {
+    this.token = token;
+  }
+
   get dataSubscriberReadyState(): string | undefined {
     return this.reliableDCSub?.readyState;
   }
