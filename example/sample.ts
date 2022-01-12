@@ -207,6 +207,18 @@ const appActions = {
     }
   },
 
+  handleScenario: (e: Event) => {
+    const scenario = (<HTMLSelectElement>e.target).value;
+    if (scenario !== '') {
+      if (scenario === 'signal-reconnect') {
+        appActions.disconnectSignal();
+      } else {
+        currentRoom?.simulateScenario(scenario);
+      }
+      (<HTMLSelectElement>e.target).value = '';
+    }
+  },
+
   disconnectSignal: () => {
     if (!currentRoom) return;
     currentRoom.engine.client.close();
