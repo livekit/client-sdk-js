@@ -232,8 +232,8 @@ export enum ParticipantEvent {
   TrackPublished = 'trackPublished',
 
   /**
-   * The [[LocalParticipant]] has subscribed to a new track. This event will **always**
-   * fire as long as new tracks are ready for use.
+   * Successfully subscribed to the [[RemoteParticipant]]'s track.
+   * This event will **always** fire as long as new tracks are ready for use.
    *
    * args: ([[RemoteTrack]], [[RemoteTrackPublication]])
    */
@@ -247,13 +247,9 @@ export enum ParticipantEvent {
   TrackSubscriptionFailed = 'trackSubscriptionFailed',
 
   /**
-   * A local track was unpublished. This event is helpful to know when to remove
-   * the local track from your UI.
+   * A [[RemoteParticipant]] has unpublished a track
    *
-   * When a user stops sharing their screen by pressing "End" on the browser UI,
-   * this event will also fire.
-   *
-   * args: ([[LocalTrackPublication]])
+   * args: ([[RemoteTrackPublication]])
    */
   TrackUnpublished = 'trackUnpublished',
 
