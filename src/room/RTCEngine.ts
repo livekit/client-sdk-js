@@ -175,7 +175,7 @@ export default class RTCEngine extends EventEmitter {
           this.iceConnected = true;
           this.emit(EngineEvent.Connected);
         }
-      } else if (primaryPC.iceConnectionState === 'failed') {
+      } else if (primaryPC.iceConnectionState === 'disconnected' || primaryPC.iceConnectionState === 'failed') {
         log.trace('ICE disconnected');
         if (this.iceConnected) {
           this.iceConnected = false;
@@ -262,8 +262,8 @@ export default class RTCEngine extends EventEmitter {
     };
 
     this.client.onLeave = () => {
-      this.close();
       this.emit(EngineEvent.Disconnected);
+      this.close();
     };
   }
 
@@ -315,8 +315,8 @@ export default class RTCEngine extends EventEmitter {
         maxReconnectRetries,
         'attempts. giving up',
       );
-      this.close();
       this.emit(EngineEvent.Disconnected);
+      this.close();
       return;
     }
 

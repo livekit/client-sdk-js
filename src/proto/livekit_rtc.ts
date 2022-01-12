@@ -310,6 +310,8 @@ export interface SimulateScenario {
   nodeFailure: boolean | undefined;
   /** simulate migration */
   migration: boolean | undefined;
+  /** server to send leave */
+  serverLeave: boolean | undefined;
 }
 
 const baseSignalRequest: object = {};
@@ -3295,6 +3297,9 @@ export const SimulateScenario = {
     if (message.migration !== undefined) {
       writer.uint32(24).bool(message.migration);
     }
+    if (message.serverLeave !== undefined) {
+      writer.uint32(32).bool(message.serverLeave);
+    }
     return writer;
   },
 
@@ -3313,6 +3318,9 @@ export const SimulateScenario = {
           break;
         case 3:
           message.migration = reader.bool();
+          break;
+        case 4:
+          message.serverLeave = reader.bool();
           break;
         default:
           reader.skipType(tag & 7);
@@ -3339,6 +3347,11 @@ export const SimulateScenario = {
     } else {
       message.migration = undefined;
     }
+    if (object.serverLeave !== undefined && object.serverLeave !== null) {
+      message.serverLeave = Boolean(object.serverLeave);
+    } else {
+      message.serverLeave = undefined;
+    }
     return message;
   },
 
@@ -3349,6 +3362,8 @@ export const SimulateScenario = {
     message.nodeFailure !== undefined &&
       (obj.nodeFailure = message.nodeFailure);
     message.migration !== undefined && (obj.migration = message.migration);
+    message.serverLeave !== undefined &&
+      (obj.serverLeave = message.serverLeave);
     return obj;
   },
 
@@ -3357,6 +3372,7 @@ export const SimulateScenario = {
     message.speakerUpdate = object.speakerUpdate ?? undefined;
     message.nodeFailure = object.nodeFailure ?? undefined;
     message.migration = object.migration ?? undefined;
+    message.serverLeave = object.serverLeave ?? undefined;
     return message;
   },
 };

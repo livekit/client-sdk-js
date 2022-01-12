@@ -312,6 +312,11 @@ class Room extends EventEmitter {
           nodeFailure: true,
         });
         break;
+      case 'server-leave':
+        req = SimulateScenario.fromPartial({
+          serverLeave: true,
+        });
+        break;
       case 'migration':
         req = SimulateScenario.fromPartial({
           migration: true,

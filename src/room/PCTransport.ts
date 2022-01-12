@@ -68,6 +68,9 @@ export default class PCTransport {
         this.renegotiate = true;
         return;
       }
+    } else if (this.pc.signalingState === 'closed') {
+      log.warn('could not createOffer with closed peer connection');
+      return;
     }
 
     // actually negotiate
