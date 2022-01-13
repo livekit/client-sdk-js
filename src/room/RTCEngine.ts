@@ -56,6 +56,8 @@ export default class RTCEngine extends EventEmitter {
 
   private reconnectAttempts: number = 0;
 
+  private connectedServerAddr?: string;
+
   constructor() {
     super();
     this.client = new SignalClient();
@@ -175,6 +177,10 @@ export default class RTCEngine extends EventEmitter {
           this.iceConnected = true;
           this.emit(EngineEvent.Connected);
         }
+        getConnectedAddress(primaryPC).then((v) => {
+          this.connectedServerAddr = v
+          console.log("conncted to address", this.connectedServerAddr)
+        })
       } else if (primaryPC.iceConnectionState === 'disconnected' || primaryPC.iceConnectionState === 'failed') {
         log.trace('ICE disconnected');
         if (this.iceConnected) {
@@ -436,4 +442,40 @@ export default class RTCEngine extends EventEmitter {
       return this.reliableDC;
     }
   }
+}
+
+const getConnectedAddress = async function (pc: RTCPeerConnection): Promise<string | undefined> {
+  let selectedCandidatePairId = '';
+  let candidatePairs = new Map<string, RTCIceCandidatePairStats>();
+  // id -> candidate ip
+  let candidates = new Map<string, string>();
+  const stats: RTCStatsReport = await pc.getStats()
+  stats.forEach((v) => {
+    switch (v.type) {
+      case 'transport':
+        selectedCandidatePairId = v.selectedCandidatePairId;
+        console.log(v.type, v)
+        break;
+      case 'candidate-pair':
+        if (selectedCandidatePairId === '' && v.selected){
+          selectedCandidatePairId = v.id
+        }
+        candidatePairs.set(v.id, v);
+        console.log(v.type, v)
+        break;
+      case 'remote-candidate':
+        candidates.set(v.id, v.address+':'+v.port)
+        console.log(v.type, v)
+        break
+    }
+  })
+
+  if (selectedCandidatePairId === '') {
+    return undefined
+  }
+  let selectedID = candidatePairs.get(selectedCandidatePairId)?.remoteCandidateId
+  if (selectedID === undefined) {
+    return undefined
+  }
+  return candidates.get(selectedID)
 }
