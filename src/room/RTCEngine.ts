@@ -126,6 +126,10 @@ export default class RTCEngine extends EventEmitter {
     return this.reliableDCSub?.readyState;
   }
 
+  get connectedServerAddress(): string | undefined {
+    return this.connectedServerAddr;
+  }
+
   private configure(joinResponse: JoinResponse) {
     // already configured
     if (this.publisher || this.subscriber) {
@@ -178,9 +182,8 @@ export default class RTCEngine extends EventEmitter {
           this.emit(EngineEvent.Connected);
         }
         getConnectedAddress(primaryPC).then((v) => {
-          this.connectedServerAddr = v
-          console.log("conncted to address", this.connectedServerAddr)
-        })
+          this.connectedServerAddr = v;
+        });
       } else if (primaryPC.iceConnectionState === 'disconnected' || primaryPC.iceConnectionState === 'failed') {
         log.trace('ICE disconnected');
         if (this.iceConnected) {
@@ -444,38 +447,36 @@ export default class RTCEngine extends EventEmitter {
   }
 }
 
-const getConnectedAddress = async function (pc: RTCPeerConnection): Promise<string | undefined> {
+async function getConnectedAddress(pc: RTCPeerConnection): Promise<string | undefined> {
   let selectedCandidatePairId = '';
-  let candidatePairs = new Map<string, RTCIceCandidatePairStats>();
+  const candidatePairs = new Map<string, RTCIceCandidatePairStats>();
   // id -> candidate ip
-  let candidates = new Map<string, string>();
-  const stats: RTCStatsReport = await pc.getStats()
+  const candidates = new Map<string, string>();
+  const stats: RTCStatsReport = await pc.getStats();
   stats.forEach((v) => {
     switch (v.type) {
       case 'transport':
         selectedCandidatePairId = v.selectedCandidatePairId;
-        console.log(v.type, v)
         break;
       case 'candidate-pair':
-        if (selectedCandidatePairId === '' && v.selected){
-          selectedCandidatePairId = v.id
+        if (selectedCandidatePairId === '' && v.selected) {
+          selectedCandidatePairId = v.id;
         }
         candidatePairs.set(v.id, v);
-        console.log(v.type, v)
         break;
       case 'remote-candidate':
-        candidates.set(v.id, v.address+':'+v.port)
-        console.log(v.type, v)
-        break
+        candidates.set(v.id, `${v.address}:${v.port}`);
+        break;
+      default:
     }
-  })
+  });
 
   if (selectedCandidatePairId === '') {
-    return undefined
+    return undefined;
   }
-  let selectedID = candidatePairs.get(selectedCandidatePairId)?.remoteCandidateId
+  const selectedID = candidatePairs.get(selectedCandidatePairId)?.remoteCandidateId;
   if (selectedID === undefined) {
-    return undefined
+    return undefined;
   }
-  return candidates.get(selectedID)
+  return candidates.get(selectedID);
 }
