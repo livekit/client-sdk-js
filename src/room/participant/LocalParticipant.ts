@@ -199,8 +199,8 @@ export default class LocalParticipant extends Participant {
   }
 
   /**
-   * Create local camera and/or microphone tracks
-   * @param options
+   * Create local camera and/or microphone tracks.
+   * @param options when "audio" or "video" are not set, they are default to true.
    * @returns
    */
   async createTracks(

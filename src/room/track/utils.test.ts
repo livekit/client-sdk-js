@@ -13,17 +13,17 @@ describe('mergeDefaultOptions', () => {
     resolution: VideoPresets.fhd.resolution,
   };
 
-  it('does not enable undefined options', () => {
+  it('default enables', () => {
     const opts = mergeDefaultOptions(undefined, audioDefaults, videoDefaults);
-    expect(opts.audio).toEqual(undefined);
-    expect(opts.video).toEqual(undefined);
+    expect(opts.audio).toEqual(audioDefaults);
+    expect(opts.video).toEqual(videoDefaults);
   });
 
   it('does not enable explicitly disabled', () => {
     const opts = mergeDefaultOptions({
       video: false,
     });
-    expect(opts.audio).toEqual(undefined);
+    expect(opts.audio).toBeTruthy();
     expect(opts.video).toEqual(false);
   });
 
@@ -32,7 +32,7 @@ describe('mergeDefaultOptions', () => {
       audio: true,
     }, audioDefaults, videoDefaults);
     expect(opts.audio).toEqual(audioDefaults);
-    expect(opts.video).toEqual(undefined);
+    expect(opts.video).toEqual(videoDefaults);
   });
 
   it('enables overriding specific fields', () => {
