@@ -1,3 +1,7 @@
+import uaparser from 'ua-parser-js';
+import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models';
+import { protocolVersion, version } from '../version';
+
 const separator = '|';
 
 export function unpackStreamId(packed: string): string[] {
@@ -43,4 +47,28 @@ export const getIntersectionObserver = () => {
 export interface ObservableMediaElement extends HTMLMediaElement {
   handleResize: (entry: ResizeObserverEntry) => void;
   handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
+}
+
+export function getClientInfo(): ClientInfo {
+  const ua = uaparser(navigator.userAgent);
+  const info = ClientInfo.fromPartial({
+    sdk: ClientInfo_SDK.JS,
+    protocol: protocolVersion,
+    version,
+    os: ua.os.name,
+    osVersion: ua.os.version,
+    browser: ua.browser.name,
+    browserVersion: ua.browser.version,
+  });
+
+  let model = '';
+  if (ua.device.vendor) {
+    model += ua.device.vendor;
+  }
+  if (ua.device.model) {
+    if (model) model += ' ';
+    model += ua.device.model;
+  }
+  if (model) info.deviceModel = model;
+  return info;
 }

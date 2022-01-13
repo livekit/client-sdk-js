@@ -358,6 +358,80 @@ export interface ParticipantTracks {
   trackSids: string[];
 }
 
+/** details about the client */
+export interface ClientInfo {
+  sdk: ClientInfo_SDK;
+  version: string;
+  protocol: number;
+  os: string;
+  osVersion: string;
+  deviceModel: string;
+  browser: string;
+  browserVersion: string;
+}
+
+export enum ClientInfo_SDK {
+  UNKNOWN = 0,
+  JS = 1,
+  SWIFT = 2,
+  ANDROID = 3,
+  FLUTTER = 4,
+  GO = 5,
+  UNITY = 6,
+  UNRECOGNIZED = -1,
+}
+
+export function clientInfo_SDKFromJSON(object: any): ClientInfo_SDK {
+  switch (object) {
+    case 0:
+    case "UNKNOWN":
+      return ClientInfo_SDK.UNKNOWN;
+    case 1:
+    case "JS":
+      return ClientInfo_SDK.JS;
+    case 2:
+    case "SWIFT":
+      return ClientInfo_SDK.SWIFT;
+    case 3:
+    case "ANDROID":
+      return ClientInfo_SDK.ANDROID;
+    case 4:
+    case "FLUTTER":
+      return ClientInfo_SDK.FLUTTER;
+    case 5:
+    case "GO":
+      return ClientInfo_SDK.GO;
+    case 6:
+    case "UNITY":
+      return ClientInfo_SDK.UNITY;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ClientInfo_SDK.UNRECOGNIZED;
+  }
+}
+
+export function clientInfo_SDKToJSON(object: ClientInfo_SDK): string {
+  switch (object) {
+    case ClientInfo_SDK.UNKNOWN:
+      return "UNKNOWN";
+    case ClientInfo_SDK.JS:
+      return "JS";
+    case ClientInfo_SDK.SWIFT:
+      return "SWIFT";
+    case ClientInfo_SDK.ANDROID:
+      return "ANDROID";
+    case ClientInfo_SDK.FLUTTER:
+      return "FLUTTER";
+    case ClientInfo_SDK.GO:
+      return "GO";
+    case ClientInfo_SDK.UNITY:
+      return "UNITY";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 const baseRoom: object = {
   sid: "",
   name: "",
@@ -1564,6 +1638,162 @@ export const ParticipantTracks = {
         message.trackSids.push(e);
       }
     }
+    return message;
+  },
+};
+
+const baseClientInfo: object = {
+  sdk: 0,
+  version: "",
+  protocol: 0,
+  os: "",
+  osVersion: "",
+  deviceModel: "",
+  browser: "",
+  browserVersion: "",
+};
+
+export const ClientInfo = {
+  encode(
+    message: ClientInfo,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.sdk !== 0) {
+      writer.uint32(8).int32(message.sdk);
+    }
+    if (message.version !== "") {
+      writer.uint32(18).string(message.version);
+    }
+    if (message.protocol !== 0) {
+      writer.uint32(24).int32(message.protocol);
+    }
+    if (message.os !== "") {
+      writer.uint32(34).string(message.os);
+    }
+    if (message.osVersion !== "") {
+      writer.uint32(42).string(message.osVersion);
+    }
+    if (message.deviceModel !== "") {
+      writer.uint32(50).string(message.deviceModel);
+    }
+    if (message.browser !== "") {
+      writer.uint32(58).string(message.browser);
+    }
+    if (message.browserVersion !== "") {
+      writer.uint32(66).string(message.browserVersion);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ClientInfo {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseClientInfo } as ClientInfo;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.sdk = reader.int32() as any;
+          break;
+        case 2:
+          message.version = reader.string();
+          break;
+        case 3:
+          message.protocol = reader.int32();
+          break;
+        case 4:
+          message.os = reader.string();
+          break;
+        case 5:
+          message.osVersion = reader.string();
+          break;
+        case 6:
+          message.deviceModel = reader.string();
+          break;
+        case 7:
+          message.browser = reader.string();
+          break;
+        case 8:
+          message.browserVersion = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ClientInfo {
+    const message = { ...baseClientInfo } as ClientInfo;
+    if (object.sdk !== undefined && object.sdk !== null) {
+      message.sdk = clientInfo_SDKFromJSON(object.sdk);
+    } else {
+      message.sdk = 0;
+    }
+    if (object.version !== undefined && object.version !== null) {
+      message.version = String(object.version);
+    } else {
+      message.version = "";
+    }
+    if (object.protocol !== undefined && object.protocol !== null) {
+      message.protocol = Number(object.protocol);
+    } else {
+      message.protocol = 0;
+    }
+    if (object.os !== undefined && object.os !== null) {
+      message.os = String(object.os);
+    } else {
+      message.os = "";
+    }
+    if (object.osVersion !== undefined && object.osVersion !== null) {
+      message.osVersion = String(object.osVersion);
+    } else {
+      message.osVersion = "";
+    }
+    if (object.deviceModel !== undefined && object.deviceModel !== null) {
+      message.deviceModel = String(object.deviceModel);
+    } else {
+      message.deviceModel = "";
+    }
+    if (object.browser !== undefined && object.browser !== null) {
+      message.browser = String(object.browser);
+    } else {
+      message.browser = "";
+    }
+    if (object.browserVersion !== undefined && object.browserVersion !== null) {
+      message.browserVersion = String(object.browserVersion);
+    } else {
+      message.browserVersion = "";
+    }
+    return message;
+  },
+
+  toJSON(message: ClientInfo): unknown {
+    const obj: any = {};
+    message.sdk !== undefined && (obj.sdk = clientInfo_SDKToJSON(message.sdk));
+    message.version !== undefined && (obj.version = message.version);
+    message.protocol !== undefined && (obj.protocol = message.protocol);
+    message.os !== undefined && (obj.os = message.os);
+    message.osVersion !== undefined && (obj.osVersion = message.osVersion);
+    message.deviceModel !== undefined &&
+      (obj.deviceModel = message.deviceModel);
+    message.browser !== undefined && (obj.browser = message.browser);
+    message.browserVersion !== undefined &&
+      (obj.browserVersion = message.browserVersion);
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<ClientInfo>): ClientInfo {
+    const message = { ...baseClientInfo } as ClientInfo;
+    message.sdk = object.sdk ?? 0;
+    message.version = object.version ?? "";
+    message.protocol = object.protocol ?? 0;
+    message.os = object.os ?? "";
+    message.osVersion = object.osVersion ?? "";
+    message.deviceModel = object.deviceModel ?? "";
+    message.browser = object.browser ?? "";
+    message.browserVersion = object.browserVersion ?? "";
     return message;
   },
 };

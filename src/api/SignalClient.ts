@@ -1,6 +1,7 @@
 import 'webrtc-adapter';
 import log from '../logger';
 import {
+  ClientInfo,
   ParticipantInfo, Room, SpeakerInfo, VideoLayer,
 } from '../proto/livekit_models';
 import {
@@ -18,7 +19,7 @@ import {
   UpdateSubscription, UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
-import { protocolVersion, version } from '../version';
+import { getClientInfo } from '../room/utils';
 
 // internal options
 interface ConnectOpts {
@@ -104,13 +105,9 @@ export class SignalClient {
     // strip trailing slash
     url = url.replace(/\/$/, '');
     url += '/rtc';
-    let params = `?access_token=${token}&protocol=${protocolVersion}&sdk=js&version=${version}`;
-    if (opts.reconnect) {
-      params += '&reconnect=1';
-    }
-    if (opts.autoSubscribe !== undefined) {
-      params += `&auto_subscribe=${opts.autoSubscribe ? '1' : '0'}`;
-    }
+
+    const clientInfo = getClientInfo();
+    const params = createConnectionParams(token, clientInfo, opts);
 
     return new Promise<JoinResponse | void>((resolve, reject) => {
       log.debug('connecting to', url + params);
@@ -121,7 +118,7 @@ export class SignalClient {
       ws.onerror = async (ev: Event) => {
         if (!this.ws) {
           try {
-            const resp = await fetch(`http${url.substr(2)}/validate${params}`);
+            const resp = await fetch(`http${url.substring(2)}/validate${params}`);
             if (!resp.ok) {
               const msg = await resp.text();
               reject(new ConnectionError(msg));
@@ -390,4 +387,39 @@ export function toProtoSessionDescription(
     type: rsd.type!,
   };
   return sd;
+}
+
+function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectOpts): string {
+  const params = new URLSearchParams();
+  params.set('access_token', token);
+
+  // opts
+  if (opts?.reconnect) {
+    params.set('reconnect', '1');
+  }
+  if (opts?.autoSubscribe !== undefined) {
+    params.set('autoSubscribe', opts.autoSubscribe ? '1' : '0');
+  }
+
+  // ClientInfo
+  params.set('sdk', 'js');
+  params.set('version', info.version);
+  params.set('protocol', info.protocol.toString());
+  if (info.deviceModel) {
+    params.set('device_model', info.deviceModel);
+  }
+  if (info.os) {
+    params.set('os', info.os);
+  }
+  if (info.osVersion) {
+    params.set('os_version', info.osVersion);
+  }
+  if (info.browser) {
+    params.set('browser', info.browser);
+  }
+  if (info.browserVersion) {
+    params.set('browser_version', info.browserVersion);
+  }
+
+  return `?${params.toString()}`;
 }
