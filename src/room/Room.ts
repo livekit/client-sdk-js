@@ -295,7 +295,7 @@ class Room extends EventEmitter {
       }
     }
     if (this.localParticipant.identity === identity) {
-      return this.localParticipant
+      return this.localParticipant;
     }
   }
 
