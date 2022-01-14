@@ -51,6 +51,12 @@ export interface RoomOptions {
    * experimental flag, disable client managed layer pause when publishing capability is limited
    */
   expDisableLayerPause?: boolean;
+
+  /**
+   * @internal
+   * experimental flag, introduce a delay before sending signaling messages
+   */
+  expSignalLatency?: number;
 }
 
 /**

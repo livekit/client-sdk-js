@@ -113,6 +113,8 @@ class Room extends EventEmitter {
     }
 
     this.engine = new RTCEngine();
+    this.engine.client.signalLatency = this.options.expSignalLatency;
+
     this.engine.on(
       EngineEvent.MediaTrackAdded,
       (

@@ -129,6 +129,7 @@ export default class LocalParticipant extends Participant {
       } else {
         let localTrack: LocalTrack | undefined;
         if (this.pendingPublishing.has(source)) {
+          log.info('skipping duplicate published source', source);
           // no-op it's already been requested
           return;
         }
@@ -402,7 +403,7 @@ export default class LocalParticipant extends Participant {
     if (!this.engine.publisher) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
-    log.debug('publishing with encodings', encodings);
+    log.debug(`publishing ${track.kind} with encodings`, encodings, ti);
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;

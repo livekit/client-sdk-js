@@ -20,6 +20,11 @@ import { constraintsForOptions, mergeDefaultOptions } from './utils';
 export async function createLocalTracks(
   options?: CreateLocalTracksOptions,
 ): Promise<Array<LocalTrack>> {
+  // set default options to true
+  options ??= {};
+  options.audio ??= true;
+  options.video ??= true;
+
   const opts = mergeDefaultOptions(options, audioDefaults, videoDefaults);
   const constraints = constraintsForOptions(opts);
   const stream = await navigator.mediaDevices.getUserMedia(
