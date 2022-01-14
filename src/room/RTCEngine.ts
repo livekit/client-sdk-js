@@ -56,6 +56,8 @@ export default class RTCEngine extends EventEmitter {
 
   private reconnectAttempts: number = 0;
 
+  private connectedServerAddr?: string;
+
   constructor() {
     super();
     this.client = new SignalClient();
@@ -124,6 +126,10 @@ export default class RTCEngine extends EventEmitter {
     return this.reliableDCSub?.readyState;
   }
 
+  get connectedServerAddress(): string | undefined {
+    return this.connectedServerAddr;
+  }
+
   private configure(joinResponse: JoinResponse) {
     // already configured
     if (this.publisher || this.subscriber) {
@@ -175,6 +181,9 @@ export default class RTCEngine extends EventEmitter {
           this.iceConnected = true;
           this.emit(EngineEvent.Connected);
         }
+        getConnectedAddress(primaryPC).then((v) => {
+          this.connectedServerAddr = v;
+        });
       } else if (primaryPC.iceConnectionState === 'disconnected' || primaryPC.iceConnectionState === 'failed') {
         log.trace('ICE disconnected');
         if (this.iceConnected) {
@@ -436,4 +445,38 @@ export default class RTCEngine extends EventEmitter {
       return this.reliableDC;
     }
   }
+}
+
+async function getConnectedAddress(pc: RTCPeerConnection): Promise<string | undefined> {
+  let selectedCandidatePairId = '';
+  const candidatePairs = new Map<string, RTCIceCandidatePairStats>();
+  // id -> candidate ip
+  const candidates = new Map<string, string>();
+  const stats: RTCStatsReport = await pc.getStats();
+  stats.forEach((v) => {
+    switch (v.type) {
+      case 'transport':
+        selectedCandidatePairId = v.selectedCandidatePairId;
+        break;
+      case 'candidate-pair':
+        if (selectedCandidatePairId === '' && v.selected) {
+          selectedCandidatePairId = v.id;
+        }
+        candidatePairs.set(v.id, v);
+        break;
+      case 'remote-candidate':
+        candidates.set(v.id, `${v.address}:${v.port}`);
+        break;
+      default:
+    }
+  });
+
+  if (selectedCandidatePairId === '') {
+    return undefined;
+  }
+  const selectedID = candidatePairs.get(selectedCandidatePairId)?.remoteCandidateId;
+  if (selectedID === undefined) {
+    return undefined;
+  }
+  return candidates.get(selectedID);
 }
