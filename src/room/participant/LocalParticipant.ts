@@ -77,10 +77,6 @@ export default class LocalParticipant extends Participant {
     return this.microphoneError;
   }
 
-  get currentServerAddress(): String | undefined {
-    return this.engine.connectedServerAddress;
-  }
-
   getTrack(source: Track.Source): LocalTrackPublication | undefined {
     const track = super.getTrack(source);
     if (track) {
