@@ -1,4 +1,4 @@
-import { VideoPresets } from '../track/options';
+import { VideoPresets, VideoPresets43 } from '../track/options';
 import {
   computeVideoEncodings,
   determineAppropriateEncoding,
@@ -91,5 +91,15 @@ describe('computeVideoEncodings', () => {
     expect(encodings![0].maxBitrate).toBe(VideoPresets.qvga.encoding.maxBitrate);
     expect(encodings![1].rid).toBe('h');
     expect(encodings![1].maxBitrate).toBe(VideoPresets.vga.encoding.maxBitrate);
+  });
+
+  it('respects provided min resolution', () => {
+    const encodings = computeVideoEncodings(false, 100, 120, {
+      simulcast: true,
+    });
+    expect(encodings).toHaveLength(1);
+    expect(encodings![0].rid).toBe('q');
+    expect(encodings![0].maxBitrate).toBe(VideoPresets43.qvga.encoding.maxBitrate);
+    expect(encodings![0].scaleResolutionDownBy).toBe(1);
   });
 });
