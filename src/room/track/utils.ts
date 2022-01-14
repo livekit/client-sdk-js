@@ -11,15 +11,19 @@ export function mergeDefaultOptions(
   const opts: CreateLocalTracksOptions = {
     ...options,
   };
-  if (opts.audio === true) opts.audio = {};
-  if (opts.video === true) opts.video = {};
+  if (opts.audio === true || opts.audio === undefined) {
+    opts.audio = {};
+  }
+  if (opts.video === true || opts.video === undefined) {
+    opts.video = {};
+  }
 
   // use defaults
-  if (opts.audio) {
+  if (opts.audio && audioDefaults) {
     mergeObjectWithoutOverwriting(opts.audio as Record<string, unknown>,
       audioDefaults as Record<string, unknown>);
   }
-  if (opts.video) {
+  if (opts.video && videoDefaults) {
     mergeObjectWithoutOverwriting(opts.video as Record<string, unknown>,
       videoDefaults as Record<string, unknown>);
   }
