@@ -15,7 +15,7 @@ import { constraintsForOptions, mergeDefaultOptions } from './utils';
  * Creates a local video and audio track at the same time. When acquiring both
  * audio and video tracks together, it'll display a single permission prompt to
  * the user instead of two separate ones.
- * @param options when "audio" or "video" are not set, they are default to true.
+ * @param options
  */
 export async function createLocalTracks(
   options?: CreateLocalTracksOptions,
