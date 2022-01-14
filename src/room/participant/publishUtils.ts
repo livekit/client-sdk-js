@@ -170,7 +170,7 @@ function encodingsFromPresets(
     const rid = videoRids[idx];
     encodings.push({
       rid,
-      scaleResolutionDownBy: size / preset.height,
+      scaleResolutionDownBy: size / Math.min(preset.width, preset.height),
       maxBitrate: preset.encoding.maxBitrate,
       /* @ts-ignore */
       maxFramerate: preset.encoding.maxFramerate,
