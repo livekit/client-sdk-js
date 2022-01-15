@@ -407,7 +407,7 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
     params.set('reconnect', '1');
   }
   if (opts?.autoSubscribe !== undefined) {
-    params.set('autoSubscribe', opts.autoSubscribe ? '1' : '0');
+    params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
   }
 
   // ClientInfo
