@@ -51,7 +51,10 @@ const appActions = {
     const room = await appActions.connectToRoom(url, token, roomOpts, connectOpts);
 
     if (room && shouldPublish) {
-      await room.localParticipant.enableCameraAndMicrophone();
+      await Promise.all([
+        room.localParticipant.setMicrophoneEnabled(true),
+        room.localParticipant.setCameraEnabled(true),
+      ]);
       updateButtonsForPublishState();
     }
 

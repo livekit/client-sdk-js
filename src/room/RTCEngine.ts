@@ -257,6 +257,7 @@ export default class RTCEngine extends EventEmitter {
     };
 
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
+      log.debug('received trackPublishedResponse', res);
       const resolve = this.pendingTrackResolvers[res.cid];
       if (!resolve) {
         log.error('missing track resolver for ', res.cid);

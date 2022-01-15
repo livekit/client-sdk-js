@@ -19,7 +19,7 @@ import {
   UpdateSubscription, UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
-import { getClientInfo } from '../room/utils';
+import { getClientInfo, sleep } from '../room/utils';
 
 // internal options
 interface ConnectOpts {
@@ -38,6 +38,9 @@ export class SignalClient {
   isConnected: boolean;
 
   useJSON: boolean;
+
+  /** simulate signaling latency by delaying messages */
+  signalLatency?: number;
 
   onClose?: (reason: string) => void;
 
@@ -143,7 +146,7 @@ export class SignalClient {
         }
       };
 
-      ws.onmessage = (ev: MessageEvent) => {
+      ws.onmessage = async (ev: MessageEvent) => {
         // not considered connected until JoinResponse is received
         let msg: SignalResponse;
         if (typeof ev.data === 'string') {
@@ -167,6 +170,9 @@ export class SignalClient {
           return;
         }
 
+        if (this.signalLatency) {
+          await sleep(this.signalLatency);
+        }
         this.handleSignalResponse(msg);
       };
 
@@ -207,7 +213,7 @@ export class SignalClient {
   }
 
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
-    log.debug('sending ice candidate', candidate);
+    log.trace('sending ice candidate', candidate);
     this.sendRequest({
       trickle: {
         candidateInit: JSON.stringify(candidate),
@@ -274,7 +280,10 @@ export class SignalClient {
     this.sendRequest(SignalRequest.fromPartial({ leave: {} }));
   }
 
-  sendRequest(req: SignalRequest) {
+  async sendRequest(req: SignalRequest) {
+    if (this.signalLatency) {
+      await sleep(this.signalLatency);
+    }
     if (!this.ws) {
       log.error('cannot send signal request before connected');
       return;
