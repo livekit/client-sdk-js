@@ -74,10 +74,7 @@ export default class RemoteTrackPublication extends TrackPublication {
    * @param enabled
    */
   setEnabled(enabled: boolean) {
-    if (this.isAdaptiveStream || !this.isSubscribed || this.disabled === !enabled) {
-      return;
-    }
-    if (this.track instanceof RemoteVideoTrack && this.track.isAdaptiveStream) {
+    if (!this.isManualOperationAllowed() || this.disabled === !enabled) {
       return;
     }
     this.disabled = !enabled;
@@ -93,7 +90,7 @@ export default class RemoteTrackPublication extends TrackPublication {
    * optimize for uninterrupted video
    */
   setVideoQuality(quality: VideoQuality) {
-    if (this.isAdaptiveStream || !this.isSubscribed || this.currentVideoQuality === quality) {
+    if (!this.isManualOperationAllowed() || this.currentVideoQuality === quality) {
       return;
     }
     this.currentVideoQuality = quality;
@@ -103,7 +100,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   setVideoDimensions(dimensions: Track.Dimensions) {
-    if (!this.isSubscribed || this.isAdaptiveStream) {
+    if (!this.isManualOperationAllowed()) {
       return;
     }
     if (this.videoDimensions?.width === dimensions.width
@@ -143,6 +140,18 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.track?.setMuted(info.muted);
   }
 
+  private isManualOperationAllowed(): boolean {
+    if (this.isAdaptiveStream) {
+      log.warn('adaptive stream is enabled, cannot change track settings', this.trackSid);
+      return false;
+    }
+    if (!this.isSubscribed) {
+      log.warn('cannot update track settings when not subscribed', this.trackSid);
+      return false;
+    }
+    return true;
+  }
+
   protected handleEnded = (track: RemoteTrack) => {
     this.emit(TrackEvent.Ended, track);
   };
@@ -171,7 +180,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     if (this.videoDimensions) {
       settings.width = this.videoDimensions.width;
       settings.height = this.videoDimensions.height;
-    } else if (this.currentVideoQuality) {
+    } else if (this.currentVideoQuality !== undefined) {
       settings.quality = this.currentVideoQuality;
     } else {
       // defaults to high quality

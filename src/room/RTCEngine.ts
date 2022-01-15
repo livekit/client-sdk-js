@@ -78,7 +78,7 @@ export default class RTCEngine extends EventEmitter {
 
     // create offer
     if (!this.subscriberPrimary) {
-      await this.negotiate();
+      this.negotiate();
     }
 
     return joinResponse;
