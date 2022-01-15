@@ -1,5 +1,9 @@
+.github
+bin
 docs
+protocol
+example
+node_modules
 tsconfig.json
-src
 test
 .prettierrc
