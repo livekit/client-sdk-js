@@ -184,7 +184,8 @@ export default class RTCEngine extends EventEmitter {
         getConnectedAddress(primaryPC).then((v) => {
           this.connectedServerAddr = v;
         });
-      } else if (primaryPC.iceConnectionState === 'disconnected' || primaryPC.iceConnectionState === 'failed') {
+      } else if (primaryPC.iceConnectionState === 'failed') {
+        // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
         log.trace('ICE disconnected');
         if (this.iceConnected) {
           this.iceConnected = false;
