@@ -39,7 +39,7 @@ export default class RTCEngine extends EventEmitter {
 
   private subscriberPrimary: boolean = false;
 
-  private iceConnected: boolean = false;
+  private pcConnected: boolean = false;
 
   private isClosed: boolean = true;
 
@@ -174,21 +174,21 @@ export default class RTCEngine extends EventEmitter {
       // in subscriber primary mode, server side opens sub data channels.
       this.subscriber.pc.ondatachannel = this.handleDataChannel;
     }
-    primaryPC.oniceconnectionstatechange = () => {
-      if (primaryPC.iceConnectionState === 'connected') {
-        log.trace('ICE connected');
-        if (!this.iceConnected) {
-          this.iceConnected = true;
+    primaryPC.onconnectionstatechange = () => {
+      if (primaryPC.connectionState === 'connected') {
+        log.trace('pc connected');
+        if (!this.pcConnected) {
+          this.pcConnected = true;
           this.emit(EngineEvent.Connected);
         }
         getConnectedAddress(primaryPC).then((v) => {
           this.connectedServerAddr = v;
         });
-      } else if (primaryPC.iceConnectionState === 'failed') {
+      } else if (primaryPC.connectionState === 'failed') {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
-        log.trace('ICE disconnected');
-        if (this.iceConnected) {
-          this.iceConnected = false;
+        log.trace('pc disconnected');
+        if (this.pcConnected) {
+          this.pcConnected = false;
 
           this.handleDisconnect('peerconnection');
         }
@@ -355,6 +355,7 @@ export default class RTCEngine extends EventEmitter {
     }
     this.reconnectAttempts += 1;
 
+    this.pcConnected = false;
     await this.client.reconnect(this.url, this.token);
     this.emit(EngineEvent.SignalConnected);
 
@@ -372,7 +373,7 @@ export default class RTCEngine extends EventEmitter {
     const startTime = (new Date()).getTime();
 
     while ((new Date()).getTime() - startTime < maxICEConnectTimeout * 2) {
-      if (this.iceConnected) {
+      if (this.pcConnected) {
         // reconnect success
         this.emit(EngineEvent.Reconnected);
         return;
@@ -381,7 +382,7 @@ export default class RTCEngine extends EventEmitter {
     }
 
     // have not reconnected, throw
-    throw new ConnectionError('could not establish ICE connection');
+    throw new ConnectionError('could not establish PC connection');
   }
 
   /* @internal */
