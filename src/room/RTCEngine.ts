@@ -15,7 +15,7 @@ import { sleep } from './utils';
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const maxReconnectRetries = 5;
-export const maxICEConnectTimeout = 5 * 1000;
+export const maxICEConnectTimeout = 15 * 1000;
 
 /** @internal */
 export default class RTCEngine extends EventEmitter {
@@ -371,7 +371,7 @@ export default class RTCEngine extends EventEmitter {
 
     const startTime = (new Date()).getTime();
 
-    while ((new Date()).getTime() - startTime < maxICEConnectTimeout * 2) {
+    while ((new Date()).getTime() - startTime < maxICEConnectTimeout) {
       if (this.iceConnected) {
         // reconnect success
         this.emit(EngineEvent.Reconnected);
