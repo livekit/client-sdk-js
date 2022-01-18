@@ -41,8 +41,6 @@ export default class RTCEngine extends EventEmitter {
 
   private pcConnected: boolean = false;
 
-  private reconnected: boolean = false;
-
   private isClosed: boolean = true;
 
   private pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
@@ -182,8 +180,6 @@ export default class RTCEngine extends EventEmitter {
         if (!this.pcConnected) {
           this.pcConnected = true;
           this.emit(EngineEvent.Connected);
-        } else {
-          this.reconnected = true;
         }
         getConnectedAddress(primaryPC).then((v) => {
           this.connectedServerAddr = v;
@@ -359,6 +355,7 @@ export default class RTCEngine extends EventEmitter {
     }
     this.reconnectAttempts += 1;
 
+    this.pcConnected = false;
     await this.client.reconnect(this.url, this.token);
     this.emit(EngineEvent.SignalConnected);
 
@@ -375,9 +372,8 @@ export default class RTCEngine extends EventEmitter {
 
     const startTime = (new Date()).getTime();
 
-    this.reconnected = false;
     while ((new Date()).getTime() - startTime < maxICEConnectTimeout * 2) {
-      if (this.reconnected) {
+      if (this.pcConnected) {
         // reconnect success
         this.emit(EngineEvent.Reconnected);
         return;
