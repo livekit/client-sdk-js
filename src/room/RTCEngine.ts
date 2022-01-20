@@ -15,7 +15,7 @@ import { sleep } from './utils';
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const maxReconnectRetries = 5;
-const maxReconnectingTimeout = 1 * 1000;
+const minReconnectWait = 1 * 1000;
 export const maxICEConnectTimeout = 15 * 1000;
 
 /** @internal */
@@ -380,7 +380,7 @@ export default class RTCEngine extends EventEmitter {
     while (now - startTime < maxICEConnectTimeout) {
       // if there is no connectionstatechange callback fired
       // check connectionstate after maxReconnectingTimeout
-      if (now - startTime > maxReconnectingTimeout && this.primaryPC?.connectionState === 'connected') {
+      if (now - startTime > minReconnectWait && this.primaryPC?.connectionState === 'connected') {
         this.pcConnected = true;
       }
       if (this.pcConnected) {
