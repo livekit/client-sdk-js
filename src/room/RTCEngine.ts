@@ -15,7 +15,7 @@ import { sleep } from './utils';
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const maxReconnectRetries = 5;
-const maxReconnectingTimeout = 2 * 1000;
+const minReconnectWait = 1 * 1000;
 export const maxICEConnectTimeout = 15 * 1000;
 
 /** @internal */
