@@ -379,7 +379,7 @@ export default class RTCEngine extends EventEmitter {
     let now = startTime;
     while (now - startTime < maxICEConnectTimeout) {
       // if there is no connectionstatechange callback fired
-      // check connectionstate after maxReconnectingTimeout
+      // check connectionstate after minReconnectWait
       if (now - startTime > minReconnectWait && this.primaryPC?.connectionState === 'connected') {
         this.pcConnected = true;
       }
