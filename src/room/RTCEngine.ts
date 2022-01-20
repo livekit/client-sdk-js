@@ -16,6 +16,7 @@ const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const maxReconnectRetries = 5;
 export const maxICEConnectTimeout = 5 * 1000;
+const maxReconnectingTimeout = 2 * 1000;
 
 /** @internal */
 export default class RTCEngine extends EventEmitter {
@@ -38,6 +39,8 @@ export default class RTCEngine extends EventEmitter {
   private reliableDCSub?: RTCDataChannel;
 
   private subscriberPrimary: boolean = false;
+
+  private pcConnectionState: RTCPeerConnectionState = 'new';
 
   private pcConnected: boolean = false;
 
@@ -175,6 +178,7 @@ export default class RTCEngine extends EventEmitter {
       this.subscriber.pc.ondatachannel = this.handleDataChannel;
     }
     primaryPC.onconnectionstatechange = () => {
+      this.pcConnectionState = primaryPC.connectionState;
       if (primaryPC.connectionState === 'connected') {
         log.trace('pc connected');
         if (!this.pcConnected) {
@@ -372,13 +376,20 @@ export default class RTCEngine extends EventEmitter {
 
     const startTime = (new Date()).getTime();
 
-    while ((new Date()).getTime() - startTime < maxICEConnectTimeout * 2) {
+    let now = startTime;
+    while (now - startTime < maxICEConnectTimeout * 2) {
+      // if there is no connectionstatechange callback fired
+      // check connectionstate after maxReconnectingTimeout
+      if (now - startTime > maxReconnectingTimeout && this.pcConnectionState === 'connected') {
+        this.pcConnected = true;
+      }
       if (this.pcConnected) {
         // reconnect success
         this.emit(EngineEvent.Reconnected);
         return;
       }
       await sleep(100);
+      now = (new Date()).getTime();
     }
 
     // have not reconnected, throw
