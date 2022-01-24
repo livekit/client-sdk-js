@@ -71,6 +71,8 @@ export class SignalClient {
 
   onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
 
+  onTokenRefresh?: (token: string) => void;
+
   onLeave?: () => void;
 
   ws?: WebSocket;
@@ -263,7 +265,7 @@ export class SignalClient {
     trackPermissions: TrackPermission[],
   ) {
     this.sendRequest({
-      subscriptionPermissions: {
+      subscriptionPermission: {
         allParticipants,
         trackPermissions,
       },
@@ -357,6 +359,10 @@ export class SignalClient {
     } else if (msg.subscriptionPermissionUpdate) {
       if (this.onSubscriptionPermissionUpdate) {
         this.onSubscriptionPermissionUpdate(msg.subscriptionPermissionUpdate);
+      }
+    } else if (msg.refreshToken) {
+      if (this.onTokenRefresh) {
+        this.onTokenRefresh(msg.refreshToken);
       }
     } else {
       log.debug('unsupported message', msg);

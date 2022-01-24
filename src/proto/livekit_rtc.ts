@@ -110,7 +110,7 @@ export interface SignalRequest {
    */
   updateLayers?: UpdateVideoLayers | undefined;
   /** Update subscriber permissions */
-  subscriptionPermissions?: UpdateSubscriptionPermissions | undefined;
+  subscriptionPermission?: SubscriptionPermission | undefined;
   /** sync client's subscribe state to server during reconnect */
   syncState?: SyncState | undefined;
   /** Simulate conditions, for client validations */
@@ -140,12 +140,17 @@ export interface SignalResponse {
   roomUpdate?: RoomUpdate | undefined;
   /** when connection quality changed */
   connectionQuality?: ConnectionQualityUpdate | undefined;
-  /** when streamed tracks state changed */
+  /**
+   * when streamed tracks state changed, used to notify when any of the streams were paused due to
+   * congestion
+   */
   streamStateUpdate?: StreamStateUpdate | undefined;
-  /** when max subscribe quality changed */
+  /** when max subscribe quality changed, used by dynamic broadcasting to disable unused layers */
   subscribedQualityUpdate?: SubscribedQualityUpdate | undefined;
   /** when subscription permission changed */
   subscriptionPermissionUpdate?: SubscriptionPermissionUpdate | undefined;
+  /** update the token the client was using, to prevent an active client from using an expired token */
+  refreshToken: string | undefined;
 }
 
 export interface AddTrackRequest {
@@ -286,7 +291,7 @@ export interface TrackPermission {
   trackSids: string[];
 }
 
-export interface UpdateSubscriptionPermissions {
+export interface SubscriptionPermission {
   allParticipants: boolean;
   trackPermissions: TrackPermission[];
 }
@@ -366,9 +371,9 @@ export const SignalRequest = {
         writer.uint32(82).fork()
       ).ldelim();
     }
-    if (message.subscriptionPermissions !== undefined) {
-      UpdateSubscriptionPermissions.encode(
-        message.subscriptionPermissions,
+    if (message.subscriptionPermission !== undefined) {
+      SubscriptionPermission.encode(
+        message.subscriptionPermission,
         writer.uint32(90).fork()
       ).ldelim();
     }
@@ -428,8 +433,10 @@ export const SignalRequest = {
           );
           break;
         case 11:
-          message.subscriptionPermissions =
-            UpdateSubscriptionPermissions.decode(reader, reader.uint32());
+          message.subscriptionPermission = SubscriptionPermission.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         case 12:
           message.syncState = SyncState.decode(reader, reader.uint32());
@@ -493,14 +500,14 @@ export const SignalRequest = {
       message.updateLayers = undefined;
     }
     if (
-      object.subscriptionPermissions !== undefined &&
-      object.subscriptionPermissions !== null
+      object.subscriptionPermission !== undefined &&
+      object.subscriptionPermission !== null
     ) {
-      message.subscriptionPermissions = UpdateSubscriptionPermissions.fromJSON(
-        object.subscriptionPermissions
+      message.subscriptionPermission = SubscriptionPermission.fromJSON(
+        object.subscriptionPermission
       );
     } else {
-      message.subscriptionPermissions = undefined;
+      message.subscriptionPermission = undefined;
     }
     if (object.syncState !== undefined && object.syncState !== null) {
       message.syncState = SyncState.fromJSON(object.syncState);
@@ -553,9 +560,9 @@ export const SignalRequest = {
       (obj.updateLayers = message.updateLayers
         ? UpdateVideoLayers.toJSON(message.updateLayers)
         : undefined);
-    message.subscriptionPermissions !== undefined &&
-      (obj.subscriptionPermissions = message.subscriptionPermissions
-        ? UpdateSubscriptionPermissions.toJSON(message.subscriptionPermissions)
+    message.subscriptionPermission !== undefined &&
+      (obj.subscriptionPermission = message.subscriptionPermission
+        ? SubscriptionPermission.toJSON(message.subscriptionPermission)
         : undefined);
     message.syncState !== undefined &&
       (obj.syncState = message.syncState
@@ -620,15 +627,14 @@ export const SignalRequest = {
       message.updateLayers = undefined;
     }
     if (
-      object.subscriptionPermissions !== undefined &&
-      object.subscriptionPermissions !== null
+      object.subscriptionPermission !== undefined &&
+      object.subscriptionPermission !== null
     ) {
-      message.subscriptionPermissions =
-        UpdateSubscriptionPermissions.fromPartial(
-          object.subscriptionPermissions
-        );
+      message.subscriptionPermission = SubscriptionPermission.fromPartial(
+        object.subscriptionPermission
+      );
     } else {
-      message.subscriptionPermissions = undefined;
+      message.subscriptionPermission = undefined;
     }
     if (object.syncState !== undefined && object.syncState !== null) {
       message.syncState = SyncState.fromPartial(object.syncState);
@@ -720,6 +726,9 @@ export const SignalResponse = {
         writer.uint32(122).fork()
       ).ldelim();
     }
+    if (message.refreshToken !== undefined) {
+      writer.uint32(130).string(message.refreshToken);
+    }
     return writer;
   },
 
@@ -787,6 +796,9 @@ export const SignalResponse = {
         case 15:
           message.subscriptionPermissionUpdate =
             SubscriptionPermissionUpdate.decode(reader, reader.uint32());
+          break;
+        case 16:
+          message.refreshToken = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -896,6 +908,11 @@ export const SignalResponse = {
     } else {
       message.subscriptionPermissionUpdate = undefined;
     }
+    if (object.refreshToken !== undefined && object.refreshToken !== null) {
+      message.refreshToken = String(object.refreshToken);
+    } else {
+      message.refreshToken = undefined;
+    }
     return message;
   },
 
@@ -957,6 +974,8 @@ export const SignalResponse = {
             message.subscriptionPermissionUpdate
           )
         : undefined);
+    message.refreshToken !== undefined &&
+      (obj.refreshToken = message.refreshToken);
     return obj;
   },
 
@@ -1060,6 +1079,7 @@ export const SignalResponse = {
     } else {
       message.subscriptionPermissionUpdate = undefined;
     }
+    message.refreshToken = object.refreshToken ?? undefined;
     return message;
   },
 };
@@ -2962,11 +2982,11 @@ export const TrackPermission = {
   },
 };
 
-const baseUpdateSubscriptionPermissions: object = { allParticipants: false };
+const baseSubscriptionPermission: object = { allParticipants: false };
 
-export const UpdateSubscriptionPermissions = {
+export const SubscriptionPermission = {
   encode(
-    message: UpdateSubscriptionPermissions,
+    message: SubscriptionPermission,
     writer: _m0.Writer = _m0.Writer.create()
   ): _m0.Writer {
     if (message.allParticipants === true) {
@@ -2981,12 +3001,10 @@ export const UpdateSubscriptionPermissions = {
   decode(
     input: _m0.Reader | Uint8Array,
     length?: number
-  ): UpdateSubscriptionPermissions {
+  ): SubscriptionPermission {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = {
-      ...baseUpdateSubscriptionPermissions,
-    } as UpdateSubscriptionPermissions;
+    const message = { ...baseSubscriptionPermission } as SubscriptionPermission;
     message.trackPermissions = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
@@ -3007,10 +3025,8 @@ export const UpdateSubscriptionPermissions = {
     return message;
   },
 
-  fromJSON(object: any): UpdateSubscriptionPermissions {
-    const message = {
-      ...baseUpdateSubscriptionPermissions,
-    } as UpdateSubscriptionPermissions;
+  fromJSON(object: any): SubscriptionPermission {
+    const message = { ...baseSubscriptionPermission } as SubscriptionPermission;
     message.trackPermissions = [];
     if (
       object.allParticipants !== undefined &&
@@ -3031,7 +3047,7 @@ export const UpdateSubscriptionPermissions = {
     return message;
   },
 
-  toJSON(message: UpdateSubscriptionPermissions): unknown {
+  toJSON(message: SubscriptionPermission): unknown {
     const obj: any = {};
     message.allParticipants !== undefined &&
       (obj.allParticipants = message.allParticipants);
@@ -3046,11 +3062,9 @@ export const UpdateSubscriptionPermissions = {
   },
 
   fromPartial(
-    object: DeepPartial<UpdateSubscriptionPermissions>
-  ): UpdateSubscriptionPermissions {
-    const message = {
-      ...baseUpdateSubscriptionPermissions,
-    } as UpdateSubscriptionPermissions;
+    object: DeepPartial<SubscriptionPermission>
+  ): SubscriptionPermission {
+    const message = { ...baseSubscriptionPermission } as SubscriptionPermission;
     message.allParticipants = object.allParticipants ?? false;
     message.trackPermissions = [];
     if (
