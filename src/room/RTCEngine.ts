@@ -272,6 +272,10 @@ export default class RTCEngine extends EventEmitter {
       resolve(res.track!);
     };
 
+    this.client.onTokenRefresh = (token: string) => {
+      this.token = token;
+    };
+
     this.client.onClose = () => {
       this.handleDisconnect('signal');
     };
