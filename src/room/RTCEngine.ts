@@ -217,6 +217,10 @@ export default class RTCEngine extends EventEmitter {
     this.lossyDC.onmessage = this.handleDataMessage;
     this.reliableDC.onmessage = this.handleDataMessage;
 
+    // handle datachannel errors
+    this.lossyDC.onerror = this.handleDataError;
+    this.lossyDC.onerror = this.handleDataError;
+
     // configure signaling client
     this.client.onAnswer = async (sd) => {
       if (!this.publisher) {
@@ -317,6 +321,18 @@ export default class RTCEngine extends EventEmitter {
       this.emit(EngineEvent.ActiveSpeakersUpdate, dp.speaker.speakers);
     } else if (dp.user) {
       this.emit(EngineEvent.DataPacketReceived, dp.user, dp.kind);
+    }
+  };
+
+  private handleDataError = (event: Event) => {
+    const channel = event.currentTarget as RTCDataChannel;
+    const channelKind = channel.maxRetransmits === 0 ? 'lossy' : 'reliable';
+
+    if (event instanceof ErrorEvent) {
+      const { error } = event.error;
+      log.error(`DataChannel error on ${channelKind}: ${event.message}`, error);
+    } else {
+      log.error(`Unknown DataChannel Error on ${channelKind}`, event);
     }
   };
 
