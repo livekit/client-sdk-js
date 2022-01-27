@@ -7,7 +7,11 @@ import {
   ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
 import {
-  ConnectionQualityUpdate, SimulateScenario, StreamStateUpdate, SubscriptionPermissionUpdate,
+  ConnectionQualityUpdate,
+  JoinResponse,
+  SimulateScenario,
+  StreamStateUpdate,
+  SubscriptionPermissionUpdate,
 } from '../proto/livekit_rtc';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
@@ -113,48 +117,79 @@ class Room extends EventEmitter {
     }
 
     this.engine = new RTCEngine();
+
     this.engine.client.signalLatency = this.options.expSignalLatency;
-
-    this.engine.on(
-      EngineEvent.MediaTrackAdded,
-      (
-        mediaTrack: MediaStreamTrack,
-        stream: MediaStream,
-        receiver?: RTCRtpReceiver,
-      ) => {
-        this.onTrackAdded(mediaTrack, stream, receiver);
-      },
-    );
-
-    this.engine.on(EngineEvent.Disconnected, () => {
-      this.handleDisconnect();
-    });
-
     this.engine.client.onParticipantUpdate = this.handleParticipantUpdates;
     this.engine.client.onRoomUpdate = this.handleRoomUpdate;
     this.engine.client.onSpeakersChanged = this.handleSpeakersChanged;
     this.engine.client.onStreamStateUpdate = this.handleStreamStateUpdate;
     this.engine.client.onSubscriptionPermissionUpdate = this.handleSubscriptionPermissionUpdate;
-    this.engine.on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate);
-    this.engine.on(EngineEvent.DataPacketReceived, this.handleDataPacket);
-
-    this.engine.on(EngineEvent.Reconnecting, () => {
-      this.state = RoomState.Reconnecting;
-      this.emit(RoomEvent.Reconnecting);
-    });
-
-    this.engine.on(EngineEvent.Reconnected, () => {
-      this.state = RoomState.Connected;
-      this.emit(RoomEvent.Reconnected);
-    });
-
-    this.engine.on(EngineEvent.SignalConnected, () => {
-      if (this.state === RoomState.Reconnecting) {
-        this.sendSyncState();
-      }
-    });
-
     this.engine.client.onConnectionQuality = this.handleConnectionQualityUpdate;
+
+    this.engine
+      .on(
+        EngineEvent.MediaTrackAdded,
+        (
+          mediaTrack: MediaStreamTrack,
+          stream: MediaStream,
+          receiver?: RTCRtpReceiver,
+        ) => {
+          this.onTrackAdded(mediaTrack, stream, receiver);
+        },
+      )
+      .on(EngineEvent.Disconnected, () => {
+        this.handleDisconnect();
+      })
+      .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
+      .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
+      .on(EngineEvent.Resuming, () => {
+        this.state = RoomState.Reconnecting;
+        this.emit(RoomEvent.Reconnecting);
+      })
+      .on(EngineEvent.Resumed, () => {
+        this.state = RoomState.Connected;
+        this.emit(RoomEvent.Reconnected);
+      })
+      .on(EngineEvent.SignalResumed, () => {
+        if (this.state === RoomState.Reconnecting) {
+          this.sendSyncState();
+        }
+      })
+      .on(EngineEvent.Restarting, () => {
+        this.state = RoomState.Reconnecting;
+        this.emit(RoomEvent.Reconnecting);
+
+        // also unwind existing participants & existing subscriptions
+        for (const p of this.participants.values()) {
+          this.handleParticipantDisconnected(p.sid, p);
+        }
+      })
+      .on(EngineEvent.Restarted, async (joinResponse: JoinResponse) => {
+        // finished
+        this.state = RoomState.Connected;
+        this.emit(RoomEvent.Reconnected);
+
+        // rehydrate participants
+        if (joinResponse.participant) {
+          this.localParticipant.sid = joinResponse.participant.sid;
+          this.handleParticipantUpdates([joinResponse.participant]);
+        }
+        this.handleParticipantUpdates(joinResponse.otherParticipants);
+
+        // republish and republish tracks
+        const localPubs: LocalTrackPublication[] = [];
+        this.localParticipant.tracks.forEach((pub) => {
+          if (pub.track) {
+            localPubs.push(pub);
+          }
+        });
+
+        await Promise.all(localPubs.map(async (pub) => {
+          const track = pub.track!;
+          this.localParticipant.unpublishTrack(track, false);
+          this.localParticipant.publishTrack(track, pub.options);
+        }));
+      });
   }
 
   /**
@@ -474,7 +509,8 @@ class Room extends EventEmitter {
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
-      if (info.sid === this.localParticipant.sid) {
+      if (info.sid === this.localParticipant.sid
+          || info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
         return;
       }

@@ -76,13 +76,15 @@ export class Track extends EventEmitter {
       element.autoplay = true;
     }
 
-    // already attached
-    if (this.attachedElements.includes(element)) {
-      return element;
+    if (!this.attachedElements.includes(element)) {
+      this.attachedElements.push(element);
     }
 
+    // even if we believe it's already attached to the element, it's possible
+    // the element's srcObject was set to something else out of band.
+    // we'll want to re-attach it in that case
+
     attachToElement(this.mediaStreamTrack, element);
-    this.attachedElements.push(element);
 
     if (element instanceof HTMLAudioElement) {
       // manually play audio to detect audio playback status
@@ -171,12 +173,16 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
     element.srcObject = mediaStream;
   }
 
-  // remove existing tracks of same type from stream
+  // check if track matches existing track
   let existingTracks: MediaStreamTrack[];
   if (track.kind === 'audio') {
     existingTracks = mediaStream.getAudioTracks();
   } else {
     existingTracks = mediaStream.getVideoTracks();
+  }
+
+  if (existingTracks.includes(track)) {
+    return;
   }
 
   existingTracks.forEach((et) => {

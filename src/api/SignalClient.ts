@@ -8,6 +8,7 @@ import {
   AddTrackRequest,
   ConnectionQualityUpdate,
   JoinResponse,
+  LeaveRequest,
   SessionDescription,
   SignalRequest,
   SignalResponse,
@@ -73,7 +74,7 @@ export class SignalClient {
 
   onTokenRefresh?: (token: string) => void;
 
-  onLeave?: () => void;
+  onLeave?: (leave: LeaveRequest) => void;
 
   ws?: WebSocket;
 
@@ -87,6 +88,9 @@ export class SignalClient {
     token: string,
     opts?: SignalOptions,
   ): Promise<JoinResponse> {
+    // during a full reconnect, we'd want to start the sequence even if currently
+    // connected
+    this.isConnected = false;
     const res = await this.connect(url, token, {
       autoSubscribe: opts?.autoSubscribe,
     });
@@ -179,7 +183,7 @@ export class SignalClient {
       };
 
       ws.onclose = (ev: CloseEvent) => {
-        if (!this.isConnected) return;
+        if (!this.isConnected || this.ws !== ws) return;
 
         log.debug('websocket connection closed', ev.reason);
         this.isConnected = false;
@@ -334,7 +338,7 @@ export class SignalClient {
       }
     } else if (msg.leave) {
       if (this.onLeave) {
-        this.onLeave();
+        this.onLeave(msg.leave);
       }
     } else if (msg.mute) {
       if (this.onRemoteMuteChanged) {
