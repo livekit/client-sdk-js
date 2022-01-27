@@ -434,6 +434,7 @@ export default class LocalParticipant extends Participant {
 
   unpublishTrack(
     track: LocalTrack | MediaStreamTrack,
+    stopOnUnpublish?: boolean,
   ): LocalTrackPublication | null {
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
@@ -455,7 +456,10 @@ export default class LocalParticipant extends Participant {
     track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
     track.off(TrackEvent.Ended, this.onTrackUnpublish);
 
-    if (this.roomOptions?.stopLocalTrackOnUnpublish ?? true) {
+    if (stopOnUnpublish === undefined) {
+      stopOnUnpublish = this.roomOptions?.stopLocalTrackOnUnpublish ?? true;
+    }
+    if (stopOnUnpublish) {
       track.stop();
     }
 
@@ -505,10 +509,6 @@ export default class LocalParticipant extends Participant {
       }
     });
     return publications;
-  }
-
-  get publisherMetrics(): any {
-    return null;
   }
 
   /**

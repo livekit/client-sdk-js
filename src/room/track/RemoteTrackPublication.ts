@@ -35,7 +35,12 @@ export default class RemoteTrackPublication extends TrackPublication {
     const sub: UpdateSubscription = {
       trackSids: [this.trackSid],
       subscribe: this.subscribed,
-      participantTracks: [],
+      participantTracks: [{
+        // sending an empty participant id since TrackPublication doesn't keep it
+        // this is filled in by the participant that receives this message
+        participantSid: '',
+        trackSids: [this.trackSid],
+      }],
     };
     this.emit(TrackEvent.UpdateSubscription, sub);
   }

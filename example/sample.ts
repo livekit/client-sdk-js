@@ -349,39 +349,40 @@ function appendLog(...args: any[]) {
 function renderParticipant(participant: Participant, remove: boolean = false) {
   const container = $('participants-area');
   if (!container) return;
-  let div = $(`participant-${participant.sid}`);
+  const { identity } = participant;
+  let div = $(`participant-${identity}`);
   if (!div && !remove) {
     div = document.createElement('div');
-    div.id = `participant-${participant.sid}`;
+    div.id = `participant-${identity}`;
     div.className = 'participant';
     div.innerHTML = `
-      <video id="video-${participant.sid}"></video>
-      <audio id="audio-${participant.sid}"></audio>
+      <video id="video-${identity}"></video>
+      <audio id="audio-${identity}"></audio>
       <div class="info-bar">
-        <div id="name-${participant.sid}" class="name">
+        <div id="name-${identity}" class="name">
         </div>
         <div style="text-align: center;">
-          <span id="size-${participant.sid}" class="size">
+          <span id="size-${identity}" class="size">
           </span>
-          <span id="bitrate-${participant.sid}" class="bitrate">
+          <span id="bitrate-${identity}" class="bitrate">
           </span>
         </div>
         <div class="right">
-          <span id="signal-${participant.sid}"></span>
-          <span id="mic-${participant.sid}" class="mic-on"></span>
+          <span id="signal-${identity}"></span>
+          <span id="mic-${identity}" class="mic-on"></span>
         </div>
       </div>
     `;
     container.appendChild(div);
 
-    const sizeElm = $(`size-${participant.sid}`);
-    const videoElm = <HTMLVideoElement>$(`video-${participant.sid}`);
+    const sizeElm = $(`size-${identity}`);
+    const videoElm = <HTMLVideoElement>$(`video-${identity}`);
     videoElm.onresize = () => {
       updateVideoSize(videoElm!, sizeElm!);
     };
   }
-  const videoElm = <HTMLVideoElement>$(`video-${participant.sid}`);
-  const audioELm = <HTMLAudioElement>$(`audio-${participant.sid}`);
+  const videoElm = <HTMLVideoElement>$(`video-${identity}`);
+  const audioELm = <HTMLAudioElement>$(`audio-${identity}`);
   if (remove) {
     div?.remove();
     if (videoElm) {
@@ -396,9 +397,9 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
   }
 
   // update properties
-  $(`name-${participant.sid}`)!.innerHTML = participant.identity;
-  const micElm = $(`mic-${participant.sid}`)!;
-  const signalElm = $(`signal-${participant.sid}`)!;
+  $(`name-${identity}`)!.innerHTML = participant.identity;
+  const micElm = $(`mic-${identity}`)!;
+  const signalElm = $(`signal-${identity}`)!;
   const cameraPub = participant.getTrack(Track.Source.Camera);
   const micPub = participant.getTrack(Track.Source.Microphone);
   if (participant.isSpeaking) {
@@ -423,7 +424,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     cameraPub?.videoTrack?.attach(videoElm);
   } else {
     // clear information display
-    $(`size-${participant.sid}`)!.innerHTML = '';
+    $(`size-${identity}`)!.innerHTML = '';
     if (cameraPub?.videoTrack) {
       // detach manually whenever possible
       cameraPub.videoTrack?.detach(videoElm);
@@ -506,7 +507,7 @@ function renderBitrate() {
   participants.push(currentRoom.localParticipant);
 
   for (const p of participants) {
-    const elm = $(`bitrate-${p.sid}`);
+    const elm = $(`bitrate-${p.identity}`);
     let totalBitrate = 0;
     for (const t of p.tracks.values()) {
       if (t.track) {

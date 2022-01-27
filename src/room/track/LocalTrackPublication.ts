@@ -3,11 +3,14 @@ import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
+import { TrackPublishOptions } from './options';
 import { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
 
 export default class LocalTrackPublication extends TrackPublication {
   track?: LocalTrack;
+
+  options?: TrackPublishOptions;
 
   constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
     super(kind, ti.sid, ti.name);

@@ -53,6 +53,9 @@ export default class RemoteParticipant extends Participant {
       },
     );
     publication.on(TrackEvent.UpdateSubscription, (sub: UpdateSubscription) => {
+      sub.participantTracks.forEach((pt) => {
+        pt.participantSid = this.sid;
+      });
       this.signalClient.sendUpdateSubscription(sub);
     });
     publication.on(TrackEvent.Ended, (track: RemoteTrack) => {
