@@ -219,7 +219,7 @@ export default class RTCEngine extends EventEmitter {
 
     // handle datachannel errors
     this.lossyDC.onerror = this.handleDataError;
-    this.lossyDC.onerror = this.handleDataError;
+    this.reliableDC.onerror = this.handleDataError;
 
     // configure signaling client
     this.client.onAnswer = async (sd) => {
