@@ -177,7 +177,8 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.emitTrackUpdate();
   };
 
-  protected emitTrackUpdate() {
+  /* @internal */
+  emitTrackUpdate() {
     const settings: UpdateTrackSettings = UpdateTrackSettings.fromPartial({
       trackSids: [this.trackSid],
       disabled: this.disabled,

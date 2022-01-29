@@ -149,47 +149,15 @@ class Room extends EventEmitter {
       .on(EngineEvent.Resumed, () => {
         this.state = RoomState.Connected;
         this.emit(RoomEvent.Reconnected);
+        this.updateSubscriptions();
       })
       .on(EngineEvent.SignalResumed, () => {
         if (this.state === RoomState.Reconnecting) {
           this.sendSyncState();
         }
       })
-      .on(EngineEvent.Restarting, () => {
-        this.state = RoomState.Reconnecting;
-        this.emit(RoomEvent.Reconnecting);
-
-        // also unwind existing participants & existing subscriptions
-        for (const p of this.participants.values()) {
-          this.handleParticipantDisconnected(p.sid, p);
-        }
-      })
-      .on(EngineEvent.Restarted, async (joinResponse: JoinResponse) => {
-        // finished
-        this.state = RoomState.Connected;
-        this.emit(RoomEvent.Reconnected);
-
-        // rehydrate participants
-        if (joinResponse.participant) {
-          this.localParticipant.sid = joinResponse.participant.sid;
-          this.handleParticipantUpdates([joinResponse.participant]);
-        }
-        this.handleParticipantUpdates(joinResponse.otherParticipants);
-
-        // republish and republish tracks
-        const localPubs: LocalTrackPublication[] = [];
-        this.localParticipant.tracks.forEach((pub) => {
-          if (pub.track) {
-            localPubs.push(pub);
-          }
-        });
-
-        await Promise.all(localPubs.map(async (pub) => {
-          const track = pub.track!;
-          this.localParticipant.unpublishTrack(track, false);
-          this.localParticipant.publishTrack(track, pub.options);
-        }));
-      });
+      .on(EngineEvent.Restarting, this.handleRestarting)
+      .on(EngineEvent.Restarted, this.handleRestarted);
   }
 
   /**
@@ -473,6 +441,43 @@ class Room extends EventEmitter {
       this.options.adaptiveStream,
     );
   }
+
+  private handleRestarting = () => {
+    this.state = RoomState.Reconnecting;
+    this.emit(RoomEvent.Reconnecting);
+
+    // also unwind existing participants & existing subscriptions
+    for (const p of this.participants.values()) {
+      this.handleParticipantDisconnected(p.sid, p);
+    }
+  };
+
+  private handleRestarted = async (joinResponse: JoinResponse) => {
+    this.state = RoomState.Connected;
+    this.emit(RoomEvent.Reconnected);
+
+    // rehydrate participants
+    if (joinResponse.participant) {
+      // with a restart, the sid will have changed, we'll map our understanding to it
+      this.localParticipant.sid = joinResponse.participant.sid;
+      this.handleParticipantUpdates([joinResponse.participant]);
+    }
+    this.handleParticipantUpdates(joinResponse.otherParticipants);
+
+    // unpublish & republish tracks
+    const localPubs: LocalTrackPublication[] = [];
+    this.localParticipant.tracks.forEach((pub) => {
+      if (pub.track) {
+        localPubs.push(pub);
+      }
+    });
+
+    await Promise.all(localPubs.map(async (pub) => {
+      const track = pub.track!;
+      this.localParticipant.unpublishTrack(track, false);
+      this.localParticipant.publishTrack(track, pub.options);
+    }));
+  };
 
   private handleDisconnect(shouldStopTracks = true) {
     if (this.state === RoomState.Disconnected) {
@@ -809,6 +814,20 @@ class Room extends EventEmitter {
       },
       publishTracks: this.localParticipant.publishedTracksInfo(),
     });
+  }
+
+  /**
+   * After resuming, we'll need to notify the server of the current
+   * subscription settings.
+   */
+  private updateSubscriptions() {
+    for (const p of this.participants.values()) {
+      for (const pub of p.videoTracks.values()) {
+        if (pub.isSubscribed && pub instanceof RemoteTrackPublication) {
+          pub.emitTrackUpdate();
+        }
+      }
+    }
   }
 
   /** @internal */
