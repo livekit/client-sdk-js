@@ -398,6 +398,9 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
   // update properties
   $(`name-${identity}`)!.innerHTML = participant.identity;
+  if (participant instanceof LocalParticipant) {
+    $(`name-${identity}`)!.innerHTML += ' (you)';
+  }
   const micElm = $(`mic-${identity}`)!;
   const signalElm = $(`signal-${identity}`)!;
   const cameraPub = participant.getTrack(Track.Source.Camera);
@@ -418,7 +421,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       // measure time to render
       videoElm.onloadeddata = () => {
         const elapsed = Date.now() - startTime;
-        appendLog(`RemoteVideoTrack ${cameraPub?.trackSid} rendered in ${elapsed}ms`);
+        appendLog(`RemoteVideoTrack ${cameraPub?.trackSid} (${videoElm.videoWidth}x${videoElm.videoHeight}) rendered in ${elapsed}ms`);
       };
     }
     cameraPub?.videoTrack?.attach(videoElm);

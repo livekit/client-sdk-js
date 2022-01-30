@@ -58,7 +58,11 @@ export default class RemoteVideoTrack extends RemoteTrack {
       super.attach(element);
     }
 
-    if (this.adaptiveStream) {
+    // It's possible attach is called multiple times on an element. When that's
+    // the case, we'd want to avoid adding duplicate elementInfos
+    if (this.adaptiveStream
+      && this.elementInfos.find((info) => info.element === element) === undefined
+    ) {
       this.elementInfos.push({
         element,
         visible: true, // default visible
@@ -174,7 +178,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       // delay hidden events
       setTimeout(() => {
         this.updateVisibility();
-      }, Date.now() - lastVisibilityChange);
+      }, REACTION_DELAY);
       return;
     }
 
@@ -186,11 +190,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
     let maxWidth = 0;
     let maxHeight = 0;
     for (const info of this.elementInfos) {
-      if (info.visible) {
-        if (info.element.clientWidth + info.element.clientHeight > maxWidth + maxHeight) {
-          maxWidth = info.element.clientWidth;
-          maxHeight = info.element.clientHeight;
-        }
+      if (info.element.clientWidth + info.element.clientHeight > maxWidth + maxHeight) {
+        maxWidth = info.element.clientWidth;
+        maxHeight = info.element.clientHeight;
       }
     }
 
