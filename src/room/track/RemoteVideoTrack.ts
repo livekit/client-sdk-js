@@ -75,6 +75,11 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
       getIntersectionObserver().observe(element);
       getResizeObserver().observe(element);
+
+      // trigger the first resize update cycle
+      // if the tab is backgrounded, the initial resize event does not fire until
+      // the tab comes into focus for the first time.
+      this.debouncedHandleResize();
     }
     return element;
   }
