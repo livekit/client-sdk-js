@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
-import { isFireFox } from '../utils';
+import { isSafari } from '../utils';
 
 // keep old audio elements when detached, we would re-use them since on iOS
 // Safari tracks which audio elements have been "blessed" by the user.
@@ -71,11 +71,6 @@ export class Track extends EventEmitter {
       }
     }
 
-    if (element instanceof HTMLVideoElement) {
-      element.playsInline = true;
-      element.autoplay = true;
-    }
-
     if (!this.attachedElements.includes(element)) {
       this.attachedElements.push(element);
     }
@@ -83,7 +78,6 @@ export class Track extends EventEmitter {
     // even if we believe it's already attached to the element, it's possible
     // the element's srcObject was set to something else out of band.
     // we'll want to re-attach it in that case
-
     attachToElement(this.mediaStreamTrack, element);
 
     if (element instanceof HTMLAudioElement) {
@@ -170,7 +164,6 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
     mediaStream = element.srcObject;
   } else {
     mediaStream = new MediaStream();
-    element.srcObject = mediaStream;
   }
 
   // check if track matches existing track
@@ -180,22 +173,29 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
   } else {
     existingTracks = mediaStream.getVideoTracks();
   }
-
-  if (existingTracks.includes(track)) {
-    return;
+  if (!existingTracks.includes(track)) {
+    existingTracks.forEach((et) => {
+      mediaStream.removeTrack(et);
+    });
+    mediaStream.addTrack(track);
   }
 
-  existingTracks.forEach((et) => {
-    mediaStream.removeTrack(et);
-  });
-
-  mediaStream.addTrack(track);
-  if (isFireFox()) {
-    // sometimes firefox doesn't render local video on the first try.
-    // It needs to be re-attached after a timeout.
-    setTimeout(() => {
-      element.srcObject = mediaStream;
-    }, 1);
+  // avoid flicker
+  if (element.srcObject !== mediaStream) {
+    element.srcObject = mediaStream;
+    if (isSafari() && element instanceof HTMLVideoElement) {
+      // Safari 15 has a bug where in certain layouts, video element renders
+      // black until the page is resized or other changes take place.
+      // Resetting the src triggers it to render.
+      // https://developer.apple.com/forums/thread/690523
+      setTimeout(() => {
+        element.srcObject = mediaStream;
+      }, 0);
+    }
+  }
+  element.autoplay = true;
+  if (element instanceof HTMLVideoElement) {
+    element.playsInline = true;
   }
 }
 
