@@ -19,6 +19,10 @@ export function isFireFox(): boolean {
   return navigator.userAgent.indexOf('Firefox') !== -1;
 }
 
+export function isSafari(): boolean {
+  return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+}
+
 function roDispatchCallback(entries: ResizeObserverEntry[]) {
   for (const entry of entries) {
     (entry.target as ObservableMediaElement).handleResize(entry);
