@@ -198,7 +198,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       const currentElementWidth = info.element.clientWidth * (window.devicePixelRatio ?? 1);
       const currentElementHeight = info.element.clientHeight * (window.devicePixelRatio ?? 1);
       if (currentElementWidth + currentElementHeight > maxWidth + maxHeight) {
-        maxWidth = currentElementHeight;
+        maxWidth = currentElementWidth;
         maxHeight = currentElementHeight;
       }
     }
