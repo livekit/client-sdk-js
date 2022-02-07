@@ -1,4 +1,5 @@
 import logger from '../logger';
+import { sleep } from '../room/utils';
 
 export default class Queue {
   private queue: Array<() => void>;
@@ -29,7 +30,7 @@ export default class Queue {
     this.running = true;
     while (this.running && this.queue.length > 0) {
       this.dequeue();
-      await new Promise((resolve) => setTimeout(() => resolve(true), this.msInbetweenEvents));
+      await sleep(this.msInbetweenEvents);
     }
     this.running = false;
     logger.debug('queue finished');
