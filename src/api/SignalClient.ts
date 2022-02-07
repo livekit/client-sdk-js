@@ -21,6 +21,7 @@ import {
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
 import { getClientInfo, sleep } from '../room/utils';
+import Queue from './EventQueue'
 
 // internal options
 interface ConnectOpts {
@@ -37,6 +38,10 @@ export interface SignalOptions {
 /** @internal */
 export class SignalClient {
   isConnected: boolean;
+
+  isReconnecting: boolean;
+
+  requestQueue: Queue;
 
   useJSON: boolean;
 
@@ -80,7 +85,9 @@ export class SignalClient {
 
   constructor(useJSON: boolean = false) {
     this.isConnected = false;
+    this.isReconnecting = false;
     this.useJSON = useJSON;
+    this.requestQueue = new Queue();
   }
 
   async join(
@@ -98,9 +105,12 @@ export class SignalClient {
   }
 
   async reconnect(url: string, token: string): Promise<void> {
+    this.isReconnecting = true;
     await this.connect(url, token, {
       reconnect: true,
     });
+    this.isReconnecting = false;
+    this.requestQueue.run();
   }
 
   connect(
@@ -287,6 +297,13 @@ export class SignalClient {
   }
 
   async sendRequest(req: SignalRequest) {
+    // capture all requests while reconnecting and put them in a queue.
+    // TODO keep the order of requests by enqueuing new events until all
+    // enqueued events have been fired
+    if (this.isReconnecting && !req.simulate) {
+      this.requestQueue.enqueue(() => this.sendRequest(req));
+      return;
+    }
     if (this.signalLatency) {
       await sleep(this.signalLatency);
     }
