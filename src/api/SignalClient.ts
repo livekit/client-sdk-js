@@ -21,7 +21,7 @@ import {
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
 import { getClientInfo, sleep } from '../room/utils';
-import Queue from './RequestQueue'
+import Queue from './RequestQueue';
 
 // internal options
 interface ConnectOpts {
