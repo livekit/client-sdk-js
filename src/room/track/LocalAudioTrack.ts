@@ -73,7 +73,14 @@ export default class LocalAudioTrack extends LocalTrack {
       this._currentBitrate = 0;
       return;
     }
-    const stats = await this.getSenderStats();
+
+    let stats: AudioSenderStats | undefined;
+    try {
+      stats = await this.getSenderStats();
+    } catch (e) {
+      log.error('could not get audio sender stats', e);
+      return;
+    }
 
     if (stats && this.prevStats) {
       this._currentBitrate = computeBitrate(stats, this.prevStats);

@@ -9,30 +9,13 @@ import { VideoCaptureOptions } from './options';
 import { Track } from './Track';
 import { constraintsForOptions } from './utils';
 
-// delay before attempting to upgrade
-const QUALITY_UPGRADE_DELAY = 60 * 1000;
-
-// avoid downgrading too quickly
-const QUALITY_DOWNGRADE_DELAY = 5 * 1000;
-
-const ridOrder = ['q', 'h', 'f'];
-
 export default class LocalVideoTrack extends LocalTrack {
   /* internal */
   signalClient?: SignalClient;
 
   private prevStats?: Map<string, VideoSenderStats>;
 
-  // last time it had a change in quality
-  private lastQualityChange?: number;
-
-  // last time we made an explicit change
-  private lastExplicitQualityChange?: number;
-
   private encodings?: RTCRtpEncodingParameters[];
-
-  // layers that are being subscribed to, and that we should publish
-  private activeQualities?: SubscribedQuality[];
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -49,7 +32,7 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   /* @internal */
-  startMonitor(signalClient: SignalClient, disableLayerPause: boolean) {
+  startMonitor(signalClient: SignalClient) {
     this.signalClient = signalClient;
     // save original encodings
     const params = this.sender?.getParameters();
@@ -58,7 +41,7 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     setTimeout(() => {
-      this.monitorSender(disableLayerPause);
+      this.monitorSender();
     }, monitorFrequency);
   }
 
@@ -186,7 +169,6 @@ export default class LocalVideoTrack extends LocalTrack {
       return;
     }
 
-    this.activeQualities = qualities;
     let hasChanged = false;
     encodings.forEach((encoding, idx) => {
       let rid = encoding.rid ?? '';
@@ -227,17 +209,20 @@ export default class LocalVideoTrack extends LocalTrack {
     }
   }
 
-  private monitorSender = async (disableLayerPause: boolean) => {
+  private monitorSender = async () => {
     if (!this.sender) {
       this._currentBitrate = 0;
       return;
     }
-    const stats = await this.getSenderStats();
-    const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));
 
-    if (!disableLayerPause && this.prevStats && this.isSimulcast) {
-      this.checkAndUpdateSimulcast(statsMap);
+    let stats: VideoSenderStats[] | undefined;
+    try {
+      stats = await this.getSenderStats();
+    } catch (e) {
+      log.error('could not get audio sender stats', e);
+      return;
     }
+    const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));
 
     if (this.prevStats) {
       let totalBitrate = 0;
@@ -250,125 +235,9 @@ export default class LocalVideoTrack extends LocalTrack {
 
     this.prevStats = statsMap;
     setTimeout(() => {
-      this.monitorSender(disableLayerPause);
+      this.monitorSender();
     }, monitorFrequency);
   };
-
-  private checkAndUpdateSimulcast(statsMap: Map<string, VideoSenderStats>) {
-    if (!this.sender || this.isMuted || !this.encodings) {
-      return;
-    }
-
-    let bestEncoding: RTCRtpEncodingParameters | undefined;
-    const { encodings } = this.sender.getParameters();
-    encodings.forEach((encoding) => {
-      // skip inactive encodings
-      if (!encoding.active) return;
-
-      if (bestEncoding === undefined) {
-        bestEncoding = encoding;
-      } else if (
-        bestEncoding.rid
-        && encoding.rid
-        && ridOrder.indexOf(bestEncoding.rid) < ridOrder.indexOf(encoding.rid)
-      ) {
-        bestEncoding = encoding;
-      } else if (
-        bestEncoding.maxBitrate !== undefined
-        && encoding.maxBitrate !== undefined
-        && bestEncoding.maxBitrate < encoding.maxBitrate
-      ) {
-        bestEncoding = encoding;
-      }
-    });
-
-    if (!bestEncoding) {
-      return;
-    }
-    const rid: string = bestEncoding.rid ?? '';
-    const sendStats = statsMap.get(rid);
-    const lastStats = this.prevStats?.get(rid);
-    if (!sendStats || !lastStats) {
-      return;
-    }
-    const currentQuality = videoQualityForRid(rid);
-
-    // adaptive simulcast algorithm notes (davidzhao)
-    // Chrome (and other browsers) will automatically pause the highest layer
-    // when it runs into bandwidth limitations. When that happens, it would not
-    // be able to send any new frames between the two stats checks.
-    //
-    // We need to set that layer to inactive intentionally, because chrome tends
-    // to flicker, meaning it will attempt to send that layer again shortly
-    // afterwards, flip-flopping every few seconds. We want to avoid that.
-    //
-    // Note: even after bandwidth recovers, the flip-flopping behavior continues
-    // this is possibly due to SFU-side PLI generation and imperfect bandwidth estimation
-    if (sendStats.qualityLimitationResolutionChanges
-        - lastStats.qualityLimitationResolutionChanges > 0) {
-      this.lastQualityChange = new Date().getTime();
-    }
-
-    // log.debug('frameSent', sendStats.framesSent, 'lastSent', lastStats.framesSent,
-    //   'elapsed', sendStats.timestamp - lastStats.timestamp);
-    if (sendStats.framesSent - lastStats.framesSent > 0) {
-      // frames have been sending ok, consider upgrading quality
-      if (currentQuality === VideoQuality.HIGH || !this.lastQualityChange) return;
-
-      const nextQuality = currentQuality + 1;
-      if ((new Date()).getTime() - this.lastQualityChange < QUALITY_UPGRADE_DELAY) {
-        return;
-      }
-
-      if (this.activeQualities
-        && this.activeQualities.some((q) => q.quality === nextQuality && !q.enabled)
-      ) {
-        // quality has been disabled by the server, so we should skip
-        return;
-      }
-
-      // we are already at the highest layer
-      let bestQuality = VideoQuality.LOW;
-      encodings.forEach((encoding) => {
-        const quality = videoQualityForRid(encoding.rid ?? '');
-        if (quality > bestQuality) {
-          bestQuality = quality;
-        }
-      });
-      if (nextQuality > bestQuality) {
-        return;
-      }
-
-      log.debug('upgrading video quality to', nextQuality);
-      this.setPublishingQuality(nextQuality);
-      return;
-    }
-
-    // if best layer has not sent anything, do not downgrade till the
-    // best layer starts sending something. It is possible that the
-    // browser has not started some layer(s) due to cpu/bandwidth
-    // constraints
-    if (sendStats.framesSent === 0) return;
-
-    // if we've upgraded or downgraded recently, give it a bit of time before
-    // downgrading again
-    if (this.lastExplicitQualityChange
-      && ((new Date()).getTime() - this.lastExplicitQualityChange) < QUALITY_DOWNGRADE_DELAY) {
-      return;
-    }
-
-    if (currentQuality === VideoQuality.UNRECOGNIZED) {
-      return;
-    }
-
-    if (currentQuality === VideoQuality.LOW) {
-      // already the lowest quality, nothing we can do
-      return;
-    }
-
-    log.debug('downgrading video quality to', currentQuality - 1);
-    this.setPublishingQuality(currentQuality - 1);
-  }
 }
 
 export function videoQualityForRid(rid: string): VideoQuality {

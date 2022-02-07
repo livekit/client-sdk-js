@@ -11,13 +11,16 @@ import {
 import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
-import { sleep } from './utils';
+import { isFireFox, sleep } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const maxReconnectRetries = 10;
 const minReconnectWait = 1 * 1000;
 const maxReconnectDuration = 60 * 1000;
+// should not expect frequent resumes. otherwise it's a sign that the underlying
+// connection is not stable. we would perform full reconnect in that case.
+const maxResumeInterval = 90 * 1000;
 export const maxICEConnectTimeout = 15 * 1000;
 
 /** @internal */
@@ -66,6 +69,8 @@ export default class RTCEngine extends EventEmitter {
   private reconnectStart: number = 0;
 
   private fullReconnect: boolean = false;
+
+  private lastResumedAt: number = 0;
 
   private connectedServerAddr?: string;
 
@@ -186,16 +191,18 @@ export default class RTCEngine extends EventEmitter {
       this.subscriber.pc.ondatachannel = this.handleDataChannel;
     }
     this.primaryPC = primaryPC;
-    primaryPC.onconnectionstatechange = () => {
+    primaryPC.onconnectionstatechange = async () => {
       if (primaryPC.connectionState === 'connected') {
         log.trace('pc connected');
+        try {
+          this.connectedServerAddr = await getConnectedAddress(primaryPC);
+        } catch (e) {
+          log.warn('could not get connected server address', e);
+        }
         if (!this.pcConnected) {
           this.pcConnected = true;
           this.emit(EngineEvent.Connected);
         }
-        getConnectedAddress(primaryPC).then((v) => {
-          this.connectedServerAddr = v;
-        });
       } else if (primaryPC.connectionState === 'failed') {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
         log.trace('pc disconnected');
@@ -367,6 +374,9 @@ export default class RTCEngine extends EventEmitter {
       if (this.isClosed) {
         return;
       }
+      if (isFireFox() || Date.now() - this.lastResumedAt < maxResumeInterval) {
+        this.fullReconnect = true;
+      }
 
       try {
         if (this.fullReconnect) {
@@ -465,6 +475,8 @@ export default class RTCEngine extends EventEmitter {
     }
 
     await this.waitForPCConnected();
+
+    this.lastResumedAt = Date.now();
 
     // resume success
     this.emit(EngineEvent.Resumed);

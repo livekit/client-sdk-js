@@ -74,7 +74,9 @@ const appActions = {
       .on(RoomEvent.DataReceived, handleData)
       .on(RoomEvent.Disconnected, handleRoomDisconnect)
       .on(RoomEvent.Reconnecting, () => appendLog('Reconnecting to room'))
-      .on(RoomEvent.Reconnected, () => appendLog('Successfully reconnected!'))
+      .on(RoomEvent.Reconnected, () => {
+        appendLog('Successfully reconnected. server', room.engine.connectedServerAddress);
+      })
       .on(RoomEvent.LocalTrackPublished, () => {
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
@@ -109,7 +111,7 @@ const appActions = {
       const start = Date.now();
       await room.connect(url, token, connectOptions);
       const elapsed = Date.now() - start;
-      appendLog(`successfully connected to ${room.name} in ${Math.round(elapsed)}ms`);
+      appendLog(`successfully connected to ${room.name} in ${Math.round(elapsed)}ms`, room.engine.connectedServerAddress);
     } catch (error) {
       let message: any = error;
       if (error.message) {
