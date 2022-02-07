@@ -146,7 +146,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
         this.state = RoomState.Reconnecting;
-        this.emit(RoomEvent.Reconnected);
+        this.emit(RoomEvent.Reconnecting);
       })
       .on(EngineEvent.Resumed, () => {
         this.state = RoomState.Connected;
