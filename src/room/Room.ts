@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import { toProtoSessionDescription } from '../api/SignalClient';
 import log from '../logger';
 import { RoomConnectOptions, RoomOptions } from '../options';
@@ -16,8 +17,9 @@ import {
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
-  EngineEvent, ParticipantEvent, RoomEvent, TrackEvent,
+  EngineEvent, ParticipantEvent, RoomEvent, RoomEventCallbacks, TrackEvent,
 } from './events';
+import type { RoomEventType } from './events';
 import LocalParticipant from './participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
@@ -44,7 +46,7 @@ export enum RoomState {
  *
  * @noInheritDoc
  */
-class Room extends EventEmitter {
+class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: RoomState = RoomState.Disconnected;
 
   /** map of sid: [[RemoteParticipant]] */
@@ -144,7 +146,7 @@ class Room extends EventEmitter {
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
         this.state = RoomState.Reconnecting;
-        this.emit(RoomEvent.Reconnecting);
+        this.emit(RoomEvent.Reconnected);
       })
       .on(EngineEvent.Resumed, () => {
         this.state = RoomState.Connected;
@@ -830,8 +832,12 @@ class Room extends EventEmitter {
     }
   }
 
-  /** @internal */
-  emit(event: string | symbol, ...args: any[]): boolean {
+  // /** @internal */
+  // emit(event: string | symbol, ...args: any[]): boolean {
+  //   log.debug('room event', event, ...args);
+  //   return super.emit(event, ...args);
+  // }
+  emit<E extends keyof RoomEventCallbacks>(event: E, ...args: Parameters<RoomEventCallbacks[E]>): boolean {
     log.debug('room event', event, ...args);
     return super.emit(event, ...args);
   }
