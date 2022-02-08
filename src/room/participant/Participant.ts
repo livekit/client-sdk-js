@@ -1,15 +1,12 @@
 import { EventEmitter } from 'events';
-import { ConnectionQuality as ProtoQuality, ParticipantInfo } from '../../proto/livekit_models';
+import type TypedEmitter from 'typed-emitter';
+import { ConnectionQuality as ProtoQuality, DataPacket_Kind, ParticipantInfo } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
+import LocalTrackPublication from '../track/LocalTrackPublication';
+import RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import { TrackPublication } from '../track/TrackPublication';
-
-export enum ConnectionQuality {
-  Excellent = 'excellent',
-  Good = 'good',
-  Poor = 'poor',
-  Unknown = 'unknown',
-}
+import { RemoteTrack } from '../track/types';
 
 function qualityFromProto(q: ProtoQuality): ConnectionQuality {
   switch (q) {
@@ -24,7 +21,9 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
   }
 }
 
-export default class Participant extends EventEmitter {
+export default class Participant extends (
+  EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>
+) {
   protected participantInfo?: ParticipantInfo;
 
   audioTracks: Map<string, TrackPublication>;
@@ -158,8 +157,8 @@ export default class Participant extends EventEmitter {
     this.metadata = md;
 
     if (changed) {
-      this.emit(ParticipantEvent.MetadataChanged, prevMetadata, this);
-      this.emit(ParticipantEvent.ParticipantMetadataChanged, prevMetadata, this);
+      this.emit(ParticipantEvent.MetadataChanged, prevMetadata);
+      this.emit(ParticipantEvent.ParticipantMetadataChanged, prevMetadata);
     }
   }
 
@@ -211,4 +210,40 @@ export default class Participant extends EventEmitter {
         break;
     }
   }
+}
+
+export type ParticipantEventCallbacks = {
+  trackPublished: (publication: RemoteTrackPublication) => void,
+  trackSubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void,
+  trackSubscriptionFailed: (trackSid: string) => void,
+  trackUnpublished: (publication: RemoteTrackPublication) => void,
+  trackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void,
+  trackMuted: (publication: TrackPublication) => void,
+  trackUnmuted: (publication: TrackPublication) => void,
+  localTrackPublished: (publication: LocalTrackPublication) => void,
+  localTrackUnpublished: (publication: LocalTrackPublication) => void,
+  /**
+   * @deprecated use [[participantMetadataChanged]] instead
+   */
+  metadataChanged: (prevMetadata: string | undefined) => void
+  participantMetadataChanged: (prevMetadata: string | undefined) => void,
+  dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void,
+  isSpeakingChanged: (speaking: boolean) => void,
+  connectionQualityChanged: (connectionQuality: ConnectionQuality) => void,
+  trackStreamStateChanged: (
+    publication: RemoteTrackPublication,
+    streamState: Track.StreamState
+  ) => void,
+  trackSubscriptionPermissionChanged: (
+    publication: RemoteTrackPublication,
+    status: TrackPublication.SubscriptionStatus
+  ) => void,
+  mediaDevicesError: (error: Error) => void,
+};
+
+export enum ConnectionQuality {
+  Excellent = 'excellent',
+  Good = 'good',
+  Poor = 'poor',
+  Unknown = 'unknown',
 }

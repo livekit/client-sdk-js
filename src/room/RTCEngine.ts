@@ -1,7 +1,10 @@
 import { EventEmitter } from 'events';
+import type TypedEventEmitter from 'typed-emitter';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
-import { DataPacket, DataPacket_Kind, TrackInfo } from '../proto/livekit_models';
+import {
+  DataPacket, DataPacket_Kind, SpeakerInfo, TrackInfo, UserPacket,
+} from '../proto/livekit_models';
 import {
   AddTrackRequest, JoinResponse,
   LeaveRequest,
@@ -21,7 +24,9 @@ const maxReconnectDuration = 60 * 1000;
 export const maxICEConnectTimeout = 15 * 1000;
 
 /** @internal */
-export default class RTCEngine extends EventEmitter {
+export default class RTCEngine extends (
+  EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>
+) {
   publisher?: PCTransport;
 
   subscriber?: PCTransport;
@@ -596,3 +601,20 @@ async function getConnectedAddress(pc: RTCPeerConnection): Promise<string | unde
 
 class SignalReconnectError extends Error {
 }
+
+export type EngineEventCallbacks = {
+  connected: () => void,
+  disconnected: () => void,
+  resuming: () => void,
+  resumed: () => void,
+  restarting: () => void,
+  restarted: (joinResp: JoinResponse) => void,
+  signalResumed: () => void,
+  mediaTrackAdded: (
+    track: MediaStreamTrack,
+    streams: MediaStream,
+    receiver: RTCRtpReceiver
+  ) => void,
+  activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void,
+  dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void,
+};

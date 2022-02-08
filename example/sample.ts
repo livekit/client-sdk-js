@@ -1,11 +1,11 @@
 import {
+  ConnectionQuality,
   DataPacket_Kind, LocalParticipant, MediaDeviceFailure,
   Participant, ParticipantEvent, RemoteParticipant, Room,
   RoomConnectOptions, RoomEvent,
   RoomOptions, RoomState, setLogLevel, Track, TrackPublication,
   VideoCaptureOptions, VideoPresets,
 } from '../src/index';
-import { ConnectionQuality } from '../src/room/participant/Participant';
 
 const $ = (id: string) => document.getElementById(id);
 

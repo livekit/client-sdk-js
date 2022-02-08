@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import type TypedEventEmitter from 'typed-emitter';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
@@ -8,7 +9,7 @@ import { isSafari } from '../utils';
 // Safari tracks which audio elements have been "blessed" by the user.
 const recycledElements: Array<HTMLAudioElement> = [];
 
-export class Track extends EventEmitter {
+export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
   kind: Track.Kind;
 
   mediaStreamTrack: MediaStreamTrack;
@@ -305,3 +306,16 @@ export namespace Track {
     }
   }
 }
+
+export type TrackEventCallbacks = {
+  message: () => void,
+  muted: (track: any) => void,
+  unmuted: (track: any) => void,
+  ended: (track: any) => void,
+  updateSettings: () => void,
+  updateSubscription: () => void,
+  audioPlaybackStarted: () => void,
+  audioPlaybackFailed: (error: Error) => void,
+  visibilityChanged: () => void,
+  videoDimensionsChanged: () => void,
+};

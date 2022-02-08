@@ -1,6 +1,3 @@
-import { DataPacket_Kind, LocalTrackPublication, Participant, RemoteTrack, RemoteTrackPublication } from '..';
-import RemoteParticipant from './participant/RemoteParticipant';
-
 /**
  * Events are the primary way LiveKit notifies your application of changes.
  *
@@ -11,28 +8,28 @@ import RemoteParticipant from './participant/RemoteParticipant';
  * ```
  */
 
-export const RoomEvent = {
+export enum RoomEvent {
   /**
    * When the connection to the server has been interrupted and it's attempting
    * to reconnect.
    */
-  Reconnecting: 'reconnecting',
+  Reconnecting = 'reconnecting',
 
   /**
    * Fires when a reconnection has been successful.
    */
-  Reconnected: 'reconnected',
+  Reconnected = 'reconnected',
 
   /**
    * When disconnected from room. This fires when room.disconnect() is called or
    * when an unrecoverable connection issue had occured
    */
-  Disconnected: 'disconnected',
+  Disconnected = 'disconnected',
 
   /**
    * When input or output devices on the machine have changed.
    */
-  MediaDevicesChanged: 'mediaDevicesChanged',
+  MediaDevicesChanged = 'mediaDevicesChanged',
 
   /**
    * When a [[RemoteParticipant]] joins *after* the local
@@ -41,7 +38,7 @@ export const RoomEvent = {
    *
    * args: ([[RemoteParticipant]])
    */
-  ParticipantConnected: 'participantConnected',
+  ParticipantConnected = 'participantConnected',
 
   /**
    * When a [[RemoteParticipant]] leaves *after* the local
@@ -49,7 +46,7 @@ export const RoomEvent = {
    *
    * args: ([[RemoteParticipant]])
    */
-  ParticipantDisconnected: 'participantDisconnected',
+  ParticipantDisconnected = 'participantDisconnected',
 
   /**
    * When a new track is published to room *after* the local
@@ -60,7 +57,7 @@ export const RoomEvent = {
    *
    * args: ([[RemoteTrackPublication]], [[RemoteParticipant]])
    */
-  TrackPublished: 'trackPublished',
+  TrackPublished = 'trackPublished',
 
   /**
    * The [[LocalParticipant]] has subscribed to a new track. This event will **always**
@@ -68,21 +65,21 @@ export const RoomEvent = {
    *
    * args: ([[RemoteTrack]], [[RemoteTrackPublication]], [[RemoteParticipant]])
    */
-  TrackSubscribed: 'trackSubscribed',
+  TrackSubscribed = 'trackSubscribed',
 
   /**
    * Could not subscribe to a track
    *
    * args: (track sid, [[RemoteParticipant]])
    */
-  TrackSubscriptionFailed: 'trackSubscriptionFailed',
+  TrackSubscriptionFailed = 'trackSubscriptionFailed',
 
   /**
    * A [[RemoteParticipant]] has unpublished a track
    *
    * args: ([[RemoteTrackPublication]], [[RemoteParticipant]])
    */
-  TrackUnpublished: 'trackUnpublished',
+  TrackUnpublished = 'trackUnpublished',
 
   /**
    * A subscribed track is no longer available. Clients should listen to this
@@ -90,21 +87,21 @@ export const RoomEvent = {
    *
    * args: ([[Track]], [[RemoteTrackPublication]], [[RemoteParticipant]])
    */
-  TrackUnsubscribed: 'trackUnsubscribed',
+  TrackUnsubscribed = 'trackUnsubscribed',
 
   /**
    * A track that was muted, fires on both [[RemoteParticipant]]s and [[LocalParticipant]]
    *
    * args: ([[TrackPublication]], [[Participant]])
    */
-  TrackMuted: 'trackMuted',
+  TrackMuted = 'trackMuted',
 
   /**
    * A track that was unmuted, fires on both [[RemoteParticipant]]s and [[LocalParticipant]]
    *
    * args: ([[TrackPublication]], [[Participant]])
    */
-  TrackUnmuted: 'trackUnmuted',
+  TrackUnmuted = 'trackUnmuted',
 
   /**
    * A local track was published successfully. This event is helpful to know
@@ -112,7 +109,7 @@ export const RoomEvent = {
    *
    * args: ([[LocalTrackPublication]], [[LocalParticipant]])
    */
-  LocalTrackPublished: 'localTrackPublished',
+  LocalTrackPublished = 'localTrackPublished',
 
   /**
    * A local track was unpublished. This event is helpful to know when to remove
@@ -123,7 +120,7 @@ export const RoomEvent = {
    *
    * args: ([[LocalTrackPublication]], [[LocalParticipant]])
    */
-  LocalTrackUnpublished: 'localTrackUnpublished',
+  LocalTrackUnpublished = 'localTrackUnpublished',
 
   /**
    * Active speakers changed. List of speakers are ordered by their audio level.
@@ -133,13 +130,13 @@ export const RoomEvent = {
    *
    * args: (Array<[[Participant]]>)
    */
-  ActiveSpeakersChanged: 'activeSpeakersChanged',
+  ActiveSpeakersChanged = 'activeSpeakersChanged',
 
   /**
    * @deprecated Use ParticipantMetadataChanged instead
    * @internal
    */
-  MetadataChanged: 'metadataChanged',
+  MetadataChanged = 'metadataChanged',
 
   /**
    * Participant metadata is a simple way for app-specific state to be pushed to
@@ -150,7 +147,7 @@ export const RoomEvent = {
    * args: (prevMetadata: string, [[Participant]])
    *
    */
-  ParticipantMetadataChanged: 'participantMetadataChanged',
+  ParticipantMetadataChanged = 'participantMetadataChanged',
 
   /**
    * Room metadata is a simple way for app-specific state to be pushed to
@@ -160,7 +157,7 @@ export const RoomEvent = {
    *
    * args: (string)
    */
-  RoomMetadataChanged: 'roomMetadataChanged',
+  RoomMetadataChanged = 'roomMetadataChanged',
 
   /**
    * Data received from another participant.
@@ -169,7 +166,7 @@ export const RoomEvent = {
    *
    * args: (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]])
    */
-  DataReceived: 'dataReceived',
+  DataReceived = 'dataReceived',
 
   /**
    * Connection quality was changed for a Participant. It'll receive updates
@@ -178,7 +175,7 @@ export const RoomEvent = {
    *
    * args: (connectionQuality: [[ConnectionQuality]], participant: [[Participant]])
    */
-  ConnectionQualityChanged: 'connectionQualityChanged',
+  ConnectionQualityChanged = 'connectionQualityChanged',
 
   /**
    * StreamState indicates if a subscribed track has been paused by the SFU
@@ -190,7 +187,7 @@ export const RoomEvent = {
    * args: (pub: [[RemoteTrackPublication]], streamState: [[Track.StreamState]],
    *        participant: [[RemoteParticipant]])
    */
-  TrackStreamStateChanged: 'trackStreamStateChanged',
+  TrackStreamStateChanged = 'trackStreamStateChanged',
 
   /**
    * One of subscribed tracks have changed its permissions for the current
@@ -202,14 +199,14 @@ export const RoomEvent = {
    *        status: [[TrackPublication.SubscriptionStatus]],
    *        participant: [[RemoteParticipant]])
    */
-  TrackSubscriptionPermissionChanged: 'trackSubscriptionPermissionChanged',
+  TrackSubscriptionPermissionChanged = 'trackSubscriptionPermissionChanged',
 
   /**
    * LiveKit will attempt to autoplay all audio tracks when you attach them to
    * audio elements. However, if that fails, we'll notify you via AudioPlaybackStatusChanged.
    * `Room.canPlayAudio` will indicate if audio playback is permitted.
    */
-  AudioPlaybackStatusChanged: 'audioPlaybackChanged',
+  AudioPlaybackStatusChanged = 'audioPlaybackChanged',
 
   /**
    * When we have encountered an error while attempting to create a track.
@@ -220,53 +217,8 @@ export const RoomEvent = {
    *
    * args: (error: Error)
    */
-  MediaDevicesError: 'mediaDevicesError',
-} as const;
-
-type RoomEvents = {
-  [P in Capitalize<keyof RoomEventCallbacks>]: keyof RoomEventCallbacks;
-};
-
-export type RoomEventCallbacks = {
-  /**
-   * When the connection to the server has been interrupted and it's attempting
-   * to reconnect.
-   */
-  reconnecting: () => void,
-  reconnected: () => void,
-  disconnected: () => void,
-  mediaDevicesChanged: () => void,
-  participantConnected: (participant: RemoteParticipant) => void,
-  participantDisconnected: (participant: RemoteParticipant) => void,
-  trackPublished: (publication: RemoteTrackPublication, participant?: RemoteParticipant) => void,
-  trackSubscribed: (
-    track: RemoteTrack,
-    publication: RemoteTrackPublication,
-    participant?: RemoteParticipant
-  ) => void,
-  trackSubscriptionFailed: (trackSid: string, participant: RemoteParticipant) => void,
-  trackUnpublished: (publication: RemoteTrackPublication) => void,
-  trackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void,
-  trackMuted: (publication: RemoteTrackPublication) => void,
-  trackUnmuted: (publication: RemoteTrackPublication) => void,
-  localTrackPublished: (publication: LocalTrackPublication) => void,
-  localTrackUnpublished: (publication: LocalTrackPublication) => void,
-  participantMetadataChanged: (metadata: string, participant: Participant) => void,
-  activeSpeakersChanged: (speakers: Array<Participant>) => void,
-  roomMetadataChanged: (metadata: string) => void,
-  dataReceived: (
-    payload: Uint8Array,
-    participant?: RemoteParticipant,
-    kind?: DataPacket_Kind
-  ) => void,
-};
-
-// type KeysMissingFromRoomEventCallbacks = Exclude<RoomEvent, keyof RoomEventCallbacks>;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-// type VerifyISomething<
-//   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-//   Missing extends never = KeysMissingFromRoomEventCallbacks,
-//   > = 0; // no error
+  MediaDevicesError = 'mediaDevicesError',
+}
 
 export enum ParticipantEvent {
   /**

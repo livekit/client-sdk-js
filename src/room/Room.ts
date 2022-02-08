@@ -17,9 +17,8 @@ import {
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import {
-  EngineEvent, ParticipantEvent, RoomEvent, RoomEventCallbacks, TrackEvent,
+  EngineEvent, ParticipantEvent, RoomEvent, TrackEvent,
 } from './events';
-import type { RoomEventType } from './events';
 import LocalParticipant from './participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
@@ -218,10 +217,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.localParticipant.updateInfo(pi);
       // forward metadata changed for the local participant
       this.localParticipant
-        .on(ParticipantEvent.MetadataChanged, (metadata: object) => {
+        .on(ParticipantEvent.MetadataChanged, (metadata: string | undefined) => {
           this.emit(RoomEvent.MetadataChanged, metadata, this.localParticipant);
         })
-        .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: object) => {
+        .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: string | undefined) => {
           this.emit(RoomEvent.ParticipantMetadataChanged, metadata, this.localParticipant);
         })
         .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
@@ -769,10 +768,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
           this.emit(RoomEvent.TrackUnmuted, pub, participant);
         })
-        .on(ParticipantEvent.MetadataChanged, (metadata: any) => {
+        .on(ParticipantEvent.MetadataChanged, (metadata: string | undefined) => {
           this.emit(RoomEvent.MetadataChanged, metadata, participant);
         })
-        .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: any) => {
+        .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: string | undefined) => {
           this.emit(RoomEvent.ParticipantMetadataChanged, metadata, participant);
         })
         .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
@@ -837,10 +836,83 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   //   log.debug('room event', event, ...args);
   //   return super.emit(event, ...args);
   // }
-  emit<E extends keyof RoomEventCallbacks>(event: E, ...args: Parameters<RoomEventCallbacks[E]>): boolean {
+  emit<E extends keyof RoomEventCallbacks>(
+    event: E, ...args: Parameters<RoomEventCallbacks[E]>
+  ): boolean {
     log.debug('room event', event, ...args);
     return super.emit(event, ...args);
   }
 }
 
 export default Room;
+
+export type RoomEventCallbacks = {
+  reconnecting: () => void,
+  reconnected: () => void,
+  disconnected: () => void,
+  mediaDevicesChanged: () => void,
+  participantConnected: (participant: RemoteParticipant) => void,
+  participantDisconnected: (participant: RemoteParticipant) => void,
+  trackPublished: (publication: RemoteTrackPublication, participant?: RemoteParticipant) => void,
+  trackSubscribed: (
+    track: RemoteTrack,
+    publication: RemoteTrackPublication,
+    participant?: RemoteParticipant
+  ) => void,
+  trackSubscriptionFailed: (trackSid: string, participant?: RemoteParticipant) => void,
+  trackUnpublished: (publication: RemoteTrackPublication, participant?: RemoteParticipant) => void,
+  trackUnsubscribed: (
+    track: RemoteTrack,
+    publication: RemoteTrackPublication,
+    participant?: RemoteParticipant,
+  ) => void,
+  trackMuted: (publication: TrackPublication, participant?: Participant) => void,
+  trackUnmuted: (publication: TrackPublication, participant?: Participant) => void,
+  localTrackPublished: (publication: LocalTrackPublication, participant: LocalParticipant) => void,
+  localTrackUnpublished: (
+    publication: LocalTrackPublication,
+    participant: LocalParticipant
+  ) => void,
+  /**
+   * @deprecated use [[participantMetadataChanged]] instead
+  */
+  metadataChanged: (
+    metadata: string | undefined,
+    participant?: RemoteParticipant | LocalParticipant
+  ) => void,
+  participantMetadataChanged: (
+    metadata: string | undefined,
+    participant?: RemoteParticipant | LocalParticipant
+  ) => void,
+  activeSpeakersChanged: (speakers: Array<Participant>) => void,
+  roomMetadataChanged: (metadata: string) => void,
+  dataReceived: (
+    payload: Uint8Array,
+    participant?: RemoteParticipant,
+    kind?: DataPacket_Kind
+  ) => void,
+  connectionQualityChanged: (quality: ConnectionQuality, participant?: Participant) => void,
+  mediaDevicesError: (error: Error) => void,
+  trackStreamStateChanged: (
+    publication: RemoteTrackPublication,
+    streamState: Track.StreamState,
+    participant: RemoteParticipant,
+  ) => void,
+  trackSubscriptionPermissionChanged: (
+    publication: RemoteTrackPublication,
+    status: TrackPublication.SubscriptionStatus,
+    participant: RemoteParticipant,
+  ) => void,
+  audioPlaybackChanged: (playing: boolean) => void,
+};
+
+// type KeysMissingFromRoomEventCallbacks = Exclude<RoomEvent, keyof RoomEventCallbacks>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// type VerifyISomething<
+//   // eslint-disable-next-line @typescript-eslint/no-unused-vars
+//   Missing extends never = KeysMissingFromRoomEventCallbacks,
+//   > = 0; // no error
+
+// type RoomEvents = {
+//     [P in Capitalize<keyof RoomEventCallbacks>]: keyof RoomEventCallbacks;
+// }
