@@ -1,12 +1,8 @@
 import logger from '../logger';
-import { sleep } from '../room/utils';
-
 export default class Queue {
   private queue: Array<() => void>;
 
   private running: boolean;
-
-  msInbetweenEvents: number = 200;
 
   constructor() {
     this.queue = [];
@@ -30,7 +26,6 @@ export default class Queue {
     this.running = true;
     while (this.running && this.queue.length > 0) {
       this.dequeue();
-      await sleep(this.msInbetweenEvents);
     }
     this.running = false;
     logger.debug('queue finished');

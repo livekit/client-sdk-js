@@ -296,12 +296,13 @@ export class SignalClient {
     this.sendRequest(SignalRequest.fromPartial({ leave: {} }));
   }
 
-  async sendRequest(req: SignalRequest) {
+  async sendRequest(req: SignalRequest, fromQueue: boolean = false) {
     // capture all requests while reconnecting and put them in a queue.
-    // TODO keep the order of requests by enqueuing new events until all
-    // enqueued events have been fired
-    if (this.isReconnecting && !req.simulate) {
-      this.requestQueue.enqueue(() => this.sendRequest(req));
+    // keep order by queueing up new events as long as the queue is not empty
+    // unless the request originates from the queue, then don't enqueue again
+
+    if ((this.isReconnecting && !req.simulate) || (!this.requestQueue.isEmpty() && !fromQueue)) {
+      this.requestQueue.enqueue(() => this.sendRequest(req, true));
       return;
     }
     if (this.signalLatency) {
