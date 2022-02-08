@@ -18,9 +18,6 @@ const reliableDataChannel = '_reliable';
 const maxReconnectRetries = 10;
 const minReconnectWait = 1 * 1000;
 const maxReconnectDuration = 60 * 1000;
-// should not expect frequent resumes. otherwise it's a sign that the underlying
-// connection is not stable. we would perform full reconnect in that case.
-const maxResumeInterval = 90 * 1000;
 export const maxICEConnectTimeout = 15 * 1000;
 
 /** @internal */
@@ -69,8 +66,6 @@ export default class RTCEngine extends EventEmitter {
   private reconnectStart: number = 0;
 
   private fullReconnect: boolean = false;
-
-  private lastResumedAt: number = 0;
 
   private connectedServerAddr?: string;
 
@@ -374,7 +369,8 @@ export default class RTCEngine extends EventEmitter {
       if (this.isClosed) {
         return;
       }
-      if (isFireFox() || Date.now() - this.lastResumedAt < maxResumeInterval) {
+      if (isFireFox()) {
+        // FF does not support DTLS restart.
         this.fullReconnect = true;
       }
 
@@ -475,8 +471,6 @@ export default class RTCEngine extends EventEmitter {
     }
 
     await this.waitForPCConnected();
-
-    this.lastResumedAt = Date.now();
 
     // resume success
     this.emit(EngineEvent.Resumed);
