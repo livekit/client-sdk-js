@@ -21,6 +21,7 @@ import {
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
 import { getClientInfo, sleep } from '../room/utils';
+import Queue from './RequestQueue';
 
 // internal options
 interface ConnectOpts {
@@ -37,6 +38,10 @@ export interface SignalOptions {
 /** @internal */
 export class SignalClient {
   isConnected: boolean;
+
+  isReconnecting: boolean;
+
+  requestQueue: Queue;
 
   useJSON: boolean;
 
@@ -80,7 +85,9 @@ export class SignalClient {
 
   constructor(useJSON: boolean = false) {
     this.isConnected = false;
+    this.isReconnecting = false;
     this.useJSON = useJSON;
+    this.requestQueue = new Queue();
   }
 
   async join(
@@ -98,9 +105,12 @@ export class SignalClient {
   }
 
   async reconnect(url: string, token: string): Promise<void> {
+    this.isReconnecting = true;
     await this.connect(url, token, {
       reconnect: true,
     });
+    this.isReconnecting = false;
+    this.requestQueue.run();
   }
 
   connect(
@@ -286,7 +296,15 @@ export class SignalClient {
     this.sendRequest(SignalRequest.fromPartial({ leave: {} }));
   }
 
-  async sendRequest(req: SignalRequest) {
+  async sendRequest(req: SignalRequest, fromQueue: boolean = false) {
+    // capture all requests while reconnecting and put them in a queue.
+    // keep order by queueing up new events as long as the queue is not empty
+    // unless the request originates from the queue, then don't enqueue again
+
+    if ((this.isReconnecting && !req.simulate) || (!this.requestQueue.isEmpty() && !fromQueue)) {
+      this.requestQueue.enqueue(() => this.sendRequest(req, true));
+      return;
+    }
     if (this.signalLatency) {
       await sleep(this.signalLatency);
     }
