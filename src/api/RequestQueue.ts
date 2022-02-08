@@ -1,4 +1,5 @@
 import logger from '../logger';
+
 export default class Queue {
   private queue: Array<() => void>;
 
