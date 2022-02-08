@@ -11,7 +11,7 @@ import {
 import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
-import { sleep } from './utils';
+import { isFireFox, sleep } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -186,16 +186,18 @@ export default class RTCEngine extends EventEmitter {
       this.subscriber.pc.ondatachannel = this.handleDataChannel;
     }
     this.primaryPC = primaryPC;
-    primaryPC.onconnectionstatechange = () => {
+    primaryPC.onconnectionstatechange = async () => {
       if (primaryPC.connectionState === 'connected') {
         log.trace('pc connected');
+        try {
+          this.connectedServerAddr = await getConnectedAddress(primaryPC);
+        } catch (e) {
+          log.warn('could not get connected server address', e);
+        }
         if (!this.pcConnected) {
           this.pcConnected = true;
           this.emit(EngineEvent.Connected);
         }
-        getConnectedAddress(primaryPC).then((v) => {
-          this.connectedServerAddr = v;
-        });
       } else if (primaryPC.connectionState === 'failed') {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
         log.trace('pc disconnected');
@@ -366,6 +368,10 @@ export default class RTCEngine extends EventEmitter {
     setTimeout(async () => {
       if (this.isClosed) {
         return;
+      }
+      if (isFireFox()) {
+        // FF does not support DTLS restart.
+        this.fullReconnect = true;
       }
 
       try {
