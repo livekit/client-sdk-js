@@ -101,8 +101,8 @@ const appActions = {
         appendLog('media device failure', failure);
       })
       .on(RoomEvent.ConnectionQualityChanged,
-        (quality: ConnectionQuality, participant: Participant) => {
-          appendLog('connection quality changed', participant.identity, quality);
+        (quality: ConnectionQuality, participant?: Participant) => {
+          appendLog('connection quality changed', participant?.identity, quality);
         });
 
     try {

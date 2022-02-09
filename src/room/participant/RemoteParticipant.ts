@@ -10,9 +10,8 @@ import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
 import RemoteVideoTrack from '../track/RemoteVideoTrack';
 import { Track } from '../track/Track';
-import { TrackPublication } from '../track/TrackPublication';
 import { RemoteTrack } from '../track/types';
-import Participant from './Participant';
+import Participant, { ParticipantEventCallbacks } from './Participant';
 
 export default class RemoteParticipant extends Participant {
   audioTracks: Map<string, RemoteTrackPublication>;
@@ -42,7 +41,7 @@ export default class RemoteParticipant extends Participant {
     this.videoTracks = new Map();
   }
 
-  protected addTrackPublication(publication: TrackPublication) {
+  protected addTrackPublication(publication: RemoteTrackPublication) {
     super.addTrackPublication(publication);
 
     // register action events
@@ -234,7 +233,10 @@ export default class RemoteParticipant extends Participant {
   }
 
   /** @internal */
-  emit(event: string | symbol, ...args: any[]): boolean {
+  emit<E extends keyof ParticipantEventCallbacks>(
+    event: E,
+    ...args: Parameters<ParticipantEventCallbacks[E]>
+  ): boolean {
     log.trace('participant event', this.sid, event, ...args);
     return super.emit(event, ...args);
   }
