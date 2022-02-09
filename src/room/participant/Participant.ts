@@ -8,6 +8,13 @@ import { Track } from '../track/Track';
 import { TrackPublication } from '../track/TrackPublication';
 import { RemoteTrack } from '../track/types';
 
+export enum ConnectionQuality {
+  Excellent = 'excellent',
+  Good = 'good',
+  Poor = 'poor',
+  Unknown = 'unknown',
+}
+
 function qualityFromProto(q: ProtoQuality): ConnectionQuality {
   switch (q) {
     case ProtoQuality.EXCELLENT:
@@ -225,8 +232,8 @@ export type ParticipantEventCallbacks = {
   /**
    * @deprecated use [[participantMetadataChanged]] instead
    */
-  metadataChanged: (prevMetadata: string | undefined) => void
-  participantMetadataChanged: (prevMetadata: string | undefined) => void,
+  metadataChanged: (prevMetadata: string | undefined, participant?: any) => void,
+  participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void,
   dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void,
   isSpeakingChanged: (speaking: boolean) => void,
   connectionQualityChanged: (connectionQuality: ConnectionQuality) => void,
@@ -240,10 +247,3 @@ export type ParticipantEventCallbacks = {
   ) => void,
   mediaDevicesError: (error: Error) => void,
 };
-
-export enum ConnectionQuality {
-  Excellent = 'excellent',
-  Good = 'good',
-  Poor = 'poor',
-  Unknown = 'unknown',
-}

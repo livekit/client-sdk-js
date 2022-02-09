@@ -188,7 +188,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     }
 
     this.lastVisible = isVisible;
-    this.emit(TrackEvent.VisibilityChanged, isVisible);
+    this.emit(TrackEvent.VisibilityChanged, isVisible, this);
   }
 
   private updateDimensions() {
@@ -209,7 +209,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       width: maxWidth,
       height: maxHeight,
     };
-    this.emit(TrackEvent.VideoDimensionsChanged, this.lastDimensions);
+    this.emit(TrackEvent.VideoDimensionsChanged, this.lastDimensions, this);
   }
 }
 

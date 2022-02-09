@@ -718,66 +718,72 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
+  private createParticipant(id: string, info?: ParticipantInfo): RemoteParticipant {
+    let participant: RemoteParticipant;
+    if (info) {
+      participant = RemoteParticipant.fromParticipantInfo(
+        this.engine.client,
+        info,
+      );
+    } else {
+      participant = new RemoteParticipant(this.engine.client, id, '');
+    }
+    return participant;
+  }
+
   private getOrCreateParticipant(
     id: string,
     info?: ParticipantInfo,
   ): RemoteParticipant {
-    let participant = this.participants.get(id);
-    if (!participant) {
-      // it's possible for the RTC track to arrive before signaling data
-      // when this happens, we'll create the participant and make the track work
-      if (info) {
-        participant = RemoteParticipant.fromParticipantInfo(
-          this.engine.client,
-          info,
-        );
-      } else {
-        participant = new RemoteParticipant(this.engine.client, id, '');
-      }
-      this.participants.set(id, participant);
-      // also forward events
-
-      // trackPublished is only fired for tracks added after both local participant
-      // and remote participant joined the room
-      participant
-        .on(ParticipantEvent.TrackPublished, (trackPublication: RemoteTrackPublication) => {
-          this.emit(RoomEvent.TrackPublished, trackPublication, participant);
-        })
-        .on(ParticipantEvent.TrackSubscribed,
-          (track: RemoteTrack, publication: RemoteTrackPublication) => {
-            // monitor playback status
-            if (track.kind === Track.Kind.Audio) {
-              track.on(TrackEvent.AudioPlaybackStarted, this.handleAudioPlaybackStarted);
-              track.on(TrackEvent.AudioPlaybackFailed, this.handleAudioPlaybackFailed);
-            }
-            this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
-          })
-        .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
-          this.emit(RoomEvent.TrackUnpublished, publication, participant);
-        })
-        .on(ParticipantEvent.TrackUnsubscribed,
-          (track: RemoteTrack, publication: RemoteTrackPublication) => {
-            this.emit(RoomEvent.TrackUnsubscribed, track, publication, participant);
-          })
-        .on(ParticipantEvent.TrackSubscriptionFailed, (sid: string) => {
-          this.emit(RoomEvent.TrackSubscriptionFailed, sid, participant);
-        })
-        .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
-          this.emit(RoomEvent.TrackMuted, pub, participant);
-        })
-        .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
-          this.emit(RoomEvent.TrackUnmuted, pub, participant);
-        })
-        .on(ParticipantEvent.MetadataChanged, (metadata: string | undefined) => {
-          this.emit(RoomEvent.MetadataChanged, metadata, participant);
-        })
-        .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: string | undefined) => {
-          this.emit(RoomEvent.ParticipantMetadataChanged, metadata, participant);
-        })
-        .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
-          this.emit(RoomEvent.ConnectionQualityChanged, quality, participant);
-        });
+    if (this.participants.has(id)) {
+      return (this.participants.get(id) as RemoteParticipant);
     }
+    // it's possible for the RTC track to arrive before signaling data
+    // when this happens, we'll create the participant and make the track work
+    const participant = this.createParticipant(id, info);
+    this.participants.set(id, participant);
+
+    // also forward events
+    // trackPublished is only fired for tracks added after both local participant
+    // and remote participant joined the room
+    participant
+      .on(ParticipantEvent.TrackPublished, (trackPublication: RemoteTrackPublication) => {
+        this.emit(RoomEvent.TrackPublished, trackPublication, participant);
+      })
+      .on(ParticipantEvent.TrackSubscribed,
+        (track: RemoteTrack, publication: RemoteTrackPublication) => {
+          // monitor playback status
+          if (track.kind === Track.Kind.Audio) {
+            track.on(TrackEvent.AudioPlaybackStarted, this.handleAudioPlaybackStarted);
+            track.on(TrackEvent.AudioPlaybackFailed, this.handleAudioPlaybackFailed);
+          }
+          this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
+        })
+      .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
+        this.emit(RoomEvent.TrackUnpublished, publication, participant);
+      })
+      .on(ParticipantEvent.TrackUnsubscribed,
+        (track: RemoteTrack, publication: RemoteTrackPublication) => {
+          this.emit(RoomEvent.TrackUnsubscribed, track, publication, participant);
+        })
+      .on(ParticipantEvent.TrackSubscriptionFailed, (sid: string) => {
+        this.emit(RoomEvent.TrackSubscriptionFailed, sid, participant);
+      })
+      .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
+        this.emit(RoomEvent.TrackMuted, pub, participant);
+      })
+      .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
+        this.emit(RoomEvent.TrackUnmuted, pub, participant);
+      })
+      .on(ParticipantEvent.MetadataChanged, (metadata: string | undefined) => {
+        this.emit(RoomEvent.MetadataChanged, metadata, participant);
+      })
+      .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: string | undefined) => {
+        this.emit(RoomEvent.ParticipantMetadataChanged, metadata, participant);
+      })
+      .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
+        this.emit(RoomEvent.ConnectionQualityChanged, quality, participant);
+      });
     return participant;
   }
 
@@ -849,21 +855,21 @@ export type RoomEventCallbacks = {
   mediaDevicesChanged: () => void,
   participantConnected: (participant: RemoteParticipant) => void,
   participantDisconnected: (participant: RemoteParticipant) => void,
-  trackPublished: (publication: RemoteTrackPublication, participant?: RemoteParticipant) => void,
+  trackPublished: (publication: RemoteTrackPublication, participant: RemoteParticipant) => void,
   trackSubscribed: (
     track: RemoteTrack,
     publication: RemoteTrackPublication,
     participant?: RemoteParticipant
   ) => void,
-  trackSubscriptionFailed: (trackSid: string, participant?: RemoteParticipant) => void,
-  trackUnpublished: (publication: RemoteTrackPublication, participant?: RemoteParticipant) => void,
+  trackSubscriptionFailed: (trackSid: string, participant: RemoteParticipant) => void,
+  trackUnpublished: (publication: RemoteTrackPublication, participant: RemoteParticipant) => void,
   trackUnsubscribed: (
     track: RemoteTrack,
     publication: RemoteTrackPublication,
     participant?: RemoteParticipant,
   ) => void,
-  trackMuted: (publication: TrackPublication, participant?: Participant) => void,
-  trackUnmuted: (publication: TrackPublication, participant?: Participant) => void,
+  trackMuted: (publication: TrackPublication, participant: Participant) => void,
+  trackUnmuted: (publication: TrackPublication, participant: Participant) => void,
   localTrackPublished: (publication: LocalTrackPublication, participant: LocalParticipant) => void,
   localTrackUnpublished: (
     publication: LocalTrackPublication,
@@ -878,7 +884,7 @@ export type RoomEventCallbacks = {
   ) => void,
   participantMetadataChanged: (
     metadata: string | undefined,
-    participant?: RemoteParticipant | LocalParticipant
+    participant: RemoteParticipant | LocalParticipant
   ) => void,
   activeSpeakersChanged: (speakers: Array<Participant>) => void,
   roomMetadataChanged: (metadata: string) => void,
@@ -887,7 +893,7 @@ export type RoomEventCallbacks = {
     participant?: RemoteParticipant,
     kind?: DataPacket_Kind
   ) => void,
-  connectionQualityChanged: (quality: ConnectionQuality, participant?: Participant) => void,
+  connectionQualityChanged: (quality: ConnectionQuality, participant: Participant) => void,
   mediaDevicesError: (error: Error) => void,
   trackStreamStateChanged: (
     publication: RemoteTrackPublication,

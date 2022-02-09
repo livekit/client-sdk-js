@@ -309,13 +309,13 @@ export namespace Track {
 
 export type TrackEventCallbacks = {
   message: () => void,
-  muted: (track: any) => void,
-  unmuted: (track: any) => void,
-  ended: (track: any) => void,
+  muted: (track?: any) => void,
+  unmuted: (track?: any) => void,
+  ended: (track?: any) => void,
   updateSettings: () => void,
   updateSubscription: () => void,
   audioPlaybackStarted: () => void,
   audioPlaybackFailed: (error: Error) => void,
-  visibilityChanged: (visible: boolean) => void,
-  videoDimensionsChanged: (dimensions: Track.Dimensions) => void,
+  visibilityChanged: (visible: boolean, track?: any) => void,
+  videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void,
 };
