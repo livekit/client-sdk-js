@@ -832,10 +832,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   // /** @internal */
-  // emit(event: string | symbol, ...args: any[]): boolean {
-  //   log.debug('room event', event, ...args);
-  //   return super.emit(event, ...args);
-  // }
   emit<E extends keyof RoomEventCallbacks>(
     event: E, ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
@@ -905,14 +901,3 @@ export type RoomEventCallbacks = {
   ) => void,
   audioPlaybackChanged: (playing: boolean) => void,
 };
-
-// type KeysMissingFromRoomEventCallbacks = Exclude<RoomEvent, keyof RoomEventCallbacks>;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-// type VerifyISomething<
-//   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-//   Missing extends never = KeysMissingFromRoomEventCallbacks,
-//   > = 0; // no error
-
-// type RoomEvents = {
-//     [P in Capitalize<keyof RoomEventCallbacks>]: keyof RoomEventCallbacks;
-// }
