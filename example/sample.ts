@@ -38,7 +38,7 @@ const appActions = {
         simulcast,
       },
       videoCaptureDefaults: {
-        resolution: VideoPresets.hd.resolution,
+        resolution: VideoPresets.p720.resolution,
       },
     };
 
