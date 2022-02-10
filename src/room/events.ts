@@ -7,6 +7,7 @@
  * room.on(RoomEvent.TrackPublished, (track, publication, participant) => {})
  * ```
  */
+
 export enum RoomEvent {
   /**
    * When the connection to the server has been interrupted and it's attempting
@@ -146,7 +147,7 @@ export enum RoomEvent {
    * args: (prevMetadata: string, [[Participant]])
    *
    */
-  ParticipantMetadataChanged = 'participantMetaDataChanged',
+  ParticipantMetadataChanged = 'participantMetadataChanged',
 
   /**
    * Room metadata is a simple way for app-specific state to be pushed to

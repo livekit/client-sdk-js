@@ -29,7 +29,6 @@ export {
   Room,
   RoomState,
   DataPacket_Kind,
-  ConnectionQuality,
   Participant,
   RemoteParticipant,
   LocalParticipant,
@@ -44,4 +43,5 @@ export {
   ParticipantTrackPermission,
   TrackPublication,
   VideoQuality,
+  ConnectionQuality,
 };
