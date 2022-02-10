@@ -169,7 +169,7 @@ export default class RTCEngine extends (
     this.publisher = new PCTransport(this.rtcConfig);
     this.subscriber = new PCTransport(this.rtcConfig);
 
-    this.emit(EngineEvent.TransportsCreated, this.publisher, this.subscriber)
+    this.emit(EngineEvent.TransportsCreated, this.publisher, this.subscriber);
 
     this.publisher.pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
@@ -625,4 +625,5 @@ export type EngineEventCallbacks = {
   ) => void,
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void,
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void,
+  transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void,
 };
