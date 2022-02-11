@@ -27,6 +27,13 @@ export enum RoomEvent {
   Disconnected = 'disconnected',
 
   /**
+   * Whenever the connection state of the room changes
+   *
+   * args: ([[RoomState]])
+   */
+  StateChanged = 'stateChanged',
+
+  /**
    * When input or output devices on the machine have changed.
    */
   MediaDevicesChanged = 'mediaDevicesChanged',
