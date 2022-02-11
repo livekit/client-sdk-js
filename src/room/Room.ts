@@ -866,14 +866,14 @@ export type RoomEventCallbacks = {
   trackSubscribed: (
     track: RemoteTrack,
     publication: RemoteTrackPublication,
-    participant?: RemoteParticipant
+    participant: RemoteParticipant
   ) => void,
   trackSubscriptionFailed: (trackSid: string, participant: RemoteParticipant) => void,
   trackUnpublished: (publication: RemoteTrackPublication, participant: RemoteParticipant) => void,
   trackUnsubscribed: (
     track: RemoteTrack,
     publication: RemoteTrackPublication,
-    participant?: RemoteParticipant,
+    participant: RemoteParticipant,
   ) => void,
   trackMuted: (publication: TrackPublication, participant: Participant) => void,
   trackUnmuted: (publication: TrackPublication, participant: Participant) => void,
