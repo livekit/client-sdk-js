@@ -374,6 +374,7 @@ export enum ParticipantEvent {
 
 /** @internal */
 export enum EngineEvent {
+  TransportsCreated = 'transportsCreated',
   Connected = 'connected',
   Disconnected = 'disconnected',
   Resuming = 'resuming',
