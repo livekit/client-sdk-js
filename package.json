@@ -23,6 +23,7 @@
     "loglevel": "^1.8.0",
     "protobufjs": "^6.11.2",
     "ts-debounce": "^3.0.0",
+    "typed-emitter": "^2.1.0",
     "webrtc-adapter": "^8.1.1"
   },
   "devDependencies": {
@@ -38,7 +39,6 @@
     "ts-jest": "^27.0.7",
     "ts-loader": "^8.1.0",
     "ts-proto": "^1.85.0",
-    "typed-emitter": "^2.1.0",
     "typedoc": "^0.20.35",
     "typedoc-plugin-no-inherit": "1.3.0",
     "typescript": "~4.2.3",
