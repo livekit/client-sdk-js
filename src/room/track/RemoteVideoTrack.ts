@@ -4,6 +4,7 @@ import { computeBitrate, monitorFrequency, VideoReceiverStats } from '../stats';
 import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
+import { AdaptiveStreamSettings } from './types';
 
 const REACTION_DELAY = 100;
 
@@ -15,7 +16,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
   private elementInfos: ElementInfo[] = [];
 
-  private adaptiveStream?: boolean;
+  private adaptiveStreamSettings?: AdaptiveStreamSettings;
 
   private lastVisible?: boolean;
 
@@ -25,14 +26,14 @@ export default class RemoteVideoTrack extends RemoteTrack {
     mediaTrack: MediaStreamTrack,
     sid: string,
     receiver?: RTCRtpReceiver,
-    adaptiveStream?: boolean,
+    adaptiveStreamSettings?: AdaptiveStreamSettings,
   ) {
     super(mediaTrack, sid, Track.Kind.Video, receiver);
-    this.adaptiveStream = adaptiveStream;
+    this.adaptiveStreamSettings = typeof adaptiveStreamSettings === 'boolean' ? { enabled: adaptiveStreamSettings } : adaptiveStreamSettings;
   }
 
   get isAdaptiveStream(): boolean {
-    return this.adaptiveStream ?? false;
+    return this.adaptiveStreamSettings ? this.adaptiveStreamSettings.enabled : false;
   }
 
   /** @internal */
@@ -60,7 +61,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
     // It's possible attach is called multiple times on an element. When that's
     // the case, we'd want to avoid adding duplicate elementInfos
-    if (this.adaptiveStream
+    if (this.adaptiveStreamSettings?.enabled
       && this.elementInfos.find((info) => info.element === element) === undefined
     ) {
       this.elementInfos.push({
@@ -195,8 +196,10 @@ export default class RemoteVideoTrack extends RemoteTrack {
     let maxWidth = 0;
     let maxHeight = 0;
     for (const info of this.elementInfos) {
-      const currentElementWidth = info.element.clientWidth * (window.devicePixelRatio ?? 1);
-      const currentElementHeight = info.element.clientHeight * (window.devicePixelRatio ?? 1);
+      const pixelDensity = this.adaptiveStreamSettings?.enabled
+        ? this.adaptiveStreamSettings?.pixelDensity ?? 1 : 1;
+      const currentElementWidth = info.element.clientWidth * pixelDensity;
+      const currentElementHeight = info.element.clientHeight * pixelDensity;
       if (currentElementWidth + currentElementHeight > maxWidth + maxHeight) {
         maxWidth = currentElementWidth;
         maxHeight = currentElementHeight;

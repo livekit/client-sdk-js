@@ -2,6 +2,7 @@ import { LogLevel, LogLevelDesc } from './logger';
 import {
   AudioCaptureOptions, CreateLocalTracksOptions, TrackPublishDefaults, VideoCaptureOptions,
 } from './room/track/options';
+import { AdaptiveStreamSettings } from './room/track/types';
 
 /**
  * Options for when creating a new room
@@ -16,7 +17,7 @@ export interface RoomOptions {
    * When none of the video elements are visible, it'll temporarily pause
    * the data flow until they are visible again.
    */
-  adaptiveStream?: boolean;
+  adaptiveStream?: AdaptiveStreamSettings | boolean;
 
   /**
    * enable Dynacast, off by default. With Dynacast dynamically pauses
@@ -77,7 +78,7 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   /**
    * see [[RoomOptions.adaptiveStream]]
    */
-  adaptiveStream?: boolean;
+  adaptiveStream?: AdaptiveStreamSettings | boolean;
 
   /**
    * alias for adaptiveStream

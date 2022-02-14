@@ -10,7 +10,7 @@ import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
 import RemoteVideoTrack from '../track/RemoteVideoTrack';
 import { Track } from '../track/Track';
-import { RemoteTrack } from '../track/types';
+import { AdaptiveStreamSettings, RemoteTrack } from '../track/types';
 import Participant, { ParticipantEventCallbacks } from './Participant';
 
 export default class RemoteParticipant extends Participant {
@@ -82,7 +82,7 @@ export default class RemoteParticipant extends Participant {
     sid: Track.SID,
     mediaStream: MediaStream,
     receiver?: RTCRtpReceiver,
-    adaptiveStream?: boolean,
+    adaptiveStreamSettings?: AdaptiveStreamSettings,
     triesLeft?: number,
   ) {
     // find the track publication
@@ -114,7 +114,7 @@ export default class RemoteParticipant extends Participant {
       if (triesLeft === undefined) triesLeft = 20;
       setTimeout(() => {
         this.addSubscribedMediaTrack(mediaTrack, sid, mediaStream,
-          receiver, adaptiveStream, triesLeft! - 1);
+          receiver, adaptiveStreamSettings, triesLeft! - 1);
       }, 150);
       return;
     }
@@ -122,7 +122,7 @@ export default class RemoteParticipant extends Participant {
     const isVideo = mediaTrack.kind === 'video';
     let track: RemoteTrack;
     if (isVideo) {
-      track = new RemoteVideoTrack(mediaTrack, sid, receiver, adaptiveStream);
+      track = new RemoteVideoTrack(mediaTrack, sid, receiver, adaptiveStreamSettings);
     } else {
       track = new RemoteAudioTrack(mediaTrack, sid, receiver);
     }
@@ -199,7 +199,7 @@ export default class RemoteParticipant extends Participant {
 
   /** @internal */
   unpublishTrack(sid: Track.SID, sendUnpublish?: boolean) {
-    const publication = <RemoteTrackPublication> this.tracks.get(sid);
+    const publication = <RemoteTrackPublication>this.tracks.get(sid);
     if (!publication) {
       return;
     }
