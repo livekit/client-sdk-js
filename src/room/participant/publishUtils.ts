@@ -147,6 +147,9 @@ export function determineAppropriateEncoding(
 export function presetsForResolution(
   isScreenShare: boolean, width: number, height: number,
 ): VideoPreset[] {
+  if (isScreenShare) {
+    return presetsScreenShare;
+  }
   const aspect = width > height ? width / height : height / width;
   if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
     return presets169;
