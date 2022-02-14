@@ -63,7 +63,7 @@ describe('computeVideoEncodings', () => {
 
     // ensure they are what we expect
     expect(encodings![0].rid).toBe('q');
-    expect(encodings![0].maxBitrate).toBe(VideoPresets.qvga.encoding.maxBitrate);
+    expect(encodings![0].maxBitrate).toBe(VideoPresets.h180.encoding.maxBitrate);
     expect(encodings![0].scaleResolutionDownBy).toBe(3);
     expect(encodings![1].rid).toBe('h');
     expect(encodings![1].scaleResolutionDownBy).toBe(1.5);
@@ -77,7 +77,7 @@ describe('computeVideoEncodings', () => {
     expect(encodings).toHaveLength(3);
     expect(encodings![0].scaleResolutionDownBy).toBe(3);
     expect(encodings![1].scaleResolutionDownBy).toBe(1.5);
-    expect(encodings![2].maxBitrate).toBe(VideoPresets.qhd.encoding.maxBitrate);
+    expect(encodings![2].maxBitrate).toBe(VideoPresets.h540.encoding.maxBitrate);
   });
 
   it('returns two encodings for lower-res simulcast', () => {
@@ -88,9 +88,9 @@ describe('computeVideoEncodings', () => {
 
     // ensure they are what we expect
     expect(encodings![0].rid).toBe('q');
-    expect(encodings![0].maxBitrate).toBe(VideoPresets.qvga.encoding.maxBitrate);
+    expect(encodings![0].maxBitrate).toBe(VideoPresets.h180.encoding.maxBitrate);
     expect(encodings![1].rid).toBe('h');
-    expect(encodings![1].maxBitrate).toBe(VideoPresets.vga.encoding.maxBitrate);
+    expect(encodings![1].maxBitrate).toBe(VideoPresets.h360.encoding.maxBitrate);
   });
 
   it('respects provided min resolution', () => {
@@ -99,7 +99,7 @@ describe('computeVideoEncodings', () => {
     });
     expect(encodings).toHaveLength(1);
     expect(encodings![0].rid).toBe('q');
-    expect(encodings![0].maxBitrate).toBe(VideoPresets43.qvga.encoding.maxBitrate);
+    expect(encodings![0].maxBitrate).toBe(VideoPresets43.h120.encoding.maxBitrate);
     expect(encodings![0].scaleResolutionDownBy).toBe(1);
   });
 });
