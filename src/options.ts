@@ -4,7 +4,6 @@ import {
   CreateLocalTracksOptions,
   TrackPublishDefaults,
   VideoCaptureOptions,
-  VideoPreset,
 } from './room/track/options';
 
 /**
