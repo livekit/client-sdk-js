@@ -55,17 +55,6 @@ export interface RoomOptions {
    * experimental flag, introduce a delay before sending signaling messages
    */
   expSignalLatency?: number;
-
-  /**
-   * Specify up to 3 custom presets that will be used for simulcast layers.
-   * The presets must be ordered from lowest quality to highest quality.
-   * Usually you would want the highest quality preset to be the same as the video preset
-   * used to acquire streams.
-   */
-  customSimulcastLayers?: {
-    camera: Array<VideoPreset>,
-    screenshare: Array<VideoPreset>
-  };
 }
 
 /**
