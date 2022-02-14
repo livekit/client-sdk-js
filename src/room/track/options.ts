@@ -39,7 +39,7 @@ export interface TrackPublishDefaults {
    * the LiveKit default layers.
    * Note: the layers need to be ordered from lowest to highest quality
    */
-  videoSimulcastLayers?: Array<VideoPreset>;  // TODO we support a maximum of two custom layers here (low and mid), should we expose this directly via low and mid properties instead of the array?
+  videoSimulcastLayers?: Array<VideoPreset>;
 
   /**
    * custom video simulcast layers for screen tracks
