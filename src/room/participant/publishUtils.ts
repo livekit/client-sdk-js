@@ -1,5 +1,4 @@
 import log from '../../logger';
-import { TrackSource } from '../../proto/livekit_models';
 import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
@@ -27,10 +26,18 @@ export function mediaTrackToLocalTrack(
 }
 
 /* @internal */
-export const presets169 = Object.values(VideoPresets);
+export const presets169 = [
+  VideoPresets.h180,
+  VideoPresets.h360,
+  VideoPresets.h540,
+];
 
 /* @internal */
-export const presets43 = Object.values(VideoPresets43);
+export const presets43 = [
+  VideoPresets43.h120,
+  VideoPresets.h360,
+  VideoPresets.h540,
+];
 
 /* @internal */
 export const presetsScreenShare = Object.values(ScreenSharePresets);
@@ -67,8 +74,16 @@ export function computeVideoEncodings(
   if (!useSimulcast) {
     return [videoEncoding];
   }
-
-  const presets = presetsForResolution(isScreenShare, width, height);
+  let presets: Array<VideoPreset> = [];
+  if (isScreenShare) {
+    // TODO should we pre-sort the incoming presets array by dimensions and/or bitrate?
+    presets = options?.screenShareSimulcastLayers
+      ?? presetsForResolution(isScreenShare, width, height);
+  } else {
+    // TODO should we pre-sort the incoming presets array by dimensions and/or bitrate?
+    presets = options?.videoSimulcastLayers
+      ?? presetsForResolution(isScreenShare, width, height);
+  }
   let midPreset: VideoPreset | undefined;
   const lowPreset = presets[0];
   if (presets.length > 1) {
@@ -77,6 +92,8 @@ export function computeVideoEncodings(
   const original = new VideoPreset(
     width, height, videoEncoding.maxBitrate, videoEncoding.maxFramerate,
   );
+
+  log.debug('simulcast layers for publishing: ', [lowPreset, midPreset, original]);
 
   // NOTE:
   //   1. Ordering of these encodings is important. Chrome seems
@@ -130,16 +147,9 @@ export function determineAppropriateEncoding(
 export function presetsForResolution(
   isScreenShare: boolean, width: number, height: number,
 ): VideoPreset[] {
-  if (isScreenShare) {
-    return customSimulcastLayersScreenShare ?? presetsScreenShare;
-  }
-
-  if (customSimulcastLayersCamera) {
-    return customSimulcastLayersCamera;
-  }
   const aspect = width > height ? width / height : height / width;
   if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
-    return presets169;  // TODO determine the right presets to send back, depending on the resolution
+    return presets169;
   }
   return presets43;
 }
@@ -166,41 +176,4 @@ function encodingsFromPresets(
     });
   });
   return encodings;
-}
-
-let customSimulcastLayersCamera: Array<VideoPreset> | undefined;
-let customSimulcastLayersScreenShare: Array<VideoPreset> | undefined;
-
-/**
- * Specify up to 3 custom presets that will be used for simulcast layers.
- * The presets must be ordered from lowest quality to highest quality.
- * Usually you would want the highest quality preset to be the same as the video preset
- * used to acquire streams.
- */
-export function setCustomSimulcastLayers(
-  kind: TrackSource.SCREEN_SHARE | TrackSource.CAMERA,
-  presets: Array<VideoPreset>,
-) {
-  // TODO should we pre-sort the incoming presets array by dimensions and/or bitrate?
-  if (presets.length > 3) {
-    log.warn('A maximum of three simulcast layers is supported, only the first three will be used');
-    presets = presets.slice(0, 3);
-  }
-  // limiting height values taken from https://chromium.googlesource.com/external/webrtc/+/master/media/engine/simulcast.cc#90
-  if (presets.length > 2 && presets[2].height >= 270 && presets[2].height < 540) {
-    log.warn('Only two simulcast layers will be used. The preset resolution is too small for three.');
-  } else if (presets.length > 1 && presets[2].height < 270) {
-    log.warn('No simulcast layers will be used. The preset resolution is too small.');
-  }
-  log.debug('presets length', presets.length);
-  switch (kind) {
-    case TrackSource.CAMERA:
-      customSimulcastLayersCamera = [...presets];
-      break;
-    case TrackSource.SCREEN_SHARE:
-      customSimulcastLayersScreenShare = [...presets];
-      break;
-    default:
-      break;
-  }
 }

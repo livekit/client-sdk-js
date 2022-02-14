@@ -179,7 +179,7 @@ export default class LocalParticipant extends Participant {
    */
   async enableCameraAndMicrophone() {
     if (this.pendingPublishing.has(Track.Source.Camera)
-        || this.pendingPublishing.has(Track.Source.Microphone)) {
+      || this.pendingPublishing.has(Track.Source.Microphone)) {
       // no-op it's already been requested
       return;
     }
@@ -525,7 +525,7 @@ export default class LocalParticipant extends Participant {
     destination?: RemoteParticipant[] | string[]) {
     const dest: string[] = [];
     if (destination !== undefined) {
-      destination.forEach((val : any) => {
+      destination.forEach((val: any) => {
         if (val instanceof RemoteParticipant) {
           dest.push(val.sid);
         } else {

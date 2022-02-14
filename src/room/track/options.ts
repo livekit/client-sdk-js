@@ -34,6 +34,20 @@ export interface TrackPublishDefaults {
   simulcast?: boolean;
 
   /**
+   * custom video simulcast layers for camera tracks, defaults to h180, h360, h540
+   * You can specify up to two custom layers that will be used instead of
+   * the LiveKit default layers.
+   * Note: the layers need to be ordered from lowest to highest quality
+   */
+  videoSimulcastLayers?: Array<VideoPreset>;  // TODO we support a maximum of two custom layers here (low and mid), should we expose this directly via low and mid properties instead of the array?
+
+  /**
+   * custom video simulcast layers for screen tracks
+   * Note: the layers need to be ordered from lowest to highest quality
+   */
+  screenShareSimulcastLayers?: Array<VideoPreset>;
+
+  /**
    * For local tracks, stop the underlying MediaStreamTrack when the track is muted (or paused)
    * on some platforms, this option is necessary to disable the microphone recording indicator.
    * Note: when this is enabled, and BT devices are connected, they will transition between
@@ -202,7 +216,7 @@ export namespace AudioPresets {
  * Sane presets for video resolution/encoding
  */
 export const VideoPresets = {
-  h90: new VideoPreset(160, 90, 120_000, 10),
+  h90: new VideoPreset(160, 90, 60_000, 10),
   h180: new VideoPreset(320, 180, 120_000, 10),
   h360: new VideoPreset(640, 360, 300_000, 20),
   h540: new VideoPreset(960, 540, 600_000, 25),
