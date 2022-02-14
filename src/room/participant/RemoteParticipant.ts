@@ -199,7 +199,7 @@ export default class RemoteParticipant extends Participant {
 
   /** @internal */
   unpublishTrack(sid: Track.SID, sendUnpublish?: boolean) {
-    const publication = <RemoteTrackPublication>this.tracks.get(sid);
+    const publication = <RemoteTrackPublication> this.tracks.get(sid);
     if (!publication) {
       return;
     }
