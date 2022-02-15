@@ -34,9 +34,9 @@ export const presets169 = [
 
 /* @internal */
 export const presets43 = [
-  VideoPresets43.h120,
+  VideoPresets43.h180,
   VideoPresets43.h360,
-  VideoPresets.h540,
+  VideoPresets43.h540,
 ];
 
 /* @internal */
@@ -55,8 +55,9 @@ export function computeVideoEncodings(
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
   }
-  // TODO this currently prevents any screenshare tracks from using simulcast
-  const useSimulcast = !isScreenShare && options?.simulcast;
+  // only use simulcast if the simulcast layers are provided via config
+  const useSimulcast = (!isScreenShare || options?.screenShareSimulcastLayers)
+    && options?.simulcast;
 
   if ((!videoEncoding && !useSimulcast) || !width || !height) {
     // when we aren't simulcasting, will need to return a single encoding without
