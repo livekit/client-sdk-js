@@ -93,8 +93,6 @@ export function computeVideoEncodings(
     width, height, videoEncoding.maxBitrate, videoEncoding.maxFramerate,
   );
 
-  log.debug('simulcast layers for publishing: ', [lowPreset, midPreset, original]);
-
   // NOTE:
   //   1. Ordering of these encodings is important. Chrome seems
   //      to use the index into encodings to decide which layer
@@ -110,7 +108,7 @@ export function computeVideoEncodings(
       lowPreset, midPreset, original,
     ]);
   }
-  if (size >= 500) {
+  if (size >= 480) {
     return encodingsFromPresets(width, height, [
       lowPreset, original,
     ]);
