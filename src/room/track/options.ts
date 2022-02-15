@@ -217,8 +217,8 @@ export namespace AudioPresets {
  * Sane presets for video resolution/encoding
  */
 export const VideoPresets = {
-  h90: new VideoPreset(160, 90, 60_000, 10),
-  h180: new VideoPreset(320, 180, 120_000, 10),
+  h90: new VideoPreset(160, 90, 60_000, 15),
+  h180: new VideoPreset(320, 180, 120_000, 15),
   h216: new VideoPreset(384, 216, 180_000, 15),
   h360: new VideoPreset(640, 360, 300_000, 20),
   h540: new VideoPreset(960, 540, 600_000, 25),
@@ -242,8 +242,8 @@ export const VideoPresets = {
  * Four by three presets
  */
 export const VideoPresets43 = {
-  h120: new VideoPreset(160, 120, 80_000, 10),
-  h180: new VideoPreset(240, 180, 100_000, 10),
+  h120: new VideoPreset(160, 120, 80_000, 15),
+  h180: new VideoPreset(240, 180, 100_000, 15),
   h240: new VideoPreset(320, 240, 150_000, 15),
   h360: new VideoPreset(480, 360, 225_000, 20),
   h480: new VideoPreset(640, 480, 300_000, 20),
