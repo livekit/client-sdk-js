@@ -55,7 +55,7 @@ export function computeVideoEncodings(
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
   }
-  // only use simulcast if the simulcast layers are provided via config
+  // only use simulcast for screenshares if the simulcast layers are provided via config
   const useSimulcast = (!isScreenShare || options?.screenShareSimulcastLayers)
     && options?.simulcast;
 
