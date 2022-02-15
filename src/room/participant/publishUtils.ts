@@ -56,7 +56,6 @@ export function computeVideoEncodings(
     videoEncoding = options?.screenShareEncoding;
   }
   // TODO this currently prevents any screenshare tracks from using simulcast
-  // does it even make sense to have simulcast layers for screenshare then?
   const useSimulcast = !isScreenShare && options?.simulcast;
 
   if ((!videoEncoding && !useSimulcast) || !width || !height) {
@@ -76,12 +75,10 @@ export function computeVideoEncodings(
   }
   let presets: Array<VideoPreset> = [];
   if (isScreenShare) {
-    // TODO should we pre-sort the incoming presets array by dimensions and/or bitrate?
-    presets = options?.screenShareSimulcastLayers
+    presets = sortPresets(options?.screenShareSimulcastLayers)
       ?? presetsForResolution(isScreenShare, width, height);
   } else {
-    // TODO should we pre-sort the incoming presets array by dimensions and/or bitrate?
-    presets = options?.videoSimulcastLayers
+    presets = sortPresets(options?.videoSimulcastLayers)
       ?? presetsForResolution(isScreenShare, width, height);
   }
   let midPreset: VideoPreset | undefined;
@@ -177,4 +174,21 @@ function encodingsFromPresets(
     });
   });
   return encodings;
+}
+
+/** @internal */
+export function sortPresets(presets: Array<VideoPreset> | undefined) {
+  if (!presets) return;
+  return presets.sort((a, b) => {
+    const maxA = Math.max(a.height, a.width);
+    const maxB = Math.max(b.height, b.width);
+    if (maxA > maxB) {
+      return 1;
+    }
+    if (maxA < maxB) return -1;
+    if (maxA === maxB) {
+      return a.encoding.maxBitrate > b.encoding.maxBitrate ? 1 : -1;
+    }
+    return 0;
+  });
 }

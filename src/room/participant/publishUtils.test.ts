@@ -1,4 +1,4 @@
-import { VideoPresets, VideoPresets43 } from '../track/options';
+import { VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import {
   computeVideoEncodings,
   determineAppropriateEncoding,
@@ -6,6 +6,7 @@ import {
   presets43,
   presetsForResolution,
   presetsScreenShare,
+  sortPresets,
 } from './publishUtils';
 
 describe('presetsForResolution', () => {
@@ -101,5 +102,29 @@ describe('computeVideoEncodings', () => {
     expect(encodings![0].rid).toBe('q');
     expect(encodings![0].maxBitrate).toBe(VideoPresets43.h120.encoding.maxBitrate);
     expect(encodings![0].scaleResolutionDownBy).toBe(1);
+  });
+});
+
+describe('customSimulcastLayers', () => {
+  it('sorts presets from lowest to highest', () => {
+    const sortedPresets = sortPresets(
+      [VideoPresets.h1440, VideoPresets.h360, VideoPresets.h1080, VideoPresets.h90],
+    ) as Array<VideoPreset>;
+    expect(sortPresets).not.toBeUndefined();
+    expect(sortedPresets[0]).toBe(VideoPresets.h90);
+    expect(sortedPresets[1]).toBe(VideoPresets.h360);
+    expect(sortedPresets[2]).toBe(VideoPresets.h1080);
+    expect(sortedPresets[3]).toBe(VideoPresets.h1440);
+  });
+  it('sorts presets from lowest to highest, even when dimensions are the same', () => {
+    const sortedPresets = sortPresets([
+      new VideoPreset(1920, 1080, 3_000_000, 20),
+      new VideoPreset(1920, 1080, 2_000_000, 15),
+      new VideoPreset(1920, 1080, 1_000_000, 10),
+    ]) as Array<VideoPreset>;
+    expect(sortPresets).not.toBeUndefined();
+    expect(sortedPresets[0].encoding.maxBitrate).toBe(1_000_000);
+    expect(sortedPresets[1].encoding.maxBitrate).toBe(2_000_000);
+    expect(sortedPresets[2].encoding.maxBitrate).toBe(3_000_000);
   });
 });

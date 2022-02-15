@@ -4,7 +4,7 @@ import {
   Participant, ParticipantEvent, RemoteParticipant, Room,
   RoomConnectOptions, RoomEvent,
   RoomOptions, RoomState, setLogLevel, Track, TrackPublication,
-  VideoCaptureOptions, VideoPreset, VideoPresets,
+  VideoCaptureOptions, VideoPresets,
 } from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
