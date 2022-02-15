@@ -36,7 +36,7 @@ export const presets169 = [
 export const presets43 = [
   VideoPresets43.h120,
   VideoPresets43.h360,
-  VideoPresets.h540,
+  VideoPresets43.h540,
 ];
 
 /* @internal */
