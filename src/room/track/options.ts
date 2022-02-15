@@ -44,6 +44,7 @@ export interface TrackPublishDefaults {
   /**
    * custom video simulcast layers for screen tracks
    * Note: the layers need to be ordered from lowest to highest quality
+   * @experimental
    */
   screenShareSimulcastLayers?: Array<VideoPreset>;
 
