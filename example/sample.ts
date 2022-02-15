@@ -4,7 +4,7 @@ import {
   Participant, ParticipantEvent, RemoteParticipant, Room,
   RoomConnectOptions, RoomEvent,
   RoomOptions, RoomState, setLogLevel, Track, TrackPublication,
-  VideoCaptureOptions, VideoPresets,
+  VideoCaptureOptions, VideoPreset, VideoPresets,
 } from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
@@ -38,7 +38,7 @@ const appActions = {
         simulcast,
         videoSimulcastLayers: [
           VideoPresets.h90,
-          VideoPresets.h180,
+          VideoPresets.h216,
         ],
       },
       videoCaptureDefaults: {

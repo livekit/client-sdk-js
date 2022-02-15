@@ -219,6 +219,7 @@ export namespace AudioPresets {
 export const VideoPresets = {
   h90: new VideoPreset(160, 90, 60_000, 10),
   h180: new VideoPreset(320, 180, 120_000, 10),
+  h216: new VideoPreset(384, 216, 180_000, 15),
   h360: new VideoPreset(640, 360, 300_000, 20),
   h540: new VideoPreset(960, 540, 600_000, 25),
   h720: new VideoPreset(1280, 720, 2_000_000, 30),
