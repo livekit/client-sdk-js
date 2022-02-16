@@ -65,7 +65,7 @@ export async function connect(
 
           // when it's a device issue, try to publish the other kind
           if (errKind === MediaDeviceFailure.NotFound
-            || errKind === MediaDeviceFailure.DeviceInUse) {
+              || errKind === MediaDeviceFailure.DeviceInUse) {
             try {
               await room.localParticipant.setMicrophoneEnabled(true);
             } catch (audioErr) {

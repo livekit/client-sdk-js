@@ -522,7 +522,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
       if (info.sid === this.localParticipant.sid
-        || info.identity === this.localParticipant.identity) {
+          || info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
         return;
       }
