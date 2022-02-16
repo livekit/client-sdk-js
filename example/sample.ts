@@ -36,9 +36,13 @@ const appActions = {
       dynacast,
       publishDefaults: {
         simulcast,
+        videoSimulcastLayers: [
+          VideoPresets.h90,
+          VideoPresets.h216,
+        ],
       },
       videoCaptureDefaults: {
-        resolution: VideoPresets.hd.resolution,
+        resolution: VideoPresets.h720.resolution,
       },
     };
 

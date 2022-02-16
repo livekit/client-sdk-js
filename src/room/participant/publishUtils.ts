@@ -27,30 +27,20 @@ export function mediaTrackToLocalTrack(
 
 /* @internal */
 export const presets169 = [
-  VideoPresets.qvga,
-  VideoPresets.vga,
-  VideoPresets.qhd,
-  VideoPresets.hd,
-  VideoPresets.fhd,
+  VideoPresets.h180,
+  VideoPresets.h360,
+  VideoPresets.h540,
 ];
 
 /* @internal */
 export const presets43 = [
-  VideoPresets43.qvga,
-  VideoPresets43.vga,
-  VideoPresets43.qhd,
-  VideoPresets43.hd,
-  VideoPresets43.fhd,
+  VideoPresets43.h180,
+  VideoPresets43.h360,
+  VideoPresets43.h540,
 ];
 
 /* @internal */
-export const presetsScreenShare = [
-  ScreenSharePresets.vga,
-  ScreenSharePresets.hd_8,
-  ScreenSharePresets.hd_15,
-  ScreenSharePresets.fhd_15,
-  ScreenSharePresets.fhd_30,
-];
+export const presetsScreenShare = Object.values(ScreenSharePresets);
 
 const videoRids = ['q', 'h', 'f'];
 
@@ -65,7 +55,9 @@ export function computeVideoEncodings(
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
   }
-  const useSimulcast = !isScreenShare && options?.simulcast;
+  // only use simulcast for screenshares if the simulcast layers are provided via config
+  const useSimulcast = (!isScreenShare || options?.screenShareSimulcastLayers)
+    && options?.simulcast;
 
   if ((!videoEncoding && !useSimulcast) || !width || !height) {
     // when we aren't simulcasting, will need to return a single encoding without
@@ -82,12 +74,18 @@ export function computeVideoEncodings(
   if (!useSimulcast) {
     return [videoEncoding];
   }
-
-  const presets = presetsForResolution(isScreenShare, width, height);
+  let presets: Array<VideoPreset> = [];
+  if (isScreenShare) {
+    presets = sortPresets(options?.screenShareSimulcastLayers)
+      ?? presetsForResolution(isScreenShare, width, height);
+  } else {
+    presets = sortPresets(options?.videoSimulcastLayers)
+      ?? presetsForResolution(isScreenShare, width, height);
+  }
   let midPreset: VideoPreset | undefined;
   const lowPreset = presets[0];
   if (presets.length > 1) {
-    [,midPreset] = presets;
+    [, midPreset] = presets;
   }
   const original = new VideoPreset(
     width, height, videoEncoding.maxBitrate, videoEncoding.maxFramerate,
@@ -108,7 +106,7 @@ export function computeVideoEncodings(
       lowPreset, midPreset, original,
     ]);
   }
-  if (size >= 500) {
+  if (size >= 480) {
     return encodingsFromPresets(width, height, [
       lowPreset, original,
     ]);
@@ -177,4 +175,21 @@ function encodingsFromPresets(
     });
   });
   return encodings;
+}
+
+/** @internal */
+export function sortPresets(presets: Array<VideoPreset> | undefined) {
+  if (!presets) return;
+  return presets.sort((a, b) => {
+    const maxA = Math.max(a.height, a.width);
+    const maxB = Math.max(b.height, b.width);
+    if (maxA > maxB) {
+      return 1;
+    }
+    if (maxA < maxB) return -1;
+    if (maxA === maxB) {
+      return a.encoding.maxBitrate > b.encoding.maxBitrate ? 1 : -1;
+    }
+    return 0;
+  });
 }

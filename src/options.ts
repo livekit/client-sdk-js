@@ -1,6 +1,9 @@
 import { LogLevel, LogLevelDesc } from './logger';
 import {
-  AudioCaptureOptions, CreateLocalTracksOptions, TrackPublishDefaults, VideoCaptureOptions,
+  AudioCaptureOptions,
+  CreateLocalTracksOptions,
+  TrackPublishDefaults,
+  VideoCaptureOptions,
 } from './room/track/options';
 
 /**

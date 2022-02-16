@@ -1,4 +1,4 @@
-import { VideoPresets, VideoPresets43 } from '../track/options';
+import { VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import {
   computeVideoEncodings,
   determineAppropriateEncoding,
@@ -6,6 +6,7 @@ import {
   presets43,
   presetsForResolution,
   presetsScreenShare,
+  sortPresets,
 } from './publishUtils';
 
 describe('presetsForResolution', () => {
@@ -63,7 +64,7 @@ describe('computeVideoEncodings', () => {
 
     // ensure they are what we expect
     expect(encodings![0].rid).toBe('q');
-    expect(encodings![0].maxBitrate).toBe(VideoPresets.qvga.encoding.maxBitrate);
+    expect(encodings![0].maxBitrate).toBe(VideoPresets.h180.encoding.maxBitrate);
     expect(encodings![0].scaleResolutionDownBy).toBe(3);
     expect(encodings![1].rid).toBe('h');
     expect(encodings![1].scaleResolutionDownBy).toBe(1.5);
@@ -77,7 +78,7 @@ describe('computeVideoEncodings', () => {
     expect(encodings).toHaveLength(3);
     expect(encodings![0].scaleResolutionDownBy).toBe(3);
     expect(encodings![1].scaleResolutionDownBy).toBe(1.5);
-    expect(encodings![2].maxBitrate).toBe(VideoPresets.qhd.encoding.maxBitrate);
+    expect(encodings![2].maxBitrate).toBe(VideoPresets.h540.encoding.maxBitrate);
   });
 
   it('returns two encodings for lower-res simulcast', () => {
@@ -88,9 +89,9 @@ describe('computeVideoEncodings', () => {
 
     // ensure they are what we expect
     expect(encodings![0].rid).toBe('q');
-    expect(encodings![0].maxBitrate).toBe(VideoPresets.qvga.encoding.maxBitrate);
+    expect(encodings![0].maxBitrate).toBe(VideoPresets.h180.encoding.maxBitrate);
     expect(encodings![1].rid).toBe('h');
-    expect(encodings![1].maxBitrate).toBe(VideoPresets.vga.encoding.maxBitrate);
+    expect(encodings![1].maxBitrate).toBe(VideoPresets.h360.encoding.maxBitrate);
   });
 
   it('respects provided min resolution', () => {
@@ -99,7 +100,31 @@ describe('computeVideoEncodings', () => {
     });
     expect(encodings).toHaveLength(1);
     expect(encodings![0].rid).toBe('q');
-    expect(encodings![0].maxBitrate).toBe(VideoPresets43.qvga.encoding.maxBitrate);
+    expect(encodings![0].maxBitrate).toBe(VideoPresets43.h180.encoding.maxBitrate);
     expect(encodings![0].scaleResolutionDownBy).toBe(1);
+  });
+});
+
+describe('customSimulcastLayers', () => {
+  it('sorts presets from lowest to highest', () => {
+    const sortedPresets = sortPresets(
+      [VideoPresets.h1440, VideoPresets.h360, VideoPresets.h1080, VideoPresets.h90],
+    ) as Array<VideoPreset>;
+    expect(sortPresets).not.toBeUndefined();
+    expect(sortedPresets[0]).toBe(VideoPresets.h90);
+    expect(sortedPresets[1]).toBe(VideoPresets.h360);
+    expect(sortedPresets[2]).toBe(VideoPresets.h1080);
+    expect(sortedPresets[3]).toBe(VideoPresets.h1440);
+  });
+  it('sorts presets from lowest to highest, even when dimensions are the same', () => {
+    const sortedPresets = sortPresets([
+      new VideoPreset(1920, 1080, 3_000_000, 20),
+      new VideoPreset(1920, 1080, 2_000_000, 15),
+      new VideoPreset(1920, 1080, 1_000_000, 10),
+    ]) as Array<VideoPreset>;
+    expect(sortPresets).not.toBeUndefined();
+    expect(sortedPresets[0].encoding.maxBitrate).toBe(1_000_000);
+    expect(sortedPresets[1].encoding.maxBitrate).toBe(2_000_000);
+    expect(sortedPresets[2].encoding.maxBitrate).toBe(3_000_000);
   });
 });
