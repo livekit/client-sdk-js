@@ -201,8 +201,8 @@ const appActions = {
       const msg = state.encoder.encode(textField.value);
       currentRoom.localParticipant.publishData(msg, DataPacket_Kind.RELIABLE);
       (<HTMLTextAreaElement>(
-        $('chat')
-      )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
+      $('chat')
+    )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
       textField.value = '';
     }
   },
@@ -465,7 +465,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       break;
     default:
       signalElm.innerHTML = '';
-    // do nothing
+      // do nothing
   }
 }
 

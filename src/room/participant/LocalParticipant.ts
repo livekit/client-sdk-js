@@ -179,7 +179,7 @@ export default class LocalParticipant extends Participant {
    */
   async enableCameraAndMicrophone() {
     if (this.pendingPublishing.has(Track.Source.Camera)
-      || this.pendingPublishing.has(Track.Source.Microphone)) {
+        || this.pendingPublishing.has(Track.Source.Microphone)) {
       // no-op it's already been requested
       return;
     }
