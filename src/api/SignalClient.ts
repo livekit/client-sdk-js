@@ -234,7 +234,7 @@ export class SignalClient {
 
   // answer a server-initiated offer
   sendAnswer(answer: RTCSessionDescriptionInit) {
-    log.debug('sending answer', answer);
+    log.debug('sending answer');
     this.sendRequest({
       answer: toProtoSessionDescription(answer),
     });
