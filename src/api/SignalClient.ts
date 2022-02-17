@@ -35,6 +35,21 @@ export interface SignalOptions {
   autoSubscribe?: boolean;
 }
 
+const passThroughQueueSignals: Array<keyof SignalRequest> = [
+  'syncState',
+  'trickle',
+  'offer',
+  'answer',
+  'simulate',
+];
+
+function canPassThroughQueue(req: SignalRequest): boolean {
+  const canPass = Object.keys(req)
+    .find((key) => passThroughQueueSignals.includes(key as keyof SignalRequest)) !== undefined;
+  log.trace('request allowed to bypass queue:', canPass, req);
+  return canPass;
+}
+
 /** @internal */
 export class SignalClient {
   isConnected: boolean;
@@ -109,8 +124,6 @@ export class SignalClient {
     await this.connect(url, token, {
       reconnect: true,
     });
-    this.isReconnecting = false;
-    this.requestQueue.run();
   }
 
   connect(
@@ -300,8 +313,9 @@ export class SignalClient {
     // capture all requests while reconnecting and put them in a queue.
     // keep order by queueing up new events as long as the queue is not empty
     // unless the request originates from the queue, then don't enqueue again
-
-    if ((this.isReconnecting && !req.simulate) || (!this.requestQueue.isEmpty() && !fromQueue)) {
+    if (
+      (this.isReconnecting && !canPassThroughQueue(req))
+        || (!this.requestQueue.isEmpty() && !fromQueue)) {
       this.requestQueue.enqueue(() => this.sendRequest(req, true));
       return;
     }
@@ -389,6 +403,11 @@ export class SignalClient {
     } else {
       log.debug('unsupported message', msg);
     }
+  }
+
+  setReconnected() {
+    this.isReconnecting = false;
+    this.requestQueue.run();
   }
 
   private handleWSError(ev: Event) {
