@@ -38,14 +38,12 @@ export const presetsScreenShare = Object.values(ScreenSharePresets);
 export const defaultSimulcastPresets169 = [
   VideoPresets.h180,
   VideoPresets.h360,
-  VideoPresets.h540,
 ];
 
 /* @internal */
 export const defaultSimulcastPresets43 = [
   VideoPresets43.h180,
   VideoPresets43.h360,
-  VideoPresets43.h540,
 ];
 
 const videoRids = ['q', 'h', 'f'];
