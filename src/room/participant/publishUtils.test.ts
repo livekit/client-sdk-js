@@ -100,7 +100,7 @@ describe('computeVideoEncodings', () => {
     });
     expect(encodings).toHaveLength(1);
     expect(encodings![0].rid).toBe('q');
-    expect(encodings![0].maxBitrate).toBe(VideoPresets43.h180.encoding.maxBitrate);
+    expect(encodings![0].maxBitrate).toBe(VideoPresets43.h120.encoding.maxBitrate);
     expect(encodings![0].scaleResolutionDownBy).toBe(1);
   });
 });
