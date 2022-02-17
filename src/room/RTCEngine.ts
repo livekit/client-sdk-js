@@ -444,6 +444,7 @@ export default class RTCEngine extends (
     }
 
     await this.waitForPCConnected();
+    this.client.setReconnected();
 
     // reconnect success
     this.emit(EngineEvent.Restarted, joinResponse);

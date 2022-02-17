@@ -238,10 +238,6 @@ export class SignalClient {
     this.sendRequest({
       answer: toProtoSessionDescription(answer),
     });
-    if (this.isReconnecting) {
-      this.isReconnecting = false;
-      this.requestQueue.run();
-    }
   }
 
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
@@ -406,6 +402,11 @@ export class SignalClient {
     } else {
       log.debug('unsupported message', msg);
     }
+  }
+
+  setReconnected() {
+    this.isReconnecting = false;
+    this.requestQueue.run();
   }
 
   private handleWSError(ev: Event) {
