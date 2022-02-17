@@ -38,6 +38,7 @@ export interface SignalOptions {
 const passThroughQueueSignals: Array<keyof SignalRequest> = [
   'syncState',
   'trickle',
+  'offer',
   'answer',
   'simulate',
 ];
