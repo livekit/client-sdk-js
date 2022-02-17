@@ -18,6 +18,17 @@ const state = {
 };
 let currentRoom: Room | undefined;
 
+const searchParams = new URLSearchParams(window.location.search);
+const storedUrl = searchParams.get('url') ?? '';
+const storedToken = searchParams.get('token') ?? '';
+(<HTMLInputElement>$('url')).value = storedUrl;
+(<HTMLInputElement>$('token')).value = storedToken;
+
+function updateSearchParams(url: string, token: string) {
+  const params = new URLSearchParams({ url, token });
+  window.history.replaceState(null, '', `/?${params.toString()}`);
+}
+
 // handles actions from the HTML
 const appActions = {
   connectWithFormInput: async () => {
@@ -30,6 +41,7 @@ const appActions = {
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
 
     setLogLevel('debug');
+    updateSearchParams(url, token);
 
     const roomOpts: RoomOptions = {
       adaptiveStream,
