@@ -35,6 +35,20 @@ export interface SignalOptions {
   autoSubscribe?: boolean;
 }
 
+const passThroughQueueSignals: Array<keyof SignalRequest> = [
+  'syncState',
+  'trickle',
+  'answer',
+  'simulate',
+];
+
+function canPassThroughQueue(req: SignalRequest): boolean {
+  const canPass = Object.keys(req)
+    .find((key) => passThroughQueueSignals.includes(key as keyof SignalRequest)) !== undefined;
+  log.trace('request allowed to bypass queue:', canPass, req);
+  return canPass;
+}
+
 /** @internal */
 export class SignalClient {
   isConnected: boolean;
@@ -109,8 +123,6 @@ export class SignalClient {
     await this.connect(url, token, {
       reconnect: true,
     });
-    this.isReconnecting = false;
-    this.requestQueue.run();
   }
 
   connect(
@@ -222,10 +234,14 @@ export class SignalClient {
 
   // answer a server-initiated offer
   sendAnswer(answer: RTCSessionDescriptionInit) {
-    log.debug('sending answer');
+    log.debug('sending answer', answer);
     this.sendRequest({
       answer: toProtoSessionDescription(answer),
     });
+    if (this.isReconnecting) {
+      this.isReconnecting = false;
+      this.requestQueue.run();
+    }
   }
 
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
@@ -300,8 +316,9 @@ export class SignalClient {
     // capture all requests while reconnecting and put them in a queue.
     // keep order by queueing up new events as long as the queue is not empty
     // unless the request originates from the queue, then don't enqueue again
-
-    if ((this.isReconnecting && !req.simulate) || (!this.requestQueue.isEmpty() && !fromQueue)) {
+    if (
+      (this.isReconnecting && !canPassThroughQueue(req))
+        || (!this.requestQueue.isEmpty() && !fromQueue)) {
       this.requestQueue.enqueue(() => this.sendRequest(req, true));
       return;
     }

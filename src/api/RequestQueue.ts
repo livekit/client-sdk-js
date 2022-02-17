@@ -1,4 +1,4 @@
-import logger from '../logger';
+import log from '../logger';
 
 export default class Queue {
   private queue: Array<() => void>;
@@ -11,34 +11,34 @@ export default class Queue {
   }
 
   enqueue(cb: () => void) {
-    logger.debug('enqueuing request to fire later');
+    log.trace('enqueuing request to fire later');
     this.queue.push(cb);
   }
 
   dequeue() {
     const evt = this.queue.shift();
     if (evt) evt();
-    logger.debug('firing request from queue');
+    log.trace('firing request from queue');
   }
 
   async run() {
     if (this.running) return;
-    logger.debug('start queue');
+    log.trace('start queue');
     this.running = true;
     while (this.running && this.queue.length > 0) {
       this.dequeue();
     }
     this.running = false;
-    logger.debug('queue finished');
+    log.trace('queue finished');
   }
 
   pause() {
-    logger.debug('pausing queue');
+    log.trace('pausing queue');
     this.running = false;
   }
 
   reset() {
-    logger.debug('resetting queue');
+    log.trace('resetting queue');
     this.running = false;
     this.queue = [];
   }
