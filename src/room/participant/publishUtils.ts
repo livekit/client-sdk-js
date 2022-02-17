@@ -26,21 +26,27 @@ export function mediaTrackToLocalTrack(
 }
 
 /* @internal */
-export const presets169 = [
+export const presets169 = Object.values(VideoPresets);
+
+/* @internal */
+export const presets43 = Object.values(VideoPresets43);
+
+/* @internal */
+export const presetsScreenShare = Object.values(ScreenSharePresets);
+
+/* @internal */
+export const defaultSimulcastPresets169 = [
   VideoPresets.h180,
   VideoPresets.h360,
   VideoPresets.h540,
 ];
 
 /* @internal */
-export const presets43 = [
+export const defaultSimulcastPresets43 = [
   VideoPresets43.h180,
   VideoPresets43.h360,
   VideoPresets43.h540,
 ];
-
-/* @internal */
-export const presetsScreenShare = Object.values(ScreenSharePresets);
 
 const videoRids = ['q', 'h', 'f'];
 
@@ -77,10 +83,10 @@ export function computeVideoEncodings(
   let presets: Array<VideoPreset> = [];
   if (isScreenShare) {
     presets = sortPresets(options?.screenShareSimulcastLayers)
-      ?? presetsForResolution(isScreenShare, width, height);
+      ?? defaultSimulcastLayers(isScreenShare, width, height);
   } else {
     presets = sortPresets(options?.videoSimulcastLayers)
-      ?? presetsForResolution(isScreenShare, width, height);
+      ?? defaultSimulcastLayers(isScreenShare, width, height);
   }
   let midPreset: VideoPreset | undefined;
   const lowPreset = presets[0];
@@ -151,6 +157,20 @@ export function presetsForResolution(
     return presets169;
   }
   return presets43;
+}
+
+/* @internal */
+export function defaultSimulcastLayers(
+  isScreenShare: boolean, width: number, height: number,
+): VideoPreset[] {
+  if (isScreenShare) {
+    return [];
+  }
+  const aspect = width > height ? width / height : height / width;
+  if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
+    return defaultSimulcastPresets169;
+  }
+  return defaultSimulcastPresets43;
 }
 
 // presets should be ordered by low, medium, high
