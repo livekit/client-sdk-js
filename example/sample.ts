@@ -38,6 +38,7 @@ const appActions = {
     const dynacast = (<HTMLInputElement>$('dynacast')).checked;
     const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
     const adaptiveStream = (<HTMLInputElement>$('adaptive-stream')).checked;
+    const publishOnly = (<HTMLInputElement>$('publish-only')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
 
     setLogLevel('debug');
@@ -58,7 +59,10 @@ const appActions = {
       },
     };
 
-    const connectOpts: RoomConnectOptions = {};
+    const connectOpts: RoomConnectOptions = {
+      autoSubscribe: publishOnly ? false : true,
+      publishOnly: publishOnly ? 'publish_only' : undefined,
+    };
     if (forceTURN) {
       connectOpts.rtcConfig = {
         iceTransportPolicy: 'relay',
@@ -213,8 +217,8 @@ const appActions = {
       const msg = state.encoder.encode(textField.value);
       currentRoom.localParticipant.publishData(msg, DataPacket_Kind.RELIABLE);
       (<HTMLTextAreaElement>(
-      $('chat')
-    )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
+        $('chat')
+      )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
       textField.value = '';
     }
   },
@@ -477,7 +481,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       break;
     default:
       signalElm.innerHTML = '';
-      // do nothing
+    // do nothing
   }
 }
 
