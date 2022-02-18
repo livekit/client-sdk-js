@@ -28,11 +28,14 @@ interface ConnectOpts {
   autoSubscribe?: boolean;
   /** internal */
   reconnect?: boolean;
+
+  publishOnly?: string;
 }
 
 // public options
 export interface SignalOptions {
   autoSubscribe?: boolean;
+  publishOnly?: string;
 }
 
 const passThroughQueueSignals: Array<keyof SignalRequest> = [
@@ -115,6 +118,7 @@ export class SignalClient {
     this.isConnected = false;
     const res = await this.connect(url, token, {
       autoSubscribe: opts?.autoSubscribe,
+      publishOnly: opts?.publishOnly,
     });
     return res as JoinResponse;
   }
@@ -475,6 +479,10 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
   }
   if (info.browserVersion) {
     params.set('browser_version', info.browserVersion);
+  }
+
+  if (opts?.publishOnly !== undefined) {
+    params.set('publish', opts.publishOnly);
   }
 
   return `?${params.toString()}`;

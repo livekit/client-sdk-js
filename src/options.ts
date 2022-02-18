@@ -67,6 +67,11 @@ export interface RoomConnectOptions {
    * use to override any RTCConfiguration options.
    */
   rtcConfig?: RTCConfiguration;
+
+  /**
+   * publish only mode
+   */
+  publishOnly?: string;
 }
 
 /**
