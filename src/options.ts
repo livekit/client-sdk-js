@@ -17,7 +17,7 @@ export interface RoomOptions {
    * When none of the video elements are visible, it'll temporarily pause
    * the data flow until they are visible again.
    */
-  adaptiveStream?: AdaptiveStreamSettings | boolean;
+  adaptiveStream?: AdaptiveStreamSettings;
 
   /**
    * enable Dynacast, off by default. With Dynacast dynamically pauses
