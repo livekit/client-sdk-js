@@ -33,7 +33,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   get isAdaptiveStream(): boolean {
-    return this.adaptiveStreamSettings === true || typeof this.adaptiveStreamSettings === 'object';
+    return this.adaptiveStreamSettings !== undefined;
   }
 
   /** @internal */
@@ -196,8 +196,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     let maxWidth = 0;
     let maxHeight = 0;
     for (const info of this.elementInfos) {
-      const pixelDensity = this.adaptiveStreamSettings && typeof this.adaptiveStreamSettings === 'object'
-        ? this.adaptiveStreamSettings.pixelDensity ?? 1 : 1;
+      const pixelDensity = this.adaptiveStreamSettings?.pixelDensity ?? 1;
       const pixelDensityValue = pixelDensity === 'screen' ? window.devicePixelRatio : pixelDensity;
       const currentElementWidth = info.element.clientWidth * pixelDensityValue;
       const currentElementHeight = info.element.clientHeight * pixelDensityValue;
