@@ -120,11 +120,11 @@ describe('customSimulcastLayers', () => {
     const sortedPresets = sortPresets([
       new VideoPreset(1920, 1080, 3_000_000, 20),
       new VideoPreset(1920, 1080, 2_000_000, 15),
-      new VideoPreset(1920, 1080, 1_000_000, 10),
+      new VideoPreset(1920, 1080, 3_000_000, 15),
     ]) as Array<VideoPreset>;
     expect(sortPresets).not.toBeUndefined();
-    expect(sortedPresets[0].encoding.maxBitrate).toBe(1_000_000);
-    expect(sortedPresets[1].encoding.maxBitrate).toBe(2_000_000);
-    expect(sortedPresets[2].encoding.maxBitrate).toBe(3_000_000);
+    expect(sortedPresets[0].encoding.maxBitrate).toBe(2_000_000);
+    expect(sortedPresets[1].encoding.maxFramerate).toBe(15);
+    expect(sortedPresets[2].encoding.maxFramerate).toBe(20);
   });
 });
