@@ -29,11 +29,11 @@ export default class RemoteVideoTrack extends RemoteTrack {
     adaptiveStreamSettings?: AdaptiveStreamSettings,
   ) {
     super(mediaTrack, sid, Track.Kind.Video, receiver);
-    this.adaptiveStreamSettings = typeof adaptiveStreamSettings === 'boolean' ? { enabled: adaptiveStreamSettings } : adaptiveStreamSettings;
+    this.adaptiveStreamSettings = adaptiveStreamSettings;
   }
 
   get isAdaptiveStream(): boolean {
-    return this.adaptiveStreamSettings ? this.adaptiveStreamSettings.enabled : false;
+    return this.adaptiveStreamSettings === true || typeof this.adaptiveStreamSettings === 'object';
   }
 
   /** @internal */
@@ -61,7 +61,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
     // It's possible attach is called multiple times on an element. When that's
     // the case, we'd want to avoid adding duplicate elementInfos
-    if (this.adaptiveStreamSettings?.enabled
+    if (this.adaptiveStreamSettings
       && this.elementInfos.find((info) => info.element === element) === undefined
     ) {
       this.elementInfos.push({
@@ -196,10 +196,11 @@ export default class RemoteVideoTrack extends RemoteTrack {
     let maxWidth = 0;
     let maxHeight = 0;
     for (const info of this.elementInfos) {
-      const pixelDensity = this.adaptiveStreamSettings?.enabled
-        ? this.adaptiveStreamSettings?.pixelDensity ?? 1 : 1;
-      const currentElementWidth = info.element.clientWidth * pixelDensity;
-      const currentElementHeight = info.element.clientHeight * pixelDensity;
+      const pixelDensity = this.adaptiveStreamSettings && typeof this.adaptiveStreamSettings === 'object'
+        ? this.adaptiveStreamSettings.pixelDensity ?? 1 : 1;
+      const pixelDensityValue = pixelDensity === 'screen' ? window.devicePixelRatio : pixelDensity;
+      const currentElementWidth = info.element.clientWidth * pixelDensityValue;
+      const currentElementHeight = info.element.clientHeight * pixelDensityValue;
       if (currentElementWidth + currentElementHeight > maxWidth + maxHeight) {
         maxWidth = currentElementWidth;
         maxHeight = currentElementHeight;

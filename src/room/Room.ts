@@ -442,7 +442,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       trackId,
       stream,
       receiver,
-      typeof this.options.adaptiveStream === 'boolean' ? { enabled: this.options.adaptiveStream } : this.options.adaptiveStream,
+      this.options.adaptiveStream,
     );
   }
 

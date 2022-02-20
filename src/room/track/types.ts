@@ -7,11 +7,7 @@ export type RemoteTrack = RemoteAudioTrack | RemoteVideoTrack;
 export type AudioTrack = RemoteAudioTrack | LocalAudioTrack;
 export type VideoTrack = RemoteVideoTrack | LocalVideoTrack;
 
-export type AdaptiveStreamSettings = {
-  /**
-   * Enable adaptive streaming
-   */
-  enabled: boolean,
+export type AdaptiveStreamSettings = boolean | {
   /**
    * Set a custom pixel density, defaults to 1
    * When streaming videos on a ultra high definition screen this setting
@@ -20,5 +16,5 @@ export type AdaptiveStreamSettings = {
    * Note: this might significantly increase the bandwidth consumed by people
    * streaming on high definition screens.
    */
-  pixelDensity?: number
+  pixelDensity?: number | 'screen'
 };

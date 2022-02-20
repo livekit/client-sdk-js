@@ -78,7 +78,7 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   /**
    * see [[RoomOptions.adaptiveStream]]
    */
-  adaptiveStream?: AdaptiveStreamSettings | boolean;
+  adaptiveStream?: AdaptiveStreamSettings;
 
   /**
    * alias for adaptiveStream

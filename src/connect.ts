@@ -32,7 +32,7 @@ export async function connect(
 ): Promise<Room> {
   options ??= {};
   if (options.adaptiveStream === undefined) {
-    options.adaptiveStream = { enabled: options.autoManageVideo ?? false };
+    options.adaptiveStream = options.autoManageVideo ?? false;
   }
   setLogLevel(options.logLevel ?? LogLevel.warn);
 

@@ -32,10 +32,9 @@ const appActions = {
     setLogLevel('debug');
 
     const roomOpts: RoomOptions = {
-      adaptiveStream: {
-        enabled: true,
-        pixelDensity: window.devicePixelRatio,
-      },
+      adaptiveStream: adaptiveStream ? {
+        pixelDensity: 'screen',
+      } : false,
       dynacast,
       publishDefaults: {
         simulcast,
