@@ -28,7 +28,7 @@ import LocalTrackPublication from './track/LocalTrackPublication';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import { TrackPublication } from './track/TrackPublication';
-import { RemoteTrack } from './track/types';
+import { AdaptiveStreamSettings, RemoteTrack } from './track/types';
 import { unpackStreamId } from './utils';
 
 export enum RoomState {
@@ -437,12 +437,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (!trackId || trackId === '') trackId = mediaTrack.id;
 
     const participant = this.getOrCreateParticipant(participantId);
+    let adaptiveStreamSettings: AdaptiveStreamSettings | undefined;
+    if (this.options.adaptiveStream) {
+      if (typeof this.options.adaptiveStream === 'object') {
+        adaptiveStreamSettings = this.options.adaptiveStream;
+      } else {
+        adaptiveStreamSettings = {};
+      }
+    }
     participant.addSubscribedMediaTrack(
       mediaTrack,
       trackId,
       stream,
       receiver,
-      this.options.adaptiveStream,
+      adaptiveStreamSettings,
     );
   }
 

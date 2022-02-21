@@ -45,7 +45,9 @@ const appActions = {
     updateSearchParams(url, token);
 
     const roomOpts: RoomOptions = {
-      adaptiveStream,
+      adaptiveStream: adaptiveStream ? {
+        pixelDensity: 'screen',
+      } : false,
       dynacast,
       publishDefaults: {
         simulcast,
