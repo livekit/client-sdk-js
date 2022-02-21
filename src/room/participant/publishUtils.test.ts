@@ -1,5 +1,8 @@
-import { VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import {
+  ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43,
+} from '../track/options';
+import {
+  computeDefaultScreenShareSimulcastPresets,
   computeVideoEncodings,
   determineAppropriateEncoding,
   presets169,
@@ -126,5 +129,17 @@ describe('customSimulcastLayers', () => {
     expect(sortedPresets[0].encoding.maxBitrate).toBe(2_000_000);
     expect(sortedPresets[1].encoding.maxFramerate).toBe(15);
     expect(sortedPresets[2].encoding.maxFramerate).toBe(20);
+  });
+});
+
+describe('screenShareSimulcastDefaults', () => {
+  it('computes appropriate bitrate from original preset', () => {
+    const defaultSimulcastLayers = computeDefaultScreenShareSimulcastPresets(
+      ScreenSharePresets.h720fps15,
+    );
+    expect(defaultSimulcastLayers[0].width).toBe(640);
+    expect(defaultSimulcastLayers[0].height).toBe(360);
+    expect(defaultSimulcastLayers[0].encoding.maxFramerate).toBe(3);
+    expect(defaultSimulcastLayers[0].encoding.maxBitrate).toBe(100_000);
   });
 });

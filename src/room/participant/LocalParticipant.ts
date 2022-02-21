@@ -17,7 +17,8 @@ import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTr
 import {
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
-  TrackPublishOptions, VideoCodec, VideoPresets,
+  ScreenSharePresets,
+  TrackPublishOptions, VideoCodec,
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
@@ -272,7 +273,7 @@ export default class LocalParticipant extends Participant {
       options = {};
     }
     if (options.resolution === undefined) {
-      options.resolution = VideoPresets.fhd.resolution;
+      options.resolution = ScreenSharePresets.h720fps15.resolution;
     }
 
     let videoConstraints: MediaTrackConstraints | boolean = true;

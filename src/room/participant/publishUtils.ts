@@ -46,6 +46,18 @@ export const defaultSimulcastPresets43 = [
   VideoPresets43.h360,
 ];
 
+/* @internal */
+export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPreset) => {
+  const layers = [{ scaleResolutionDownBy: 2, fps: 3 }];
+  return layers.map((t) => new VideoPreset(
+    Math.floor(fromPreset.width / t.scaleResolutionDownBy),
+    Math.floor(fromPreset.height / t.scaleResolutionDownBy),
+    Math.floor(fromPreset.encoding.maxBitrate
+      / (t.scaleResolutionDownBy * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps))),
+    t.fps,
+  ));
+};
+
 const videoRids = ['q', 'h', 'f'];
 
 /* @internal */
@@ -59,9 +71,7 @@ export function computeVideoEncodings(
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
   }
-  // only use simulcast for screenshares if the simulcast layers are provided via config
-  const useSimulcast = (!isScreenShare || options?.screenShareSimulcastLayers)
-    && options?.simulcast;
+  const useSimulcast = options?.simulcast;
 
   if ((!videoEncoding && !useSimulcast) || !width || !height) {
     // when we aren't simulcasting, will need to return a single encoding without
@@ -78,22 +88,22 @@ export function computeVideoEncodings(
   if (!useSimulcast) {
     return [videoEncoding];
   }
+  const original = new VideoPreset(
+    width, height, videoEncoding.maxBitrate, videoEncoding.maxFramerate,
+  );
   let presets: Array<VideoPreset> = [];
   if (isScreenShare) {
     presets = sortPresets(options?.screenShareSimulcastLayers)
-      ?? defaultSimulcastLayers(isScreenShare, width, height);
+      ?? defaultSimulcastLayers(isScreenShare, original);
   } else {
     presets = sortPresets(options?.videoSimulcastLayers)
-      ?? defaultSimulcastLayers(isScreenShare, width, height);
+      ?? defaultSimulcastLayers(isScreenShare, original);
   }
   let midPreset: VideoPreset | undefined;
   const lowPreset = presets[0];
   if (presets.length > 1) {
     [, midPreset] = presets;
   }
-  const original = new VideoPreset(
-    width, height, videoEncoding.maxBitrate, videoEncoding.maxFramerate,
-  );
 
   // NOTE:
   //   1. Ordering of these encodings is important. Chrome seems
@@ -159,11 +169,12 @@ export function presetsForResolution(
 
 /* @internal */
 export function defaultSimulcastLayers(
-  isScreenShare: boolean, width: number, height: number,
+  isScreenShare: boolean, original: VideoPreset,
 ): VideoPreset[] {
   if (isScreenShare) {
-    return [];
+    return computeDefaultScreenShareSimulcastPresets(original);
   }
+  const { width, height } = original;
   const aspect = width > height ? width / height : height / width;
   if (Math.abs(aspect - 16.0 / 9) < Math.abs(aspect - 4.0 / 3)) {
     return defaultSimulcastPresets169;
