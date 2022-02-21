@@ -199,14 +199,15 @@ function encodingsFromPresets(
 export function sortPresets(presets: Array<VideoPreset> | undefined) {
   if (!presets) return;
   return presets.sort((a, b) => {
-    const maxA = Math.max(a.height, a.width);
-    const maxB = Math.max(b.height, b.width);
-    if (maxA > maxB) {
+    const { encoding: aEnc } = a;
+    const { encoding: bEnc } = b;
+
+    if (aEnc.maxBitrate > bEnc.maxBitrate) {
       return 1;
     }
-    if (maxA < maxB) return -1;
-    if (maxA === maxB) {
-      return a.encoding.maxBitrate > b.encoding.maxBitrate ? 1 : -1;
+    if (aEnc.maxBitrate < bEnc.maxBitrate) return -1;
+    if (aEnc.maxBitrate === bEnc.maxBitrate && aEnc.maxFramerate && bEnc.maxFramerate) {
+      return aEnc.maxFramerate > bEnc.maxFramerate ? 1 : -1;
     }
     return 0;
   });
