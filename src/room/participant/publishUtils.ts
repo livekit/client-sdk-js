@@ -53,8 +53,8 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
     Math.floor(fromPreset.width / t.scaleResolutionDownBy),
     Math.floor(fromPreset.height / t.scaleResolutionDownBy),
     Math.max(150_000, Math.floor(fromPreset.encoding.maxBitrate
-      / (t.scaleResolutionDownBy ** 2 * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps))),
-    t.fps),
+      / (t.scaleResolutionDownBy ** 2 * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps)))),
+    t.fps,
   ));
 };
 
