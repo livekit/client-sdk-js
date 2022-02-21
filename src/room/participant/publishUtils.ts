@@ -52,9 +52,9 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
   return layers.map((t) => new VideoPreset(
     Math.floor(fromPreset.width / t.scaleResolutionDownBy),
     Math.floor(fromPreset.height / t.scaleResolutionDownBy),
-    Math.floor(fromPreset.encoding.maxBitrate
-      / (t.scaleResolutionDownBy * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps))),
-    t.fps,
+    Math.max(150_000, Math.floor(fromPreset.encoding.maxBitrate
+      / (t.scaleResolutionDownBy ** 2 * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps))),
+    t.fps),
   ));
 };
 
