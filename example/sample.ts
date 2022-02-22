@@ -19,7 +19,7 @@ const state = {
 let currentRoom: Room | undefined;
 
 const searchParams = new URLSearchParams(window.location.search);
-const storedUrl = searchParams.get('url') ?? '';
+const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
 const storedToken = searchParams.get('token') ?? '';
 (<HTMLInputElement>$('url')).value = storedUrl;
 (<HTMLInputElement>$('token')).value = storedToken;
@@ -62,7 +62,7 @@ const appActions = {
     };
 
     const connectOpts: RoomConnectOptions = {
-      autoSubscribe: publishOnly ? false : true,
+      autoSubscribe: !publishOnly,
       publishOnly: publishOnly ? 'publish_only' : undefined,
     };
     if (forceTURN) {
