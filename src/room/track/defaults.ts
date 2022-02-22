@@ -7,7 +7,7 @@ export const publishDefaults: TrackPublishDefaults = {
   audioBitrate: AudioPresets.speech.maxBitrate,
   dtx: true,
   simulcast: true,
-  screenShareEncoding: ScreenSharePresets.hd_15.encoding,
+  screenShareEncoding: ScreenSharePresets.h720fps15.encoding,
   stopMicTrackOnMute: false,
 };
 
@@ -19,5 +19,5 @@ export const audioDefaults: AudioCaptureOptions = {
 };
 
 export const videoDefaults: VideoCaptureOptions = {
-  resolution: VideoPresets.qhd.resolution,
+  resolution: VideoPresets.h540.resolution,
 };
