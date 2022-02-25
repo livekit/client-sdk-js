@@ -565,7 +565,7 @@ export default class RTCEngine extends (
     this.publisher.negotiate();
   }
 
-  private dataChannelForKind(kind: DataPacket_Kind): RTCDataChannel | undefined {
+  dataChannelForKind(kind: DataPacket_Kind): RTCDataChannel | undefined {
     if (kind === DataPacket_Kind.LOSSY) {
       return this.lossyDC;
     } if (kind === DataPacket_Kind.RELIABLE) {

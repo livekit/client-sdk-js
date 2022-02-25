@@ -6,6 +6,7 @@ import {
   TrackSource,
   Room,
   ParticipantInfo,
+  ClientConfiguration,
   TrackInfo,
   VideoQuality,
   ConnectionQuality,
@@ -192,6 +193,7 @@ export interface JoinResponse {
    * when this is set, the other fields will be largely empty
    */
   alternativeUrl: string;
+  clientConfiguration?: ClientConfiguration;
 }
 
 export interface TrackPublishedResponse {
@@ -306,6 +308,12 @@ export interface SyncState {
   answer?: SessionDescription;
   subscription?: UpdateSubscription;
   publishTracks: TrackPublishedResponse[];
+  dataChannels: DataChannelInfo[];
+}
+
+export interface DataChannelInfo {
+  label: string;
+  id: number;
 }
 
 export interface SimulateScenario {
@@ -1436,6 +1444,12 @@ export const JoinResponse = {
     if (message.alternativeUrl !== "") {
       writer.uint32(58).string(message.alternativeUrl);
     }
+    if (message.clientConfiguration !== undefined) {
+      ClientConfiguration.encode(
+        message.clientConfiguration,
+        writer.uint32(66).fork()
+      ).ldelim();
+    }
     return writer;
   },
 
@@ -1470,6 +1484,12 @@ export const JoinResponse = {
           break;
         case 7:
           message.alternativeUrl = reader.string();
+          break;
+        case 8:
+          message.clientConfiguration = ClientConfiguration.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -1524,6 +1544,16 @@ export const JoinResponse = {
     } else {
       message.alternativeUrl = "";
     }
+    if (
+      object.clientConfiguration !== undefined &&
+      object.clientConfiguration !== null
+    ) {
+      message.clientConfiguration = ClientConfiguration.fromJSON(
+        object.clientConfiguration
+      );
+    } else {
+      message.clientConfiguration = undefined;
+    }
     return message;
   },
 
@@ -1555,6 +1585,10 @@ export const JoinResponse = {
       (obj.subscriberPrimary = message.subscriberPrimary);
     message.alternativeUrl !== undefined &&
       (obj.alternativeUrl = message.alternativeUrl);
+    message.clientConfiguration !== undefined &&
+      (obj.clientConfiguration = message.clientConfiguration
+        ? ClientConfiguration.toJSON(message.clientConfiguration)
+        : undefined);
     return obj;
   },
 
@@ -1588,6 +1622,16 @@ export const JoinResponse = {
     }
     message.subscriberPrimary = object.subscriberPrimary ?? false;
     message.alternativeUrl = object.alternativeUrl ?? "";
+    if (
+      object.clientConfiguration !== undefined &&
+      object.clientConfiguration !== null
+    ) {
+      message.clientConfiguration = ClientConfiguration.fromPartial(
+        object.clientConfiguration
+      );
+    } else {
+      message.clientConfiguration = undefined;
+    }
     return message;
   },
 };
@@ -3197,6 +3241,9 @@ export const SyncState = {
     for (const v of message.publishTracks) {
       TrackPublishedResponse.encode(v!, writer.uint32(26).fork()).ldelim();
     }
+    for (const v of message.dataChannels) {
+      DataChannelInfo.encode(v!, writer.uint32(34).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -3205,6 +3252,7 @@ export const SyncState = {
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = { ...baseSyncState } as SyncState;
     message.publishTracks = [];
+    message.dataChannels = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -3222,6 +3270,11 @@ export const SyncState = {
             TrackPublishedResponse.decode(reader, reader.uint32())
           );
           break;
+        case 4:
+          message.dataChannels.push(
+            DataChannelInfo.decode(reader, reader.uint32())
+          );
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -3233,6 +3286,7 @@ export const SyncState = {
   fromJSON(object: any): SyncState {
     const message = { ...baseSyncState } as SyncState;
     message.publishTracks = [];
+    message.dataChannels = [];
     if (object.answer !== undefined && object.answer !== null) {
       message.answer = SessionDescription.fromJSON(object.answer);
     } else {
@@ -3246,6 +3300,11 @@ export const SyncState = {
     if (object.publishTracks !== undefined && object.publishTracks !== null) {
       for (const e of object.publishTracks) {
         message.publishTracks.push(TrackPublishedResponse.fromJSON(e));
+      }
+    }
+    if (object.dataChannels !== undefined && object.dataChannels !== null) {
+      for (const e of object.dataChannels) {
+        message.dataChannels.push(DataChannelInfo.fromJSON(e));
       }
     }
     return message;
@@ -3267,6 +3326,13 @@ export const SyncState = {
       );
     } else {
       obj.publishTracks = [];
+    }
+    if (message.dataChannels) {
+      obj.dataChannels = message.dataChannels.map((e) =>
+        e ? DataChannelInfo.toJSON(e) : undefined
+      );
+    } else {
+      obj.dataChannels = [];
     }
     return obj;
   },
@@ -3291,6 +3357,79 @@ export const SyncState = {
         message.publishTracks.push(TrackPublishedResponse.fromPartial(e));
       }
     }
+    message.dataChannels = [];
+    if (object.dataChannels !== undefined && object.dataChannels !== null) {
+      for (const e of object.dataChannels) {
+        message.dataChannels.push(DataChannelInfo.fromPartial(e));
+      }
+    }
+    return message;
+  },
+};
+
+const baseDataChannelInfo: object = { label: "", id: 0 };
+
+export const DataChannelInfo = {
+  encode(
+    message: DataChannelInfo,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.label !== "") {
+      writer.uint32(10).string(message.label);
+    }
+    if (message.id !== 0) {
+      writer.uint32(16).uint32(message.id);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): DataChannelInfo {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseDataChannelInfo } as DataChannelInfo;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.label = reader.string();
+          break;
+        case 2:
+          message.id = reader.uint32();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DataChannelInfo {
+    const message = { ...baseDataChannelInfo } as DataChannelInfo;
+    if (object.label !== undefined && object.label !== null) {
+      message.label = String(object.label);
+    } else {
+      message.label = "";
+    }
+    if (object.id !== undefined && object.id !== null) {
+      message.id = Number(object.id);
+    } else {
+      message.id = 0;
+    }
+    return message;
+  },
+
+  toJSON(message: DataChannelInfo): unknown {
+    const obj: any = {};
+    message.label !== undefined && (obj.label = message.label);
+    message.id !== undefined && (obj.id = message.id);
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<DataChannelInfo>): DataChannelInfo {
+    const message = { ...baseDataChannelInfo } as DataChannelInfo;
+    message.label = object.label ?? "";
+    message.id = object.id ?? 0;
     return message;
   },
 };
