@@ -3,6 +3,8 @@ import type TypedEventEmitter from 'typed-emitter';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
 import {
+  ClientConfigSetting,
+  ClientConfiguration,
   DataPacket, DataPacket_Kind, SpeakerInfo, TrackInfo, UserPacket,
 } from '../proto/livekit_models';
 import {
@@ -70,7 +72,9 @@ export default class RTCEngine extends (
 
   private reconnectStart: number = 0;
 
-  private fullReconnect: boolean = false;
+  private fullReconnectOnNext: boolean = false;
+
+  private clientConfiguration?: ClientConfiguration;
 
   private connectedServerAddr?: string;
 
@@ -96,6 +100,7 @@ export default class RTCEngine extends (
     if (!this.subscriberPrimary) {
       this.negotiate();
     }
+    this.clientConfiguration = joinResponse.clientConfiguration;
 
     return joinResponse;
   }
@@ -303,7 +308,7 @@ export default class RTCEngine extends (
 
     this.client.onLeave = (leave?: LeaveRequest) => {
       if (leave?.canReconnect) {
-        this.fullReconnect = true;
+        this.fullReconnectOnNext = true;
         this.primaryPC = undefined;
       } else {
         this.emit(EngineEvent.Disconnected);
@@ -376,19 +381,19 @@ export default class RTCEngine extends (
       if (this.isClosed) {
         return;
       }
-      if (isFireFox()) {
-        // FF does not support DTLS restart.
-        this.fullReconnect = true;
+      if (isFireFox() // TODO remove once clientConfiguration handles firefox case server side
+        || this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED) {
+        this.fullReconnectOnNext = true;
       }
 
       try {
-        if (this.fullReconnect) {
+        if (this.fullReconnectOnNext) {
           await this.restartConnection();
         } else {
           await this.resumeConnection();
         }
         this.reconnectAttempts = 0;
-        this.fullReconnect = false;
+        this.fullReconnectOnNext = false;
       } catch (e) {
         this.reconnectAttempts += 1;
         let recoverable = true;
@@ -398,7 +403,7 @@ export default class RTCEngine extends (
           recoverable = false;
         } else if (!(e instanceof SignalReconnectError)) {
           // cannot resume
-          this.fullReconnect = true;
+          this.fullReconnectOnNext = true;
         }
 
         const duration = Date.now() - this.reconnectStart;
