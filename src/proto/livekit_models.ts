@@ -174,6 +174,44 @@ export function connectionQualityToJSON(object: ConnectionQuality): string {
   }
 }
 
+export enum ClientConfigSetting {
+  UNSET = 0,
+  DISABLED = 1,
+  ENABLED = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function clientConfigSettingFromJSON(object: any): ClientConfigSetting {
+  switch (object) {
+    case 0:
+    case "UNSET":
+      return ClientConfigSetting.UNSET;
+    case 1:
+    case "DISABLED":
+      return ClientConfigSetting.DISABLED;
+    case 2:
+    case "ENABLED":
+      return ClientConfigSetting.ENABLED;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ClientConfigSetting.UNRECOGNIZED;
+  }
+}
+
+export function clientConfigSettingToJSON(object: ClientConfigSetting): string {
+  switch (object) {
+    case ClientConfigSetting.UNSET:
+      return "UNSET";
+    case ClientConfigSetting.DISABLED:
+      return "DISABLED";
+    case ClientConfigSetting.ENABLED:
+      return "ENABLED";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 export interface Room {
   sid: string;
   name: string;
@@ -203,6 +241,7 @@ export interface ParticipantInfo {
   hidden: boolean;
   recorder: boolean;
   name: string;
+  version: number;
 }
 
 export enum ParticipantInfo_State {
@@ -368,6 +407,7 @@ export interface ClientInfo {
   deviceModel: string;
   browser: string;
   browserVersion: string;
+  address: string;
 }
 
 export enum ClientInfo_SDK {
@@ -430,6 +470,17 @@ export function clientInfo_SDKToJSON(object: ClientInfo_SDK): string {
     default:
       return "UNKNOWN";
   }
+}
+
+/** server provided client configuration */
+export interface ClientConfiguration {
+  video?: VideoConfiguration;
+  screen?: VideoConfiguration;
+  resumeConnection: ClientConfigSetting;
+}
+
+export interface VideoConfiguration {
+  hardwareEncoder: ClientConfigSetting;
 }
 
 const baseRoom: object = {
@@ -711,6 +762,7 @@ const baseParticipantInfo: object = {
   hidden: false,
   recorder: false,
   name: "",
+  version: 0,
 };
 
 export const ParticipantInfo = {
@@ -744,6 +796,9 @@ export const ParticipantInfo = {
     }
     if (message.name !== "") {
       writer.uint32(74).string(message.name);
+    }
+    if (message.version !== 0) {
+      writer.uint32(80).uint32(message.version);
     }
     return writer;
   },
@@ -782,6 +837,9 @@ export const ParticipantInfo = {
           break;
         case 9:
           message.name = reader.string();
+          break;
+        case 10:
+          message.version = reader.uint32();
           break;
         default:
           reader.skipType(tag & 7);
@@ -839,6 +897,11 @@ export const ParticipantInfo = {
     } else {
       message.name = "";
     }
+    if (object.version !== undefined && object.version !== null) {
+      message.version = Number(object.version);
+    } else {
+      message.version = 0;
+    }
     return message;
   },
 
@@ -860,6 +923,7 @@ export const ParticipantInfo = {
     message.hidden !== undefined && (obj.hidden = message.hidden);
     message.recorder !== undefined && (obj.recorder = message.recorder);
     message.name !== undefined && (obj.name = message.name);
+    message.version !== undefined && (obj.version = message.version);
     return obj;
   },
 
@@ -879,6 +943,7 @@ export const ParticipantInfo = {
     message.hidden = object.hidden ?? false;
     message.recorder = object.recorder ?? false;
     message.name = object.name ?? "";
+    message.version = object.version ?? 0;
     return message;
   },
 };
@@ -1651,6 +1716,7 @@ const baseClientInfo: object = {
   deviceModel: "",
   browser: "",
   browserVersion: "",
+  address: "",
 };
 
 export const ClientInfo = {
@@ -1681,6 +1747,9 @@ export const ClientInfo = {
     }
     if (message.browserVersion !== "") {
       writer.uint32(66).string(message.browserVersion);
+    }
+    if (message.address !== "") {
+      writer.uint32(74).string(message.address);
     }
     return writer;
   },
@@ -1715,6 +1784,9 @@ export const ClientInfo = {
           break;
         case 8:
           message.browserVersion = reader.string();
+          break;
+        case 9:
+          message.address = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -1766,6 +1838,11 @@ export const ClientInfo = {
     } else {
       message.browserVersion = "";
     }
+    if (object.address !== undefined && object.address !== null) {
+      message.address = String(object.address);
+    } else {
+      message.address = "";
+    }
     return message;
   },
 
@@ -1781,6 +1858,7 @@ export const ClientInfo = {
     message.browser !== undefined && (obj.browser = message.browser);
     message.browserVersion !== undefined &&
       (obj.browserVersion = message.browserVersion);
+    message.address !== undefined && (obj.address = message.address);
     return obj;
   },
 
@@ -1794,6 +1872,177 @@ export const ClientInfo = {
     message.deviceModel = object.deviceModel ?? "";
     message.browser = object.browser ?? "";
     message.browserVersion = object.browserVersion ?? "";
+    message.address = object.address ?? "";
+    return message;
+  },
+};
+
+const baseClientConfiguration: object = { resumeConnection: 0 };
+
+export const ClientConfiguration = {
+  encode(
+    message: ClientConfiguration,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.video !== undefined) {
+      VideoConfiguration.encode(
+        message.video,
+        writer.uint32(10).fork()
+      ).ldelim();
+    }
+    if (message.screen !== undefined) {
+      VideoConfiguration.encode(
+        message.screen,
+        writer.uint32(18).fork()
+      ).ldelim();
+    }
+    if (message.resumeConnection !== 0) {
+      writer.uint32(24).int32(message.resumeConnection);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ClientConfiguration {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseClientConfiguration } as ClientConfiguration;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.video = VideoConfiguration.decode(reader, reader.uint32());
+          break;
+        case 2:
+          message.screen = VideoConfiguration.decode(reader, reader.uint32());
+          break;
+        case 3:
+          message.resumeConnection = reader.int32() as any;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ClientConfiguration {
+    const message = { ...baseClientConfiguration } as ClientConfiguration;
+    if (object.video !== undefined && object.video !== null) {
+      message.video = VideoConfiguration.fromJSON(object.video);
+    } else {
+      message.video = undefined;
+    }
+    if (object.screen !== undefined && object.screen !== null) {
+      message.screen = VideoConfiguration.fromJSON(object.screen);
+    } else {
+      message.screen = undefined;
+    }
+    if (
+      object.resumeConnection !== undefined &&
+      object.resumeConnection !== null
+    ) {
+      message.resumeConnection = clientConfigSettingFromJSON(
+        object.resumeConnection
+      );
+    } else {
+      message.resumeConnection = 0;
+    }
+    return message;
+  },
+
+  toJSON(message: ClientConfiguration): unknown {
+    const obj: any = {};
+    message.video !== undefined &&
+      (obj.video = message.video
+        ? VideoConfiguration.toJSON(message.video)
+        : undefined);
+    message.screen !== undefined &&
+      (obj.screen = message.screen
+        ? VideoConfiguration.toJSON(message.screen)
+        : undefined);
+    message.resumeConnection !== undefined &&
+      (obj.resumeConnection = clientConfigSettingToJSON(
+        message.resumeConnection
+      ));
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<ClientConfiguration>): ClientConfiguration {
+    const message = { ...baseClientConfiguration } as ClientConfiguration;
+    if (object.video !== undefined && object.video !== null) {
+      message.video = VideoConfiguration.fromPartial(object.video);
+    } else {
+      message.video = undefined;
+    }
+    if (object.screen !== undefined && object.screen !== null) {
+      message.screen = VideoConfiguration.fromPartial(object.screen);
+    } else {
+      message.screen = undefined;
+    }
+    message.resumeConnection = object.resumeConnection ?? 0;
+    return message;
+  },
+};
+
+const baseVideoConfiguration: object = { hardwareEncoder: 0 };
+
+export const VideoConfiguration = {
+  encode(
+    message: VideoConfiguration,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.hardwareEncoder !== 0) {
+      writer.uint32(8).int32(message.hardwareEncoder);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): VideoConfiguration {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseVideoConfiguration } as VideoConfiguration;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.hardwareEncoder = reader.int32() as any;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): VideoConfiguration {
+    const message = { ...baseVideoConfiguration } as VideoConfiguration;
+    if (
+      object.hardwareEncoder !== undefined &&
+      object.hardwareEncoder !== null
+    ) {
+      message.hardwareEncoder = clientConfigSettingFromJSON(
+        object.hardwareEncoder
+      );
+    } else {
+      message.hardwareEncoder = 0;
+    }
+    return message;
+  },
+
+  toJSON(message: VideoConfiguration): unknown {
+    const obj: any = {};
+    message.hardwareEncoder !== undefined &&
+      (obj.hardwareEncoder = clientConfigSettingToJSON(
+        message.hardwareEncoder
+      ));
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<VideoConfiguration>): VideoConfiguration {
+    const message = { ...baseVideoConfiguration } as VideoConfiguration;
+    message.hardwareEncoder = object.hardwareEncoder ?? 0;
     return message;
   },
 };

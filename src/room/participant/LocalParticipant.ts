@@ -3,7 +3,9 @@ import { RoomOptions } from '../../options';
 import {
   DataPacket, DataPacket_Kind,
 } from '../../proto/livekit_models';
-import { AddTrackRequest, SubscribedQualityUpdate, TrackPublishedResponse } from '../../proto/livekit_rtc';
+import {
+  AddTrackRequest, DataChannelInfo, SubscribedQualityUpdate, TrackPublishedResponse,
+} from '../../proto/livekit_rtc';
 import {
   TrackInvalidError,
   UnexpectedConnectionState,
@@ -680,6 +682,22 @@ export default class LocalParticipant extends Participant {
         });
       }
     });
+    return infos;
+  }
+
+  /** @internal */
+  dataChannelsInfo(): DataChannelInfo[] {
+    const infos: DataChannelInfo[] = [];
+    const getInfo = (dc: RTCDataChannel | undefined) => {
+      if (dc?.id !== undefined && dc.id !== null) {
+        infos.push({
+          label: dc.label,
+          id: dc.id,
+        });
+      }
+    };
+    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY));
+    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE));
     return infos;
   }
 }

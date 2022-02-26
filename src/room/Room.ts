@@ -834,6 +834,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         participantTracks: [],
       },
       publishTracks: this.localParticipant.publishedTracksInfo(),
+      dataChannels: this.localParticipant.dataChannelsInfo(),
     });
   }
 
