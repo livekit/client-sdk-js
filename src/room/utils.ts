@@ -23,6 +23,11 @@ export function isSafari(): boolean {
   return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 }
 
+export function isMobile(): boolean {
+  return /Mobile|Android|BlackBerry/.test(navigator.userAgent);
+
+}
+
 function roDispatchCallback(entries: ResizeObserverEntry[]) {
   for (const entry of entries) {
     (entry.target as ObservableMediaElement).handleResize(entry);

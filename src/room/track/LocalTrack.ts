@@ -15,6 +15,7 @@ export default class LocalTrack extends Track {
   ) {
     super(mediaTrack, kind);
     this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
+    document.addEventListener('visibilitychange', this.handleAppVisibilityChanged);
     this.constraints = constraints ?? mediaTrack.getConstraints();
   }
 
@@ -117,6 +118,10 @@ export default class LocalTrack extends Track {
     this.mediaStreamTrack.enabled = !muted;
     this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
   }
+
+  protected handleAppVisibilityChanged = () => {
+
+  };
 
   private handleEnded = () => {
     this.emit(TrackEvent.Ended, this);
