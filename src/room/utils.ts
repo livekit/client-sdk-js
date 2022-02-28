@@ -25,7 +25,6 @@ export function isSafari(): boolean {
 
 export function isMobile(): boolean {
   return /Mobile|Android|BlackBerry/.test(navigator.userAgent);
-
 }
 
 function roDispatchCallback(entries: ResizeObserverEntry[]) {
