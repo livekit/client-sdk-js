@@ -9,6 +9,8 @@ export default class LocalTrack extends Track {
   sender?: RTCRtpSender;
 
   protected constraints: MediaTrackConstraints;
+  protected isInBackground: boolean;
+  protected reaquireTrack: boolean;
 
   protected constructor(
     mediaTrack: MediaStreamTrack, kind: Track.Kind, constraints?: MediaTrackConstraints,
@@ -17,6 +19,8 @@ export default class LocalTrack extends Track {
     this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
     document.addEventListener('visibilitychange', this.handleAppVisibilityChanged);
     this.constraints = constraints ?? mediaTrack.getConstraints();
+    this.isInBackground = document.visibilityState === 'hidden';
+    this.reaquireTrack = false;
   }
 
   get id(): string {
@@ -120,7 +124,11 @@ export default class LocalTrack extends Track {
   }
 
   protected handleAppVisibilityChanged = () => {
+    this.isInBackground = document.visibilityState === 'hidden';
 
+    if(!this.isInBackground && this.reaquireTrack) {
+      this.restart(this.constraints);
+    }
   };
 
   private handleEnded = () => {
