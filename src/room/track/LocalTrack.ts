@@ -22,7 +22,7 @@ export default class LocalTrack extends Track {
   ) {
     super(mediaTrack, kind);
     this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
-    document.addEventListener('visibilitychange', this.handleAppVisibilityChanged); // TODO when to remove this event listener?
+    document.addEventListener('visibilitychange', this.visibilityChangedListener); // TODO when to remove this event listener?
     this.constraints = constraints ?? mediaTrack.getConstraints();
     this.isInBackground = document.visibilityState === 'hidden';
     this.reacquireTrack = false;
@@ -136,13 +136,17 @@ export default class LocalTrack extends Track {
       || this.reacquireTrack;
   }
 
+  visibilityChangedListener = () => {
+    this.handleAppVisibilityChanged();
+  };
+
   protected async handleAppVisibilityChanged() {
     if (!isMobile()) return;
     this.isInBackground = document.visibilityState === 'hidden';
     log.debug('visibility changed, is in Background: ', this.isInBackground);
 
     if (!this.isInBackground && this.needsReAcquisition) {
-      log.debug('track needs to be reaquired, restarting"');
+      log.debug('track needs to be reaquired, restarting', this.source);
       await this.restart();
       this.reacquireTrack = false;
       // Restore muted state if had to be restarted
@@ -161,4 +165,9 @@ export default class LocalTrack extends Track {
     }
     this.emit(TrackEvent.Ended, this);
   };
+
+  stop(): void {
+    super.stop();
+    document.removeEventListener('visibilitychange', this.visibilityChangedListener);
+  }
 }
