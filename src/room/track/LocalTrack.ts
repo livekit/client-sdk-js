@@ -22,7 +22,7 @@ export default class LocalTrack extends Track {
   ) {
     super(mediaTrack, kind);
     this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
-    document.addEventListener('visibilitychange', this.visibilityChangedListener); // TODO when to remove this event listener?
+    document.addEventListener('visibilitychange', this.visibilityChangedListener);
     this.constraints = constraints ?? mediaTrack.getConstraints();
     this.isInBackground = document.visibilityState === 'hidden';
     this.reacquireTrack = false;
