@@ -22,6 +22,8 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   source: Track.Source;
 
+  protected isInBackground: boolean;
+
   /**
    * sid is set after track is published to server, or if it's a remote track
    */
@@ -34,6 +36,8 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
     this.kind = kind;
     this.mediaStreamTrack = mediaTrack;
     this.source = Track.Source.Unknown;
+    this.isInBackground = document.visibilityState === 'hidden';
+    document.addEventListener('visibilitychange', this.appVisibilityChangedListener);
   }
 
   /** current receive bits per second */
@@ -131,6 +135,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   stop() {
     this.mediaStreamTrack.stop();
+    document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
   }
 
   protected enable() {
@@ -155,6 +160,14 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
         recycledElements.push(element);
       }
     }
+  }
+
+  appVisibilityChangedListener = () => {
+    this.handleAppVisibilityChanged();
+  };
+
+  protected async handleAppVisibilityChanged() {
+    this.isInBackground = document.visibilityState === 'hidden';
   }
 }
 

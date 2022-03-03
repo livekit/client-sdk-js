@@ -11,8 +11,6 @@ export default class LocalTrack extends Track {
 
   protected constraints: MediaTrackConstraints;
 
-  protected isInBackground: boolean;
-
   protected wasMuted: boolean;
 
   protected reacquireTrack: boolean;
@@ -22,9 +20,7 @@ export default class LocalTrack extends Track {
   ) {
     super(mediaTrack, kind);
     this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
-    document.addEventListener('visibilitychange', this.visibilityChangedListener);
     this.constraints = constraints ?? mediaTrack.getConstraints();
-    this.isInBackground = document.visibilityState === 'hidden';
     this.reacquireTrack = false;
     this.wasMuted = false;
   }
@@ -136,13 +132,9 @@ export default class LocalTrack extends Track {
       || this.reacquireTrack;
   }
 
-  visibilityChangedListener = () => {
-    this.handleAppVisibilityChanged();
-  };
-
   protected async handleAppVisibilityChanged() {
+    await super.handleAppVisibilityChanged();
     if (!isMobile()) return;
-    this.isInBackground = document.visibilityState === 'hidden';
     log.debug('visibility changed, is in Background: ', this.isInBackground);
 
     if (!this.isInBackground && this.needsReAcquisition) {
@@ -165,9 +157,4 @@ export default class LocalTrack extends Track {
     }
     this.emit(TrackEvent.Ended, this);
   };
-
-  stop(): void {
-    super.stop();
-    document.removeEventListener('visibilitychange', this.visibilityChangedListener);
-  }
 }
