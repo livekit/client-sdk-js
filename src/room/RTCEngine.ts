@@ -212,7 +212,11 @@ export default class RTCEngine extends EventEmitter {
     this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
-
+    // @ts-ignore
+    this.subscriber.pc.onaddstream = (ev: {stream: MediaStream}) => {
+      const track = ev.stream.getTracks()[0]
+      this.emit(EngineEvent.MediaTrackAdded, track, ev.stream, null);
+    }
     // data channels
     this.lossyDC = this.publisher.pc.createDataChannel(lossyDataChannel, {
       // will drop older packets that arrive

@@ -30,6 +30,7 @@ export default abstract class RemoteTrack extends Track {
     // this is needed to determine when the track is finished
     // we send each track down in its own MediaStream, so we can assume the
     // current track is the only one that can be removed.
+    this.mediaStream = stream
     stream.onremovetrack = () => {
       this.receiver = undefined;
       this._currentBitrate = 0;
