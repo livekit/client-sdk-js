@@ -167,6 +167,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   };
 
   protected async handleAppVisibilityChanged() {
+    if (!this.isAdaptiveStream) return;
     await super.handleAppVisibilityChanged();
     this.updateVisibility();
   }
