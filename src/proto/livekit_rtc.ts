@@ -194,6 +194,7 @@ export interface JoinResponse {
    */
   alternativeUrl: string;
   clientConfiguration?: ClientConfiguration;
+  serverRegion: string;
 }
 
 export interface TrackPublishedResponse {
@@ -1413,6 +1414,7 @@ const baseJoinResponse: object = {
   serverVersion: "",
   subscriberPrimary: false,
   alternativeUrl: "",
+  serverRegion: "",
 };
 
 export const JoinResponse = {
@@ -1449,6 +1451,9 @@ export const JoinResponse = {
         message.clientConfiguration,
         writer.uint32(66).fork()
       ).ldelim();
+    }
+    if (message.serverRegion !== "") {
+      writer.uint32(74).string(message.serverRegion);
     }
     return writer;
   },
@@ -1490,6 +1495,9 @@ export const JoinResponse = {
             reader,
             reader.uint32()
           );
+          break;
+        case 9:
+          message.serverRegion = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -1554,6 +1562,11 @@ export const JoinResponse = {
     } else {
       message.clientConfiguration = undefined;
     }
+    if (object.serverRegion !== undefined && object.serverRegion !== null) {
+      message.serverRegion = String(object.serverRegion);
+    } else {
+      message.serverRegion = "";
+    }
     return message;
   },
 
@@ -1589,6 +1602,8 @@ export const JoinResponse = {
       (obj.clientConfiguration = message.clientConfiguration
         ? ClientConfiguration.toJSON(message.clientConfiguration)
         : undefined);
+    message.serverRegion !== undefined &&
+      (obj.serverRegion = message.serverRegion);
     return obj;
   },
 
@@ -1632,6 +1647,7 @@ export const JoinResponse = {
     } else {
       message.clientConfiguration = undefined;
     }
+    message.serverRegion = object.serverRegion ?? "";
     return message;
   },
 };
