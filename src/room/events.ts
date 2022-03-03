@@ -185,7 +185,7 @@ export enum RoomEvent {
   ConnectionQualityChanged = 'connectionQualityChanged',
 
   /**
-   * StreamState indicates if a subscribed track has been paused by the SFU
+   * StreamState indicates if a subscribed (remote) track has been paused by the SFU
    * (typically this happens because of subscriber's bandwidth constraints)
    *
    * When bandwidth conditions allow, the track will be resumed automatically.
