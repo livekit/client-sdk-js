@@ -1,4 +1,3 @@
-import 'webrtc-adapter';
 import log from '../logger';
 import {
   ClientInfo,

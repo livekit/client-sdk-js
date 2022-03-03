@@ -36,6 +36,7 @@ export async function connect(
   }
   setLogLevel(options.logLevel ?? LogLevel.warn);
 
+  console.log("connecting to {url} {token}")
   const config: RTCConfiguration = options.rtcConfig ?? {};
   if (options.iceServers) {
     config.iceServers = options.iceServers;

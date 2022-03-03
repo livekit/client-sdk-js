@@ -271,8 +271,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         clearTimeout(connectTimeout);
 
         // also hook unload event
-        window.addEventListener('beforeunload', this.onBeforeUnload);
-        navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
+        //window.addEventListener('beforeunload', this.onBeforeUnload);
+        //navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
 
         resolve(this);
       });
@@ -432,6 +432,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     stream: MediaStream,
     receiver?: RTCRtpReceiver,
   ) {
+    console.log(`onTrackAdded: ${mediaTrack.kind}`)
     const parts = unpackStreamId(stream.id);
     const participantId = parts[0];
     let trackId = parts[1];
