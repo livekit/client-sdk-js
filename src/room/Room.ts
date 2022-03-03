@@ -195,7 +195,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     try {
       const joinResponse = await this.engine.join(url, token, opts);
-      log.debug('connected to Livekit Server', joinResponse.serverVersion);
+      log.debug(`connected to Livekit Server version: ${joinResponse.serverVersion}, region: ${joinResponse.serverRegion}`);
 
       if (!joinResponse.serverVersion) {
         throw new UnsupportedServer('unknown server version');
@@ -466,6 +466,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleRestarted = async (joinResponse: JoinResponse) => {
+    log.debug('reconnected to server region', joinResponse.serverRegion);
     this.state = RoomState.Connected;
     this.emit(RoomEvent.Reconnected);
     this.emit(RoomEvent.StateChanged, this.state);
