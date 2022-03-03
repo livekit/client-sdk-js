@@ -18,8 +18,6 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   isMuted: boolean = false;
 
-  streamState: Track.StreamState = Track.StreamState.Active;
-
   source: Track.Source;
 
   /**
