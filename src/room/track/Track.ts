@@ -318,6 +318,7 @@ export type TrackEventCallbacks = {
   updateSubscription: () => void,
   audioPlaybackStarted: () => void,
   audioPlaybackFailed: (error: Error) => void,
+  audioSilenceDetected: () => void,
   visibilityChanged: (visible: boolean, track?: any) => void,
   videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void,
 };

@@ -1,5 +1,4 @@
 import { sleep } from '../utils';
-import log from '../../logger';
 import {
   AudioCaptureOptions, CreateLocalTracksOptions,
   VideoCaptureOptions,
@@ -83,22 +82,34 @@ export function constraintsForOptions(options: CreateLocalTracksOptions): MediaS
  */
 export async function detectSilence(
   track: AudioTrack,
-  ctx: AudioContext,
   timeOffset = 200,
 ): Promise<boolean> {
-  if (track.isMuted) {
-    log.warn('silence detection: track is muted and will always be silent');
+  const ctx = getNewAudioContext();
+  if (ctx) {
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    const source = ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+
+    source.connect(analyser);
+    await sleep(timeOffset);
+    analyser.getByteTimeDomainData(dataArray);
+    const someNoise = dataArray.some((sample) => sample !== 128 && sample !== 0);
+    ctx.close();
+    return !someNoise;
   }
-  const analyser = ctx.createAnalyser();
-  analyser.fftSize = 2048;
+  return false;
+}
 
-  const bufferLength = analyser.frequencyBinCount;
-  const dataArray = new Uint8Array(bufferLength);
-  const source = ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
-
-  source.connect(analyser);
-  await sleep(timeOffset);
-  analyser.getByteTimeDomainData(dataArray);
-  const someNoise = dataArray.some((sample) => sample !== 128 && sample !== 0);
-  return !someNoise;
+/**
+ * @internal
+ */
+export function getNewAudioContext(): AudioContext | void {
+  // @ts-ignore
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (AudioContext) {
+    return new AudioContext();
+  }
 }

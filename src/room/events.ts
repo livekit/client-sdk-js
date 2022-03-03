@@ -400,6 +400,11 @@ export enum TrackEvent {
   AudioPlaybackStarted = 'audioPlaybackStarted',
   /** @internal */
   AudioPlaybackFailed = 'audioPlaybackFailed',
+  /**
+   * @internal
+   * Only fires on LocalAudioTrack instances
+  */
+  AudioSilenceDetected = 'audioSilenceDetected',
   /** @internal */
   VisibilityChanged = 'visibilityChanged',
   /** @internal */

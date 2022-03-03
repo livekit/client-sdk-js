@@ -1,9 +1,10 @@
 import log from '../../logger';
+import { TrackEvent } from '../events';
 import { AudioSenderStats, computeBitrate, monitorFrequency } from '../stats';
 import LocalTrack from './LocalTrack';
 import { AudioCaptureOptions } from './options';
 import { Track } from './Track';
-import { constraintsForOptions } from './utils';
+import { constraintsForOptions, detectSilence } from './utils';
 
 export default class LocalAudioTrack extends LocalTrack {
   sender?: RTCRtpSender;
@@ -18,6 +19,7 @@ export default class LocalAudioTrack extends LocalTrack {
     constraints?: MediaTrackConstraints,
   ) {
     super(mediaTrack, Track.Kind.Audio, constraints);
+    this.checkForSilence();
   }
 
   async setDeviceId(deviceId: string) {
@@ -59,6 +61,12 @@ export default class LocalAudioTrack extends LocalTrack {
       }
     }
     await this.restart(constraints);
+  }
+
+  protected async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {
+    const track = await super.restart(constraints);
+    this.checkForSilence();
+    return track;
   }
 
   /* @internal */
@@ -115,5 +123,15 @@ export default class LocalAudioTrack extends LocalTrack {
     });
 
     return audioStats;
+  }
+
+  async checkForSilence() {
+    const trackIsSilent = await detectSilence(this);
+    if (trackIsSilent) {
+      if (!this.isMuted) {
+        log.warn('silence detected on local audio track');
+      }
+      this.emit(TrackEvent.AudioSilenceDetected);
+    }
   }
 }

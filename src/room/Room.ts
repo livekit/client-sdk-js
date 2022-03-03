@@ -29,6 +29,7 @@ import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import { TrackPublication } from './track/TrackPublication';
 import { AdaptiveStreamSettings, RemoteTrack } from './track/types';
+import { getNewAudioContext } from './track/utils';
 import { unpackStreamId } from './utils';
 
 export enum RoomState {
@@ -725,10 +726,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     // by using an AudioContext, it reduces lag on audio elements
     // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
-    // @ts-ignore
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (AudioContext) {
-      this.audioContext = new AudioContext();
+    const ctx = getNewAudioContext();
+    if (ctx) {
+      this.audioContext = ctx;
     }
   }
 
