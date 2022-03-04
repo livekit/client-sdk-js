@@ -1,5 +1,4 @@
 import { debounce } from 'ts-debounce';
-import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency, VideoReceiverStats } from '../stats';
 import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
@@ -182,7 +181,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
       0,
     );
     const isVisible = this.elementInfos.some((info) => info.visible) && !this.isInBackground;
-    log.info('update visibility', isVisible);
 
     if (this.lastVisible === isVisible) {
       return;
