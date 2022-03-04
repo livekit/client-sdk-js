@@ -2,6 +2,7 @@ import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
+import { isMobile } from '../utils';
 import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {
@@ -10,12 +11,18 @@ export default class LocalTrack extends Track {
 
   protected constraints: MediaTrackConstraints;
 
+  protected wasMuted: boolean;
+
+  protected reacquireTrack: boolean;
+
   protected constructor(
     mediaTrack: MediaStreamTrack, kind: Track.Kind, constraints?: MediaTrackConstraints,
   ) {
     super(mediaTrack, kind);
     this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
     this.constraints = constraints ?? mediaTrack.getConstraints();
+    this.reacquireTrack = false;
+    this.wasMuted = false;
   }
 
   get id(): string {
@@ -118,7 +125,36 @@ export default class LocalTrack extends Track {
     this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
   }
 
+  protected get needsReAcquisition(): boolean {
+    return this.mediaStreamTrack.readyState !== 'live'
+      || this.mediaStreamTrack.muted
+      || !this.mediaStreamTrack.enabled
+      || this.reacquireTrack;
+  }
+
+  protected async handleAppVisibilityChanged() {
+    await super.handleAppVisibilityChanged();
+    if (!isMobile()) return;
+    log.debug('visibility changed, is in Background: ', this.isInBackground);
+
+    if (!this.isInBackground && this.needsReAcquisition) {
+      log.debug('track needs to be reaquired, restarting', this.source);
+      await this.restart();
+      this.reacquireTrack = false;
+      // Restore muted state if had to be restarted
+      this.setTrackMuted(this.wasMuted);
+    }
+
+    // store muted state each time app goes to background
+    if (this.isInBackground) {
+      this.wasMuted = this.isMuted;
+    }
+  }
+
   private handleEnded = () => {
+    if (this.isInBackground) {
+      this.reacquireTrack = true;
+    }
     this.emit(TrackEvent.Ended, this);
   };
 }

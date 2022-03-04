@@ -1,7 +1,9 @@
+import { sleep } from '../utils';
 import {
   AudioCaptureOptions, CreateLocalTracksOptions,
   VideoCaptureOptions,
 } from './options';
+import { AudioTrack } from './types';
 
 export function mergeDefaultOptions(
   options?: CreateLocalTracksOptions,
@@ -73,4 +75,41 @@ export function constraintsForOptions(options: CreateLocalTracksOptions): MediaS
     constraints.audio = false;
   }
   return constraints;
+}
+/**
+ * This function detects silence on a given [[Track]] instance.
+ * Returns true if the track seems to be entirely silent.
+ */
+export async function detectSilence(
+  track: AudioTrack,
+  timeOffset = 200,
+): Promise<boolean> {
+  const ctx = getNewAudioContext();
+  if (ctx) {
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    const source = ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+
+    source.connect(analyser);
+    await sleep(timeOffset);
+    analyser.getByteTimeDomainData(dataArray);
+    const someNoise = dataArray.some((sample) => sample !== 128 && sample !== 0);
+    ctx.close();
+    return !someNoise;
+  }
+  return false;
+}
+
+/**
+ * @internal
+ */
+export function getNewAudioContext(): AudioContext | void {
+  // @ts-ignore
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (AudioContext) {
+    return new AudioContext();
+  }
 }

@@ -3,7 +3,7 @@ import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import { SubscribedQuality } from '../../proto/livekit_rtc';
 import { computeBitrate, monitorFrequency, VideoSenderStats } from '../stats';
-import { isFireFox } from '../utils';
+import { isFireFox, isMobile } from '../utils';
 import LocalTrack from './LocalTrack';
 import { VideoCaptureOptions } from './options';
 import { Track } from './Track';
@@ -238,6 +238,14 @@ export default class LocalVideoTrack extends LocalTrack {
       this.monitorSender();
     }, monitorFrequency);
   };
+
+  protected async handleAppVisibilityChanged() {
+    await super.handleAppVisibilityChanged();
+    if (!isMobile()) return;
+    if (this.isInBackground && this.source === Track.Source.Camera) {
+      this.mediaStreamTrack.enabled = false;
+    }
+  }
 }
 
 export function videoQualityForRid(rid: string): VideoQuality {

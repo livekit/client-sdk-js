@@ -165,6 +165,12 @@ export default class RemoteVideoTrack extends RemoteTrack {
     this.updateVisibility();
   };
 
+  protected async handleAppVisibilityChanged() {
+    if (!this.isAdaptiveStream) return;
+    await super.handleAppVisibilityChanged();
+    this.updateVisibility();
+  }
+
   private readonly debouncedHandleResize = debounce(() => {
     this.updateDimensions();
   }, REACTION_DELAY);
@@ -174,7 +180,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       (prev, info) => Math.max(prev, info.visibilityChangedAt || 0),
       0,
     );
-    const isVisible = this.elementInfos.some((info) => info.visible);
+    const isVisible = this.elementInfos.some((info) => info.visible) && !this.isInBackground;
 
     if (this.lastVisible === isVisible) {
       return;
