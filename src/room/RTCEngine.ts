@@ -161,6 +161,11 @@ export default class RTCEngine extends EventEmitter {
       this.rtcConfig.iceServers = rtcIceServers;
     }
 
+    // @ts-ignore
+    this.rtcConfig.sdpSemantics = 'unified-plan'
+    // @ts-ignore
+    this.rtcConfig.continualGatheringPolicy = 'gather_continually'
+    
     this.publisher = new PCTransport(this.rtcConfig);
     this.subscriber = new PCTransport(this.rtcConfig);
 
