@@ -19,6 +19,7 @@
     "deploy": "gh-pages -d example/dist"
   },
   "dependencies": {
+    "@mediapipe/selfie_segmentation": "^0.1.1632777926",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
     "protobufjs": "^6.11.2",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@types/dom-mediacapture-transform": "^0.1.2",
     "@types/jest": "^27.0.3",
+    "@types/offscreencanvas": "^2019.6.4",
     "@types/ws": "^7.4.0",
     "@typescript-eslint/eslint-plugin": "^4.31.2",
     "@webpack-cli/serve": "^1.5.2",

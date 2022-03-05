@@ -8,7 +8,7 @@ import {
   VideoCaptureOptions, VideoPresets,
 } from '../src/index';
 
-import { MyTrackGenerator, MyTransformer, TrackCanvasProcessor } from '../src/room/track/processor/types';
+import { VirtualBackgroundProcessor } from '../src/room/track/processor/types';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -78,16 +78,9 @@ const appActions = {
     if (room && shouldPublish) {
       await room.localParticipant.createTracks({ audio: true });
       const videoTrack = await createLocalVideoTrack();
-      const { width, height } = videoTrack.mediaStreamTrack.getSettings();
 
-      const processor = new TrackCanvasProcessor({ track: videoTrack });
-      const transformer = new MyTransformer();
-      const destination = new MyTrackGenerator(width!, height!);
-
-      processor.pipeThrough(transformer).pipeTo(destination);
-
-      const processedTrack = destination.track;
-      room.localParticipant.publishTrack(processedTrack);
+      videoTrack.setProcessor(VirtualBackgroundProcessor);
+      room.localParticipant.publishTrack(videoTrack);
 
       updateButtonsForPublishState();
     }

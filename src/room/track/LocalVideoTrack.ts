@@ -6,6 +6,7 @@ import { computeBitrate, monitorFrequency, VideoSenderStats } from '../stats';
 import { isFireFox, isMobile } from '../utils';
 import LocalTrack from './LocalTrack';
 import { VideoCaptureOptions } from './options';
+import { VirtualBackgroundProcessor } from './processor/types';
 import { Track } from './Track';
 import { constraintsForOptions } from './utils';
 
@@ -49,6 +50,7 @@ export default class LocalVideoTrack extends LocalTrack {
     this.sender = undefined;
     this.mediaStreamTrack.getConstraints();
     super.stop();
+    this.sourceStream?.stop();
   }
 
   async mute(): Promise<LocalVideoTrack> {
@@ -245,6 +247,21 @@ export default class LocalVideoTrack extends LocalTrack {
     if (this.isInBackground && this.source === Track.Source.Camera) {
       this.mediaStreamTrack.enabled = false;
     }
+  }
+
+  processor: VirtualBackgroundProcessor | undefined;
+
+  sourceStream: MediaStreamVideoTrack | undefined;
+
+  setProcessor(Processor: typeof VirtualBackgroundProcessor) {
+    // TODO explore if its possible to spawn the processor in a worker
+    this.sourceStream = this.mediaStreamTrack as MediaStreamVideoTrack;
+    this.processor = new Processor({
+      track: this.sourceStream,
+      element: this.attach() as HTMLVideoElement,
+      backgroundUrl: 'https://placekitten.com/300/200',
+    });
+    this.mediaStreamTrack = this.processor.processedTrack;
   }
 }
 

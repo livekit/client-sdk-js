@@ -1,5 +1,5 @@
-import LocalVideoTrack from '../LocalVideoTrack';
-import { VideoTrack } from '../types';
+import { SelfieSegmentation, Results } from '@mediapipe/selfie_segmentation';
+import log from '../../../logger';
 
 export interface TrackTransform<T> {
   transform: (frame: T) => T;
@@ -11,7 +11,9 @@ export interface TrackGenerator<T> {
 }
 
 export type ProcessorOptions = {
-  track: VideoTrack;
+  track: MediaStreamTrack;
+  element: HTMLVideoElement;
+  backgroundUrl: string;
 };
 
 export interface Processor<T> {
@@ -20,88 +22,98 @@ export interface Processor<T> {
   pipeTo: (sink: TrackGenerator<T>) => void;
 }
 
-export class TrackCanvasProcessor implements Processor<ImageData> {
-  source: VideoTrack;
-
-  sourceDummy: HTMLVideoElement;
+export class VirtualBackgroundProcessor {
+  source: MediaStreamVideoTrack;
 
   sourceSettings: MediaTrackSettings;
 
-  protected sourceFrameCanvas: HTMLCanvasElement;
-
-  protected canvasContext: CanvasRenderingContext2D;
-
-  private transform: TrackTransform<ImageData> | undefined;
-
-  private sink: TrackGenerator<ImageData> | undefined;
-
-  processLoop: number | NodeJS.Timer | undefined;
-
   isEnabled: boolean = true;
 
+  processor: MediaStreamTrackProcessor<VideoFrame>;
+
+  trackGenerator: MediaStreamTrackGenerator<VideoFrame>;
+
+  canvas: OffscreenCanvas;
+
+  ctx: OffscreenCanvasRenderingContext2D;
+
+  sourceDummy: HTMLVideoElement;
+
+  transformer: TransformStream;
+
+  selfieSegmentation: SelfieSegmentation;
+
+  backgroundImagePattern: CanvasPattern | null = null;
+
+  processedTrack: MediaStreamVideoTrack;
+
   constructor(opts: ProcessorOptions) {
-    this.source = opts.track;
-    this.sourceSettings = this.source.mediaStreamTrack.getSettings();
-    this.sourceDummy = this.source.attach() as HTMLVideoElement;
-    const { width, height } = this.sourceSettings;
+    this.source = opts.track as MediaStreamVideoTrack;
+    this.sourceSettings = this.source.getSettings();
+    this.sourceDummy = opts.element;
+    this.processor = new MediaStreamTrackProcessor({ track: this.source });
+    this.trackGenerator = new MediaStreamTrackGenerator({ kind: 'video' });
+    this.transformer = new TransformStream({
+      transform: (frame, controller) => this.transform(frame, controller),
+    });
 
-    // @ts-ignore
-    this.sourceFrameCanvas = new OffscreenCanvas(width, height);
-    this.canvasContext = this.sourceFrameCanvas.getContext('2d')!;
+    this.processor.readable.pipeThrough(this.transformer).pipeTo(this.trackGenerator.writable);
+    this.processedTrack = this.trackGenerator as MediaStreamVideoTrack;
+
+    this.canvas = new OffscreenCanvas(this.sourceSettings.width!, this.sourceSettings.height!);
+    this.ctx = this.canvas.getContext('2d')!;
+
+    this.selfieSegmentation = new SelfieSegmentation({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}` });
+    this.selfieSegmentation.setOptions({
+      modelSelection: 1,
+    });
+    this.selfieSegmentation.onResults((results) => { this.segmentationResults = results; });
+
+    this.loadBackground(opts.backgroundUrl).catch((e) => log.error(e));
+    setInterval(() => this.selfieSegmentation.send({ image: this.sourceDummy }), 500);
   }
 
-  private get readable() {
-    const { width, height } = this.sourceSettings;
-    this.canvasContext.drawImage(
-      this.sourceDummy, 0, 0, width!, height!,
+  async loadBackground(path: string) {
+    const img = new Image();
+
+    await new Promise((resolve, reject) => {
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = (err) => reject(err);
+      img.src = path;
+    });
+    const imageData = await createImageBitmap(img);
+    this.backgroundImagePattern = this.ctx.createPattern(imageData, 'repeat');
+  }
+
+  segmentationResults: Results | undefined;
+
+  drawResults(frame: VideoFrame) {
+    // this.ctx.save();
+    // this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (this.segmentationResults) {
+      this.ctx.drawImage(this.segmentationResults.segmentationMask, 0, 0);
+
+      // Only overwrite existing pixels.
+      this.ctx.globalCompositeOperation = 'source-out';
+
+      this.ctx.fillStyle = this.backgroundImagePattern ?? '#00FF00';
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+      // Only overwrite missing pixels.
+      this.ctx.globalCompositeOperation = 'destination-atop';
+    }
+    this.ctx.drawImage(
+      frame, 0, 0, this.canvas.width, this.canvas.height,
     );
-    return this.canvasContext.getImageData(0, 0, width!, height!);
+    // this.ctx.restore();
   }
 
-  pipeThrough(transform: TrackTransform<ImageData>)
-    : Processor<ImageData> {
-    this.transform = transform;
-    return this;
-  }
-
-  pipeTo(sink: TrackGenerator<ImageData>) {
-    this.sink = sink;
+  async transform(frame: VideoFrame, controller: TransformStreamDefaultController<VideoFrame>) {
+    this.drawResults(frame);
     // @ts-ignore
-    clearInterval(this.processLoop);
-    this.processLoop = setInterval(() => this.process(), this.sourceSettings.frameRate);
-  }
-
-  protected async process() {
-    if (!this.sink) return;
-    const frame = this.transform ? await this.transform.transform(this.readable) : this.readable;
-    this.sink.writable = frame;
-  }
-}
-
-export class MyTransformer implements TrackTransform<ImageData> {
-  transform(frame: ImageData): ImageData {
-    return new ImageData(frame.data.map((v) => (v > 100 ? v : 0)), frame.width, frame.height);
-  }
-}
-
-export class MyTrackGenerator implements TrackGenerator<ImageData> {
-  frameData: any;
-
-  destCanvas: HTMLCanvasElement;
-
-  constructor(width: number, height: number) {
-    this.destCanvas = document.createElement('canvas');
-    this.destCanvas.width = width;
-    this.destCanvas.height = height;
-  }
-
-  set writable(value: ImageData) {
-    this.destCanvas.getContext('2d')?.putImageData(value, 0, 0);
-  }
-
-  get track() {
-    // @ts-ignore
-    const track = new LocalVideoTrack(his.destCanvas.captureStream(20).getTracks()[0]);
-    return track;
+    const newFrame = new VideoFrame(this.canvas, { timestamp: performance.now() });
+    frame.close();
+    controller.enqueue(newFrame);
   }
 }
