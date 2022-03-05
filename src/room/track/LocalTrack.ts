@@ -111,6 +111,7 @@ export default class LocalTrack extends Track {
       attachToElement(newTrack, el);
     });
 
+    this.mediaStream = mediaStream
     this.constraints = constraints;
     return this;
   }
