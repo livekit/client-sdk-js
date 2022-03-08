@@ -484,6 +484,7 @@ export default class RTCEngine extends (
     }
 
     await this.waitForPCConnected();
+    this.client.setReconnected();
 
     // resume success
     this.emit(EngineEvent.Resumed);
