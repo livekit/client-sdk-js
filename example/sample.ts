@@ -157,17 +157,20 @@ const appActions = {
   toggleAudio: async () => {
     if (!currentRoom) return;
     const enabled = currentRoom.localParticipant.isMicrophoneEnabled;
+    setButtonDisabled('toggle-audio-button', true);
     if (enabled) {
       appendLog('disabling audio');
     } else {
       appendLog('enabling audio');
     }
     await currentRoom.localParticipant.setMicrophoneEnabled(!enabled);
+    setButtonDisabled('toggle-audio-button', false);
     updateButtonsForPublishState();
   },
 
   toggleVideo: async () => {
     if (!currentRoom) return;
+    setButtonDisabled('toggle-video-button', true);
     const enabled = currentRoom.localParticipant.isCameraEnabled;
     if (enabled) {
       appendLog('disabling video');
@@ -175,6 +178,7 @@ const appActions = {
       appendLog('enabling video');
     }
     await currentRoom.localParticipant.setCameraEnabled(!enabled);
+    setButtonDisabled('toggle-video-button', false);
     renderParticipant(currentRoom.localParticipant);
 
     // update display
@@ -555,16 +559,24 @@ function updateVideoSize(element: HTMLVideoElement, target: HTMLElement) {
   target.innerHTML = `(${element.videoWidth}x${element.videoHeight})`;
 }
 
-function setButtonState(buttonId: string, buttonText: string, isActive: boolean) {
-  const el = $(buttonId);
+function setButtonState(buttonId: string,
+  buttonText: string,
+  isActive: boolean,
+  isDisabled: boolean = false) {
+  const el = $(buttonId) as HTMLButtonElement;
   if (!el) return;
-
+  el.disabled = isDisabled;
   el.innerHTML = buttonText;
   if (isActive) {
     el.classList.add('active');
   } else {
     el.classList.remove('active');
   }
+}
+
+function setButtonDisabled(buttonId: string, isDisabled: boolean) {
+  const el = $(buttonId) as HTMLButtonElement;
+  el.disabled = isDisabled;
 }
 
 setTimeout(handleDevicesChanged, 100);
