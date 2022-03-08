@@ -562,10 +562,12 @@ function updateVideoSize(element: HTMLVideoElement, target: HTMLElement) {
 function setButtonState(buttonId: string,
   buttonText: string,
   isActive: boolean,
-  isDisabled: boolean = false) {
+  isDisabled: boolean | undefined = undefined) {
   const el = $(buttonId) as HTMLButtonElement;
   if (!el) return;
-  el.disabled = isDisabled;
+  if (isDisabled !== undefined) {
+    el.disabled = isDisabled;
+  }
   el.innerHTML = buttonText;
   if (isActive) {
     el.classList.add('active');
