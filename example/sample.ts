@@ -1,3 +1,5 @@
+import { BlurBackground } from '@livekit/video-processors';
+
 import {
   ConnectionQuality,
   createLocalVideoTrack,
@@ -7,8 +9,6 @@ import {
   RoomOptions, RoomState, setLogLevel, Track, TrackPublication,
   VideoCaptureOptions, VideoPresets,
 } from '../src/index';
-
-import { VirtualBackgroundProcessor } from '../src/room/track/processor/types';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -79,7 +79,7 @@ const appActions = {
       await room.localParticipant.createTracks({ audio: true });
       const videoTrack = await createLocalVideoTrack();
 
-      videoTrack.setProcessor(VirtualBackgroundProcessor);
+      videoTrack.setProcessor(BlurBackground(10));
       room.localParticipant.publishTrack(videoTrack);
 
       updateButtonsForPublishState();

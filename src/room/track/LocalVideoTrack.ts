@@ -6,7 +6,7 @@ import { computeBitrate, monitorFrequency, VideoSenderStats } from '../stats';
 import { isFireFox, isMobile } from '../utils';
 import LocalTrack from './LocalTrack';
 import { VideoCaptureOptions } from './options';
-import { VirtualBackgroundProcessor } from './processor/types';
+import { ProcessorOptions, VideoProcessor } from './processor/types';
 import { Track } from './Track';
 import { constraintsForOptions } from './utils';
 
@@ -17,6 +17,8 @@ export default class LocalVideoTrack extends LocalTrack {
   private prevStats?: Map<string, VideoSenderStats>;
 
   private encodings?: RTCRtpEncodingParameters[];
+
+  private processorElement?: HTMLMediaElement;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -51,6 +53,7 @@ export default class LocalVideoTrack extends LocalTrack {
     this.mediaStreamTrack.getConstraints();
     super.stop();
     this.sourceStream?.stop();
+    this.processor?.destroy();
   }
 
   async mute(): Promise<LocalVideoTrack> {
@@ -249,19 +252,39 @@ export default class LocalVideoTrack extends LocalTrack {
     }
   }
 
-  processor: VirtualBackgroundProcessor | undefined;
+  processor: VideoProcessor<ProcessorOptions> | undefined;
 
-  sourceStream: MediaStreamVideoTrack | undefined;
+  sourceStream: MediaStreamTrack | undefined;
 
-  setProcessor(Processor: typeof VirtualBackgroundProcessor) {
-    // TODO explore if its possible to spawn the processor in a worker
-    this.sourceStream = this.mediaStreamTrack as MediaStreamVideoTrack;
-    this.processor = new Processor({
+  async setProcessor(
+    processor: VideoProcessor<ProcessorOptions>,
+  ) {
+    this.processorElement = this.processorElement
+      ? this.attach(this.processorElement) : this.attach();
+    const defaults = {
       track: this.sourceStream,
-      element: this.attach() as HTMLVideoElement,
-      backgroundUrl: 'https://placekitten.com/300/200',
-    });
-    this.mediaStreamTrack = this.processor.processedTrack;
+      element: this.processorElement as HTMLVideoElement,
+    };
+
+    await processor.init(defaults);
+    this.processor = processor as VideoProcessor<ProcessorOptions>;
+    if (this.processor.processedTrack) {
+      this.mediaStreamTrack = this.processor.processedTrack;
+      this.attachedElements.forEach((el) => {
+        if (el !== this.processorElement) {
+          this.attach(el);
+        }
+      });
+    }
+  }
+
+  async stopProcessor() {
+    this.sourceStream?.stop();
+    this.mediaStreamTrack.stop();
+    if (this.processor) {
+      await this.processor.destroy();
+    }
+    this.restart();
   }
 }
 
