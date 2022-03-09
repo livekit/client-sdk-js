@@ -1,4 +1,4 @@
-import { BlurBackground } from '@livekit/video-processors';
+import { BlurBackground, VirtualBackground } from '@livekit/stream-processors';
 
 import {
   ConnectionQuality,
@@ -79,8 +79,14 @@ const appActions = {
       await room.localParticipant.createTracks({ audio: true });
       const videoTrack = await createLocalVideoTrack();
 
-      videoTrack.setProcessor(BlurBackground(10));
       room.localParticipant.publishTrack(videoTrack);
+
+      let disable = true;
+      setInterval(async () => {
+        await videoTrack.setProcessor(disable ? BlurBackground(10) : VirtualBackground('https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/An%C3%A9mona_de_mar_com%C3%BAn_%28Anemonia_viridis%29%2C_Parque_natural_de_la_Arr%C3%A1bida%2C_Portugal%2C_2020-07-21%2C_DD_07.jpg/1000px-An%C3%A9mona_de_mar_com%C3%BAn_%28Anemonia_viridis%29%2C_Parque_natural_de_la_Arr%C3%A1bida%2C_Portugal%2C_2020-07-21%2C_DD_07.jpg'));
+
+        disable = !disable;
+      }, 5000);
 
       updateButtonsForPublishState();
     }

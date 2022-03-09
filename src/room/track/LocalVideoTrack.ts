@@ -7,7 +7,7 @@ import { isFireFox, isMobile } from '../utils';
 import LocalTrack from './LocalTrack';
 import { VideoCaptureOptions } from './options';
 import { ProcessorOptions, VideoProcessor } from './processor/types';
-import { Track } from './Track';
+import { attachToElement, Track } from './Track';
 import { constraintsForOptions } from './utils';
 
 export default class LocalVideoTrack extends LocalTrack {
@@ -19,6 +19,8 @@ export default class LocalVideoTrack extends LocalTrack {
   private encodings?: RTCRtpEncodingParameters[];
 
   private processorElement?: HTMLMediaElement;
+
+  isSettingUpProcessor: any;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -259,8 +261,21 @@ export default class LocalVideoTrack extends LocalTrack {
   async setProcessor(
     processor: VideoProcessor<ProcessorOptions>,
   ) {
-    this.processorElement = this.processorElement
-      ? this.attach(this.processorElement) : this.attach();
+    if (this.isSettingUpProcessor) {
+      log.warn('already trying to set up a processor');
+    }
+    this.isSettingUpProcessor = true;
+    if (this.sourceStream) {
+      await this.stopProcessor();
+    }
+
+    this.processorElement = this.processorElement ?? document.createElement('video');
+    this.processorElement.muted = true;
+
+    this.sourceStream = this.mediaStreamTrack;
+    attachToElement(this.sourceStream, this.processorElement);
+    this.processorElement.play().catch((e) => log.error(e));
+
     const defaults = {
       track: this.sourceStream,
       element: this.processorElement as HTMLVideoElement,
@@ -275,16 +290,21 @@ export default class LocalVideoTrack extends LocalTrack {
           this.attach(el);
         }
       });
+      await this.sender?.replaceTrack(this.mediaStreamTrack);
     }
+    this.isSettingUpProcessor = false;
   }
 
   async stopProcessor() {
+    if (!this.sourceStream) return;
+    log.debug('stopping processor');
     this.sourceStream?.stop();
-    this.mediaStreamTrack.stop();
+    this.mediaStreamTrack = this.sourceStream;
+    this.sourceStream = undefined;
     if (this.processor) {
       await this.processor.destroy();
     }
-    this.restart();
+    await this.restart();
   }
 }
 

@@ -25,7 +25,7 @@
     "ts-debounce": "^3.0.0",
     "typed-emitter": "^2.1.0",
     "webrtc-adapter": "^8.1.1",
-    "@livekit/video-processors": "latest"
+    "@livekit/stream-processors": "latest"
   },
   "devDependencies": {
     "@types/jest": "^27.0.3",
