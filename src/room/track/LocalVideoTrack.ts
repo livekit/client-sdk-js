@@ -20,7 +20,9 @@ export default class LocalVideoTrack extends LocalTrack {
 
   private processorElement?: HTMLMediaElement;
 
-  isSettingUpProcessor: any;
+  private processor?: VideoProcessor<ProcessorOptions>;
+
+  private isSettingUpProcessor: boolean = false;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -54,7 +56,6 @@ export default class LocalVideoTrack extends LocalTrack {
     this.sender = undefined;
     this.mediaStreamTrack.getConstraints();
     super.stop();
-    this.sourceStream?.stop();
     this.processor?.destroy();
   }
 
@@ -254,56 +255,56 @@ export default class LocalVideoTrack extends LocalTrack {
     }
   }
 
-  processor: VideoProcessor<ProcessorOptions> | undefined;
-
-  sourceStream: MediaStreamTrack | undefined;
-
   async setProcessor(
     processor: VideoProcessor<ProcessorOptions>,
+    showProcessedStreamLocally = true,
   ) {
     if (this.isSettingUpProcessor) {
       log.warn('already trying to set up a processor');
+      return;
     }
+    log.debug('setting up processor');
     this.isSettingUpProcessor = true;
-    if (this.sourceStream) {
+    if (this.processor) {
       await this.stopProcessor();
     }
 
     this.processorElement = this.processorElement ?? document.createElement('video');
     this.processorElement.muted = true;
 
-    this.sourceStream = this.mediaStreamTrack;
-    attachToElement(this.sourceStream, this.processorElement);
+    attachToElement(this.mediaStreamTrack, this.processorElement);
     this.processorElement.play().catch((e) => log.error(e));
 
-    const defaults = {
-      track: this.sourceStream,
+    const processorOptions = {
+      track: this.mediaStreamTrack,
       element: this.processorElement as HTMLVideoElement,
     };
 
-    await processor.init(defaults);
+    await processor.init(processorOptions);
     this.processor = processor as VideoProcessor<ProcessorOptions>;
     if (this.processor.processedTrack) {
-      this.mediaStreamTrack = this.processor.processedTrack;
       this.attachedElements.forEach((el) => {
-        if (el !== this.processorElement) {
+        if (el !== this.processorElement && showProcessedStreamLocally) {
           this.attach(el);
         }
       });
-      await this.sender?.replaceTrack(this.mediaStreamTrack);
+
+      await this.sender?.replaceTrack(
+        this.processor.processedTrack,
+      );
     }
     this.isSettingUpProcessor = false;
   }
 
   async stopProcessor() {
-    if (!this.sourceStream) return;
+    if (!this.processor) return;
+
     log.debug('stopping processor');
-    this.sourceStream?.stop();
-    this.mediaStreamTrack = this.sourceStream;
-    this.sourceStream = undefined;
-    if (this.processor) {
-      await this.processor.destroy();
-    }
+    this.mediaStreamTrack?.stop();
+    this.processor.processedTrack?.stop();
+    await this.processor.destroy();
+    this.processor = undefined;
+
     await this.restart();
   }
 }
