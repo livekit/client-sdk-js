@@ -522,8 +522,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.audioContext.close();
       this.audioContext = undefined;
     }
-    window.removeEventListener('beforeunload', this.onBeforeUnload);
-    navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
+    if (window.removeEventListener) {
+      window.removeEventListener('beforeunload', this.onBeforeUnload);
+    }
+    if (navigator.mediaDevices.removeEventListener) {
+      navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
+    }
     this.state = RoomState.Disconnected;
     this.emit(RoomEvent.Disconnected);
     this.emit(RoomEvent.StateChanged, this.state);
@@ -533,7 +537,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
       if (info.sid === this.localParticipant.sid
-          || info.identity === this.localParticipant.identity) {
+        || info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
         return;
       }
