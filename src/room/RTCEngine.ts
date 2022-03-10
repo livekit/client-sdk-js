@@ -102,6 +102,7 @@ export default class RTCEngine extends EventEmitter {
     if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
       this.publisher.pc.getSenders().forEach((sender) => {
         try {
+          // react-native-webrtc need to add removeTrack
           this.publisher?.pc.removeTrack(sender);
         } catch (e) {
           log.warn('could not removeTrack', e);
