@@ -7,7 +7,7 @@ export const publishDefaults: TrackPublishDefaults = {
   audioBitrate: AudioPresets.speech.maxBitrate,
   dtx: true,
   simulcast: true,
-  screenShareEncoding: ScreenSharePresets.h720fps15.encoding,
+  screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
   stopMicTrackOnMute: false,
 };
 

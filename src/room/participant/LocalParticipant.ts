@@ -275,7 +275,7 @@ export default class LocalParticipant extends Participant {
       options = {};
     }
     if (options.resolution === undefined) {
-      options.resolution = ScreenSharePresets.h720fps15.resolution;
+      options.resolution = ScreenSharePresets.h1080fps15.resolution;
     }
 
     let videoConstraints: MediaTrackConstraints | boolean = true;
