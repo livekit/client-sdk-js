@@ -44,6 +44,7 @@ const passThroughQueueSignals: Array<keyof SignalRequest> = [
   'offer',
   'answer',
   'simulate',
+  'leave',
 ];
 
 function canPassThroughQueue(req: SignalRequest): boolean {
@@ -317,9 +318,8 @@ export class SignalClient {
     // capture all requests while reconnecting and put them in a queue.
     // keep order by queueing up new events as long as the queue is not empty
     // unless the request originates from the queue, then don't enqueue again
-    if (
-      (this.isReconnecting && !canPassThroughQueue(req))
-        || (!this.requestQueue.isEmpty() && !fromQueue)) {
+    const canQueue = !fromQueue && !canPassThroughQueue(req);
+    if (canQueue && (this.isReconnecting || (!this.requestQueue.isEmpty()))) {
       this.requestQueue.enqueue(() => this.sendRequest(req, true));
       return;
     }
