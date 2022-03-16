@@ -16,7 +16,7 @@ import {
 import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
-import { isFireFox, sleep } from './utils';
+import { isFireFox, isWeb, sleep } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -112,8 +112,10 @@ export default class RTCEngine extends (
     if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
       this.publisher.pc.getSenders().forEach((sender) => {
         try {
-          // react-native-webrtc need to add removeTrack
-          this.publisher?.pc.removeTrack(sender);
+          // TODO: react-native-webrtc doesn't have removeTrack yet.
+          if(this.publisher?.pc.removeTrack) {
+            this.publisher?.pc.removeTrack(sender);
+          }
         } catch (e) {
           log.warn('could not removeTrack', e);
         }
@@ -227,13 +229,17 @@ export default class RTCEngine extends (
       }
     };
 
-    this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
-      this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
-    };
-    // @ts-ignore
-    this.subscriber.pc.onaddstream = (ev: {stream: MediaStream}) => {
-      const track = ev.stream.getTracks()[0]
-      this.emit(EngineEvent.MediaTrackAdded, track, ev.stream, null);
+    if(isWeb()) {
+      this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
+        this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
+      };
+    } else {
+      // TODO: react-native-webrtc doesn't have ontrack yet, replace when ready.
+      // @ts-ignore
+      this.subscriber.pc.onaddstream = (ev: {stream: MediaStream}) => {
+        const track = ev.stream.getTracks()[0]
+        this.emit(EngineEvent.MediaTrackAdded, track, ev.stream, null);
+      }
     }
     // data channels
     this.lossyDC = this.publisher.pc.createDataChannel(lossyDataChannel, {

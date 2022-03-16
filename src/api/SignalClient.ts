@@ -1,3 +1,7 @@
+import { isWeb } from '../room/utils';
+if(isWeb()) {
+  import('webrtc-adapter');
+}
 import log from '../logger';
 import {
   ClientInfo,
