@@ -641,7 +641,6 @@ export default class LocalParticipant extends Participant {
     return publication;
   }
 
-  // @ts-ignore
   private setPreferredCodec(
     transceiver: RTCRtpTransceiver,
     kind: Track.Kind,

@@ -28,7 +28,7 @@ import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import { TrackPublication } from './track/TrackPublication';
 import { RemoteTrack } from './track/types';
-import { unpackStreamId } from './utils';
+import { isWeb, unpackStreamId } from './utils';
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -266,8 +266,10 @@ class Room extends EventEmitter {
         clearTimeout(connectTimeout);
 
         // also hook unload event
-        //window.addEventListener('beforeunload', this.onBeforeUnload);
-        //navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
+        if(isWeb()){
+          window.addEventListener('beforeunload', this.onBeforeUnload);
+          navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);            
+        }
 
         resolve(this);
       });
@@ -427,7 +429,6 @@ class Room extends EventEmitter {
     stream: MediaStream,
     receiver?: RTCRtpReceiver,
   ) {
-    console.log(`onTrackAdded: ${mediaTrack.kind}`)
     const parts = unpackStreamId(stream.id);
     const participantId = parts[0];
     let trackId = parts[1];
@@ -506,10 +507,8 @@ class Room extends EventEmitter {
       this.audioContext.close();
       this.audioContext = undefined;
     }
-    if (window.removeEventListener) {
+    if (isWeb()) {
       window.removeEventListener('beforeunload', this.onBeforeUnload);
-    }
-    if (navigator.mediaDevices.removeEventListener) {
       navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
     }
     this.state = RoomState.Disconnected;

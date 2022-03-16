@@ -87,7 +87,6 @@ export default class RemoteParticipant extends Participant {
     triesLeft?: number,
   ) {
 
-    console.log(`addSubscribedMediaTrack: ${mediaTrack.kind}`)
     // find the track publication
     // it's possible for the media track to arrive before participant info
     let publication = this.getTrackPublication(sid);
@@ -139,7 +138,6 @@ export default class RemoteParticipant extends Participant {
 
     publication.setTrack(track);
 
-    console.log(`added addSubscribedMediaTrack: ${mediaTrack.kind}`)
     this.emit(ParticipantEvent.TrackSubscribed, track, publication);
 
     return publication;

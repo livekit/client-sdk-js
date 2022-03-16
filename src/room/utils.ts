@@ -23,6 +23,10 @@ export function isSafari(): boolean {
   return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 }
 
+export function isWeb(): boolean {
+  return typeof document !== 'undefined';
+}
+
 function roDispatchCallback(entries: ResizeObserverEntry[]) {
   for (const entry of entries) {
     (entry.target as ObservableMediaElement).handleResize(entry);
