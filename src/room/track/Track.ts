@@ -13,6 +13,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
   kind: Track.Kind;
 
   mediaStream?: MediaStream;
+
   mediaStreamTrack: MediaStreamTrack;
 
   attachedElements: HTMLMediaElement[] = [];

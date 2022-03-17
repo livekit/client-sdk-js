@@ -113,7 +113,7 @@ export default class RTCEngine extends (
       this.publisher.pc.getSenders().forEach((sender) => {
         try {
           // TODO: react-native-webrtc doesn't have removeTrack yet.
-          if(this.publisher?.pc.removeTrack) {
+          if (this.publisher?.pc.removeTrack) {
             this.publisher?.pc.removeTrack(sender);
           }
         } catch (e) {
@@ -175,10 +175,10 @@ export default class RTCEngine extends (
     }
 
     // @ts-ignore
-    this.rtcConfig.sdpSemantics = 'unified-plan'
+    this.rtcConfig.sdpSemantics = 'unified-plan';
     // @ts-ignore
-    this.rtcConfig.continualGatheringPolicy = 'gather_continually'
-    
+    this.rtcConfig.continualGatheringPolicy = 'gather_continually';
+
     this.publisher = new PCTransport(this.rtcConfig);
     this.subscriber = new PCTransport(this.rtcConfig);
 
@@ -229,17 +229,17 @@ export default class RTCEngine extends (
       }
     };
 
-    if(isWeb()) {
+    if (isWeb()) {
       this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
         this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
       };
     } else {
       // TODO: react-native-webrtc doesn't have ontrack yet, replace when ready.
       // @ts-ignore
-      this.subscriber.pc.onaddstream = (ev: {stream: MediaStream}) => {
-        const track = ev.stream.getTracks()[0]
+      this.subscriber.pc.onaddstream = (ev: { stream: MediaStream }) => {
+        const track = ev.stream.getTracks()[0];
         this.emit(EngineEvent.MediaTrackAdded, track, ev.stream, null);
-      }
+      };
     }
     // data channels
     this.lossyDC = this.publisher.pc.createDataChannel(lossyDataChannel, {

@@ -271,9 +271,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         clearTimeout(connectTimeout);
 
         // also hook unload event
-        if(isWeb()){
+        if (isWeb()) {
           window.addEventListener('beforeunload', this.onBeforeUnload);
-          navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);            
+          navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
         }
 
         resolve(this);

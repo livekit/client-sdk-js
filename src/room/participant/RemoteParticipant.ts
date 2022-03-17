@@ -85,7 +85,6 @@ export default class RemoteParticipant extends Participant {
     adaptiveStreamSettings?: AdaptiveStreamSettings,
     triesLeft?: number,
   ) {
-
     // find the track publication
     // it's possible for the media track to arrive before participant info
     let publication = this.getTrackPublication(sid);
