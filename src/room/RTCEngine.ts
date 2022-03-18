@@ -238,7 +238,7 @@ export default class RTCEngine extends (
       // @ts-ignore
       this.subscriber.pc.onaddstream = (ev: { stream: MediaStream }) => {
         const track = ev.stream.getTracks()[0];
-        this.emit(EngineEvent.MediaTrackAdded, track, ev.stream, null);
+        this.emit(EngineEvent.MediaTrackAdded, track, ev.stream);
       };
     }
     // data channels
@@ -644,7 +644,7 @@ export type EngineEventCallbacks = {
   mediaTrackAdded: (
     track: MediaStreamTrack,
     streams: MediaStream,
-    receiver: RTCRtpReceiver
+    receiver?: RTCRtpReceiver
   ) => void,
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void,
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void,
