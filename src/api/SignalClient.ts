@@ -1,4 +1,4 @@
-import 'webrtc-adapter';
+import { isWeb, getClientInfo, sleep } from '../room/utils';
 import log from '../logger';
 import {
   ClientInfo,
@@ -20,8 +20,11 @@ import {
   UpdateSubscription, UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
-import { getClientInfo, sleep } from '../room/utils';
 import Queue from './RequestQueue';
+
+if (isWeb()) {
+  import('webrtc-adapter');
+}
 
 // internal options
 interface ConnectOpts {

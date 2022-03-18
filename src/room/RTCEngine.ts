@@ -16,7 +16,7 @@ import {
 import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
-import { isFireFox, sleep } from './utils';
+import { isFireFox, isWeb, sleep } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -112,7 +112,10 @@ export default class RTCEngine extends (
     if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
       this.publisher.pc.getSenders().forEach((sender) => {
         try {
-          this.publisher?.pc.removeTrack(sender);
+          // TODO: react-native-webrtc doesn't have removeTrack yet.
+          if (this.publisher?.pc.removeTrack) {
+            this.publisher?.pc.removeTrack(sender);
+          }
         } catch (e) {
           log.warn('could not removeTrack', e);
         }
@@ -171,6 +174,11 @@ export default class RTCEngine extends (
       this.rtcConfig.iceServers = rtcIceServers;
     }
 
+    // @ts-ignore
+    this.rtcConfig.sdpSemantics = 'unified-plan';
+    // @ts-ignore
+    this.rtcConfig.continualGatheringPolicy = 'gather_continually';
+
     this.publisher = new PCTransport(this.rtcConfig);
     this.subscriber = new PCTransport(this.rtcConfig);
 
@@ -221,10 +229,18 @@ export default class RTCEngine extends (
       }
     };
 
-    this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
-      this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
-    };
-
+    if (isWeb()) {
+      this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
+        this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
+      };
+    } else {
+      // TODO: react-native-webrtc doesn't have ontrack yet, replace when ready.
+      // @ts-ignore
+      this.subscriber.pc.onaddstream = (ev: { stream: MediaStream }) => {
+        const track = ev.stream.getTracks()[0];
+        this.emit(EngineEvent.MediaTrackAdded, track, ev.stream);
+      };
+    }
     // data channels
     this.lossyDC = this.publisher.pc.createDataChannel(lossyDataChannel, {
       // will drop older packets that arrive
@@ -628,7 +644,7 @@ export type EngineEventCallbacks = {
   mediaTrackAdded: (
     track: MediaStreamTrack,
     streams: MediaStream,
-    receiver: RTCRtpReceiver
+    receiver?: RTCRtpReceiver
   ) => void,
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void,
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void,

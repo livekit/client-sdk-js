@@ -12,6 +12,8 @@ const recycledElements: Array<HTMLAudioElement> = [];
 export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
   kind: Track.Kind;
 
+  mediaStream?: MediaStream;
+
   mediaStreamTrack: MediaStreamTrack;
 
   attachedElements: HTMLMediaElement[] = [];

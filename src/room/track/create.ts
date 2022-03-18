@@ -47,6 +47,7 @@ export async function createLocalTracks(
     } else if (track.kind === Track.Kind.Audio) {
       track.source = Track.Source.Microphone;
     }
+    track.mediaStream = stream;
     return track;
   });
 }

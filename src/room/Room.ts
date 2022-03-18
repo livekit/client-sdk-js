@@ -30,7 +30,7 @@ import { Track } from './track/Track';
 import { TrackPublication } from './track/TrackPublication';
 import { AdaptiveStreamSettings, RemoteTrack } from './track/types';
 import { getNewAudioContext } from './track/utils';
-import { unpackStreamId } from './utils';
+import { isWeb, unpackStreamId } from './utils';
 
 export enum RoomState {
   Disconnected = 'disconnected',
@@ -271,8 +271,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         clearTimeout(connectTimeout);
 
         // also hook unload event
-        window.addEventListener('beforeunload', this.onBeforeUnload);
-        navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
+        if (isWeb()) {
+          window.addEventListener('beforeunload', this.onBeforeUnload);
+          navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
+        }
 
         resolve(this);
       });
@@ -521,8 +523,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.audioContext.close();
       this.audioContext = undefined;
     }
-    window.removeEventListener('beforeunload', this.onBeforeUnload);
-    navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
+    if (isWeb()) {
+      window.removeEventListener('beforeunload', this.onBeforeUnload);
+      navigator.mediaDevices.removeEventListener('devicechange', this.handleDeviceChange);
+    }
     this.state = RoomState.Disconnected;
     this.emit(RoomEvent.Disconnected);
     this.emit(RoomEvent.StateChanged, this.state);
@@ -532,7 +536,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
       if (info.sid === this.localParticipant.sid
-          || info.identity === this.localParticipant.identity) {
+        || info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
         return;
       }
