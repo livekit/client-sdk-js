@@ -23,6 +23,7 @@ const reliableDataChannel = '_reliable';
 const maxReconnectRetries = 10;
 const minReconnectWait = 1 * 1000;
 const maxReconnectDuration = 60 * 1000;
+const subscriberInitNetworkCost = 100;
 export const maxICEConnectTimeout = 15 * 1000;
 
 /** @internal */
@@ -77,6 +78,8 @@ export default class RTCEngine extends (
   private clientConfiguration?: ClientConfiguration;
 
   private connectedServerAddr?: string;
+
+  private subscriberNetworkCost: number = subscriberInitNetworkCost;
 
   constructor() {
     super();
@@ -191,6 +194,7 @@ export default class RTCEngine extends (
     };
 
     this.subscriber.pc.onicecandidate = (ev) => {
+      console.log('candidate', ev.candidate);
       if (!ev.candidate) return;
       this.client.sendIceCandidate(ev.candidate, SignalTarget.SUBSCRIBER);
     };
@@ -281,6 +285,7 @@ export default class RTCEngine extends (
       if (target === SignalTarget.PUBLISHER) {
         this.publisher.addIceCandidate(candidate);
       } else {
+        candidate.candidate += ` network-cost ${this.subscriberNetworkCost}`;
         this.subscriber.addIceCandidate(candidate);
       }
     };
@@ -463,6 +468,7 @@ export default class RTCEngine extends (
     } catch (e) {
       throw new SignalReconnectError();
     }
+    this.subscriberNetworkCost = subscriberInitNetworkCost;
 
     await this.waitForPCConnected();
     this.client.setReconnected();
@@ -492,6 +498,7 @@ export default class RTCEngine extends (
     }
     this.emit(EngineEvent.SignalResumed);
 
+    this.subscriberNetworkCost -= 1;
     this.subscriber.restartingIce = true;
 
     // only restart publisher if it's needed
