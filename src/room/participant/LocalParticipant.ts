@@ -24,6 +24,7 @@ import {
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
+import { isFireFox } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import { computeVideoEncodings, mediaTrackToLocalTrack } from './publishUtils';
@@ -356,6 +357,12 @@ export default class LocalParticipant extends Participant {
     }
     if (opts.stopMicTrackOnMute && track instanceof LocalAudioTrack) {
       track.stopOnMute = true;
+    }
+
+    if (track.source === Track.Source.ScreenShare && isFireFox()) {
+      // Firefox does not work well with simulcasted screen share
+      // we frequently get no data on layer 0 when enabled
+      opts.simulcast = false;
     }
 
     // handle track actions
