@@ -1,13 +1,13 @@
 {
   "name": "livekit-client",
-  "version": "0.17.1",
+  "version": "0.17.2",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "dist/index.js",
   "source": "src/index.ts",
   "types": "dist/index.d.ts",
   "repository": "git@github.com:livekit/client-sdk-js.git",
   "author": "David Zhao <david@davidzhao.com>",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "scripts": {
     "build": "yarn exec tsc",
     "build-docs": "yarn exec typedoc",
