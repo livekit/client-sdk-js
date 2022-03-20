@@ -152,6 +152,8 @@ export interface SignalResponse {
   subscriptionPermissionUpdate?: SubscriptionPermissionUpdate | undefined;
   /** update the token the client was using, to prevent an active client from using an expired token */
   refreshToken: string | undefined;
+  /** server initiated track unpublish */
+  trackUnpublished?: TrackUnpublishedResponse | undefined;
 }
 
 export interface AddTrackRequest {
@@ -200,6 +202,10 @@ export interface JoinResponse {
 export interface TrackPublishedResponse {
   cid: string;
   track?: TrackInfo;
+}
+
+export interface TrackUnpublishedResponse {
+  trackSid: string;
 }
 
 export interface SessionDescription {
@@ -738,6 +744,12 @@ export const SignalResponse = {
     if (message.refreshToken !== undefined) {
       writer.uint32(130).string(message.refreshToken);
     }
+    if (message.trackUnpublished !== undefined) {
+      TrackUnpublishedResponse.encode(
+        message.trackUnpublished,
+        writer.uint32(138).fork()
+      ).ldelim();
+    }
     return writer;
   },
 
@@ -808,6 +820,12 @@ export const SignalResponse = {
           break;
         case 16:
           message.refreshToken = reader.string();
+          break;
+        case 17:
+          message.trackUnpublished = TrackUnpublishedResponse.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -922,6 +940,16 @@ export const SignalResponse = {
     } else {
       message.refreshToken = undefined;
     }
+    if (
+      object.trackUnpublished !== undefined &&
+      object.trackUnpublished !== null
+    ) {
+      message.trackUnpublished = TrackUnpublishedResponse.fromJSON(
+        object.trackUnpublished
+      );
+    } else {
+      message.trackUnpublished = undefined;
+    }
     return message;
   },
 
@@ -985,6 +1013,10 @@ export const SignalResponse = {
         : undefined);
     message.refreshToken !== undefined &&
       (obj.refreshToken = message.refreshToken);
+    message.trackUnpublished !== undefined &&
+      (obj.trackUnpublished = message.trackUnpublished
+        ? TrackUnpublishedResponse.toJSON(message.trackUnpublished)
+        : undefined);
     return obj;
   },
 
@@ -1089,6 +1121,16 @@ export const SignalResponse = {
       message.subscriptionPermissionUpdate = undefined;
     }
     message.refreshToken = object.refreshToken ?? undefined;
+    if (
+      object.trackUnpublished !== undefined &&
+      object.trackUnpublished !== null
+    ) {
+      message.trackUnpublished = TrackUnpublishedResponse.fromPartial(
+        object.trackUnpublished
+      );
+    } else {
+      message.trackUnpublished = undefined;
+    }
     return message;
   },
 };
@@ -1725,6 +1767,71 @@ export const TrackPublishedResponse = {
     } else {
       message.track = undefined;
     }
+    return message;
+  },
+};
+
+const baseTrackUnpublishedResponse: object = { trackSid: "" };
+
+export const TrackUnpublishedResponse = {
+  encode(
+    message: TrackUnpublishedResponse,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.trackSid !== "") {
+      writer.uint32(10).string(message.trackSid);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number
+  ): TrackUnpublishedResponse {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = {
+      ...baseTrackUnpublishedResponse,
+    } as TrackUnpublishedResponse;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.trackSid = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TrackUnpublishedResponse {
+    const message = {
+      ...baseTrackUnpublishedResponse,
+    } as TrackUnpublishedResponse;
+    if (object.trackSid !== undefined && object.trackSid !== null) {
+      message.trackSid = String(object.trackSid);
+    } else {
+      message.trackSid = "";
+    }
+    return message;
+  },
+
+  toJSON(message: TrackUnpublishedResponse): unknown {
+    const obj: any = {};
+    message.trackSid !== undefined && (obj.trackSid = message.trackSid);
+    return obj;
+  },
+
+  fromPartial(
+    object: DeepPartial<TrackUnpublishedResponse>
+  ): TrackUnpublishedResponse {
+    const message = {
+      ...baseTrackUnpublishedResponse,
+    } as TrackUnpublishedResponse;
+    message.trackSid = object.trackSid ?? "";
     return message;
   },
 };

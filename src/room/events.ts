@@ -225,6 +225,12 @@ export enum RoomEvent {
    * args: (error: Error)
    */
   MediaDevicesError = 'mediaDevicesError',
+
+  /**
+   * A participant's permission has changed. Currently only fired on LocalParticipant.
+   * args: (prevPermissions: [[ParticipantPermission]], participant: [[Participant]])
+   */
+  ParticipantPermissionsChanged = 'participantPermissionsChanged',
 }
 
 export enum ParticipantEvent {
@@ -370,6 +376,12 @@ export enum ParticipantEvent {
   // fired only on LocalParticipant
   /** @internal */
   MediaDevicesError = 'mediaDevicesError',
+
+  /**
+   * A participant's permission has changed. Currently only fired on LocalParticipant.
+   * args: (prevPermissions: [[ParticipantPermission]])
+   */
+  ParticipantPermissionsChanged = 'participantPermissionsChanged',
 }
 
 /** @internal */

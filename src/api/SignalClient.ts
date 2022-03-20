@@ -1,4 +1,3 @@
-import { isWeb, getClientInfo, sleep } from '../room/utils';
 import log from '../logger';
 import {
   ClientInfo,
@@ -17,9 +16,11 @@ import {
   SubscribedQualityUpdate,
   SubscriptionPermissionUpdate, SyncState, TrackPermission,
   TrackPublishedResponse,
+  TrackUnpublishedResponse,
   UpdateSubscription, UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
+import { getClientInfo, isWeb, sleep } from '../room/utils';
 import Queue from './RequestQueue';
 
 if (isWeb()) {
@@ -98,6 +99,8 @@ export class SignalClient {
   onSubscribedQualityUpdate?: (update: SubscribedQualityUpdate) => void;
 
   onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
+
+  onLocalTrackUnpublished?: (res: TrackUnpublishedResponse) => void;
 
   onTokenRefresh?: (token: string) => void;
 
@@ -406,6 +409,10 @@ export class SignalClient {
     } else if (msg.refreshToken) {
       if (this.onTokenRefresh) {
         this.onTokenRefresh(msg.refreshToken);
+      }
+    } else if (msg.trackUnpublished) {
+      if (this.onLocalTrackUnpublished) {
+        this.onLocalTrackUnpublished(msg.trackUnpublished);
       }
     } else {
       log.debug('unsupported message', msg);

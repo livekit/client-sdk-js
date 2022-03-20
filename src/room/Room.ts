@@ -5,7 +5,7 @@ import log from '../logger';
 import { RoomConnectOptions, RoomOptions } from '../options';
 import {
   DataPacket_Kind, ParticipantInfo,
-  ParticipantInfo_State, Room as RoomModel, SpeakerInfo, UserPacket,
+  ParticipantInfo_State, ParticipantPermission, Room as RoomModel, SpeakerInfo, UserPacket,
 } from '../proto/livekit_models';
 import {
   ConnectionQualityUpdate,
@@ -244,7 +244,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         })
         .on(ParticipantEvent.MediaDevicesError, (e: Error) => {
           this.emit(RoomEvent.MediaDevicesError, e);
-        });
+        })
+        .on(ParticipantEvent.ParticipantPermissionsChanged,
+          (prevPermissions: ParticipantPermission) => {
+            this.emit(
+              RoomEvent.ParticipantPermissionsChanged,
+              prevPermissions,
+              this.localParticipant,
+            );
+          });
 
       // populate remote participants, these should not trigger new events
       joinResponse.otherParticipants.forEach((info) => {
@@ -802,7 +810,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
         this.emit(RoomEvent.ConnectionQualityChanged, quality, participant);
-      });
+      })
+      .on(ParticipantEvent.ParticipantPermissionsChanged,
+        (prevPermissions: ParticipantPermission) => {
+          this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, participant);
+        });
     return participant;
   }
 
@@ -905,6 +917,10 @@ export type RoomEventCallbacks = {
   ) => void,
   participantMetadataChanged: (
     metadata: string | undefined,
+    participant: RemoteParticipant | LocalParticipant
+  ) => void,
+  participantPermissionsChanged: (
+    prevPermissions: ParticipantPermission,
     participant: RemoteParticipant | LocalParticipant
   ) => void,
   activeSpeakersChanged: (speakers: Array<Participant>) => void,

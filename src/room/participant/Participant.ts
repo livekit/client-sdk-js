@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import { ConnectionQuality as ProtoQuality, DataPacket_Kind, ParticipantInfo } from '../../proto/livekit_models';
+import {
+  ConnectionQuality as ProtoQuality, DataPacket_Kind, ParticipantInfo, ParticipantPermission,
+} from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
@@ -59,6 +61,8 @@ export default class Participant extends (
   metadata?: string;
 
   lastSpokeAt?: Date | undefined;
+
+  permissions?: ParticipantPermission;
 
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
@@ -153,13 +157,16 @@ export default class Participant extends (
     this.sid = info.sid;
     this.name = info.name;
     this.setMetadata(info.metadata);
+    if (info.permission) {
+      this.setPermissions(info.permission);
+    }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
   }
 
   /** @internal */
   setMetadata(md: string) {
-    const changed = !this.participantInfo || this.participantInfo.metadata !== md;
+    const changed = this.metadata !== md;
     const prevMetadata = this.metadata;
     this.metadata = md;
 
@@ -167,6 +174,18 @@ export default class Participant extends (
       this.emit(ParticipantEvent.MetadataChanged, prevMetadata);
       this.emit(ParticipantEvent.ParticipantMetadataChanged, prevMetadata);
     }
+  }
+
+  /** @internal */
+  setPermissions(permissions: ParticipantPermission): boolean {
+    const changed = permissions.canPublish !== this.permissions?.canPublish
+      || permissions.canSubscribe !== this.permissions?.canSubscribe
+      || permissions.canPublishData !== this.permissions?.canPublishData
+      || permissions.hidden !== this.permissions?.hidden
+      || permissions.recorder !== this.permissions?.recorder;
+    this.permissions = permissions;
+
+    return changed;
   }
 
   /** @internal */
@@ -246,4 +265,5 @@ export type ParticipantEventCallbacks = {
     status: TrackPublication.SubscriptionStatus
   ) => void,
   mediaDevicesError: (error: Error) => void,
+  participantPermissionsChanged: (prevPermissions: ParticipantPermission) => void,
 };
