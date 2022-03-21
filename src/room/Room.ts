@@ -211,12 +211,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.state = RoomState.Connected;
       this.emit(RoomEvent.StateChanged, this.state);
       const pi = joinResponse.participant!;
-      this.localParticipant = new LocalParticipant(
-        pi.sid,
-        pi.identity,
-        this.engine,
-        this.options,
-      );
+
+      this.localParticipant.sid = pi.sid;
+      this.localParticipant.identity = pi.identity;
 
       this.localParticipant.updateInfo(pi);
       // forward metadata changed for the local participant
