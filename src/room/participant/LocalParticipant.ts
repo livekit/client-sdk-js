@@ -1,10 +1,11 @@
 import log from '../../logger';
 import { RoomOptions } from '../../options';
 import {
-  DataPacket, DataPacket_Kind,
+  DataPacket, DataPacket_Kind, ParticipantPermission,
 } from '../../proto/livekit_models';
 import {
-  AddTrackRequest, DataChannelInfo, SubscribedQualityUpdate, TrackPublishedResponse,
+  AddTrackRequest, DataChannelInfo,
+  SubscribedQualityUpdate, TrackPublishedResponse, TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc';
 import {
   TrackInvalidError,
@@ -71,6 +72,8 @@ export default class LocalParticipant extends Participant {
     };
 
     this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
+
+    this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
   }
 
   get lastCameraError(): Error | undefined {
@@ -118,6 +121,16 @@ export default class LocalParticipant extends Participant {
    */
   setScreenShareEnabled(enabled: boolean): Promise<void> {
     return this.setTrackEnabled(Track.Source.ScreenShare, enabled);
+  }
+
+  /** @internal */
+  setPermissions(permissions: ParticipantPermission): boolean {
+    const prevPermissions = this.permissions;
+    const changed = super.setPermissions(permissions);
+    if (changed && prevPermissions) {
+      this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
+    }
+    return changed;
   }
 
   /**
@@ -618,6 +631,16 @@ export default class LocalParticipant extends Participant {
       return;
     }
     pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
+  };
+
+  private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {
+    const track = this.tracks.get(unpublished.trackSid);
+    if (!track) {
+      log.warn('handleLocalTrackUnpublished',
+        'received unpublished event for unknown track', unpublished.trackSid);
+      return;
+    }
+    this.unpublishTrack(track.track!);
   };
 
   private onTrackUnpublish = (track: LocalTrack) => {
