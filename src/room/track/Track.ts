@@ -3,7 +3,7 @@ import type TypedEventEmitter from 'typed-emitter';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
-import { isFireFox, isSafari } from '../utils';
+import { isFireFox, isSafari, isWeb } from '../utils';
 
 // keep old audio elements when detached, we would re-use them since on iOS
 // Safari tracks which audio elements have been "blessed" by the user.
@@ -36,8 +36,12 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
     this.kind = kind;
     this.mediaStreamTrack = mediaTrack;
     this.source = Track.Source.Unknown;
-    this.isInBackground = document.visibilityState === 'hidden';
-    document.addEventListener('visibilitychange', this.appVisibilityChangedListener);
+    if(isWeb()){
+      this.isInBackground = document.visibilityState === 'hidden';
+      document.addEventListener('visibilitychange', this.appVisibilityChangedListener);
+    } else {
+      this.isInBackground = false;
+    }
   }
 
   /** current receive bits per second */
@@ -135,7 +139,9 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   stop() {
     this.mediaStreamTrack.stop();
-    document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
+    if(isWeb()){
+      document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
+    }
   }
 
   protected enable() {
