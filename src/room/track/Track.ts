@@ -36,7 +36,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
     this.kind = kind;
     this.mediaStreamTrack = mediaTrack;
     this.source = Track.Source.Unknown;
-    if(isWeb()){
+    if (isWeb()) {
       this.isInBackground = document.visibilityState === 'hidden';
       document.addEventListener('visibilitychange', this.appVisibilityChangedListener);
     } else {
@@ -139,7 +139,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   stop() {
     this.mediaStreamTrack.stop();
-    if(isWeb()){
+    if (isWeb()) {
       document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
     }
   }
