@@ -1,6 +1,6 @@
 /* eslint-disable */
 import Long from "long";
-import _m0 from "protobufjs/minimal";
+import * as _m0 from "protobufjs/minimal";
 import { Timestamp } from "./google/protobuf/timestamp";
 
 export const protobufPackage = "livekit";
@@ -540,17 +540,20 @@ export interface RTPStats_GapHistogramEntry {
   value: number;
 }
 
-const baseRoom: object = {
-  sid: "",
-  name: "",
-  emptyTimeout: 0,
-  maxParticipants: 0,
-  creationTime: 0,
-  turnPassword: "",
-  metadata: "",
-  numParticipants: 0,
-  activeRecording: false,
-};
+function createBaseRoom(): Room {
+  return {
+    sid: "",
+    name: "",
+    emptyTimeout: 0,
+    maxParticipants: 0,
+    creationTime: 0,
+    turnPassword: "",
+    enabledCodecs: [],
+    metadata: "",
+    numParticipants: 0,
+    activeRecording: false,
+  };
+}
 
 export const Room = {
   encode(message: Room, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
@@ -590,8 +593,7 @@ export const Room = {
   decode(input: _m0.Reader | Uint8Array, length?: number): Room {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseRoom } as Room;
-    message.enabledCodecs = [];
+    const message = createBaseRoom();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -634,68 +636,32 @@ export const Room = {
   },
 
   fromJSON(object: any): Room {
-    const message = { ...baseRoom } as Room;
-    message.enabledCodecs = [];
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = String(object.sid);
-    } else {
-      message.sid = "";
-    }
-    if (object.name !== undefined && object.name !== null) {
-      message.name = String(object.name);
-    } else {
-      message.name = "";
-    }
-    if (object.emptyTimeout !== undefined && object.emptyTimeout !== null) {
-      message.emptyTimeout = Number(object.emptyTimeout);
-    } else {
-      message.emptyTimeout = 0;
-    }
-    if (
-      object.maxParticipants !== undefined &&
-      object.maxParticipants !== null
-    ) {
-      message.maxParticipants = Number(object.maxParticipants);
-    } else {
-      message.maxParticipants = 0;
-    }
-    if (object.creationTime !== undefined && object.creationTime !== null) {
-      message.creationTime = Number(object.creationTime);
-    } else {
-      message.creationTime = 0;
-    }
-    if (object.turnPassword !== undefined && object.turnPassword !== null) {
-      message.turnPassword = String(object.turnPassword);
-    } else {
-      message.turnPassword = "";
-    }
-    if (object.enabledCodecs !== undefined && object.enabledCodecs !== null) {
-      for (const e of object.enabledCodecs) {
-        message.enabledCodecs.push(Codec.fromJSON(e));
-      }
-    }
-    if (object.metadata !== undefined && object.metadata !== null) {
-      message.metadata = String(object.metadata);
-    } else {
-      message.metadata = "";
-    }
-    if (
-      object.numParticipants !== undefined &&
-      object.numParticipants !== null
-    ) {
-      message.numParticipants = Number(object.numParticipants);
-    } else {
-      message.numParticipants = 0;
-    }
-    if (
-      object.activeRecording !== undefined &&
-      object.activeRecording !== null
-    ) {
-      message.activeRecording = Boolean(object.activeRecording);
-    } else {
-      message.activeRecording = false;
-    }
-    return message;
+    return {
+      sid: isSet(object.sid) ? String(object.sid) : "",
+      name: isSet(object.name) ? String(object.name) : "",
+      emptyTimeout: isSet(object.emptyTimeout)
+        ? Number(object.emptyTimeout)
+        : 0,
+      maxParticipants: isSet(object.maxParticipants)
+        ? Number(object.maxParticipants)
+        : 0,
+      creationTime: isSet(object.creationTime)
+        ? Number(object.creationTime)
+        : 0,
+      turnPassword: isSet(object.turnPassword)
+        ? String(object.turnPassword)
+        : "",
+      enabledCodecs: Array.isArray(object?.enabledCodecs)
+        ? object.enabledCodecs.map((e: any) => Codec.fromJSON(e))
+        : [],
+      metadata: isSet(object.metadata) ? String(object.metadata) : "",
+      numParticipants: isSet(object.numParticipants)
+        ? Number(object.numParticipants)
+        : 0,
+      activeRecording: isSet(object.activeRecording)
+        ? Boolean(object.activeRecording)
+        : false,
+    };
   },
 
   toJSON(message: Room): unknown {
@@ -703,11 +669,11 @@ export const Room = {
     message.sid !== undefined && (obj.sid = message.sid);
     message.name !== undefined && (obj.name = message.name);
     message.emptyTimeout !== undefined &&
-      (obj.emptyTimeout = message.emptyTimeout);
+      (obj.emptyTimeout = Math.round(message.emptyTimeout));
     message.maxParticipants !== undefined &&
-      (obj.maxParticipants = message.maxParticipants);
+      (obj.maxParticipants = Math.round(message.maxParticipants));
     message.creationTime !== undefined &&
-      (obj.creationTime = message.creationTime);
+      (obj.creationTime = Math.round(message.creationTime));
     message.turnPassword !== undefined &&
       (obj.turnPassword = message.turnPassword);
     if (message.enabledCodecs) {
@@ -719,26 +685,22 @@ export const Room = {
     }
     message.metadata !== undefined && (obj.metadata = message.metadata);
     message.numParticipants !== undefined &&
-      (obj.numParticipants = message.numParticipants);
+      (obj.numParticipants = Math.round(message.numParticipants));
     message.activeRecording !== undefined &&
       (obj.activeRecording = message.activeRecording);
     return obj;
   },
 
-  fromPartial(object: DeepPartial<Room>): Room {
-    const message = { ...baseRoom } as Room;
+  fromPartial<I extends Exact<DeepPartial<Room>, I>>(object: I): Room {
+    const message = createBaseRoom();
     message.sid = object.sid ?? "";
     message.name = object.name ?? "";
     message.emptyTimeout = object.emptyTimeout ?? 0;
     message.maxParticipants = object.maxParticipants ?? 0;
     message.creationTime = object.creationTime ?? 0;
     message.turnPassword = object.turnPassword ?? "";
-    message.enabledCodecs = [];
-    if (object.enabledCodecs !== undefined && object.enabledCodecs !== null) {
-      for (const e of object.enabledCodecs) {
-        message.enabledCodecs.push(Codec.fromPartial(e));
-      }
-    }
+    message.enabledCodecs =
+      object.enabledCodecs?.map((e) => Codec.fromPartial(e)) || [];
     message.metadata = object.metadata ?? "";
     message.numParticipants = object.numParticipants ?? 0;
     message.activeRecording = object.activeRecording ?? false;
@@ -746,7 +708,9 @@ export const Room = {
   },
 };
 
-const baseCodec: object = { mime: "", fmtpLine: "" };
+function createBaseCodec(): Codec {
+  return { mime: "", fmtpLine: "" };
+}
 
 export const Codec = {
   encode(message: Codec, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
@@ -762,7 +726,7 @@ export const Codec = {
   decode(input: _m0.Reader | Uint8Array, length?: number): Codec {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseCodec } as Codec;
+    const message = createBaseCodec();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -781,18 +745,10 @@ export const Codec = {
   },
 
   fromJSON(object: any): Codec {
-    const message = { ...baseCodec } as Codec;
-    if (object.mime !== undefined && object.mime !== null) {
-      message.mime = String(object.mime);
-    } else {
-      message.mime = "";
-    }
-    if (object.fmtpLine !== undefined && object.fmtpLine !== null) {
-      message.fmtpLine = String(object.fmtpLine);
-    } else {
-      message.fmtpLine = "";
-    }
-    return message;
+    return {
+      mime: isSet(object.mime) ? String(object.mime) : "",
+      fmtpLine: isSet(object.fmtpLine) ? String(object.fmtpLine) : "",
+    };
   },
 
   toJSON(message: Codec): unknown {
@@ -802,21 +758,23 @@ export const Codec = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<Codec>): Codec {
-    const message = { ...baseCodec } as Codec;
+  fromPartial<I extends Exact<DeepPartial<Codec>, I>>(object: I): Codec {
+    const message = createBaseCodec();
     message.mime = object.mime ?? "";
     message.fmtpLine = object.fmtpLine ?? "";
     return message;
   },
 };
 
-const baseParticipantPermission: object = {
-  canSubscribe: false,
-  canPublish: false,
-  canPublishData: false,
-  hidden: false,
-  recorder: false,
-};
+function createBaseParticipantPermission(): ParticipantPermission {
+  return {
+    canSubscribe: false,
+    canPublish: false,
+    canPublishData: false,
+    hidden: false,
+    recorder: false,
+  };
+}
 
 export const ParticipantPermission = {
   encode(
@@ -847,7 +805,7 @@ export const ParticipantPermission = {
   ): ParticipantPermission {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseParticipantPermission } as ParticipantPermission;
+    const message = createBaseParticipantPermission();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -875,33 +833,17 @@ export const ParticipantPermission = {
   },
 
   fromJSON(object: any): ParticipantPermission {
-    const message = { ...baseParticipantPermission } as ParticipantPermission;
-    if (object.canSubscribe !== undefined && object.canSubscribe !== null) {
-      message.canSubscribe = Boolean(object.canSubscribe);
-    } else {
-      message.canSubscribe = false;
-    }
-    if (object.canPublish !== undefined && object.canPublish !== null) {
-      message.canPublish = Boolean(object.canPublish);
-    } else {
-      message.canPublish = false;
-    }
-    if (object.canPublishData !== undefined && object.canPublishData !== null) {
-      message.canPublishData = Boolean(object.canPublishData);
-    } else {
-      message.canPublishData = false;
-    }
-    if (object.hidden !== undefined && object.hidden !== null) {
-      message.hidden = Boolean(object.hidden);
-    } else {
-      message.hidden = false;
-    }
-    if (object.recorder !== undefined && object.recorder !== null) {
-      message.recorder = Boolean(object.recorder);
-    } else {
-      message.recorder = false;
-    }
-    return message;
+    return {
+      canSubscribe: isSet(object.canSubscribe)
+        ? Boolean(object.canSubscribe)
+        : false,
+      canPublish: isSet(object.canPublish) ? Boolean(object.canPublish) : false,
+      canPublishData: isSet(object.canPublishData)
+        ? Boolean(object.canPublishData)
+        : false,
+      hidden: isSet(object.hidden) ? Boolean(object.hidden) : false,
+      recorder: isSet(object.recorder) ? Boolean(object.recorder) : false,
+    };
   },
 
   toJSON(message: ParticipantPermission): unknown {
@@ -916,10 +858,10 @@ export const ParticipantPermission = {
     return obj;
   },
 
-  fromPartial(
-    object: DeepPartial<ParticipantPermission>
+  fromPartial<I extends Exact<DeepPartial<ParticipantPermission>, I>>(
+    object: I
   ): ParticipantPermission {
-    const message = { ...baseParticipantPermission } as ParticipantPermission;
+    const message = createBaseParticipantPermission();
     message.canSubscribe = object.canSubscribe ?? false;
     message.canPublish = object.canPublish ?? false;
     message.canPublishData = object.canPublishData ?? false;
@@ -929,15 +871,19 @@ export const ParticipantPermission = {
   },
 };
 
-const baseParticipantInfo: object = {
-  sid: "",
-  identity: "",
-  state: 0,
-  metadata: "",
-  joinedAt: 0,
-  name: "",
-  version: 0,
-};
+function createBaseParticipantInfo(): ParticipantInfo {
+  return {
+    sid: "",
+    identity: "",
+    state: 0,
+    tracks: [],
+    metadata: "",
+    joinedAt: 0,
+    name: "",
+    version: 0,
+    permission: undefined,
+  };
+}
 
 export const ParticipantInfo = {
   encode(
@@ -980,8 +926,7 @@ export const ParticipantInfo = {
   decode(input: _m0.Reader | Uint8Array, length?: number): ParticipantInfo {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseParticipantInfo } as ParticipantInfo;
-    message.tracks = [];
+    const message = createBaseParticipantInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1024,54 +969,23 @@ export const ParticipantInfo = {
   },
 
   fromJSON(object: any): ParticipantInfo {
-    const message = { ...baseParticipantInfo } as ParticipantInfo;
-    message.tracks = [];
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = String(object.sid);
-    } else {
-      message.sid = "";
-    }
-    if (object.identity !== undefined && object.identity !== null) {
-      message.identity = String(object.identity);
-    } else {
-      message.identity = "";
-    }
-    if (object.state !== undefined && object.state !== null) {
-      message.state = participantInfo_StateFromJSON(object.state);
-    } else {
-      message.state = 0;
-    }
-    if (object.tracks !== undefined && object.tracks !== null) {
-      for (const e of object.tracks) {
-        message.tracks.push(TrackInfo.fromJSON(e));
-      }
-    }
-    if (object.metadata !== undefined && object.metadata !== null) {
-      message.metadata = String(object.metadata);
-    } else {
-      message.metadata = "";
-    }
-    if (object.joinedAt !== undefined && object.joinedAt !== null) {
-      message.joinedAt = Number(object.joinedAt);
-    } else {
-      message.joinedAt = 0;
-    }
-    if (object.name !== undefined && object.name !== null) {
-      message.name = String(object.name);
-    } else {
-      message.name = "";
-    }
-    if (object.version !== undefined && object.version !== null) {
-      message.version = Number(object.version);
-    } else {
-      message.version = 0;
-    }
-    if (object.permission !== undefined && object.permission !== null) {
-      message.permission = ParticipantPermission.fromJSON(object.permission);
-    } else {
-      message.permission = undefined;
-    }
-    return message;
+    return {
+      sid: isSet(object.sid) ? String(object.sid) : "",
+      identity: isSet(object.identity) ? String(object.identity) : "",
+      state: isSet(object.state)
+        ? participantInfo_StateFromJSON(object.state)
+        : 0,
+      tracks: Array.isArray(object?.tracks)
+        ? object.tracks.map((e: any) => TrackInfo.fromJSON(e))
+        : [],
+      metadata: isSet(object.metadata) ? String(object.metadata) : "",
+      joinedAt: isSet(object.joinedAt) ? Number(object.joinedAt) : 0,
+      name: isSet(object.name) ? String(object.name) : "",
+      version: isSet(object.version) ? Number(object.version) : 0,
+      permission: isSet(object.permission)
+        ? ParticipantPermission.fromJSON(object.permission)
+        : undefined,
+    };
   },
 
   toJSON(message: ParticipantInfo): unknown {
@@ -1088,9 +1002,11 @@ export const ParticipantInfo = {
       obj.tracks = [];
     }
     message.metadata !== undefined && (obj.metadata = message.metadata);
-    message.joinedAt !== undefined && (obj.joinedAt = message.joinedAt);
+    message.joinedAt !== undefined &&
+      (obj.joinedAt = Math.round(message.joinedAt));
     message.name !== undefined && (obj.name = message.name);
-    message.version !== undefined && (obj.version = message.version);
+    message.version !== undefined &&
+      (obj.version = Math.round(message.version));
     message.permission !== undefined &&
       (obj.permission = message.permission
         ? ParticipantPermission.toJSON(message.permission)
@@ -1098,43 +1014,42 @@ export const ParticipantInfo = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<ParticipantInfo>): ParticipantInfo {
-    const message = { ...baseParticipantInfo } as ParticipantInfo;
+  fromPartial<I extends Exact<DeepPartial<ParticipantInfo>, I>>(
+    object: I
+  ): ParticipantInfo {
+    const message = createBaseParticipantInfo();
     message.sid = object.sid ?? "";
     message.identity = object.identity ?? "";
     message.state = object.state ?? 0;
-    message.tracks = [];
-    if (object.tracks !== undefined && object.tracks !== null) {
-      for (const e of object.tracks) {
-        message.tracks.push(TrackInfo.fromPartial(e));
-      }
-    }
+    message.tracks = object.tracks?.map((e) => TrackInfo.fromPartial(e)) || [];
     message.metadata = object.metadata ?? "";
     message.joinedAt = object.joinedAt ?? 0;
     message.name = object.name ?? "";
     message.version = object.version ?? 0;
-    if (object.permission !== undefined && object.permission !== null) {
-      message.permission = ParticipantPermission.fromPartial(object.permission);
-    } else {
-      message.permission = undefined;
-    }
+    message.permission =
+      object.permission !== undefined && object.permission !== null
+        ? ParticipantPermission.fromPartial(object.permission)
+        : undefined;
     return message;
   },
 };
 
-const baseTrackInfo: object = {
-  sid: "",
-  type: 0,
-  name: "",
-  muted: false,
-  width: 0,
-  height: 0,
-  simulcast: false,
-  disableDtx: false,
-  source: 0,
-  mimeType: "",
-  mid: "",
-};
+function createBaseTrackInfo(): TrackInfo {
+  return {
+    sid: "",
+    type: 0,
+    name: "",
+    muted: false,
+    width: 0,
+    height: 0,
+    simulcast: false,
+    disableDtx: false,
+    source: 0,
+    layers: [],
+    mimeType: "",
+    mid: "",
+  };
+}
 
 export const TrackInfo = {
   encode(
@@ -1183,8 +1098,7 @@ export const TrackInfo = {
   decode(input: _m0.Reader | Uint8Array, length?: number): TrackInfo {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseTrackInfo } as TrackInfo;
-    message.layers = [];
+    const message = createBaseTrackInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1233,69 +1147,22 @@ export const TrackInfo = {
   },
 
   fromJSON(object: any): TrackInfo {
-    const message = { ...baseTrackInfo } as TrackInfo;
-    message.layers = [];
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = String(object.sid);
-    } else {
-      message.sid = "";
-    }
-    if (object.type !== undefined && object.type !== null) {
-      message.type = trackTypeFromJSON(object.type);
-    } else {
-      message.type = 0;
-    }
-    if (object.name !== undefined && object.name !== null) {
-      message.name = String(object.name);
-    } else {
-      message.name = "";
-    }
-    if (object.muted !== undefined && object.muted !== null) {
-      message.muted = Boolean(object.muted);
-    } else {
-      message.muted = false;
-    }
-    if (object.width !== undefined && object.width !== null) {
-      message.width = Number(object.width);
-    } else {
-      message.width = 0;
-    }
-    if (object.height !== undefined && object.height !== null) {
-      message.height = Number(object.height);
-    } else {
-      message.height = 0;
-    }
-    if (object.simulcast !== undefined && object.simulcast !== null) {
-      message.simulcast = Boolean(object.simulcast);
-    } else {
-      message.simulcast = false;
-    }
-    if (object.disableDtx !== undefined && object.disableDtx !== null) {
-      message.disableDtx = Boolean(object.disableDtx);
-    } else {
-      message.disableDtx = false;
-    }
-    if (object.source !== undefined && object.source !== null) {
-      message.source = trackSourceFromJSON(object.source);
-    } else {
-      message.source = 0;
-    }
-    if (object.layers !== undefined && object.layers !== null) {
-      for (const e of object.layers) {
-        message.layers.push(VideoLayer.fromJSON(e));
-      }
-    }
-    if (object.mimeType !== undefined && object.mimeType !== null) {
-      message.mimeType = String(object.mimeType);
-    } else {
-      message.mimeType = "";
-    }
-    if (object.mid !== undefined && object.mid !== null) {
-      message.mid = String(object.mid);
-    } else {
-      message.mid = "";
-    }
-    return message;
+    return {
+      sid: isSet(object.sid) ? String(object.sid) : "",
+      type: isSet(object.type) ? trackTypeFromJSON(object.type) : 0,
+      name: isSet(object.name) ? String(object.name) : "",
+      muted: isSet(object.muted) ? Boolean(object.muted) : false,
+      width: isSet(object.width) ? Number(object.width) : 0,
+      height: isSet(object.height) ? Number(object.height) : 0,
+      simulcast: isSet(object.simulcast) ? Boolean(object.simulcast) : false,
+      disableDtx: isSet(object.disableDtx) ? Boolean(object.disableDtx) : false,
+      source: isSet(object.source) ? trackSourceFromJSON(object.source) : 0,
+      layers: Array.isArray(object?.layers)
+        ? object.layers.map((e: any) => VideoLayer.fromJSON(e))
+        : [],
+      mimeType: isSet(object.mimeType) ? String(object.mimeType) : "",
+      mid: isSet(object.mid) ? String(object.mid) : "",
+    };
   },
 
   toJSON(message: TrackInfo): unknown {
@@ -1304,8 +1171,8 @@ export const TrackInfo = {
     message.type !== undefined && (obj.type = trackTypeToJSON(message.type));
     message.name !== undefined && (obj.name = message.name);
     message.muted !== undefined && (obj.muted = message.muted);
-    message.width !== undefined && (obj.width = message.width);
-    message.height !== undefined && (obj.height = message.height);
+    message.width !== undefined && (obj.width = Math.round(message.width));
+    message.height !== undefined && (obj.height = Math.round(message.height));
     message.simulcast !== undefined && (obj.simulcast = message.simulcast);
     message.disableDtx !== undefined && (obj.disableDtx = message.disableDtx);
     message.source !== undefined &&
@@ -1322,8 +1189,10 @@ export const TrackInfo = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<TrackInfo>): TrackInfo {
-    const message = { ...baseTrackInfo } as TrackInfo;
+  fromPartial<I extends Exact<DeepPartial<TrackInfo>, I>>(
+    object: I
+  ): TrackInfo {
+    const message = createBaseTrackInfo();
     message.sid = object.sid ?? "";
     message.type = object.type ?? 0;
     message.name = object.name ?? "";
@@ -1333,25 +1202,16 @@ export const TrackInfo = {
     message.simulcast = object.simulcast ?? false;
     message.disableDtx = object.disableDtx ?? false;
     message.source = object.source ?? 0;
-    message.layers = [];
-    if (object.layers !== undefined && object.layers !== null) {
-      for (const e of object.layers) {
-        message.layers.push(VideoLayer.fromPartial(e));
-      }
-    }
+    message.layers = object.layers?.map((e) => VideoLayer.fromPartial(e)) || [];
     message.mimeType = object.mimeType ?? "";
     message.mid = object.mid ?? "";
     return message;
   },
 };
 
-const baseVideoLayer: object = {
-  quality: 0,
-  width: 0,
-  height: 0,
-  bitrate: 0,
-  ssrc: 0,
-};
+function createBaseVideoLayer(): VideoLayer {
+  return { quality: 0, width: 0, height: 0, bitrate: 0, ssrc: 0 };
+}
 
 export const VideoLayer = {
   encode(
@@ -1379,7 +1239,7 @@ export const VideoLayer = {
   decode(input: _m0.Reader | Uint8Array, length?: number): VideoLayer {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseVideoLayer } as VideoLayer;
+    const message = createBaseVideoLayer();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1407,48 +1267,31 @@ export const VideoLayer = {
   },
 
   fromJSON(object: any): VideoLayer {
-    const message = { ...baseVideoLayer } as VideoLayer;
-    if (object.quality !== undefined && object.quality !== null) {
-      message.quality = videoQualityFromJSON(object.quality);
-    } else {
-      message.quality = 0;
-    }
-    if (object.width !== undefined && object.width !== null) {
-      message.width = Number(object.width);
-    } else {
-      message.width = 0;
-    }
-    if (object.height !== undefined && object.height !== null) {
-      message.height = Number(object.height);
-    } else {
-      message.height = 0;
-    }
-    if (object.bitrate !== undefined && object.bitrate !== null) {
-      message.bitrate = Number(object.bitrate);
-    } else {
-      message.bitrate = 0;
-    }
-    if (object.ssrc !== undefined && object.ssrc !== null) {
-      message.ssrc = Number(object.ssrc);
-    } else {
-      message.ssrc = 0;
-    }
-    return message;
+    return {
+      quality: isSet(object.quality) ? videoQualityFromJSON(object.quality) : 0,
+      width: isSet(object.width) ? Number(object.width) : 0,
+      height: isSet(object.height) ? Number(object.height) : 0,
+      bitrate: isSet(object.bitrate) ? Number(object.bitrate) : 0,
+      ssrc: isSet(object.ssrc) ? Number(object.ssrc) : 0,
+    };
   },
 
   toJSON(message: VideoLayer): unknown {
     const obj: any = {};
     message.quality !== undefined &&
       (obj.quality = videoQualityToJSON(message.quality));
-    message.width !== undefined && (obj.width = message.width);
-    message.height !== undefined && (obj.height = message.height);
-    message.bitrate !== undefined && (obj.bitrate = message.bitrate);
-    message.ssrc !== undefined && (obj.ssrc = message.ssrc);
+    message.width !== undefined && (obj.width = Math.round(message.width));
+    message.height !== undefined && (obj.height = Math.round(message.height));
+    message.bitrate !== undefined &&
+      (obj.bitrate = Math.round(message.bitrate));
+    message.ssrc !== undefined && (obj.ssrc = Math.round(message.ssrc));
     return obj;
   },
 
-  fromPartial(object: DeepPartial<VideoLayer>): VideoLayer {
-    const message = { ...baseVideoLayer } as VideoLayer;
+  fromPartial<I extends Exact<DeepPartial<VideoLayer>, I>>(
+    object: I
+  ): VideoLayer {
+    const message = createBaseVideoLayer();
     message.quality = object.quality ?? 0;
     message.width = object.width ?? 0;
     message.height = object.height ?? 0;
@@ -1458,7 +1301,9 @@ export const VideoLayer = {
   },
 };
 
-const baseDataPacket: object = { kind: 0 };
+function createBaseDataPacket(): DataPacket {
+  return { kind: 0, user: undefined, speaker: undefined };
+}
 
 export const DataPacket = {
   encode(
@@ -1483,7 +1328,7 @@ export const DataPacket = {
   decode(input: _m0.Reader | Uint8Array, length?: number): DataPacket {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseDataPacket } as DataPacket;
+    const message = createBaseDataPacket();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1505,23 +1350,13 @@ export const DataPacket = {
   },
 
   fromJSON(object: any): DataPacket {
-    const message = { ...baseDataPacket } as DataPacket;
-    if (object.kind !== undefined && object.kind !== null) {
-      message.kind = dataPacket_KindFromJSON(object.kind);
-    } else {
-      message.kind = 0;
-    }
-    if (object.user !== undefined && object.user !== null) {
-      message.user = UserPacket.fromJSON(object.user);
-    } else {
-      message.user = undefined;
-    }
-    if (object.speaker !== undefined && object.speaker !== null) {
-      message.speaker = ActiveSpeakerUpdate.fromJSON(object.speaker);
-    } else {
-      message.speaker = undefined;
-    }
-    return message;
+    return {
+      kind: isSet(object.kind) ? dataPacket_KindFromJSON(object.kind) : 0,
+      user: isSet(object.user) ? UserPacket.fromJSON(object.user) : undefined,
+      speaker: isSet(object.speaker)
+        ? ActiveSpeakerUpdate.fromJSON(object.speaker)
+        : undefined,
+    };
   },
 
   toJSON(message: DataPacket): unknown {
@@ -1537,24 +1372,26 @@ export const DataPacket = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<DataPacket>): DataPacket {
-    const message = { ...baseDataPacket } as DataPacket;
+  fromPartial<I extends Exact<DeepPartial<DataPacket>, I>>(
+    object: I
+  ): DataPacket {
+    const message = createBaseDataPacket();
     message.kind = object.kind ?? 0;
-    if (object.user !== undefined && object.user !== null) {
-      message.user = UserPacket.fromPartial(object.user);
-    } else {
-      message.user = undefined;
-    }
-    if (object.speaker !== undefined && object.speaker !== null) {
-      message.speaker = ActiveSpeakerUpdate.fromPartial(object.speaker);
-    } else {
-      message.speaker = undefined;
-    }
+    message.user =
+      object.user !== undefined && object.user !== null
+        ? UserPacket.fromPartial(object.user)
+        : undefined;
+    message.speaker =
+      object.speaker !== undefined && object.speaker !== null
+        ? ActiveSpeakerUpdate.fromPartial(object.speaker)
+        : undefined;
     return message;
   },
 };
 
-const baseActiveSpeakerUpdate: object = {};
+function createBaseActiveSpeakerUpdate(): ActiveSpeakerUpdate {
+  return { speakers: [] };
+}
 
 export const ActiveSpeakerUpdate = {
   encode(
@@ -1570,8 +1407,7 @@ export const ActiveSpeakerUpdate = {
   decode(input: _m0.Reader | Uint8Array, length?: number): ActiveSpeakerUpdate {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
-    message.speakers = [];
+    const message = createBaseActiveSpeakerUpdate();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1587,14 +1423,11 @@ export const ActiveSpeakerUpdate = {
   },
 
   fromJSON(object: any): ActiveSpeakerUpdate {
-    const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
-    message.speakers = [];
-    if (object.speakers !== undefined && object.speakers !== null) {
-      for (const e of object.speakers) {
-        message.speakers.push(SpeakerInfo.fromJSON(e));
-      }
-    }
-    return message;
+    return {
+      speakers: Array.isArray(object?.speakers)
+        ? object.speakers.map((e: any) => SpeakerInfo.fromJSON(e))
+        : [],
+    };
   },
 
   toJSON(message: ActiveSpeakerUpdate): unknown {
@@ -1609,19 +1442,19 @@ export const ActiveSpeakerUpdate = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<ActiveSpeakerUpdate>): ActiveSpeakerUpdate {
-    const message = { ...baseActiveSpeakerUpdate } as ActiveSpeakerUpdate;
-    message.speakers = [];
-    if (object.speakers !== undefined && object.speakers !== null) {
-      for (const e of object.speakers) {
-        message.speakers.push(SpeakerInfo.fromPartial(e));
-      }
-    }
+  fromPartial<I extends Exact<DeepPartial<ActiveSpeakerUpdate>, I>>(
+    object: I
+  ): ActiveSpeakerUpdate {
+    const message = createBaseActiveSpeakerUpdate();
+    message.speakers =
+      object.speakers?.map((e) => SpeakerInfo.fromPartial(e)) || [];
     return message;
   },
 };
 
-const baseSpeakerInfo: object = { sid: "", level: 0, active: false };
+function createBaseSpeakerInfo(): SpeakerInfo {
+  return { sid: "", level: 0, active: false };
+}
 
 export const SpeakerInfo = {
   encode(
@@ -1643,7 +1476,7 @@ export const SpeakerInfo = {
   decode(input: _m0.Reader | Uint8Array, length?: number): SpeakerInfo {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseSpeakerInfo } as SpeakerInfo;
+    const message = createBaseSpeakerInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1665,23 +1498,11 @@ export const SpeakerInfo = {
   },
 
   fromJSON(object: any): SpeakerInfo {
-    const message = { ...baseSpeakerInfo } as SpeakerInfo;
-    if (object.sid !== undefined && object.sid !== null) {
-      message.sid = String(object.sid);
-    } else {
-      message.sid = "";
-    }
-    if (object.level !== undefined && object.level !== null) {
-      message.level = Number(object.level);
-    } else {
-      message.level = 0;
-    }
-    if (object.active !== undefined && object.active !== null) {
-      message.active = Boolean(object.active);
-    } else {
-      message.active = false;
-    }
-    return message;
+    return {
+      sid: isSet(object.sid) ? String(object.sid) : "",
+      level: isSet(object.level) ? Number(object.level) : 0,
+      active: isSet(object.active) ? Boolean(object.active) : false,
+    };
   },
 
   toJSON(message: SpeakerInfo): unknown {
@@ -1692,8 +1513,10 @@ export const SpeakerInfo = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<SpeakerInfo>): SpeakerInfo {
-    const message = { ...baseSpeakerInfo } as SpeakerInfo;
+  fromPartial<I extends Exact<DeepPartial<SpeakerInfo>, I>>(
+    object: I
+  ): SpeakerInfo {
+    const message = createBaseSpeakerInfo();
     message.sid = object.sid ?? "";
     message.level = object.level ?? 0;
     message.active = object.active ?? false;
@@ -1701,7 +1524,9 @@ export const SpeakerInfo = {
   },
 };
 
-const baseUserPacket: object = { participantSid: "", destinationSids: "" };
+function createBaseUserPacket(): UserPacket {
+  return { participantSid: "", payload: new Uint8Array(), destinationSids: [] };
+}
 
 export const UserPacket = {
   encode(
@@ -1723,9 +1548,7 @@ export const UserPacket = {
   decode(input: _m0.Reader | Uint8Array, length?: number): UserPacket {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseUserPacket } as UserPacket;
-    message.destinationSids = [];
-    message.payload = new Uint8Array();
+    const message = createBaseUserPacket();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1747,26 +1570,17 @@ export const UserPacket = {
   },
 
   fromJSON(object: any): UserPacket {
-    const message = { ...baseUserPacket } as UserPacket;
-    message.destinationSids = [];
-    message.payload = new Uint8Array();
-    if (object.participantSid !== undefined && object.participantSid !== null) {
-      message.participantSid = String(object.participantSid);
-    } else {
-      message.participantSid = "";
-    }
-    if (object.payload !== undefined && object.payload !== null) {
-      message.payload = bytesFromBase64(object.payload);
-    }
-    if (
-      object.destinationSids !== undefined &&
-      object.destinationSids !== null
-    ) {
-      for (const e of object.destinationSids) {
-        message.destinationSids.push(String(e));
-      }
-    }
-    return message;
+    return {
+      participantSid: isSet(object.participantSid)
+        ? String(object.participantSid)
+        : "",
+      payload: isSet(object.payload)
+        ? bytesFromBase64(object.payload)
+        : new Uint8Array(),
+      destinationSids: Array.isArray(object?.destinationSids)
+        ? object.destinationSids.map((e: any) => String(e))
+        : [],
+    };
   },
 
   toJSON(message: UserPacket): unknown {
@@ -1785,24 +1599,20 @@ export const UserPacket = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<UserPacket>): UserPacket {
-    const message = { ...baseUserPacket } as UserPacket;
+  fromPartial<I extends Exact<DeepPartial<UserPacket>, I>>(
+    object: I
+  ): UserPacket {
+    const message = createBaseUserPacket();
     message.participantSid = object.participantSid ?? "";
     message.payload = object.payload ?? new Uint8Array();
-    message.destinationSids = [];
-    if (
-      object.destinationSids !== undefined &&
-      object.destinationSids !== null
-    ) {
-      for (const e of object.destinationSids) {
-        message.destinationSids.push(e);
-      }
-    }
+    message.destinationSids = object.destinationSids?.map((e) => e) || [];
     return message;
   },
 };
 
-const baseParticipantTracks: object = { participantSid: "", trackSids: "" };
+function createBaseParticipantTracks(): ParticipantTracks {
+  return { participantSid: "", trackSids: [] };
+}
 
 export const ParticipantTracks = {
   encode(
@@ -1821,8 +1631,7 @@ export const ParticipantTracks = {
   decode(input: _m0.Reader | Uint8Array, length?: number): ParticipantTracks {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseParticipantTracks } as ParticipantTracks;
-    message.trackSids = [];
+    const message = createBaseParticipantTracks();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1841,19 +1650,14 @@ export const ParticipantTracks = {
   },
 
   fromJSON(object: any): ParticipantTracks {
-    const message = { ...baseParticipantTracks } as ParticipantTracks;
-    message.trackSids = [];
-    if (object.participantSid !== undefined && object.participantSid !== null) {
-      message.participantSid = String(object.participantSid);
-    } else {
-      message.participantSid = "";
-    }
-    if (object.trackSids !== undefined && object.trackSids !== null) {
-      for (const e of object.trackSids) {
-        message.trackSids.push(String(e));
-      }
-    }
-    return message;
+    return {
+      participantSid: isSet(object.participantSid)
+        ? String(object.participantSid)
+        : "",
+      trackSids: Array.isArray(object?.trackSids)
+        ? object.trackSids.map((e: any) => String(e))
+        : [],
+    };
   },
 
   toJSON(message: ParticipantTracks): unknown {
@@ -1868,30 +1672,29 @@ export const ParticipantTracks = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<ParticipantTracks>): ParticipantTracks {
-    const message = { ...baseParticipantTracks } as ParticipantTracks;
+  fromPartial<I extends Exact<DeepPartial<ParticipantTracks>, I>>(
+    object: I
+  ): ParticipantTracks {
+    const message = createBaseParticipantTracks();
     message.participantSid = object.participantSid ?? "";
-    message.trackSids = [];
-    if (object.trackSids !== undefined && object.trackSids !== null) {
-      for (const e of object.trackSids) {
-        message.trackSids.push(e);
-      }
-    }
+    message.trackSids = object.trackSids?.map((e) => e) || [];
     return message;
   },
 };
 
-const baseClientInfo: object = {
-  sdk: 0,
-  version: "",
-  protocol: 0,
-  os: "",
-  osVersion: "",
-  deviceModel: "",
-  browser: "",
-  browserVersion: "",
-  address: "",
-};
+function createBaseClientInfo(): ClientInfo {
+  return {
+    sdk: 0,
+    version: "",
+    protocol: 0,
+    os: "",
+    osVersion: "",
+    deviceModel: "",
+    browser: "",
+    browserVersion: "",
+    address: "",
+  };
+}
 
 export const ClientInfo = {
   encode(
@@ -1931,7 +1734,7 @@ export const ClientInfo = {
   decode(input: _m0.Reader | Uint8Array, length?: number): ClientInfo {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseClientInfo } as ClientInfo;
+    const message = createBaseClientInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1971,60 +1774,27 @@ export const ClientInfo = {
   },
 
   fromJSON(object: any): ClientInfo {
-    const message = { ...baseClientInfo } as ClientInfo;
-    if (object.sdk !== undefined && object.sdk !== null) {
-      message.sdk = clientInfo_SDKFromJSON(object.sdk);
-    } else {
-      message.sdk = 0;
-    }
-    if (object.version !== undefined && object.version !== null) {
-      message.version = String(object.version);
-    } else {
-      message.version = "";
-    }
-    if (object.protocol !== undefined && object.protocol !== null) {
-      message.protocol = Number(object.protocol);
-    } else {
-      message.protocol = 0;
-    }
-    if (object.os !== undefined && object.os !== null) {
-      message.os = String(object.os);
-    } else {
-      message.os = "";
-    }
-    if (object.osVersion !== undefined && object.osVersion !== null) {
-      message.osVersion = String(object.osVersion);
-    } else {
-      message.osVersion = "";
-    }
-    if (object.deviceModel !== undefined && object.deviceModel !== null) {
-      message.deviceModel = String(object.deviceModel);
-    } else {
-      message.deviceModel = "";
-    }
-    if (object.browser !== undefined && object.browser !== null) {
-      message.browser = String(object.browser);
-    } else {
-      message.browser = "";
-    }
-    if (object.browserVersion !== undefined && object.browserVersion !== null) {
-      message.browserVersion = String(object.browserVersion);
-    } else {
-      message.browserVersion = "";
-    }
-    if (object.address !== undefined && object.address !== null) {
-      message.address = String(object.address);
-    } else {
-      message.address = "";
-    }
-    return message;
+    return {
+      sdk: isSet(object.sdk) ? clientInfo_SDKFromJSON(object.sdk) : 0,
+      version: isSet(object.version) ? String(object.version) : "",
+      protocol: isSet(object.protocol) ? Number(object.protocol) : 0,
+      os: isSet(object.os) ? String(object.os) : "",
+      osVersion: isSet(object.osVersion) ? String(object.osVersion) : "",
+      deviceModel: isSet(object.deviceModel) ? String(object.deviceModel) : "",
+      browser: isSet(object.browser) ? String(object.browser) : "",
+      browserVersion: isSet(object.browserVersion)
+        ? String(object.browserVersion)
+        : "",
+      address: isSet(object.address) ? String(object.address) : "",
+    };
   },
 
   toJSON(message: ClientInfo): unknown {
     const obj: any = {};
     message.sdk !== undefined && (obj.sdk = clientInfo_SDKToJSON(message.sdk));
     message.version !== undefined && (obj.version = message.version);
-    message.protocol !== undefined && (obj.protocol = message.protocol);
+    message.protocol !== undefined &&
+      (obj.protocol = Math.round(message.protocol));
     message.os !== undefined && (obj.os = message.os);
     message.osVersion !== undefined && (obj.osVersion = message.osVersion);
     message.deviceModel !== undefined &&
@@ -2036,8 +1806,10 @@ export const ClientInfo = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<ClientInfo>): ClientInfo {
-    const message = { ...baseClientInfo } as ClientInfo;
+  fromPartial<I extends Exact<DeepPartial<ClientInfo>, I>>(
+    object: I
+  ): ClientInfo {
+    const message = createBaseClientInfo();
     message.sdk = object.sdk ?? 0;
     message.version = object.version ?? "";
     message.protocol = object.protocol ?? 0;
@@ -2051,7 +1823,9 @@ export const ClientInfo = {
   },
 };
 
-const baseClientConfiguration: object = { resumeConnection: 0 };
+function createBaseClientConfiguration(): ClientConfiguration {
+  return { video: undefined, screen: undefined, resumeConnection: 0 };
+}
 
 export const ClientConfiguration = {
   encode(
@@ -2079,7 +1853,7 @@ export const ClientConfiguration = {
   decode(input: _m0.Reader | Uint8Array, length?: number): ClientConfiguration {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseClientConfiguration } as ClientConfiguration;
+    const message = createBaseClientConfiguration();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -2101,28 +1875,17 @@ export const ClientConfiguration = {
   },
 
   fromJSON(object: any): ClientConfiguration {
-    const message = { ...baseClientConfiguration } as ClientConfiguration;
-    if (object.video !== undefined && object.video !== null) {
-      message.video = VideoConfiguration.fromJSON(object.video);
-    } else {
-      message.video = undefined;
-    }
-    if (object.screen !== undefined && object.screen !== null) {
-      message.screen = VideoConfiguration.fromJSON(object.screen);
-    } else {
-      message.screen = undefined;
-    }
-    if (
-      object.resumeConnection !== undefined &&
-      object.resumeConnection !== null
-    ) {
-      message.resumeConnection = clientConfigSettingFromJSON(
-        object.resumeConnection
-      );
-    } else {
-      message.resumeConnection = 0;
-    }
-    return message;
+    return {
+      video: isSet(object.video)
+        ? VideoConfiguration.fromJSON(object.video)
+        : undefined,
+      screen: isSet(object.screen)
+        ? VideoConfiguration.fromJSON(object.screen)
+        : undefined,
+      resumeConnection: isSet(object.resumeConnection)
+        ? clientConfigSettingFromJSON(object.resumeConnection)
+        : 0,
+    };
   },
 
   toJSON(message: ClientConfiguration): unknown {
@@ -2142,24 +1905,26 @@ export const ClientConfiguration = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<ClientConfiguration>): ClientConfiguration {
-    const message = { ...baseClientConfiguration } as ClientConfiguration;
-    if (object.video !== undefined && object.video !== null) {
-      message.video = VideoConfiguration.fromPartial(object.video);
-    } else {
-      message.video = undefined;
-    }
-    if (object.screen !== undefined && object.screen !== null) {
-      message.screen = VideoConfiguration.fromPartial(object.screen);
-    } else {
-      message.screen = undefined;
-    }
+  fromPartial<I extends Exact<DeepPartial<ClientConfiguration>, I>>(
+    object: I
+  ): ClientConfiguration {
+    const message = createBaseClientConfiguration();
+    message.video =
+      object.video !== undefined && object.video !== null
+        ? VideoConfiguration.fromPartial(object.video)
+        : undefined;
+    message.screen =
+      object.screen !== undefined && object.screen !== null
+        ? VideoConfiguration.fromPartial(object.screen)
+        : undefined;
     message.resumeConnection = object.resumeConnection ?? 0;
     return message;
   },
 };
 
-const baseVideoConfiguration: object = { hardwareEncoder: 0 };
+function createBaseVideoConfiguration(): VideoConfiguration {
+  return { hardwareEncoder: 0 };
+}
 
 export const VideoConfiguration = {
   encode(
@@ -2175,7 +1940,7 @@ export const VideoConfiguration = {
   decode(input: _m0.Reader | Uint8Array, length?: number): VideoConfiguration {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseVideoConfiguration } as VideoConfiguration;
+    const message = createBaseVideoConfiguration();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -2191,18 +1956,11 @@ export const VideoConfiguration = {
   },
 
   fromJSON(object: any): VideoConfiguration {
-    const message = { ...baseVideoConfiguration } as VideoConfiguration;
-    if (
-      object.hardwareEncoder !== undefined &&
-      object.hardwareEncoder !== null
-    ) {
-      message.hardwareEncoder = clientConfigSettingFromJSON(
-        object.hardwareEncoder
-      );
-    } else {
-      message.hardwareEncoder = 0;
-    }
-    return message;
+    return {
+      hardwareEncoder: isSet(object.hardwareEncoder)
+        ? clientConfigSettingFromJSON(object.hardwareEncoder)
+        : 0,
+    };
   },
 
   toJSON(message: VideoConfiguration): unknown {
@@ -2214,44 +1972,55 @@ export const VideoConfiguration = {
     return obj;
   },
 
-  fromPartial(object: DeepPartial<VideoConfiguration>): VideoConfiguration {
-    const message = { ...baseVideoConfiguration } as VideoConfiguration;
+  fromPartial<I extends Exact<DeepPartial<VideoConfiguration>, I>>(
+    object: I
+  ): VideoConfiguration {
+    const message = createBaseVideoConfiguration();
     message.hardwareEncoder = object.hardwareEncoder ?? 0;
     return message;
   },
 };
 
-const baseRTPStats: object = {
-  duration: 0,
-  packets: 0,
-  packetRate: 0,
-  bytes: 0,
-  bitrate: 0,
-  packetsLost: 0,
-  packetLossRate: 0,
-  packetLossPercentage: 0,
-  packetsDuplicate: 0,
-  packetDuplicateRate: 0,
-  bytesDuplicate: 0,
-  bitrateDuplicate: 0,
-  packetsPadding: 0,
-  packetPaddingRate: 0,
-  bytesPadding: 0,
-  bitratePadding: 0,
-  packetsOutOfOrder: 0,
-  frames: 0,
-  frameRate: 0,
-  jitterCurrent: 0,
-  jitterMax: 0,
-  nacks: 0,
-  nackMisses: 0,
-  plis: 0,
-  firs: 0,
-  rttCurrent: 0,
-  rttMax: 0,
-  keyFrames: 0,
-  layerLockPlis: 0,
-};
+function createBaseRTPStats(): RTPStats {
+  return {
+    startTime: undefined,
+    endTime: undefined,
+    duration: 0,
+    packets: 0,
+    packetRate: 0,
+    bytes: 0,
+    bitrate: 0,
+    packetsLost: 0,
+    packetLossRate: 0,
+    packetLossPercentage: 0,
+    packetsDuplicate: 0,
+    packetDuplicateRate: 0,
+    bytesDuplicate: 0,
+    bitrateDuplicate: 0,
+    packetsPadding: 0,
+    packetPaddingRate: 0,
+    bytesPadding: 0,
+    bitratePadding: 0,
+    packetsOutOfOrder: 0,
+    frames: 0,
+    frameRate: 0,
+    jitterCurrent: 0,
+    jitterMax: 0,
+    gapHistogram: {},
+    nacks: 0,
+    nackMisses: 0,
+    plis: 0,
+    lastPli: undefined,
+    firs: 0,
+    lastFir: undefined,
+    rttCurrent: 0,
+    rttMax: 0,
+    keyFrames: 0,
+    lastKeyFrame: undefined,
+    layerLockPlis: 0,
+    lastLayerLockPli: undefined,
+  };
+}
 
 export const RTPStats = {
   encode(
@@ -2393,8 +2162,7 @@ export const RTPStats = {
   decode(input: _m0.Reader | Uint8Array, length?: number): RTPStats {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = { ...baseRTPStats } as RTPStats;
-    message.gapHistogram = {};
+    const message = createBaseRTPStats();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -2533,210 +2301,90 @@ export const RTPStats = {
   },
 
   fromJSON(object: any): RTPStats {
-    const message = { ...baseRTPStats } as RTPStats;
-    message.gapHistogram = {};
-    if (object.startTime !== undefined && object.startTime !== null) {
-      message.startTime = fromJsonTimestamp(object.startTime);
-    } else {
-      message.startTime = undefined;
-    }
-    if (object.endTime !== undefined && object.endTime !== null) {
-      message.endTime = fromJsonTimestamp(object.endTime);
-    } else {
-      message.endTime = undefined;
-    }
-    if (object.duration !== undefined && object.duration !== null) {
-      message.duration = Number(object.duration);
-    } else {
-      message.duration = 0;
-    }
-    if (object.packets !== undefined && object.packets !== null) {
-      message.packets = Number(object.packets);
-    } else {
-      message.packets = 0;
-    }
-    if (object.packetRate !== undefined && object.packetRate !== null) {
-      message.packetRate = Number(object.packetRate);
-    } else {
-      message.packetRate = 0;
-    }
-    if (object.bytes !== undefined && object.bytes !== null) {
-      message.bytes = Number(object.bytes);
-    } else {
-      message.bytes = 0;
-    }
-    if (object.bitrate !== undefined && object.bitrate !== null) {
-      message.bitrate = Number(object.bitrate);
-    } else {
-      message.bitrate = 0;
-    }
-    if (object.packetsLost !== undefined && object.packetsLost !== null) {
-      message.packetsLost = Number(object.packetsLost);
-    } else {
-      message.packetsLost = 0;
-    }
-    if (object.packetLossRate !== undefined && object.packetLossRate !== null) {
-      message.packetLossRate = Number(object.packetLossRate);
-    } else {
-      message.packetLossRate = 0;
-    }
-    if (
-      object.packetLossPercentage !== undefined &&
-      object.packetLossPercentage !== null
-    ) {
-      message.packetLossPercentage = Number(object.packetLossPercentage);
-    } else {
-      message.packetLossPercentage = 0;
-    }
-    if (
-      object.packetsDuplicate !== undefined &&
-      object.packetsDuplicate !== null
-    ) {
-      message.packetsDuplicate = Number(object.packetsDuplicate);
-    } else {
-      message.packetsDuplicate = 0;
-    }
-    if (
-      object.packetDuplicateRate !== undefined &&
-      object.packetDuplicateRate !== null
-    ) {
-      message.packetDuplicateRate = Number(object.packetDuplicateRate);
-    } else {
-      message.packetDuplicateRate = 0;
-    }
-    if (object.bytesDuplicate !== undefined && object.bytesDuplicate !== null) {
-      message.bytesDuplicate = Number(object.bytesDuplicate);
-    } else {
-      message.bytesDuplicate = 0;
-    }
-    if (
-      object.bitrateDuplicate !== undefined &&
-      object.bitrateDuplicate !== null
-    ) {
-      message.bitrateDuplicate = Number(object.bitrateDuplicate);
-    } else {
-      message.bitrateDuplicate = 0;
-    }
-    if (object.packetsPadding !== undefined && object.packetsPadding !== null) {
-      message.packetsPadding = Number(object.packetsPadding);
-    } else {
-      message.packetsPadding = 0;
-    }
-    if (
-      object.packetPaddingRate !== undefined &&
-      object.packetPaddingRate !== null
-    ) {
-      message.packetPaddingRate = Number(object.packetPaddingRate);
-    } else {
-      message.packetPaddingRate = 0;
-    }
-    if (object.bytesPadding !== undefined && object.bytesPadding !== null) {
-      message.bytesPadding = Number(object.bytesPadding);
-    } else {
-      message.bytesPadding = 0;
-    }
-    if (object.bitratePadding !== undefined && object.bitratePadding !== null) {
-      message.bitratePadding = Number(object.bitratePadding);
-    } else {
-      message.bitratePadding = 0;
-    }
-    if (
-      object.packetsOutOfOrder !== undefined &&
-      object.packetsOutOfOrder !== null
-    ) {
-      message.packetsOutOfOrder = Number(object.packetsOutOfOrder);
-    } else {
-      message.packetsOutOfOrder = 0;
-    }
-    if (object.frames !== undefined && object.frames !== null) {
-      message.frames = Number(object.frames);
-    } else {
-      message.frames = 0;
-    }
-    if (object.frameRate !== undefined && object.frameRate !== null) {
-      message.frameRate = Number(object.frameRate);
-    } else {
-      message.frameRate = 0;
-    }
-    if (object.jitterCurrent !== undefined && object.jitterCurrent !== null) {
-      message.jitterCurrent = Number(object.jitterCurrent);
-    } else {
-      message.jitterCurrent = 0;
-    }
-    if (object.jitterMax !== undefined && object.jitterMax !== null) {
-      message.jitterMax = Number(object.jitterMax);
-    } else {
-      message.jitterMax = 0;
-    }
-    if (object.gapHistogram !== undefined && object.gapHistogram !== null) {
-      Object.entries(object.gapHistogram).forEach(([key, value]) => {
-        message.gapHistogram[Number(key)] = Number(value);
-      });
-    }
-    if (object.nacks !== undefined && object.nacks !== null) {
-      message.nacks = Number(object.nacks);
-    } else {
-      message.nacks = 0;
-    }
-    if (object.nackMisses !== undefined && object.nackMisses !== null) {
-      message.nackMisses = Number(object.nackMisses);
-    } else {
-      message.nackMisses = 0;
-    }
-    if (object.plis !== undefined && object.plis !== null) {
-      message.plis = Number(object.plis);
-    } else {
-      message.plis = 0;
-    }
-    if (object.lastPli !== undefined && object.lastPli !== null) {
-      message.lastPli = fromJsonTimestamp(object.lastPli);
-    } else {
-      message.lastPli = undefined;
-    }
-    if (object.firs !== undefined && object.firs !== null) {
-      message.firs = Number(object.firs);
-    } else {
-      message.firs = 0;
-    }
-    if (object.lastFir !== undefined && object.lastFir !== null) {
-      message.lastFir = fromJsonTimestamp(object.lastFir);
-    } else {
-      message.lastFir = undefined;
-    }
-    if (object.rttCurrent !== undefined && object.rttCurrent !== null) {
-      message.rttCurrent = Number(object.rttCurrent);
-    } else {
-      message.rttCurrent = 0;
-    }
-    if (object.rttMax !== undefined && object.rttMax !== null) {
-      message.rttMax = Number(object.rttMax);
-    } else {
-      message.rttMax = 0;
-    }
-    if (object.keyFrames !== undefined && object.keyFrames !== null) {
-      message.keyFrames = Number(object.keyFrames);
-    } else {
-      message.keyFrames = 0;
-    }
-    if (object.lastKeyFrame !== undefined && object.lastKeyFrame !== null) {
-      message.lastKeyFrame = fromJsonTimestamp(object.lastKeyFrame);
-    } else {
-      message.lastKeyFrame = undefined;
-    }
-    if (object.layerLockPlis !== undefined && object.layerLockPlis !== null) {
-      message.layerLockPlis = Number(object.layerLockPlis);
-    } else {
-      message.layerLockPlis = 0;
-    }
-    if (
-      object.lastLayerLockPli !== undefined &&
-      object.lastLayerLockPli !== null
-    ) {
-      message.lastLayerLockPli = fromJsonTimestamp(object.lastLayerLockPli);
-    } else {
-      message.lastLayerLockPli = undefined;
-    }
-    return message;
+    return {
+      startTime: isSet(object.startTime)
+        ? fromJsonTimestamp(object.startTime)
+        : undefined,
+      endTime: isSet(object.endTime)
+        ? fromJsonTimestamp(object.endTime)
+        : undefined,
+      duration: isSet(object.duration) ? Number(object.duration) : 0,
+      packets: isSet(object.packets) ? Number(object.packets) : 0,
+      packetRate: isSet(object.packetRate) ? Number(object.packetRate) : 0,
+      bytes: isSet(object.bytes) ? Number(object.bytes) : 0,
+      bitrate: isSet(object.bitrate) ? Number(object.bitrate) : 0,
+      packetsLost: isSet(object.packetsLost) ? Number(object.packetsLost) : 0,
+      packetLossRate: isSet(object.packetLossRate)
+        ? Number(object.packetLossRate)
+        : 0,
+      packetLossPercentage: isSet(object.packetLossPercentage)
+        ? Number(object.packetLossPercentage)
+        : 0,
+      packetsDuplicate: isSet(object.packetsDuplicate)
+        ? Number(object.packetsDuplicate)
+        : 0,
+      packetDuplicateRate: isSet(object.packetDuplicateRate)
+        ? Number(object.packetDuplicateRate)
+        : 0,
+      bytesDuplicate: isSet(object.bytesDuplicate)
+        ? Number(object.bytesDuplicate)
+        : 0,
+      bitrateDuplicate: isSet(object.bitrateDuplicate)
+        ? Number(object.bitrateDuplicate)
+        : 0,
+      packetsPadding: isSet(object.packetsPadding)
+        ? Number(object.packetsPadding)
+        : 0,
+      packetPaddingRate: isSet(object.packetPaddingRate)
+        ? Number(object.packetPaddingRate)
+        : 0,
+      bytesPadding: isSet(object.bytesPadding)
+        ? Number(object.bytesPadding)
+        : 0,
+      bitratePadding: isSet(object.bitratePadding)
+        ? Number(object.bitratePadding)
+        : 0,
+      packetsOutOfOrder: isSet(object.packetsOutOfOrder)
+        ? Number(object.packetsOutOfOrder)
+        : 0,
+      frames: isSet(object.frames) ? Number(object.frames) : 0,
+      frameRate: isSet(object.frameRate) ? Number(object.frameRate) : 0,
+      jitterCurrent: isSet(object.jitterCurrent)
+        ? Number(object.jitterCurrent)
+        : 0,
+      jitterMax: isSet(object.jitterMax) ? Number(object.jitterMax) : 0,
+      gapHistogram: isObject(object.gapHistogram)
+        ? Object.entries(object.gapHistogram).reduce<{ [key: number]: number }>(
+            (acc, [key, value]) => {
+              acc[Number(key)] = Number(value);
+              return acc;
+            },
+            {}
+          )
+        : {},
+      nacks: isSet(object.nacks) ? Number(object.nacks) : 0,
+      nackMisses: isSet(object.nackMisses) ? Number(object.nackMisses) : 0,
+      plis: isSet(object.plis) ? Number(object.plis) : 0,
+      lastPli: isSet(object.lastPli)
+        ? fromJsonTimestamp(object.lastPli)
+        : undefined,
+      firs: isSet(object.firs) ? Number(object.firs) : 0,
+      lastFir: isSet(object.lastFir)
+        ? fromJsonTimestamp(object.lastFir)
+        : undefined,
+      rttCurrent: isSet(object.rttCurrent) ? Number(object.rttCurrent) : 0,
+      rttMax: isSet(object.rttMax) ? Number(object.rttMax) : 0,
+      keyFrames: isSet(object.keyFrames) ? Number(object.keyFrames) : 0,
+      lastKeyFrame: isSet(object.lastKeyFrame)
+        ? fromJsonTimestamp(object.lastKeyFrame)
+        : undefined,
+      layerLockPlis: isSet(object.layerLockPlis)
+        ? Number(object.layerLockPlis)
+        : 0,
+      lastLayerLockPli: isSet(object.lastLayerLockPli)
+        ? fromJsonTimestamp(object.lastLayerLockPli)
+        : undefined,
+    };
   },
 
   toJSON(message: RTPStats): unknown {
@@ -2746,35 +2394,36 @@ export const RTPStats = {
     message.endTime !== undefined &&
       (obj.endTime = message.endTime.toISOString());
     message.duration !== undefined && (obj.duration = message.duration);
-    message.packets !== undefined && (obj.packets = message.packets);
+    message.packets !== undefined &&
+      (obj.packets = Math.round(message.packets));
     message.packetRate !== undefined && (obj.packetRate = message.packetRate);
-    message.bytes !== undefined && (obj.bytes = message.bytes);
+    message.bytes !== undefined && (obj.bytes = Math.round(message.bytes));
     message.bitrate !== undefined && (obj.bitrate = message.bitrate);
     message.packetsLost !== undefined &&
-      (obj.packetsLost = message.packetsLost);
+      (obj.packetsLost = Math.round(message.packetsLost));
     message.packetLossRate !== undefined &&
       (obj.packetLossRate = message.packetLossRate);
     message.packetLossPercentage !== undefined &&
       (obj.packetLossPercentage = message.packetLossPercentage);
     message.packetsDuplicate !== undefined &&
-      (obj.packetsDuplicate = message.packetsDuplicate);
+      (obj.packetsDuplicate = Math.round(message.packetsDuplicate));
     message.packetDuplicateRate !== undefined &&
       (obj.packetDuplicateRate = message.packetDuplicateRate);
     message.bytesDuplicate !== undefined &&
-      (obj.bytesDuplicate = message.bytesDuplicate);
+      (obj.bytesDuplicate = Math.round(message.bytesDuplicate));
     message.bitrateDuplicate !== undefined &&
       (obj.bitrateDuplicate = message.bitrateDuplicate);
     message.packetsPadding !== undefined &&
-      (obj.packetsPadding = message.packetsPadding);
+      (obj.packetsPadding = Math.round(message.packetsPadding));
     message.packetPaddingRate !== undefined &&
       (obj.packetPaddingRate = message.packetPaddingRate);
     message.bytesPadding !== undefined &&
-      (obj.bytesPadding = message.bytesPadding);
+      (obj.bytesPadding = Math.round(message.bytesPadding));
     message.bitratePadding !== undefined &&
       (obj.bitratePadding = message.bitratePadding);
     message.packetsOutOfOrder !== undefined &&
-      (obj.packetsOutOfOrder = message.packetsOutOfOrder);
-    message.frames !== undefined && (obj.frames = message.frames);
+      (obj.packetsOutOfOrder = Math.round(message.packetsOutOfOrder));
+    message.frames !== undefined && (obj.frames = Math.round(message.frames));
     message.frameRate !== undefined && (obj.frameRate = message.frameRate);
     message.jitterCurrent !== undefined &&
       (obj.jitterCurrent = message.jitterCurrent);
@@ -2782,31 +2431,34 @@ export const RTPStats = {
     obj.gapHistogram = {};
     if (message.gapHistogram) {
       Object.entries(message.gapHistogram).forEach(([k, v]) => {
-        obj.gapHistogram[k] = v;
+        obj.gapHistogram[k] = Math.round(v);
       });
     }
-    message.nacks !== undefined && (obj.nacks = message.nacks);
-    message.nackMisses !== undefined && (obj.nackMisses = message.nackMisses);
-    message.plis !== undefined && (obj.plis = message.plis);
+    message.nacks !== undefined && (obj.nacks = Math.round(message.nacks));
+    message.nackMisses !== undefined &&
+      (obj.nackMisses = Math.round(message.nackMisses));
+    message.plis !== undefined && (obj.plis = Math.round(message.plis));
     message.lastPli !== undefined &&
       (obj.lastPli = message.lastPli.toISOString());
-    message.firs !== undefined && (obj.firs = message.firs);
+    message.firs !== undefined && (obj.firs = Math.round(message.firs));
     message.lastFir !== undefined &&
       (obj.lastFir = message.lastFir.toISOString());
-    message.rttCurrent !== undefined && (obj.rttCurrent = message.rttCurrent);
-    message.rttMax !== undefined && (obj.rttMax = message.rttMax);
-    message.keyFrames !== undefined && (obj.keyFrames = message.keyFrames);
+    message.rttCurrent !== undefined &&
+      (obj.rttCurrent = Math.round(message.rttCurrent));
+    message.rttMax !== undefined && (obj.rttMax = Math.round(message.rttMax));
+    message.keyFrames !== undefined &&
+      (obj.keyFrames = Math.round(message.keyFrames));
     message.lastKeyFrame !== undefined &&
       (obj.lastKeyFrame = message.lastKeyFrame.toISOString());
     message.layerLockPlis !== undefined &&
-      (obj.layerLockPlis = message.layerLockPlis);
+      (obj.layerLockPlis = Math.round(message.layerLockPlis));
     message.lastLayerLockPli !== undefined &&
       (obj.lastLayerLockPli = message.lastLayerLockPli.toISOString());
     return obj;
   },
 
-  fromPartial(object: DeepPartial<RTPStats>): RTPStats {
-    const message = { ...baseRTPStats } as RTPStats;
+  fromPartial<I extends Exact<DeepPartial<RTPStats>, I>>(object: I): RTPStats {
+    const message = createBaseRTPStats();
     message.startTime = object.startTime ?? undefined;
     message.endTime = object.endTime ?? undefined;
     message.duration = object.duration ?? 0;
@@ -2830,14 +2482,14 @@ export const RTPStats = {
     message.frameRate = object.frameRate ?? 0;
     message.jitterCurrent = object.jitterCurrent ?? 0;
     message.jitterMax = object.jitterMax ?? 0;
-    message.gapHistogram = {};
-    if (object.gapHistogram !== undefined && object.gapHistogram !== null) {
-      Object.entries(object.gapHistogram).forEach(([key, value]) => {
-        if (value !== undefined) {
-          message.gapHistogram[Number(key)] = Number(value);
-        }
-      });
-    }
+    message.gapHistogram = Object.entries(object.gapHistogram ?? {}).reduce<{
+      [key: number]: number;
+    }>((acc, [key, value]) => {
+      if (value !== undefined) {
+        acc[Number(key)] = Number(value);
+      }
+      return acc;
+    }, {});
     message.nacks = object.nacks ?? 0;
     message.nackMisses = object.nackMisses ?? 0;
     message.plis = object.plis ?? 0;
@@ -2854,7 +2506,9 @@ export const RTPStats = {
   },
 };
 
-const baseRTPStats_GapHistogramEntry: object = { key: 0, value: 0 };
+function createBaseRTPStats_GapHistogramEntry(): RTPStats_GapHistogramEntry {
+  return { key: 0, value: 0 };
+}
 
 export const RTPStats_GapHistogramEntry = {
   encode(
@@ -2876,9 +2530,7 @@ export const RTPStats_GapHistogramEntry = {
   ): RTPStats_GapHistogramEntry {
     const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
-    const message = {
-      ...baseRTPStats_GapHistogramEntry,
-    } as RTPStats_GapHistogramEntry;
+    const message = createBaseRTPStats_GapHistogramEntry();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -2897,35 +2549,23 @@ export const RTPStats_GapHistogramEntry = {
   },
 
   fromJSON(object: any): RTPStats_GapHistogramEntry {
-    const message = {
-      ...baseRTPStats_GapHistogramEntry,
-    } as RTPStats_GapHistogramEntry;
-    if (object.key !== undefined && object.key !== null) {
-      message.key = Number(object.key);
-    } else {
-      message.key = 0;
-    }
-    if (object.value !== undefined && object.value !== null) {
-      message.value = Number(object.value);
-    } else {
-      message.value = 0;
-    }
-    return message;
+    return {
+      key: isSet(object.key) ? Number(object.key) : 0,
+      value: isSet(object.value) ? Number(object.value) : 0,
+    };
   },
 
   toJSON(message: RTPStats_GapHistogramEntry): unknown {
     const obj: any = {};
-    message.key !== undefined && (obj.key = message.key);
-    message.value !== undefined && (obj.value = message.value);
+    message.key !== undefined && (obj.key = Math.round(message.key));
+    message.value !== undefined && (obj.value = Math.round(message.value));
     return obj;
   },
 
-  fromPartial(
-    object: DeepPartial<RTPStats_GapHistogramEntry>
+  fromPartial<I extends Exact<DeepPartial<RTPStats_GapHistogramEntry>, I>>(
+    object: I
   ): RTPStats_GapHistogramEntry {
-    const message = {
-      ...baseRTPStats_GapHistogramEntry,
-    } as RTPStats_GapHistogramEntry;
+    const message = createBaseRTPStats_GapHistogramEntry();
     message.key = object.key ?? 0;
     message.value = object.value ?? 0;
     return message;
@@ -2974,6 +2614,7 @@ type Builtin =
   | number
   | boolean
   | undefined;
+
 export type DeepPartial<T> = T extends Builtin
   ? T
   : T extends Array<infer U>
@@ -2983,6 +2624,14 @@ export type DeepPartial<T> = T extends Builtin
   : T extends {}
   ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;
+
+type KeysOfUnion<T> = T extends T ? keyof T : never;
+export type Exact<P, I extends P> = P extends Builtin
+  ? P
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & Record<
+        Exclude<keyof I, KeysOfUnion<P>>,
+        never
+      >;
 
 function toTimestamp(date: Date): Timestamp {
   const seconds = date.getTime() / 1_000;
@@ -3016,4 +2665,12 @@ function longToNumber(long: Long): number {
 if (_m0.util.Long !== Long) {
   _m0.util.Long = Long as any;
   _m0.configure();
+}
+
+function isObject(value: any): boolean {
+  return typeof value === "object" && value !== null;
+}
+
+function isSet(value: any): boolean {
+  return value !== null && value !== undefined;
 }
