@@ -4,7 +4,7 @@ import {
   Participant, ParticipantEvent, RemoteParticipant, Room,
   RoomConnectOptions, RoomEvent,
   RoomOptions, RoomState, setLogLevel, Track, TrackPublication,
-  VideoCaptureOptions, VideoPresets,
+  VideoCaptureOptions, VideoPresets, VideoCodec,
 } from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
@@ -40,6 +40,7 @@ const appActions = {
     const adaptiveStream = (<HTMLInputElement>$('adaptive-stream')).checked;
     const publishOnly = (<HTMLInputElement>$('publish-only')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
+    const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
 
     setLogLevel('debug');
     updateSearchParams(url, token);
@@ -55,6 +56,7 @@ const appActions = {
           VideoPresets.h90,
           VideoPresets.h216,
         ],
+        videoCodec: preferredCodec,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,

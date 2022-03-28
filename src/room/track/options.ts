@@ -198,7 +198,7 @@ export interface AudioPreset {
   maxBitrate: number;
 }
 
-export type VideoCodec = 'vp8' | 'h264';
+export type VideoCodec = 'vp8' | 'h264' | 'av1' | 'vp9';
 
 export namespace AudioPresets {
   export const telephone: AudioPreset = {
