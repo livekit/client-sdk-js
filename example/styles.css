@@ -65,7 +65,7 @@
   display: inline-block;
   width: 1px;
   height: 0;
-  padding-bottom: calc(100% / (16/9));
+  padding-bottom: calc(100% / (16 / 9));
 }
 
 #log-area {
@@ -141,4 +141,19 @@
 
 .participant .connection-poor {
   color: red;
+}
+
+.participant .volume-control {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  display: flex;
+  z-index: 4;
+  height: 100%;
+}
+
+.participant .volume-control > input {
+  width: 16px;
+  height: 40%;
+  -webkit-appearance: slider-vertical; /* Chromium */
 }

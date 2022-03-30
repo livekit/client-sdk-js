@@ -404,6 +404,12 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
           <span id="mic-${identity}" class="mic-on"></span>
         </div>
       </div>
+      ${participant instanceof RemoteParticipant
+    && `<div class="volume-control">
+        <input id="volume-${identity}" type="range" min="0" max="1" step="0.1" value="1" orient="vertical" />
+      </div>`
+}
+      
     `;
     container.appendChild(div);
 
@@ -441,6 +447,13 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     div!.classList.add('speaking');
   } else {
     div!.classList.remove('speaking');
+  }
+
+  if (participant instanceof RemoteParticipant) {
+    const volumeSlider = <HTMLInputElement>$(`volume-${identity}`);
+    volumeSlider.addEventListener('input', (ev) => {
+      participant.setVolume(Number.parseFloat((ev.target as HTMLInputElement).value));
+    });
   }
 
   const cameraEnabled = cameraPub && cameraPub.isSubscribed && !cameraPub.isMuted;

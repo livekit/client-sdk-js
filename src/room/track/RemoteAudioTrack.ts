@@ -5,12 +5,44 @@ import { Track } from './Track';
 export default class RemoteAudioTrack extends RemoteTrack {
   private prevStats?: AudioReceiverStats;
 
+  private elementVolume: number;
+
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
     receiver?: RTCRtpReceiver,
   ) {
     super(mediaTrack, sid, Track.Kind.Audio, receiver);
+    this.elementVolume = 1;
+  }
+
+  /**
+   * sets the volume for all attached audio elements
+   */
+  setVolume(volume: number) {
+    for (const el of this.attachedElements) {
+      el.volume = volume;
+    }
+    this.elementVolume = volume;
+  }
+
+  /**
+   * gets the volume for all attached audio elements
+   */
+  getVolume(): number {
+    return this.elementVolume;
+  }
+
+  attach(): HTMLMediaElement
+  attach(element: HTMLMediaElement): HTMLMediaElement
+  attach(element?: HTMLMediaElement): HTMLMediaElement {
+    if (!element) {
+      element = super.attach();
+    } else {
+      super.attach(element);
+    }
+    element.volume = this.elementVolume;
+    return element;
   }
 
   protected monitorReceiver = async () => {

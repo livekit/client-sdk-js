@@ -76,6 +76,27 @@ export default class RemoteParticipant extends Participant {
     }
   }
 
+  /**
+   * sets the volume on the participant's microphone track if it exists.
+   */
+  setVolume(volume: number) {
+    const audioPublication = this.getTrack(Track.Source.Microphone);
+    if (audioPublication) {
+      (audioPublication.track as RemoteAudioTrack).setVolume(volume);
+    }
+  }
+
+  /**
+   * gets the volume on the participant's microphone track
+   * returns undefined if no microphone track exists
+   */
+  getVolume() {
+    const audioPublication = this.getTrack(Track.Source.Microphone);
+    if (audioPublication) {
+      return (audioPublication.track as RemoteAudioTrack).getVolume();
+    }
+  }
+
   /** @internal */
   addSubscribedMediaTrack(
     mediaTrack: MediaStreamTrack,
