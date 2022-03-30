@@ -26,7 +26,11 @@ const storedToken = searchParams.get('token') ?? '';
 
 function updateSearchParams(url: string, token: string) {
   const params = new URLSearchParams({ url, token });
-  window.history.replaceState(null, '', `/?${params.toString()}`);
+  window.history.replaceState(
+    null,
+    '',
+    `${window.location.pathname}?${params.toString()}`,
+  );
 }
 
 // handles actions from the HTML
