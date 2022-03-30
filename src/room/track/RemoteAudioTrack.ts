@@ -27,7 +27,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
   }
 
   /**
-   * sets the volume for all attached audio elements
+   * gets the volume for all attached audio elements
    */
   getVolume(): number {
     return this.elementVolume;
