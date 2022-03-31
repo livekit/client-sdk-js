@@ -16,7 +16,8 @@
     "build-sample": "cd example && webpack && cp styles.css index.html dist/",
     "lint": "eslint src",
     "test": "jest",
-    "deploy": "gh-pages -d example/dist"
+    "deploy": "gh-pages -d example/dist",
+    "prettify": "prettier ./src ./example"
   },
   "dependencies": {
     "events": "^3.3.0",
@@ -36,6 +37,7 @@
     "eslint-plugin-import": "^2.24.2",
     "gh-pages": "^3.2.3",
     "jest": "^27.4.3",
+    "prettier": "^2.6.1",
     "ts-jest": "^27.0.7",
     "ts-loader": "^8.1.0",
     "ts-proto": "^1.110.1",
