@@ -17,7 +17,8 @@
     "lint": "eslint src",
     "test": "jest",
     "deploy": "gh-pages -d example/dist",
-    "prettify": "prettier ./src ./example"
+    "prettify": "prettier --write ./src ./example",
+    "prettify:check": "prettier --check ./src ./example"
   },
   "dependencies": {
     "events": "^3.3.0",
@@ -34,6 +35,7 @@
     "@webpack-cli/serve": "^1.5.2",
     "eslint": "^7.32.0",
     "eslint-config-airbnb-typescript": "^12.3.1",
+    "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-import": "^2.24.2",
     "gh-pages": "^3.2.3",
     "jest": "^27.4.3",
