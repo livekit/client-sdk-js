@@ -16,5 +16,5 @@ export type AdaptiveStreamSettings = {
    * Note: this might significantly increase the bandwidth consumed by people
    * streaming on high definition screens.
    */
-  pixelDensity?: number | 'screen'
+  pixelDensity?: number | 'screen';
 };

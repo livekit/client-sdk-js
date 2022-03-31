@@ -415,7 +415,7 @@ export enum TrackEvent {
   /**
    * @internal
    * Only fires on LocalAudioTrack instances
-  */
+   */
   AudioSilenceDetected = 'audioSilenceDetected',
   /** @internal */
   VisibilityChanged = 'visibilityChanged',

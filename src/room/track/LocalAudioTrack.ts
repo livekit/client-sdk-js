@@ -14,10 +14,7 @@ export default class LocalAudioTrack extends LocalTrack {
 
   private prevStats?: AudioSenderStats;
 
-  constructor(
-    mediaTrack: MediaStreamTrack,
-    constraints?: MediaTrackConstraints,
-  ) {
+  constructor(mediaTrack: MediaStreamTrack, constraints?: MediaTrackConstraints) {
     super(mediaTrack, Track.Kind.Audio, constraints);
     this.checkForSilence();
   }

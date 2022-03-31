@@ -5,10 +5,15 @@ import log from '../logger';
 import {
   ClientConfigSetting,
   ClientConfiguration,
-  DataPacket, DataPacket_Kind, SpeakerInfo, TrackInfo, UserPacket,
+  DataPacket,
+  DataPacket_Kind,
+  SpeakerInfo,
+  TrackInfo,
+  UserPacket,
 } from '../proto/livekit_models';
 import {
-  AddTrackRequest, JoinResponse,
+  AddTrackRequest,
+  JoinResponse,
   LeaveRequest,
   SignalTarget,
   TrackPublishedResponse,
@@ -26,9 +31,7 @@ const maxReconnectDuration = 60 * 1000;
 export const maxICEConnectTimeout = 15 * 1000;
 
 /** @internal */
-export default class RTCEngine extends (
-  EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>
-) {
+export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
   publisher?: PCTransport;
 
   subscriber?: PCTransport;
@@ -132,9 +135,7 @@ export default class RTCEngine extends (
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {
     if (this.pendingTrackResolvers[req.cid]) {
-      throw new TrackInvalidError(
-        'a track with the same ID has already been published',
-      );
+      throw new TrackInvalidError('a track with the same ID has already been published');
     }
     return new Promise<TrackInfo>((resolve) => {
       this.pendingTrackResolvers[req.cid] = resolve;
@@ -168,7 +169,9 @@ export default class RTCEngine extends (
           urls: iceServer.urls,
         };
         if (iceServer.username) rtcIceServer.username = iceServer.username;
-        if (iceServer.credential) { rtcIceServer.credential = iceServer.credential; }
+        if (iceServer.credential) {
+          rtcIceServer.credential = iceServer.credential;
+        }
         rtcIceServers.push(rtcIceServer);
       });
       this.rtcConfig.iceServers = rtcIceServers;
@@ -264,11 +267,7 @@ export default class RTCEngine extends (
       if (!this.publisher) {
         return;
       }
-      log.debug(
-        'received server answer',
-        sd.type,
-        this.publisher.pc.signalingState,
-      );
+      log.debug('received server answer', sd.type, this.publisher.pc.signalingState);
       await this.publisher.setRemoteDescription(sd);
     };
 
@@ -290,11 +289,7 @@ export default class RTCEngine extends (
       if (!this.subscriber) {
         return;
       }
-      log.debug(
-        'received server offer',
-        sd.type,
-        this.subscriber.pc.signalingState,
-      );
+      log.debug('received server offer', sd.type, this.subscriber.pc.signalingState);
       await this.subscriber.setRemoteDescription(sd);
 
       // answer the offer
@@ -392,13 +387,15 @@ export default class RTCEngine extends (
       this.reconnectStart = Date.now();
     }
 
-    const delay = (this.reconnectAttempts * this.reconnectAttempts) * 300;
+    const delay = this.reconnectAttempts * this.reconnectAttempts * 300;
     setTimeout(async () => {
       if (this.isClosed) {
         return;
       }
-      if (isFireFox() // TODO remove once clientConfiguration handles firefox case server side
-        || this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED) {
+      if (
+        isFireFox() || // TODO remove once clientConfiguration handles firefox case server side
+        this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED
+      ) {
         this.fullReconnectOnNext = true;
       }
 
@@ -507,7 +504,7 @@ export default class RTCEngine extends (
   }
 
   async waitForPCConnected() {
-    const startTime = (new Date()).getTime();
+    const startTime = new Date().getTime();
     let now = startTime;
     this.pcConnected = false;
 
@@ -517,14 +514,17 @@ export default class RTCEngine extends (
       if (this.primaryPC === undefined) {
         // we can abort early, connection is hosed
         break;
-      } else if (now - startTime > minReconnectWait && this.primaryPC?.connectionState === 'connected') {
+      } else if (
+        now - startTime > minReconnectWait &&
+        this.primaryPC?.connectionState === 'connected'
+      ) {
         this.pcConnected = true;
       }
       if (this.pcConnected) {
         return;
       }
       await sleep(100);
-      now = (new Date()).getTime();
+      now = new Date().getTime();
     }
 
     // have not reconnected, throw
@@ -565,15 +565,17 @@ export default class RTCEngine extends (
     }
 
     // wait until publisher ICE connected
-    const endTime = (new Date()).getTime() + maxICEConnectTimeout;
-    while ((new Date()).getTime() < endTime) {
+    const endTime = new Date().getTime() + maxICEConnectTimeout;
+    while (new Date().getTime() < endTime) {
       if (this.publisher.isICEConnected && this.dataChannelForKind(kind)?.readyState === 'open') {
         return;
       }
       await sleep(50);
     }
 
-    throw new ConnectionError(`could not establish publisher connection, state ${this.publisher?.pc.iceConnectionState}`);
+    throw new ConnectionError(
+      `could not establish publisher connection, state ${this.publisher?.pc.iceConnectionState}`,
+    );
   }
 
   /** @internal */
@@ -590,7 +592,8 @@ export default class RTCEngine extends (
   dataChannelForKind(kind: DataPacket_Kind): RTCDataChannel | undefined {
     if (kind === DataPacket_Kind.LOSSY) {
       return this.lossyDC;
-    } if (kind === DataPacket_Kind.RELIABLE) {
+    }
+    if (kind === DataPacket_Kind.RELIABLE) {
       return this.reliableDC;
     }
   }
@@ -630,23 +633,22 @@ async function getConnectedAddress(pc: RTCPeerConnection): Promise<string | unde
   return candidates.get(selectedID);
 }
 
-class SignalReconnectError extends Error {
-}
+class SignalReconnectError extends Error {}
 
 export type EngineEventCallbacks = {
-  connected: () => void,
-  disconnected: () => void,
-  resuming: () => void,
-  resumed: () => void,
-  restarting: () => void,
-  restarted: (joinResp: JoinResponse) => void,
-  signalResumed: () => void,
+  connected: () => void;
+  disconnected: () => void;
+  resuming: () => void;
+  resumed: () => void;
+  restarting: () => void;
+  restarted: (joinResp: JoinResponse) => void;
+  signalResumed: () => void;
   mediaTrackAdded: (
     track: MediaStreamTrack,
     streams: MediaStream,
-    receiver?: RTCRtpReceiver
-  ) => void,
-  activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void,
-  dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void,
-  transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void,
+    receiver?: RTCRtpReceiver,
+  ) => void;
+  activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
+  dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
+  transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
 };

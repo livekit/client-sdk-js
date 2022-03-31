@@ -1,6 +1,4 @@
-import {
-  AudioCaptureOptions, VideoCaptureOptions, VideoPresets,
-} from './options';
+import { AudioCaptureOptions, VideoCaptureOptions, VideoPresets } from './options';
 import { constraintsForOptions, mergeDefaultOptions } from './utils';
 
 describe('mergeDefaultOptions', () => {
@@ -28,26 +26,38 @@ describe('mergeDefaultOptions', () => {
   });
 
   it('accepts true for options', () => {
-    const opts = mergeDefaultOptions({
-      audio: true,
-    }, audioDefaults, videoDefaults);
+    const opts = mergeDefaultOptions(
+      {
+        audio: true,
+      },
+      audioDefaults,
+      videoDefaults,
+    );
     expect(opts.audio).toEqual(audioDefaults);
     expect(opts.video).toEqual(undefined);
   });
 
   it('enables overriding specific fields', () => {
-    const opts = mergeDefaultOptions({
-      audio: { channelCount: 1 },
-    }, audioDefaults, videoDefaults);
+    const opts = mergeDefaultOptions(
+      {
+        audio: { channelCount: 1 },
+      },
+      audioDefaults,
+      videoDefaults,
+    );
     const audioOpts = opts.audio as AudioCaptureOptions;
     expect(audioOpts.channelCount).toEqual(1);
     expect(audioOpts.autoGainControl).toEqual(true);
   });
 
   it('does not override explicit false', () => {
-    const opts = mergeDefaultOptions({
-      audio: { autoGainControl: false },
-    }, audioDefaults, videoDefaults);
+    const opts = mergeDefaultOptions(
+      {
+        audio: { autoGainControl: false },
+      },
+      audioDefaults,
+      videoDefaults,
+    );
     const audioOpts = opts.audio as AudioCaptureOptions;
     expect(audioOpts.autoGainControl).toEqual(false);
   });
@@ -84,7 +94,14 @@ describe('constraintsForOptions', () => {
       },
     });
     const videoOpts = constraints.video as MediaTrackConstraints;
-    expect(Object.keys(videoOpts)).toEqual(['width', 'height', 'frameRate', 'aspectRatio', 'facingMode', 'deviceId']);
+    expect(Object.keys(videoOpts)).toEqual([
+      'width',
+      'height',
+      'frameRate',
+      'aspectRatio',
+      'facingMode',
+      'deviceId',
+    ]);
     expect(videoOpts.width).toEqual(VideoPresets.hd.resolution.width);
     expect(videoOpts.height).toEqual(VideoPresets.hd.resolution.height);
     expect(videoOpts.frameRate).toEqual(VideoPresets.hd.resolution.frameRate);

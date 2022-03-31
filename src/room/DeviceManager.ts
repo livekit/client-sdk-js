@@ -3,11 +3,7 @@ const defaultId = 'default';
 export default class DeviceManager {
   private static instance?: DeviceManager;
 
-  static mediaDeviceKinds: MediaDeviceKind[] = [
-    'audioinput',
-    'audiooutput',
-    'videoinput',
-  ];
+  static mediaDeviceKinds: MediaDeviceKind[] = ['audioinput', 'audiooutput', 'videoinput'];
 
   static getInstance(): DeviceManager {
     if (this.instance === undefined) {
@@ -40,7 +36,9 @@ export default class DeviceManager {
   }
 
   async normalizeDeviceId(
-    kind: MediaDeviceKind, deviceId?: string, groupId?: string,
+    kind: MediaDeviceKind,
+    deviceId?: string,
+    groupId?: string,
   ): Promise<string | undefined> {
     if (deviceId !== defaultId) {
       return deviceId;

@@ -3,8 +3,11 @@ import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
 import {
-  ScreenSharePresets, TrackPublishOptions,
-  VideoEncoding, VideoPreset, VideoPresets,
+  ScreenSharePresets,
+  TrackPublishOptions,
+  VideoEncoding,
+  VideoPreset,
+  VideoPresets,
   VideoPresets43,
 } from '../track/options';
 
@@ -19,9 +22,7 @@ export function mediaTrackToLocalTrack(
     case 'video':
       return new LocalVideoTrack(mediaStreamTrack, constraints);
     default:
-      throw new TrackInvalidError(
-        `unsupported track type: ${mediaStreamTrack.kind}`,
-      );
+      throw new TrackInvalidError(`unsupported track type: ${mediaStreamTrack.kind}`);
   }
 }
 
@@ -35,27 +36,29 @@ export const presets43 = Object.values(VideoPresets43);
 export const presetsScreenShare = Object.values(ScreenSharePresets);
 
 /* @internal */
-export const defaultSimulcastPresets169 = [
-  VideoPresets.h180,
-  VideoPresets.h360,
-];
+export const defaultSimulcastPresets169 = [VideoPresets.h180, VideoPresets.h360];
 
 /* @internal */
-export const defaultSimulcastPresets43 = [
-  VideoPresets43.h180,
-  VideoPresets43.h360,
-];
+export const defaultSimulcastPresets43 = [VideoPresets43.h180, VideoPresets43.h360];
 
 /* @internal */
 export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPreset) => {
   const layers = [{ scaleResolutionDownBy: 2, fps: 3 }];
-  return layers.map((t) => new VideoPreset(
-    Math.floor(fromPreset.width / t.scaleResolutionDownBy),
-    Math.floor(fromPreset.height / t.scaleResolutionDownBy),
-    Math.max(150_000, Math.floor(fromPreset.encoding.maxBitrate
-      / (t.scaleResolutionDownBy ** 2 * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps)))),
-    t.fps,
-  ));
+  return layers.map(
+    (t) =>
+      new VideoPreset(
+        Math.floor(fromPreset.width / t.scaleResolutionDownBy),
+        Math.floor(fromPreset.height / t.scaleResolutionDownBy),
+        Math.max(
+          150_000,
+          Math.floor(
+            fromPreset.encoding.maxBitrate /
+              (t.scaleResolutionDownBy ** 2 * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps)),
+          ),
+        ),
+        t.fps,
+      ),
+  );
 };
 
 const videoRids = ['q', 'h', 'f'];
@@ -89,15 +92,19 @@ export function computeVideoEncodings(
     return [videoEncoding];
   }
   const original = new VideoPreset(
-    width, height, videoEncoding.maxBitrate, videoEncoding.maxFramerate,
+    width,
+    height,
+    videoEncoding.maxBitrate,
+    videoEncoding.maxFramerate,
   );
   let presets: Array<VideoPreset> = [];
   if (isScreenShare) {
-    presets = sortPresets(options?.screenShareSimulcastLayers)
-      ?? defaultSimulcastLayers(isScreenShare, original);
+    presets =
+      sortPresets(options?.screenShareSimulcastLayers) ??
+      defaultSimulcastLayers(isScreenShare, original);
   } else {
-    presets = sortPresets(options?.videoSimulcastLayers)
-      ?? defaultSimulcastLayers(isScreenShare, original);
+    presets =
+      sortPresets(options?.videoSimulcastLayers) ?? defaultSimulcastLayers(isScreenShare, original);
   }
   let midPreset: VideoPreset | undefined;
   const lowPreset = presets[0];
@@ -116,18 +123,12 @@ export function computeVideoEncodings(
   //      based on other conditions.
   const size = Math.max(width, height);
   if (size >= 960 && midPreset) {
-    return encodingsFromPresets(width, height, [
-      lowPreset, midPreset, original,
-    ]);
+    return encodingsFromPresets(width, height, [lowPreset, midPreset, original]);
   }
   if (size >= 480) {
-    return encodingsFromPresets(width, height, [
-      lowPreset, original,
-    ]);
+    return encodingsFromPresets(width, height, [lowPreset, original]);
   }
-  return encodingsFromPresets(width, height, [
-    original,
-  ]);
+  return encodingsFromPresets(width, height, [original]);
 }
 
 /* @internal */
@@ -155,7 +156,9 @@ export function determineAppropriateEncoding(
 
 /* @internal */
 export function presetsForResolution(
-  isScreenShare: boolean, width: number, height: number,
+  isScreenShare: boolean,
+  width: number,
+  height: number,
 ): VideoPreset[] {
   if (isScreenShare) {
     return presetsScreenShare;
@@ -169,7 +172,8 @@ export function presetsForResolution(
 
 /* @internal */
 export function defaultSimulcastLayers(
-  isScreenShare: boolean, original: VideoPreset,
+  isScreenShare: boolean,
+  original: VideoPreset,
 ): VideoPreset[] {
   if (isScreenShare) {
     return computeDefaultScreenShareSimulcastPresets(original);

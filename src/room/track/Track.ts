@@ -91,7 +91,8 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
     if (element instanceof HTMLAudioElement) {
       // manually play audio to detect audio playback status
-      element.play()
+      element
+        .play()
         .then(() => {
           this.emit(TrackEvent.AudioPlaybackStarted);
         })
@@ -154,7 +155,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   private recycleElement(element: HTMLMediaElement) {
     if (element instanceof HTMLAudioElement) {
-    // we only need to re-use a single element
+      // we only need to re-use a single element
       let shouldCache = true;
       element.pause();
       recycledElements.forEach((e) => {
@@ -222,10 +223,7 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
 }
 
 /** @internal */
-export function detachTrack(
-  track: MediaStreamTrack,
-  element: HTMLMediaElement,
-) {
+export function detachTrack(track: MediaStreamTrack, element: HTMLMediaElement) {
   if (element.srcObject instanceof MediaStream) {
     const mediaStream = element.srcObject;
     mediaStream.removeTrack(track);
@@ -329,15 +327,15 @@ export namespace Track {
 }
 
 export type TrackEventCallbacks = {
-  message: () => void,
-  muted: (track?: any) => void,
-  unmuted: (track?: any) => void,
-  ended: (track?: any) => void,
-  updateSettings: () => void,
-  updateSubscription: () => void,
-  audioPlaybackStarted: () => void,
-  audioPlaybackFailed: (error: Error) => void,
-  audioSilenceDetected: () => void,
-  visibilityChanged: (visible: boolean, track?: any) => void,
-  videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void,
+  message: () => void;
+  muted: (track?: any) => void;
+  unmuted: (track?: any) => void;
+  ended: (track?: any) => void;
+  updateSettings: () => void;
+  updateSubscription: () => void;
+  audioPlaybackStarted: () => void;
+  audioPlaybackFailed: (error: Error) => void;
+  audioSilenceDetected: () => void;
+  visibilityChanged: (visible: boolean, track?: any) => void;
+  videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void;
 };

@@ -1,7 +1,10 @@
 import log from '../logger';
 import {
   ClientInfo,
-  ParticipantInfo, Room, SpeakerInfo, VideoLayer,
+  ParticipantInfo,
+  Room,
+  SpeakerInfo,
+  VideoLayer,
 } from '../proto/livekit_models';
 import {
   AddTrackRequest,
@@ -11,13 +14,17 @@ import {
   SessionDescription,
   SignalRequest,
   SignalResponse,
-  SignalTarget, SimulateScenario,
+  SignalTarget,
+  SimulateScenario,
   StreamStateUpdate,
   SubscribedQualityUpdate,
-  SubscriptionPermissionUpdate, SyncState, TrackPermission,
+  SubscriptionPermissionUpdate,
+  SyncState,
+  TrackPermission,
   TrackPublishedResponse,
   TrackUnpublishedResponse,
-  UpdateSubscription, UpdateTrackSettings,
+  UpdateSubscription,
+  UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
 import { getClientInfo, isWeb, sleep } from '../room/utils';
@@ -52,8 +59,9 @@ const passThroughQueueSignals: Array<keyof SignalRequest> = [
 ];
 
 function canPassThroughQueue(req: SignalRequest): boolean {
-  const canPass = Object.keys(req)
-    .find((key) => passThroughQueueSignals.includes(key as keyof SignalRequest)) !== undefined;
+  const canPass =
+    Object.keys(req).find((key) => passThroughQueueSignals.includes(key as keyof SignalRequest)) !==
+    undefined;
   log.trace('request allowed to bypass queue:', canPass, req);
   return canPass;
 }
@@ -115,11 +123,7 @@ export class SignalClient {
     this.requestQueue = new Queue();
   }
 
-  async join(
-    url: string,
-    token: string,
-    opts?: SignalOptions,
-  ): Promise<JoinResponse> {
+  async join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.isConnected = false;
@@ -137,11 +141,7 @@ export class SignalClient {
     });
   }
 
-  connect(
-    url: string,
-    token: string,
-    opts: ConnectOpts,
-  ): Promise<JoinResponse | void> {
+  connect(url: string, token: string, opts: ConnectOpts): Promise<JoinResponse | void> {
     if (url.startsWith('http')) {
       url = url.replace('http', 'ws');
     }
@@ -298,10 +298,7 @@ export class SignalClient {
     });
   }
 
-  sendUpdateSubscriptionPermissions(
-    allParticipants: boolean,
-    trackPermissions: TrackPermission[],
-  ) {
+  sendUpdateSubscriptionPermissions(allParticipants: boolean, trackPermissions: TrackPermission[]) {
     this.sendRequest({
       subscriptionPermission: {
         allParticipants,
@@ -325,7 +322,7 @@ export class SignalClient {
     // keep order by queueing up new events as long as the queue is not empty
     // unless the request originates from the queue, then don't enqueue again
     const canQueue = !fromQueue && !canPassThroughQueue(req);
-    if (canQueue && (this.isReconnecting || (!this.requestQueue.isEmpty()))) {
+    if (canQueue && (this.isReconnecting || !this.requestQueue.isEmpty())) {
       this.requestQueue.enqueue(() => this.sendRequest(req, true));
       return;
     }
@@ -360,9 +357,7 @@ export class SignalClient {
         this.onOffer(sd);
       }
     } else if (msg.trickle) {
-      const candidate: RTCIceCandidateInit = JSON.parse(
-        msg.trickle.candidateInit,
-      );
+      const candidate: RTCIceCandidateInit = JSON.parse(msg.trickle.candidateInit);
       if (this.onTrickle) {
         this.onTrickle(candidate, msg.trickle.target);
       }
@@ -429,9 +424,7 @@ export class SignalClient {
   }
 }
 
-function fromProtoSessionDescription(
-  sd: SessionDescription,
-): RTCSessionDescriptionInit {
+function fromProtoSessionDescription(sd: SessionDescription): RTCSessionDescriptionInit {
   const rsd: RTCSessionDescriptionInit = {
     type: 'offer',
     sdp: sd.sdp,
