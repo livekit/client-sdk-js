@@ -1,6 +1,10 @@
 import {
-  AudioCaptureOptions, AudioPresets, ScreenSharePresets,
-  TrackPublishDefaults, VideoCaptureOptions, VideoPresets,
+  AudioCaptureOptions,
+  AudioPresets,
+  ScreenSharePresets,
+  TrackPublishDefaults,
+  VideoCaptureOptions,
+  VideoPresets,
 } from './options';
 
 export const publishDefaults: TrackPublishDefaults = {

@@ -5,8 +5,11 @@ import LocalAudioTrack from './LocalAudioTrack';
 import LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import {
-  AudioCaptureOptions, CreateLocalTracksOptions, ScreenShareCaptureOptions,
-  VideoCaptureOptions, VideoPresets,
+  AudioCaptureOptions,
+  CreateLocalTracksOptions,
+  ScreenShareCaptureOptions,
+  VideoCaptureOptions,
+  VideoPresets,
 } from './options';
 import { Track } from './Track';
 import { constraintsForOptions, mergeDefaultOptions } from './utils';
@@ -27,9 +30,7 @@ export async function createLocalTracks(
 
   const opts = mergeDefaultOptions(options, audioDefaults, videoDefaults);
   const constraints = constraintsForOptions(opts);
-  const stream = await navigator.mediaDevices.getUserMedia(
-    constraints,
-  );
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
   return stream.getTracks().map((mediaStreamTrack) => {
     const isAudio = mediaStreamTrack.kind === 'audio';
     let trackOptions = isAudio ? options!.audio : options!.video;

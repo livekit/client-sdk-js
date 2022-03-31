@@ -1,16 +1,14 @@
 import log from '../../logger';
 import { RoomOptions } from '../../options';
+import { DataPacket, DataPacket_Kind, ParticipantPermission } from '../../proto/livekit_models';
 import {
-  DataPacket, DataPacket_Kind, ParticipantPermission,
-} from '../../proto/livekit_models';
-import {
-  AddTrackRequest, DataChannelInfo,
-  SubscribedQualityUpdate, TrackPublishedResponse, TrackUnpublishedResponse,
+  AddTrackRequest,
+  DataChannelInfo,
+  SubscribedQualityUpdate,
+  TrackPublishedResponse,
+  TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc';
-import {
-  TrackInvalidError,
-  UnexpectedConnectionState,
-} from '../errors';
+import { TrackInvalidError, UnexpectedConnectionState } from '../errors';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
@@ -21,7 +19,8 @@ import {
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
   ScreenSharePresets,
-  TrackPublishOptions, VideoCodec,
+  TrackPublishOptions,
+  VideoCodec,
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
@@ -195,8 +194,10 @@ export default class LocalParticipant extends Participant {
    * displaying a single Permission Dialog box to the end user.
    */
   async enableCameraAndMicrophone() {
-    if (this.pendingPublishing.has(Track.Source.Camera)
-        || this.pendingPublishing.has(Track.Source.Microphone)) {
+    if (
+      this.pendingPublishing.has(Track.Source.Camera) ||
+      this.pendingPublishing.has(Track.Source.Microphone)
+    ) {
       // no-op it's already been requested
       return;
     }
@@ -221,9 +222,7 @@ export default class LocalParticipant extends Participant {
    * @param options
    * @returns
    */
-  async createTracks(
-    options?: CreateLocalTracksOptions,
-  ): Promise<LocalTrack[]> {
+  async createTracks(options?: CreateLocalTracksOptions): Promise<LocalTrack[]> {
     const opts = mergeDefaultOptions(
       options,
       this.roomOptions?.audioCaptureDefaults,
@@ -233,9 +232,7 @@ export default class LocalParticipant extends Participant {
     const constraints = constraintsForOptions(opts);
     let stream: MediaStream | undefined;
     try {
-      stream = await navigator.mediaDevices.getUserMedia(
-        constraints,
-      );
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (err) {
       if (err instanceof Error) {
         if (constraints.audio) {
@@ -283,9 +280,7 @@ export default class LocalParticipant extends Participant {
    * A LocalVideoTrack is always created and returned.
    * If { audio: true }, and the browser supports audio capture, a LocalAudioTrack is also created.
    */
-  async createScreenTracks(
-    options?: ScreenShareCaptureOptions,
-  ): Promise<Array<LocalTrack>> {
+  async createScreenTracks(options?: ScreenShareCaptureOptions): Promise<Array<LocalTrack>> {
     if (options === undefined) {
       options = {};
     }
@@ -347,9 +342,7 @@ export default class LocalParticipant extends Participant {
           track = new LocalVideoTrack(track);
           break;
         default:
-          throw new TrackInvalidError(
-            `unsupported MediaStreamTrack kind ${track.kind}`,
-          );
+          throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
       }
     }
 
@@ -433,7 +426,8 @@ export default class LocalParticipant extends Participant {
       transceiverInit.sendEncodings = encodings;
     }
     const transceiver = this.engine.publisher.pc.addTransceiver(
-      track.mediaStreamTrack, transceiverInit,
+      track.mediaStreamTrack,
+      transceiverInit,
     );
     this.engine.negotiate();
 
@@ -521,9 +515,7 @@ export default class LocalParticipant extends Participant {
     return publication;
   }
 
-  unpublishTracks(
-    tracks: LocalTrack[] | MediaStreamTrack[],
-  ): LocalTrackPublication[] {
+  unpublishTracks(tracks: LocalTrack[] | MediaStreamTrack[]): LocalTrackPublication[] {
     const publications: LocalTrackPublication[] = [];
     tracks.forEach((track: LocalTrack | MediaStreamTrack) => {
       const pub = this.unpublishTrack(track);
@@ -545,8 +537,11 @@ export default class LocalParticipant extends Participant {
    * packets, use Lossy.
    * @param destination the participants who will receive the message
    */
-  async publishData(data: Uint8Array, kind: DataPacket_Kind,
-    destination?: RemoteParticipant[] | string[]) {
+  async publishData(
+    data: Uint8Array,
+    kind: DataPacket_Kind,
+    destination?: RemoteParticipant[] | string[],
+  ) {
     const dest: string[] = [];
     if (destination !== undefined) {
       destination.forEach((val: any) => {
@@ -604,10 +599,7 @@ export default class LocalParticipant extends Participant {
 
   // when the local track changes in mute status, we'll notify server as such
   /** @internal */
-  private onTrackMuted = (
-    track: LocalTrack,
-    muted?: boolean,
-  ) => {
+  private onTrackMuted = (track: LocalTrack, muted?: boolean) => {
     if (muted === undefined) {
       muted = true;
     }
@@ -626,8 +618,11 @@ export default class LocalParticipant extends Participant {
     }
     const pub = this.videoTracks.get(update.trackSid);
     if (!pub) {
-      log.warn('handleSubscribedQualityUpdate',
-        'received subscribed quality update for unknown track', update.trackSid);
+      log.warn(
+        'handleSubscribedQualityUpdate',
+        'received subscribed quality update for unknown track',
+        update.trackSid,
+      );
       return;
     }
     pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
@@ -636,8 +631,11 @@ export default class LocalParticipant extends Participant {
   private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {
     const track = this.tracks.get(unpublished.trackSid);
     if (!track) {
-      log.warn('handleLocalTrackUnpublished',
-        'received unpublished event for unknown track', unpublished.trackSid);
+      log.warn(
+        'handleLocalTrackUnpublished',
+        'received unpublished event for unknown track',
+        unpublished.trackSid,
+      );
       return;
     }
     this.unpublishTrack(track.track!);
@@ -659,10 +657,7 @@ export default class LocalParticipant extends Participant {
 
       // this looks overly complicated due to this object tree
       if (track instanceof MediaStreamTrack) {
-        if (
-          localTrack instanceof LocalAudioTrack
-          || localTrack instanceof LocalVideoTrack
-        ) {
+        if (localTrack instanceof LocalAudioTrack || localTrack instanceof LocalVideoTrack) {
           if (localTrack.mediaStreamTrack === track) {
             publication = <LocalTrackPublication>pub;
           }

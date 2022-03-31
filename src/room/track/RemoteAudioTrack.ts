@@ -7,11 +7,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
 
   private elementVolume: number;
 
-  constructor(
-    mediaTrack: MediaStreamTrack,
-    sid: string,
-    receiver?: RTCRtpReceiver,
-  ) {
+  constructor(mediaTrack: MediaStreamTrack, sid: string, receiver?: RTCRtpReceiver) {
     super(mediaTrack, sid, Track.Kind.Audio, receiver);
     this.elementVolume = 1;
   }
@@ -33,8 +29,8 @@ export default class RemoteAudioTrack extends RemoteTrack {
     return this.elementVolume;
   }
 
-  attach(): HTMLMediaElement
-  attach(element: HTMLMediaElement): HTMLMediaElement
+  attach(): HTMLMediaElement;
+  attach(element: HTMLMediaElement): HTMLMediaElement;
   attach(element?: HTMLMediaElement): HTMLMediaElement {
     if (!element) {
       element = super.attach();

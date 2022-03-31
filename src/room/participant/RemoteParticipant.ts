@@ -1,10 +1,7 @@
 import { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { ParticipantInfo } from '../../proto/livekit_models';
-import {
-  UpdateSubscription,
-  UpdateTrackSettings,
-} from '../../proto/livekit_rtc';
+import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
@@ -23,10 +20,7 @@ export default class RemoteParticipant extends Participant {
   signalClient: SignalClient;
 
   /** @internal */
-  static fromParticipantInfo(
-    signalClient: SignalClient,
-    pi: ParticipantInfo,
-  ): RemoteParticipant {
+  static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
     const rp = new RemoteParticipant(signalClient, pi.sid, pi.identity);
     rp.updateInfo(pi);
     return rp;
@@ -45,12 +39,9 @@ export default class RemoteParticipant extends Participant {
     super.addTrackPublication(publication);
 
     // register action events
-    publication.on(
-      TrackEvent.UpdateSettings,
-      (settings: UpdateTrackSettings) => {
-        this.signalClient.sendUpdateTrackSettings(settings);
-      },
-    );
+    publication.on(TrackEvent.UpdateSettings, (settings: UpdateTrackSettings) => {
+      this.signalClient.sendUpdateTrackSettings(settings);
+    });
     publication.on(TrackEvent.UpdateSubscription, (sub: UpdateSubscription) => {
       sub.participantTracks.forEach((pt) => {
         pt.participantSid = this.sid;
@@ -134,8 +125,14 @@ export default class RemoteParticipant extends Participant {
 
       if (triesLeft === undefined) triesLeft = 20;
       setTimeout(() => {
-        this.addSubscribedMediaTrack(mediaTrack, sid, mediaStream,
-          receiver, adaptiveStreamSettings, triesLeft! - 1);
+        this.addSubscribedMediaTrack(
+          mediaTrack,
+          sid,
+          mediaStream,
+          receiver,
+          adaptiveStreamSettings,
+          triesLeft! - 1,
+        );
       }, 150);
       return;
     }
@@ -220,7 +217,7 @@ export default class RemoteParticipant extends Participant {
 
   /** @internal */
   unpublishTrack(sid: Track.SID, sendUnpublish?: boolean) {
-    const publication = <RemoteTrackPublication> this.tracks.get(sid);
+    const publication = <RemoteTrackPublication>this.tracks.get(sid);
     if (!publication) {
       return;
     }
@@ -250,7 +247,9 @@ export default class RemoteParticipant extends Participant {
         this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
       }
     }
-    if (sendUnpublish) { this.emit(ParticipantEvent.TrackUnpublished, publication); }
+    if (sendUnpublish) {
+      this.emit(ParticipantEvent.TrackUnpublished, publication);
+    }
   }
 
   /** @internal */

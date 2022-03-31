@@ -16,7 +16,9 @@ export default class LocalTrack extends Track {
   protected reacquireTrack: boolean;
 
   protected constructor(
-    mediaTrack: MediaStreamTrack, kind: Track.Kind, constraints?: MediaTrackConstraints,
+    mediaTrack: MediaStreamTrack,
+    kind: Track.Kind,
+    constraints?: MediaTrackConstraints,
   ) {
     super(mediaTrack, kind);
     this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
@@ -127,10 +129,12 @@ export default class LocalTrack extends Track {
   }
 
   protected get needsReAcquisition(): boolean {
-    return this.mediaStreamTrack.readyState !== 'live'
-      || this.mediaStreamTrack.muted
-      || !this.mediaStreamTrack.enabled
-      || this.reacquireTrack;
+    return (
+      this.mediaStreamTrack.readyState !== 'live' ||
+      this.mediaStreamTrack.muted ||
+      !this.mediaStreamTrack.enabled ||
+      this.reacquireTrack
+    );
   }
 
   protected async handleAppVisibilityChanged() {

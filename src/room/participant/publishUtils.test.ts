@@ -1,6 +1,4 @@
-import {
-  ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43,
-} from '../track/options';
+import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import {
   computeDefaultScreenShareSimulcastPresets,
   computeVideoEncodings,
@@ -30,13 +28,11 @@ describe('presetsForResolution', () => {
 
 describe('determineAppropriateEncoding', () => {
   it('uses higher encoding', () => {
-    expect(determineAppropriateEncoding(false, 600, 300))
-      .toEqual(VideoPresets.vga.encoding);
+    expect(determineAppropriateEncoding(false, 600, 300)).toEqual(VideoPresets.vga.encoding);
   });
 
   it('handles portrait', () => {
-    expect(determineAppropriateEncoding(false, 300, 600))
-      .toEqual(VideoPresets.vga.encoding);
+    expect(determineAppropriateEncoding(false, 300, 600)).toEqual(VideoPresets.vga.encoding);
   });
 });
 
@@ -110,9 +106,12 @@ describe('computeVideoEncodings', () => {
 
 describe('customSimulcastLayers', () => {
   it('sorts presets from lowest to highest', () => {
-    const sortedPresets = sortPresets(
-      [VideoPresets.h1440, VideoPresets.h360, VideoPresets.h1080, VideoPresets.h90],
-    ) as Array<VideoPreset>;
+    const sortedPresets = sortPresets([
+      VideoPresets.h1440,
+      VideoPresets.h360,
+      VideoPresets.h1080,
+      VideoPresets.h90,
+    ]) as Array<VideoPreset>;
     expect(sortPresets).not.toBeUndefined();
     expect(sortedPresets[0]).toBe(VideoPresets.h90);
     expect(sortedPresets[1]).toBe(VideoPresets.h360);

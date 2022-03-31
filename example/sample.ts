@@ -1,10 +1,22 @@
 import {
   ConnectionQuality,
-  DataPacket_Kind, LocalParticipant, MediaDeviceFailure,
-  Participant, ParticipantEvent, RemoteParticipant, Room,
-  RoomConnectOptions, RoomEvent,
-  RoomOptions, RoomState, setLogLevel, Track, TrackPublication,
-  VideoCaptureOptions, VideoPresets, VideoCodec,
+  DataPacket_Kind,
+  LocalParticipant,
+  MediaDeviceFailure,
+  Participant,
+  ParticipantEvent,
+  RemoteParticipant,
+  Room,
+  RoomConnectOptions,
+  RoomEvent,
+  RoomOptions,
+  RoomState,
+  setLogLevel,
+  Track,
+  TrackPublication,
+  VideoCaptureOptions,
+  VideoPresets,
+  VideoCodec,
 } from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
@@ -26,11 +38,7 @@ const storedToken = searchParams.get('token') ?? '';
 
 function updateSearchParams(url: string, token: string) {
   const params = new URLSearchParams({ url, token });
-  window.history.replaceState(
-    null,
-    '',
-    `${window.location.pathname}?${params.toString()}`,
-  );
+  window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 }
 
 // handles actions from the HTML
@@ -50,16 +58,15 @@ const appActions = {
     updateSearchParams(url, token);
 
     const roomOpts: RoomOptions = {
-      adaptiveStream: adaptiveStream ? {
-        pixelDensity: 'screen',
-      } : false,
+      adaptiveStream: adaptiveStream
+        ? {
+            pixelDensity: 'screen',
+          }
+        : false,
       dynacast,
       publishDefaults: {
         simulcast,
-        videoSimulcastLayers: [
-          VideoPresets.h90,
-          VideoPresets.h216,
-        ],
+        videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
         videoCodec: preferredCodec,
       },
       videoCaptureDefaults: {
@@ -130,16 +137,21 @@ const appActions = {
         const failure = MediaDeviceFailure.getFailure(e);
         appendLog('media device failure', failure);
       })
-      .on(RoomEvent.ConnectionQualityChanged,
+      .on(
+        RoomEvent.ConnectionQualityChanged,
         (quality: ConnectionQuality, participant?: Participant) => {
           appendLog('connection quality changed', participant?.identity, quality);
-        });
+        },
+      );
 
     try {
       const start = Date.now();
       await room.connect(url, token, connectOptions);
       const elapsed = Date.now() - start;
-      appendLog(`successfully connected to ${room.name} in ${Math.round(elapsed)}ms`, room.engine.connectedServerAddress);
+      appendLog(
+        `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
+        room.engine.connectedServerAddress,
+      );
     } catch (error) {
       let message: any = error;
       if (error.message) {
@@ -231,8 +243,8 @@ const appActions = {
       const msg = state.encoder.encode(textField.value);
       currentRoom.localParticipant.publishData(msg, DataPacket_Kind.RELIABLE);
       (<HTMLTextAreaElement>(
-      $('chat')
-    )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
+        $('chat')
+      )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
       textField.value = '';
     }
   },
@@ -367,10 +379,9 @@ function appendLog(...args: any[]) {
   const logger = $('log')!;
   for (let i = 0; i < arguments.length; i += 1) {
     if (typeof args[i] === 'object') {
-      logger.innerHTML
-        += `${JSON && JSON.stringify
-          ? JSON.stringify(args[i], undefined, 2)
-          : args[i]} `;
+      logger.innerHTML += `${
+        JSON && JSON.stringify ? JSON.stringify(args[i], undefined, 2) : args[i]
+      } `;
     } else {
       logger.innerHTML += `${args[i]} `;
     }
@@ -408,11 +419,12 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
           <span id="mic-${identity}" class="mic-on"></span>
         </div>
       </div>
-      ${participant instanceof RemoteParticipant
-    && `<div class="volume-control">
+      ${
+        participant instanceof RemoteParticipant &&
+        `<div class="volume-control">
         <input id="volume-${identity}" type="range" min="0" max="1" step="0.1" value="1" orient="vertical" />
       </div>`
-}
+      }
       
     `;
     container.appendChild(div);
@@ -470,7 +482,9 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       // measure time to render
       videoElm.onloadeddata = () => {
         const elapsed = Date.now() - startTime;
-        appendLog(`RemoteVideoTrack ${cameraPub?.trackSid} (${videoElm.videoWidth}x${videoElm.videoHeight}) rendered in ${elapsed}ms`);
+        appendLog(
+          `RemoteVideoTrack ${cameraPub?.trackSid} (${videoElm.videoWidth}x${videoElm.videoHeight}) rendered in ${elapsed}ms`,
+        );
       };
     }
     cameraPub?.videoTrack?.attach(videoElm);
@@ -508,7 +522,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       break;
     default:
       signalElm.innerHTML = '';
-      // do nothing
+    // do nothing
   }
 }
 
@@ -580,10 +594,12 @@ function updateVideoSize(element: HTMLVideoElement, target: HTMLElement) {
   target.innerHTML = `(${element.videoWidth}x${element.videoHeight})`;
 }
 
-function setButtonState(buttonId: string,
+function setButtonState(
+  buttonId: string,
   buttonText: string,
   isActive: boolean,
-  isDisabled: boolean | undefined = undefined) {
+  isDisabled: boolean | undefined = undefined,
+) {
   const el = $(buttonId) as HTMLButtonElement;
   if (!el) return;
   if (isDisabled !== undefined) {
@@ -629,15 +645,17 @@ const elementMapping: { [k: string]: MediaDeviceKind } = {
   'audio-output': 'audiooutput',
 };
 async function handleDevicesChanged() {
-  Promise.all(Object.keys(elementMapping).map(async (id) => {
-    const kind = elementMapping[id];
-    if (!kind) {
-      return;
-    }
-    const devices = await Room.getLocalDevices(kind);
-    const element = <HTMLSelectElement>$(id);
-    populateSelect(kind, element, devices, state.defaultDevices.get(kind));
-  }));
+  Promise.all(
+    Object.keys(elementMapping).map(async (id) => {
+      const kind = elementMapping[id];
+      if (!kind) {
+        return;
+      }
+      const devices = await Room.getLocalDevices(kind);
+      const element = <HTMLSelectElement>$(id);
+      populateSelect(kind, element, devices, state.defaultDevices.get(kind));
+    }),
+  );
 }
 
 function populateSelect(

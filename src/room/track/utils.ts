@@ -1,8 +1,5 @@
 import { sleep } from '../utils';
-import {
-  AudioCaptureOptions, CreateLocalTracksOptions,
-  VideoCaptureOptions,
-} from './options';
+import { AudioCaptureOptions, CreateLocalTracksOptions, VideoCaptureOptions } from './options';
 import { AudioTrack } from './types';
 
 export function mergeDefaultOptions(
@@ -18,12 +15,16 @@ export function mergeDefaultOptions(
 
   // use defaults
   if (opts.audio) {
-    mergeObjectWithoutOverwriting(opts.audio as Record<string, unknown>,
-      audioDefaults as Record<string, unknown>);
+    mergeObjectWithoutOverwriting(
+      opts.audio as Record<string, unknown>,
+      audioDefaults as Record<string, unknown>,
+    );
   }
   if (opts.video) {
-    mergeObjectWithoutOverwriting(opts.video as Record<string, unknown>,
-      videoDefaults as Record<string, unknown>);
+    mergeObjectWithoutOverwriting(
+      opts.video as Record<string, unknown>,
+      videoDefaults as Record<string, unknown>,
+    );
   }
   return opts;
 }
@@ -80,10 +81,7 @@ export function constraintsForOptions(options: CreateLocalTracksOptions): MediaS
  * This function detects silence on a given [[Track]] instance.
  * Returns true if the track seems to be entirely silent.
  */
-export async function detectSilence(
-  track: AudioTrack,
-  timeOffset = 200,
-): Promise<boolean> {
+export async function detectSilence(track: AudioTrack, timeOffset = 200): Promise<boolean> {
   const ctx = getNewAudioContext();
   if (ctx) {
     const analyser = ctx.createAnalyser();

@@ -61,7 +61,7 @@
 }
 
 #participants-area > .participant::before {
-  content: "";
+  content: '';
   display: inline-block;
   width: 1px;
   height: 0;
