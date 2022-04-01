@@ -152,6 +152,8 @@ export interface SignalResponse {
   subscriptionPermissionUpdate?: SubscriptionPermissionUpdate | undefined;
   /** update the token the client was using, to prevent an active client from using an expired token */
   refreshToken: string | undefined;
+  /** server initiated track unpublish */
+  trackUnpublished?: TrackUnpublishedResponse | undefined;
 }
 
 export interface AddTrackRequest {
@@ -168,6 +170,7 @@ export interface AddTrackRequest {
   disableDtx: boolean;
   source: TrackSource;
   layers: VideoLayer[];
+  alternativeCodec: string;
 }
 
 export interface TrickleRequest {
@@ -200,6 +203,10 @@ export interface JoinResponse {
 export interface TrackPublishedResponse {
   cid: string;
   track?: TrackInfo;
+}
+
+export interface TrackUnpublishedResponse {
+  trackSid: string;
 }
 
 export interface SessionDescription {
@@ -283,9 +290,16 @@ export interface SubscribedQuality {
   enabled: boolean;
 }
 
+export interface SubscribedCodec {
+  codec: string;
+  enabled: boolean;
+  qualities: SubscribedQuality[];
+}
+
 export interface SubscribedQualityUpdate {
   trackSid: string;
   subscribedQualities: SubscribedQuality[];
+  subscribedCodecs: SubscribedCodec[];
 }
 
 export interface TrackPermission {
@@ -738,6 +752,12 @@ export const SignalResponse = {
     if (message.refreshToken !== undefined) {
       writer.uint32(130).string(message.refreshToken);
     }
+    if (message.trackUnpublished !== undefined) {
+      TrackUnpublishedResponse.encode(
+        message.trackUnpublished,
+        writer.uint32(138).fork()
+      ).ldelim();
+    }
     return writer;
   },
 
@@ -808,6 +828,12 @@ export const SignalResponse = {
           break;
         case 16:
           message.refreshToken = reader.string();
+          break;
+        case 17:
+          message.trackUnpublished = TrackUnpublishedResponse.decode(
+            reader,
+            reader.uint32()
+          );
           break;
         default:
           reader.skipType(tag & 7);
@@ -922,6 +948,16 @@ export const SignalResponse = {
     } else {
       message.refreshToken = undefined;
     }
+    if (
+      object.trackUnpublished !== undefined &&
+      object.trackUnpublished !== null
+    ) {
+      message.trackUnpublished = TrackUnpublishedResponse.fromJSON(
+        object.trackUnpublished
+      );
+    } else {
+      message.trackUnpublished = undefined;
+    }
     return message;
   },
 
@@ -985,6 +1021,10 @@ export const SignalResponse = {
         : undefined);
     message.refreshToken !== undefined &&
       (obj.refreshToken = message.refreshToken);
+    message.trackUnpublished !== undefined &&
+      (obj.trackUnpublished = message.trackUnpublished
+        ? TrackUnpublishedResponse.toJSON(message.trackUnpublished)
+        : undefined);
     return obj;
   },
 
@@ -1089,6 +1129,16 @@ export const SignalResponse = {
       message.subscriptionPermissionUpdate = undefined;
     }
     message.refreshToken = object.refreshToken ?? undefined;
+    if (
+      object.trackUnpublished !== undefined &&
+      object.trackUnpublished !== null
+    ) {
+      message.trackUnpublished = TrackUnpublishedResponse.fromPartial(
+        object.trackUnpublished
+      );
+    } else {
+      message.trackUnpublished = undefined;
+    }
     return message;
   },
 };
@@ -1102,6 +1152,7 @@ const baseAddTrackRequest: object = {
   muted: false,
   disableDtx: false,
   source: 0,
+  alternativeCodec: "",
 };
 
 export const AddTrackRequest = {
@@ -1135,6 +1186,9 @@ export const AddTrackRequest = {
     }
     for (const v of message.layers) {
       VideoLayer.encode(v!, writer.uint32(74).fork()).ldelim();
+    }
+    if (message.alternativeCodec !== "") {
+      writer.uint32(82).string(message.alternativeCodec);
     }
     return writer;
   },
@@ -1173,6 +1227,9 @@ export const AddTrackRequest = {
           break;
         case 9:
           message.layers.push(VideoLayer.decode(reader, reader.uint32()));
+          break;
+        case 10:
+          message.alternativeCodec = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -1230,6 +1287,14 @@ export const AddTrackRequest = {
         message.layers.push(VideoLayer.fromJSON(e));
       }
     }
+    if (
+      object.alternativeCodec !== undefined &&
+      object.alternativeCodec !== null
+    ) {
+      message.alternativeCodec = String(object.alternativeCodec);
+    } else {
+      message.alternativeCodec = "";
+    }
     return message;
   },
 
@@ -1251,6 +1316,8 @@ export const AddTrackRequest = {
     } else {
       obj.layers = [];
     }
+    message.alternativeCodec !== undefined &&
+      (obj.alternativeCodec = message.alternativeCodec);
     return obj;
   },
 
@@ -1270,6 +1337,7 @@ export const AddTrackRequest = {
         message.layers.push(VideoLayer.fromPartial(e));
       }
     }
+    message.alternativeCodec = object.alternativeCodec ?? "";
     return message;
   },
 };
@@ -1725,6 +1793,71 @@ export const TrackPublishedResponse = {
     } else {
       message.track = undefined;
     }
+    return message;
+  },
+};
+
+const baseTrackUnpublishedResponse: object = { trackSid: "" };
+
+export const TrackUnpublishedResponse = {
+  encode(
+    message: TrackUnpublishedResponse,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.trackSid !== "") {
+      writer.uint32(10).string(message.trackSid);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number
+  ): TrackUnpublishedResponse {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = {
+      ...baseTrackUnpublishedResponse,
+    } as TrackUnpublishedResponse;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.trackSid = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TrackUnpublishedResponse {
+    const message = {
+      ...baseTrackUnpublishedResponse,
+    } as TrackUnpublishedResponse;
+    if (object.trackSid !== undefined && object.trackSid !== null) {
+      message.trackSid = String(object.trackSid);
+    } else {
+      message.trackSid = "";
+    }
+    return message;
+  },
+
+  toJSON(message: TrackUnpublishedResponse): unknown {
+    const obj: any = {};
+    message.trackSid !== undefined && (obj.trackSid = message.trackSid);
+    return obj;
+  },
+
+  fromPartial(
+    object: DeepPartial<TrackUnpublishedResponse>
+  ): TrackUnpublishedResponse {
+    const message = {
+      ...baseTrackUnpublishedResponse,
+    } as TrackUnpublishedResponse;
+    message.trackSid = object.trackSid ?? "";
     return message;
   },
 };
@@ -2847,6 +2980,101 @@ export const SubscribedQuality = {
   },
 };
 
+const baseSubscribedCodec: object = { codec: "", enabled: false };
+
+export const SubscribedCodec = {
+  encode(
+    message: SubscribedCodec,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.codec !== "") {
+      writer.uint32(10).string(message.codec);
+    }
+    if (message.enabled === true) {
+      writer.uint32(16).bool(message.enabled);
+    }
+    for (const v of message.qualities) {
+      SubscribedQuality.encode(v!, writer.uint32(26).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SubscribedCodec {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseSubscribedCodec } as SubscribedCodec;
+    message.qualities = [];
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.codec = reader.string();
+          break;
+        case 2:
+          message.enabled = reader.bool();
+          break;
+        case 3:
+          message.qualities.push(
+            SubscribedQuality.decode(reader, reader.uint32())
+          );
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SubscribedCodec {
+    const message = { ...baseSubscribedCodec } as SubscribedCodec;
+    message.qualities = [];
+    if (object.codec !== undefined && object.codec !== null) {
+      message.codec = String(object.codec);
+    } else {
+      message.codec = "";
+    }
+    if (object.enabled !== undefined && object.enabled !== null) {
+      message.enabled = Boolean(object.enabled);
+    } else {
+      message.enabled = false;
+    }
+    if (object.qualities !== undefined && object.qualities !== null) {
+      for (const e of object.qualities) {
+        message.qualities.push(SubscribedQuality.fromJSON(e));
+      }
+    }
+    return message;
+  },
+
+  toJSON(message: SubscribedCodec): unknown {
+    const obj: any = {};
+    message.codec !== undefined && (obj.codec = message.codec);
+    message.enabled !== undefined && (obj.enabled = message.enabled);
+    if (message.qualities) {
+      obj.qualities = message.qualities.map((e) =>
+        e ? SubscribedQuality.toJSON(e) : undefined
+      );
+    } else {
+      obj.qualities = [];
+    }
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<SubscribedCodec>): SubscribedCodec {
+    const message = { ...baseSubscribedCodec } as SubscribedCodec;
+    message.codec = object.codec ?? "";
+    message.enabled = object.enabled ?? false;
+    message.qualities = [];
+    if (object.qualities !== undefined && object.qualities !== null) {
+      for (const e of object.qualities) {
+        message.qualities.push(SubscribedQuality.fromPartial(e));
+      }
+    }
+    return message;
+  },
+};
+
 const baseSubscribedQualityUpdate: object = { trackSid: "" };
 
 export const SubscribedQualityUpdate = {
@@ -2859,6 +3087,9 @@ export const SubscribedQualityUpdate = {
     }
     for (const v of message.subscribedQualities) {
       SubscribedQuality.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    for (const v of message.subscribedCodecs) {
+      SubscribedCodec.encode(v!, writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },
@@ -2873,6 +3104,7 @@ export const SubscribedQualityUpdate = {
       ...baseSubscribedQualityUpdate,
     } as SubscribedQualityUpdate;
     message.subscribedQualities = [];
+    message.subscribedCodecs = [];
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -2882,6 +3114,11 @@ export const SubscribedQualityUpdate = {
         case 2:
           message.subscribedQualities.push(
             SubscribedQuality.decode(reader, reader.uint32())
+          );
+          break;
+        case 3:
+          message.subscribedCodecs.push(
+            SubscribedCodec.decode(reader, reader.uint32())
           );
           break;
         default:
@@ -2897,6 +3134,7 @@ export const SubscribedQualityUpdate = {
       ...baseSubscribedQualityUpdate,
     } as SubscribedQualityUpdate;
     message.subscribedQualities = [];
+    message.subscribedCodecs = [];
     if (object.trackSid !== undefined && object.trackSid !== null) {
       message.trackSid = String(object.trackSid);
     } else {
@@ -2908,6 +3146,14 @@ export const SubscribedQualityUpdate = {
     ) {
       for (const e of object.subscribedQualities) {
         message.subscribedQualities.push(SubscribedQuality.fromJSON(e));
+      }
+    }
+    if (
+      object.subscribedCodecs !== undefined &&
+      object.subscribedCodecs !== null
+    ) {
+      for (const e of object.subscribedCodecs) {
+        message.subscribedCodecs.push(SubscribedCodec.fromJSON(e));
       }
     }
     return message;
@@ -2922,6 +3168,13 @@ export const SubscribedQualityUpdate = {
       );
     } else {
       obj.subscribedQualities = [];
+    }
+    if (message.subscribedCodecs) {
+      obj.subscribedCodecs = message.subscribedCodecs.map((e) =>
+        e ? SubscribedCodec.toJSON(e) : undefined
+      );
+    } else {
+      obj.subscribedCodecs = [];
     }
     return obj;
   },
@@ -2940,6 +3193,15 @@ export const SubscribedQualityUpdate = {
     ) {
       for (const e of object.subscribedQualities) {
         message.subscribedQualities.push(SubscribedQuality.fromPartial(e));
+      }
+    }
+    message.subscribedCodecs = [];
+    if (
+      object.subscribedCodecs !== undefined &&
+      object.subscribedCodecs !== null
+    ) {
+      for (const e of object.subscribedCodecs) {
+        message.subscribedCodecs.push(SubscribedCodec.fromPartial(e));
       }
     }
     return message;

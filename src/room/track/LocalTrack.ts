@@ -3,6 +3,7 @@ import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import { isMobile } from '../utils';
+import { VideoCodec } from './options';
 import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {
@@ -66,6 +67,26 @@ export default class LocalTrack extends Track {
   async unmute(): Promise<LocalTrack> {
     this.setTrackMuted(false);
     return this;
+  }
+
+  async setCodec(videoCodec: VideoCodec) {
+    if (this.kind !== 'video' || this.sender === undefined) {
+      return;
+    }
+
+    const p = this.sender.getParameters();
+    const codecs: RTCRtpCodecParameters[] = [];
+    p.codecs.forEach((c) => {
+      if (c.mimeType.toLocaleLowerCase() === `video/${videoCodec}`) {
+        codecs.unshift(c);
+      } else {
+        codecs.push(c);
+      }
+    });
+
+    p.codecs = codecs;
+    console.log('set parameters to ', p);
+    await this.sender.setParameters(p);
   }
 
   protected async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {

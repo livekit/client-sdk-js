@@ -17,6 +17,11 @@ export interface TrackPublishDefaults {
   videoCodec?: VideoCodec;
 
   /**
+   * alternative codec for advanced video codecs
+   */
+  alternativeVideoCodec?: VideoCodec;
+
+  /**
    * max audio bitrate, defaults to [[AudioPresets.speech]]
    */
   audioBitrate?: number;

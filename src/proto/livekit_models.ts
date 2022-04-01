@@ -1,6 +1,7 @@
 /* eslint-disable */
 import Long from "long";
 import _m0 from "protobufjs/minimal";
+import { Timestamp } from "./google/protobuf/timestamp";
 
 export const protobufPackage = "livekit";
 
@@ -230,6 +231,19 @@ export interface Codec {
   fmtpLine: string;
 }
 
+export interface ParticipantPermission {
+  /** allow participant to subscribe to other tracks in the room */
+  canSubscribe: boolean;
+  /** allow participant to publish new tracks to room */
+  canPublish: boolean;
+  /** allow participant to publish data */
+  canPublishData: boolean;
+  /** indicates that it's hidden to others */
+  hidden: boolean;
+  /** indicates it's a recorder instance */
+  recorder: boolean;
+}
+
 export interface ParticipantInfo {
   sid: string;
   identity: string;
@@ -238,10 +252,10 @@ export interface ParticipantInfo {
   metadata: string;
   /** timestamp when participant joined room, in seconds */
   joinedAt: number;
-  hidden: boolean;
-  recorder: boolean;
   name: string;
   version: number;
+  permission?: ParticipantPermission;
+  region: string;
 }
 
 export enum ParticipantInfo_State {
@@ -318,6 +332,7 @@ export interface TrackInfo {
   /** mime type of codec */
   mimeType: string;
   mid: string;
+  alternativeMimeType: string;
 }
 
 /** provide information about available spatial layers */
@@ -481,6 +496,50 @@ export interface ClientConfiguration {
 
 export interface VideoConfiguration {
   hardwareEncoder: ClientConfigSetting;
+}
+
+export interface RTPStats {
+  startTime?: Date;
+  endTime?: Date;
+  duration: number;
+  packets: number;
+  packetRate: number;
+  bytes: number;
+  bitrate: number;
+  packetsLost: number;
+  packetLossRate: number;
+  packetLossPercentage: number;
+  packetsDuplicate: number;
+  packetDuplicateRate: number;
+  bytesDuplicate: number;
+  bitrateDuplicate: number;
+  packetsPadding: number;
+  packetPaddingRate: number;
+  bytesPadding: number;
+  bitratePadding: number;
+  packetsOutOfOrder: number;
+  frames: number;
+  frameRate: number;
+  jitterCurrent: number;
+  jitterMax: number;
+  gapHistogram: { [key: number]: number };
+  nacks: number;
+  nackMisses: number;
+  plis: number;
+  lastPli?: Date;
+  firs: number;
+  lastFir?: Date;
+  rttCurrent: number;
+  rttMax: number;
+  keyFrames: number;
+  lastKeyFrame?: Date;
+  layerLockPlis: number;
+  lastLayerLockPli?: Date;
+}
+
+export interface RTPStats_GapHistogramEntry {
+  key: number;
+  value: number;
 }
 
 const baseRoom: object = {
@@ -753,16 +812,134 @@ export const Codec = {
   },
 };
 
+const baseParticipantPermission: object = {
+  canSubscribe: false,
+  canPublish: false,
+  canPublishData: false,
+  hidden: false,
+  recorder: false,
+};
+
+export const ParticipantPermission = {
+  encode(
+    message: ParticipantPermission,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.canSubscribe === true) {
+      writer.uint32(8).bool(message.canSubscribe);
+    }
+    if (message.canPublish === true) {
+      writer.uint32(16).bool(message.canPublish);
+    }
+    if (message.canPublishData === true) {
+      writer.uint32(24).bool(message.canPublishData);
+    }
+    if (message.hidden === true) {
+      writer.uint32(56).bool(message.hidden);
+    }
+    if (message.recorder === true) {
+      writer.uint32(64).bool(message.recorder);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number
+  ): ParticipantPermission {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseParticipantPermission } as ParticipantPermission;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.canSubscribe = reader.bool();
+          break;
+        case 2:
+          message.canPublish = reader.bool();
+          break;
+        case 3:
+          message.canPublishData = reader.bool();
+          break;
+        case 7:
+          message.hidden = reader.bool();
+          break;
+        case 8:
+          message.recorder = reader.bool();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ParticipantPermission {
+    const message = { ...baseParticipantPermission } as ParticipantPermission;
+    if (object.canSubscribe !== undefined && object.canSubscribe !== null) {
+      message.canSubscribe = Boolean(object.canSubscribe);
+    } else {
+      message.canSubscribe = false;
+    }
+    if (object.canPublish !== undefined && object.canPublish !== null) {
+      message.canPublish = Boolean(object.canPublish);
+    } else {
+      message.canPublish = false;
+    }
+    if (object.canPublishData !== undefined && object.canPublishData !== null) {
+      message.canPublishData = Boolean(object.canPublishData);
+    } else {
+      message.canPublishData = false;
+    }
+    if (object.hidden !== undefined && object.hidden !== null) {
+      message.hidden = Boolean(object.hidden);
+    } else {
+      message.hidden = false;
+    }
+    if (object.recorder !== undefined && object.recorder !== null) {
+      message.recorder = Boolean(object.recorder);
+    } else {
+      message.recorder = false;
+    }
+    return message;
+  },
+
+  toJSON(message: ParticipantPermission): unknown {
+    const obj: any = {};
+    message.canSubscribe !== undefined &&
+      (obj.canSubscribe = message.canSubscribe);
+    message.canPublish !== undefined && (obj.canPublish = message.canPublish);
+    message.canPublishData !== undefined &&
+      (obj.canPublishData = message.canPublishData);
+    message.hidden !== undefined && (obj.hidden = message.hidden);
+    message.recorder !== undefined && (obj.recorder = message.recorder);
+    return obj;
+  },
+
+  fromPartial(
+    object: DeepPartial<ParticipantPermission>
+  ): ParticipantPermission {
+    const message = { ...baseParticipantPermission } as ParticipantPermission;
+    message.canSubscribe = object.canSubscribe ?? false;
+    message.canPublish = object.canPublish ?? false;
+    message.canPublishData = object.canPublishData ?? false;
+    message.hidden = object.hidden ?? false;
+    message.recorder = object.recorder ?? false;
+    return message;
+  },
+};
+
 const baseParticipantInfo: object = {
   sid: "",
   identity: "",
   state: 0,
   metadata: "",
   joinedAt: 0,
-  hidden: false,
-  recorder: false,
   name: "",
   version: 0,
+  region: "",
 };
 
 export const ParticipantInfo = {
@@ -788,17 +965,20 @@ export const ParticipantInfo = {
     if (message.joinedAt !== 0) {
       writer.uint32(48).int64(message.joinedAt);
     }
-    if (message.hidden === true) {
-      writer.uint32(56).bool(message.hidden);
-    }
-    if (message.recorder === true) {
-      writer.uint32(64).bool(message.recorder);
-    }
     if (message.name !== "") {
       writer.uint32(74).string(message.name);
     }
     if (message.version !== 0) {
       writer.uint32(80).uint32(message.version);
+    }
+    if (message.permission !== undefined) {
+      ParticipantPermission.encode(
+        message.permission,
+        writer.uint32(90).fork()
+      ).ldelim();
+    }
+    if (message.region !== "") {
+      writer.uint32(98).string(message.region);
     }
     return writer;
   },
@@ -829,17 +1009,20 @@ export const ParticipantInfo = {
         case 6:
           message.joinedAt = longToNumber(reader.int64() as Long);
           break;
-        case 7:
-          message.hidden = reader.bool();
-          break;
-        case 8:
-          message.recorder = reader.bool();
-          break;
         case 9:
           message.name = reader.string();
           break;
         case 10:
           message.version = reader.uint32();
+          break;
+        case 11:
+          message.permission = ParticipantPermission.decode(
+            reader,
+            reader.uint32()
+          );
+          break;
+        case 12:
+          message.region = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -882,16 +1065,6 @@ export const ParticipantInfo = {
     } else {
       message.joinedAt = 0;
     }
-    if (object.hidden !== undefined && object.hidden !== null) {
-      message.hidden = Boolean(object.hidden);
-    } else {
-      message.hidden = false;
-    }
-    if (object.recorder !== undefined && object.recorder !== null) {
-      message.recorder = Boolean(object.recorder);
-    } else {
-      message.recorder = false;
-    }
     if (object.name !== undefined && object.name !== null) {
       message.name = String(object.name);
     } else {
@@ -901,6 +1074,16 @@ export const ParticipantInfo = {
       message.version = Number(object.version);
     } else {
       message.version = 0;
+    }
+    if (object.permission !== undefined && object.permission !== null) {
+      message.permission = ParticipantPermission.fromJSON(object.permission);
+    } else {
+      message.permission = undefined;
+    }
+    if (object.region !== undefined && object.region !== null) {
+      message.region = String(object.region);
+    } else {
+      message.region = "";
     }
     return message;
   },
@@ -920,10 +1103,13 @@ export const ParticipantInfo = {
     }
     message.metadata !== undefined && (obj.metadata = message.metadata);
     message.joinedAt !== undefined && (obj.joinedAt = message.joinedAt);
-    message.hidden !== undefined && (obj.hidden = message.hidden);
-    message.recorder !== undefined && (obj.recorder = message.recorder);
     message.name !== undefined && (obj.name = message.name);
     message.version !== undefined && (obj.version = message.version);
+    message.permission !== undefined &&
+      (obj.permission = message.permission
+        ? ParticipantPermission.toJSON(message.permission)
+        : undefined);
+    message.region !== undefined && (obj.region = message.region);
     return obj;
   },
 
@@ -940,10 +1126,14 @@ export const ParticipantInfo = {
     }
     message.metadata = object.metadata ?? "";
     message.joinedAt = object.joinedAt ?? 0;
-    message.hidden = object.hidden ?? false;
-    message.recorder = object.recorder ?? false;
     message.name = object.name ?? "";
     message.version = object.version ?? 0;
+    if (object.permission !== undefined && object.permission !== null) {
+      message.permission = ParticipantPermission.fromPartial(object.permission);
+    } else {
+      message.permission = undefined;
+    }
+    message.region = object.region ?? "";
     return message;
   },
 };
@@ -960,6 +1150,7 @@ const baseTrackInfo: object = {
   source: 0,
   mimeType: "",
   mid: "",
+  alternativeMimeType: "",
 };
 
 export const TrackInfo = {
@@ -1002,6 +1193,9 @@ export const TrackInfo = {
     }
     if (message.mid !== "") {
       writer.uint32(98).string(message.mid);
+    }
+    if (message.alternativeMimeType !== "") {
+      writer.uint32(106).string(message.alternativeMimeType);
     }
     return writer;
   },
@@ -1049,6 +1243,9 @@ export const TrackInfo = {
           break;
         case 12:
           message.mid = reader.string();
+          break;
+        case 13:
+          message.alternativeMimeType = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -1121,6 +1318,14 @@ export const TrackInfo = {
     } else {
       message.mid = "";
     }
+    if (
+      object.alternativeMimeType !== undefined &&
+      object.alternativeMimeType !== null
+    ) {
+      message.alternativeMimeType = String(object.alternativeMimeType);
+    } else {
+      message.alternativeMimeType = "";
+    }
     return message;
   },
 
@@ -1145,6 +1350,8 @@ export const TrackInfo = {
     }
     message.mimeType !== undefined && (obj.mimeType = message.mimeType);
     message.mid !== undefined && (obj.mid = message.mid);
+    message.alternativeMimeType !== undefined &&
+      (obj.alternativeMimeType = message.alternativeMimeType);
     return obj;
   },
 
@@ -1167,6 +1374,7 @@ export const TrackInfo = {
     }
     message.mimeType = object.mimeType ?? "";
     message.mid = object.mid ?? "";
+    message.alternativeMimeType = object.alternativeMimeType ?? "";
     return message;
   },
 };
@@ -2047,6 +2255,717 @@ export const VideoConfiguration = {
   },
 };
 
+const baseRTPStats: object = {
+  duration: 0,
+  packets: 0,
+  packetRate: 0,
+  bytes: 0,
+  bitrate: 0,
+  packetsLost: 0,
+  packetLossRate: 0,
+  packetLossPercentage: 0,
+  packetsDuplicate: 0,
+  packetDuplicateRate: 0,
+  bytesDuplicate: 0,
+  bitrateDuplicate: 0,
+  packetsPadding: 0,
+  packetPaddingRate: 0,
+  bytesPadding: 0,
+  bitratePadding: 0,
+  packetsOutOfOrder: 0,
+  frames: 0,
+  frameRate: 0,
+  jitterCurrent: 0,
+  jitterMax: 0,
+  nacks: 0,
+  nackMisses: 0,
+  plis: 0,
+  firs: 0,
+  rttCurrent: 0,
+  rttMax: 0,
+  keyFrames: 0,
+  layerLockPlis: 0,
+};
+
+export const RTPStats = {
+  encode(
+    message: RTPStats,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.startTime !== undefined) {
+      Timestamp.encode(
+        toTimestamp(message.startTime),
+        writer.uint32(10).fork()
+      ).ldelim();
+    }
+    if (message.endTime !== undefined) {
+      Timestamp.encode(
+        toTimestamp(message.endTime),
+        writer.uint32(18).fork()
+      ).ldelim();
+    }
+    if (message.duration !== 0) {
+      writer.uint32(25).double(message.duration);
+    }
+    if (message.packets !== 0) {
+      writer.uint32(32).uint32(message.packets);
+    }
+    if (message.packetRate !== 0) {
+      writer.uint32(41).double(message.packetRate);
+    }
+    if (message.bytes !== 0) {
+      writer.uint32(48).uint64(message.bytes);
+    }
+    if (message.bitrate !== 0) {
+      writer.uint32(57).double(message.bitrate);
+    }
+    if (message.packetsLost !== 0) {
+      writer.uint32(64).uint32(message.packetsLost);
+    }
+    if (message.packetLossRate !== 0) {
+      writer.uint32(73).double(message.packetLossRate);
+    }
+    if (message.packetLossPercentage !== 0) {
+      writer.uint32(85).float(message.packetLossPercentage);
+    }
+    if (message.packetsDuplicate !== 0) {
+      writer.uint32(88).uint32(message.packetsDuplicate);
+    }
+    if (message.packetDuplicateRate !== 0) {
+      writer.uint32(97).double(message.packetDuplicateRate);
+    }
+    if (message.bytesDuplicate !== 0) {
+      writer.uint32(104).uint64(message.bytesDuplicate);
+    }
+    if (message.bitrateDuplicate !== 0) {
+      writer.uint32(113).double(message.bitrateDuplicate);
+    }
+    if (message.packetsPadding !== 0) {
+      writer.uint32(120).uint32(message.packetsPadding);
+    }
+    if (message.packetPaddingRate !== 0) {
+      writer.uint32(129).double(message.packetPaddingRate);
+    }
+    if (message.bytesPadding !== 0) {
+      writer.uint32(136).uint64(message.bytesPadding);
+    }
+    if (message.bitratePadding !== 0) {
+      writer.uint32(145).double(message.bitratePadding);
+    }
+    if (message.packetsOutOfOrder !== 0) {
+      writer.uint32(152).uint32(message.packetsOutOfOrder);
+    }
+    if (message.frames !== 0) {
+      writer.uint32(160).uint32(message.frames);
+    }
+    if (message.frameRate !== 0) {
+      writer.uint32(169).double(message.frameRate);
+    }
+    if (message.jitterCurrent !== 0) {
+      writer.uint32(177).double(message.jitterCurrent);
+    }
+    if (message.jitterMax !== 0) {
+      writer.uint32(185).double(message.jitterMax);
+    }
+    Object.entries(message.gapHistogram).forEach(([key, value]) => {
+      RTPStats_GapHistogramEntry.encode(
+        { key: key as any, value },
+        writer.uint32(194).fork()
+      ).ldelim();
+    });
+    if (message.nacks !== 0) {
+      writer.uint32(200).uint32(message.nacks);
+    }
+    if (message.nackMisses !== 0) {
+      writer.uint32(208).uint32(message.nackMisses);
+    }
+    if (message.plis !== 0) {
+      writer.uint32(216).uint32(message.plis);
+    }
+    if (message.lastPli !== undefined) {
+      Timestamp.encode(
+        toTimestamp(message.lastPli),
+        writer.uint32(226).fork()
+      ).ldelim();
+    }
+    if (message.firs !== 0) {
+      writer.uint32(232).uint32(message.firs);
+    }
+    if (message.lastFir !== undefined) {
+      Timestamp.encode(
+        toTimestamp(message.lastFir),
+        writer.uint32(242).fork()
+      ).ldelim();
+    }
+    if (message.rttCurrent !== 0) {
+      writer.uint32(248).uint32(message.rttCurrent);
+    }
+    if (message.rttMax !== 0) {
+      writer.uint32(256).uint32(message.rttMax);
+    }
+    if (message.keyFrames !== 0) {
+      writer.uint32(264).uint32(message.keyFrames);
+    }
+    if (message.lastKeyFrame !== undefined) {
+      Timestamp.encode(
+        toTimestamp(message.lastKeyFrame),
+        writer.uint32(274).fork()
+      ).ldelim();
+    }
+    if (message.layerLockPlis !== 0) {
+      writer.uint32(280).uint32(message.layerLockPlis);
+    }
+    if (message.lastLayerLockPli !== undefined) {
+      Timestamp.encode(
+        toTimestamp(message.lastLayerLockPli),
+        writer.uint32(290).fork()
+      ).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): RTPStats {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = { ...baseRTPStats } as RTPStats;
+    message.gapHistogram = {};
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.startTime = fromTimestamp(
+            Timestamp.decode(reader, reader.uint32())
+          );
+          break;
+        case 2:
+          message.endTime = fromTimestamp(
+            Timestamp.decode(reader, reader.uint32())
+          );
+          break;
+        case 3:
+          message.duration = reader.double();
+          break;
+        case 4:
+          message.packets = reader.uint32();
+          break;
+        case 5:
+          message.packetRate = reader.double();
+          break;
+        case 6:
+          message.bytes = longToNumber(reader.uint64() as Long);
+          break;
+        case 7:
+          message.bitrate = reader.double();
+          break;
+        case 8:
+          message.packetsLost = reader.uint32();
+          break;
+        case 9:
+          message.packetLossRate = reader.double();
+          break;
+        case 10:
+          message.packetLossPercentage = reader.float();
+          break;
+        case 11:
+          message.packetsDuplicate = reader.uint32();
+          break;
+        case 12:
+          message.packetDuplicateRate = reader.double();
+          break;
+        case 13:
+          message.bytesDuplicate = longToNumber(reader.uint64() as Long);
+          break;
+        case 14:
+          message.bitrateDuplicate = reader.double();
+          break;
+        case 15:
+          message.packetsPadding = reader.uint32();
+          break;
+        case 16:
+          message.packetPaddingRate = reader.double();
+          break;
+        case 17:
+          message.bytesPadding = longToNumber(reader.uint64() as Long);
+          break;
+        case 18:
+          message.bitratePadding = reader.double();
+          break;
+        case 19:
+          message.packetsOutOfOrder = reader.uint32();
+          break;
+        case 20:
+          message.frames = reader.uint32();
+          break;
+        case 21:
+          message.frameRate = reader.double();
+          break;
+        case 22:
+          message.jitterCurrent = reader.double();
+          break;
+        case 23:
+          message.jitterMax = reader.double();
+          break;
+        case 24:
+          const entry24 = RTPStats_GapHistogramEntry.decode(
+            reader,
+            reader.uint32()
+          );
+          if (entry24.value !== undefined) {
+            message.gapHistogram[entry24.key] = entry24.value;
+          }
+          break;
+        case 25:
+          message.nacks = reader.uint32();
+          break;
+        case 26:
+          message.nackMisses = reader.uint32();
+          break;
+        case 27:
+          message.plis = reader.uint32();
+          break;
+        case 28:
+          message.lastPli = fromTimestamp(
+            Timestamp.decode(reader, reader.uint32())
+          );
+          break;
+        case 29:
+          message.firs = reader.uint32();
+          break;
+        case 30:
+          message.lastFir = fromTimestamp(
+            Timestamp.decode(reader, reader.uint32())
+          );
+          break;
+        case 31:
+          message.rttCurrent = reader.uint32();
+          break;
+        case 32:
+          message.rttMax = reader.uint32();
+          break;
+        case 33:
+          message.keyFrames = reader.uint32();
+          break;
+        case 34:
+          message.lastKeyFrame = fromTimestamp(
+            Timestamp.decode(reader, reader.uint32())
+          );
+          break;
+        case 35:
+          message.layerLockPlis = reader.uint32();
+          break;
+        case 36:
+          message.lastLayerLockPli = fromTimestamp(
+            Timestamp.decode(reader, reader.uint32())
+          );
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RTPStats {
+    const message = { ...baseRTPStats } as RTPStats;
+    message.gapHistogram = {};
+    if (object.startTime !== undefined && object.startTime !== null) {
+      message.startTime = fromJsonTimestamp(object.startTime);
+    } else {
+      message.startTime = undefined;
+    }
+    if (object.endTime !== undefined && object.endTime !== null) {
+      message.endTime = fromJsonTimestamp(object.endTime);
+    } else {
+      message.endTime = undefined;
+    }
+    if (object.duration !== undefined && object.duration !== null) {
+      message.duration = Number(object.duration);
+    } else {
+      message.duration = 0;
+    }
+    if (object.packets !== undefined && object.packets !== null) {
+      message.packets = Number(object.packets);
+    } else {
+      message.packets = 0;
+    }
+    if (object.packetRate !== undefined && object.packetRate !== null) {
+      message.packetRate = Number(object.packetRate);
+    } else {
+      message.packetRate = 0;
+    }
+    if (object.bytes !== undefined && object.bytes !== null) {
+      message.bytes = Number(object.bytes);
+    } else {
+      message.bytes = 0;
+    }
+    if (object.bitrate !== undefined && object.bitrate !== null) {
+      message.bitrate = Number(object.bitrate);
+    } else {
+      message.bitrate = 0;
+    }
+    if (object.packetsLost !== undefined && object.packetsLost !== null) {
+      message.packetsLost = Number(object.packetsLost);
+    } else {
+      message.packetsLost = 0;
+    }
+    if (object.packetLossRate !== undefined && object.packetLossRate !== null) {
+      message.packetLossRate = Number(object.packetLossRate);
+    } else {
+      message.packetLossRate = 0;
+    }
+    if (
+      object.packetLossPercentage !== undefined &&
+      object.packetLossPercentage !== null
+    ) {
+      message.packetLossPercentage = Number(object.packetLossPercentage);
+    } else {
+      message.packetLossPercentage = 0;
+    }
+    if (
+      object.packetsDuplicate !== undefined &&
+      object.packetsDuplicate !== null
+    ) {
+      message.packetsDuplicate = Number(object.packetsDuplicate);
+    } else {
+      message.packetsDuplicate = 0;
+    }
+    if (
+      object.packetDuplicateRate !== undefined &&
+      object.packetDuplicateRate !== null
+    ) {
+      message.packetDuplicateRate = Number(object.packetDuplicateRate);
+    } else {
+      message.packetDuplicateRate = 0;
+    }
+    if (object.bytesDuplicate !== undefined && object.bytesDuplicate !== null) {
+      message.bytesDuplicate = Number(object.bytesDuplicate);
+    } else {
+      message.bytesDuplicate = 0;
+    }
+    if (
+      object.bitrateDuplicate !== undefined &&
+      object.bitrateDuplicate !== null
+    ) {
+      message.bitrateDuplicate = Number(object.bitrateDuplicate);
+    } else {
+      message.bitrateDuplicate = 0;
+    }
+    if (object.packetsPadding !== undefined && object.packetsPadding !== null) {
+      message.packetsPadding = Number(object.packetsPadding);
+    } else {
+      message.packetsPadding = 0;
+    }
+    if (
+      object.packetPaddingRate !== undefined &&
+      object.packetPaddingRate !== null
+    ) {
+      message.packetPaddingRate = Number(object.packetPaddingRate);
+    } else {
+      message.packetPaddingRate = 0;
+    }
+    if (object.bytesPadding !== undefined && object.bytesPadding !== null) {
+      message.bytesPadding = Number(object.bytesPadding);
+    } else {
+      message.bytesPadding = 0;
+    }
+    if (object.bitratePadding !== undefined && object.bitratePadding !== null) {
+      message.bitratePadding = Number(object.bitratePadding);
+    } else {
+      message.bitratePadding = 0;
+    }
+    if (
+      object.packetsOutOfOrder !== undefined &&
+      object.packetsOutOfOrder !== null
+    ) {
+      message.packetsOutOfOrder = Number(object.packetsOutOfOrder);
+    } else {
+      message.packetsOutOfOrder = 0;
+    }
+    if (object.frames !== undefined && object.frames !== null) {
+      message.frames = Number(object.frames);
+    } else {
+      message.frames = 0;
+    }
+    if (object.frameRate !== undefined && object.frameRate !== null) {
+      message.frameRate = Number(object.frameRate);
+    } else {
+      message.frameRate = 0;
+    }
+    if (object.jitterCurrent !== undefined && object.jitterCurrent !== null) {
+      message.jitterCurrent = Number(object.jitterCurrent);
+    } else {
+      message.jitterCurrent = 0;
+    }
+    if (object.jitterMax !== undefined && object.jitterMax !== null) {
+      message.jitterMax = Number(object.jitterMax);
+    } else {
+      message.jitterMax = 0;
+    }
+    if (object.gapHistogram !== undefined && object.gapHistogram !== null) {
+      Object.entries(object.gapHistogram).forEach(([key, value]) => {
+        message.gapHistogram[Number(key)] = Number(value);
+      });
+    }
+    if (object.nacks !== undefined && object.nacks !== null) {
+      message.nacks = Number(object.nacks);
+    } else {
+      message.nacks = 0;
+    }
+    if (object.nackMisses !== undefined && object.nackMisses !== null) {
+      message.nackMisses = Number(object.nackMisses);
+    } else {
+      message.nackMisses = 0;
+    }
+    if (object.plis !== undefined && object.plis !== null) {
+      message.plis = Number(object.plis);
+    } else {
+      message.plis = 0;
+    }
+    if (object.lastPli !== undefined && object.lastPli !== null) {
+      message.lastPli = fromJsonTimestamp(object.lastPli);
+    } else {
+      message.lastPli = undefined;
+    }
+    if (object.firs !== undefined && object.firs !== null) {
+      message.firs = Number(object.firs);
+    } else {
+      message.firs = 0;
+    }
+    if (object.lastFir !== undefined && object.lastFir !== null) {
+      message.lastFir = fromJsonTimestamp(object.lastFir);
+    } else {
+      message.lastFir = undefined;
+    }
+    if (object.rttCurrent !== undefined && object.rttCurrent !== null) {
+      message.rttCurrent = Number(object.rttCurrent);
+    } else {
+      message.rttCurrent = 0;
+    }
+    if (object.rttMax !== undefined && object.rttMax !== null) {
+      message.rttMax = Number(object.rttMax);
+    } else {
+      message.rttMax = 0;
+    }
+    if (object.keyFrames !== undefined && object.keyFrames !== null) {
+      message.keyFrames = Number(object.keyFrames);
+    } else {
+      message.keyFrames = 0;
+    }
+    if (object.lastKeyFrame !== undefined && object.lastKeyFrame !== null) {
+      message.lastKeyFrame = fromJsonTimestamp(object.lastKeyFrame);
+    } else {
+      message.lastKeyFrame = undefined;
+    }
+    if (object.layerLockPlis !== undefined && object.layerLockPlis !== null) {
+      message.layerLockPlis = Number(object.layerLockPlis);
+    } else {
+      message.layerLockPlis = 0;
+    }
+    if (
+      object.lastLayerLockPli !== undefined &&
+      object.lastLayerLockPli !== null
+    ) {
+      message.lastLayerLockPli = fromJsonTimestamp(object.lastLayerLockPli);
+    } else {
+      message.lastLayerLockPli = undefined;
+    }
+    return message;
+  },
+
+  toJSON(message: RTPStats): unknown {
+    const obj: any = {};
+    message.startTime !== undefined &&
+      (obj.startTime = message.startTime.toISOString());
+    message.endTime !== undefined &&
+      (obj.endTime = message.endTime.toISOString());
+    message.duration !== undefined && (obj.duration = message.duration);
+    message.packets !== undefined && (obj.packets = message.packets);
+    message.packetRate !== undefined && (obj.packetRate = message.packetRate);
+    message.bytes !== undefined && (obj.bytes = message.bytes);
+    message.bitrate !== undefined && (obj.bitrate = message.bitrate);
+    message.packetsLost !== undefined &&
+      (obj.packetsLost = message.packetsLost);
+    message.packetLossRate !== undefined &&
+      (obj.packetLossRate = message.packetLossRate);
+    message.packetLossPercentage !== undefined &&
+      (obj.packetLossPercentage = message.packetLossPercentage);
+    message.packetsDuplicate !== undefined &&
+      (obj.packetsDuplicate = message.packetsDuplicate);
+    message.packetDuplicateRate !== undefined &&
+      (obj.packetDuplicateRate = message.packetDuplicateRate);
+    message.bytesDuplicate !== undefined &&
+      (obj.bytesDuplicate = message.bytesDuplicate);
+    message.bitrateDuplicate !== undefined &&
+      (obj.bitrateDuplicate = message.bitrateDuplicate);
+    message.packetsPadding !== undefined &&
+      (obj.packetsPadding = message.packetsPadding);
+    message.packetPaddingRate !== undefined &&
+      (obj.packetPaddingRate = message.packetPaddingRate);
+    message.bytesPadding !== undefined &&
+      (obj.bytesPadding = message.bytesPadding);
+    message.bitratePadding !== undefined &&
+      (obj.bitratePadding = message.bitratePadding);
+    message.packetsOutOfOrder !== undefined &&
+      (obj.packetsOutOfOrder = message.packetsOutOfOrder);
+    message.frames !== undefined && (obj.frames = message.frames);
+    message.frameRate !== undefined && (obj.frameRate = message.frameRate);
+    message.jitterCurrent !== undefined &&
+      (obj.jitterCurrent = message.jitterCurrent);
+    message.jitterMax !== undefined && (obj.jitterMax = message.jitterMax);
+    obj.gapHistogram = {};
+    if (message.gapHistogram) {
+      Object.entries(message.gapHistogram).forEach(([k, v]) => {
+        obj.gapHistogram[k] = v;
+      });
+    }
+    message.nacks !== undefined && (obj.nacks = message.nacks);
+    message.nackMisses !== undefined && (obj.nackMisses = message.nackMisses);
+    message.plis !== undefined && (obj.plis = message.plis);
+    message.lastPli !== undefined &&
+      (obj.lastPli = message.lastPli.toISOString());
+    message.firs !== undefined && (obj.firs = message.firs);
+    message.lastFir !== undefined &&
+      (obj.lastFir = message.lastFir.toISOString());
+    message.rttCurrent !== undefined && (obj.rttCurrent = message.rttCurrent);
+    message.rttMax !== undefined && (obj.rttMax = message.rttMax);
+    message.keyFrames !== undefined && (obj.keyFrames = message.keyFrames);
+    message.lastKeyFrame !== undefined &&
+      (obj.lastKeyFrame = message.lastKeyFrame.toISOString());
+    message.layerLockPlis !== undefined &&
+      (obj.layerLockPlis = message.layerLockPlis);
+    message.lastLayerLockPli !== undefined &&
+      (obj.lastLayerLockPli = message.lastLayerLockPli.toISOString());
+    return obj;
+  },
+
+  fromPartial(object: DeepPartial<RTPStats>): RTPStats {
+    const message = { ...baseRTPStats } as RTPStats;
+    message.startTime = object.startTime ?? undefined;
+    message.endTime = object.endTime ?? undefined;
+    message.duration = object.duration ?? 0;
+    message.packets = object.packets ?? 0;
+    message.packetRate = object.packetRate ?? 0;
+    message.bytes = object.bytes ?? 0;
+    message.bitrate = object.bitrate ?? 0;
+    message.packetsLost = object.packetsLost ?? 0;
+    message.packetLossRate = object.packetLossRate ?? 0;
+    message.packetLossPercentage = object.packetLossPercentage ?? 0;
+    message.packetsDuplicate = object.packetsDuplicate ?? 0;
+    message.packetDuplicateRate = object.packetDuplicateRate ?? 0;
+    message.bytesDuplicate = object.bytesDuplicate ?? 0;
+    message.bitrateDuplicate = object.bitrateDuplicate ?? 0;
+    message.packetsPadding = object.packetsPadding ?? 0;
+    message.packetPaddingRate = object.packetPaddingRate ?? 0;
+    message.bytesPadding = object.bytesPadding ?? 0;
+    message.bitratePadding = object.bitratePadding ?? 0;
+    message.packetsOutOfOrder = object.packetsOutOfOrder ?? 0;
+    message.frames = object.frames ?? 0;
+    message.frameRate = object.frameRate ?? 0;
+    message.jitterCurrent = object.jitterCurrent ?? 0;
+    message.jitterMax = object.jitterMax ?? 0;
+    message.gapHistogram = {};
+    if (object.gapHistogram !== undefined && object.gapHistogram !== null) {
+      Object.entries(object.gapHistogram).forEach(([key, value]) => {
+        if (value !== undefined) {
+          message.gapHistogram[Number(key)] = Number(value);
+        }
+      });
+    }
+    message.nacks = object.nacks ?? 0;
+    message.nackMisses = object.nackMisses ?? 0;
+    message.plis = object.plis ?? 0;
+    message.lastPli = object.lastPli ?? undefined;
+    message.firs = object.firs ?? 0;
+    message.lastFir = object.lastFir ?? undefined;
+    message.rttCurrent = object.rttCurrent ?? 0;
+    message.rttMax = object.rttMax ?? 0;
+    message.keyFrames = object.keyFrames ?? 0;
+    message.lastKeyFrame = object.lastKeyFrame ?? undefined;
+    message.layerLockPlis = object.layerLockPlis ?? 0;
+    message.lastLayerLockPli = object.lastLayerLockPli ?? undefined;
+    return message;
+  },
+};
+
+const baseRTPStats_GapHistogramEntry: object = { key: 0, value: 0 };
+
+export const RTPStats_GapHistogramEntry = {
+  encode(
+    message: RTPStats_GapHistogramEntry,
+    writer: _m0.Writer = _m0.Writer.create()
+  ): _m0.Writer {
+    if (message.key !== 0) {
+      writer.uint32(8).int32(message.key);
+    }
+    if (message.value !== 0) {
+      writer.uint32(16).uint32(message.value);
+    }
+    return writer;
+  },
+
+  decode(
+    input: _m0.Reader | Uint8Array,
+    length?: number
+  ): RTPStats_GapHistogramEntry {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = {
+      ...baseRTPStats_GapHistogramEntry,
+    } as RTPStats_GapHistogramEntry;
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.key = reader.int32();
+          break;
+        case 2:
+          message.value = reader.uint32();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RTPStats_GapHistogramEntry {
+    const message = {
+      ...baseRTPStats_GapHistogramEntry,
+    } as RTPStats_GapHistogramEntry;
+    if (object.key !== undefined && object.key !== null) {
+      message.key = Number(object.key);
+    } else {
+      message.key = 0;
+    }
+    if (object.value !== undefined && object.value !== null) {
+      message.value = Number(object.value);
+    } else {
+      message.value = 0;
+    }
+    return message;
+  },
+
+  toJSON(message: RTPStats_GapHistogramEntry): unknown {
+    const obj: any = {};
+    message.key !== undefined && (obj.key = message.key);
+    message.value !== undefined && (obj.value = message.value);
+    return obj;
+  },
+
+  fromPartial(
+    object: DeepPartial<RTPStats_GapHistogramEntry>
+  ): RTPStats_GapHistogramEntry {
+    const message = {
+      ...baseRTPStats_GapHistogramEntry,
+    } as RTPStats_GapHistogramEntry;
+    message.key = object.key ?? 0;
+    message.value = object.value ?? 0;
+    return message;
+  },
+};
+
 declare var self: any | undefined;
 declare var window: any | undefined;
 declare var global: any | undefined;
@@ -2098,6 +3017,28 @@ export type DeepPartial<T> = T extends Builtin
   : T extends {}
   ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;
+
+function toTimestamp(date: Date): Timestamp {
+  const seconds = date.getTime() / 1_000;
+  const nanos = (date.getTime() % 1_000) * 1_000_000;
+  return { seconds, nanos };
+}
+
+function fromTimestamp(t: Timestamp): Date {
+  let millis = t.seconds * 1_000;
+  millis += t.nanos / 1_000_000;
+  return new Date(millis);
+}
+
+function fromJsonTimestamp(o: any): Date {
+  if (o instanceof Date) {
+    return o;
+  } else if (typeof o === "string") {
+    return new Date(o);
+  } else {
+    return fromTimestamp(Timestamp.fromJSON(o));
+  }
+}
 
 function longToNumber(long: Long): number {
   if (long.gt(Number.MAX_SAFE_INTEGER)) {

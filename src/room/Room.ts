@@ -93,13 +93,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.participants = new Map();
     this.options = options || {};
 
-    switch (this.options?.publishDefaults?.videoCodec) {
-      case 'av1':
-      case 'vp9':
-        this.options.publishDefaults.simulcast = undefined;
-        break;
-      default:
-    }
+    // switch (this.options?.publishDefaults?.videoCodec) {
+    //   case 'av1':
+    //   case 'vp9':
+    //     this.options.publishDefaults.simulcast = undefined;
+    //     break;
+    //   default:
+    // }
 
     this.options.audioCaptureDefaults = {
       ...audioDefaults,
