@@ -177,8 +177,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @param kind
    * @returns a list of available local devices
    */
-  static getLocalDevices(kind: MediaDeviceKind): Promise<MediaDeviceInfo[]> {
-    return DeviceManager.getInstance().getDevices(kind);
+  static getLocalDevices(
+    kind?: MediaDeviceKind,
+    requestPermissions: boolean = true,
+  ): Promise<MediaDeviceInfo[]> {
+    return DeviceManager.getInstance().getDevices(kind, requestPermissions);
   }
 
   connect = async (url: string, token: string, opts?: RoomConnectOptions) => {

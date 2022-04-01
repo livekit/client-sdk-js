@@ -714,3 +714,9 @@ function updateButtonsForPublishState() {
     lp.isScreenShareEnabled,
   );
 }
+
+async function aquireDeviceList() {
+  handleDevicesChanged();
+}
+
+aquireDeviceList();

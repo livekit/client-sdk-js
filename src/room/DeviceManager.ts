@@ -12,9 +12,22 @@ export default class DeviceManager {
     return this.instance;
   }
 
-  async getDevices(kind: MediaDeviceKind): Promise<MediaDeviceInfo[]> {
+  async getDevices(
+    kind?: MediaDeviceKind,
+    requestPermissions: boolean = true,
+  ): Promise<MediaDeviceInfo[]> {
     let devices = await navigator.mediaDevices.enumerateDevices();
-    devices = devices.filter((device) => device.kind === kind);
+    if (requestPermissions) {
+      const permissionsToAquire = {
+        video: kind !== 'audioinput' && kind !== 'audiooutput',
+        audio: kind !== 'videoinput',
+      };
+      await navigator.mediaDevices.getUserMedia(permissionsToAquire);
+      devices = await navigator.mediaDevices.enumerateDevices();
+    }
+    if (kind) {
+      devices = devices.filter((device) => device.kind === kind);
+    }
     // Chrome returns 'default' devices, we would filter them out, but put the default
     // device at first
     // we would only do this if there are more than 1 device though
