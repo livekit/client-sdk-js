@@ -216,7 +216,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
 
       this.state = RoomState.Connected;
-      this.emit(RoomEvent.StateChanged, this.state);
       const pi = joinResponse.participant!;
 
       this.localParticipant.sid = pi.sid;
@@ -268,6 +267,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.name = joinResponse.room!.name;
       this.sid = joinResponse.room!.sid;
       this.metadata = joinResponse.room!.metadata;
+      this.emit(RoomEvent.StateChanged, this.state);
     } catch (err) {
       this.engine.close();
       throw err;
