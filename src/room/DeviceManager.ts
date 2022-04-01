@@ -16,15 +16,14 @@ export default class DeviceManager {
     kind?: MediaDeviceKind,
     requestPermissions: boolean = true,
   ): Promise<MediaDeviceInfo[]> {
-    let devices = await navigator.mediaDevices.enumerateDevices();
     if (requestPermissions) {
       const permissionsToAquire = {
         video: kind !== 'audioinput' && kind !== 'audiooutput',
         audio: kind !== 'videoinput',
       };
       await navigator.mediaDevices.getUserMedia(permissionsToAquire);
-      devices = await navigator.mediaDevices.enumerateDevices();
     }
+    let devices = await navigator.mediaDevices.enumerateDevices();
     if (kind) {
       devices = devices.filter((device) => device.kind === kind);
     }
