@@ -171,6 +171,7 @@ export interface AddTrackRequest {
   source: TrackSource;
   layers: VideoLayer[];
   alternativeCodec: string;
+  alternativeCid: string;
 }
 
 export interface TrickleRequest {
@@ -1153,6 +1154,7 @@ const baseAddTrackRequest: object = {
   disableDtx: false,
   source: 0,
   alternativeCodec: "",
+  alternativeCid: "",
 };
 
 export const AddTrackRequest = {
@@ -1189,6 +1191,9 @@ export const AddTrackRequest = {
     }
     if (message.alternativeCodec !== "") {
       writer.uint32(82).string(message.alternativeCodec);
+    }
+    if (message.alternativeCid !== "") {
+      writer.uint32(90).string(message.alternativeCid);
     }
     return writer;
   },
@@ -1230,6 +1235,9 @@ export const AddTrackRequest = {
           break;
         case 10:
           message.alternativeCodec = reader.string();
+          break;
+        case 11:
+          message.alternativeCid = reader.string();
           break;
         default:
           reader.skipType(tag & 7);
@@ -1295,6 +1303,11 @@ export const AddTrackRequest = {
     } else {
       message.alternativeCodec = "";
     }
+    if (object.alternativeCid !== undefined && object.alternativeCid !== null) {
+      message.alternativeCid = String(object.alternativeCid);
+    } else {
+      message.alternativeCid = "";
+    }
     return message;
   },
 
@@ -1318,6 +1331,8 @@ export const AddTrackRequest = {
     }
     message.alternativeCodec !== undefined &&
       (obj.alternativeCodec = message.alternativeCodec);
+    message.alternativeCid !== undefined &&
+      (obj.alternativeCid = message.alternativeCid);
     return obj;
   },
 
@@ -1338,6 +1353,7 @@ export const AddTrackRequest = {
       }
     }
     message.alternativeCodec = object.alternativeCodec ?? "";
+    message.alternativeCid = object.alternativeCid ?? "";
     return message;
   },
 };
