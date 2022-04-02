@@ -26,7 +26,7 @@ export type LogExtension = (...msg: any[]) => void;
 export function setLogExtension(extension: LogExtension) {
   const originalFactory = livekitLogger.methodFactory;
 
-  livekitLogger.methodFactory = function (methodName, logLevel, loggerName) {
+  livekitLogger.methodFactory = (methodName, logLevel, loggerName) => {
     const rawMethod = originalFactory(methodName, logLevel, loggerName);
 
     // @ts-ignore
@@ -34,7 +34,7 @@ export function setLogExtension(extension: LogExtension) {
     const configLevel = livekitLogger.getLevel();
     const needLog = levelVal >= configLevel;
 
-    return function (...args) {
+    return (...args) => {
       if (needLog) {
         extension(...args);
       }
