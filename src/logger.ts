@@ -1,4 +1,4 @@
-import log from 'loglevel';
+import log, { LogLevelNumbers } from 'loglevel';
 
 export type LogLevelDesc = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
@@ -21,7 +21,7 @@ export function setLogLevel(level: LogLevel | LogLevelDesc) {
   livekitLogger.setLevel(level);
 }
 
-export type LogExtension = (...msg: any[]) => void;
+export type LogExtension = (level: LogLevelNumbers, ...msg: any[]) => void;
 
 export function setLogExtension(extension: LogExtension) {
   const originalFactory = livekitLogger.methodFactory;
@@ -36,7 +36,7 @@ export function setLogExtension(extension: LogExtension) {
 
     return (...args) => {
       if (needLog) {
-        extension(...args);
+        extension(logLevel, ...args);
       }
 
       rawMethod(...args);

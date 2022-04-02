@@ -54,9 +54,9 @@ const appActions = {
     const publishOnly = (<HTMLInputElement>$('publish-only')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
-    setLogExtension((...msg) => {
+    setLogExtension((level, ...msg) => {
       // use this to send livekit logs to other logging services
-      // console.info('test', ...msg);
+      // console.info(level, ...msg);
     });
     setLogLevel('debug');
     updateSearchParams(url, token);
