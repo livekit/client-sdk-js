@@ -35,11 +35,10 @@ export function setLogExtension(extension: LogExtension) {
     const needLog = levelVal >= configLevel;
 
     return (...args) => {
+      rawMethod(...args);
       if (needLog) {
         extension(logLevel, ...args);
       }
-
-      rawMethod(...args);
     };
   };
   livekitLogger.setLevel(livekitLogger.getLevel()); // Be sure to call setLevel method in order to apply plugin
