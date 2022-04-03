@@ -21,7 +21,7 @@ export function setLogLevel(level: LogLevel | LogLevelDesc) {
   livekitLogger.setLevel(level);
 }
 
-export type LogExtension = (level: LogLevelNumbers, ...msg: any[]) => void;
+export type LogExtension = (level: log.LogLevelNumbers, ...msg: any[]) => void;
 
 export function setLogExtension(extension: LogExtension) {
   const originalFactory = livekitLogger.methodFactory;
