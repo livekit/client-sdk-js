@@ -1,4 +1,4 @@
-import log from 'loglevel';
+import * as log from 'loglevel';
 
 export type LogLevelDesc = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
