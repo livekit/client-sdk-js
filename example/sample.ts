@@ -715,8 +715,8 @@ function updateButtonsForPublishState() {
   );
 }
 
-async function aquireDeviceList() {
+async function acquireDeviceList() {
   handleDevicesChanged();
 }
 
-aquireDeviceList();
+acquireDeviceList();
