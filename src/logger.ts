@@ -20,3 +20,26 @@ export default livekitLogger;
 export function setLogLevel(level: LogLevel | LogLevelDesc) {
   livekitLogger.setLevel(level);
 }
+
+export type LogExtension = (level: log.LogLevelNumbers, ...msg: any[]) => void;
+
+export function setLogExtension(extension: LogExtension) {
+  const originalFactory = livekitLogger.methodFactory;
+
+  livekitLogger.methodFactory = (methodName, logLevel, loggerName) => {
+    const rawMethod = originalFactory(methodName, logLevel, loggerName);
+
+    // @ts-ignore
+    const levelVal = livekitLogger.levels[methodName.toUpperCase()];
+    const configLevel = livekitLogger.getLevel();
+    const needLog = levelVal >= configLevel;
+
+    return (...args) => {
+      rawMethod(...args);
+      if (needLog) {
+        extension(logLevel, ...args);
+      }
+    };
+  };
+  livekitLogger.setLevel(livekitLogger.getLevel()); // Be sure to call setLevel method in order to apply plugin
+}
