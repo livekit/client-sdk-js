@@ -21,11 +21,11 @@ export default class DeviceManager {
     if (requestPermissions) {
       const isDummyDeviceOrEmpty =
         devices.length === 0 ||
-        devices.filter((device) => {
+        devices.some((device) => {
           const noLabel = device.label === '';
           const isRelevant = kind ? device.kind === kind : true;
           return noLabel && isRelevant;
-        }).length > 0;
+        });
 
       if (isDummyDeviceOrEmpty) {
         const permissionsToAcquire = {
