@@ -6,6 +6,7 @@ export enum LogLevel {
   info = 2,
   warn = 3,
   error = 4,
+  silent = 5,
 }
 
 type StructuredLogger = {
@@ -39,7 +40,7 @@ export function setLogExtension(extension: LogExtension) {
     const rawMethod = originalFactory(methodName, logLevel, loggerName);
 
     const configLevel = livekitLogger.getLevel();
-    const needLog = logLevel >= configLevel;
+    const needLog = logLevel >= configLevel && logLevel < LogLevel.silent;
 
     return (msg, context?: [msg: string, context: object]) => {
       if (context) rawMethod(msg, context);
