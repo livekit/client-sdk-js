@@ -118,7 +118,7 @@ export default class RemoteParticipant extends Participant {
     // yet arrived. Wait a bit longer for it to arrive, or fire an error
     if (!publication) {
       if (triesLeft === 0) {
-        log.error('could not find published track', this.sid, sid);
+        log.error('could not find published track', { participant: this.sid, trackSid: sid });
         this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
         return;
       }
@@ -257,7 +257,7 @@ export default class RemoteParticipant extends Participant {
     event: E,
     ...args: Parameters<ParticipantEventCallbacks[E]>
   ): boolean {
-    log.trace('participant event', this.sid, event, ...args);
+    log.trace('participant event', { participant: this.sid, event, args });
     return super.emit(event, ...args);
   }
 }

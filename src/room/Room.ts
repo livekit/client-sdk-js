@@ -187,7 +187,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   connect = async (url: string, token: string, opts?: RoomConnectOptions) => {
     // guard against calling connect
     if (this.state !== RoomState.Disconnected) {
-      log.warn('already connected to room', this.name);
+      log.warn(`already connected to room ${this.name}`);
       return;
     }
 
@@ -488,7 +488,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleRestarted = async (joinResponse: JoinResponse) => {
-    log.debug('reconnected to server region', joinResponse.serverRegion);
+    log.debug(`reconnected to server region ${joinResponse.serverRegion}`);
     this.state = RoomState.Connected;
     this.emit(RoomEvent.Reconnected);
     this.emit(RoomEvent.StateChanged, this.state);
@@ -892,7 +892,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     event: E,
     ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
-    log.debug('room event', event, ...args);
+    log.debug('room event', { event, args });
     return super.emit(event, ...args);
   }
 }

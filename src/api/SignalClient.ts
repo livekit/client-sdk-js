@@ -62,7 +62,7 @@ function canPassThroughQueue(req: SignalRequest): boolean {
   const canPass =
     Object.keys(req).find((key) => passThroughQueueSignals.includes(key as keyof SignalRequest)) !==
     undefined;
-  log.trace('request allowed to bypass queue:', canPass, req);
+  log.trace('request allowed to bypass queue:', { canPass, req });
   return canPass;
 }
 
@@ -153,7 +153,7 @@ export class SignalClient {
     const params = createConnectionParams(token, clientInfo, opts);
 
     return new Promise<JoinResponse | void>((resolve, reject) => {
-      log.debug('connecting to', url + params);
+      log.debug(`connecting to ${url + params}`);
       this.ws = undefined;
       const ws = new WebSocket(url + params);
       ws.binaryType = 'arraybuffer';
@@ -195,7 +195,7 @@ export class SignalClient {
         } else if (ev.data instanceof ArrayBuffer) {
           msg = SignalResponse.decode(new Uint8Array(ev.data));
         } else {
-          log.error('could not decode websocket message', typeof ev.data);
+          log.error(`could not decode websocket message: ${typeof ev.data}`);
           return;
         }
 
@@ -219,7 +219,7 @@ export class SignalClient {
       ws.onclose = (ev: CloseEvent) => {
         if (!this.isConnected || this.ws !== ws) return;
 
-        log.debug('websocket connection closed', ev.reason);
+        log.debug(`websocket connection closed: ${ev.reason}`);
         this.isConnected = false;
         if (this.onClose) this.onClose(ev.reason);
         if (this.ws === ws) {
@@ -341,7 +341,7 @@ export class SignalClient {
         this.ws.send(SignalRequest.encode(req).finish());
       }
     } catch (e) {
-      log.error('error sending signal message', e);
+      log.error('error sending signal message', { error: e });
     }
   }
 

@@ -17,8 +17,8 @@ import {
   VideoCaptureOptions,
   VideoPresets,
   VideoCodec,
-  setLogExtension,
 } from '../src/index';
+import { LogLevel } from '../src/logger';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -54,11 +54,8 @@ const appActions = {
     const publishOnly = (<HTMLInputElement>$('publish-only')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
-    setLogExtension((level, ...msg) => {
-      // use this to send livekit logs to other logging services
-      // console.info(level, ...msg);
-    });
-    setLogLevel('debug');
+
+    setLogLevel(LogLevel.debug);
     updateSearchParams(url, token);
 
     const roomOpts: RoomOptions = {
