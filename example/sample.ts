@@ -55,7 +55,7 @@ const appActions = {
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
 
-    setLogLevel(LogLevel.debug);
+    setLogLevel(LogLevel.DEBUG);
     updateSearchParams(url, token);
 
     const roomOpts: RoomOptions = {
