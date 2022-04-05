@@ -1,12 +1,11 @@
 import * as log from 'loglevel';
 
 export enum LogLevel {
-  TRACE = 0,
-  DEBUG = 1,
-  INFO = 2,
-  WARN = 3,
-  ERROR = 4,
-  SILENT = 5,
+  trace = 0,
+  debug = 1,
+  info = 2,
+  warn = 3,
+  error = 4,
 }
 
 type StructuredLogger = {
@@ -19,7 +18,7 @@ type StructuredLogger = {
 
 const livekitLogger = log.getLogger('livekit');
 
-livekitLogger.setLevel(LogLevel.INFO);
+livekitLogger.setLevel(LogLevel.info);
 
 export default livekitLogger as StructuredLogger;
 
@@ -40,7 +39,7 @@ export function setLogExtension(extension: LogExtension) {
     const rawMethod = originalFactory(methodName, logLevel, loggerName);
 
     const configLevel = livekitLogger.getLevel();
-    const needLog = logLevel >= configLevel && logLevel < LogLevel.silent;
+    const needLog = logLevel >= configLevel;
 
     return (msg, context?: [msg: string, context: object]) => {
       if (context) rawMethod(msg, context);
