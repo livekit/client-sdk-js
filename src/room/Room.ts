@@ -290,7 +290,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         // also hook unload event
         if (isWeb()) {
           window.addEventListener('beforeunload', this.onBeforeUnload);
-          navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
+          if (navigator.mediaDevices !== undefined) {
+            navigator.mediaDevices.addEventListener('devicechange', this.handleDeviceChange);
+          }
         }
 
         resolve(this);
