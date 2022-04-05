@@ -420,7 +420,7 @@ export default class LocalParticipant extends Participant {
     if (!this.engine.publisher) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
-    log.debug(`publishing ${track.kind} with encodings`, { encodings, ti });
+    log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
@@ -456,10 +456,13 @@ export default class LocalParticipant extends Participant {
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
 
-    log.debug('unpublishing track', { track });
+    log.debug('unpublishing track', { track, method: 'unpublishTrack' });
 
     if (!publication || !publication.track) {
-      log.warn('track was not unpublished because no publication was found', { track });
+      log.warn('track was not unpublished because no publication was found', {
+        track,
+        method: 'unpublishTrack',
+      });
       return null;
     }
 
@@ -486,7 +489,7 @@ export default class LocalParticipant extends Participant {
             this.engine.publisher?.pc.removeTrack(sender);
             this.engine.negotiate();
           } catch (e) {
-            log.warn('failed to remove track', { error: e });
+            log.warn('failed to remove track', { error: e, method: 'unpublishTrack' });
           }
         }
       });
