@@ -103,7 +103,7 @@ export default class LocalParticipant extends Participant {
    * If a track has already published, it'll mute or unmute the track.
    * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setCameraEnabled(enabled: boolean): Promise<LocalTrackPublication | void> {
+  setCameraEnabled(enabled: boolean): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.Camera, enabled);
   }
 
