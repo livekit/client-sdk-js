@@ -101,8 +101,9 @@ export default class LocalParticipant extends Participant {
    * Enable or disable a participant's camera track.
    *
    * If a track has already published, it'll mute or unmute the track.
+   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setCameraEnabled(enabled: boolean): Promise<void> {
+  setCameraEnabled(enabled: boolean): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.Camera, enabled);
   }
 
@@ -110,15 +111,17 @@ export default class LocalParticipant extends Participant {
    * Enable or disable a participant's microphone track.
    *
    * If a track has already published, it'll mute or unmute the track.
+   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setMicrophoneEnabled(enabled: boolean): Promise<void> {
+  setMicrophoneEnabled(enabled: boolean): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.Microphone, enabled);
   }
 
   /**
    * Start or stop sharing a participant's screen
+   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setScreenShareEnabled(enabled: boolean): Promise<void> {
+  setScreenShareEnabled(enabled: boolean): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.ScreenShare, enabled);
   }
 
@@ -134,11 +137,15 @@ export default class LocalParticipant extends Participant {
 
   /**
    * Enable or disable publishing for a track by source. This serves as a simple
-   * way to manage the common tracks (camera, mic, or screen share)
+   * way to manage the common tracks (camera, mic, or screen share).
+   * Resolves with LocalTrackPublication if successful and void otherwise
    */
-  private async setTrackEnabled(source: Track.Source, enabled: boolean): Promise<void> {
+  private async setTrackEnabled(
+    source: Track.Source,
+    enabled: boolean,
+  ): Promise<LocalTrackPublication | undefined> {
     log.debug('setTrackEnabled', { source, enabled });
-    const track = this.getTrack(source);
+    let track = this.getTrack(source);
     if (enabled) {
       if (track) {
         await track.unmute();
@@ -169,7 +176,7 @@ export default class LocalParticipant extends Participant {
               throw new TrackInvalidError(source);
           }
 
-          await this.publishTrack(localTrack);
+          track = await this.publishTrack(localTrack);
         } catch (e) {
           if (e instanceof Error && !(e instanceof TrackInvalidError)) {
             this.emit(ParticipantEvent.MediaDevicesError, e);
@@ -182,11 +189,12 @@ export default class LocalParticipant extends Participant {
     } else if (track && track.track) {
       // screenshare cannot be muted, unpublish instead
       if (source === Track.Source.ScreenShare) {
-        this.unpublishTrack(track.track);
+        track = this.unpublishTrack(track.track);
       } else {
         await track.mute();
       }
     }
+    return track;
   }
 
   /**
@@ -452,7 +460,7 @@ export default class LocalParticipant extends Participant {
   unpublishTrack(
     track: LocalTrack | MediaStreamTrack,
     stopOnUnpublish?: boolean,
-  ): LocalTrackPublication | null {
+  ): LocalTrackPublication | undefined {
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
 
@@ -463,7 +471,7 @@ export default class LocalParticipant extends Participant {
         track,
         method: 'unpublishTrack',
       });
-      return null;
+      return undefined;
     }
 
     track = publication.track;
