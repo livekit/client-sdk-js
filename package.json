@@ -17,8 +17,8 @@
     "lint": "eslint src",
     "test": "jest",
     "deploy": "gh-pages -d example/dist",
-    "prettify": "prettier --write ./src ./example",
-    "prettify:check": "prettier --check ./src ./example"
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "events": "^3.3.0",
