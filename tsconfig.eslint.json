@@ -6,6 +6,6 @@
     "example/**/*.ts",
     "example/**/*.js",
     ".eslintrc.js",
-    "jest.config.js",
+    "jest.config.js"
   ]
 }
