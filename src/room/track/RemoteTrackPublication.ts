@@ -150,11 +150,13 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   private isManualOperationAllowed(): boolean {
     if (this.isAdaptiveStream) {
-      log.warn('adaptive stream is enabled, cannot change track settings', this.trackSid);
+      log.warn('adaptive stream is enabled, cannot change track settings', {
+        trackSid: this.trackSid,
+      });
       return false;
     }
     if (!this.isSubscribed) {
-      log.warn('cannot update track settings when not subscribed', this.trackSid);
+      log.warn('cannot update track settings when not subscribed', { trackSid: this.trackSid });
       return false;
     }
     return true;
@@ -169,17 +171,17 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   protected handleVisibilityChange = (visible: boolean) => {
-    log.debug('adaptivestream video visibility', this.trackSid, `visible=${visible}`);
+    log.debug(`adaptivestream video visibility ${this.trackSid}, visible=${visible}`, {
+      trackSid: this.trackSid,
+    });
     this.disabled = !visible;
     this.emitTrackUpdate();
   };
 
   protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
-    log.debug(
-      'adaptivestream video dimensions',
-      this.trackSid,
-      `${dimensions.width}x${dimensions.height}`,
-    );
+    log.debug(`adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`, {
+      trackSid: this.trackSid,
+    });
     this.videoDimensions = dimensions;
     this.emitTrackUpdate();
   };

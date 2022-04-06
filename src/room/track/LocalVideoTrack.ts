@@ -118,7 +118,7 @@ export default class LocalVideoTrack extends LocalTrack {
         enabled: q <= maxQuality,
       });
     }
-    log.debug('setting publishing quality. max quality', maxQuality);
+    log.debug(`setting publishing quality. max quality ${maxQuality}`);
     this.setPublishingLayers(qualities);
   }
 
@@ -219,7 +219,7 @@ export default class LocalVideoTrack extends LocalTrack {
     try {
       stats = await this.getSenderStats();
     } catch (e) {
-      log.error('could not get audio sender stats', e);
+      log.error('could not get audio sender stats', { error: e });
       return;
     }
     const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));

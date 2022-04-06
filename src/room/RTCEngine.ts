@@ -120,7 +120,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             this.publisher?.pc.removeTrack(sender);
           }
         } catch (e) {
-          log.warn('could not removeTrack', e);
+          log.warn('could not removeTrack', { error: e });
         }
       });
       this.publisher.close();
@@ -215,7 +215,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         try {
           this.connectedServerAddr = await getConnectedAddress(primaryPC);
         } catch (e) {
-          log.warn('could not get connected server address', e);
+          log.warn('could not get connected server address', { error: e });
         }
         if (!this.pcConnected) {
           this.pcConnected = true;
@@ -267,7 +267,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.publisher) {
         return;
       }
-      log.debug('received server answer', sd.type, this.publisher.pc.signalingState);
+      log.debug('received server answer', {
+        RTCSdpType: sd.type,
+        signalingState: this.publisher.pc.signalingState,
+      });
       await this.publisher.setRemoteDescription(sd);
     };
 
@@ -276,7 +279,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.publisher || !this.subscriber) {
         return;
       }
-      log.trace('got ICE candidate from peer', candidate, target);
+      log.trace('got ICE candidate from peer', { candidate, target });
       if (target === SignalTarget.PUBLISHER) {
         this.publisher.addIceCandidate(candidate);
       } else {
@@ -289,7 +292,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.subscriber) {
         return;
       }
-      log.debug('received server offer', sd.type, this.subscriber.pc.signalingState);
+      log.debug('received server offer', {
+        RTCSdpType: sd.type,
+        signalingState: this.subscriber.pc.signalingState,
+      });
       await this.subscriber.setRemoteDescription(sd);
 
       // answer the offer
@@ -302,7 +308,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       log.debug('received trackPublishedResponse', res);
       const resolve = this.pendingTrackResolvers[res.cid];
       if (!resolve) {
-        log.error('missing track resolver for ', res.cid);
+        log.error(`missing track resolver for ${res.cid}`);
         return;
       }
       delete this.pendingTrackResolvers[res.cid];
@@ -411,7 +417,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.reconnectAttempts += 1;
         let recoverable = true;
         if (e instanceof UnexpectedConnectionState) {
-          log.debug('received unrecoverable error', e.message);
+          log.debug('received unrecoverable error', { error: e });
           // unrecoverable
           recoverable = false;
         } else if (!(e instanceof SignalReconnectError)) {
@@ -443,7 +449,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
     }
 
-    log.info('reconnecting, attempt', this.reconnectAttempts);
+    log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
     if (this.reconnectAttempts === 0) {
       this.emit(EngineEvent.Restarting);
     }
@@ -477,7 +483,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.publisher || !this.subscriber) {
       throw new UnexpectedConnectionState('publisher and subscriber connections unset');
     }
-    log.info('resuming signal connection, attempt', this.reconnectAttempts);
+    log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
     if (this.reconnectAttempts === 0) {
       this.emit(EngineEvent.Resuming);
     }

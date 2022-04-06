@@ -140,10 +140,10 @@ export default class LocalTrack extends Track {
   protected async handleAppVisibilityChanged() {
     await super.handleAppVisibilityChanged();
     if (!isMobile()) return;
-    log.debug('visibility changed, is in Background: ', this.isInBackground);
+    log.debug(`visibility changed, is in Background: ${this.isInBackground}`);
 
     if (!this.isInBackground && this.needsReAcquisition) {
-      log.debug('track needs to be reaquired, restarting', this.source);
+      log.debug(`track needs to be reaquired, restarting ${this.source}`);
       await this.restart();
       this.reacquireTrack = false;
       // Restore muted state if had to be restarted

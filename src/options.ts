@@ -1,4 +1,4 @@
-import { LogLevel, LogLevelDesc } from './logger';
+import { LogLevel } from './logger';
 import {
   AudioCaptureOptions,
   CreateLocalTracksOptions,
@@ -100,7 +100,7 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   dynacast?: boolean;
 
   /** configures LiveKit internal log level */
-  logLevel?: LogLevel | LogLevelDesc;
+  logLevel?: LogLevel;
 
   /**
    * set ICE servers. When deployed correctly, LiveKit automatically uses the built-in TURN servers

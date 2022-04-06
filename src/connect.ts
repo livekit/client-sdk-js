@@ -52,7 +52,7 @@ export async function connect(url: string, token: string, options?: ConnectOptio
           await room.localParticipant.enableCameraAndMicrophone();
         } catch (e) {
           const errKind = MediaDeviceFailure.getFailure(e);
-          log.warn('received error while creating media', errKind);
+          log.warn('received error while creating media', { error: errKind });
           if (e instanceof Error) {
             log.warn(e.message);
           }

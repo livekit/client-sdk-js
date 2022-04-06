@@ -137,7 +137,7 @@ export default class LocalParticipant extends Participant {
    * way to manage the common tracks (camera, mic, or screen share)
    */
   private async setTrackEnabled(source: Track.Source, enabled: boolean): Promise<void> {
-    log.debug('setTrackEnabled', source, enabled);
+    log.debug('setTrackEnabled', { source, enabled });
     const track = this.getTrack(source);
     if (enabled) {
       if (track) {
@@ -145,7 +145,7 @@ export default class LocalParticipant extends Participant {
       } else {
         let localTrack: LocalTrack | undefined;
         if (this.pendingPublishing.has(source)) {
-          log.info('skipping duplicate published source', source);
+          log.info('skipping duplicate published source', { source });
           // no-op it's already been requested
           return;
         }
@@ -420,7 +420,7 @@ export default class LocalParticipant extends Participant {
     if (!this.engine.publisher) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
-    log.debug(`publishing ${track.kind} with encodings`, encodings, ti);
+    log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
@@ -456,14 +456,13 @@ export default class LocalParticipant extends Participant {
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
 
-    log.debug('unpublishTrack', 'unpublishing track', track);
+    log.debug('unpublishing track', { track, method: 'unpublishTrack' });
 
     if (!publication || !publication.track) {
-      log.warn(
-        'unpublishTrack',
-        'track was not unpublished because no publication was found',
+      log.warn('track was not unpublished because no publication was found', {
         track,
-      );
+        method: 'unpublishTrack',
+      });
       return null;
     }
 
@@ -490,7 +489,7 @@ export default class LocalParticipant extends Participant {
             this.engine.publisher?.pc.removeTrack(sender);
             this.engine.negotiate();
           } catch (e) {
-            log.warn('unpublishTrack', 'failed to remove track', e);
+            log.warn('failed to remove track', { error: e, method: 'unpublishTrack' });
           }
         }
       });
@@ -618,11 +617,10 @@ export default class LocalParticipant extends Participant {
     }
     const pub = this.videoTracks.get(update.trackSid);
     if (!pub) {
-      log.warn(
-        'handleSubscribedQualityUpdate',
-        'received subscribed quality update for unknown track',
-        update.trackSid,
-      );
+      log.warn('received subscribed quality update for unknown track', {
+        method: 'handleSubscribedQualityUpdate',
+        sid: update.trackSid,
+      });
       return;
     }
     pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
@@ -631,11 +629,10 @@ export default class LocalParticipant extends Participant {
   private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {
     const track = this.tracks.get(unpublished.trackSid);
     if (!track) {
-      log.warn(
-        'handleLocalTrackUnpublished',
-        'received unpublished event for unknown track',
-        unpublished.trackSid,
-      );
+      log.warn('received unpublished event for unknown track', {
+        method: 'handleLocalTrackUnpublished',
+        trackSid: unpublished.trackSid,
+      });
       return;
     }
     this.unpublishTrack(track.track!);
