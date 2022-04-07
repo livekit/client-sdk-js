@@ -7,6 +7,8 @@ import Room from './room/Room';
 export { version } from './version';
 
 /**
+ * @deprecated Use room.connect() instead
+ *
  * Connects to a LiveKit room, shorthand for `new Room()` and [[Room.connect]]
  *
  * ```typescript
