@@ -345,7 +345,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } else {
       return;
     }
-    console.debug('on data channel', channel.id, channel.label)
+    log.debug(`on data channel ${channel.id}, ${channel.label}`)
     channel.onmessage = this.handleDataMessage;
   };
 
