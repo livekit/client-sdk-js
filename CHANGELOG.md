@@ -2,4 +2,4 @@
 
 ## 0.12.0
 
-* Updated API to create screen share tracks.
+- Updated API to create screen share tracks.

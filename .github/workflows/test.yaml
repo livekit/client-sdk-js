@@ -31,6 +31,9 @@ jobs:
 
     - name: ESLint
       run: yarn lint
+    
+    - name: Prettier
+      run: yarn format:check
 
     - name: Run Tests
       run: yarn test

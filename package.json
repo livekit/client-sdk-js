@@ -9,16 +9,17 @@
   "author": "David Zhao <david@davidzhao.com>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "yarn exec tsc",
-    "build-docs": "yarn exec typedoc",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "build-docs": "typedoc",
     "proto": "protoc --plugin=node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_opt=esModuleInterop=true --ts_proto_out=./src/proto --ts_proto_opt=outputClientImpl=false,useOptionals=true -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
     "sample": "cd example && webpack serve",
     "build-sample": "cd example && webpack && cp styles.css index.html dist/",
     "lint": "eslint src",
     "test": "jest",
     "deploy": "gh-pages -d example/dist",
-    "prettify": "prettier --write ./src ./example",
-    "prettify:check": "prettier --check ./src ./example"
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "events": "^3.3.0",
