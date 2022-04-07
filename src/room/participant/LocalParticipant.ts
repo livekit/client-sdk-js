@@ -4,6 +4,7 @@ import { DataPacket, DataPacket_Kind, ParticipantPermission } from '../../proto/
 import {
   AddTrackRequest,
   DataChannelInfo,
+  SignalTarget,
   SubscribedQualityUpdate,
   TrackPublishedResponse,
   TrackUnpublishedResponse,
@@ -719,16 +720,20 @@ export default class LocalParticipant extends Participant {
   /** @internal */
   dataChannelsInfo(): DataChannelInfo[] {
     const infos: DataChannelInfo[] = [];
-    const getInfo = (dc: RTCDataChannel | undefined) => {
+    const getInfo = (dc: RTCDataChannel | undefined, target: SignalTarget) => {
       if (dc?.id !== undefined && dc.id !== null) {
         infos.push({
           label: dc.label,
           id: dc.id,
+          target,
         });
       }
     };
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY));
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE));
+    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
+    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
+    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
+    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE, true),
+      SignalTarget.SUBSCRIBER);
     return infos;
   }
 }
