@@ -255,6 +255,7 @@ export interface ParticipantInfo {
   name: string;
   version: number;
   permission?: ParticipantPermission;
+  region: string;
 }
 
 export enum ParticipantInfo_State {
@@ -847,6 +848,7 @@ function createBaseParticipantInfo(): ParticipantInfo {
     name: '',
     version: 0,
     permission: undefined,
+    region: '',
   };
 }
 
@@ -878,6 +880,9 @@ export const ParticipantInfo = {
     }
     if (message.permission !== undefined) {
       ParticipantPermission.encode(message.permission, writer.uint32(90).fork()).ldelim();
+    }
+    if (message.region !== '') {
+      writer.uint32(98).string(message.region);
     }
     return writer;
   },
@@ -916,6 +921,9 @@ export const ParticipantInfo = {
         case 11:
           message.permission = ParticipantPermission.decode(reader, reader.uint32());
           break;
+        case 12:
+          message.region = reader.string();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -939,6 +947,7 @@ export const ParticipantInfo = {
       permission: isSet(object.permission)
         ? ParticipantPermission.fromJSON(object.permission)
         : undefined,
+      region: isSet(object.region) ? String(object.region) : '',
     };
   },
 
@@ -960,6 +969,7 @@ export const ParticipantInfo = {
       (obj.permission = message.permission
         ? ParticipantPermission.toJSON(message.permission)
         : undefined);
+    message.region !== undefined && (obj.region = message.region);
     return obj;
   },
 
@@ -977,6 +987,7 @@ export const ParticipantInfo = {
       object.permission !== undefined && object.permission !== null
         ? ParticipantPermission.fromPartial(object.permission)
         : undefined;
+    message.region = object.region ?? '';
     return message;
   },
 };
