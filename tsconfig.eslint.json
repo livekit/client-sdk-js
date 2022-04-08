@@ -7,6 +7,7 @@
     "example/**/*.js",
     ".eslintrc.js",
     "jest.config.js",
-    "rollup.config.js"
+    "rollup.config.js",
+    "rollup.config.dev.js",
   ]
 }
