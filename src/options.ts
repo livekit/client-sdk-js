@@ -76,6 +76,8 @@ export interface RoomConnectOptions {
 }
 
 /**
+ * @deprecated use new Room([[RoomOptions]]) and room.connect([[RoomConnectOptions]]) instead
+ *
  * if video or audio tracks are created as part of [[connect]], it'll automatically
  * publish those tracks to the room.
  */

@@ -321,6 +321,7 @@ export interface SyncState {
 export interface DataChannelInfo {
   label: string;
   id: number;
+  target: SignalTarget;
 }
 
 export interface SimulateScenario {
@@ -2565,12 +2566,7 @@ export const SubscriptionPermissionUpdate = {
 };
 
 function createBaseSyncState(): SyncState {
-  return {
-    answer: undefined,
-    subscription: undefined,
-    publishTracks: [],
-    dataChannels: [],
-  };
+  return { answer: undefined, subscription: undefined, publishTracks: [], dataChannels: [] };
 }
 
 export const SyncState = {
@@ -2675,7 +2671,7 @@ export const SyncState = {
 };
 
 function createBaseDataChannelInfo(): DataChannelInfo {
-  return { label: '', id: 0 };
+  return { label: '', id: 0, target: 0 };
 }
 
 export const DataChannelInfo = {
@@ -2685,6 +2681,9 @@ export const DataChannelInfo = {
     }
     if (message.id !== 0) {
       writer.uint32(16).uint32(message.id);
+    }
+    if (message.target !== 0) {
+      writer.uint32(24).int32(message.target);
     }
     return writer;
   },
@@ -2702,6 +2701,9 @@ export const DataChannelInfo = {
         case 2:
           message.id = reader.uint32();
           break;
+        case 3:
+          message.target = reader.int32() as any;
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -2714,6 +2716,7 @@ export const DataChannelInfo = {
     return {
       label: isSet(object.label) ? String(object.label) : '',
       id: isSet(object.id) ? Number(object.id) : 0,
+      target: isSet(object.target) ? signalTargetFromJSON(object.target) : 0,
     };
   },
 
@@ -2721,6 +2724,7 @@ export const DataChannelInfo = {
     const obj: any = {};
     message.label !== undefined && (obj.label = message.label);
     message.id !== undefined && (obj.id = Math.round(message.id));
+    message.target !== undefined && (obj.target = signalTargetToJSON(message.target));
     return obj;
   },
 
@@ -2728,6 +2732,7 @@ export const DataChannelInfo = {
     const message = createBaseDataChannelInfo();
     message.label = object.label ?? '';
     message.id = object.id ?? 0;
+    message.target = object.target ?? 0;
     return message;
   },
 };
