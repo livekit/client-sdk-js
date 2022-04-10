@@ -732,8 +732,10 @@ export default class LocalParticipant extends Participant {
     getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
     getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
     getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE, true),
-      SignalTarget.SUBSCRIBER);
+    getInfo(
+      this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE, true),
+      SignalTarget.SUBSCRIBER,
+    );
     return infos;
   }
 }

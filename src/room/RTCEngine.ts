@@ -345,7 +345,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } else {
       return;
     }
-    log.debug(`on data channel ${channel.id}, ${channel.label}`)
+    log.debug(`on data channel ${channel.id}, ${channel.label}`);
     channel.onmessage = this.handleDataMessage;
   };
 
@@ -600,13 +600,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!sub) {
       if (kind === DataPacket_Kind.LOSSY) {
         return this.lossyDC;
-      } if (kind === DataPacket_Kind.RELIABLE) {
+      }
+      if (kind === DataPacket_Kind.RELIABLE) {
         return this.reliableDC;
       }
     } else {
       if (kind === DataPacket_Kind.LOSSY) {
         return this.lossyDCSub;
-      } if (kind === DataPacket_Kind.RELIABLE) {
+      }
+      if (kind === DataPacket_Kind.RELIABLE) {
         return this.reliableDCSub;
       }
     }
