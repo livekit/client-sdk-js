@@ -27,12 +27,9 @@ import {
   UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
-import { getClientInfo, isWeb, sleep } from '../room/utils';
+import { getClientInfo, sleep } from '../room/utils';
 import Queue from './RequestQueue';
-
-if (isWeb()) {
-  import('webrtc-adapter');
-}
+import 'webrtc-adapter';
 
 // internal options
 interface ConnectOpts {

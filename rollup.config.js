@@ -22,7 +22,6 @@ export default {
       format: 'esm',
       strict: true,
       sourcemap: true,
-      inlineDynamicImports: true,
     },
     {
       file: `dist/${packageJson.name}.umd.js`,
@@ -30,7 +29,6 @@ export default {
       strict: true,
       sourcemap: true,
       name: kebabCaseToPascalCase(packageJson.name),
-      inlineDynamicImports: true,
       plugins: [terser()],
     },
   ],
