@@ -1,4 +1,4 @@
-import { setLogLevel, setLogExtension } from './logger';
+import { setLogLevel, setLogExtension, LogLevel } from './logger';
 import { DataPacket_Kind, VideoQuality } from './proto/livekit_models';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './room/participant/Participant';
@@ -27,6 +27,7 @@ export * from './version';
 export {
   setLogLevel,
   setLogExtension,
+  LogLevel,
   Room,
   RoomState,
   DataPacket_Kind,
