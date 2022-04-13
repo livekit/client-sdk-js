@@ -54,7 +54,11 @@ export const getResizeObserver = () => {
 
 let intersectionObserver: IntersectionObserver | null = null;
 export const getIntersectionObserver = () => {
-  if (!intersectionObserver) intersectionObserver = new IntersectionObserver(ioDispatchCallback);
+  if (!intersectionObserver)
+    intersectionObserver = new IntersectionObserver(ioDispatchCallback, {
+      root: document,
+      rootMargin: '0px',
+    });
   return intersectionObserver;
 };
 
