@@ -1,7 +1,5 @@
 import log, { LogLevel, setLogLevel } from './logger';
-import {
-  ConnectOptions,
-} from './options';
+import { ConnectOptions } from './options';
 import { MediaDeviceFailure } from './room/errors';
 import { RoomEvent } from './room/events';
 import Room from './room/Room';
@@ -9,6 +7,8 @@ import Room from './room/Room';
 export { version } from './version';
 
 /**
+ * @deprecated Use room.connect() instead
+ *
  * Connects to a LiveKit room, shorthand for `new Room()` and [[Room.connect]]
  *
  * ```typescript
@@ -25,11 +25,7 @@ export { version } from './version';
  * @param token AccessToken, a JWT token that includes authentication and room details
  * @param options
  */
-export async function connect(
-  url: string,
-  token: string,
-  options?: ConnectOptions,
-): Promise<Room> {
+export async function connect(url: string, token: string, options?: ConnectOptions): Promise<Room> {
   options ??= {};
   if (options.adaptiveStream === undefined) {
     options.adaptiveStream = options.autoManageVideo === true ? {} : undefined;
@@ -58,14 +54,16 @@ export async function connect(
           await room.localParticipant.enableCameraAndMicrophone();
         } catch (e) {
           const errKind = MediaDeviceFailure.getFailure(e);
-          log.warn('received error while creating media', errKind);
+          log.warn('received error while creating media', { error: errKind });
           if (e instanceof Error) {
             log.warn(e.message);
           }
 
           // when it's a device issue, try to publish the other kind
-          if (errKind === MediaDeviceFailure.NotFound
-             || errKind === MediaDeviceFailure.DeviceInUse) {
+          if (
+            errKind === MediaDeviceFailure.NotFound ||
+            errKind === MediaDeviceFailure.DeviceInUse
+          ) {
             try {
               await room.localParticipant.setMicrophoneEnabled(true);
             } catch (audioErr) {

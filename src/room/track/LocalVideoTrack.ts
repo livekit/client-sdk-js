@@ -17,10 +17,7 @@ export default class LocalVideoTrack extends LocalTrack {
 
   private encodings?: RTCRtpEncodingParameters[];
 
-  constructor(
-    mediaTrack: MediaStreamTrack,
-    constraints?: MediaTrackConstraints,
-  ) {
+  constructor(mediaTrack: MediaStreamTrack, constraints?: MediaTrackConstraints) {
     super(mediaTrack, Track.Kind.Video, constraints);
   }
 
@@ -95,8 +92,7 @@ export default class LocalVideoTrack extends LocalTrack {
           rid: v.rid ?? '',
           retransmittedPacketsSent: v.retransmittedPacketsSent,
           qualityLimitationReason: v.qualityLimitationReason,
-          qualityLimitationResolutionChanges:
-            v.qualityLimitationResolutionChanges,
+          qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
         };
 
         // locate the appropriate remote-inbound-rtp item
@@ -122,7 +118,7 @@ export default class LocalVideoTrack extends LocalTrack {
         enabled: q <= maxQuality,
       });
     }
-    log.debug('setting publishing quality. max quality', maxQuality);
+    log.debug(`setting publishing quality. max quality ${maxQuality}`);
     this.setPublishingLayers(qualities);
   }
 
@@ -183,7 +179,11 @@ export default class LocalVideoTrack extends LocalTrack {
       if (encoding.active !== subscribedQuality.enabled) {
         hasChanged = true;
         encoding.active = subscribedQuality.enabled;
-        log.debug(`setting layer ${subscribedQuality.quality} to ${encoding.active ? 'enabled' : 'disabled'}`);
+        log.debug(
+          `setting layer ${subscribedQuality.quality} to ${
+            encoding.active ? 'enabled' : 'disabled'
+          }`,
+        );
 
         // FireFox does not support setting encoding.active to false, so we
         // have a workaround of lowering its bitrate and resolution to the min.
@@ -219,7 +219,7 @@ export default class LocalVideoTrack extends LocalTrack {
     try {
       stats = await this.getSenderStats();
     } catch (e) {
-      log.error('could not get audio sender stats', e);
+      log.error('could not get audio sender stats', { error: e });
       return;
     }
     const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));
@@ -268,13 +268,15 @@ export function videoLayersFromEncodings(
 ): VideoLayer[] {
   // default to a single layer, HQ
   if (!encodings) {
-    return [{
-      quality: VideoQuality.HIGH,
-      width,
-      height,
-      bitrate: 0,
-      ssrc: 0,
-    }];
+    return [
+      {
+        quality: VideoQuality.HIGH,
+        width,
+        height,
+        bitrate: 0,
+        ssrc: 0,
+      },
+    ];
   }
   return encodings.map((encoding) => {
     const scale = encoding.scaleResolutionDownBy ?? 1;

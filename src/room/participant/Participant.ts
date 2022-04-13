@@ -1,6 +1,11 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import { ConnectionQuality as ProtoQuality, DataPacket_Kind, ParticipantInfo } from '../../proto/livekit_models';
+import {
+  ConnectionQuality as ProtoQuality,
+  DataPacket_Kind,
+  ParticipantInfo,
+  ParticipantPermission,
+} from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
@@ -28,9 +33,7 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
   }
 }
 
-export default class Participant extends (
-  EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>
-) {
+export default class Participant extends (EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>) {
   protected participantInfo?: ParticipantInfo;
 
   audioTracks: Map<string, TrackPublication>;
@@ -59,6 +62,8 @@ export default class Participant extends (
   metadata?: string;
 
   lastSpokeAt?: Date | undefined;
+
+  permissions?: ParticipantPermission;
 
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
@@ -91,16 +96,32 @@ export default class Participant extends (
         return pub;
       }
       if (pub.source === Track.Source.Unknown) {
-        if (source === Track.Source.Microphone && pub.kind === Track.Kind.Audio && pub.trackName !== 'screen') {
+        if (
+          source === Track.Source.Microphone &&
+          pub.kind === Track.Kind.Audio &&
+          pub.trackName !== 'screen'
+        ) {
           return pub;
         }
-        if (source === Track.Source.Camera && pub.kind === Track.Kind.Video && pub.trackName !== 'screen') {
+        if (
+          source === Track.Source.Camera &&
+          pub.kind === Track.Kind.Video &&
+          pub.trackName !== 'screen'
+        ) {
           return pub;
         }
-        if (source === Track.Source.ScreenShare && pub.kind === Track.Kind.Video && pub.trackName === 'screen') {
+        if (
+          source === Track.Source.ScreenShare &&
+          pub.kind === Track.Kind.Video &&
+          pub.trackName === 'screen'
+        ) {
           return pub;
         }
-        if (source === Track.Source.ScreenShareAudio && pub.kind === Track.Kind.Audio && pub.trackName === 'screen') {
+        if (
+          source === Track.Source.ScreenShareAudio &&
+          pub.kind === Track.Kind.Audio &&
+          pub.trackName === 'screen'
+        ) {
           return pub;
         }
       }
@@ -153,13 +174,16 @@ export default class Participant extends (
     this.sid = info.sid;
     this.name = info.name;
     this.setMetadata(info.metadata);
+    if (info.permission) {
+      this.setPermissions(info.permission);
+    }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
   }
 
   /** @internal */
   setMetadata(md: string) {
-    const changed = !this.participantInfo || this.participantInfo.metadata !== md;
+    const changed = this.metadata !== md;
     const prevMetadata = this.metadata;
     this.metadata = md;
 
@@ -167,6 +191,19 @@ export default class Participant extends (
       this.emit(ParticipantEvent.MetadataChanged, prevMetadata);
       this.emit(ParticipantEvent.ParticipantMetadataChanged, prevMetadata);
     }
+  }
+
+  /** @internal */
+  setPermissions(permissions: ParticipantPermission): boolean {
+    const changed =
+      permissions.canPublish !== this.permissions?.canPublish ||
+      permissions.canSubscribe !== this.permissions?.canSubscribe ||
+      permissions.canPublishData !== this.permissions?.canPublishData ||
+      permissions.hidden !== this.permissions?.hidden ||
+      permissions.recorder !== this.permissions?.recorder;
+    this.permissions = permissions;
+
+    return changed;
   }
 
   /** @internal */
@@ -220,30 +257,31 @@ export default class Participant extends (
 }
 
 export type ParticipantEventCallbacks = {
-  trackPublished: (publication: RemoteTrackPublication) => void,
-  trackSubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void,
-  trackSubscriptionFailed: (trackSid: string) => void,
-  trackUnpublished: (publication: RemoteTrackPublication) => void,
-  trackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void,
-  trackMuted: (publication: TrackPublication) => void,
-  trackUnmuted: (publication: TrackPublication) => void,
-  localTrackPublished: (publication: LocalTrackPublication) => void,
-  localTrackUnpublished: (publication: LocalTrackPublication) => void,
+  trackPublished: (publication: RemoteTrackPublication) => void;
+  trackSubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
+  trackSubscriptionFailed: (trackSid: string) => void;
+  trackUnpublished: (publication: RemoteTrackPublication) => void;
+  trackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
+  trackMuted: (publication: TrackPublication) => void;
+  trackUnmuted: (publication: TrackPublication) => void;
+  localTrackPublished: (publication: LocalTrackPublication) => void;
+  localTrackUnpublished: (publication: LocalTrackPublication) => void;
   /**
    * @deprecated use [[participantMetadataChanged]] instead
    */
-  metadataChanged: (prevMetadata: string | undefined, participant?: any) => void,
-  participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void,
-  dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void,
-  isSpeakingChanged: (speaking: boolean) => void,
-  connectionQualityChanged: (connectionQuality: ConnectionQuality) => void,
+  metadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
+  participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
+  dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
+  isSpeakingChanged: (speaking: boolean) => void;
+  connectionQualityChanged: (connectionQuality: ConnectionQuality) => void;
   trackStreamStateChanged: (
     publication: RemoteTrackPublication,
-    streamState: Track.StreamState
-  ) => void,
+    streamState: Track.StreamState,
+  ) => void;
   trackSubscriptionPermissionChanged: (
     publication: RemoteTrackPublication,
-    status: TrackPublication.SubscriptionStatus
-  ) => void,
-  mediaDevicesError: (error: Error) => void,
+    status: TrackPublication.SubscriptionStatus,
+  ) => void;
+  mediaDevicesError: (error: Error) => void;
+  participantPermissionsChanged: (prevPermissions: ParticipantPermission) => void;
 };

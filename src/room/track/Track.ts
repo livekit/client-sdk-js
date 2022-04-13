@@ -3,7 +3,7 @@ import type TypedEventEmitter from 'typed-emitter';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
-import { isFireFox, isSafari } from '../utils';
+import { isFireFox, isSafari, isWeb } from '../utils';
 
 // keep old audio elements when detached, we would re-use them since on iOS
 // Safari tracks which audio elements have been "blessed" by the user.
@@ -36,8 +36,12 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
     this.kind = kind;
     this.mediaStreamTrack = mediaTrack;
     this.source = Track.Source.Unknown;
-    this.isInBackground = document.visibilityState === 'hidden';
-    document.addEventListener('visibilitychange', this.appVisibilityChangedListener);
+    if (isWeb()) {
+      this.isInBackground = document.visibilityState === 'hidden';
+      document.addEventListener('visibilitychange', this.appVisibilityChangedListener);
+    } else {
+      this.isInBackground = false;
+    }
   }
 
   /** current receive bits per second */
@@ -87,7 +91,8 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
     if (element instanceof HTMLAudioElement) {
       // manually play audio to detect audio playback status
-      element.play()
+      element
+        .play()
         .then(() => {
           this.emit(TrackEvent.AudioPlaybackStarted);
         })
@@ -135,7 +140,9 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   stop() {
     this.mediaStreamTrack.stop();
-    document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
+    if (isWeb()) {
+      document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
+    }
   }
 
   protected enable() {
@@ -148,7 +155,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   private recycleElement(element: HTMLMediaElement) {
     if (element instanceof HTMLAudioElement) {
-    // we only need to re-use a single element
+      // we only need to re-use a single element
       let shouldCache = true;
       element.pause();
       recycledElements.forEach((e) => {
@@ -206,6 +213,12 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
       // https://developer.apple.com/forums/thread/690523
       setTimeout(() => {
         element.srcObject = mediaStream;
+        // Safari 15 sometimes fails to start a video
+        // when the window is backgrounded before the first frame is drawn
+        // manually calling play here seems to fix that
+        element.play().catch(() => {
+          /* do nothing */
+        });
       }, 0);
     }
   }
@@ -216,10 +229,7 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
 }
 
 /** @internal */
-export function detachTrack(
-  track: MediaStreamTrack,
-  element: HTMLMediaElement,
-) {
+export function detachTrack(track: MediaStreamTrack, element: HTMLMediaElement) {
   if (element.srcObject instanceof MediaStream) {
     const mediaStream = element.srcObject;
     mediaStream.removeTrack(track);
@@ -323,15 +333,15 @@ export namespace Track {
 }
 
 export type TrackEventCallbacks = {
-  message: () => void,
-  muted: (track?: any) => void,
-  unmuted: (track?: any) => void,
-  ended: (track?: any) => void,
-  updateSettings: () => void,
-  updateSubscription: () => void,
-  audioPlaybackStarted: () => void,
-  audioPlaybackFailed: (error: Error) => void,
-  audioSilenceDetected: () => void,
-  visibilityChanged: (visible: boolean, track?: any) => void,
-  videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void,
+  message: () => void;
+  muted: (track?: any) => void;
+  unmuted: (track?: any) => void;
+  ended: (track?: any) => void;
+  updateSettings: () => void;
+  updateSubscription: () => void;
+  audioPlaybackStarted: () => void;
+  audioPlaybackFailed: (error: Error) => void;
+  audioSilenceDetected: () => void;
+  visibilityChanged: (visible: boolean, track?: any) => void;
+  videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void;
 };

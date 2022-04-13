@@ -3,11 +3,7 @@ const defaultId = 'default';
 export default class DeviceManager {
   private static instance?: DeviceManager;
 
-  static mediaDeviceKinds: MediaDeviceKind[] = [
-    'audioinput',
-    'audiooutput',
-    'videoinput',
-  ];
+  static mediaDeviceKinds: MediaDeviceKind[] = ['audioinput', 'audiooutput', 'videoinput'];
 
   static getInstance(): DeviceManager {
     if (this.instance === undefined) {
@@ -16,9 +12,34 @@ export default class DeviceManager {
     return this.instance;
   }
 
-  async getDevices(kind: MediaDeviceKind): Promise<MediaDeviceInfo[]> {
+  async getDevices(
+    kind?: MediaDeviceKind,
+    requestPermissions: boolean = true,
+  ): Promise<MediaDeviceInfo[]> {
     let devices = await navigator.mediaDevices.enumerateDevices();
-    devices = devices.filter((device) => device.kind === kind);
+
+    if (requestPermissions) {
+      const isDummyDeviceOrEmpty =
+        devices.length === 0 ||
+        devices.some((device) => {
+          const noLabel = device.label === '';
+          const isRelevant = kind ? device.kind === kind : true;
+          return noLabel && isRelevant;
+        });
+
+      if (isDummyDeviceOrEmpty) {
+        const permissionsToAcquire = {
+          video: kind !== 'audioinput' && kind !== 'audiooutput',
+          audio: kind !== 'videoinput',
+        };
+        await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
+        devices = await navigator.mediaDevices.enumerateDevices();
+      }
+    }
+    if (kind) {
+      devices = devices.filter((device) => device.kind === kind);
+    }
+
     // Chrome returns 'default' devices, we would filter them out, but put the default
     // device at first
     // we would only do this if there are more than 1 device though
@@ -40,7 +61,9 @@ export default class DeviceManager {
   }
 
   async normalizeDeviceId(
-    kind: MediaDeviceKind, deviceId?: string, groupId?: string,
+    kind: MediaDeviceKind,
+    deviceId?: string,
+    groupId?: string,
   ): Promise<string | undefined> {
     if (deviceId !== defaultId) {
       return deviceId;

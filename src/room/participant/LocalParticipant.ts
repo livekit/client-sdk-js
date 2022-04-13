@@ -1,15 +1,15 @@
 import log from '../../logger';
 import { RoomOptions } from '../../options';
+import { DataPacket, DataPacket_Kind, ParticipantPermission } from '../../proto/livekit_models';
 import {
-  DataPacket, DataPacket_Kind,
-} from '../../proto/livekit_models';
-import {
-  AddTrackRequest, DataChannelInfo, SubscribedQualityUpdate, TrackPublishedResponse,
+  AddTrackRequest,
+  DataChannelInfo,
+  SignalTarget,
+  SubscribedQualityUpdate,
+  TrackPublishedResponse,
+  TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc';
-import {
-  TrackInvalidError,
-  UnexpectedConnectionState,
-} from '../errors';
+import { TrackInvalidError, UnexpectedConnectionState } from '../errors';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
@@ -20,10 +20,12 @@ import {
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
   ScreenSharePresets,
-  TrackPublishOptions, VideoCodec,
+  TrackPublishOptions,
+  VideoCodec,
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
+import { isFireFox } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import { computeVideoEncodings, mediaTrackToLocalTrack } from './publishUtils';
@@ -70,6 +72,8 @@ export default class LocalParticipant extends Participant {
     };
 
     this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
+
+    this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
   }
 
   get lastCameraError(): Error | undefined {
@@ -98,8 +102,9 @@ export default class LocalParticipant extends Participant {
    * Enable or disable a participant's camera track.
    *
    * If a track has already published, it'll mute or unmute the track.
+   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setCameraEnabled(enabled: boolean): Promise<void> {
+  setCameraEnabled(enabled: boolean): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.Camera, enabled);
   }
 
@@ -107,32 +112,48 @@ export default class LocalParticipant extends Participant {
    * Enable or disable a participant's microphone track.
    *
    * If a track has already published, it'll mute or unmute the track.
+   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setMicrophoneEnabled(enabled: boolean): Promise<void> {
+  setMicrophoneEnabled(enabled: boolean): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.Microphone, enabled);
   }
 
   /**
    * Start or stop sharing a participant's screen
+   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setScreenShareEnabled(enabled: boolean): Promise<void> {
+  setScreenShareEnabled(enabled: boolean): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.ScreenShare, enabled);
+  }
+
+  /** @internal */
+  setPermissions(permissions: ParticipantPermission): boolean {
+    const prevPermissions = this.permissions;
+    const changed = super.setPermissions(permissions);
+    if (changed && prevPermissions) {
+      this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
+    }
+    return changed;
   }
 
   /**
    * Enable or disable publishing for a track by source. This serves as a simple
-   * way to manage the common tracks (camera, mic, or screen share)
+   * way to manage the common tracks (camera, mic, or screen share).
+   * Resolves with LocalTrackPublication if successful and void otherwise
    */
-  private async setTrackEnabled(source: Track.Source, enabled: boolean): Promise<void> {
-    log.debug('setTrackEnabled', source, enabled);
-    const track = this.getTrack(source);
+  private async setTrackEnabled(
+    source: Track.Source,
+    enabled: boolean,
+  ): Promise<LocalTrackPublication | undefined> {
+    log.debug('setTrackEnabled', { source, enabled });
+    let track = this.getTrack(source);
     if (enabled) {
       if (track) {
         await track.unmute();
       } else {
         let localTrack: LocalTrack | undefined;
         if (this.pendingPublishing.has(source)) {
-          log.info('skipping duplicate published source', source);
+          log.info('skipping duplicate published source', { source });
           // no-op it's already been requested
           return;
         }
@@ -156,7 +177,7 @@ export default class LocalParticipant extends Participant {
               throw new TrackInvalidError(source);
           }
 
-          await this.publishTrack(localTrack);
+          track = await this.publishTrack(localTrack);
         } catch (e) {
           if (e instanceof Error && !(e instanceof TrackInvalidError)) {
             this.emit(ParticipantEvent.MediaDevicesError, e);
@@ -169,11 +190,12 @@ export default class LocalParticipant extends Participant {
     } else if (track && track.track) {
       // screenshare cannot be muted, unpublish instead
       if (source === Track.Source.ScreenShare) {
-        this.unpublishTrack(track.track);
+        track = this.unpublishTrack(track.track);
       } else {
         await track.mute();
       }
     }
+    return track;
   }
 
   /**
@@ -181,8 +203,10 @@ export default class LocalParticipant extends Participant {
    * displaying a single Permission Dialog box to the end user.
    */
   async enableCameraAndMicrophone() {
-    if (this.pendingPublishing.has(Track.Source.Camera)
-        || this.pendingPublishing.has(Track.Source.Microphone)) {
+    if (
+      this.pendingPublishing.has(Track.Source.Camera) ||
+      this.pendingPublishing.has(Track.Source.Microphone)
+    ) {
       // no-op it's already been requested
       return;
     }
@@ -207,9 +231,7 @@ export default class LocalParticipant extends Participant {
    * @param options
    * @returns
    */
-  async createTracks(
-    options?: CreateLocalTracksOptions,
-  ): Promise<LocalTrack[]> {
+  async createTracks(options?: CreateLocalTracksOptions): Promise<LocalTrack[]> {
     const opts = mergeDefaultOptions(
       options,
       this.roomOptions?.audioCaptureDefaults,
@@ -219,9 +241,7 @@ export default class LocalParticipant extends Participant {
     const constraints = constraintsForOptions(opts);
     let stream: MediaStream | undefined;
     try {
-      stream = await navigator.mediaDevices.getUserMedia(
-        constraints,
-      );
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (err) {
       if (err instanceof Error) {
         if (constraints.audio) {
@@ -269,9 +289,7 @@ export default class LocalParticipant extends Participant {
    * A LocalVideoTrack is always created and returned.
    * If { audio: true }, and the browser supports audio capture, a LocalAudioTrack is also created.
    */
-  async createScreenTracks(
-    options?: ScreenShareCaptureOptions,
-  ): Promise<Array<LocalTrack>> {
+  async createScreenTracks(options?: ScreenShareCaptureOptions): Promise<Array<LocalTrack>> {
     if (options === undefined) {
       options = {};
     }
@@ -333,9 +351,7 @@ export default class LocalParticipant extends Participant {
           track = new LocalVideoTrack(track);
           break;
         default:
-          throw new TrackInvalidError(
-            `unsupported MediaStreamTrack kind ${track.kind}`,
-          );
+          throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
       }
     }
 
@@ -359,6 +375,12 @@ export default class LocalParticipant extends Participant {
       track.stopOnMute = true;
     }
 
+    if (track.source === Track.Source.ScreenShare && isFireFox()) {
+      // Firefox does not work well with simulcasted screen share
+      // we frequently get no data on layer 0 when enabled
+      opts.simulcast = false;
+    }
+
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
@@ -373,7 +395,7 @@ export default class LocalParticipant extends Participant {
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
       disableDtx: !(opts?.dtx ?? true),
-      alternativeCodec: opts.alternativeVideoCodec,
+      // alternativeCodec: opts.alternativeVideoCodec,
     });
 
     // compute encodings and layers for video
@@ -415,14 +437,14 @@ export default class LocalParticipant extends Participant {
     if (!this.engine.publisher) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
-    log.debug(`publishing ${track.kind} with encodings`, encodings, ti);
-
+    log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
     }
     const transceiver = this.engine.publisher.pc.addTransceiver(
-      track.mediaStreamTrack, transceiverInit,
+      track.mediaStreamTrack,
+      transceiverInit,
     );
     if (track.kind === Track.Kind.Video && opts.videoCodec) {
       this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
@@ -466,19 +488,18 @@ export default class LocalParticipant extends Participant {
   unpublishTrack(
     track: LocalTrack | MediaStreamTrack,
     stopOnUnpublish?: boolean,
-  ): LocalTrackPublication | null {
+  ): LocalTrackPublication | undefined {
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
 
-    log.debug('unpublishTrack', 'unpublishing track', track);
+    log.debug('unpublishing track', { track, method: 'unpublishTrack' });
 
     if (!publication || !publication.track) {
-      log.warn(
-        'unpublishTrack',
-        'track was not unpublished because no publication was found',
+      log.warn('track was not unpublished because no publication was found', {
         track,
-      );
-      return null;
+        method: 'unpublishTrack',
+      });
+      return undefined;
     }
 
     track = publication.track;
@@ -504,7 +525,7 @@ export default class LocalParticipant extends Participant {
             this.engine.publisher?.pc.removeTrack(sender);
             this.engine.negotiate();
           } catch (e) {
-            log.warn('unpublishTrack', 'failed to remove track', e);
+            log.warn('failed to remove track', { error: e, method: 'unpublishTrack' });
           }
         }
       });
@@ -529,9 +550,7 @@ export default class LocalParticipant extends Participant {
     return publication;
   }
 
-  unpublishTracks(
-    tracks: LocalTrack[] | MediaStreamTrack[],
-  ): LocalTrackPublication[] {
+  unpublishTracks(tracks: LocalTrack[] | MediaStreamTrack[]): LocalTrackPublication[] {
     const publications: LocalTrackPublication[] = [];
     tracks.forEach((track: LocalTrack | MediaStreamTrack) => {
       const pub = this.unpublishTrack(track);
@@ -553,8 +572,11 @@ export default class LocalParticipant extends Participant {
    * packets, use Lossy.
    * @param destination the participants who will receive the message
    */
-  async publishData(data: Uint8Array, kind: DataPacket_Kind,
-    destination?: RemoteParticipant[] | string[]) {
+  async publishData(
+    data: Uint8Array,
+    kind: DataPacket_Kind,
+    destination?: RemoteParticipant[] | string[],
+  ) {
     const dest: string[] = [];
     if (destination !== undefined) {
       destination.forEach((val: any) => {
@@ -612,10 +634,7 @@ export default class LocalParticipant extends Participant {
 
   // when the local track changes in mute status, we'll notify server as such
   /** @internal */
-  private onTrackMuted = (
-    track: LocalTrack,
-    muted?: boolean,
-  ) => {
+  private onTrackMuted = (track: LocalTrack, muted?: boolean) => {
     if (muted === undefined) {
       muted = true;
     }
@@ -634,11 +653,25 @@ export default class LocalParticipant extends Participant {
     }
     const pub = this.videoTracks.get(update.trackSid);
     if (!pub) {
-      log.warn('handleSubscribedQualityUpdate',
-        'received subscribed quality update for unknown track', update.trackSid);
+      log.warn('received subscribed quality update for unknown track', {
+        method: 'handleSubscribedQualityUpdate',
+        sid: update.trackSid,
+      });
       return;
     }
     pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
+  };
+
+  private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {
+    const track = this.tracks.get(unpublished.trackSid);
+    if (!track) {
+      log.warn('received unpublished event for unknown track', {
+        method: 'handleLocalTrackUnpublished',
+        trackSid: unpublished.trackSid,
+      });
+      return;
+    }
+    this.unpublishTrack(track.track!);
   };
 
   private onTrackUnpublish = (track: LocalTrack) => {
@@ -657,10 +690,7 @@ export default class LocalParticipant extends Participant {
 
       // this looks overly complicated due to this object tree
       if (track instanceof MediaStreamTrack) {
-        if (
-          localTrack instanceof LocalAudioTrack
-          || localTrack instanceof LocalVideoTrack
-        ) {
+        if (localTrack instanceof LocalAudioTrack || localTrack instanceof LocalVideoTrack) {
           if (localTrack.mediaStreamTrack === track) {
             publication = <LocalTrackPublication>pub;
           }
@@ -742,16 +772,22 @@ export default class LocalParticipant extends Participant {
   /** @internal */
   dataChannelsInfo(): DataChannelInfo[] {
     const infos: DataChannelInfo[] = [];
-    const getInfo = (dc: RTCDataChannel | undefined) => {
+    const getInfo = (dc: RTCDataChannel | undefined, target: SignalTarget) => {
       if (dc?.id !== undefined && dc.id !== null) {
         infos.push({
           label: dc.label,
           id: dc.id,
+          target,
         });
       }
     };
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY));
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE));
+    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
+    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
+    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
+    getInfo(
+      this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE, true),
+      SignalTarget.SUBSCRIBER,
+    );
     return infos;
   }
 }

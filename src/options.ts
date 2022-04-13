@@ -1,4 +1,4 @@
-import { LogLevel, LogLevelDesc } from './logger';
+import { LogLevel } from './logger';
 import {
   AudioCaptureOptions,
   CreateLocalTracksOptions,
@@ -76,6 +76,8 @@ export interface RoomConnectOptions {
 }
 
 /**
+ * @deprecated use new Room([[RoomOptions]]) and room.connect([[RoomConnectOptions]]) instead
+ *
  * if video or audio tracks are created as part of [[connect]], it'll automatically
  * publish those tracks to the room.
  */
@@ -100,7 +102,7 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   dynacast?: boolean;
 
   /** configures LiveKit internal log level */
-  logLevel?: LogLevel | LogLevelDesc;
+  logLevel?: LogLevel;
 
   /**
    * set ICE servers. When deployed correctly, LiveKit automatically uses the built-in TURN servers

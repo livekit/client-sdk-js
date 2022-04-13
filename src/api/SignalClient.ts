@@ -1,8 +1,10 @@
-import { isWeb, getClientInfo, sleep } from '../room/utils';
 import log from '../logger';
 import {
   ClientInfo,
-  ParticipantInfo, Room, SpeakerInfo, VideoLayer,
+  ParticipantInfo,
+  Room,
+  SpeakerInfo,
+  VideoLayer,
 } from '../proto/livekit_models';
 import {
   AddTrackRequest,
@@ -12,19 +14,22 @@ import {
   SessionDescription,
   SignalRequest,
   SignalResponse,
-  SignalTarget, SimulateScenario,
+  SignalTarget,
+  SimulateScenario,
   StreamStateUpdate,
   SubscribedQualityUpdate,
-  SubscriptionPermissionUpdate, SyncState, TrackPermission,
+  SubscriptionPermissionUpdate,
+  SyncState,
+  TrackPermission,
   TrackPublishedResponse,
-  UpdateSubscription, UpdateTrackSettings,
+  TrackUnpublishedResponse,
+  UpdateSubscription,
+  UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
+import { getClientInfo, sleep } from '../room/utils';
 import Queue from './RequestQueue';
-
-if (isWeb()) {
-  import('webrtc-adapter');
-}
+import 'webrtc-adapter';
 
 // internal options
 interface ConnectOpts {
@@ -51,9 +56,10 @@ const passThroughQueueSignals: Array<keyof SignalRequest> = [
 ];
 
 function canPassThroughQueue(req: SignalRequest): boolean {
-  const canPass = Object.keys(req)
-    .find((key) => passThroughQueueSignals.includes(key as keyof SignalRequest)) !== undefined;
-  log.trace('request allowed to bypass queue:', canPass, req);
+  const canPass =
+    Object.keys(req).find((key) => passThroughQueueSignals.includes(key as keyof SignalRequest)) !==
+    undefined;
+  log.trace('request allowed to bypass queue:', { canPass, req });
   return canPass;
 }
 
@@ -99,6 +105,8 @@ export class SignalClient {
 
   onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
 
+  onLocalTrackUnpublished?: (res: TrackUnpublishedResponse) => void;
+
   onTokenRefresh?: (token: string) => void;
 
   onLeave?: (leave: LeaveRequest) => void;
@@ -112,11 +120,7 @@ export class SignalClient {
     this.requestQueue = new Queue();
   }
 
-  async join(
-    url: string,
-    token: string,
-    opts?: SignalOptions,
-  ): Promise<JoinResponse> {
+  async join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.isConnected = false;
@@ -134,11 +138,7 @@ export class SignalClient {
     });
   }
 
-  connect(
-    url: string,
-    token: string,
-    opts: ConnectOpts,
-  ): Promise<JoinResponse | void> {
+  connect(url: string, token: string, opts: ConnectOpts): Promise<JoinResponse | void> {
     if (url.startsWith('http')) {
       url = url.replace('http', 'ws');
     }
@@ -150,7 +150,7 @@ export class SignalClient {
     const params = createConnectionParams(token, clientInfo, opts);
 
     return new Promise<JoinResponse | void>((resolve, reject) => {
-      log.debug('connecting to', url + params);
+      log.debug(`connecting to ${url + params}`);
       this.ws = undefined;
       const ws = new WebSocket(url + params);
       ws.binaryType = 'arraybuffer';
@@ -192,7 +192,7 @@ export class SignalClient {
         } else if (ev.data instanceof ArrayBuffer) {
           msg = SignalResponse.decode(new Uint8Array(ev.data));
         } else {
-          log.error('could not decode websocket message', typeof ev.data);
+          log.error(`could not decode websocket message: ${typeof ev.data}`);
           return;
         }
 
@@ -216,7 +216,7 @@ export class SignalClient {
       ws.onclose = (ev: CloseEvent) => {
         if (!this.isConnected || this.ws !== ws) return;
 
-        log.debug('websocket connection closed', ev.reason);
+        log.debug(`websocket connection closed: ${ev.reason}`);
         this.isConnected = false;
         if (this.onClose) this.onClose(ev.reason);
         if (this.ws === ws) {
@@ -295,10 +295,7 @@ export class SignalClient {
     });
   }
 
-  sendUpdateSubscriptionPermissions(
-    allParticipants: boolean,
-    trackPermissions: TrackPermission[],
-  ) {
+  sendUpdateSubscriptionPermissions(allParticipants: boolean, trackPermissions: TrackPermission[]) {
     this.sendRequest({
       subscriptionPermission: {
         allParticipants,
@@ -322,7 +319,7 @@ export class SignalClient {
     // keep order by queueing up new events as long as the queue is not empty
     // unless the request originates from the queue, then don't enqueue again
     const canQueue = !fromQueue && !canPassThroughQueue(req);
-    if (canQueue && (this.isReconnecting || (!this.requestQueue.isEmpty()))) {
+    if (canQueue && (this.isReconnecting || !this.requestQueue.isEmpty())) {
       this.requestQueue.enqueue(() => this.sendRequest(req, true));
       return;
     }
@@ -341,7 +338,7 @@ export class SignalClient {
         this.ws.send(SignalRequest.encode(req).finish());
       }
     } catch (e) {
-      log.error('error sending signal message', e);
+      log.error('error sending signal message', { error: e });
     }
   }
 
@@ -357,9 +354,7 @@ export class SignalClient {
         this.onOffer(sd);
       }
     } else if (msg.trickle) {
-      const candidate: RTCIceCandidateInit = JSON.parse(
-        msg.trickle.candidateInit,
-      );
+      const candidate: RTCIceCandidateInit = JSON.parse(msg.trickle.candidateInit);
       if (this.onTrickle) {
         this.onTrickle(candidate, msg.trickle.target);
       }
@@ -407,6 +402,10 @@ export class SignalClient {
       if (this.onTokenRefresh) {
         this.onTokenRefresh(msg.refreshToken);
       }
+    } else if (msg.trackUnpublished) {
+      if (this.onLocalTrackUnpublished) {
+        this.onLocalTrackUnpublished(msg.trackUnpublished);
+      }
     } else {
       log.debug('unsupported message', msg);
     }
@@ -422,9 +421,7 @@ export class SignalClient {
   }
 }
 
-function fromProtoSessionDescription(
-  sd: SessionDescription,
-): RTCSessionDescriptionInit {
+function fromProtoSessionDescription(sd: SessionDescription): RTCSessionDescriptionInit {
   const rsd: RTCSessionDescriptionInit = {
     type: 'offer',
     sdp: sd.sdp,

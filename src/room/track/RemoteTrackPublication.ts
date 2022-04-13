@@ -1,9 +1,6 @@
 import log from '../../logger';
 import { TrackInfo, VideoQuality } from '../../proto/livekit_models';
-import {
-  UpdateSubscription,
-  UpdateTrackSettings,
-} from '../../proto/livekit_rtc';
+import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
@@ -35,12 +32,14 @@ export default class RemoteTrackPublication extends TrackPublication {
     const sub: UpdateSubscription = {
       trackSids: [this.trackSid],
       subscribe: this.subscribed,
-      participantTracks: [{
-        // sending an empty participant id since TrackPublication doesn't keep it
-        // this is filled in by the participant that receives this message
-        participantSid: '',
-        trackSids: [this.trackSid],
-      }],
+      participantTracks: [
+        {
+          // sending an empty participant id since TrackPublication doesn't keep it
+          // this is filled in by the participant that receives this message
+          participantSid: '',
+          trackSids: [this.trackSid],
+        },
+      ],
     };
     this.emit(TrackEvent.UpdateSubscription, sub);
   }
@@ -108,11 +107,15 @@ export default class RemoteTrackPublication extends TrackPublication {
     if (!this.isManualOperationAllowed()) {
       return;
     }
-    if (this.videoDimensions?.width === dimensions.width
-        && this.videoDimensions?.height === dimensions.height) {
+    if (
+      this.videoDimensions?.width === dimensions.width &&
+      this.videoDimensions?.height === dimensions.height
+    ) {
       return;
     }
-    if (this.track instanceof RemoteVideoTrack) { this.videoDimensions = dimensions; }
+    if (this.track instanceof RemoteVideoTrack) {
+      this.videoDimensions = dimensions;
+    }
     this.currentVideoQuality = undefined;
 
     this.emitTrackUpdate();
@@ -147,11 +150,13 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   private isManualOperationAllowed(): boolean {
     if (this.isAdaptiveStream) {
-      log.warn('adaptive stream is enabled, cannot change track settings', this.trackSid);
+      log.warn('adaptive stream is enabled, cannot change track settings', {
+        trackSid: this.trackSid,
+      });
       return false;
     }
     if (!this.isSubscribed) {
-      log.warn('cannot update track settings when not subscribed', this.trackSid);
+      log.warn('cannot update track settings when not subscribed', { trackSid: this.trackSid });
       return false;
     }
     return true;
@@ -166,13 +171,17 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   protected handleVisibilityChange = (visible: boolean) => {
-    log.debug('adaptivestream video visibility', this.trackSid, `visible=${visible}`);
+    log.debug(`adaptivestream video visibility ${this.trackSid}, visible=${visible}`, {
+      trackSid: this.trackSid,
+    });
     this.disabled = !visible;
     this.emitTrackUpdate();
   };
 
   protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
-    log.debug('adaptivestream video dimensions', this.trackSid, `${dimensions.width}x${dimensions.height}`);
+    log.debug(`adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`, {
+      trackSid: this.trackSid,
+    });
     this.videoDimensions = dimensions;
     this.emitTrackUpdate();
   };

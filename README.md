@@ -56,16 +56,16 @@ const room = new Room({
   // default capture settings
   videoCaptureDefaults: {
     resolution: VideoPresets.hd.resolution,
-  }
+  },
 });
 
 // set up event listeners
 room
-    .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
-    .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
-    .on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakerChange)
-    .on(RoomEvent.Disconnected, handleDisconnect)
-    .on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
+  .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
+  .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
+  .on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakerChange)
+  .on(RoomEvent.Disconnected, handleDisconnect)
+  .on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
 
 // connect to room
 await room.connect('ws://localhost:7800', token, {
@@ -80,7 +80,7 @@ await room.localParticipant.enableCameraAndMicrophone();
 function handleTrackSubscribed(
   track: RemoteTrack,
   publication: RemoteTrackPublication,
-  participant: RemoteParticipant
+  participant: RemoteParticipant,
 ) {
   if (track.kind === Track.Kind.Video || track.kind === Track.Kind.Audio) {
     // attach it to a new HTMLVideoElement or HTMLAudioElement
@@ -92,16 +92,13 @@ function handleTrackSubscribed(
 function handleTrackUnsubscribed(
   track: RemoteTrack,
   publication: RemoteTrackPublication,
-  participant: RemoteParticipant
+  participant: RemoteParticipant,
 ) {
   // remove tracks from all attached elements
   track.detach();
 }
 
-function handleLocalTrackUnpublished(
-  track: LocalTrackPublication,
-  participant: LocalParticipant,
-) {
+function handleLocalTrackUnpublished(track: LocalTrackPublication, participant: LocalParticipant) {
   // when local tracks are ended, update UI to remove them from rendering
   track.detach();
 }
@@ -148,7 +145,7 @@ if (p) {
   if (p.isCameraEnabled) {
     const track = p.getTrack(Track.Source.Camera);
     if (track?.isSubscribed) {
-      const videoElement = track.videoTrack?.attach()
+      const videoElement = track.videoTrack?.attach();
       // do something with the element
     }
   }
@@ -174,19 +171,18 @@ const tracks = await createLocalTracks({
 LiveKit lets you publish any track as long as it can be represented by a MediaStreamTrack. You can specify a name on the track in order to identify it later.
 
 ```typescript
-
 const pub = await room.localParticipant.publishTrack(mediaStreamTrack, {
   name: 'mytrack',
   simulcast: true,
   // if this should be treated like a camera feed, tag it as such
   // supported known sources are .Camera, .Microphone, .ScreenShare
   source: Track.Source.Camera,
-})
+});
 
 // you may mute or unpublish the track later
 pub.setMuted(true);
 
-room.localParticipant.unpublishTrack(mediaStreamTrack)
+room.localParticipant.unpublishTrack(mediaStreamTrack);
 ```
 
 ### Device management APIs
@@ -202,7 +198,7 @@ We use the same deviceId as one returned by [MediaDevices.enumerateDevices()](ht
 const devices = await Room.getLocalDevices('audioinput');
 
 // select last device
-const device = devices[devices.length-1];
+const device = devices[devices.length - 1];
 
 // in the current room, switch to the selected device and set
 // it as default audioinput in the future.
@@ -223,9 +219,9 @@ When creating tracks using LiveKit APIs (`connect`, `createLocalTracks`, `setCam
 
 You can use the helper `MediaDeviceFailure.getFailure(error)` to determine specific reason for the error.
 
-* `PermissionDenied` - the user disallowed capturing devices
-* `NotFound` - the particular device isn't available
-* `DeviceInUse` - device is in use by another process (happens on Windows)
+- `PermissionDenied` - the user disallowed capturing devices
+- `NotFound` - the particular device isn't available
+- `DeviceInUse` - device is in use by another process (happens on Windows)
 
 These distinctions enables you to provide more specific messaging to the user.
 
@@ -258,6 +254,16 @@ room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
 ### Configuring logging
 
 This library uses [loglevel](https://github.com/pimterry/loglevel) for its internal logs. You can change the effective log level with the `logLevel` field in `ConnectOptions`.
+The method `setLogExtension` allows to hook into the livekit internal logs and send them to some third party logging service
+
+```ts
+setLogExtension((level: LogLevel, msg: string, context: object) => {
+  const enhancedContext = { ...context, timeStamp: Date.now() };
+  if (level >= LogLevel.debug) {
+    console.log(level, msg, enhancedContext);
+  }
+});
+```
 
 ## Examples
 

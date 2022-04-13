@@ -122,8 +122,12 @@ export function computeBitrate<T extends ReceiverStats | SenderStats>(
     bytesNow = (currentStats as SenderStats).bytesSent;
     bytesPrev = (prevStats as SenderStats).bytesSent;
   }
-  if (bytesNow === undefined || bytesPrev === undefined
-    || currentStats.timestamp === undefined || prevStats.timestamp === undefined) {
+  if (
+    bytesNow === undefined ||
+    bytesPrev === undefined ||
+    currentStats.timestamp === undefined ||
+    prevStats.timestamp === undefined
+  ) {
     return 0;
   }
   return ((bytesNow - bytesPrev) * 8 * 1000) / (currentStats.timestamp - prevStats.timestamp);

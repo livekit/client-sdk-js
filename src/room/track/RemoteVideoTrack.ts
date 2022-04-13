@@ -2,7 +2,10 @@ import { debounce } from 'ts-debounce';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency, VideoReceiverStats } from '../stats';
 import {
-  getIntersectionObserver, getResizeObserver, isMobile, ObservableMediaElement,
+  getIntersectionObserver,
+  getResizeObserver,
+  isMobile,
+  ObservableMediaElement,
 } from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
@@ -63,18 +66,17 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
     // It's possible attach is called multiple times on an element. When that's
     // the case, we'd want to avoid adding duplicate elementInfos
-    if (this.adaptiveStreamSettings
-      && this.elementInfos.find((info) => info.element === element) === undefined
+    if (
+      this.adaptiveStreamSettings &&
+      this.elementInfos.find((info) => info.element === element) === undefined
     ) {
       this.elementInfos.push({
         element,
         visible: true, // default visible
       });
 
-      (element as ObservableMediaElement)
-        .handleResize = this.debouncedHandleResize;
-      (element as ObservableMediaElement)
-        .handleVisibilityChanged = this.handleVisibilityChanged;
+      (element as ObservableMediaElement).handleResize = this.debouncedHandleResize;
+      (element as ObservableMediaElement).handleVisibilityChanged = this.handleVisibilityChanged;
 
       getIntersectionObserver().observe(element);
       getResizeObserver().observe(element);

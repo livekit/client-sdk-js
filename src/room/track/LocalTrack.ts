@@ -17,7 +17,9 @@ export default class LocalTrack extends Track {
   protected reacquireTrack: boolean;
 
   protected constructor(
-    mediaTrack: MediaStreamTrack, kind: Track.Kind, constraints?: MediaTrackConstraints,
+    mediaTrack: MediaStreamTrack,
+    kind: Track.Kind,
+    constraints?: MediaTrackConstraints,
   ) {
     super(mediaTrack, kind);
     this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
@@ -148,19 +150,21 @@ export default class LocalTrack extends Track {
   }
 
   protected get needsReAcquisition(): boolean {
-    return this.mediaStreamTrack.readyState !== 'live'
-      || this.mediaStreamTrack.muted
-      || !this.mediaStreamTrack.enabled
-      || this.reacquireTrack;
+    return (
+      this.mediaStreamTrack.readyState !== 'live' ||
+      this.mediaStreamTrack.muted ||
+      !this.mediaStreamTrack.enabled ||
+      this.reacquireTrack
+    );
   }
 
   protected async handleAppVisibilityChanged() {
     await super.handleAppVisibilityChanged();
     if (!isMobile()) return;
-    log.debug('visibility changed, is in Background: ', this.isInBackground);
+    log.debug(`visibility changed, is in Background: ${this.isInBackground}`);
 
     if (!this.isInBackground && this.needsReAcquisition) {
-      log.debug('track needs to be reaquired, restarting', this.source);
+      log.debug(`track needs to be reaquired, restarting ${this.source}`);
       await this.restart();
       this.reacquireTrack = false;
       // Restore muted state if had to be restarted

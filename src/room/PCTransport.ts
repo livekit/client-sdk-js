@@ -44,7 +44,9 @@ export default class PCTransport {
   }
 
   // debounced negotiate interface
-  negotiate = debounce(() => { this.createAndSendOffer(); }, 100);
+  negotiate = debounce(() => {
+    this.createAndSendOffer();
+  }, 100);
 
   async createAndSendOffer(options?: RTCOfferOptions) {
     if (this.onOffer === undefined) {

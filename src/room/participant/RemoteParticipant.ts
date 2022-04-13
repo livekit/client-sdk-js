@@ -1,10 +1,7 @@
 import { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { ParticipantInfo } from '../../proto/livekit_models';
-import {
-  UpdateSubscription,
-  UpdateTrackSettings,
-} from '../../proto/livekit_rtc';
+import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
@@ -23,10 +20,7 @@ export default class RemoteParticipant extends Participant {
   signalClient: SignalClient;
 
   /** @internal */
-  static fromParticipantInfo(
-    signalClient: SignalClient,
-    pi: ParticipantInfo,
-  ): RemoteParticipant {
+  static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
     const rp = new RemoteParticipant(signalClient, pi.sid, pi.identity);
     rp.updateInfo(pi);
     return rp;
@@ -45,12 +39,9 @@ export default class RemoteParticipant extends Participant {
     super.addTrackPublication(publication);
 
     // register action events
-    publication.on(
-      TrackEvent.UpdateSettings,
-      (settings: UpdateTrackSettings) => {
-        this.signalClient.sendUpdateTrackSettings(settings);
-      },
-    );
+    publication.on(TrackEvent.UpdateSettings, (settings: UpdateTrackSettings) => {
+      this.signalClient.sendUpdateTrackSettings(settings);
+    });
     publication.on(TrackEvent.UpdateSubscription, (sub: UpdateSubscription) => {
       sub.participantTracks.forEach((pt) => {
         pt.participantSid = this.sid;
@@ -73,6 +64,27 @@ export default class RemoteParticipant extends Participant {
     const track = super.getTrackByName(name);
     if (track) {
       return track as RemoteTrackPublication;
+    }
+  }
+
+  /**
+   * sets the volume on the participant's microphone track if it exists.
+   */
+  setVolume(volume: number) {
+    const audioPublication = this.getTrack(Track.Source.Microphone);
+    if (audioPublication) {
+      (audioPublication.track as RemoteAudioTrack).setVolume(volume);
+    }
+  }
+
+  /**
+   * gets the volume on the participant's microphone track
+   * returns undefined if no microphone track exists
+   */
+  getVolume() {
+    const audioPublication = this.getTrack(Track.Source.Microphone);
+    if (audioPublication) {
+      return (audioPublication.track as RemoteAudioTrack).getVolume();
     }
   }
 
@@ -106,15 +118,21 @@ export default class RemoteParticipant extends Participant {
     // yet arrived. Wait a bit longer for it to arrive, or fire an error
     if (!publication) {
       if (triesLeft === 0) {
-        log.error('could not find published track', this.sid, sid);
+        log.error('could not find published track', { participant: this.sid, trackSid: sid });
         this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
         return;
       }
 
       if (triesLeft === undefined) triesLeft = 20;
       setTimeout(() => {
-        this.addSubscribedMediaTrack(mediaTrack, sid, mediaStream,
-          receiver, adaptiveStreamSettings, triesLeft! - 1);
+        this.addSubscribedMediaTrack(
+          mediaTrack,
+          sid,
+          mediaStream,
+          receiver,
+          adaptiveStreamSettings,
+          triesLeft! - 1,
+        );
       }, 150);
       return;
     }
@@ -199,7 +217,7 @@ export default class RemoteParticipant extends Participant {
 
   /** @internal */
   unpublishTrack(sid: Track.SID, sendUnpublish?: boolean) {
-    const publication = <RemoteTrackPublication> this.tracks.get(sid);
+    const publication = <RemoteTrackPublication>this.tracks.get(sid);
     if (!publication) {
       return;
     }
@@ -229,7 +247,9 @@ export default class RemoteParticipant extends Participant {
         this.emit(ParticipantEvent.TrackUnsubscribed, track, publication);
       }
     }
-    if (sendUnpublish) { this.emit(ParticipantEvent.TrackUnpublished, publication); }
+    if (sendUnpublish) {
+      this.emit(ParticipantEvent.TrackUnpublished, publication);
+    }
   }
 
   /** @internal */
@@ -237,7 +257,7 @@ export default class RemoteParticipant extends Participant {
     event: E,
     ...args: Parameters<ParticipantEventCallbacks[E]>
   ): boolean {
-    log.trace('participant event', this.sid, event, ...args);
+    log.trace('participant event', { participant: this.sid, event, args });
     return super.emit(event, ...args);
   }
 }
