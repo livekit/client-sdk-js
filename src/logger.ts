@@ -9,6 +9,8 @@ export enum LogLevel {
   silent = 5,
 }
 
+type LogLevelString = keyof typeof LogLevel;
+
 type StructuredLogger = {
   trace: (msg: string, context?: object) => void;
   debug: (msg: string, context?: object) => void;
@@ -23,7 +25,7 @@ livekitLogger.setLevel(LogLevel.info);
 
 export default livekitLogger as StructuredLogger;
 
-export function setLogLevel(level: LogLevel) {
+export function setLogLevel(level: LogLevel | LogLevelString) {
   livekitLogger.setLevel(level);
 }
 
