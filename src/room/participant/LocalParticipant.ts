@@ -517,8 +517,8 @@ export default class LocalParticipant extends Participant {
         break;
     }
 
-    publication.setTrack(undefined);
     this.emit(ParticipantEvent.LocalTrackUnpublished, publication);
+    publication.setTrack(undefined);
 
     return publication;
   }
