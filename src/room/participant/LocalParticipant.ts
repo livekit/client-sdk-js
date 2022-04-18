@@ -1,6 +1,6 @@
 import log from '../../logger';
 import { RoomOptions } from '../../options';
-import { DataPacket, DataPacket_Kind, ParticipantPermission } from '../../proto/livekit_models';
+import { DataPacket, DataPacket_Kind, ParticipantPermission} from '../../proto/livekit_models';
 import {
   AddTrackRequest,
   DataChannelInfo,
@@ -15,7 +15,7 @@ import RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
-import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
+import LocalVideoTrack, { SimulcastTrackInfo, videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import {
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
@@ -31,6 +31,7 @@ import { ParticipantTrackPermission, trackPermissionToProto } from './Participan
 import { computeVideoEncodings, mediaTrackToLocalTrack } from './publishUtils';
 import RemoteParticipant from './RemoteParticipant';
 
+const compatibleCodecForSVC = 'vp8';
 export default class LocalParticipant extends Participant {
   audioTracks: Map<string, LocalTrackPublication>;
 
@@ -400,6 +401,8 @@ export default class LocalParticipant extends Participant {
 
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
+    let simEncodings: RTCRtpEncodingParameters[] | undefined;
+    let simulcastTracks: SimulcastTrackInfo[] | undefined;
     if (track.kind === Track.Kind.Video) {
       // TODO: support react native, which doesn't expose getSettings
       const settings = track.mediaStreamTrack.getSettings();
@@ -408,20 +411,37 @@ export default class LocalParticipant extends Participant {
       // width and height should be defined for video
       req.width = width ?? 0;
       req.height = height ?? 0;
-      const originSimulcast = opts.simulcast;
-      if (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1') {
-        opts.simulcast = false;
+      // for svc codecs, disable simulcast and use vp8 for backup codec
+      if (track instanceof LocalVideoTrack && 
+        (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1')) {
+          opts.simulcast = true;
+          simEncodings = computeVideoEncodings(
+            track.source === Track.Source.ScreenShare,
+            width,
+            height,
+            opts,
+          );
+          opts.simulcast = false;
+          const simulcastTrack = track.addSimulcastTrack(compatibleCodecForSVC, simEncodings);
+          simulcastTracks = [simulcastTrack];
+          req.simulcastCodecs = [{
+            codec: opts.videoCodec,
+            cid: track.mediaStreamTrack.id,
+            enableSimulcastLayers: false,
+          }, {
+            codec: simulcastTrack.codec,
+            cid: simulcastTrack.mediaStreamTrack.id,
+            enableSimulcastLayers: true,
+          }];
       }
+
       encodings = computeVideoEncodings(
         track.source === Track.Source.ScreenShare,
         width,
         height,
         opts,
       );
-      req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
-      if (originSimulcast) {
-        opts.simulcast = originSimulcast;
-      }
+      req.layers = videoLayersFromEncodings(req.width, req.height, simEncodings ?? encodings);
     } else if (track.kind === Track.Kind.Audio && opts.audioBitrate) {
       encodings = [
         {
@@ -448,26 +468,22 @@ export default class LocalParticipant extends Participant {
     );
     if (track.kind === Track.Kind.Video && opts.videoCodec) {
       this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
+      track.codec = opts.videoCodec;
     }
 
-    if (opts.alternativeVideoCodec && track.kind === Track.Kind.Video) {
-      const settings = track.mediaStreamTrack.getSettings();
-      const width = settings.width ?? track.dimensions?.width;
-      const height = settings.height ?? track.dimensions?.height;
-      encodings = computeVideoEncodings(
-        track.source === Track.Source.ScreenShare,
-        width,
-        height,
-        opts,
-      );
-      if (encodings) {
-        transceiverInit.sendEncodings = encodings;
+    const localTrack = track as LocalVideoTrack;
+    simulcastTracks?.forEach((simulcastTrack) => {
+      const simTransceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+      if (simulcastTrack.encodings) {
+        simTransceiverInit.sendEncodings = simulcastTrack.encodings;
       }
-      const transceiverAlt = this.engine.publisher.pc.addTransceiver(
-        track.mediaStreamTrack, transceiverInit,
+      const simTransceiver = this.engine.publisher!.pc.addTransceiver(
+        simulcastTrack.mediaStreamTrack, simTransceiverInit,
       );
-      this.setPreferredCodec(transceiverAlt, track.kind, opts.alternativeVideoCodec);
-    }
+      this.setPreferredCodec(simTransceiver, localTrack.kind, simulcastTrack.codec);
+      localTrack.setSimulcastTrackSender(simulcastTrack.codec, simTransceiver.sender);
+    });
+
     this.engine.negotiate();
 
     // store RTPSender
@@ -659,7 +675,11 @@ export default class LocalParticipant extends Participant {
       });
       return;
     }
-    pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
+    if (update.subscribedCodecs.length > 0) {
+      pub.videoTrack?.setPublishingCodecs(update.subscribedCodecs);
+    }else if (update.subscribedQualities.length > 0) {
+      pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
+    }
   };
 
   private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {

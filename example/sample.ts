@@ -71,7 +71,6 @@ const appActions = {
         simulcast,
         videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
         videoCodec: preferredCodec,
-        alternativeVideoCodec: (preferredCodec === 'av1' || preferredCodec === 'vp9') ? 'vp8' : undefined,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -272,16 +271,6 @@ const appActions = {
       }
       (<HTMLSelectElement>e.target).value = '';
     }
-  },
-
-  handleCodecSelected: (e: Event) => {
-    if (!currentRoom) {
-      return;
-    }
-    const t = currentRoom.localParticipant.getTrack(RTCTrack.Source.Camera);
-    const codec = (<HTMLSelectElement>e.target).value as VideoCodec;
-    console.log(`change to codec ${codec}`);
-    t?.track?.setCodec(codec);
   },
 
   disconnectSignal: () => {

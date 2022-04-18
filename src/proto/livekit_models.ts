@@ -309,6 +309,7 @@ export function participantInfo_StateToJSON(object: ParticipantInfo_State): stri
 export interface SimulcastCodecInfo {
   mimeType: string;
   mid: string;
+  cid: string;
 }
 
 export interface TrackInfo {
@@ -999,7 +1000,7 @@ export const ParticipantInfo = {
 };
 
 function createBaseSimulcastCodecInfo(): SimulcastCodecInfo {
-  return { mimeType: '', mid: '' };
+  return { mimeType: '', mid: '', cid: '' };
 }
 
 export const SimulcastCodecInfo = {
@@ -1009,6 +1010,9 @@ export const SimulcastCodecInfo = {
     }
     if (message.mid !== '') {
       writer.uint32(18).string(message.mid);
+    }
+    if (message.cid !== '') {
+      writer.uint32(26).string(message.cid);
     }
     return writer;
   },
@@ -1026,6 +1030,9 @@ export const SimulcastCodecInfo = {
         case 2:
           message.mid = reader.string();
           break;
+        case 3:
+          message.cid = reader.string();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1038,6 +1045,7 @@ export const SimulcastCodecInfo = {
     return {
       mimeType: isSet(object.mimeType) ? String(object.mimeType) : '',
       mid: isSet(object.mid) ? String(object.mid) : '',
+      cid: isSet(object.cid) ? String(object.cid) : '',
     };
   },
 
@@ -1045,6 +1053,7 @@ export const SimulcastCodecInfo = {
     const obj: any = {};
     message.mimeType !== undefined && (obj.mimeType = message.mimeType);
     message.mid !== undefined && (obj.mid = message.mid);
+    message.cid !== undefined && (obj.cid = message.cid);
     return obj;
   },
 
@@ -1052,6 +1061,7 @@ export const SimulcastCodecInfo = {
     const message = createBaseSimulcastCodecInfo();
     message.mimeType = object.mimeType ?? '';
     message.mid = object.mid ?? '';
+    message.cid = object.cid ?? '';
     return message;
   },
 };

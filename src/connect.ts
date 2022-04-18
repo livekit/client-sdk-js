@@ -30,7 +30,7 @@ export async function connect(url: string, token: string, options?: ConnectOptio
   if (options.adaptiveStream === undefined) {
     options.adaptiveStream = options.autoManageVideo === true ? {} : undefined;
   }
-  setLogLevel(options.logLevel ?? LogLevel.warn);
+  setLogLevel(options.logLevel ?? LogLevel.debug);
 
   const config: RTCConfiguration = options.rtcConfig ?? {};
   if (options.iceServers) {

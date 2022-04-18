@@ -298,7 +298,6 @@ export interface SubscribedQuality {
 
 export interface SubscribedCodec {
   codec: string;
-  enabled: boolean;
   qualities: SubscribedQuality[];
 }
 
@@ -2386,7 +2385,7 @@ export const SubscribedQuality = {
 };
 
 function createBaseSubscribedCodec(): SubscribedCodec {
-  return { codec: '', enabled: false, qualities: [] };
+  return { codec: '', qualities: [] };
 }
 
 export const SubscribedCodec = {
@@ -2394,11 +2393,8 @@ export const SubscribedCodec = {
     if (message.codec !== '') {
       writer.uint32(10).string(message.codec);
     }
-    if (message.enabled === true) {
-      writer.uint32(16).bool(message.enabled);
-    }
     for (const v of message.qualities) {
-      SubscribedQuality.encode(v!, writer.uint32(26).fork()).ldelim();
+      SubscribedQuality.encode(v!, writer.uint32(18).fork()).ldelim();
     }
     return writer;
   },
@@ -2414,9 +2410,6 @@ export const SubscribedCodec = {
           message.codec = reader.string();
           break;
         case 2:
-          message.enabled = reader.bool();
-          break;
-        case 3:
           message.qualities.push(SubscribedQuality.decode(reader, reader.uint32()));
           break;
         default:
@@ -2430,7 +2423,6 @@ export const SubscribedCodec = {
   fromJSON(object: any): SubscribedCodec {
     return {
       codec: isSet(object.codec) ? String(object.codec) : '',
-      enabled: isSet(object.enabled) ? Boolean(object.enabled) : false,
       qualities: Array.isArray(object?.qualities)
         ? object.qualities.map((e: any) => SubscribedQuality.fromJSON(e))
         : [],
@@ -2440,7 +2432,6 @@ export const SubscribedCodec = {
   toJSON(message: SubscribedCodec): unknown {
     const obj: any = {};
     message.codec !== undefined && (obj.codec = message.codec);
-    message.enabled !== undefined && (obj.enabled = message.enabled);
     if (message.qualities) {
       obj.qualities = message.qualities.map((e) => (e ? SubscribedQuality.toJSON(e) : undefined));
     } else {
@@ -2452,7 +2443,6 @@ export const SubscribedCodec = {
   fromPartial<I extends Exact<DeepPartial<SubscribedCodec>, I>>(object: I): SubscribedCodec {
     const message = createBaseSubscribedCodec();
     message.codec = object.codec ?? '';
-    message.enabled = object.enabled ?? false;
     message.qualities = object.qualities?.map((e) => SubscribedQuality.fromPartial(e)) || [];
     return message;
   },
