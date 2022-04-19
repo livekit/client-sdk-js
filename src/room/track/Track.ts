@@ -101,6 +101,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
         });
     }
 
+    this.emit(TrackEvent.ElementAttached, element);
     return element;
   }
 
@@ -122,6 +123,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
       if (idx >= 0) {
         this.attachedElements.splice(idx, 1);
         this.recycleElement(element);
+        this.emit(TrackEvent.ElementDetached, element);
       }
       return element;
     }
@@ -131,6 +133,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
       detachTrack(this.mediaStreamTrack, elm);
       detached.push(elm);
       this.recycleElement(elm);
+      this.emit(TrackEvent.ElementDetached, elm);
     });
 
     // remove all tracks
@@ -344,4 +347,6 @@ export type TrackEventCallbacks = {
   audioSilenceDetected: () => void;
   visibilityChanged: (visible: boolean, track?: any) => void;
   videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void;
+  elementAttached: (element: HTMLMediaElement) => void;
+  elementDetached: (element: HTMLMediaElement) => void;
 };

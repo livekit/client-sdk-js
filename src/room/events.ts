@@ -421,4 +421,14 @@ export enum TrackEvent {
   VisibilityChanged = 'visibilityChanged',
   /** @internal */
   VideoDimensionsChanged = 'videoDimensionsChanged',
+  /**
+   * @internal
+   * Used by Unity SDK
+   * */
+  ElementAttached = 'elementAttached',
+  /**
+   * @internal
+   * Used by Unity SDK
+   * */
+  ElementDetached = 'elementDetached',
 }
