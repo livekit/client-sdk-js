@@ -86,6 +86,11 @@ export interface ConnectOptions extends CreateLocalTracksOptions {
   autoSubscribe?: boolean;
 
   /**
+   * publish only mode
+   */
+  publishOnly?: string;
+
+  /**
    * see [[RoomOptions.adaptiveStream]]
    */
   adaptiveStream?: AdaptiveStreamSettings | boolean;

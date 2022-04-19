@@ -38,12 +38,15 @@ interface ConnectOpts {
   reconnect?: boolean;
 
   publishOnly?: string;
+
+  adaptiveStream?: boolean;
 }
 
 // public options
 export interface SignalOptions {
   autoSubscribe?: boolean;
   publishOnly?: string;
+  adaptiveStream?: boolean;
 }
 
 const passThroughQueueSignals: Array<keyof SignalRequest> = [
@@ -127,6 +130,7 @@ export class SignalClient {
     const res = await this.connect(url, token, {
       autoSubscribe: opts?.autoSubscribe,
       publishOnly: opts?.publishOnly,
+      adaptiveStream: opts?.adaptiveStream,
     });
     return res as JoinResponse;
   }
@@ -483,6 +487,10 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
 
   if (opts?.publishOnly !== undefined) {
     params.set('publish', opts.publishOnly);
+  }
+
+  if (opts?.adaptiveStream) {
+    params.set('adaptive_stream', '1');
   }
 
   return `?${params.toString()}`;

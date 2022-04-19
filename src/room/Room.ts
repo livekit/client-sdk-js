@@ -203,7 +203,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.connOptions = opts;
 
     try {
-      const joinResponse = await this.engine.join(url, token, opts);
+      const joinResponse = await this.engine.join(url, token, {
+        autoSubscribe: opts?.autoSubscribe,
+        publishOnly: opts?.publishOnly,
+        adaptiveStream:
+          typeof this.options?.adaptiveStream === 'object' ? true : this.options?.adaptiveStream,
+      });
       log.debug(
         `connected to Livekit Server version: ${joinResponse.serverVersion}, region: ${joinResponse.serverRegion}`,
       );
