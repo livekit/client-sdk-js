@@ -44,7 +44,7 @@ export async function connect(url: string, token: string, options?: ConnectOptio
     autoSubscribe: options?.autoSubscribe,
     rtcConfig: options?.rtcConfig,
     publishOnly: options?.publishOnly,
-    adaptiveStream: (typeof options?.adaptiveStream === 'object') ? true : options?.adaptiveStream,
+    adaptiveStream: typeof options?.adaptiveStream === 'object' ? true : options?.adaptiveStream,
   });
 
   const publishAudio: boolean = options.audio ?? false;
