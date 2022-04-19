@@ -421,4 +421,8 @@ export enum TrackEvent {
   VisibilityChanged = 'visibilityChanged',
   /** @internal */
   VideoDimensionsChanged = 'videoDimensionsChanged',
+  /** @internal */
+  ElementAttached = 'elementAttached',
+  /** @internal */
+  ElementDetached = 'elementDetached',
 }
