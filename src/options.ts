@@ -73,9 +73,6 @@ export interface RoomConnectOptions {
    * publish only mode
    */
   publishOnly?: string;
-
-  /** adapt subscribed video streams to visibility/video tile size, defaults to false */
-  adaptiveStream?: boolean;
 }
 
 /**

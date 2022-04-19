@@ -489,8 +489,8 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
     params.set('publish', opts.publishOnly);
   }
 
-  if (opts?.adaptiveStream !== undefined) {
-    params.set('adaptive_stream', opts.adaptiveStream ? '1' : '0');
+  if (opts?.adaptiveStream) {
+    params.set('adaptive_stream', '1');
   }
 
   return `?${params.toString()}`;

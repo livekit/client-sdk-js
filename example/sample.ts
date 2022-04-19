@@ -78,7 +78,6 @@ const appActions = {
     const connectOpts: RoomConnectOptions = {
       autoSubscribe: !publishOnly,
       publishOnly: publishOnly ? 'publish_only' : undefined,
-      adaptiveStream,
     };
     if (forceTURN) {
       connectOpts.rtcConfig = {
