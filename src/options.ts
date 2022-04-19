@@ -73,6 +73,11 @@ export interface RoomConnectOptions {
    * publish only mode
    */
   publishOnly?: string;
+
+  /**
+   * see [[RoomOptions.adaptiveStream]]
+   */
+  adaptiveStream?: boolean;
 }
 
 /**
@@ -84,6 +89,11 @@ export interface RoomConnectOptions {
 export interface ConnectOptions extends CreateLocalTracksOptions {
   /** autosubscribe to room tracks upon connect, defaults to true */
   autoSubscribe?: boolean;
+
+  /**
+   * publish only mode
+   */
+  publishOnly?: string;
 
   /**
    * see [[RoomOptions.adaptiveStream]]

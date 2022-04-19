@@ -40,7 +40,12 @@ export async function connect(url: string, token: string, options?: ConnectOptio
   const room = new Room(options);
 
   // connect to room
-  await room.connect(url, token, options);
+  await room.connect(url, token, {
+    autoSubscribe: options?.autoSubscribe,
+    rtcConfig: options?.rtcConfig,
+    publishOnly: options?.publishOnly,
+    adaptiveStream: (typeof options?.adaptiveStream === 'object') ? true : options?.adaptiveStream,
+  });
 
   const publishAudio: boolean = options.audio ?? false;
   const publishVideo: boolean = options.video ?? false;
