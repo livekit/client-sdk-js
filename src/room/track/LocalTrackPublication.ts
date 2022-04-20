@@ -12,6 +12,8 @@ export default class LocalTrackPublication extends TrackPublication {
 
   options?: TrackPublishOptions;
 
+  isDetached: boolean = false;
+
   constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
     super(kind, ti.sid, ti.name);
 
@@ -62,15 +64,17 @@ export default class LocalTrackPublication extends TrackPublication {
 
   detachTrack() {
     this.track?.detachTrack();
+    this.isDetached = true;
     this.emit(TrackEvent.UpstreamHalted, this.track);
   }
 
-  attachTrack(track: LocalTrack) {
+  attachTrack() {
     this.track?.attachTrack();
-    this.emit(TrackEvent.UpstreamResumed, track);
+    this.isDetached = false;
+    this.emit(TrackEvent.UpstreamResumed);
   }
 
-  handleTrackEnded = (track: LocalTrack) => {
-    this.emit(TrackEvent.Ended, track);
+  handleTrackEnded = () => {
+    this.emit(TrackEvent.Ended);
   };
 }
