@@ -60,6 +60,16 @@ export default class LocalTrackPublication extends TrackPublication {
     return this.track?.unmute();
   }
 
+  detachTrack() {
+    this.track?.detachTrack();
+    this.emit(TrackEvent.UpstreamHalted, this.track);
+  }
+
+  attachTrack(track: LocalTrack) {
+    this.track?.attachTrack();
+    this.emit(TrackEvent.UpstreamResumed, track);
+  }
+
   handleTrackEnded = (track: LocalTrack) => {
     this.emit(TrackEvent.Ended, track);
   };
