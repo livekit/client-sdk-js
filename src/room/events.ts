@@ -425,4 +425,14 @@ export enum TrackEvent {
   ElementAttached = 'elementAttached',
   /** @internal */
   ElementDetached = 'elementDetached',
+  /**
+   * @internal
+   * Only fires on LocalTracks
+   */
+  UpstreamPaused = 'upstreamPaused',
+  /**
+   * @internal
+   * Only fires on LocalTracks
+   */
+  UpstreamResumed = 'upstreamResumed',
 }

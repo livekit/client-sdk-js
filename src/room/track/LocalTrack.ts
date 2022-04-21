@@ -2,7 +2,7 @@ import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import { isMobile } from '../utils';
+import { getEmptyMediaStreamTrack, isMobile } from '../utils';
 import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {
@@ -44,6 +44,12 @@ export default class LocalTrack extends Track {
       };
     }
     return undefined;
+  }
+
+  private _isUpstreamPaused: boolean = false;
+
+  get isUpstreamPaused() {
+    return this._isUpstreamPaused;
   }
 
   /**
@@ -162,4 +168,28 @@ export default class LocalTrack extends Track {
     }
     this.emit(TrackEvent.Ended, this);
   };
+
+  async pauseUpstream() {
+    if (this._isUpstreamPaused === true) {
+      return;
+    }
+    this._isUpstreamPaused = true;
+    this.emit(TrackEvent.UpstreamPaused, this);
+    if (!this.sender) {
+      throw new TrackInvalidError('unable to pause upstream for an unpublished track');
+    }
+    await this.sender.replaceTrack(getEmptyMediaStreamTrack());
+  }
+
+  async resumeUpstream() {
+    if (this._isUpstreamPaused === false) {
+      return;
+    }
+    this._isUpstreamPaused = false;
+    this.emit(TrackEvent.UpstreamResumed, this);
+    if (!this.sender) {
+      throw new TrackInvalidError('unable to resume upstream for an unpublished track');
+    }
+    await this.sender.replaceTrack(this.mediaStreamTrack);
+  }
 }

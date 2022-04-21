@@ -75,3 +75,21 @@ export function getClientInfo(): ClientInfo {
   });
   return info;
 }
+
+let emptyMediaStreamTrack: MediaStreamTrack | undefined;
+
+export function getEmptyMediaStreamTrack() {
+  if (!emptyMediaStreamTrack) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 2;
+    // @ts-ignore
+    const emptyStream = canvas.captureStream();
+    [emptyMediaStreamTrack] = emptyStream.getTracks();
+    if (!emptyMediaStreamTrack) {
+      throw Error('Could not get empty media stream track');
+    }
+    emptyMediaStreamTrack.enabled = false;
+  }
+  return emptyMediaStreamTrack;
+}
