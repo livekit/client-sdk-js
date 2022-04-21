@@ -385,8 +385,8 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
     track.on(TrackEvent.Ended, this.onTrackUnpublish);
-    track.off(TrackEvent.UpstreamHalted, this.onTrackUpstreamHalted);
-    track.off(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
+    track.on(TrackEvent.UpstreamHalted, this.onTrackUpstreamHalted);
+    track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
     // create track publication from track
     const req = AddTrackRequest.fromPartial({
@@ -606,7 +606,7 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   private onTrackUnmuted = (track: LocalTrack) => {
-    this.onTrackMuted(track, false);
+    this.onTrackMuted(track, track.isUpstreamHalted);
   };
 
   // when the local track changes in mute status, we'll notify server as such
@@ -625,10 +625,12 @@ export default class LocalParticipant extends Participant {
   };
 
   private onTrackUpstreamHalted = (track: LocalTrack) => {
+    log.info('upstream halted');
     this.onTrackMuted(track, true);
   };
 
   private onTrackUpstreamResumed = (track: LocalTrack) => {
+    log.info('upstream resumed');
     this.onTrackMuted(track, track.isMuted);
   };
 

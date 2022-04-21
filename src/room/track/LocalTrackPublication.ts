@@ -8,11 +8,13 @@ import { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
 
 export default class LocalTrackPublication extends TrackPublication {
-  track?: LocalTrack;
+  track?: LocalTrack = undefined;
 
   options?: TrackPublishOptions;
 
-  isDetached: boolean = false;
+  get isUpstreamHalted() {
+    return this.track?.isUpstreamHalted;
+  }
 
   constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
     super(kind, ti.sid, ti.name);
@@ -62,16 +64,12 @@ export default class LocalTrackPublication extends TrackPublication {
     return this.track?.unmute();
   }
 
-  detachTrack() {
-    this.track?.detachTrack();
-    this.isDetached = true;
-    this.emit(TrackEvent.UpstreamHalted, this.track);
+  haltUpstream() {
+    this.track?.haltUpstream();
   }
 
-  attachTrack() {
-    this.track?.attachTrack();
-    this.isDetached = false;
-    this.emit(TrackEvent.UpstreamResumed);
+  resumeUpstream() {
+    this.track?.resumeUpstream();
   }
 
   handleTrackEnded = () => {

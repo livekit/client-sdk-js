@@ -46,6 +46,12 @@ export default class LocalTrack extends Track {
     return undefined;
   }
 
+  private _isUpstreamHalted: boolean = false;
+
+  get isUpstreamHalted() {
+    return this._isUpstreamHalted;
+  }
+
   /**
    * @returns DeviceID of the device that is currently being used for this track
    */
@@ -163,14 +169,18 @@ export default class LocalTrack extends Track {
     this.emit(TrackEvent.Ended, this);
   };
 
-  async detachTrack() {
+  async haltUpstream() {
+    this.emit(TrackEvent.UpstreamHalted, this);
+    this._isUpstreamHalted = true;
     if (!this.sender) {
       throw new TrackInvalidError('unable to detach an unpublished track');
     }
     await this.sender.replaceTrack(getEmptyMediaStreamTrack());
   }
 
-  async attachTrack() {
+  async resumeUpstream() {
+    this.emit(TrackEvent.UpstreamResumed, this);
+    this._isUpstreamHalted = false;
     if (!this.sender) {
       throw new TrackInvalidError('unable to attach an unpublished track');
     }

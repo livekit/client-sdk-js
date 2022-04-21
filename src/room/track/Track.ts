@@ -349,6 +349,6 @@ export type TrackEventCallbacks = {
   videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void;
   elementAttached: (element: HTMLMediaElement) => void;
   elementDetached: (element: HTMLMediaElement) => void;
-  upstreamHalted: () => void;
-  upstreamResumed: () => void;
+  upstreamHalted: (track: any) => void;
+  upstreamResumed: (track: any) => void;
 };
