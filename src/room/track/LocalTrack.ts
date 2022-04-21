@@ -173,7 +173,7 @@ export default class LocalTrack extends Track {
     this.emit(TrackEvent.UpstreamHalted, this);
     this._isUpstreamHalted = true;
     if (!this.sender) {
-      throw new TrackInvalidError('unable to detach an unpublished track');
+      throw new TrackInvalidError('unable to halt upstream for an unpublished track');
     }
     await this.sender.replaceTrack(getEmptyMediaStreamTrack());
   }
@@ -182,7 +182,7 @@ export default class LocalTrack extends Track {
     this.emit(TrackEvent.UpstreamResumed, this);
     this._isUpstreamHalted = false;
     if (!this.sender) {
-      throw new TrackInvalidError('unable to attach an unpublished track');
+      throw new TrackInvalidError('unable to resume upstream for an unpublished track');
     }
     await this.sender.replaceTrack(this.mediaStreamTrack);
   }
