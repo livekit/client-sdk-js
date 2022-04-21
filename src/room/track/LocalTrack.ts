@@ -76,6 +76,35 @@ export default class LocalTrack extends Track {
     return this;
   }
 
+  async replaceTrack(track: MediaStreamTrack): Promise<LocalTrack> {
+    if (!this.sender) {
+      throw new TrackInvalidError('unable to replace an unpublished track');
+    }
+
+    // detach
+    this.attachedElements.forEach((el) => {
+      detachTrack(this.mediaStreamTrack, el);
+    });
+    this.mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+    // on Safari, the old audio track must be stopped before attempting to acquire
+    // the new track, otherwise the new track will stop with
+    // 'A MediaStreamTrack ended due to a capture failure`
+    this.mediaStreamTrack.stop();
+
+    track.addEventListener('ended', this.handleEnded);
+    log.debug('re-acquired MediaStreamTrack');
+
+    await this.sender.replaceTrack(track);
+    this.mediaStreamTrack = track;
+
+    this.attachedElements.forEach((el) => {
+      attachToElement(track, el);
+    });
+
+    this.mediaStream = new MediaStream([track]);
+    return this;
+  }
+
   protected async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {
     if (!this.sender) {
       throw new TrackInvalidError('unable to restart an unpublished track');
@@ -173,11 +202,13 @@ export default class LocalTrack extends Track {
     if (this._isUpstreamPaused === true) {
       return;
     }
+    if (!this.sender) {
+      log.warn('unable to pause upstream for an unpublished track');
+      return;
+    }
     this._isUpstreamPaused = true;
     this.emit(TrackEvent.UpstreamPaused, this);
-    if (!this.sender) {
-      throw new TrackInvalidError('unable to pause upstream for an unpublished track');
-    }
+
     await this.sender.replaceTrack(getEmptyMediaStreamTrack());
   }
 
@@ -185,11 +216,13 @@ export default class LocalTrack extends Track {
     if (this._isUpstreamPaused === false) {
       return;
     }
+    if (!this.sender) {
+      log.warn('unable to resume upstream for an unpublished track');
+      return;
+    }
     this._isUpstreamPaused = false;
     this.emit(TrackEvent.UpstreamResumed, this);
-    if (!this.sender) {
-      throw new TrackInvalidError('unable to resume upstream for an unpublished track');
-    }
+
     await this.sender.replaceTrack(this.mediaStreamTrack);
   }
 }
