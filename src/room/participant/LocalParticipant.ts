@@ -625,12 +625,12 @@ export default class LocalParticipant extends Participant {
   };
 
   private onTrackUpstreamPaused = (track: LocalTrack) => {
-    log.info('upstream paused');
+    log.debug('upstream paused');
     this.onTrackMuted(track, true);
   };
 
   private onTrackUpstreamResumed = (track: LocalTrack) => {
-    log.info('upstream resumed');
+    log.debug('upstream resumed');
     this.onTrackMuted(track, track.isMuted);
   };
 

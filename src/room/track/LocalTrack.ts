@@ -170,8 +170,11 @@ export default class LocalTrack extends Track {
   };
 
   async pauseUpstream() {
-    this.emit(TrackEvent.UpstreamPaused, this);
+    if (this._isUpstreamPaused === true) {
+      return;
+    }
     this._isUpstreamPaused = true;
+    this.emit(TrackEvent.UpstreamPaused, this);
     if (!this.sender) {
       throw new TrackInvalidError('unable to pause upstream for an unpublished track');
     }
@@ -179,8 +182,11 @@ export default class LocalTrack extends Track {
   }
 
   async resumeUpstream() {
-    this.emit(TrackEvent.UpstreamResumed, this);
+    if (this._isUpstreamPaused === false) {
+      return;
+    }
     this._isUpstreamPaused = false;
+    this.emit(TrackEvent.UpstreamResumed, this);
     if (!this.sender) {
       throw new TrackInvalidError('unable to resume upstream for an unpublished track');
     }
