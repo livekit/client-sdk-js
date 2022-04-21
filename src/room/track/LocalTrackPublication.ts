@@ -12,8 +12,8 @@ export default class LocalTrackPublication extends TrackPublication {
 
   options?: TrackPublishOptions;
 
-  get isUpstreamHalted() {
-    return this.track?.isUpstreamHalted;
+  get isUpstreamPaused() {
+    return this.track?.isUpstreamPaused;
   }
 
   constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
@@ -64,8 +64,8 @@ export default class LocalTrackPublication extends TrackPublication {
     return this.track?.unmute();
   }
 
-  haltUpstream() {
-    this.track?.haltUpstream();
+  pauseUpstream() {
+    this.track?.pauseUpstream();
   }
 
   resumeUpstream() {

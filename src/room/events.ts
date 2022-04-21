@@ -429,7 +429,7 @@ export enum TrackEvent {
    * @internal
    * Only fires on LocalTracks
    */
-  UpstreamHalted = 'upstreamHalted',
+  UpstreamPaused = 'upstreamPaused',
   /**
    * @internal
    * Only fires on LocalTracks

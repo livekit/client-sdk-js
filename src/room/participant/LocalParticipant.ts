@@ -385,7 +385,7 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
     track.on(TrackEvent.Ended, this.onTrackUnpublish);
-    track.on(TrackEvent.UpstreamHalted, this.onTrackUpstreamHalted);
+    track.on(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
     track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
     // create track publication from track
@@ -482,7 +482,7 @@ export default class LocalParticipant extends Participant {
     track.off(TrackEvent.Muted, this.onTrackMuted);
     track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
     track.off(TrackEvent.Ended, this.onTrackUnpublish);
-    track.off(TrackEvent.UpstreamHalted, this.onTrackUpstreamHalted);
+    track.off(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
     track.off(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
     if (stopOnUnpublish === undefined) {
@@ -606,7 +606,7 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   private onTrackUnmuted = (track: LocalTrack) => {
-    this.onTrackMuted(track, track.isUpstreamHalted);
+    this.onTrackMuted(track, track.isUpstreamPaused);
   };
 
   // when the local track changes in mute status, we'll notify server as such
@@ -624,8 +624,8 @@ export default class LocalParticipant extends Participant {
     this.engine.updateMuteStatus(track.sid, muted);
   };
 
-  private onTrackUpstreamHalted = (track: LocalTrack) => {
-    log.info('upstream halted');
+  private onTrackUpstreamPaused = (track: LocalTrack) => {
+    log.info('upstream paused');
     this.onTrackMuted(track, true);
   };
 

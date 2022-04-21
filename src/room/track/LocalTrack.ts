@@ -46,10 +46,10 @@ export default class LocalTrack extends Track {
     return undefined;
   }
 
-  private _isUpstreamHalted: boolean = false;
+  private _isUpstreamPaused: boolean = false;
 
-  get isUpstreamHalted() {
-    return this._isUpstreamHalted;
+  get isUpstreamPaused() {
+    return this._isUpstreamPaused;
   }
 
   /**
@@ -169,18 +169,18 @@ export default class LocalTrack extends Track {
     this.emit(TrackEvent.Ended, this);
   };
 
-  async haltUpstream() {
-    this.emit(TrackEvent.UpstreamHalted, this);
-    this._isUpstreamHalted = true;
+  async pauseUpstream() {
+    this.emit(TrackEvent.UpstreamPaused, this);
+    this._isUpstreamPaused = true;
     if (!this.sender) {
-      throw new TrackInvalidError('unable to halt upstream for an unpublished track');
+      throw new TrackInvalidError('unable to pause upstream for an unpublished track');
     }
     await this.sender.replaceTrack(getEmptyMediaStreamTrack());
   }
 
   async resumeUpstream() {
     this.emit(TrackEvent.UpstreamResumed, this);
-    this._isUpstreamHalted = false;
+    this._isUpstreamPaused = false;
     if (!this.sender) {
       throw new TrackInvalidError('unable to resume upstream for an unpublished track');
     }
