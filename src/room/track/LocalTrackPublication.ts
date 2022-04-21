@@ -65,8 +65,8 @@ export default class LocalTrackPublication extends TrackPublication {
   }
 
   /**
-   * Pauses the media stream track from being sent to the server
-   * and signals a muted stream to other participants
+   * Pauses the media stream track associated with this publication from being sent to the server
+   * and signals "muted" event to other participants
    * Useful if you want to pause the stream without pausing the local media stream track
    */
   pauseUpstream() {
@@ -74,8 +74,8 @@ export default class LocalTrackPublication extends TrackPublication {
   }
 
   /**
-   * Resumes sending the media stream track to the server after a call to [[pauseUpstream()]]
-   * and signals unmuted stream to other participants (unless the track is explicitly muted)
+   * Resumes sending the media stream track associated with this publication to the server after a call to [[pauseUpstream()]]
+   * and signals "unmuted" event to other participants (unless the track is explicitly muted)
    */
   resumeUpstream() {
     this.track?.resumeUpstream();
