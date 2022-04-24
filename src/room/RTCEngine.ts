@@ -1,7 +1,7 @@
-import { EventEmitter } from 'events'
-import type TypedEventEmitter from 'typed-emitter'
-import { SignalClient, SignalOptions } from '../api/SignalClient'
-import log from '../logger'
+import { EventEmitter } from 'events';
+import type TypedEventEmitter from 'typed-emitter';
+import { SignalClient, SignalOptions } from '../api/SignalClient';
+import log from '../logger';
 import {
   ClientConfigSetting,
   ClientConfiguration,
@@ -9,19 +9,19 @@ import {
   DataPacket_Kind,
   SpeakerInfo,
   TrackInfo,
-  UserPacket
-} from '../proto/livekit_models'
+  UserPacket,
+} from '../proto/livekit_models';
 import {
   AddTrackRequest,
   JoinResponse,
   LeaveRequest,
   SignalTarget,
-  TrackPublishedResponse
-} from '../proto/livekit_rtc'
-import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors'
-import { EngineEvent } from './events'
-import PCTransport from './PCTransport'
-import { isFireFox, isWeb, sleep } from './utils'
+  TrackPublishedResponse,
+} from '../proto/livekit_rtc';
+import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
+import { EngineEvent } from './events';
+import PCTransport from './PCTransport';
+import { isFireFox, isWeb, sleep } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -218,7 +218,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     this.primaryPC = primaryPC;
     primaryPC.onconnectionstatechange = async () => {
-      log.trace("connection state changed", {
+      log.trace('connection state changed', {
         state: primaryPC.connectionState,
       });
       if (primaryPC.connectionState === 'connected') {
@@ -525,7 +525,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     let now = startTime;
     this.pcState = PCState.Reconnecting;
 
-    log.debug("waiting for peer connection to reconnect");
+    log.debug('waiting for peer connection to reconnect');
     while (now - startTime < maxICEConnectTimeout) {
       if (this.primaryPC === undefined) {
         // we can abort early, connection is hosed
