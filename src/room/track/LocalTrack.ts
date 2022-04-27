@@ -92,7 +92,7 @@ export default class LocalTrack extends Track {
     this.mediaStreamTrack.stop();
 
     track.addEventListener('ended', this.handleEnded);
-    log.debug('re-acquired MediaStreamTrack');
+    log.debug('replace MediaStreamTrack');
 
     await this.sender.replaceTrack(track);
     this.mediaStreamTrack = track;

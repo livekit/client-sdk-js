@@ -236,7 +236,7 @@ export function detachTrack(track: MediaStreamTrack, element: HTMLMediaElement) 
   if (element.srcObject instanceof MediaStream) {
     const mediaStream = element.srcObject;
     mediaStream.removeTrack(track);
-    element.srcObject = null;
+    element.srcObject = mediaStream;
   }
 }
 
