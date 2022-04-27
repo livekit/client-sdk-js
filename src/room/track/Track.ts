@@ -4,6 +4,7 @@ import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import { isFireFox, isSafari, isWeb } from '../utils';
+import log from '../../logger';
 
 // keep old audio elements when detached, we would re-use them since on iOS
 // Safari tracks which audio elements have been "blessed" by the user.
@@ -236,7 +237,11 @@ export function detachTrack(track: MediaStreamTrack, element: HTMLMediaElement) 
   if (element.srcObject instanceof MediaStream) {
     const mediaStream = element.srcObject;
     mediaStream.removeTrack(track);
-    element.srcObject = mediaStream;
+    if (mediaStream.getTracks().length > 0) {
+      element.srcObject = mediaStream;
+    } else {
+      element.srcObject = null;
+    }
   }
 }
 
