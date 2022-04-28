@@ -5,7 +5,6 @@
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
   "module": "./dist/livekit-client.esm.js",
-  "type": "module",
   "exports": {
     ".": {
       "import": "./dist/livekit-client.esm.js",
