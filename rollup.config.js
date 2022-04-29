@@ -18,7 +18,7 @@ export default {
   input: 'src/index.ts',
   output: [
     {
-      file: `dist/${packageJson.name}.esm.js`,
+      file: `dist/${packageJson.name}.esm.mjs`,
       format: 'esm',
       strict: true,
       sourcemap: true,
