@@ -402,7 +402,7 @@ export default class LocalParticipant extends Participant {
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
     let simEncodings: RTCRtpEncodingParameters[] | undefined;
-    let simulcastTracks: SimulcastTrackInfo[] | undefined;
+    // let simulcastTracks: SimulcastTrackInfo[] | undefined;
     if (track.kind === Track.Kind.Video) {
       // TODO: support react native, which doesn't expose getSettings
       const settings = track.mediaStreamTrack.getSettings();
@@ -414,25 +414,27 @@ export default class LocalParticipant extends Participant {
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack && 
         (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1')) {
-          opts.simulcast = true;
+          opts.simulcast = false;
+          opts.scalabilityMode = 'L3T3';
           simEncodings = computeVideoEncodings(
             track.source === Track.Source.ScreenShare,
             width,
             height,
             opts,
           );
-          opts.simulcast = false;
-          const simulcastTrack = track.addSimulcastTrack(compatibleCodecForSVC, simEncodings);
-          simulcastTracks = [simulcastTrack];
+          // opts.simulcast = false;
+          // const simulcastTrack = track.addSimulcastTrack(compatibleCodecForSVC, simEncodings);
+          // simulcastTracks = [simulcastTrack];
           req.simulcastCodecs = [{
             codec: opts.videoCodec,
             cid: track.mediaStreamTrack.id,
-            enableSimulcastLayers: false,
-          }, {
-            codec: simulcastTrack.codec,
-            cid: simulcastTrack.mediaStreamTrack.id,
             enableSimulcastLayers: true,
-          }];
+          }]
+          // , {
+          //   codec: simulcastTrack.codec,
+          //   cid: simulcastTrack.mediaStreamTrack.id,
+          //   enableSimulcastLayers: true,
+          // }];
       }
 
       encodings = computeVideoEncodings(
@@ -471,18 +473,18 @@ export default class LocalParticipant extends Participant {
       track.codec = opts.videoCodec;
     }
 
-    const localTrack = track as LocalVideoTrack;
-    simulcastTracks?.forEach((simulcastTrack) => {
-      const simTransceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-      if (simulcastTrack.encodings) {
-        simTransceiverInit.sendEncodings = simulcastTrack.encodings;
-      }
-      const simTransceiver = this.engine.publisher!.pc.addTransceiver(
-        simulcastTrack.mediaStreamTrack, simTransceiverInit,
-      );
-      this.setPreferredCodec(simTransceiver, localTrack.kind, simulcastTrack.codec);
-      localTrack.setSimulcastTrackSender(simulcastTrack.codec, simTransceiver.sender);
-    });
+    // const localTrack = track as LocalVideoTrack;
+    // simulcastTracks?.forEach((simulcastTrack) => {
+    //   const simTransceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+    //   if (simulcastTrack.encodings) {
+    //     simTransceiverInit.sendEncodings = simulcastTrack.encodings;
+    //   }
+    //   const simTransceiver = this.engine.publisher!.pc.addTransceiver(
+    //     simulcastTrack.mediaStreamTrack, simTransceiverInit,
+    //   );
+    //   this.setPreferredCodec(simTransceiver, localTrack.kind, simulcastTrack.codec);
+    //   localTrack.setSimulcastTrackSender(simulcastTrack.codec, simTransceiver.sender);
+    // });
 
     this.engine.negotiate();
 
@@ -732,6 +734,7 @@ export default class LocalParticipant extends Participant {
     }
     const cap = RTCRtpSender.getCapabilities(kind);
     if (!cap) return;
+    log.info('get capabilities', cap);
     let selected: RTCRtpCodecCapability | undefined;
     const codecs: RTCRtpCodecCapability[] = [];
     cap.codecs.forEach((c) => {
