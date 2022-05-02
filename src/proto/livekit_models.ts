@@ -256,6 +256,11 @@ export interface ParticipantInfo {
   version: number;
   permission?: ParticipantPermission;
   region: string;
+  /**
+   * indicates the participant has an active publisher connection
+   * and can publish to the server
+   */
+  isPublisher: boolean;
 }
 
 export enum ParticipantInfo_State {
@@ -849,6 +854,7 @@ function createBaseParticipantInfo(): ParticipantInfo {
     version: 0,
     permission: undefined,
     region: '',
+    isPublisher: false,
   };
 }
 
@@ -883,6 +889,9 @@ export const ParticipantInfo = {
     }
     if (message.region !== '') {
       writer.uint32(98).string(message.region);
+    }
+    if (message.isPublisher === true) {
+      writer.uint32(104).bool(message.isPublisher);
     }
     return writer;
   },
@@ -924,6 +933,9 @@ export const ParticipantInfo = {
         case 12:
           message.region = reader.string();
           break;
+        case 13:
+          message.isPublisher = reader.bool();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -948,6 +960,7 @@ export const ParticipantInfo = {
         ? ParticipantPermission.fromJSON(object.permission)
         : undefined,
       region: isSet(object.region) ? String(object.region) : '',
+      isPublisher: isSet(object.isPublisher) ? Boolean(object.isPublisher) : false,
     };
   },
 
@@ -970,6 +983,7 @@ export const ParticipantInfo = {
         ? ParticipantPermission.toJSON(message.permission)
         : undefined);
     message.region !== undefined && (obj.region = message.region);
+    message.isPublisher !== undefined && (obj.isPublisher = message.isPublisher);
     return obj;
   },
 
@@ -988,6 +1002,7 @@ export const ParticipantInfo = {
         ? ParticipantPermission.fromPartial(object.permission)
         : undefined;
     message.region = object.region ?? '';
+    message.isPublisher = object.isPublisher ?? false;
     return message;
   },
 };
@@ -2375,9 +2390,9 @@ const btoa: (bin: string) => string =
   globalThis.btoa || ((bin) => globalThis.Buffer.from(bin, 'binary').toString('base64'));
 function base64FromBytes(arr: Uint8Array): string {
   const bin: string[] = [];
-  for (const byte of arr) {
+  arr.forEach((byte) => {
     bin.push(String.fromCharCode(byte));
-  }
+  });
   return btoa(bin.join(''));
 }
 
