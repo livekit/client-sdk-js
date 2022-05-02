@@ -36,7 +36,11 @@ export default {
     nodeResolve({ browser: true, preferBuiltins: false }),
     typescript({ tsconfig: './tsconfig.json' }),
     commonjs(),
-    babel({ babelHelpers: 'bundled', presets: ['@babel/preset-env'] }),
+    babel({
+      babelHelpers: 'bundled',
+      presets: [['@babel/preset-env', { include: ['@babel/plugin-proposal-object-rest-spread'] }]],
+      extensions: ['.js', '.ts', '.mjs'],
+    }),
     replace({
       patterns: [
         {
