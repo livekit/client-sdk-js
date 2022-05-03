@@ -211,8 +211,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     let primaryPC = this.publisher.pc;
+    let secondaryPC = this.subscriber.pc;
     if (joinResponse.subscriberPrimary) {
       primaryPC = this.subscriber.pc;
+      secondaryPC = this.publisher.pc;
       // in subscriber primary mode, server side opens sub data channels.
       this.subscriber.pc.ondatachannel = this.handleDataChannel;
     }
@@ -237,8 +239,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         if (this.pcState === PCState.Connected) {
           this.pcState = PCState.Disconnected;
 
-          this.handleDisconnect('peerconnection');
+          this.handleDisconnect('primary peerconnection');
         }
+      }
+    };
+    secondaryPC.onconnectionstatechange = async () => {
+      // also reconnect if secondary peerconnection fails
+      if (secondaryPC.connectionState === 'failed') {
+        this.handleDisconnect('secondary peerconnection');
       }
     };
 
