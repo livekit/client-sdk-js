@@ -2,7 +2,7 @@ import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import { getEmptyMediaStreamTrack, isMobile } from '../utils';
+import { getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, isMobile } from '../utils';
 import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {
@@ -208,8 +208,9 @@ export default class LocalTrack extends Track {
     }
     this._isUpstreamPaused = true;
     this.emit(TrackEvent.UpstreamPaused, this);
-
-    await this.sender.replaceTrack(getEmptyMediaStreamTrack());
+    const emptyTrack =
+      this.kind === Track.Kind.Audio ? getEmptyAudioStreamTrack() : getEmptyVideoStreamTrack();
+    await this.sender.replaceTrack(emptyTrack);
   }
 
   async resumeUpstream() {
