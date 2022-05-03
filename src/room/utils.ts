@@ -99,6 +99,7 @@ let emptyAudioStreamTrack: MediaStreamTrack | undefined;
 
 export function getEmptyAudioStreamTrack() {
   if (!emptyAudioStreamTrack) {
+    // implementation adapted from https://blog.mozilla.org/webrtc/warm-up-with-replacetrack/
     const ctx = new AudioContext();
     const oscillator = ctx.createOscillator();
     const dst = ctx.createMediaStreamDestination();
