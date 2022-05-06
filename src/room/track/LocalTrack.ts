@@ -21,14 +21,14 @@ export default class LocalTrack extends Track {
     constraints?: MediaTrackConstraints,
   ) {
     super(mediaTrack, kind);
-    this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
+    this._mediaStreamTrack.addEventListener('ended', this.handleEnded);
     this.constraints = constraints ?? mediaTrack.getConstraints();
     this.reacquireTrack = false;
     this.wasMuted = false;
   }
 
   get id(): string {
-    return this.mediaStreamTrack.id;
+    return this._mediaStreamTrack.id;
   }
 
   get dimensions(): Track.Dimensions | undefined {
@@ -36,7 +36,7 @@ export default class LocalTrack extends Track {
       return undefined;
     }
 
-    const { width, height } = this.mediaStreamTrack.getSettings();
+    const { width, height } = this._mediaStreamTrack.getSettings();
     if (width && height) {
       return {
         width,
@@ -60,7 +60,7 @@ export default class LocalTrack extends Track {
     if (this.source === Track.Source.ScreenShare) {
       return;
     }
-    const { deviceId, groupId } = this.mediaStreamTrack.getSettings();
+    const { deviceId, groupId } = this._mediaStreamTrack.getSettings();
     const kind = this.kind === Track.Kind.Audio ? 'audioinput' : 'videoinput';
 
     return DeviceManager.getInstance().normalizeDeviceId(kind, deviceId, groupId);
@@ -83,19 +83,19 @@ export default class LocalTrack extends Track {
 
     // detach
     this.attachedElements.forEach((el) => {
-      detachTrack(this.mediaStreamTrack, el);
+      detachTrack(this._mediaStreamTrack, el);
     });
-    this.mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+    this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
     // on Safari, the old audio track must be stopped before attempting to acquire
     // the new track, otherwise the new track will stop with
     // 'A MediaStreamTrack ended due to a capture failure`
-    this.mediaStreamTrack.stop();
+    this._mediaStreamTrack.stop();
 
     track.addEventListener('ended', this.handleEnded);
     log.debug('replace MediaStreamTrack');
 
     await this.sender.replaceTrack(track);
-    this.mediaStreamTrack = track;
+    this._mediaStreamTrack = track;
 
     this.attachedElements.forEach((el) => {
       attachToElement(track, el);
@@ -127,13 +127,13 @@ export default class LocalTrack extends Track {
 
     // detach
     this.attachedElements.forEach((el) => {
-      detachTrack(this.mediaStreamTrack, el);
+      detachTrack(this._mediaStreamTrack, el);
     });
-    this.mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+    this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
     // on Safari, the old audio track must be stopped before attempting to acquire
     // the new track, otherwise the new track will stop with
     // 'A MediaStreamTrack ended due to a capture failure`
-    this.mediaStreamTrack.stop();
+    this._mediaStreamTrack.stop();
 
     // create new track and attach
     const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
@@ -142,7 +142,7 @@ export default class LocalTrack extends Track {
     log.debug('re-acquired MediaStreamTrack');
 
     await this.sender.replaceTrack(newTrack);
-    this.mediaStreamTrack = newTrack;
+    this._mediaStreamTrack = newTrack;
 
     this.attachedElements.forEach((el) => {
       attachToElement(newTrack, el);
@@ -159,15 +159,15 @@ export default class LocalTrack extends Track {
     }
 
     this.isMuted = muted;
-    this.mediaStreamTrack.enabled = !muted;
+    this._mediaStreamTrack.enabled = !muted;
     this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
   }
 
   protected get needsReAcquisition(): boolean {
     return (
-      this.mediaStreamTrack.readyState !== 'live' ||
-      this.mediaStreamTrack.muted ||
-      !this.mediaStreamTrack.enabled ||
+      this._mediaStreamTrack.readyState !== 'live' ||
+      this._mediaStreamTrack.muted ||
+      !this._mediaStreamTrack.enabled ||
       this.reacquireTrack
     );
   }
@@ -224,6 +224,6 @@ export default class LocalTrack extends Track {
     this._isUpstreamPaused = false;
     this.emit(TrackEvent.UpstreamResumed, this);
 
-    await this.sender.replaceTrack(this.mediaStreamTrack);
+    await this.sender.replaceTrack(this._mediaStreamTrack);
   }
 }

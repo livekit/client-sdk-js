@@ -83,13 +83,13 @@ export function constraintsForOptions(options: CreateLocalTracksOptions): MediaS
  */
 export async function detectSilence(track: AudioTrack, timeOffset = 200): Promise<boolean> {
   const ctx = getNewAudioContext();
-  if (ctx) {
+  if (ctx && track.mediaStream) {
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
-    const source = ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+    const source = ctx.createMediaStreamSource(track.mediaStream);
 
     source.connect(analyser);
     await sleep(timeOffset);
