@@ -34,6 +34,12 @@ export interface TrackPublishDefaults {
   simulcast?: boolean;
 
   /**
+   * scalability mode for svc codecs, defaults to 'L3T3'.
+   * for svc codecs, simulcast is disabled.
+   */
+  scalabilityMode?: ScalabilityMode;
+
+  /**
    * custom video simulcast layers for camera tracks, defaults to h180, h360, h540
    * You can specify up to two custom layers that will be used instead of
    * the LiveKit default layers.
@@ -199,6 +205,11 @@ export interface AudioPreset {
 }
 
 export type VideoCodec = 'vp8' | 'h264' | 'av1' | 'vp9';
+
+/**
+ * scalability modes for svc, only supprot l3t3 now.
+ */
+export type ScalabilityMode = 'L3T3';
 
 export namespace AudioPresets {
   export const telephone: AudioPreset = {
