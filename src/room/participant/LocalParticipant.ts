@@ -409,9 +409,9 @@ export default class LocalParticipant extends Participant {
       // width and height should be defined for video
       req.width = width ?? 0;
       req.height = height ?? 0;
-      // for svc codecs, disable simulcast and enable scalability L3T3 
+      // for svc codecs, disable simulcast and enable scalability L3T3
       // by default
-      if (track instanceof LocalVideoTrack){
+      if (track instanceof LocalVideoTrack) {
         if (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1') {
           opts.simulcast = false;
           opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';

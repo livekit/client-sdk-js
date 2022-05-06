@@ -310,14 +310,14 @@ const appActions = {
         break;
       default:
         break;
-    };
+    }
     if (currentRoom) {
       currentRoom.participants.forEach((participant) => {
         participant.tracks.forEach((track) => {
           track.setVideoQuality(q);
         });
       });
-  }
+    }
   },
 };
 
