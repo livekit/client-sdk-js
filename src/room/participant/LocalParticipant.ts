@@ -409,6 +409,18 @@ export default class LocalParticipant extends Participant {
       // width and height should be defined for video
       req.width = width ?? 0;
       req.height = height ?? 0;
+      // for svc codecs, disable simulcast and enable scalability L3T3 
+      // by default
+      if (track instanceof LocalVideoTrack){
+        if (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1') {
+          opts.simulcast = false;
+          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
+        } else {
+          // other codecs, unset scalability
+          opts.scalabilityMode = undefined;
+        }
+      }
+
       encodings = computeVideoEncodings(
         track.source === Track.Source.ScreenShare,
         width,
@@ -440,6 +452,9 @@ export default class LocalParticipant extends Participant {
       track.mediaStreamTrack,
       transceiverInit,
     );
+    if (opts.videoCodec) {
+      this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
+    }
     this.engine.negotiate();
 
     // store RTPSender
@@ -448,10 +463,6 @@ export default class LocalParticipant extends Participant {
       track.startMonitor(this.engine.client);
     } else if (track instanceof LocalAudioTrack) {
       track.startMonitor();
-    }
-
-    if (opts.videoCodec) {
-      this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
     }
     this.addTrackPublication(publication);
 
@@ -699,21 +710,34 @@ export default class LocalParticipant extends Participant {
     }
     const cap = RTCRtpSender.getCapabilities(kind);
     if (!cap) return;
-    const selected = cap.codecs.find((c) => {
+    let selected: RTCRtpCodecCapability | undefined;
+    const codecs: RTCRtpCodecCapability[] = [];
+    cap.codecs.forEach((c) => {
       const codec = c.mimeType.toLowerCase();
       const matchesVideoCodec = codec === `video/${videoCodec}`;
 
+      if (selected !== undefined) {
+        codecs.push(c);
+        return;
+      }
       // for h264 codecs that have sdpFmtpLine available, use only if the
       // profile-level-id is 42e01f for cross-browser compatibility
       if (videoCodec === 'h264' && c.sdpFmtpLine) {
-        return matchesVideoCodec && c.sdpFmtpLine.includes('profile-level-id=42e01f');
+        if (matchesVideoCodec && c.sdpFmtpLine.includes('profile-level-id=42e01f')) {
+          selected = c;
+          return;
+        }
       }
-
-      return matchesVideoCodec || codec === 'audio/opus';
+      if (matchesVideoCodec || codec === 'audio/opus') {
+        selected = c;
+        return;
+      }
+      codecs.push(c);
     });
     if (selected && 'setCodecPreferences' in transceiver) {
       // @ts-ignore
-      transceiver.setCodecPreferences([selected]);
+      codecs.unshift(selected);
+      transceiver.setCodecPreferences(codecs);
     }
   }
 

@@ -17,6 +17,7 @@ import {
   VideoCaptureOptions,
   VideoPresets,
   VideoCodec,
+  VideoQuality,
 } from '../src/index';
 import { LogLevel } from '../src/logger';
 
@@ -292,6 +293,31 @@ const appActions = {
     if (currentRoom) {
       await currentRoom.switchActiveDevice(kind, deviceId);
     }
+  },
+
+  handlePreferredQuality: (e: Event) => {
+    const quality = (<HTMLSelectElement>e.target).value;
+    let q = VideoQuality.HIGH;
+    switch (quality) {
+      case 'low':
+        q = VideoQuality.LOW;
+        break;
+      case 'medium':
+        q = VideoQuality.MEDIUM;
+        break;
+      case 'high':
+        q = VideoQuality.HIGH;
+        break;
+      default:
+        break;
+    };
+    if (currentRoom) {
+      currentRoom.participants.forEach((participant) => {
+        participant.tracks.forEach((track) => {
+          track.setVideoQuality(q);
+        });
+      });
+  }
   },
 };
 
