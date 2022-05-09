@@ -44,6 +44,15 @@ export default class RemoteVideoTrack extends RemoteTrack {
     return this.adaptiveStreamSettings !== undefined;
   }
 
+  get mediaStreamTrack() {
+    if (this.isAdaptiveStream && this.attachedElements.length === 0) {
+      throw Error(
+        'When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, direct usage of mediaStreamTrack is unsupported in this case',
+      );
+    }
+    return this._mediaStreamTrack;
+  }
+
   /** @internal */
   setMuted(muted: boolean) {
     super.setMuted(muted);
@@ -51,9 +60,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
     this.attachedElements.forEach((element) => {
       // detach or attach
       if (muted) {
-        detachTrack(this.mediaStreamTrack, element);
+        detachTrack(this._mediaStreamTrack, element);
       } else {
-        attachToElement(this.mediaStreamTrack, element);
+        attachToElement(this._mediaStreamTrack, element);
       }
     });
   }

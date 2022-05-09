@@ -44,7 +44,7 @@ export default class LocalVideoTrack extends LocalTrack {
 
   stop() {
     this.sender = undefined;
-    this.mediaStreamTrack.getConstraints();
+    this._mediaStreamTrack.getConstraints();
     super.stop();
   }
 
@@ -52,7 +52,7 @@ export default class LocalVideoTrack extends LocalTrack {
     if (this.source === Track.Source.Camera) {
       log.debug('stopping camera track');
       // also stop the track, so that camera indicator is turned off
-      this.mediaStreamTrack.stop();
+      this._mediaStreamTrack.stop();
     }
     await super.mute();
     return this;
@@ -243,7 +243,7 @@ export default class LocalVideoTrack extends LocalTrack {
     await super.handleAppVisibilityChanged();
     if (!isMobile()) return;
     if (this.isInBackground && this.source === Track.Source.Camera) {
-      this.mediaStreamTrack.enabled = false;
+      this._mediaStreamTrack.enabled = false;
     }
   }
 }
