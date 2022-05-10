@@ -232,7 +232,7 @@ export const VideoPresets = {
   h216: new VideoPreset(384, 216, 180_000, 15),
   h360: new VideoPreset(640, 360, 300_000, 20),
   h540: new VideoPreset(960, 540, 600_000, 25),
-  h720: new VideoPreset(1280, 720, 2_000_000, 30),
+  h720: new VideoPreset(1280, 720, 1_700_000, 30),
   h1080: new VideoPreset(1920, 1080, 3_000_000, 30),
   h1440: new VideoPreset(2560, 1440, 5_000_000, 30),
   h2160: new VideoPreset(3840, 2160, 8_000_000, 30),
@@ -243,7 +243,7 @@ export const VideoPresets = {
   /** @deprecated */
   qhd: new VideoPreset(960, 540, 600_000, 25),
   /** @deprecated */
-  hd: new VideoPreset(1280, 720, 2_000_000, 30),
+  hd: new VideoPreset(1280, 720, 1_700_000, 30),
   /** @deprecated */
   fhd: new VideoPreset(1920, 1080, 3_000_000, 30),
 } as const;

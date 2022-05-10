@@ -28,8 +28,8 @@
     "lint": "eslint src",
     "test": "jest",
     "deploy": "gh-pages -d example/dist",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format": "prettier --write src",
+    "format:check": "prettier --check src"
   },
   "dependencies": {
     "events": "^3.3.0",
