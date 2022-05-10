@@ -17,11 +17,10 @@ export const publishDefaults: TrackPublishDefaults = {
 
 export const audioDefaults: AudioCaptureOptions = {
   autoGainControl: true,
-  channelCount: 1,
   echoCancellation: true,
   noiseSuppression: true,
 };
 
 export const videoDefaults: VideoCaptureOptions = {
-  resolution: VideoPresets.h540.resolution,
+  resolution: VideoPresets.h720.resolution,
 };
