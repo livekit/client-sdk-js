@@ -87,6 +87,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private audioContext?: AudioContext;
 
+  /** used for aborting pending connections to a LiveKit server */
+  private abortController?: AbortController;
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -191,6 +194,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
+    if (!this.abortController || this.abortController.signal.aborted) {
+      this.abortController = new AbortController();
+    }
+
     // recreate engine if previously disconnected
     this.createEngine();
 
@@ -203,12 +210,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.connOptions = opts;
 
     try {
-      const joinResponse = await this.engine.join(url, token, {
-        autoSubscribe: opts?.autoSubscribe,
-        publishOnly: opts?.publishOnly,
-        adaptiveStream:
-          typeof this.options?.adaptiveStream === 'object' ? true : this.options?.adaptiveStream,
-      });
+      const joinResponse = await this.engine.join(
+        url,
+        token,
+        {
+          autoSubscribe: opts?.autoSubscribe,
+          publishOnly: opts?.publishOnly,
+          adaptiveStream:
+            typeof this.options?.adaptiveStream === 'object' ? true : this.options?.adaptiveStream,
+        },
+        this.abortController.signal,
+      );
       log.debug(
         `connected to Livekit Server version: ${joinResponse.serverVersion}, region: ${joinResponse.serverRegion}`,
       );
@@ -288,6 +300,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.engine.close();
         reject(new ConnectionError('could not connect after timeout'));
       }, maxICEConnectTimeout);
+      const abortHandler = () => {
+        log.warn('closing engine');
+        clearTimeout(connectTimeout);
+        this.engine.close();
+        reject(new ConnectionError('room connection has been cancelled'));
+      };
+      if (this.abortController?.signal.aborted) {
+        abortHandler();
+      }
+      this.abortController?.signal.addEventListener('abort', abortHandler);
 
       this.engine.once(EngineEvent.Connected, () => {
         clearTimeout(connectTimeout);
@@ -307,6 +329,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
   disconnect = (stopTracks = true) => {
+    if (this.state === RoomState.Disconnected) {
+      // try aborting pending connection attempt
+      this.abortController?.abort();
+      return;
+    }
     // send leave
     if (this.engine) {
       this.engine.client.sendLeave();
@@ -524,9 +551,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleDisconnect(shouldStopTracks = true) {
-    if (this.state === RoomState.Disconnected) {
-      return;
-    }
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
         p.unpublishTrack(pub.trackSid);

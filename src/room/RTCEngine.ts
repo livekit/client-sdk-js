@@ -94,12 +94,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client = new SignalClient();
   }
 
-  async join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse> {
+  async join(
+    url: string,
+    token: string,
+    opts?: SignalOptions,
+    abortSignal?: AbortSignal,
+  ): Promise<JoinResponse> {
     this.url = url;
     this.token = token;
     this.signalOpts = opts;
 
-    const joinResponse = await this.client.join(url, token, opts);
+    const joinResponse = await this.client.join(url, token, opts, abortSignal);
     this.isClosed = false;
 
     this.subscriberPrimary = joinResponse.subscriberPrimary;

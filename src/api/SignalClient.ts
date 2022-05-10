@@ -123,15 +123,25 @@ export class SignalClient {
     this.requestQueue = new Queue();
   }
 
-  async join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse> {
+  async join(
+    url: string,
+    token: string,
+    opts?: SignalOptions,
+    abortSignal?: AbortSignal,
+  ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.isConnected = false;
-    const res = await this.connect(url, token, {
-      autoSubscribe: opts?.autoSubscribe,
-      publishOnly: opts?.publishOnly,
-      adaptiveStream: opts?.adaptiveStream,
-    });
+    const res = await this.connect(
+      url,
+      token,
+      {
+        autoSubscribe: opts?.autoSubscribe,
+        publishOnly: opts?.publishOnly,
+        adaptiveStream: opts?.adaptiveStream,
+      },
+      abortSignal,
+    );
     return res as JoinResponse;
   }
 
@@ -142,7 +152,12 @@ export class SignalClient {
     });
   }
 
-  connect(url: string, token: string, opts: ConnectOpts): Promise<JoinResponse | void> {
+  connect(
+    url: string,
+    token: string,
+    opts: ConnectOpts,
+    abortSignal?: AbortSignal,
+  ): Promise<JoinResponse | void> {
     if (url.startsWith('http')) {
       url = url.replace('http', 'ws');
     }
@@ -154,6 +169,15 @@ export class SignalClient {
     const params = createConnectionParams(token, clientInfo, opts);
 
     return new Promise<JoinResponse | void>((resolve, reject) => {
+      const abortHandler = () => {
+        ws.close();
+        this.close();
+        reject(new ConnectionError('room connection has been cancelled'));
+      };
+      if (abortSignal?.aborted) {
+        abortHandler();
+      }
+      abortSignal?.addEventListener('abort', abortHandler);
       log.debug(`connecting to ${url + params}`);
       this.ws = undefined;
       const ws = new WebSocket(url + params);
@@ -234,6 +258,7 @@ export class SignalClient {
     this.isConnected = false;
     if (this.ws) this.ws.onclose = null;
     this.ws?.close();
+    console.warn('ws close call');
     this.ws = undefined;
   }
 
