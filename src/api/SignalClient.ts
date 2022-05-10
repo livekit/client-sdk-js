@@ -258,7 +258,6 @@ export class SignalClient {
     this.isConnected = false;
     if (this.ws) this.ws.onclose = null;
     this.ws?.close();
-    console.warn('ws close call');
     this.ws = undefined;
   }
 
