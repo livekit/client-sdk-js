@@ -436,6 +436,10 @@ export default class LocalParticipant extends Participant {
       ];
     }
 
+    if (!this.engine || this.engine.isClosed) {
+      throw new UnexpectedConnectionState('cannot publish track when not connected');
+    }
+
     const ti = await this.engine.addTrack(req);
     const publication = new LocalTrackPublication(track.kind, ti, track);
     track.sid = ti.sid;

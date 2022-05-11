@@ -48,6 +48,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   rtcConfig: RTCConfiguration = {};
 
+  get isClosed() {
+    return this._isClosed;
+  }
+
   private lossyDC?: RTCDataChannel;
 
   // @ts-ignore noUnusedLocals
@@ -64,7 +68,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private pcState: PCState = PCState.New;
 
-  private isClosed: boolean = true;
+  private _isClosed: boolean = true;
 
   private pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
 
@@ -105,7 +109,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.signalOpts = opts;
 
     const joinResponse = await this.client.join(url, token, opts, abortSignal);
-    this.isClosed = false;
+    this._isClosed = false;
 
     this.subscriberPrimary = joinResponse.subscriberPrimary;
     if (!this.publisher) {
@@ -122,7 +126,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   close() {
-    this.isClosed = true;
+    this._isClosed = true;
 
     this.removeAllListeners();
     if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
@@ -408,7 +412,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   // continues to work, we can reconnect to websocket to continue the session
   // after a number of retries, we'll close and give up permanently
   private handleDisconnect = (connection: string) => {
-    if (this.isClosed) {
+    if (this._isClosed) {
       return;
     }
     log.debug(`${connection} disconnected`);
@@ -419,7 +423,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const delay = this.reconnectAttempts * this.reconnectAttempts * 300;
     setTimeout(async () => {
-      if (this.isClosed) {
+      if (this._isClosed) {
         return;
       }
       if (
