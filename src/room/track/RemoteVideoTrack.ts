@@ -48,7 +48,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   get mediaStreamTrack() {
-    if (this.isAdaptiveStream && this.hasUsedAttach) {
+    if (this.isAdaptiveStream && !this.hasUsedAttach) {
       log.warn(
         'When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, otherwise your video tracks might never start',
       );
