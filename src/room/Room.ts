@@ -154,14 +154,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
-        this.state = RoomState.Reconnecting;
+        this.setAndEmitRoomState(RoomState.Reconnecting);
         this.emit(RoomEvent.Reconnecting);
-        this.emit(RoomEvent.StateChanged, this.state);
       })
       .on(EngineEvent.Resumed, () => {
-        this.state = RoomState.Connected;
+        this.setAndEmitRoomState(RoomState.Connected);
         this.emit(RoomEvent.Reconnected);
-        this.emit(RoomEvent.StateChanged, this.state);
         this.updateSubscriptions();
       })
       .on(EngineEvent.SignalResumed, () => {
@@ -195,8 +193,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
-    this.state = RoomState.Connecting;
-    this.emit(RoomEvent.StateChanged, this.state);
+    this.setAndEmitRoomState(RoomState.Connecting);
 
     if (!this.abortController || this.abortController.signal.aborted) {
       this.abortController = new AbortController();
@@ -300,16 +297,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const connectTimeout = setTimeout(() => {
         // timeout
         this.engine.close();
-        this.state = RoomState.Disconnected;
-        this.emit(RoomEvent.StateChanged, this.state);
+        this.setAndEmitRoomState(RoomState.Disconnected);
         reject(new ConnectionError('could not connect after timeout'));
       }, maxICEConnectTimeout);
       const abortHandler = () => {
         log.warn('closing engine');
         clearTimeout(connectTimeout);
         this.engine.close();
-        this.state = RoomState.Disconnected;
-        this.emit(RoomEvent.StateChanged, this.state);
+        this.setAndEmitRoomState(RoomState.Disconnected);
         reject(new ConnectionError('room connection has been cancelled'));
       };
       if (this.abortController?.signal.aborted) {
@@ -325,8 +320,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           window.addEventListener('beforeunload', this.onBeforeUnload);
           navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
         }
-        this.state = RoomState.Connected;
-        this.emit(RoomEvent.StateChanged, this.state);
+        this.setAndEmitRoomState(RoomState.Connected);
         resolve(this);
       });
     });
@@ -517,9 +511,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleRestarting = () => {
-    this.state = RoomState.Reconnecting;
+    this.setAndEmitRoomState(RoomState.Reconnecting);
     this.emit(RoomEvent.Reconnecting);
-    this.emit(RoomEvent.StateChanged, this.state);
 
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {
@@ -529,9 +522,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRestarted = async (joinResponse: JoinResponse) => {
     log.debug(`reconnected to server region ${joinResponse.serverRegion}`);
-    this.state = RoomState.Connected;
+    this.setAndEmitRoomState(RoomState.Connected);
     this.emit(RoomEvent.Reconnected);
-    this.emit(RoomEvent.StateChanged, this.state);
 
     // rehydrate participants
     if (joinResponse.participant) {
@@ -585,9 +577,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       window.removeEventListener('beforeunload', this.onBeforeUnload);
       navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
     }
-    this.state = RoomState.Disconnected;
+    this.setAndEmitRoomState(RoomState.Disconnected);
     this.emit(RoomEvent.Disconnected);
-    this.emit(RoomEvent.StateChanged, this.state);
   }
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
@@ -922,6 +913,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       }
     }
+  }
+
+  private setAndEmitRoomState(state: RoomState) {
+    this.state = state;
+    this.emit(RoomEvent.StateChanged, this.state);
   }
 
   // /** @internal */
