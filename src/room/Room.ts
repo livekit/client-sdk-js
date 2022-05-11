@@ -289,6 +289,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.metadata = joinResponse.room!.metadata;
     } catch (err) {
       this.engine.close();
+      this.setAndEmitRoomState(RoomState.Disconnected);
       throw err;
     }
 
@@ -916,6 +917,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private setAndEmitRoomState(state: RoomState) {
+    if (state === this.state) {
+      return;
+    }
     this.state = state;
     this.emit(RoomEvent.StateChanged, this.state);
   }
