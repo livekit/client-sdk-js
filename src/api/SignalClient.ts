@@ -228,6 +228,7 @@ export class SignalClient {
           // handle join message only
           if (msg.join) {
             this.isConnected = true;
+            abortSignal?.removeEventListener('abort', abortHandler);
             resolve(msg.join);
           } else {
             reject(new ConnectionError('did not receive join response'));

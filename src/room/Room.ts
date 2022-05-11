@@ -37,6 +37,7 @@ import { isWeb, unpackStreamId } from './utils';
 
 export enum RoomState {
   Disconnected = 'disconnected',
+  Connecting = 'connecting',
   Connected = 'connected',
   Reconnecting = 'reconnecting',
 }
@@ -194,6 +195,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
+    this.state = RoomState.Connecting;
+    this.emit(RoomEvent.StateChanged, this.state);
+
     if (!this.abortController || this.abortController.signal.aborted) {
       this.abortController = new AbortController();
     }
@@ -235,7 +239,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.options.dynacast = false;
       }
 
-      this.state = RoomState.Connected;
       const pi = joinResponse.participant!;
 
       this.localParticipant.sid = pi.sid;
@@ -287,7 +290,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.name = joinResponse.room!.name;
       this.sid = joinResponse.room!.sid;
       this.metadata = joinResponse.room!.metadata;
-      this.emit(RoomEvent.StateChanged, this.state);
     } catch (err) {
       this.engine.close();
       throw err;
@@ -298,12 +300,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const connectTimeout = setTimeout(() => {
         // timeout
         this.engine.close();
+        this.state = RoomState.Disconnected;
+        this.emit(RoomEvent.StateChanged, this.state);
         reject(new ConnectionError('could not connect after timeout'));
       }, maxICEConnectTimeout);
       const abortHandler = () => {
         log.warn('closing engine');
         clearTimeout(connectTimeout);
         this.engine.close();
+        this.state = RoomState.Disconnected;
+        this.emit(RoomEvent.StateChanged, this.state);
         reject(new ConnectionError('room connection has been cancelled'));
       };
       if (this.abortController?.signal.aborted) {
@@ -313,13 +319,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
       this.engine.once(EngineEvent.Connected, () => {
         clearTimeout(connectTimeout);
-
+        this.abortController?.signal.removeEventListener('abort', abortHandler);
         // also hook unload event
         if (isWeb()) {
           window.addEventListener('beforeunload', this.onBeforeUnload);
           navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
         }
-
+        this.state = RoomState.Connected;
+        this.emit(RoomEvent.StateChanged, this.state);
         resolve(this);
       });
     });
@@ -329,8 +336,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
   disconnect = (stopTracks = true) => {
-    if (this.state === RoomState.Disconnected) {
+    if (this.state === RoomState.Connecting) {
       // try aborting pending connection attempt
+      log.warn('abort connection attempt');
       this.abortController?.abort();
       return;
     }
