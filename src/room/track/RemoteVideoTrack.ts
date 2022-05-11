@@ -10,6 +10,7 @@ import {
 import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
 import { AdaptiveStreamSettings } from './types';
+import log from '../../logger';
 
 const REACTION_DELAY = 100;
 
@@ -26,6 +27,8 @@ export default class RemoteVideoTrack extends RemoteTrack {
   private lastVisible?: boolean;
 
   private lastDimensions?: Track.Dimensions;
+
+  private hasUsedAttach: boolean = false;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -45,9 +48,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   get mediaStreamTrack() {
-    if (this.isAdaptiveStream && this.attachedElements.length === 0) {
-      throw Error(
-        'When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, direct usage of mediaStreamTrack is unsupported in this case',
+    if (this.isAdaptiveStream && this.hasUsedAttach) {
+      log.warn(
+        'When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, otherwise your video tracks might never start',
       );
     }
     return this._mediaStreamTrack;
@@ -98,6 +101,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       // the tab comes into focus for the first time.
       this.debouncedHandleResize();
     }
+    this.hasUsedAttach = true;
     return element;
   }
 
