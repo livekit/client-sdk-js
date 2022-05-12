@@ -72,7 +72,7 @@ export default class RemoteParticipant extends Participant {
    */
   setVolume(volume: number) {
     const audioPublication = this.getTrack(Track.Source.Microphone);
-    if (audioPublication) {
+    if (audioPublication && audioPublication.track) {
       (audioPublication.track as RemoteAudioTrack).setVolume(volume);
     }
   }
@@ -83,7 +83,7 @@ export default class RemoteParticipant extends Participant {
    */
   getVolume() {
     const audioPublication = this.getTrack(Track.Source.Microphone);
-    if (audioPublication) {
+    if (audioPublication && audioPublication.track) {
       return (audioPublication.track as RemoteAudioTrack).getVolume();
     }
   }
