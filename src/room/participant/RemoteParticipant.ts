@@ -19,6 +19,8 @@ export default class RemoteParticipant extends Participant {
 
   signalClient: SignalClient;
 
+  private volume?: number;
+
   /** @internal */
   static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
     const rp = new RemoteParticipant(signalClient, pi.sid, pi.identity);
@@ -68,9 +70,11 @@ export default class RemoteParticipant extends Participant {
   }
 
   /**
-   * sets the volume on the participant's microphone track if it exists.
+   * sets the volume on the participant's microphone track
+   * if no track exists the volume will be applied when the microphone track is added
    */
   setVolume(volume: number) {
+    this.volume = volume;
     const audioPublication = this.getTrack(Track.Source.Microphone);
     if (audioPublication && audioPublication.track) {
       (audioPublication.track as RemoteAudioTrack).setVolume(volume);
@@ -79,13 +83,13 @@ export default class RemoteParticipant extends Participant {
 
   /**
    * gets the volume on the participant's microphone track
-   * returns undefined if no microphone track exists
    */
   getVolume() {
     const audioPublication = this.getTrack(Track.Source.Microphone);
     if (audioPublication && audioPublication.track) {
       return (audioPublication.track as RemoteAudioTrack).getVolume();
     }
+    return this.volume;
   }
 
   /** @internal */
@@ -153,7 +157,14 @@ export default class RemoteParticipant extends Participant {
     track.start();
 
     publication.setTrack(track);
-
+    // set participant volume on new microphone tracks
+    if (
+      this.volume !== undefined &&
+      track instanceof RemoteAudioTrack &&
+      track.source === Track.Source.Microphone
+    ) {
+      track.setVolume(this.volume);
+    }
     this.emit(ParticipantEvent.TrackSubscribed, track, publication);
 
     return publication;
