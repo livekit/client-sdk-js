@@ -37,6 +37,7 @@ import { isWeb, unpackStreamId } from './utils';
 
 export enum RoomState {
   Disconnected = 'disconnected',
+  Connecting = 'connecting',
   Connected = 'connected',
   Reconnecting = 'reconnecting',
 }
@@ -86,6 +87,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private audioEnabled = true;
 
   private audioContext?: AudioContext;
+
+  /** used for aborting pending connections to a LiveKit server */
+  private abortController?: AbortController;
 
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
@@ -150,14 +154,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
-        this.state = RoomState.Reconnecting;
+        this.setAndEmitRoomState(RoomState.Reconnecting);
         this.emit(RoomEvent.Reconnecting);
-        this.emit(RoomEvent.StateChanged, this.state);
       })
       .on(EngineEvent.Resumed, () => {
-        this.state = RoomState.Connected;
+        this.setAndEmitRoomState(RoomState.Connected);
         this.emit(RoomEvent.Reconnected);
-        this.emit(RoomEvent.StateChanged, this.state);
         this.updateSubscriptions();
       })
       .on(EngineEvent.SignalResumed, () => {
@@ -191,6 +193,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
+    this.setAndEmitRoomState(RoomState.Connecting);
+
+    if (!this.abortController || this.abortController.signal.aborted) {
+      this.abortController = new AbortController();
+    }
+
     // recreate engine if previously disconnected
     this.createEngine();
 
@@ -203,12 +211,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.connOptions = opts;
 
     try {
-      const joinResponse = await this.engine.join(url, token, {
-        autoSubscribe: opts?.autoSubscribe,
-        publishOnly: opts?.publishOnly,
-        adaptiveStream:
-          typeof this.options?.adaptiveStream === 'object' ? true : this.options?.adaptiveStream,
-      });
+      const joinResponse = await this.engine.join(
+        url,
+        token,
+        {
+          autoSubscribe: opts?.autoSubscribe,
+          publishOnly: opts?.publishOnly,
+          adaptiveStream:
+            typeof this.options?.adaptiveStream === 'object' ? true : this.options?.adaptiveStream,
+        },
+        this.abortController.signal,
+      );
       log.debug(
         `connected to Livekit Server version: ${joinResponse.serverVersion}, region: ${joinResponse.serverRegion}`,
       );
@@ -223,7 +236,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.options.dynacast = false;
       }
 
-      this.state = RoomState.Connected;
       const pi = joinResponse.participant!;
 
       this.localParticipant.sid = pi.sid;
@@ -275,9 +287,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.name = joinResponse.room!.name;
       this.sid = joinResponse.room!.sid;
       this.metadata = joinResponse.room!.metadata;
-      this.emit(RoomEvent.StateChanged, this.state);
     } catch (err) {
       this.engine.close();
+      this.setAndEmitRoomState(RoomState.Disconnected);
       throw err;
     }
 
@@ -286,18 +298,30 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const connectTimeout = setTimeout(() => {
         // timeout
         this.engine.close();
+        this.setAndEmitRoomState(RoomState.Disconnected);
         reject(new ConnectionError('could not connect after timeout'));
       }, maxICEConnectTimeout);
+      const abortHandler = () => {
+        log.warn('closing engine');
+        clearTimeout(connectTimeout);
+        this.engine.close();
+        this.setAndEmitRoomState(RoomState.Disconnected);
+        reject(new ConnectionError('room connection has been cancelled'));
+      };
+      if (this.abortController?.signal.aborted) {
+        abortHandler();
+      }
+      this.abortController?.signal.addEventListener('abort', abortHandler);
 
       this.engine.once(EngineEvent.Connected, () => {
         clearTimeout(connectTimeout);
-
+        this.abortController?.signal.removeEventListener('abort', abortHandler);
         // also hook unload event
         if (isWeb()) {
           window.addEventListener('beforeunload', this.onBeforeUnload);
           navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
         }
-
+        this.setAndEmitRoomState(RoomState.Connected);
         resolve(this);
       });
     });
@@ -307,6 +331,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
   disconnect = (stopTracks = true) => {
+    if (this.state === RoomState.Connecting) {
+      // try aborting pending connection attempt
+      log.warn('abort connection attempt');
+      this.abortController?.abort();
+      return;
+    }
     // send leave
     if (this.engine) {
       this.engine.client.sendLeave();
@@ -482,9 +512,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleRestarting = () => {
-    this.state = RoomState.Reconnecting;
+    this.setAndEmitRoomState(RoomState.Reconnecting);
     this.emit(RoomEvent.Reconnecting);
-    this.emit(RoomEvent.StateChanged, this.state);
 
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {
@@ -494,9 +523,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRestarted = async (joinResponse: JoinResponse) => {
     log.debug(`reconnected to server region ${joinResponse.serverRegion}`);
-    this.state = RoomState.Connected;
+    this.setAndEmitRoomState(RoomState.Connected);
     this.emit(RoomEvent.Reconnected);
-    this.emit(RoomEvent.StateChanged, this.state);
 
     // rehydrate participants
     if (joinResponse.participant) {
@@ -524,9 +552,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleDisconnect(shouldStopTracks = true) {
-    if (this.state === RoomState.Disconnected) {
-      return;
-    }
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
         p.unpublishTrack(pub.trackSid);
@@ -553,9 +578,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       window.removeEventListener('beforeunload', this.onBeforeUnload);
       navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
     }
-    this.state = RoomState.Disconnected;
+    this.setAndEmitRoomState(RoomState.Disconnected);
     this.emit(RoomEvent.Disconnected);
-    this.emit(RoomEvent.StateChanged, this.state);
   }
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
@@ -890,6 +914,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       }
     }
+  }
+
+  private setAndEmitRoomState(state: RoomState) {
+    if (state === this.state) {
+      return;
+    }
+    this.state = state;
+    this.emit(RoomEvent.StateChanged, this.state);
   }
 
   // /** @internal */
