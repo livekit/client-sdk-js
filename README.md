@@ -55,7 +55,7 @@ const room = new Room({
 
   // default capture settings
   videoCaptureDefaults: {
-    resolution: VideoPresets.hd.resolution,
+    resolution: VideoPresets.h720.resolution,
   },
 });
 

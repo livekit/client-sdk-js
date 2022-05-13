@@ -8,7 +8,7 @@ describe('mergeDefaultOptions', () => {
   };
   const videoDefaults: VideoCaptureOptions = {
     deviceId: 'video123',
-    resolution: VideoPresets.fhd.resolution,
+    resolution: VideoPresets.h1080.resolution,
   };
 
   it('does not enable undefined options', () => {
@@ -88,7 +88,7 @@ describe('constraintsForOptions', () => {
   it('converts video options correctly', () => {
     const constraints = constraintsForOptions({
       video: {
-        resolution: VideoPresets.hd.resolution,
+        resolution: VideoPresets.h720.resolution,
         facingMode: 'user',
         deviceId: 'video123',
       },
@@ -102,9 +102,9 @@ describe('constraintsForOptions', () => {
       'facingMode',
       'deviceId',
     ]);
-    expect(videoOpts.width).toEqual(VideoPresets.hd.resolution.width);
-    expect(videoOpts.height).toEqual(VideoPresets.hd.resolution.height);
-    expect(videoOpts.frameRate).toEqual(VideoPresets.hd.resolution.frameRate);
-    expect(videoOpts.aspectRatio).toEqual(VideoPresets.hd.resolution.aspectRatio);
+    expect(videoOpts.width).toEqual(VideoPresets.h720.resolution.width);
+    expect(videoOpts.height).toEqual(VideoPresets.h720.resolution.height);
+    expect(videoOpts.frameRate).toEqual(VideoPresets.h720.resolution.frameRate);
+    expect(videoOpts.aspectRatio).toEqual(VideoPresets.h720.resolution.aspectRatio);
   });
 });
