@@ -236,16 +236,6 @@ export const VideoPresets = {
   h1080: new VideoPreset(1920, 1080, 3_000_000, 30),
   h1440: new VideoPreset(2560, 1440, 5_000_000, 30),
   h2160: new VideoPreset(3840, 2160, 8_000_000, 30),
-  /** @deprecated */
-  qvga: new VideoPreset(320, 180, 120_000, 10),
-  /** @deprecated */
-  vga: new VideoPreset(640, 360, 300_000, 20),
-  /** @deprecated */
-  qhd: new VideoPreset(960, 540, 600_000, 25),
-  /** @deprecated */
-  hd: new VideoPreset(1280, 720, 1_700_000, 30),
-  /** @deprecated */
-  fhd: new VideoPreset(1920, 1080, 3_000_000, 30),
 } as const;
 
 /**
@@ -261,16 +251,6 @@ export const VideoPresets43 = {
   h720: new VideoPreset(960, 720, 1_500_000, 30),
   h1080: new VideoPreset(1440, 1080, 2_500_000, 30),
   h1440: new VideoPreset(1920, 1440, 3_500_000, 30),
-  /** @deprecated */
-  qvga: new VideoPreset(240, 180, 90_000, 10),
-  /** @deprecated */
-  vga: new VideoPreset(480, 360, 225_000, 20),
-  /** @deprecated */
-  qhd: new VideoPreset(720, 540, 450_000, 25),
-  /** @deprecated */
-  hd: new VideoPreset(960, 720, 1_500_000, 30),
-  /** @deprecated */
-  fhd: new VideoPreset(1440, 1080, 2_800_000, 30),
 } as const;
 
 export const ScreenSharePresets = {
@@ -279,14 +259,4 @@ export const ScreenSharePresets = {
   h720fps15: new VideoPreset(1280, 720, 1_000_000, 15),
   h1080fps15: new VideoPreset(1920, 1080, 1_500_000, 15),
   h1080fps30: new VideoPreset(1920, 1080, 3_000_000, 30),
-  /** @deprecated */
-  vga: new VideoPreset(640, 360, 200_000, 3),
-  /** @deprecated */
-  hd_8: new VideoPreset(1280, 720, 400_000, 5),
-  /** @deprecated */
-  hd_15: new VideoPreset(1280, 720, 1_000_000, 15),
-  /** @deprecated */
-  fhd_15: new VideoPreset(1920, 1080, 1_500_000, 15),
-  /** @deprecated */
-  fhd_30: new VideoPreset(1920, 1080, 3_000_000, 30),
 } as const;

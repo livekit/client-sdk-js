@@ -15,7 +15,6 @@ import RemoteTrackPublication from './room/track/RemoteTrackPublication';
 import RemoteVideoTrack from './room/track/RemoteVideoTrack';
 import { TrackPublication } from './room/track/TrackPublication';
 
-export * from './connect';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';

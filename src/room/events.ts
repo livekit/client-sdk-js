@@ -140,12 +140,6 @@ export enum RoomEvent {
   ActiveSpeakersChanged = 'activeSpeakersChanged',
 
   /**
-   * @deprecated Use ParticipantMetadataChanged instead
-   * @internal
-   */
-  MetadataChanged = 'metadataChanged',
-
-  /**
    * Participant metadata is a simple way for app-specific state to be pushed to
    * all users.
    * When RoomService.UpdateParticipantMetadata is called to change a participant's
@@ -307,12 +301,6 @@ export enum ParticipantEvent {
    * args: ([[LocalTrackPublication]])
    */
   LocalTrackUnpublished = 'localTrackUnpublished',
-
-  /**
-   * @deprecated Use ParticipantMetadataChanged instead
-   * @internal
-   */
-  MetadataChanged = 'metadataChanged',
 
   /**
    * Participant metadata is a simple way for app-specific state to be pushed to

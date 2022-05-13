@@ -244,9 +244,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.localParticipant.updateInfo(pi);
       // forward metadata changed for the local participant
       this.localParticipant
-        .on(ParticipantEvent.MetadataChanged, (metadata: string | undefined) => {
-          this.emit(RoomEvent.MetadataChanged, metadata, this.localParticipant);
-        })
         .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: string | undefined) => {
           this.emit(RoomEvent.ParticipantMetadataChanged, metadata, this.localParticipant);
         })
@@ -845,9 +842,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
         this.emit(RoomEvent.TrackUnmuted, pub, participant);
       })
-      .on(ParticipantEvent.MetadataChanged, (metadata: string | undefined) => {
-        this.emit(RoomEvent.MetadataChanged, metadata, participant);
-      })
       .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: string | undefined) => {
         this.emit(RoomEvent.ParticipantMetadataChanged, metadata, participant);
       })
@@ -963,13 +957,6 @@ export type RoomEventCallbacks = {
   localTrackUnpublished: (
     publication: LocalTrackPublication,
     participant: LocalParticipant,
-  ) => void;
-  /**
-   * @deprecated use [[participantMetadataChanged]] instead
-   */
-  metadataChanged: (
-    metadata: string | undefined,
-    participant?: RemoteParticipant | LocalParticipant,
   ) => void;
   participantMetadataChanged: (
     metadata: string | undefined,

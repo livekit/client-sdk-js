@@ -188,7 +188,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.metadata = md;
 
     if (changed) {
-      this.emit(ParticipantEvent.MetadataChanged, prevMetadata);
       this.emit(ParticipantEvent.ParticipantMetadataChanged, prevMetadata);
     }
   }
@@ -266,10 +265,6 @@ export type ParticipantEventCallbacks = {
   trackUnmuted: (publication: TrackPublication) => void;
   localTrackPublished: (publication: LocalTrackPublication) => void;
   localTrackUnpublished: (publication: LocalTrackPublication) => void;
-  /**
-   * @deprecated use [[participantMetadataChanged]] instead
-   */
-  metadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
   isSpeakingChanged: (speaking: boolean) => void;
