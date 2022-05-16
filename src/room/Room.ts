@@ -918,7 +918,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
     this.state = state;
-    this.emit(RoomEvent.StateChanged, this.state);
+    this.emit(RoomEvent.ConnectionStateChanged, this.state);
   }
 
   // /** @internal */
@@ -937,7 +937,9 @@ export type RoomEventCallbacks = {
   reconnecting: () => void;
   reconnected: () => void;
   disconnected: () => void;
+  /** @deprecated stateChanged has been renamed to connectionStateChanged */
   stateChanged: (state: ConnectionState) => void;
+  connectionStateChanged: (state: ConnectionState) => void;
   mediaDevicesChanged: () => void;
   participantConnected: (participant: RemoteParticipant) => void;
   participantDisconnected: (participant: RemoteParticipant) => void;
