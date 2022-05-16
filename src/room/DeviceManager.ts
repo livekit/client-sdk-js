@@ -32,8 +32,11 @@ export default class DeviceManager {
           video: kind !== 'audioinput' && kind !== 'audiooutput',
           audio: kind !== 'videoinput',
         };
-        await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
+        const stream = await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
         devices = await navigator.mediaDevices.enumerateDevices();
+        stream.getTracks().forEach((track) => {
+          track.stop();
+        });
       }
     }
     if (kind) {
