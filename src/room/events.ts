@@ -29,7 +29,7 @@ export enum RoomEvent {
   /**
    * Whenever the connection state of the room changes
    *
-   * args: ([[RoomState]])
+   * args: ([[ConnectionState]])
    */
   StateChanged = 'stateChanged',
 

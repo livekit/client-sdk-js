@@ -4,7 +4,7 @@ import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './room/participant/Participant';
 import { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
 import RemoteParticipant from './room/participant/RemoteParticipant';
-import Room, { RoomState } from './room/Room';
+import Room, { ConnectionState } from './room/Room';
 import LocalAudioTrack from './room/track/LocalAudioTrack';
 import LocalTrack from './room/track/LocalTrack';
 import LocalTrackPublication from './room/track/LocalTrackPublication';
@@ -28,7 +28,7 @@ export {
   setLogExtension,
   LogLevel,
   Room,
-  RoomState,
+  ConnectionState as RoomState,
   DataPacket_Kind,
   Participant,
   RemoteParticipant,

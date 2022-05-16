@@ -35,12 +35,15 @@ import { AdaptiveStreamSettings, RemoteTrack } from './track/types';
 import { getNewAudioContext } from './track/utils';
 import { isWeb, unpackStreamId } from './utils';
 
-export enum RoomState {
+export enum ConnectionState {
   Disconnected = 'disconnected',
   Connecting = 'connecting',
   Connected = 'connected',
   Reconnecting = 'reconnecting',
 }
+
+/** @deprecated RoomState has been renamed to [[ConnectionState]] */
+export const RoomState = ConnectionState;
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -51,7 +54,7 @@ export enum RoomState {
  * @noInheritDoc
  */
 class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
-  state: RoomState = RoomState.Disconnected;
+  state: ConnectionState = ConnectionState.Disconnected;
 
   /** map of sid: [[RemoteParticipant]] */
   participants: Map<string, RemoteParticipant>;
@@ -154,16 +157,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
-        this.setAndEmitRoomState(RoomState.Reconnecting);
+        this.setAndEmitConnectionState(ConnectionState.Reconnecting);
         this.emit(RoomEvent.Reconnecting);
       })
       .on(EngineEvent.Resumed, () => {
-        this.setAndEmitRoomState(RoomState.Connected);
+        this.setAndEmitConnectionState(ConnectionState.Connected);
         this.emit(RoomEvent.Reconnected);
         this.updateSubscriptions();
       })
       .on(EngineEvent.SignalResumed, () => {
-        if (this.state === RoomState.Reconnecting) {
+        if (this.state === ConnectionState.Reconnecting) {
           this.sendSyncState();
         }
       })
@@ -188,12 +191,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   connect = async (url: string, token: string, opts?: RoomConnectOptions) => {
     // guard against calling connect
-    if (this.state !== RoomState.Disconnected) {
+    if (this.state !== ConnectionState.Disconnected) {
       log.warn(`already connected to room ${this.name}`);
       return;
     }
 
-    this.setAndEmitRoomState(RoomState.Connecting);
+    this.setAndEmitConnectionState(ConnectionState.Connecting);
 
     if (!this.abortController || this.abortController.signal.aborted) {
       this.abortController = new AbortController();
@@ -286,7 +289,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.metadata = joinResponse.room!.metadata;
     } catch (err) {
       this.engine.close();
-      this.setAndEmitRoomState(RoomState.Disconnected);
+      this.setAndEmitConnectionState(ConnectionState.Disconnected);
       throw err;
     }
 
@@ -295,14 +298,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const connectTimeout = setTimeout(() => {
         // timeout
         this.engine.close();
-        this.setAndEmitRoomState(RoomState.Disconnected);
+        this.setAndEmitConnectionState(ConnectionState.Disconnected);
         reject(new ConnectionError('could not connect after timeout'));
       }, maxICEConnectTimeout);
       const abortHandler = () => {
         log.warn('closing engine');
         clearTimeout(connectTimeout);
         this.engine.close();
-        this.setAndEmitRoomState(RoomState.Disconnected);
+        this.setAndEmitConnectionState(ConnectionState.Disconnected);
         reject(new ConnectionError('room connection has been cancelled'));
       };
       if (this.abortController?.signal.aborted) {
@@ -318,7 +321,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           window.addEventListener('beforeunload', this.onBeforeUnload);
           navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
         }
-        this.setAndEmitRoomState(RoomState.Connected);
+        this.setAndEmitConnectionState(ConnectionState.Connected);
         resolve(this);
       });
     });
@@ -328,7 +331,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
   disconnect = (stopTracks = true) => {
-    if (this.state === RoomState.Connecting) {
+    if (this.state === ConnectionState.Connecting) {
       // try aborting pending connection attempt
       log.warn('abort connection attempt');
       this.abortController?.abort();
@@ -509,7 +512,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleRestarting = () => {
-    this.setAndEmitRoomState(RoomState.Reconnecting);
+    this.setAndEmitConnectionState(ConnectionState.Reconnecting);
     this.emit(RoomEvent.Reconnecting);
 
     // also unwind existing participants & existing subscriptions
@@ -520,7 +523,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRestarted = async (joinResponse: JoinResponse) => {
     log.debug(`reconnected to server region ${joinResponse.serverRegion}`);
-    this.setAndEmitRoomState(RoomState.Connected);
+    this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
 
     // rehydrate participants
@@ -575,7 +578,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       window.removeEventListener('beforeunload', this.onBeforeUnload);
       navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
     }
-    this.setAndEmitRoomState(RoomState.Disconnected);
+    this.setAndEmitConnectionState(ConnectionState.Disconnected);
     this.emit(RoomEvent.Disconnected);
   }
 
@@ -910,7 +913,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private setAndEmitRoomState(state: RoomState) {
+  private setAndEmitConnectionState(state: ConnectionState) {
     if (state === this.state) {
       return;
     }
@@ -934,7 +937,7 @@ export type RoomEventCallbacks = {
   reconnecting: () => void;
   reconnected: () => void;
   disconnected: () => void;
-  stateChanged: (state: RoomState) => void;
+  stateChanged: (state: ConnectionState) => void;
   mediaDevicesChanged: () => void;
   participantConnected: (participant: RemoteParticipant) => void;
   participantDisconnected: (participant: RemoteParticipant) => void;
