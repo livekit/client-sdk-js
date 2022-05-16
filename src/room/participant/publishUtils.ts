@@ -63,45 +63,6 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
 
 const videoRids = ['q', 'h', 'f'];
 
-// /* @internal */
-// export function computeSVCVideoEncodings(
-//   isScreenShare: boolean,
-//   scalabilityMode: ScalabilityMode,
-//   width?: number,
-//   height?: number,
-//   options?: TrackPublishOptions,
-// ): RTCRtpEncodingParameters[] {
-//   if (!width || !height) {
-//     return [];
-//   }
-//   let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
-//   if (isScreenShare) {
-//     videoEncoding = options?.screenShareEncoding;
-//   }
-
-//   if (!videoEncoding) {
-//     // find the right encoding based on width/height
-//     videoEncoding = determineAppropriateEncoding(isScreenShare, width, height);
-//     log.debug('using video encoding', videoEncoding);
-//   }
-
-//   const encodings: RTCRtpEncodingParameters[] = [];
-//   switch (scalabilityMode) {
-//     case 'L3T3':
-//       for(let i = 3; i < 3; i++) {
-//       encodings.unshift({
-//         rid: videoRids[i],
-//         scaleResolutionDownBy: i ** 2,
-//         maxBitrate: videoEncoding ? videoEncoding.maxBitrate / (i ** 2) : 0,
-//         /* @ts-ignore */
-//         maxFramerate: preset.encoding.maxFramerate,
-//         /* @ts-ignore */
-//         scalabilityMode: 'L3T3',
-//       });
-
-//   return encodings;
-// }
-
 /* @internal */
 export function computeVideoEncodings(
   isScreenShare: boolean,
@@ -141,9 +102,9 @@ export function computeVideoEncodings(
     // svc use first encoding as the original, so we sort encoding from high to low
     switch (scalabilityMode) {
       case 'L3T3':
-        for (let i = 0; i < 3; i+=1) {
+        for (let i = 0; i < 3; i += 1) {
           encodings.push({
-            rid: videoRids[2-i],
+            rid: videoRids[2 - i],
             scaleResolutionDownBy: 2 ** i,
             maxBitrate: videoEncoding ? videoEncoding.maxBitrate / (2 ** i) : 0,
             /* @ts-ignore */

@@ -50,12 +50,12 @@ const room = new Room({
   // automatically manage subscribed video quality
   adaptiveStream: true,
 
-  // optimize publishing bandwidth and CPU for simulcasted tracks
+  // optimize publishing bandwidth and CPU for published tracks
   dynacast: true,
 
   // default capture settings
   videoCaptureDefaults: {
-    resolution: VideoPresets.hd.resolution,
+    resolution: VideoPresets.h720.resolution,
   },
 });
 
@@ -68,10 +68,7 @@ room
   .on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
 
 // connect to room
-await room.connect('ws://localhost:7800', token, {
-  // don't subscribe to other participants automatically
-  autoSubscribe: false,
-});
+await room.connect('ws://localhost:7800', token);
 console.log('connected to room', room.name);
 
 // publish local camera and mic tracks

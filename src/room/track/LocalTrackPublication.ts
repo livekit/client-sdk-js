@@ -8,9 +8,13 @@ import { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
 
 export default class LocalTrackPublication extends TrackPublication {
-  track?: LocalTrack;
+  track?: LocalTrack = undefined;
 
   options?: TrackPublishOptions;
+
+  get isUpstreamPaused() {
+    return this.track?.isUpstreamPaused;
+  }
 
   constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
     super(kind, ti.sid, ti.name);
@@ -60,7 +64,24 @@ export default class LocalTrackPublication extends TrackPublication {
     return this.track?.unmute();
   }
 
-  handleTrackEnded = (track: LocalTrack) => {
-    this.emit(TrackEvent.Ended, track);
+  /**
+   * Pauses the media stream track associated with this publication from being sent to the server
+   * and signals "muted" event to other participants
+   * Useful if you want to pause the stream without pausing the local media stream track
+   */
+  async pauseUpstream() {
+    await this.track?.pauseUpstream();
+  }
+
+  /**
+   * Resumes sending the media stream track associated with this publication to the server after a call to [[pauseUpstream()]]
+   * and signals "unmuted" event to other participants (unless the track is explicitly muted)
+   */
+  async resumeUpstream() {
+    await this.track?.resumeUpstream();
+  }
+
+  handleTrackEnded = () => {
+    this.emit(TrackEvent.Ended);
   };
 }

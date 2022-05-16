@@ -156,7 +156,7 @@ const appActions = {
         `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
         room.engine.connectedServerAddress,
       );
-    } catch (error) {
+    } catch (error: any) {
       let message: any = error;
       if (error.message) {
         message = error.message;
@@ -219,7 +219,7 @@ const appActions = {
     }
     state.isFrontFacing = !state.isFrontFacing;
     const options: VideoCaptureOptions = {
-      resolution: VideoPresets.qhd.resolution,
+      resolution: VideoPresets.h720.resolution,
       facingMode: state.isFrontFacing ? 'user' : 'environment',
     };
     videoPub.videoTrack?.restartTrack(options);
@@ -312,14 +312,14 @@ const appActions = {
         break;
       default:
         break;
-    };
+    }
     if (currentRoom) {
       currentRoom.participants.forEach((participant) => {
         participant.tracks.forEach((track) => {
           track.setVideoQuality(q);
         });
       });
-  }
+    }
   },
 };
 

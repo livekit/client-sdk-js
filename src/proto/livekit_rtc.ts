@@ -308,9 +308,11 @@ export interface SubscribedQualityUpdate {
 }
 
 export interface TrackPermission {
+  /** permission could be granted either by participant sid or identity */
   participantSid: string;
   allTracks: boolean;
   trackSids: string[];
+  participantIdentity: string;
 }
 
 export interface SubscriptionPermission {
@@ -2536,7 +2538,7 @@ export const SubscribedQualityUpdate = {
 };
 
 function createBaseTrackPermission(): TrackPermission {
-  return { participantSid: '', allTracks: false, trackSids: [] };
+  return { participantSid: '', allTracks: false, trackSids: [], participantIdentity: '' };
 }
 
 export const TrackPermission = {
@@ -2549,6 +2551,9 @@ export const TrackPermission = {
     }
     for (const v of message.trackSids) {
       writer.uint32(26).string(v!);
+    }
+    if (message.participantIdentity !== '') {
+      writer.uint32(34).string(message.participantIdentity);
     }
     return writer;
   },
@@ -2569,6 +2574,9 @@ export const TrackPermission = {
         case 3:
           message.trackSids.push(reader.string());
           break;
+        case 4:
+          message.participantIdentity = reader.string();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -2584,6 +2592,9 @@ export const TrackPermission = {
       trackSids: Array.isArray(object?.trackSids)
         ? object.trackSids.map((e: any) => String(e))
         : [],
+      participantIdentity: isSet(object.participantIdentity)
+        ? String(object.participantIdentity)
+        : '',
     };
   },
 
@@ -2596,6 +2607,8 @@ export const TrackPermission = {
     } else {
       obj.trackSids = [];
     }
+    message.participantIdentity !== undefined &&
+      (obj.participantIdentity = message.participantIdentity);
     return obj;
   },
 
@@ -2604,6 +2617,7 @@ export const TrackPermission = {
     message.participantSid = object.participantSid ?? '';
     message.allTracks = object.allTracks ?? false;
     message.trackSids = object.trackSids?.map((e) => e) || [];
+    message.participantIdentity = object.participantIdentity ?? '';
     return message;
   },
 };

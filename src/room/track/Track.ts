@@ -12,29 +12,32 @@ const recycledElements: Array<HTMLAudioElement> = [];
 export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
   kind: Track.Kind;
 
-  mediaStream?: MediaStream;
-
-  mediaStreamTrack: MediaStreamTrack;
-
   attachedElements: HTMLMediaElement[] = [];
 
   isMuted: boolean = false;
 
   source: Track.Source;
 
-  protected isInBackground: boolean;
-
   /**
    * sid is set after track is published to server, or if it's a remote track
    */
   sid?: Track.SID;
+
+  /**
+   * @internal
+   */
+  mediaStream?: MediaStream;
+
+  protected _mediaStreamTrack: MediaStreamTrack;
+
+  protected isInBackground: boolean;
 
   protected _currentBitrate: number = 0;
 
   protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
     super();
     this.kind = kind;
-    this.mediaStreamTrack = mediaTrack;
+    this._mediaStreamTrack = mediaTrack;
     this.source = Track.Source.Unknown;
     if (isWeb()) {
       this.isInBackground = document.visibilityState === 'hidden';
@@ -47,6 +50,10 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
   /** current receive bits per second */
   get currentBitrate(): number {
     return this._currentBitrate;
+  }
+
+  get mediaStreamTrack() {
+    return this._mediaStreamTrack;
   }
 
   /**
@@ -87,7 +94,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
     // even if we believe it's already attached to the element, it's possible
     // the element's srcObject was set to something else out of band.
     // we'll want to re-attach it in that case
-    attachToElement(this.mediaStreamTrack, element);
+    attachToElement(this._mediaStreamTrack, element);
 
     if (element instanceof HTMLAudioElement) {
       // manually play audio to detect audio playback status
@@ -101,6 +108,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
         });
     }
 
+    this.emit(TrackEvent.ElementAttached, element);
     return element;
   }
 
@@ -117,20 +125,22 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
     // detach from a single element
     if (element) {
-      detachTrack(this.mediaStreamTrack, element);
+      detachTrack(this._mediaStreamTrack, element);
       const idx = this.attachedElements.indexOf(element);
       if (idx >= 0) {
         this.attachedElements.splice(idx, 1);
         this.recycleElement(element);
+        this.emit(TrackEvent.ElementDetached, element);
       }
       return element;
     }
 
     const detached: HTMLMediaElement[] = [];
     this.attachedElements.forEach((elm) => {
-      detachTrack(this.mediaStreamTrack, elm);
+      detachTrack(this._mediaStreamTrack, elm);
       detached.push(elm);
       this.recycleElement(elm);
+      this.emit(TrackEvent.ElementDetached, elm);
     });
 
     // remove all tracks
@@ -139,18 +149,18 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
   }
 
   stop() {
-    this.mediaStreamTrack.stop();
+    this._mediaStreamTrack.stop();
     if (isWeb()) {
       document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
     }
   }
 
   protected enable() {
-    this.mediaStreamTrack.enabled = true;
+    this._mediaStreamTrack.enabled = true;
   }
 
   protected disable() {
-    this.mediaStreamTrack.enabled = false;
+    this._mediaStreamTrack.enabled = false;
   }
 
   private recycleElement(element: HTMLMediaElement) {
@@ -233,7 +243,11 @@ export function detachTrack(track: MediaStreamTrack, element: HTMLMediaElement) 
   if (element.srcObject instanceof MediaStream) {
     const mediaStream = element.srcObject;
     mediaStream.removeTrack(track);
-    element.srcObject = null;
+    if (mediaStream.getTracks().length > 0) {
+      element.srcObject = mediaStream;
+    } else {
+      element.srcObject = null;
+    }
   }
 }
 
@@ -344,4 +358,8 @@ export type TrackEventCallbacks = {
   audioSilenceDetected: () => void;
   visibilityChanged: (visible: boolean, track?: any) => void;
   videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void;
+  elementAttached: (element: HTMLMediaElement) => void;
+  elementDetached: (element: HTMLMediaElement) => void;
+  upstreamPaused: (track: any) => void;
+  upstreamResumed: (track: any) => void;
 };

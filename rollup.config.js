@@ -1,5 +1,5 @@
 // @ts-check
-import typescript from '@rollup/plugin-typescript';
+import typescript from 'rollup-plugin-typescript2';
 import commonjs from '@rollup/plugin-commonjs';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import { babel } from '@rollup/plugin-babel';
@@ -18,7 +18,7 @@ export default {
   input: 'src/index.ts',
   output: [
     {
-      file: `dist/${packageJson.name}.esm.js`,
+      file: `dist/${packageJson.name}.esm.mjs`,
       format: 'esm',
       strict: true,
       sourcemap: true,
@@ -36,7 +36,11 @@ export default {
     nodeResolve({ browser: true, preferBuiltins: false }),
     typescript({ tsconfig: './tsconfig.json' }),
     commonjs(),
-    babel({ babelHelpers: 'bundled', presets: ['@babel/preset-env'] }),
+    babel({
+      babelHelpers: 'bundled',
+      presets: [['@babel/preset-env', { include: ['@babel/plugin-proposal-object-rest-spread'] }]],
+      extensions: ['.js', '.ts', '.mjs'],
+    }),
     replace({
       patterns: [
         {

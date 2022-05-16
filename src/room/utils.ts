@@ -54,7 +54,11 @@ export const getResizeObserver = () => {
 
 let intersectionObserver: IntersectionObserver | null = null;
 export const getIntersectionObserver = () => {
-  if (!intersectionObserver) intersectionObserver = new IntersectionObserver(ioDispatchCallback);
+  if (!intersectionObserver)
+    intersectionObserver = new IntersectionObserver(ioDispatchCallback, {
+      root: document,
+      rootMargin: '0px',
+    });
   return intersectionObserver;
 };
 
@@ -70,4 +74,42 @@ export function getClientInfo(): ClientInfo {
     version,
   });
   return info;
+}
+
+let emptyVideoStreamTrack: MediaStreamTrack | undefined;
+
+export function getEmptyVideoStreamTrack() {
+  if (!emptyVideoStreamTrack) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 2;
+    canvas.getContext('2d')?.fillRect(0, 0, canvas.width, canvas.height);
+    // @ts-ignore
+    const emptyStream = canvas.captureStream();
+    [emptyVideoStreamTrack] = emptyStream.getTracks();
+    if (!emptyVideoStreamTrack) {
+      throw Error('Could not get empty media stream video track');
+    }
+    emptyVideoStreamTrack.enabled = false;
+  }
+  return emptyVideoStreamTrack;
+}
+
+let emptyAudioStreamTrack: MediaStreamTrack | undefined;
+
+export function getEmptyAudioStreamTrack() {
+  if (!emptyAudioStreamTrack) {
+    // implementation adapted from https://blog.mozilla.org/webrtc/warm-up-with-replacetrack/
+    const ctx = new AudioContext();
+    const oscillator = ctx.createOscillator();
+    const dst = ctx.createMediaStreamDestination();
+    oscillator.connect(dst);
+    oscillator.start();
+    [emptyAudioStreamTrack] = dst.stream.getAudioTracks();
+    if (!emptyAudioStreamTrack) {
+      throw Error('Could not get empty media stream audio track');
+    }
+    emptyAudioStreamTrack.enabled = false;
+  }
+  return emptyAudioStreamTrack;
 }

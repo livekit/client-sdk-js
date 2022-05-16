@@ -38,12 +38,15 @@ interface ConnectOpts {
   reconnect?: boolean;
 
   publishOnly?: string;
+
+  adaptiveStream?: boolean;
 }
 
 // public options
 export interface SignalOptions {
   autoSubscribe?: boolean;
   publishOnly?: string;
+  adaptiveStream?: boolean;
 }
 
 const passThroughQueueSignals: Array<keyof SignalRequest> = [
@@ -120,14 +123,25 @@ export class SignalClient {
     this.requestQueue = new Queue();
   }
 
-  async join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse> {
+  async join(
+    url: string,
+    token: string,
+    opts?: SignalOptions,
+    abortSignal?: AbortSignal,
+  ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.isConnected = false;
-    const res = await this.connect(url, token, {
-      autoSubscribe: opts?.autoSubscribe,
-      publishOnly: opts?.publishOnly,
-    });
+    const res = await this.connect(
+      url,
+      token,
+      {
+        autoSubscribe: opts?.autoSubscribe,
+        publishOnly: opts?.publishOnly,
+        adaptiveStream: opts?.adaptiveStream,
+      },
+      abortSignal,
+    );
     return res as JoinResponse;
   }
 
@@ -138,7 +152,12 @@ export class SignalClient {
     });
   }
 
-  connect(url: string, token: string, opts: ConnectOpts): Promise<JoinResponse | void> {
+  connect(
+    url: string,
+    token: string,
+    opts: ConnectOpts,
+    abortSignal?: AbortSignal,
+  ): Promise<JoinResponse | void> {
     if (url.startsWith('http')) {
       url = url.replace('http', 'ws');
     }
@@ -150,6 +169,15 @@ export class SignalClient {
     const params = createConnectionParams(token, clientInfo, opts);
 
     return new Promise<JoinResponse | void>((resolve, reject) => {
+      const abortHandler = () => {
+        ws.close();
+        this.close();
+        reject(new ConnectionError('room connection has been cancelled'));
+      };
+      if (abortSignal?.aborted) {
+        abortHandler();
+      }
+      abortSignal?.addEventListener('abort', abortHandler);
       log.debug(`connecting to ${url + params}`);
       this.ws = undefined;
       const ws = new WebSocket(url + params);
@@ -200,6 +228,7 @@ export class SignalClient {
           // handle join message only
           if (msg.join) {
             this.isConnected = true;
+            abortSignal?.removeEventListener('abort', abortHandler);
             resolve(msg.join);
           } else {
             reject(new ConnectionError('did not receive join response'));
@@ -483,6 +512,10 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
 
   if (opts?.publishOnly !== undefined) {
     params.set('publish', opts.publishOnly);
+  }
+
+  if (opts?.adaptiveStream) {
+    params.set('adaptive_stream', '1');
   }
 
   return `?${params.toString()}`;

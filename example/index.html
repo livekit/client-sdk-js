@@ -158,6 +158,17 @@
               >
                 Start Audio
               </button>
+              <select
+                id="preferred-quality"
+                class="custom-select"
+                style="width: auto"
+                onchange="appActions.handlePreferredQuality(event)"
+              >
+                <option value="" selected>PreferredQuality</option>
+                <option value="high">high</option>
+                <option value="medium">medium</option>
+                <option value="low">low</option>
+              </select>
             </div>
           </div>
 

@@ -2,8 +2,8 @@ import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import { isMobile } from '../utils';
 import { VideoCodec } from './options';
+import { getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, isMobile } from '../utils';
 import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {
@@ -25,14 +25,14 @@ export default class LocalTrack extends Track {
     constraints?: MediaTrackConstraints,
   ) {
     super(mediaTrack, kind);
-    this.mediaStreamTrack.addEventListener('ended', this.handleEnded);
+    this._mediaStreamTrack.addEventListener('ended', this.handleEnded);
     this.constraints = constraints ?? mediaTrack.getConstraints();
     this.reacquireTrack = false;
     this.wasMuted = false;
   }
 
   get id(): string {
-    return this.mediaStreamTrack.id;
+    return this._mediaStreamTrack.id;
   }
 
   get dimensions(): Track.Dimensions | undefined {
@@ -40,7 +40,7 @@ export default class LocalTrack extends Track {
       return undefined;
     }
 
-    const { width, height } = this.mediaStreamTrack.getSettings();
+    const { width, height } = this._mediaStreamTrack.getSettings();
     if (width && height) {
       return {
         width,
@@ -48,6 +48,12 @@ export default class LocalTrack extends Track {
       };
     }
     return undefined;
+  }
+
+  private _isUpstreamPaused: boolean = false;
+
+  get isUpstreamPaused() {
+    return this._isUpstreamPaused;
   }
 
   /**
@@ -58,7 +64,7 @@ export default class LocalTrack extends Track {
     if (this.source === Track.Source.ScreenShare) {
       return;
     }
-    const { deviceId, groupId } = this.mediaStreamTrack.getSettings();
+    const { deviceId, groupId } = this._mediaStreamTrack.getSettings();
     const kind = this.kind === Track.Kind.Audio ? 'audioinput' : 'videoinput';
 
     return DeviceManager.getInstance().normalizeDeviceId(kind, deviceId, groupId);
@@ -71,6 +77,35 @@ export default class LocalTrack extends Track {
 
   async unmute(): Promise<LocalTrack> {
     this.setTrackMuted(false);
+    return this;
+  }
+
+  async replaceTrack(track: MediaStreamTrack): Promise<LocalTrack> {
+    if (!this.sender) {
+      throw new TrackInvalidError('unable to replace an unpublished track');
+    }
+
+    // detach
+    this.attachedElements.forEach((el) => {
+      detachTrack(this._mediaStreamTrack, el);
+    });
+    this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+    // on Safari, the old audio track must be stopped before attempting to acquire
+    // the new track, otherwise the new track will stop with
+    // 'A MediaStreamTrack ended due to a capture failure`
+    this._mediaStreamTrack.stop();
+
+    track.addEventListener('ended', this.handleEnded);
+    log.debug('replace MediaStreamTrack');
+
+    await this.sender.replaceTrack(track);
+    this._mediaStreamTrack = track;
+
+    this.attachedElements.forEach((el) => {
+      attachToElement(track, el);
+    });
+
+    this.mediaStream = new MediaStream([track]);
     return this;
   }
 
@@ -96,13 +131,13 @@ export default class LocalTrack extends Track {
 
     // detach
     this.attachedElements.forEach((el) => {
-      detachTrack(this.mediaStreamTrack, el);
+      detachTrack(this._mediaStreamTrack, el);
     });
-    this.mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+    this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
     // on Safari, the old audio track must be stopped before attempting to acquire
     // the new track, otherwise the new track will stop with
     // 'A MediaStreamTrack ended due to a capture failure`
-    this.mediaStreamTrack.stop();
+    this._mediaStreamTrack.stop();
 
     // create new track and attach
     const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
@@ -111,7 +146,7 @@ export default class LocalTrack extends Track {
     log.debug('re-acquired MediaStreamTrack');
 
     await this.sender.replaceTrack(newTrack);
-    this.mediaStreamTrack = newTrack;
+    this._mediaStreamTrack = newTrack;
 
     this.attachedElements.forEach((el) => {
       attachToElement(newTrack, el);
@@ -128,15 +163,15 @@ export default class LocalTrack extends Track {
     }
 
     this.isMuted = muted;
-    this.mediaStreamTrack.enabled = !muted;
+    this._mediaStreamTrack.enabled = !muted;
     this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
   }
 
   protected get needsReAcquisition(): boolean {
     return (
-      this.mediaStreamTrack.readyState !== 'live' ||
-      this.mediaStreamTrack.muted ||
-      !this.mediaStreamTrack.enabled ||
+      this._mediaStreamTrack.readyState !== 'live' ||
+      this._mediaStreamTrack.muted ||
+      !this._mediaStreamTrack.enabled ||
       this.reacquireTrack
     );
   }
@@ -166,4 +201,33 @@ export default class LocalTrack extends Track {
     }
     this.emit(TrackEvent.Ended, this);
   };
+
+  async pauseUpstream() {
+    if (this._isUpstreamPaused === true) {
+      return;
+    }
+    if (!this.sender) {
+      log.warn('unable to pause upstream for an unpublished track');
+      return;
+    }
+    this._isUpstreamPaused = true;
+    this.emit(TrackEvent.UpstreamPaused, this);
+    const emptyTrack =
+      this.kind === Track.Kind.Audio ? getEmptyAudioStreamTrack() : getEmptyVideoStreamTrack();
+    await this.sender.replaceTrack(emptyTrack);
+  }
+
+  async resumeUpstream() {
+    if (this._isUpstreamPaused === false) {
+      return;
+    }
+    if (!this.sender) {
+      log.warn('unable to resume upstream for an unpublished track');
+      return;
+    }
+    this._isUpstreamPaused = false;
+    this.emit(TrackEvent.UpstreamResumed, this);
+
+    await this.sender.replaceTrack(this._mediaStreamTrack);
+  }
 }

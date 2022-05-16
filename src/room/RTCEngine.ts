@@ -26,9 +26,17 @@ import { isFireFox, isWeb, sleep } from './utils';
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const maxReconnectRetries = 10;
-const minReconnectWait = 1 * 1000;
+const minReconnectWait = 2 * 1000;
 const maxReconnectDuration = 60 * 1000;
 export const maxICEConnectTimeout = 15 * 1000;
+
+enum PCState {
+  New,
+  Connected,
+  Disconnected,
+  Reconnecting,
+  Closed,
+}
 
 /** @internal */
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
@@ -39,6 +47,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   client: SignalClient;
 
   rtcConfig: RTCConfiguration = {};
+
+  get isClosed() {
+    return this._isClosed;
+  }
 
   private lossyDC?: RTCDataChannel;
 
@@ -54,9 +66,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private primaryPC?: RTCPeerConnection;
 
-  private pcConnected: boolean = false;
+  private pcState: PCState = PCState.New;
 
-  private isClosed: boolean = true;
+  private _isClosed: boolean = true;
 
   private pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
 
@@ -86,13 +98,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client = new SignalClient();
   }
 
-  async join(url: string, token: string, opts?: SignalOptions): Promise<JoinResponse> {
+  async join(
+    url: string,
+    token: string,
+    opts?: SignalOptions,
+    abortSignal?: AbortSignal,
+  ): Promise<JoinResponse> {
     this.url = url;
     this.token = token;
     this.signalOpts = opts;
 
-    const joinResponse = await this.client.join(url, token, opts);
-    this.isClosed = false;
+    const joinResponse = await this.client.join(url, token, opts, abortSignal);
+    this._isClosed = false;
 
     this.subscriberPrimary = joinResponse.subscriberPrimary;
     if (!this.publisher) {
@@ -109,7 +126,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   close() {
-    this.isClosed = true;
+    this._isClosed = true;
 
     this.removeAllListeners();
     if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
@@ -203,32 +220,42 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     let primaryPC = this.publisher.pc;
+    let secondaryPC = this.subscriber.pc;
     if (joinResponse.subscriberPrimary) {
       primaryPC = this.subscriber.pc;
+      secondaryPC = this.publisher.pc;
       // in subscriber primary mode, server side opens sub data channels.
       this.subscriber.pc.ondatachannel = this.handleDataChannel;
     }
     this.primaryPC = primaryPC;
     primaryPC.onconnectionstatechange = async () => {
+      log.trace('connection state changed', {
+        state: primaryPC.connectionState,
+      });
       if (primaryPC.connectionState === 'connected') {
-        log.trace('pc connected');
         try {
           this.connectedServerAddr = await getConnectedAddress(primaryPC);
         } catch (e) {
           log.warn('could not get connected server address', { error: e });
         }
-        if (!this.pcConnected) {
-          this.pcConnected = true;
+        const shouldEmit = this.pcState === PCState.New;
+        this.pcState = PCState.Connected;
+        if (shouldEmit) {
           this.emit(EngineEvent.Connected);
         }
       } else if (primaryPC.connectionState === 'failed') {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
-        log.trace('pc disconnected');
-        if (this.pcConnected) {
-          this.pcConnected = false;
+        if (this.pcState === PCState.Connected) {
+          this.pcState = PCState.Disconnected;
 
-          this.handleDisconnect('peerconnection');
+          this.handleDisconnect('primary peerconnection');
         }
+      }
+    };
+    secondaryPC.onconnectionstatechange = async () => {
+      // also reconnect if secondary peerconnection fails
+      if (secondaryPC.connectionState === 'failed') {
+        this.handleDisconnect('secondary peerconnection');
       }
     };
 
@@ -385,7 +412,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   // continues to work, we can reconnect to websocket to continue the session
   // after a number of retries, we'll close and give up permanently
   private handleDisconnect = (connection: string) => {
-    if (this.isClosed) {
+    if (this._isClosed) {
       return;
     }
     log.debug(`${connection} disconnected`);
@@ -396,7 +423,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const delay = this.reconnectAttempts * this.reconnectAttempts * 300;
     setTimeout(async () => {
-      if (this.isClosed) {
+      if (this._isClosed) {
         return;
       }
       if (
@@ -511,27 +538,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async waitForPCConnected() {
-    const startTime = new Date().getTime();
+    const startTime = Date.now();
     let now = startTime;
-    this.pcConnected = false;
+    this.pcState = PCState.Reconnecting;
 
+    log.debug('waiting for peer connection to reconnect');
     while (now - startTime < maxICEConnectTimeout) {
-      // if there is no connectionstatechange callback fired
-      // check connectionstate after minReconnectWait
       if (this.primaryPC === undefined) {
         // we can abort early, connection is hosed
         break;
       } else if (
+        // on Safari, we don't get a connectionstatechanged event during ICE restart
+        // this means we'd have to check its status manually and update address
+        // manually
         now - startTime > minReconnectWait &&
         this.primaryPC?.connectionState === 'connected'
       ) {
-        this.pcConnected = true;
+        this.pcState = PCState.Connected;
+        try {
+          this.connectedServerAddr = await getConnectedAddress(this.primaryPC);
+        } catch (e) {
+          log.warn('could not get connected server address', { error: e });
+        }
       }
-      if (this.pcConnected) {
+      if (this.pcState === PCState.Connected) {
         return;
       }
       await sleep(100);
-      now = new Date().getTime();
+      now = Date.now();
     }
 
     // have not reconnected, throw

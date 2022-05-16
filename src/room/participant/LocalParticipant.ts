@@ -386,6 +386,8 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
     track.on(TrackEvent.Ended, this.onTrackUnpublish);
+    track.on(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
+    track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
     // create track publication from track
     const req = AddTrackRequest.fromPartial({
@@ -402,7 +404,7 @@ export default class LocalParticipant extends Participant {
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
     let simEncodings: RTCRtpEncodingParameters[] | undefined;
-    // let simulcastTracks: SimulcastTrackInfo[] | undefined;
+    let simulcastTracks: SimulcastTrackInfo[] | undefined;
     if (track.kind === Track.Kind.Video) {
       // TODO: support react native, which doesn't expose getSettings
       const settings = track.mediaStreamTrack.getSettings();
@@ -414,28 +416,32 @@ export default class LocalParticipant extends Participant {
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack && 
         (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1')) {
-          opts.simulcast = false;
-          opts.scalabilityMode = 'L3T3';
+          // set scalabilityMode to 'L3T3' by default
+          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
+
+          // add backup codec track
+          const simOpts = {...opts};
+          simOpts.simulcast = true;
+          simOpts.scalabilityMode = undefined;
           simEncodings = computeVideoEncodings(
             track.source === Track.Source.ScreenShare,
             width,
             height,
-            opts,
+            simOpts,
           );
-          // opts.simulcast = false;
-          // const simulcastTrack = track.addSimulcastTrack(compatibleCodecForSVC, simEncodings);
-          // simulcastTracks = [simulcastTrack];
+          const simulcastTrack = track.addSimulcastTrack(compatibleCodecForSVC, simEncodings);
+          simulcastTracks = [simulcastTrack];
           req.simulcastCodecs = [{
             codec: opts.videoCodec,
             cid: track.mediaStreamTrack.id,
             enableSimulcastLayers: true,
-          }]
-          // , {
-          //   codec: simulcastTrack.codec,
-          //   cid: simulcastTrack.mediaStreamTrack.id,
-          //   enableSimulcastLayers: true,
-          // }];
-      }
+          },
+          {
+            codec: simulcastTrack.codec,
+            cid: simulcastTrack.mediaStreamTrack.id,
+            enableSimulcastLayers: true,
+          }];
+        }
 
       encodings = computeVideoEncodings(
         track.source === Track.Source.ScreenShare,
@@ -450,6 +456,10 @@ export default class LocalParticipant extends Participant {
           maxBitrate: opts.audioBitrate,
         },
       ];
+    }
+
+    if (!this.engine || this.engine.isClosed) {
+      throw new UnexpectedConnectionState('cannot publish track when not connected');
     }
 
     const ti = await this.engine.addTrack(req);
@@ -473,18 +483,18 @@ export default class LocalParticipant extends Participant {
       track.codec = opts.videoCodec;
     }
 
-    // const localTrack = track as LocalVideoTrack;
-    // simulcastTracks?.forEach((simulcastTrack) => {
-    //   const simTransceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-    //   if (simulcastTrack.encodings) {
-    //     simTransceiverInit.sendEncodings = simulcastTrack.encodings;
-    //   }
-    //   const simTransceiver = this.engine.publisher!.pc.addTransceiver(
-    //     simulcastTrack.mediaStreamTrack, simTransceiverInit,
-    //   );
-    //   this.setPreferredCodec(simTransceiver, localTrack.kind, simulcastTrack.codec);
-    //   localTrack.setSimulcastTrackSender(simulcastTrack.codec, simTransceiver.sender);
-    // });
+    const localTrack = track as LocalVideoTrack;
+    simulcastTracks?.forEach((simulcastTrack) => {
+      const simTransceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+      if (simulcastTrack.encodings) {
+        simTransceiverInit.sendEncodings = simulcastTrack.encodings;
+      }
+      const simTransceiver = this.engine.publisher!.pc.addTransceiver(
+        simulcastTrack.mediaStreamTrack, simTransceiverInit,
+      );
+      this.setPreferredCodec(simTransceiver, localTrack.kind, simulcastTrack.codec);
+      localTrack.setSimulcastTrackSender(simulcastTrack.codec, simTransceiver.sender);
+    });
 
     this.engine.negotiate();
 
@@ -525,6 +535,8 @@ export default class LocalParticipant extends Participant {
     track.off(TrackEvent.Muted, this.onTrackMuted);
     track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
     track.off(TrackEvent.Ended, this.onTrackUnpublish);
+    track.off(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
+    track.off(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
     if (stopOnUnpublish === undefined) {
       stopOnUnpublish = this.roomOptions?.stopLocalTrackOnUnpublish ?? true;
@@ -562,8 +574,8 @@ export default class LocalParticipant extends Participant {
         break;
     }
 
-    publication.setTrack(undefined);
     this.emit(ParticipantEvent.LocalTrackUnpublished, publication);
+    publication.setTrack(undefined);
 
     return publication;
   }
@@ -647,7 +659,7 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   private onTrackUnmuted = (track: LocalTrack) => {
-    this.onTrackMuted(track, false);
+    this.onTrackMuted(track, track.isUpstreamPaused);
   };
 
   // when the local track changes in mute status, we'll notify server as such
@@ -663,6 +675,16 @@ export default class LocalParticipant extends Participant {
     }
 
     this.engine.updateMuteStatus(track.sid, muted);
+  };
+
+  private onTrackUpstreamPaused = (track: LocalTrack) => {
+    log.debug('upstream paused');
+    this.onTrackMuted(track, true);
+  };
+
+  private onTrackUpstreamResumed = (track: LocalTrack) => {
+    log.debug('upstream resumed');
+    this.onTrackMuted(track, track.isMuted);
   };
 
   private handleSubscribedQualityUpdate = (update: SubscribedQualityUpdate) => {

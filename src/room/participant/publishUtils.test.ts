@@ -28,11 +28,11 @@ describe('presetsForResolution', () => {
 
 describe('determineAppropriateEncoding', () => {
   it('uses higher encoding', () => {
-    expect(determineAppropriateEncoding(false, 600, 300)).toEqual(VideoPresets.vga.encoding);
+    expect(determineAppropriateEncoding(false, 600, 300)).toEqual(VideoPresets.h360.encoding);
   });
 
   it('handles portrait', () => {
-    expect(determineAppropriateEncoding(false, 300, 600)).toEqual(VideoPresets.vga.encoding);
+    expect(determineAppropriateEncoding(false, 300, 600)).toEqual(VideoPresets.h360.encoding);
   });
 });
 

@@ -89,7 +89,7 @@ export async function createLocalScreenTracks(
     options = {};
   }
   if (options.resolution === undefined) {
-    options.resolution = VideoPresets.fhd.resolution;
+    options.resolution = VideoPresets.h1080.resolution;
   }
 
   let videoConstraints: MediaTrackConstraints | boolean = true;
