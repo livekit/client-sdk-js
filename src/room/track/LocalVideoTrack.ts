@@ -272,7 +272,7 @@ export default class LocalVideoTrack extends LocalTrack {
 }
 
 async function setPublishingLayersForSender(sender: RTCRtpSender, senderEncodings: RTCRtpEncodingParameters[], qualities: SubscribedQuality[]) {
-  log.debug(`setPublishingLayersForSender ${sender}, qualities: ${qualities}, encodings: ${senderEncodings}`);
+  console.log('setPublishingLayersForSender', sender,  qualities, senderEncodings);
   const params = sender.getParameters();
   const { encodings } = params;
   if (!encodings) {

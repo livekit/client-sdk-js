@@ -122,6 +122,11 @@ export default class RemoteVideoTrack extends RemoteTrack {
     return detachedElements;
   }
 
+  /** @internal */
+  getDecoderImplementation(): string {
+    return this.prevStats?.decoderImplementation || '';
+  }
+
   protected monitorReceiver = async () => {
     if (!this.receiver) {
       this._currentBitrate = 0;
@@ -163,6 +168,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
           jitter: v.jitter,
           timestamp: v.timestamp,
           bytesReceived: v.bytesReceived,
+          decoderImplementation: v.decoderImplementation,
         };
       }
     });

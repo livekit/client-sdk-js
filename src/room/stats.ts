@@ -104,6 +104,8 @@ export interface VideoReceiverStats extends ReceiverStats {
   pliCount?: number;
 
   nackCount?: number;
+
+  decoderImplementation?: string;
 }
 
 export function computeBitrate<T extends ReceiverStats | SenderStats>(

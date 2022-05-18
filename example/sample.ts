@@ -18,10 +18,10 @@ import {
   VideoPresets,
   VideoCodec,
   VideoQuality,
+  RemoteVideoTrack,
 } from '../src/index';
 import { LogLevel } from '../src/logger';
-
-import { Track as RTCTrack } from '../src/room/track/Track';
+import { TrackSource } from '../src/proto/livekit_models';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -438,6 +438,8 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         <div id="name-${identity}" class="name">
         </div>
         <div style="text-align: center;">
+          <span id="codec-${identity}" class="codec">
+          </span>
           <span id="size-${identity}" class="size">
           </span>
           <span id="bitrate-${identity}" class="bitrate">
@@ -607,6 +609,13 @@ function renderBitrate() {
     for (const t of p.tracks.values()) {
       if (t.track) {
         totalBitrate += t.track.currentBitrate;
+      }
+
+      if (t.trackInfo?.source === TrackSource.CAMERA) {
+        if (t.videoTrack instanceof RemoteVideoTrack) {
+          const codecElm = $(`codec-${p.identity}`)!;
+          codecElm.innerHTML = t.videoTrack.getDecoderImplementation();
+        }
       }
     }
     let displayText = '';
