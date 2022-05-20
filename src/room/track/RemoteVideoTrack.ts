@@ -1,12 +1,7 @@
 import { debounce } from 'ts-debounce';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency, VideoReceiverStats } from '../stats';
-import {
-  getIntersectionObserver,
-  getResizeObserver,
-  isMobile,
-  ObservableMediaElement,
-} from '../utils';
+import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
 import { AdaptiveStreamSettings } from './types';
@@ -188,8 +183,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
   protected async handleAppVisibilityChanged() {
     await super.handleAppVisibilityChanged();
     if (!this.isAdaptiveStream) return;
-    // on desktop don't pause when tab is backgrounded
-    if (!isMobile()) return;
     this.updateVisibility();
   }
 
@@ -202,7 +195,11 @@ export default class RemoteVideoTrack extends RemoteTrack {
       (prev, info) => Math.max(prev, info.visibilityChangedAt || 0),
       0,
     );
-    const isVisible = this.elementInfos.some((info) => info.visible) && !this.isInBackground;
+    const backgroundPause =
+      this.adaptiveStreamSettings?.pauseVideoInBackground ?? true // default to true
+        ? this.isInBackground
+        : false;
+    const isVisible = this.elementInfos.some((info) => info.visible) && !backgroundPause;
 
     if (this.lastVisible === isVisible) {
       return;

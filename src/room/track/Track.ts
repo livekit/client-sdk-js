@@ -5,6 +5,8 @@ import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import { isFireFox, isSafari, isWeb } from '../utils';
 
+const BACKGROUND_REACTION_DELAY = 5000;
+
 // keep old audio elements when detached, we would re-use them since on iOS
 // Safari tracks which audio elements have been "blessed" by the user.
 const recycledElements: Array<HTMLAudioElement> = [];
@@ -179,8 +181,18 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
     }
   }
 
-  appVisibilityChangedListener = () => {
-    this.handleAppVisibilityChanged();
+  backgroundTimeout = setTimeout(() => {}, 200);
+
+  protected appVisibilityChangedListener = () => {
+    clearTimeout(this.backgroundTimeout);
+    if (document.visibilityState !== 'hidden') {
+      this.handleAppVisibilityChanged();
+    } else {
+      this.backgroundTimeout = setTimeout(
+        () => this.handleAppVisibilityChanged(),
+        BACKGROUND_REACTION_DELAY,
+      );
+    }
   };
 
   protected async handleAppVisibilityChanged() {
