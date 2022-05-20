@@ -85,16 +85,13 @@ export default class RemoteVideoTrack extends RemoteTrack {
       this.adaptiveStreamSettings &&
       this.elementInfos.find((info) => info.element === element) === undefined
     ) {
-      this.elementInfos.push({
-        element,
-        visible: true, // default visible
-      });
 
-      (element as ObservableMediaElement).handleResize = this.debouncedHandleResize;
-      (element as ObservableMediaElement).handleVisibilityChanged = this.handleVisibilityChanged;
-
-      getIntersectionObserver().observe(element);
-      getResizeObserver().observe(element);
+      let elementInfo = new HTMLElementInfo(element);
+      elementInfo.handleResize = () => { this.debouncedHandleResize() }
+      elementInfo.handleVisibilityChanged = () => { this.updateVisibility() }
+      this.elementInfos.push(
+        elementInfo
+      );
 
       // trigger the first resize update cycle
       // if the tab is backgrounded, the initial resize event does not fire until
@@ -103,6 +100,38 @@ export default class RemoteVideoTrack extends RemoteTrack {
     }
     this.hasUsedAttach = true;
     return element;
+  }
+
+  /**
+   * Used for observing custom non-HTMLMediaElement objects when using
+   * adaptive streaming.
+   * @param elementInfo 
+   */
+  observe(elementInfo: ElementInfo) {
+    if (
+      this.adaptiveStreamSettings &&
+      this.elementInfos.find((info) => info === elementInfo) === undefined
+    ) {
+      elementInfo.handleResize = () => { this.debouncedHandleResize() }
+      elementInfo.handleVisibilityChanged = () => { this.updateVisibility() }
+      this.elementInfos.push(
+        elementInfo
+      );
+      console.log("observe: elementInfos: " + this.elementInfos)
+      elementInfo.observe();
+      this.debouncedHandleResize();
+      this.updateVisibility();
+    }
+  }
+
+  stopObservingElementInfo(elementInfo: ElementInfo) {
+    let stopElementInfos = this.elementInfos.filter((info) => info === elementInfo);
+    for(const info of stopElementInfos) {
+      info.stopObserving()
+    }
+    this.elementInfos = this.elementInfos.filter((info) => info.element !== elementInfo);
+    console.log("stopObservingElementInfo: elementInfos: " + this.elementInfos)
+    this.updateVisibility()
   }
 
   detach(): HTMLMediaElement[];
@@ -170,20 +199,12 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   private stopObservingElement(element: HTMLMediaElement) {
-    getIntersectionObserver()?.unobserve(element);
-    getResizeObserver()?.unobserve(element);
+    let stopElementInfos = this.elementInfos.filter((info) => info.element === element);
+    for(const info of stopElementInfos) {
+      info.stopObserving()
+    }
     this.elementInfos = this.elementInfos.filter((info) => info.element !== element);
   }
-
-  private handleVisibilityChanged = (entry: IntersectionObserverEntry) => {
-    const { target, isIntersecting } = entry;
-    const elementInfo = this.elementInfos.find((info) => info.element === target);
-    if (elementInfo) {
-      elementInfo.visible = isIntersecting;
-      elementInfo.visibilityChangedAt = Date.now();
-    }
-    this.updateVisibility();
-  };
 
   protected async handleAppVisibilityChanged() {
     await super.handleAppVisibilityChanged();
@@ -198,10 +219,14 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }, REACTION_DELAY);
 
   private updateVisibility() {
+    console.log(this.sid + ": calculating visibility of " + this.elementInfos)
     const lastVisibilityChange = this.elementInfos.reduce(
       (prev, info) => Math.max(prev, info.visibilityChangedAt || 0),
       0,
     );
+    console.log(this.sid + ": last visibility change at " + lastVisibilityChange)
+    
+
     const isVisible = this.elementInfos.some((info) => info.visible) && !this.isInBackground;
 
     if (this.lastVisible === isVisible) {
@@ -217,6 +242,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     }
 
     this.lastVisible = isVisible;
+    console.log(`visibility = ${isVisible}`)
     this.emit(TrackEvent.VisibilityChanged, isVisible, this);
   }
 
@@ -226,13 +252,14 @@ export default class RemoteVideoTrack extends RemoteTrack {
     for (const info of this.elementInfos) {
       const pixelDensity = this.adaptiveStreamSettings?.pixelDensity ?? 1;
       const pixelDensityValue = pixelDensity === 'screen' ? window.devicePixelRatio : pixelDensity;
-      const currentElementWidth = info.element.clientWidth * pixelDensityValue;
-      const currentElementHeight = info.element.clientHeight * pixelDensityValue;
+      const currentElementWidth = info.width() * pixelDensityValue;
+      const currentElementHeight = info.height() * pixelDensityValue;
       if (currentElementWidth + currentElementHeight > maxWidth + maxHeight) {
         maxWidth = currentElementWidth;
         maxHeight = currentElementHeight;
       }
     }
+    console.log(`updateDimensions = ${maxWidth}, ${maxHeight}`)
 
     if (this.lastDimensions?.width === maxWidth && this.lastDimensions?.height === maxHeight) {
       return;
@@ -242,12 +269,61 @@ export default class RemoteVideoTrack extends RemoteTrack {
       width: maxWidth,
       height: maxHeight,
     };
+
+
     this.emit(TrackEvent.VideoDimensionsChanged, this.lastDimensions, this);
   }
 }
 
-interface ElementInfo {
+export interface ElementInfo {
+  element: object;
+  width(): number;
+  height(): number;
+  visible: boolean;
+  visibilityChangedAt: number | undefined;
+
+  handleResize?: () => void
+  handleVisibilityChanged?: () => void
+  observe(): void;
+  stopObserving(): void;
+}
+
+class HTMLElementInfo implements ElementInfo {
   element: HTMLMediaElement;
   visible: boolean;
-  visibilityChangedAt?: number;
+  visibilityChangedAt: number | undefined;
+  handleResize?: () => void;
+  handleVisibilityChanged?: () => void;
+  constructor(
+    element: HTMLMediaElement, 
+    visible: boolean = true
+  ) {
+    this.element = element
+    this.visible = visible
+    this.visibilityChangedAt = 0
+  }
+  width(): number { return this.element.clientWidth }
+  height(): number { return this.element.clientWidth }
+
+  observe() {
+    (this.element as ObservableMediaElement).handleResize = () => { this.handleResize?.() }
+    (this.element as ObservableMediaElement).handleVisibilityChanged = this.onVisibilityChanged
+
+    getIntersectionObserver().observe(this.element);
+    getResizeObserver().observe(this.element);
+  }
+
+  private onVisibilityChanged = (entry: IntersectionObserverEntry) => {
+    const { target, isIntersecting } = entry;
+    if(target === this.element) {
+      this.visible = isIntersecting;
+      this.visibilityChangedAt = Date.now();
+      this.handleVisibilityChanged?.()
+    }
+  }
+
+  stopObserving() {
+    getIntersectionObserver()?.unobserve(this.element);
+    getResizeObserver()?.unobserve(this.element);
+  }
 }
