@@ -34,6 +34,8 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   protected isInBackground: boolean;
 
+  private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
+
   protected _currentBitrate: number = 0;
 
   protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
@@ -181,17 +183,19 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
     }
   }
 
-  backgroundTimeout = setTimeout(() => {}, 200);
-
   protected appVisibilityChangedListener = () => {
-    clearTimeout(this.backgroundTimeout);
-    if (document.visibilityState !== 'hidden') {
-      this.handleAppVisibilityChanged();
-    } else {
+    if (this.backgroundTimeout) {
+      clearTimeout(this.backgroundTimeout);
+    }
+    // delay app visibility update if it goes to hidden
+    // update immediately if it comes back to focus
+    if (document.visibilityState === 'hidden') {
       this.backgroundTimeout = setTimeout(
         () => this.handleAppVisibilityChanged(),
         BACKGROUND_REACTION_DELAY,
       );
+    } else {
+      this.handleAppVisibilityChanged();
     }
   };
 
