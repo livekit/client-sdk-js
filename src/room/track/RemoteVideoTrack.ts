@@ -86,7 +86,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       this.elementInfos.find((info) => info.element === element) === undefined
     ) {
 
-      let elementInfo = new HTMLElementInfo(element);
+      const elementInfo = new HTMLElementInfo(element);
       elementInfo.handleResize = () => { this.debouncedHandleResize() }
       elementInfo.handleVisibilityChanged = () => { this.updateVisibility() }
       this.elementInfos.push(
@@ -117,7 +117,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
       this.elementInfos.push(
         elementInfo
       );
-      console.log("observe: elementInfos: " + this.elementInfos)
       elementInfo.observe();
       this.debouncedHandleResize();
       this.updateVisibility();
@@ -125,12 +124,11 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   stopObservingElementInfo(elementInfo: ElementInfo) {
-    let stopElementInfos = this.elementInfos.filter((info) => info === elementInfo);
+    const stopElementInfos = this.elementInfos.filter((info) => info === elementInfo);
     for(const info of stopElementInfos) {
       info.stopObserving()
     }
     this.elementInfos = this.elementInfos.filter((info) => info.element !== elementInfo);
-    console.log("stopObservingElementInfo: elementInfos: " + this.elementInfos)
     this.updateVisibility()
   }
 
@@ -199,7 +197,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   private stopObservingElement(element: HTMLMediaElement) {
-    let stopElementInfos = this.elementInfos.filter((info) => info.element === element);
+    const stopElementInfos = this.elementInfos.filter((info) => info.element === element);
     for(const info of stopElementInfos) {
       info.stopObserving()
     }
@@ -219,13 +217,10 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }, REACTION_DELAY);
 
   private updateVisibility() {
-    console.log(this.sid + ": calculating visibility of " + this.elementInfos)
     const lastVisibilityChange = this.elementInfos.reduce(
       (prev, info) => Math.max(prev, info.visibilityChangedAt || 0),
       0,
     );
-    console.log(this.sid + ": last visibility change at " + lastVisibilityChange)
-    
 
     const isVisible = this.elementInfos.some((info) => info.visible) && !this.isInBackground;
 
@@ -242,7 +237,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
     }
 
     this.lastVisible = isVisible;
-    console.log(`visibility = ${isVisible}`)
     this.emit(TrackEvent.VisibilityChanged, isVisible, this);
   }
 
@@ -259,7 +253,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
         maxHeight = currentElementHeight;
       }
     }
-    console.log(`updateDimensions = ${maxWidth}, ${maxHeight}`)
 
     if (this.lastDimensions?.width === maxWidth && this.lastDimensions?.height === maxHeight) {
       return;
@@ -290,10 +283,15 @@ export interface ElementInfo {
 
 class HTMLElementInfo implements ElementInfo {
   element: HTMLMediaElement;
+
   visible: boolean;
+
   visibilityChangedAt: number | undefined;
+
   handleResize?: () => void;
+
   handleVisibilityChanged?: () => void;
+
   constructor(
     element: HTMLMediaElement, 
     visible: boolean = true
@@ -302,7 +300,9 @@ class HTMLElementInfo implements ElementInfo {
     this.visible = visible
     this.visibilityChangedAt = 0
   }
+
   width(): number { return this.element.clientWidth }
+
   height(): number { return this.element.clientWidth }
 
   observe() {
