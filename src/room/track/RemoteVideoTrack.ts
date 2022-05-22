@@ -86,29 +86,17 @@ export default class RemoteVideoTrack extends RemoteTrack {
       this.elementInfos.find((info) => info.element === element) === undefined
     ) {
       const elementInfo = new HTMLElementInfo(element);
-      elementInfo.handleResize = () => {
-        this.debouncedHandleResize();
-      };
-      elementInfo.handleVisibilityChanged = () => {
-        this.updateVisibility();
-      };
-      this.elementInfos.push(elementInfo);
-
-      // trigger the first resize update cycle
-      // if the tab is backgrounded, the initial resize event does not fire until
-      // the tab comes into focus for the first time.
-      this.debouncedHandleResize();
+      this.observeElementInfo(elementInfo);
     }
     this.hasUsedAttach = true;
     return element;
   }
 
   /**
-   * Used for observing custom non-HTMLMediaElement objects when using
-   * adaptive streaming.
+   * Observe an ElementInfo for changes when adaptive streaming.
    * @param elementInfo
    */
-  observe(elementInfo: ElementInfo) {
+  observeElementInfo(elementInfo: ElementInfo) {
     if (
       this.adaptiveStreamSettings &&
       this.elementInfos.find((info) => info === elementInfo) === undefined
@@ -121,6 +109,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
       };
       this.elementInfos.push(elementInfo);
       elementInfo.observe();
+      // trigger the first resize update cycle
+      // if the tab is backgrounded, the initial resize event does not fire until
+      // the tab comes into focus for the first time.
       this.debouncedHandleResize();
       this.updateVisibility();
     }
@@ -131,7 +122,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     for (const info of stopElementInfos) {
       info.stopObserving();
     }
-    this.elementInfos = this.elementInfos.filter((info) => info.element !== elementInfo);
+    this.elementInfos = this.elementInfos.filter((info) => info !== elementInfo);
     this.updateVisibility();
   }
 
@@ -294,7 +285,7 @@ class HTMLElementInfo implements ElementInfo {
 
   handleVisibilityChanged?: () => void;
 
-  constructor(element: HTMLMediaElement, visible: boolean = true) {
+  constructor(element: HTMLMediaElement, visible: boolean = false) {
     this.element = element;
     this.visible = visible;
     this.visibilityChangedAt = 0;
