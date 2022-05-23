@@ -35,6 +35,7 @@
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
     "protobufjs": "^6.11.2",
+    "rollup-plugin-livereload": "^2.0.5",
     "ts-debounce": "^3.0.0",
     "typed-emitter": "^2.1.0",
     "webrtc-adapter": "^8.1.1"
