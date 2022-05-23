@@ -118,6 +118,11 @@ export default class RemoteVideoTrack extends RemoteTrack {
     }
   }
 
+  /**
+   * Stop observing an ElementInfo for changes.
+   * @param elementInfo
+   * @internal
+   */
   stopObservingElementInfo(elementInfo: ElementInfo) {
     const stopElementInfos = this.elementInfos.filter((info) => info === elementInfo);
     for (const info of stopElementInfos) {
