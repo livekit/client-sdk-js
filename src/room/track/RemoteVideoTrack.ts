@@ -95,6 +95,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   /**
    * Observe an ElementInfo for changes when adaptive streaming.
    * @param elementInfo
+   * @internal
    */
   observeElementInfo(elementInfo: ElementInfo) {
     if (
