@@ -5,6 +5,7 @@ import typescript from 'rollup-plugin-typescript2';
 import commonjs from '@rollup/plugin-commonjs';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import serve from 'rollup-plugin-serve';
+import livereload from 'rollup-plugin-livereload';
 
 const watcher = (globs) => ({
   buildStart() {
@@ -33,5 +34,6 @@ export default {
     commonjs(),
     serve({ contentBase: 'example', open: true, port: 8080 }),
     watcher(['example/index.html', 'example/styles.css']),
+    livereload(),
   ],
 };
