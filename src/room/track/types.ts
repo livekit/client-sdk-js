@@ -17,4 +17,9 @@ export type AdaptiveStreamSettings = {
    * streaming on high definition screens.
    */
   pixelDensity?: number | 'screen';
+  /**
+   * If true, video gets paused when switching to another tab.
+   * Defaults to true.
+   */
+  pauseVideoInBackground?: boolean;
 };
