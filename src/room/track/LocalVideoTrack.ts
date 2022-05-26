@@ -89,7 +89,7 @@ export default class LocalVideoTrack extends LocalTrack {
           bytesSent: v.bytesSent,
           framesSent: v.framesSent,
           timestamp: v.timestamp,
-          rid: v.rid ?? '',
+          rid: v.rid ?? v.id,
           retransmittedPacketsSent: v.retransmittedPacketsSent,
           qualityLimitationReason: v.qualityLimitationReason,
           qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
