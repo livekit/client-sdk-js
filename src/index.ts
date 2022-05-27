@@ -4,7 +4,7 @@ import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './room/participant/Participant';
 import { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
 import RemoteParticipant from './room/participant/RemoteParticipant';
-import Room, { RoomState } from './room/Room';
+import Room, { ConnectionState, RoomState } from './room/Room';
 import LocalAudioTrack from './room/track/LocalAudioTrack';
 import LocalTrack from './room/track/LocalTrack';
 import LocalTrackPublication from './room/track/LocalTrackPublication';
@@ -12,7 +12,7 @@ import LocalVideoTrack from './room/track/LocalVideoTrack';
 import RemoteAudioTrack from './room/track/RemoteAudioTrack';
 import RemoteTrack from './room/track/RemoteTrack';
 import RemoteTrackPublication from './room/track/RemoteTrackPublication';
-import RemoteVideoTrack from './room/track/RemoteVideoTrack';
+import RemoteVideoTrack, { ElementInfo } from './room/track/RemoteVideoTrack';
 import { TrackPublication } from './room/track/TrackPublication';
 
 export * from './options';
@@ -28,6 +28,7 @@ export {
   setLogExtension,
   LogLevel,
   Room,
+  ConnectionState,
   RoomState,
   DataPacket_Kind,
   Participant,
@@ -45,4 +46,5 @@ export {
   TrackPublication,
   VideoQuality,
   ConnectionQuality,
+  ElementInfo,
 };
