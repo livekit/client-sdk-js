@@ -32,7 +32,10 @@ export default class LocalVideoTrack extends LocalTrack {
 
   private encodings?: RTCRtpEncodingParameters[];
 
-  private simulcastCodecs: Map<VideoCodec, SimulcastTrackInfo> = new Map<VideoCodec, SimulcastTrackInfo>();
+  private simulcastCodecs: Map<VideoCodec, SimulcastTrackInfo> = new Map<
+    VideoCodec,
+    SimulcastTrackInfo
+  >();
 
   constructor(mediaTrack: MediaStreamTrack, constraints?: MediaTrackConstraints) {
     super(mediaTrack, Track.Kind.Video, constraints);
@@ -68,7 +71,7 @@ export default class LocalVideoTrack extends LocalTrack {
       log.info(`stop track ${trackInfo.mediaStreamTrack.id}`);
       trackInfo.mediaStreamTrack.stop();
       trackInfo.sender = undefined;
-    })
+    });
     this.simulcastCodecs.clear();
     super.stop();
   }
@@ -187,7 +190,7 @@ export default class LocalVideoTrack extends LocalTrack {
   setSimulcastTrackSender(codec: VideoCodec, sender: RTCRtpSender) {
     const simulcastCodecInfo = this.simulcastCodecs.get(codec);
     if (!simulcastCodecInfo) {
-      return
+      return;
     }
     simulcastCodecInfo.sender = sender;
   }
@@ -211,7 +214,11 @@ export default class LocalVideoTrack extends LocalTrack {
 
         if (simulcastCodecInfo.encodings) {
           log.debug(`try setPublishingLayersForSender ${codec.codec}`);
-          await setPublishingLayersForSender(simulcastCodecInfo.sender, simulcastCodecInfo.encodings!, codec.qualities);
+          await setPublishingLayersForSender(
+            simulcastCodecInfo.sender,
+            simulcastCodecInfo.encodings!,
+            codec.qualities,
+          );
         }
       }
     }
@@ -269,8 +276,12 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 }
 
-async function setPublishingLayersForSender(sender: RTCRtpSender, senderEncodings: RTCRtpEncodingParameters[], qualities: SubscribedQuality[]) {
-  console.log('setPublishingLayersForSender', sender,  qualities, senderEncodings);
+async function setPublishingLayersForSender(
+  sender: RTCRtpSender,
+  senderEncodings: RTCRtpEncodingParameters[],
+  qualities: SubscribedQuality[],
+) {
+  console.log('setPublishingLayersForSender', sender, qualities, senderEncodings);
   const params = sender.getParameters();
   const { encodings } = params;
   if (!encodings) {
@@ -297,8 +308,7 @@ async function setPublishingLayersForSender(sender: RTCRtpSender, senderEncoding
       hasChanged = true;
       encoding.active = subscribedQuality.enabled;
       log.debug(
-        `setting layer ${subscribedQuality.quality} to ${encoding.active ? 'enabled' : 'disabled'
-        }`,
+        `setting layer ${subscribedQuality.quality} to ${encoding.active ? 'enabled' : 'disabled'}`,
       );
 
       // FireFox does not support setting encoding.active to false, so we

@@ -1,6 +1,6 @@
 import log from '../../logger';
 import { RoomOptions } from '../../options';
-import { DataPacket, DataPacket_Kind, ParticipantPermission} from '../../proto/livekit_models';
+import { DataPacket, DataPacket_Kind, ParticipantPermission } from '../../proto/livekit_models';
 import {
   AddTrackRequest,
   DataChannelInfo,
@@ -15,7 +15,10 @@ import RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
-import LocalVideoTrack, { SimulcastTrackInfo, videoLayersFromEncodings } from '../track/LocalVideoTrack';
+import LocalVideoTrack, {
+  SimulcastTrackInfo,
+  videoLayersFromEncodings,
+} from '../track/LocalVideoTrack';
 import {
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
@@ -413,24 +416,27 @@ export default class LocalParticipant extends Participant {
       req.width = width ?? 0;
       req.height = height ?? 0;
       // for svc codecs, disable simulcast and use vp8 for backup codec
-      if (track instanceof LocalVideoTrack && 
-        (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1')) {
-          // set scalabilityMode to 'L3T3' by default
-          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
+      if (
+        track instanceof LocalVideoTrack &&
+        (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1')
+      ) {
+        // set scalabilityMode to 'L3T3' by default
+        opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
 
-          // add backup codec track
-          const simOpts = {...opts};
-          simOpts.simulcast = true;
-          simOpts.scalabilityMode = undefined;
-          simEncodings = computeVideoEncodings(
-            track.source === Track.Source.ScreenShare,
-            width,
-            height,
-            simOpts,
-          );
-          const simulcastTrack = track.addSimulcastTrack(compatibleCodecForSVC, simEncodings);
-          simulcastTracks = [simulcastTrack];
-          req.simulcastCodecs = [{
+        // add backup codec track
+        const simOpts = { ...opts };
+        simOpts.simulcast = true;
+        simOpts.scalabilityMode = undefined;
+        simEncodings = computeVideoEncodings(
+          track.source === Track.Source.ScreenShare,
+          width,
+          height,
+          simOpts,
+        );
+        const simulcastTrack = track.addSimulcastTrack(compatibleCodecForSVC, simEncodings);
+        simulcastTracks = [simulcastTrack];
+        req.simulcastCodecs = [
+          {
             codec: opts.videoCodec,
             cid: track.mediaStreamTrack.id,
             enableSimulcastLayers: true,
@@ -439,8 +445,9 @@ export default class LocalParticipant extends Participant {
             codec: simulcastTrack.codec,
             cid: simulcastTrack.mediaStreamTrack.id,
             enableSimulcastLayers: true,
-          }];
-        }
+          },
+        ];
+      }
 
       encodings = computeVideoEncodings(
         track.source === Track.Source.ScreenShare,
@@ -489,7 +496,8 @@ export default class LocalParticipant extends Participant {
         simTransceiverInit.sendEncodings = simulcastTrack.encodings;
       }
       const simTransceiver = this.engine.publisher!.pc.addTransceiver(
-        simulcastTrack.mediaStreamTrack, simTransceiverInit,
+        simulcastTrack.mediaStreamTrack,
+        simTransceiverInit,
       );
       this.setPreferredCodec(simTransceiver, localTrack.kind, simulcastTrack.codec);
       localTrack.setSimulcastTrackSender(simulcastTrack.codec, simTransceiver.sender);
@@ -700,7 +708,7 @@ export default class LocalParticipant extends Participant {
     }
     if (update.subscribedCodecs.length > 0) {
       pub.videoTrack?.setPublishingCodecs(update.subscribedCodecs);
-    }else if (update.subscribedQualities.length > 0) {
+    } else if (update.subscribedQualities.length > 0) {
       pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
     }
   };

@@ -106,7 +106,7 @@ export function computeVideoEncodings(
           encodings.push({
             rid: videoRids[2 - i],
             scaleResolutionDownBy: 2 ** i,
-            maxBitrate: videoEncoding ? videoEncoding.maxBitrate / (2 ** i) : 0,
+            maxBitrate: videoEncoding ? videoEncoding.maxBitrate / 2 ** i : 0,
             /* @ts-ignore */
             maxFramerate: original.encoding.maxFramerate,
             /* @ts-ignore */
