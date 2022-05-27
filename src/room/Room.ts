@@ -560,7 +560,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.localParticipant.tracks.forEach((pub) => {
       if (pub.track) {
-        this.localParticipant.unpublishTrack(pub.track);
+        this.localParticipant.unpublishTrack(pub.track, shouldStopTracks);
       }
       if (shouldStopTracks) {
         pub.track?.detach();
