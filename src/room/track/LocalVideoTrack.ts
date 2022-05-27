@@ -11,8 +11,6 @@ import { constraintsForOptions } from './utils';
 
 export class SimulcastTrackInfo {
   codec: VideoCodec;
-  // simulcast: boolean;
-  // simulcastLayers: VideoLayer[];
 
   mediaStreamTrack: MediaStreamTrack;
 
