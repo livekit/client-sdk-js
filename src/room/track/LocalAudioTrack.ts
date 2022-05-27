@@ -1,6 +1,7 @@
 import log from '../../logger';
 import { TrackEvent } from '../events';
 import { AudioSenderStats, computeBitrate, monitorFrequency } from '../stats';
+import { isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { AudioCaptureOptions } from './options';
 import { Track } from './Track';
@@ -68,6 +69,9 @@ export default class LocalAudioTrack extends LocalTrack {
 
   /* @internal */
   startMonitor() {
+    if (!isWeb()) {
+      return;
+    }
     setTimeout(() => {
       this.monitorSender();
     }, monitorFrequency);
