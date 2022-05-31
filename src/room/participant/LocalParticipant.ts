@@ -452,7 +452,8 @@ export default class LocalParticipant extends Participant {
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
     }
-    const transceiver = this.engine.publisher.pc.addTransceiver(
+    // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
+    const transceiver = await this.engine.publisher.pc.addTransceiver(
       track.mediaStreamTrack,
       transceiverInit,
     );

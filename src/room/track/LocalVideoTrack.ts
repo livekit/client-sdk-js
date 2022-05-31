@@ -3,7 +3,7 @@ import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import { SubscribedQuality } from '../../proto/livekit_rtc';
 import { computeBitrate, monitorFrequency, VideoSenderStats } from '../stats';
-import { isFireFox, isMobile } from '../utils';
+import { isFireFox, isMobile, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { VideoCaptureOptions } from './options';
 import { Track } from './Track';
@@ -31,6 +31,9 @@ export default class LocalVideoTrack extends LocalTrack {
   /* @internal */
   startMonitor(signalClient: SignalClient) {
     this.signalClient = signalClient;
+    if (!isWeb()) {
+      return;
+    }
     // save original encodings
     const params = this.sender?.getParameters();
     if (params) {
