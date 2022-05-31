@@ -10,7 +10,7 @@ import {
   TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc';
 import { TrackInvalidError, UnexpectedConnectionState } from '../errors';
-import { ParticipantEvent, TrackEvent } from '../events';
+import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
@@ -47,6 +47,10 @@ export default class LocalParticipant extends Participant {
 
   private engine: RTCEngine;
 
+  private participantTrackPermissions: Array<ParticipantTrackPermission> = [];
+
+  private allParticipantsAllowedToSubscribe: boolean = true;
+
   // keep a pointer to room options
   private roomOptions?: RoomOptions;
 
@@ -74,6 +78,11 @@ export default class LocalParticipant extends Participant {
     this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
 
     this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
+
+    this.engine
+      .on(EngineEvent.Connected, this.updateTrackSubscriptionPermissions)
+      .on(EngineEvent.Restarted, this.updateTrackSubscriptionPermissions)
+      .on(EngineEvent.Resumed, this.updateTrackSubscriptionPermissions);
   }
 
   get lastCameraError(): Error | undefined {
@@ -613,11 +622,23 @@ export default class LocalParticipant extends Participant {
     allParticipantsAllowed: boolean,
     participantTrackPermissions: ParticipantTrackPermission[] = [],
   ) {
-    this.engine.client.sendUpdateSubscriptionPermissions(
-      allParticipantsAllowed,
-      participantTrackPermissions.map((p) => trackPermissionToProto(p)),
-    );
+    this.participantTrackPermissions = participantTrackPermissions;
+    this.allParticipantsAllowedToSubscribe = allParticipantsAllowed;
+    if (this.engine.client.isConnected) {
+      this.updateTrackSubscriptionPermissions();
+    }
   }
+
+  private updateTrackSubscriptionPermissions = () => {
+    log.debug('updating track subscription permissions', {
+      allParticipantsAllowed: this.allParticipantsAllowedToSubscribe,
+      participantTrackPermissions: this.participantTrackPermissions,
+    });
+    this.engine.client.sendUpdateSubscriptionPermissions(
+      this.allParticipantsAllowedToSubscribe,
+      this.participantTrackPermissions.map((p) => trackPermissionToProto(p)),
+    );
+  };
 
   /** @internal */
   private onTrackUnmuted = (track: LocalTrack) => {
