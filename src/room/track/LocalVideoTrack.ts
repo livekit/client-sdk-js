@@ -279,7 +279,7 @@ async function setPublishingLayersForSender(
   senderEncodings: RTCRtpEncodingParameters[],
   qualities: SubscribedQuality[],
 ) {
-  log.debug('setPublishingLayersForSender', {sender, qualities, senderEncodings});
+  log.debug('setPublishingLayersForSender', { sender, qualities, senderEncodings });
   const params = sender.getParameters();
   const { encodings } = params;
   if (!encodings) {
