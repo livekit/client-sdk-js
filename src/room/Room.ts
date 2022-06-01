@@ -287,6 +287,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.name = joinResponse.room!.name;
       this.sid = joinResponse.room!.sid;
       this.metadata = joinResponse.room!.metadata;
+      this.emit(RoomEvent.SignalConnected);
     } catch (err) {
       this.engine.close();
       this.setAndEmitConnectionState(ConnectionState.Disconnected);
@@ -991,4 +992,5 @@ export type RoomEventCallbacks = {
     participant: RemoteParticipant,
   ) => void;
   audioPlaybackChanged: (playing: boolean) => void;
+  signalConnected: () => void;
 };
