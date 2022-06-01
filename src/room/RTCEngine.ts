@@ -93,8 +93,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private connectedServerAddr?: string;
 
-  private signalStableTime: number = 0;
-
   constructor() {
     super();
     this.client = new SignalClient();
@@ -174,11 +172,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return this.connectedServerAddr;
   }
 
-  /** @internal */
-  get signalStableTimestamp(): number {
-    return this.signalStableTime;
-  }
-
   private configure(joinResponse: JoinResponse) {
     // already configured
     if (this.publisher || this.subscriber) {
@@ -235,11 +228,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.subscriber.pc.ondatachannel = this.handleDataChannel;
     }
     this.primaryPC = primaryPC;
-    primaryPC.onsignalingstatechange = () => {
-      if (primaryPC.signalingState === 'stable' && this.signalStableTime === 0) {
-        this.signalStableTime = Date.now();
-      }
-    };
     primaryPC.onconnectionstatechange = async () => {
       log.trace('connection state changed', {
         state: primaryPC.connectionState,

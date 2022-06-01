@@ -158,11 +158,8 @@ const appActions = {
       startTime = Date.now();
       await room.connect(url, token, connectOptions);
       const elapsed = Date.now() - startTime;
-      const signalStableElaspsed = room.engine.signalStableTimestamp - startTime;
       appendLog(
-        `successfully connected to ${room.name} in ${Math.round(
-          elapsed,
-        )}ms, signal cost ${signalStableElaspsed}ms`,
+        `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
         room.engine.connectedServerAddress,
       );
     } catch (error: any) {
@@ -520,9 +517,13 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       // measure time to render
       videoElm.onloadeddata = () => {
         const elapsed = Date.now() - renderStartTime;
-        const fromJoin = Date.now() - startTime;
+        let fromJoin = 0;
+        if (participant.joinedAt && participant.joinedAt.getTime() < startTime) {
+          fromJoin = Date.now() - startTime;
+        }
         appendLog(
-          `RemoteVideoTrack ${cameraPub?.trackSid} (${videoElm.videoWidth}x${videoElm.videoHeight}) rendered in ${elapsed}ms, total cost ${fromJoin}ms from join`,
+          `RemoteVideoTrack ${cameraPub?.trackSid} (${videoElm.videoWidth}x${videoElm.videoHeight}) rendered in ${elapsed}ms`,
+          fromJoin > 0 ? `, ${fromJoin}ms from start` : '',
         );
       };
     }
@@ -544,10 +545,10 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     if (!(participant instanceof LocalParticipant)) {
       // don't attach local audio
       audioELm.onloadeddata = () => {
-        const fromJoin = Date.now() - startTime;
-        appendLog(
-          `RemoteAudioTrack ${micPub?.trackSid} rendered total cost ${fromJoin}ms from join`,
-        );
+        if (participant.joinedAt && participant.joinedAt.getTime() < startTime) {
+          const fromJoin = Date.now() - startTime;
+          appendLog(`RemoteAudioTrack ${micPub?.trackSid} played ${fromJoin}ms from start`);
+        }
       };
       micPub?.audioTrack?.attach(audioELm);
     }
