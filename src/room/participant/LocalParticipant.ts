@@ -490,18 +490,20 @@ export default class LocalParticipant extends Participant {
     }
 
     const localTrack = track as LocalVideoTrack;
-    simulcastTracks?.forEach((simulcastTrack) => {
-      const simTransceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-      if (simulcastTrack.encodings) {
-        simTransceiverInit.sendEncodings = simulcastTrack.encodings;
+    if (simulcastTracks) {
+      for await (const simulcastTrack of simulcastTracks) {
+        const simTransceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+        if (simulcastTrack.encodings) {
+          simTransceiverInit.sendEncodings = simulcastTrack.encodings;
+        }
+        const simTransceiver = await this.engine.publisher!.pc.addTransceiver(
+          simulcastTrack.mediaStreamTrack,
+          simTransceiverInit,
+        );
+        this.setPreferredCodec(simTransceiver, localTrack.kind, simulcastTrack.codec);
+        localTrack.setSimulcastTrackSender(simulcastTrack.codec, simTransceiver.sender);
       }
-      const simTransceiver = this.engine.publisher!.pc.addTransceiver(
-        simulcastTrack.mediaStreamTrack,
-        simTransceiverInit,
-      );
-      this.setPreferredCodec(simTransceiver, localTrack.kind, simulcastTrack.codec);
-      localTrack.setSimulcastTrackSender(simulcastTrack.codec, simTransceiver.sender);
-    });
+    }
 
     this.engine.negotiate();
 
