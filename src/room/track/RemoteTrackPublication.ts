@@ -202,7 +202,6 @@ export default class RemoteTrackPublication extends TrackPublication {
       settings.quality = VideoQuality.HIGH;
     }
 
-    log.debug('emit settings', settings);
     this.emit(TrackEvent.UpdateSettings, settings);
   }
 }

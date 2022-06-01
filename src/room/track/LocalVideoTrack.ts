@@ -64,11 +64,9 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   stop() {
-    log.info(`stop track ${this.mediaStreamTrack.id}`);
     this.sender = undefined;
     this._mediaStreamTrack.getConstraints();
     this.simulcastCodecs.forEach((trackInfo) => {
-      log.info(`stop track ${trackInfo.mediaStreamTrack.id}`);
       trackInfo.mediaStreamTrack.stop();
       trackInfo.sender = undefined;
     });
@@ -281,7 +279,7 @@ async function setPublishingLayersForSender(
   senderEncodings: RTCRtpEncodingParameters[],
   qualities: SubscribedQuality[],
 ) {
-  console.log('setPublishingLayersForSender', sender, qualities, senderEncodings);
+  log.debug('setPublishingLayersForSender', {sender, qualities, senderEncodings});
   const params = sender.getParameters();
   const { encodings } = params;
   if (!encodings) {

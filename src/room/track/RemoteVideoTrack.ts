@@ -145,8 +145,8 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   /** @internal */
-  getDecoderImplementation(): string {
-    return this.prevStats?.decoderImplementation || '';
+  getDecoderImplementation(): string | undefined {
+    return this.prevStats?.decoderImplementation;
   }
 
   protected monitorReceiver = async () => {

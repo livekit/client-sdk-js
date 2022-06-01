@@ -614,7 +614,7 @@ function renderBitrate() {
       if (t.trackInfo?.source === TrackSource.CAMERA) {
         if (t.videoTrack instanceof RemoteVideoTrack) {
           const codecElm = $(`codec-${p.identity}`)!;
-          codecElm.innerHTML = t.videoTrack.getDecoderImplementation();
+          codecElm.innerHTML = t.videoTrack.getDecoderImplementation() ?? '';
         }
       }
     }

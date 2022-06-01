@@ -763,7 +763,7 @@ export default class LocalParticipant extends Participant {
     }
     const cap = RTCRtpSender.getCapabilities(kind);
     if (!cap) return;
-    log.info('get capabilities', cap);
+    log.debug('get capabilities', cap);
     let selected: RTCRtpCodecCapability | undefined;
     const codecs: RTCRtpCodecCapability[] = [];
     cap.codecs.forEach((c) => {
