@@ -156,6 +156,12 @@ export interface SignalResponse {
   trackUnpublished?: TrackUnpublishedResponse | undefined;
 }
 
+export interface SimulcastCodec {
+  codec: string;
+  cid: string;
+  enableSimulcastLayers: boolean;
+}
+
 export interface AddTrackRequest {
   /** client ID of track, to match it when RTC track is received */
   cid: string;
@@ -170,6 +176,7 @@ export interface AddTrackRequest {
   disableDtx: boolean;
   source: TrackSource;
   layers: VideoLayer[];
+  simulcastCodecs: SimulcastCodec[];
 }
 
 export interface TrickleRequest {
@@ -289,9 +296,15 @@ export interface SubscribedQuality {
   enabled: boolean;
 }
 
+export interface SubscribedCodec {
+  codec: string;
+  qualities: SubscribedQuality[];
+}
+
 export interface SubscribedQualityUpdate {
   trackSid: string;
   subscribedQualities: SubscribedQuality[];
+  subscribedCodecs: SubscribedCodec[];
 }
 
 export interface TrackPermission {
@@ -864,6 +877,76 @@ export const SignalResponse = {
   },
 };
 
+function createBaseSimulcastCodec(): SimulcastCodec {
+  return { codec: '', cid: '', enableSimulcastLayers: false };
+}
+
+export const SimulcastCodec = {
+  encode(message: SimulcastCodec, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.codec !== '') {
+      writer.uint32(10).string(message.codec);
+    }
+    if (message.cid !== '') {
+      writer.uint32(18).string(message.cid);
+    }
+    if (message.enableSimulcastLayers === true) {
+      writer.uint32(24).bool(message.enableSimulcastLayers);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SimulcastCodec {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSimulcastCodec();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.codec = reader.string();
+          break;
+        case 2:
+          message.cid = reader.string();
+          break;
+        case 3:
+          message.enableSimulcastLayers = reader.bool();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SimulcastCodec {
+    return {
+      codec: isSet(object.codec) ? String(object.codec) : '',
+      cid: isSet(object.cid) ? String(object.cid) : '',
+      enableSimulcastLayers: isSet(object.enableSimulcastLayers)
+        ? Boolean(object.enableSimulcastLayers)
+        : false,
+    };
+  },
+
+  toJSON(message: SimulcastCodec): unknown {
+    const obj: any = {};
+    message.codec !== undefined && (obj.codec = message.codec);
+    message.cid !== undefined && (obj.cid = message.cid);
+    message.enableSimulcastLayers !== undefined &&
+      (obj.enableSimulcastLayers = message.enableSimulcastLayers);
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<SimulcastCodec>, I>>(object: I): SimulcastCodec {
+    const message = createBaseSimulcastCodec();
+    message.codec = object.codec ?? '';
+    message.cid = object.cid ?? '';
+    message.enableSimulcastLayers = object.enableSimulcastLayers ?? false;
+    return message;
+  },
+};
+
 function createBaseAddTrackRequest(): AddTrackRequest {
   return {
     cid: '',
@@ -875,6 +958,7 @@ function createBaseAddTrackRequest(): AddTrackRequest {
     disableDtx: false,
     source: 0,
     layers: [],
+    simulcastCodecs: [],
   };
 }
 
@@ -906,6 +990,9 @@ export const AddTrackRequest = {
     }
     for (const v of message.layers) {
       VideoLayer.encode(v!, writer.uint32(74).fork()).ldelim();
+    }
+    for (const v of message.simulcastCodecs) {
+      SimulcastCodec.encode(v!, writer.uint32(82).fork()).ldelim();
     }
     return writer;
   },
@@ -944,6 +1031,9 @@ export const AddTrackRequest = {
         case 9:
           message.layers.push(VideoLayer.decode(reader, reader.uint32()));
           break;
+        case 10:
+          message.simulcastCodecs.push(SimulcastCodec.decode(reader, reader.uint32()));
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -965,6 +1055,9 @@ export const AddTrackRequest = {
       layers: Array.isArray(object?.layers)
         ? object.layers.map((e: any) => VideoLayer.fromJSON(e))
         : [],
+      simulcastCodecs: Array.isArray(object?.simulcastCodecs)
+        ? object.simulcastCodecs.map((e: any) => SimulcastCodec.fromJSON(e))
+        : [],
     };
   },
 
@@ -983,6 +1076,13 @@ export const AddTrackRequest = {
     } else {
       obj.layers = [];
     }
+    if (message.simulcastCodecs) {
+      obj.simulcastCodecs = message.simulcastCodecs.map((e) =>
+        e ? SimulcastCodec.toJSON(e) : undefined,
+      );
+    } else {
+      obj.simulcastCodecs = [];
+    }
     return obj;
   },
 
@@ -997,6 +1097,8 @@ export const AddTrackRequest = {
     message.disableDtx = object.disableDtx ?? false;
     message.source = object.source ?? 0;
     message.layers = object.layers?.map((e) => VideoLayer.fromPartial(e)) || [];
+    message.simulcastCodecs =
+      object.simulcastCodecs?.map((e) => SimulcastCodec.fromPartial(e)) || [];
     return message;
   },
 };
@@ -2284,8 +2386,72 @@ export const SubscribedQuality = {
   },
 };
 
+function createBaseSubscribedCodec(): SubscribedCodec {
+  return { codec: '', qualities: [] };
+}
+
+export const SubscribedCodec = {
+  encode(message: SubscribedCodec, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.codec !== '') {
+      writer.uint32(10).string(message.codec);
+    }
+    for (const v of message.qualities) {
+      SubscribedQuality.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SubscribedCodec {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSubscribedCodec();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.codec = reader.string();
+          break;
+        case 2:
+          message.qualities.push(SubscribedQuality.decode(reader, reader.uint32()));
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SubscribedCodec {
+    return {
+      codec: isSet(object.codec) ? String(object.codec) : '',
+      qualities: Array.isArray(object?.qualities)
+        ? object.qualities.map((e: any) => SubscribedQuality.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: SubscribedCodec): unknown {
+    const obj: any = {};
+    message.codec !== undefined && (obj.codec = message.codec);
+    if (message.qualities) {
+      obj.qualities = message.qualities.map((e) => (e ? SubscribedQuality.toJSON(e) : undefined));
+    } else {
+      obj.qualities = [];
+    }
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<SubscribedCodec>, I>>(object: I): SubscribedCodec {
+    const message = createBaseSubscribedCodec();
+    message.codec = object.codec ?? '';
+    message.qualities = object.qualities?.map((e) => SubscribedQuality.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 function createBaseSubscribedQualityUpdate(): SubscribedQualityUpdate {
-  return { trackSid: '', subscribedQualities: [] };
+  return { trackSid: '', subscribedQualities: [], subscribedCodecs: [] };
 }
 
 export const SubscribedQualityUpdate = {
@@ -2295,6 +2461,9 @@ export const SubscribedQualityUpdate = {
     }
     for (const v of message.subscribedQualities) {
       SubscribedQuality.encode(v!, writer.uint32(18).fork()).ldelim();
+    }
+    for (const v of message.subscribedCodecs) {
+      SubscribedCodec.encode(v!, writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },
@@ -2312,6 +2481,9 @@ export const SubscribedQualityUpdate = {
         case 2:
           message.subscribedQualities.push(SubscribedQuality.decode(reader, reader.uint32()));
           break;
+        case 3:
+          message.subscribedCodecs.push(SubscribedCodec.decode(reader, reader.uint32()));
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -2326,6 +2498,9 @@ export const SubscribedQualityUpdate = {
       subscribedQualities: Array.isArray(object?.subscribedQualities)
         ? object.subscribedQualities.map((e: any) => SubscribedQuality.fromJSON(e))
         : [],
+      subscribedCodecs: Array.isArray(object?.subscribedCodecs)
+        ? object.subscribedCodecs.map((e: any) => SubscribedCodec.fromJSON(e))
+        : [],
     };
   },
 
@@ -2339,6 +2514,13 @@ export const SubscribedQualityUpdate = {
     } else {
       obj.subscribedQualities = [];
     }
+    if (message.subscribedCodecs) {
+      obj.subscribedCodecs = message.subscribedCodecs.map((e) =>
+        e ? SubscribedCodec.toJSON(e) : undefined,
+      );
+    } else {
+      obj.subscribedCodecs = [];
+    }
     return obj;
   },
 
@@ -2349,6 +2531,8 @@ export const SubscribedQualityUpdate = {
     message.trackSid = object.trackSid ?? '';
     message.subscribedQualities =
       object.subscribedQualities?.map((e) => SubscribedQuality.fromPartial(e)) || [];
+    message.subscribedCodecs =
+      object.subscribedCodecs?.map((e) => SubscribedCodec.fromPartial(e)) || [];
     return message;
   },
 };

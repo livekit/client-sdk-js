@@ -2,12 +2,16 @@ import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
+import { VideoCodec } from './options';
 import { getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, isMobile } from '../utils';
 import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {
   /** @internal */
   sender?: RTCRtpSender;
+
+  /** @internal */
+  codec?: VideoCodec;
 
   protected constraints: MediaTrackConstraints;
 

@@ -230,6 +230,11 @@ export enum RoomEvent {
    * args: (prevPermissions: [[ParticipantPermission]], participant: [[Participant]])
    */
   ParticipantPermissionsChanged = 'participantPermissionsChanged',
+
+  /**
+   * Signal connected, can publish tracks.
+   */
+  SignalConnected = 'signalConnected',
 }
 
 export enum ParticipantEvent {
