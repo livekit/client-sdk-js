@@ -343,7 +343,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.engine.client.sendLeave();
     }
     // close engine (also closes client)
-    if (!this.engine.isClosed) {
+    if (this.engine) {
       this.engine.close();
     }
 
