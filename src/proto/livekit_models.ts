@@ -311,6 +311,12 @@ export function participantInfo_StateToJSON(object: ParticipantInfo_State): stri
   }
 }
 
+export interface SimulcastCodecInfo {
+  mimeType: string;
+  mid: string;
+  cid: string;
+}
+
 export interface TrackInfo {
   sid: string;
   type: TrackType;
@@ -333,6 +339,7 @@ export interface TrackInfo {
   /** mime type of codec */
   mimeType: string;
   mid: string;
+  codecs: SimulcastCodecInfo[];
 }
 
 /** provide information about available spatial layers */
@@ -1007,6 +1014,73 @@ export const ParticipantInfo = {
   },
 };
 
+function createBaseSimulcastCodecInfo(): SimulcastCodecInfo {
+  return { mimeType: '', mid: '', cid: '' };
+}
+
+export const SimulcastCodecInfo = {
+  encode(message: SimulcastCodecInfo, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.mimeType !== '') {
+      writer.uint32(10).string(message.mimeType);
+    }
+    if (message.mid !== '') {
+      writer.uint32(18).string(message.mid);
+    }
+    if (message.cid !== '') {
+      writer.uint32(26).string(message.cid);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SimulcastCodecInfo {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSimulcastCodecInfo();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.mimeType = reader.string();
+          break;
+        case 2:
+          message.mid = reader.string();
+          break;
+        case 3:
+          message.cid = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SimulcastCodecInfo {
+    return {
+      mimeType: isSet(object.mimeType) ? String(object.mimeType) : '',
+      mid: isSet(object.mid) ? String(object.mid) : '',
+      cid: isSet(object.cid) ? String(object.cid) : '',
+    };
+  },
+
+  toJSON(message: SimulcastCodecInfo): unknown {
+    const obj: any = {};
+    message.mimeType !== undefined && (obj.mimeType = message.mimeType);
+    message.mid !== undefined && (obj.mid = message.mid);
+    message.cid !== undefined && (obj.cid = message.cid);
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<SimulcastCodecInfo>, I>>(object: I): SimulcastCodecInfo {
+    const message = createBaseSimulcastCodecInfo();
+    message.mimeType = object.mimeType ?? '';
+    message.mid = object.mid ?? '';
+    message.cid = object.cid ?? '';
+    return message;
+  },
+};
+
 function createBaseTrackInfo(): TrackInfo {
   return {
     sid: '',
@@ -1021,6 +1095,7 @@ function createBaseTrackInfo(): TrackInfo {
     layers: [],
     mimeType: '',
     mid: '',
+    codecs: [],
   };
 }
 
@@ -1061,6 +1136,9 @@ export const TrackInfo = {
     }
     if (message.mid !== '') {
       writer.uint32(98).string(message.mid);
+    }
+    for (const v of message.codecs) {
+      SimulcastCodecInfo.encode(v!, writer.uint32(106).fork()).ldelim();
     }
     return writer;
   },
@@ -1108,6 +1186,9 @@ export const TrackInfo = {
         case 12:
           message.mid = reader.string();
           break;
+        case 13:
+          message.codecs.push(SimulcastCodecInfo.decode(reader, reader.uint32()));
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1132,6 +1213,9 @@ export const TrackInfo = {
         : [],
       mimeType: isSet(object.mimeType) ? String(object.mimeType) : '',
       mid: isSet(object.mid) ? String(object.mid) : '',
+      codecs: Array.isArray(object?.codecs)
+        ? object.codecs.map((e: any) => SimulcastCodecInfo.fromJSON(e))
+        : [],
     };
   },
 
@@ -1153,6 +1237,11 @@ export const TrackInfo = {
     }
     message.mimeType !== undefined && (obj.mimeType = message.mimeType);
     message.mid !== undefined && (obj.mid = message.mid);
+    if (message.codecs) {
+      obj.codecs = message.codecs.map((e) => (e ? SimulcastCodecInfo.toJSON(e) : undefined));
+    } else {
+      obj.codecs = [];
+    }
     return obj;
   },
 
@@ -1170,6 +1259,7 @@ export const TrackInfo = {
     message.layers = object.layers?.map((e) => VideoLayer.fromPartial(e)) || [];
     message.mimeType = object.mimeType ?? '';
     message.mid = object.mid ?? '';
+    message.codecs = object.codecs?.map((e) => SimulcastCodecInfo.fromPartial(e)) || [];
     return message;
   },
 };

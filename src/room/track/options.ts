@@ -12,7 +12,8 @@ export interface TrackPublishDefaults {
   screenShareEncoding?: VideoEncoding;
 
   /**
-   * codec, defaults to vp8
+   * codec, defaults to vp8; for svc codecs, auto enable vp8
+   * as backup. (TBD)
    */
   videoCodec?: VideoCodec;
 

@@ -42,6 +42,7 @@ export default class RemoteParticipant extends Participant {
 
     // register action events
     publication.on(TrackEvent.UpdateSettings, (settings: UpdateTrackSettings) => {
+      log.debug('send update settings', settings);
       this.signalClient.sendUpdateTrackSettings(settings);
     });
     publication.on(TrackEvent.UpdateSubscription, (sub: UpdateSubscription) => {
