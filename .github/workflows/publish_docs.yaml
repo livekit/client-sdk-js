@@ -1,4 +1,4 @@
-name: Publish
+name: Publish Docs
 
 # Controls when the action will run.
 on:
@@ -34,18 +34,8 @@ jobs:
           npm install -g yarn
           yarn install
 
-      - name: Build
-        run: yarn build
-
       - name: Build Docs
         run: yarn build-docs
-
-      - name: Publish to npm
-        run: |
-          npm config set '//registry.npmjs.org/:_authToken' $NPM_TOKEN
-          npm publish
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: S3 Upload
         run: aws s3 cp docs/ s3://livekit-docs/client-sdk-js --recursive

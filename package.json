@@ -29,7 +29,8 @@
     "test": "jest",
     "deploy": "gh-pages -d example/dist",
     "format": "prettier --write src",
-    "format:check": "prettier --check src"
+    "format:check": "prettier --check src",
+    "release": "yarn build && changeset publish"
   },
   "dependencies": {
     "events": "^3.3.0",
