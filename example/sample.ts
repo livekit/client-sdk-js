@@ -32,6 +32,8 @@ const state = {
 };
 let currentRoom: Room | undefined;
 
+let startTime: number;
+
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
 const storedToken = searchParams.get('token') ?? '';
@@ -85,15 +87,7 @@ const appActions = {
         iceTransportPolicy: 'relay',
       };
     }
-    const room = await appActions.connectToRoom(url, token, roomOpts, connectOpts);
-
-    if (room && shouldPublish) {
-      await Promise.all([
-        room.localParticipant.setMicrophoneEnabled(true),
-        room.localParticipant.setCameraEnabled(true),
-      ]);
-      updateButtonsForPublishState();
-    }
+    await appActions.connectToRoom(url, token, roomOpts, connectOpts, shouldPublish);
 
     state.bitrateInterval = setInterval(renderBitrate, 1000);
   },
@@ -103,6 +97,7 @@ const appActions = {
     token: string,
     roomOptions?: RoomOptions,
     connectOptions?: RoomConnectOptions,
+    shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
     room
@@ -144,12 +139,25 @@ const appActions = {
         (quality: ConnectionQuality, participant?: Participant) => {
           appendLog('connection quality changed', participant?.identity, quality);
         },
-      );
+      )
+      .on(RoomEvent.TrackSubscribed, (_1, _2, participant: RemoteParticipant) => {
+        renderParticipant(participant);
+        renderScreenShare();
+      })
+      .on(RoomEvent.SignalConnected, async () => {
+        if (shouldPublish) {
+          await Promise.all([
+            room.localParticipant.setCameraEnabled(true),
+            room.localParticipant.setMicrophoneEnabled(true),
+          ]);
+          updateButtonsForPublishState();
+        }
+      });
 
     try {
-      const start = Date.now();
+      startTime = Date.now();
       await room.connect(url, token, connectOptions);
-      const elapsed = Date.now() - start;
+      const elapsed = Date.now() - startTime;
       appendLog(
         `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
         room.engine.connectedServerAddress,
@@ -505,12 +513,17 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       // flip
       videoElm.style.transform = 'scale(-1, 1)';
     } else if (!cameraPub?.videoTrack?.attachedElements.includes(videoElm)) {
-      const startTime = Date.now();
+      const renderStartTime = Date.now();
       // measure time to render
       videoElm.onloadeddata = () => {
-        const elapsed = Date.now() - startTime;
+        const elapsed = Date.now() - renderStartTime;
+        let fromJoin = 0;
+        if (participant.joinedAt && participant.joinedAt.getTime() < startTime) {
+          fromJoin = Date.now() - startTime;
+        }
         appendLog(
           `RemoteVideoTrack ${cameraPub?.trackSid} (${videoElm.videoWidth}x${videoElm.videoHeight}) rendered in ${elapsed}ms`,
+          fromJoin > 0 ? `, ${fromJoin}ms from start` : '',
         );
       };
     }
@@ -531,6 +544,12 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
   if (micEnabled) {
     if (!(participant instanceof LocalParticipant)) {
       // don't attach local audio
+      audioELm.onloadeddata = () => {
+        if (participant.joinedAt && participant.joinedAt.getTime() < startTime) {
+          const fromJoin = Date.now() - startTime;
+          appendLog(`RemoteAudioTrack ${micPub?.trackSid} played ${fromJoin}ms from start`);
+        }
+      };
       micPub?.audioTrack?.attach(audioELm);
     }
     micElm.className = 'mic-on';
