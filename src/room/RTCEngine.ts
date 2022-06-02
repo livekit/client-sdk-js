@@ -229,7 +229,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     this.primaryPC = primaryPC;
     primaryPC.onconnectionstatechange = async () => {
-      log.trace('connection state changed', {
+      log.debug('primary PC state changed', {
         state: primaryPC.connectionState,
       });
       if (primaryPC.connectionState === 'connected') {
@@ -253,6 +253,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     };
     secondaryPC.onconnectionstatechange = async () => {
+      log.debug('secondary PC state changed', {
+        state: secondaryPC.connectionState,
+      });
       // also reconnect if secondary peerconnection fails
       if (secondaryPC.connectionState === 'failed') {
         this.handleDisconnect('secondary peerconnection');
@@ -428,7 +431,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       if (
         isFireFox() || // TODO remove once clientConfiguration handles firefox case server side
-        this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED
+        this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED ||
+        // signaling state could change to closed due to hardware sleep
+        // those connections cannot be resumed
+        (this.primaryPC?.signalingState ?? 'closed') === 'closed'
       ) {
         this.fullReconnectOnNext = true;
       }
@@ -443,6 +449,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.fullReconnectOnNext = false;
       } catch (e) {
         this.reconnectAttempts += 1;
+        let reconnectRequired = false;
         let recoverable = true;
         if (e instanceof UnexpectedConnectionState) {
           log.debug('received unrecoverable error', { error: e });
@@ -450,7 +457,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           recoverable = false;
         } else if (!(e instanceof SignalReconnectError)) {
           // cannot resume
+          reconnectRequired = true;
+        }
+
+        // when we flip from resume to reconnect, we need to reset reconnectAttempts
+        // this is needed to fire the right reconnecting events
+        if (reconnectRequired && !this.fullReconnectOnNext) {
           this.fullReconnectOnNext = true;
+          this.reconnectAttempts = 0;
         }
 
         const duration = Date.now() - this.reconnectStart;
@@ -482,6 +496,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.Restarting);
     }
 
+    if (this.client.isConnected) {
+      this.client.sendLeave();
+    }
+    this.client.close();
     this.primaryPC = undefined;
     this.publisher?.close();
     this.publisher = undefined;

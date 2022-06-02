@@ -98,7 +98,9 @@ export default class LocalTrack extends Track {
     track.addEventListener('ended', this.handleEnded);
     log.debug('replace MediaStreamTrack');
 
-    await this.sender.replaceTrack(track);
+    if (this.sender) {
+      await this.sender.replaceTrack(track);
+    }
     this._mediaStreamTrack = track;
 
     this.attachedElements.forEach((el) => {
@@ -110,9 +112,6 @@ export default class LocalTrack extends Track {
   }
 
   protected async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {
-    if (!this.sender) {
-      throw new TrackInvalidError('unable to restart an unpublished track');
-    }
     if (!constraints) {
       constraints = this.constraints;
     }
@@ -145,7 +144,11 @@ export default class LocalTrack extends Track {
     newTrack.addEventListener('ended', this.handleEnded);
     log.debug('re-acquired MediaStreamTrack');
 
-    await this.sender.replaceTrack(newTrack);
+    if (this.sender) {
+      // Track can be restarted after it's unpublished
+      await this.sender.replaceTrack(newTrack);
+    }
+
     this._mediaStreamTrack = newTrack;
 
     this.attachedElements.forEach((el) => {

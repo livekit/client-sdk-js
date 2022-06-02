@@ -27,7 +27,9 @@ import Participant, { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
 import { audioDefaults, publishDefaults, videoDefaults } from './track/defaults';
+import LocalAudioTrack from './track/LocalAudioTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
+import LocalVideoTrack from './track/LocalVideoTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import { TrackPublication } from './track/TrackPublication';
@@ -84,6 +86,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** options of room */
   options: RoomOptions;
 
+  private identityToSid: Map<string, string>;
+
   /** connect options of room */
   private connOptions?: RoomConnectOptions;
 
@@ -101,6 +105,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   constructor(options?: RoomOptions) {
     super();
     this.participants = new Map();
+    this.identityToSid = new Map();
     this.options = options || {};
 
     switch (this.options?.publishDefaults?.videoCodec) {
@@ -157,8 +162,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
-        this.setAndEmitConnectionState(ConnectionState.Reconnecting);
-        this.emit(RoomEvent.Reconnecting);
+        if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+          this.emit(RoomEvent.Reconnecting);
+        }
       })
       .on(EngineEvent.Resumed, () => {
         this.setAndEmitConnectionState(ConnectionState.Connected);
@@ -354,13 +360,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @returns
    */
   getParticipantByIdentity(identity: string): Participant | undefined {
-    for (const [, p] of this.participants) {
-      if (p.identity === identity) {
-        return p;
-      }
-    }
     if (this.localParticipant.identity === identity) {
       return this.localParticipant;
+    }
+    const sid = this.identityToSid.get(identity);
+    if (sid) {
+      return this.participants.get(sid);
     }
   }
 
@@ -513,8 +518,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleRestarting = () => {
-    this.setAndEmitConnectionState(ConnectionState.Reconnecting);
-    this.emit(RoomEvent.Reconnecting);
+    if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+      this.emit(RoomEvent.Reconnecting);
+    }
 
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {
@@ -523,7 +529,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleRestarted = async (joinResponse: JoinResponse) => {
-    log.debug(`reconnected to server region ${joinResponse.serverRegion}`);
+    log.debug(`reconnected to server`, {
+      region: joinResponse.serverRegion,
+    });
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
 
@@ -547,7 +555,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       localPubs.map(async (pub) => {
         const track = pub.track!;
         this.localParticipant.unpublishTrack(track, false);
-        this.localParticipant.publishTrack(track, pub.options);
+        if (!track.isMuted) {
+          if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
+            // we need to restart the track before publishing, often a full reconnect
+            // is necessary because computer had gone to sleep.
+            log.debug('restarting existing track', {
+              track: pub.trackSid,
+            });
+            await track.restartTrack();
+          }
+          await this.localParticipant.publishTrack(track, pub.options);
+        }
       }),
     );
   };
@@ -594,6 +612,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return;
       }
 
+      // ensure identity <=> sid mapping
+      const sid = this.identityToSid.get(info.identity);
+      if (sid && sid !== info.sid) {
+        // sid had changed, need to remove previous participant
+        this.handleParticipantDisconnected(sid, this.participants.get(sid));
+      }
+
       let remoteParticipant = this.participants.get(info.sid);
       const isNewParticipant = !remoteParticipant;
 
@@ -604,6 +629,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
         this.handleParticipantDisconnected(info.sid, remoteParticipant);
       } else if (isNewParticipant) {
+        this.identityToSid.set(info.identity, info.sid);
         // fire connected event
         this.emit(RoomEvent.ParticipantConnected, remoteParticipant);
       } else {
@@ -620,8 +646,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
+    this.identityToSid.delete(participant.identity);
     participant.tracks.forEach((publication) => {
-      participant.unpublishTrack(publication.trackSid);
+      participant.unpublishTrack(publication.trackSid, true);
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
@@ -914,12 +941,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private setAndEmitConnectionState(state: ConnectionState) {
+  private setAndEmitConnectionState(state: ConnectionState): boolean {
     if (state === this.state) {
-      return;
+      // unchanged
+      return false;
     }
     this.state = state;
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
+    return true;
   }
 
   // /** @internal */

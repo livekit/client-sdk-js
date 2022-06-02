@@ -397,7 +397,7 @@ export default class LocalParticipant extends Participant {
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
-    track.on(TrackEvent.Ended, this.onTrackUnpublish);
+    track.on(TrackEvent.Ended, this.handleTrackEnded);
     track.on(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
     track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
@@ -479,6 +479,8 @@ export default class LocalParticipant extends Participant {
 
     const ti = await this.engine.addTrack(req);
     const publication = new LocalTrackPublication(track.kind, ti, track);
+    // save options for when it needs to be republished again
+    publication.options = opts;
     track.sid = ti.sid;
 
     if (!this.engine.publisher) {
@@ -551,9 +553,10 @@ export default class LocalParticipant extends Participant {
 
     track = publication.track;
 
+    track.sender = undefined;
     track.off(TrackEvent.Muted, this.onTrackMuted);
     track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
-    track.off(TrackEvent.Ended, this.onTrackUnpublish);
+    track.off(TrackEvent.Ended, this.handleTrackEnded);
     track.off(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
     track.off(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
@@ -566,7 +569,7 @@ export default class LocalParticipant extends Participant {
 
     const { mediaStreamTrack } = track;
 
-    if (this.engine.publisher) {
+    if (this.engine.publisher && this.engine.publisher.pc.connectionState !== 'closed') {
       const senders = this.engine.publisher.pc.getSenders();
       senders.forEach((sender) => {
         if (sender.track === mediaStreamTrack) {
@@ -749,7 +752,10 @@ export default class LocalParticipant extends Participant {
     this.unpublishTrack(track.track!);
   };
 
-  private onTrackUnpublish = (track: LocalTrack) => {
+  private handleTrackEnded = (track: LocalTrack) => {
+    log.debug('unpublishing local track due to TrackEnded', {
+      track: track.sid,
+    });
     this.unpublishTrack(track);
   };
 
