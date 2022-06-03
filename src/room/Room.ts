@@ -345,10 +345,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
     // send leave
-    if (this.engine) {
+    if (this.engine?.client.isConnected) {
       this.engine.client.sendLeave();
+    }
+    // close engine (also closes client)
+    if (this.engine) {
       this.engine.close();
     }
+
     this.handleDisconnect(stopTracks);
     /* @ts-ignore */
     this.engine = undefined;

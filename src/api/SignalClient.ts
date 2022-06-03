@@ -339,8 +339,8 @@ export class SignalClient {
     });
   }
 
-  sendLeave() {
-    this.sendRequest(SignalRequest.fromPartial({ leave: {} }));
+  async sendLeave() {
+    await this.sendRequest(SignalRequest.fromPartial({ leave: {} }));
   }
 
   async sendRequest(req: SignalRequest, fromQueue: boolean = false) {
