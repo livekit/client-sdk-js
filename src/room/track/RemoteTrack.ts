@@ -6,8 +6,6 @@ export default abstract class RemoteTrack extends Track {
   /** @internal */
   receiver?: RTCRtpReceiver;
 
-  streamState: Track.StreamState = Track.StreamState.Active;
-
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,

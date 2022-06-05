@@ -30,6 +30,11 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
    */
   mediaStream?: MediaStream;
 
+  /**
+   * indicates current state of stream
+   */
+  streamState: Track.StreamState = Track.StreamState.Active;
+
   protected _mediaStreamTrack: MediaStreamTrack;
 
   protected isInBackground: boolean;
