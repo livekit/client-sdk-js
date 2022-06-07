@@ -407,7 +407,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         postAction = () => {
           this.engine.publisher?.createAndSendOffer({ iceRestart: true });
         };
-        break
+        break;
       default:
     }
     if (req) {
