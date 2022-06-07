@@ -1,3 +1,5 @@
+import { isMobile, isSafari } from './utils';
+
 const defaultId = 'default';
 
 export default class DeviceManager {
@@ -34,9 +36,11 @@ export default class DeviceManager {
         };
         const stream = await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
         devices = await navigator.mediaDevices.enumerateDevices();
-        stream.getTracks().forEach((track) => {
-          track.stop();
-        });
+        if (!isMobile() && !isSafari()) {
+          stream.getTracks().forEach((track) => {
+            track.stop();
+          });
+        }
       }
     }
     if (kind) {
