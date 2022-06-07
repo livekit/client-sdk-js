@@ -20,10 +20,12 @@ import LocalVideoTrack, {
   videoLayersFromEncodings,
 } from '../track/LocalVideoTrack';
 import {
+  AudioCaptureOptions,
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
   ScreenSharePresets,
   TrackPublishOptions,
+  VideoCaptureOptions,
   VideoCodec,
 } from '../track/options';
 import { Track } from '../track/Track';
@@ -117,8 +119,11 @@ export default class LocalParticipant extends Participant {
    * If a track has already published, it'll mute or unmute the track.
    * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setCameraEnabled(enabled: boolean): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.Camera, enabled);
+  setCameraEnabled(
+    enabled: boolean,
+    options?: VideoCaptureOptions,
+  ): Promise<LocalTrackPublication | undefined> {
+    return this.setTrackEnabled(Track.Source.Camera, enabled, options);
   }
 
   /**
@@ -127,16 +132,22 @@ export default class LocalParticipant extends Participant {
    * If a track has already published, it'll mute or unmute the track.
    * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setMicrophoneEnabled(enabled: boolean): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.Microphone, enabled);
+  setMicrophoneEnabled(
+    enabled: boolean,
+    options?: AudioCaptureOptions,
+  ): Promise<LocalTrackPublication | undefined> {
+    return this.setTrackEnabled(Track.Source.Microphone, enabled, options);
   }
 
   /**
    * Start or stop sharing a participant's screen
    * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
    */
-  setScreenShareEnabled(enabled: boolean): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.ScreenShare, enabled);
+  setScreenShareEnabled(
+    enabled: boolean,
+    options?: ScreenShareCaptureOptions,
+  ): Promise<LocalTrackPublication | undefined> {
+    return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options);
   }
 
   /** @internal */
@@ -155,16 +166,32 @@ export default class LocalParticipant extends Participant {
    * Resolves with LocalTrackPublication if successful and void otherwise
    */
   private async setTrackEnabled(
-    source: Track.Source,
+    source: Extract<Track.Source, Track.Source.Camera>,
     enabled: boolean,
-  ): Promise<LocalTrackPublication | undefined> {
+    options?: VideoCaptureOptions,
+  ): Promise<LocalTrackPublication | undefined>;
+  private async setTrackEnabled(
+    source: Extract<Track.Source, Track.Source.Microphone>,
+    enabled: boolean,
+    options?: AudioCaptureOptions,
+  ): Promise<LocalTrackPublication | undefined>;
+  private async setTrackEnabled(
+    source: Extract<Track.Source, Track.Source.ScreenShare>,
+    enabled: boolean,
+    options?: ScreenShareCaptureOptions,
+  ): Promise<LocalTrackPublication | undefined>;
+  private async setTrackEnabled(
+    source: Track.Source,
+    enabled: true,
+    options?: VideoCaptureOptions | AudioCaptureOptions | ScreenShareCaptureOptions,
+  ) {
     log.debug('setTrackEnabled', { source, enabled });
     let track = this.getTrack(source);
     if (enabled) {
       if (track) {
         await track.unmute();
       } else {
-        let localTrack: LocalTrack | undefined;
+        let localTracks: Array<LocalTrack> | undefined;
         if (this.pendingPublishing.has(source)) {
           log.info('skipping duplicate published source', { source });
           // no-op it's already been requested
@@ -174,23 +201,28 @@ export default class LocalParticipant extends Participant {
         try {
           switch (source) {
             case Track.Source.Camera:
-              [localTrack] = await this.createTracks({
-                video: true,
+              localTracks = await this.createTracks({
+                video: (options as VideoCaptureOptions | undefined) ?? true,
               });
+
               break;
             case Track.Source.Microphone:
-              [localTrack] = await this.createTracks({
-                audio: true,
+              localTracks = await this.createTracks({
+                ...(options as AudioCaptureOptions),
+                audio: (options as AudioCaptureOptions | undefined) ?? true,
               });
               break;
             case Track.Source.ScreenShare:
-              [localTrack] = await this.createScreenTracks({ audio: false });
+              localTracks = await this.createScreenTracks({
+                ...(options as ScreenShareCaptureOptions | undefined),
+              });
               break;
             default:
               throw new TrackInvalidError(source);
           }
-
-          track = await this.publishTrack(localTrack);
+          for (const localTrack of localTracks) {
+            track = await this.publishTrack(localTrack);
+          }
         } catch (e) {
           if (e instanceof Error && !(e instanceof TrackInvalidError)) {
             this.emit(ParticipantEvent.MediaDevicesError, e);
@@ -204,6 +236,10 @@ export default class LocalParticipant extends Participant {
       // screenshare cannot be muted, unpublish instead
       if (source === Track.Source.ScreenShare) {
         track = this.unpublishTrack(track.track);
+        const screenAudioTrack = this.getTrack(Track.Source.ScreenShareAudio);
+        if (screenAudioTrack && screenAudioTrack.track) {
+          this.unpublishTrack(screenAudioTrack.track);
+        }
       } else {
         await track.mute();
       }

@@ -19,6 +19,7 @@ import {
   VideoCodec,
   VideoQuality,
   RemoteVideoTrack,
+  RemoteTrackPublication,
 } from '../src/index';
 import { LogLevel } from '../src/logger';
 import { TrackSource } from '../src/proto/livekit_models';
@@ -239,7 +240,7 @@ const appActions = {
     const enabled = currentRoom.localParticipant.isScreenShareEnabled;
     appendLog(`${enabled ? 'stopping' : 'starting'} screen share`);
     setButtonDisabled('share-screen-button', true);
-    await currentRoom.localParticipant.setScreenShareEnabled(!enabled);
+    await currentRoom.localParticipant.setScreenShareEnabled(!enabled, { audio: true });
     setButtonDisabled('share-screen-button', false);
     updateButtonsForPublishState();
   },
@@ -586,6 +587,7 @@ function renderScreenShare() {
   let screenSharePub: TrackPublication | undefined = currentRoom.localParticipant.getTrack(
     Track.Source.ScreenShare,
   );
+  let screenShareAudioPub: RemoteTrackPublication | undefined;
   if (!screenSharePub) {
     currentRoom.participants.forEach((p) => {
       if (screenSharePub) {
@@ -596,6 +598,10 @@ function renderScreenShare() {
       if (pub?.isSubscribed) {
         screenSharePub = pub;
       }
+      const audioPub = p.getTrack(Track.Source.ScreenShareAudio);
+      if (audioPub?.isSubscribed) {
+        screenShareAudioPub = audioPub;
+      }
     });
   } else {
     participant = currentRoom.localParticipant;
@@ -605,6 +611,9 @@ function renderScreenShare() {
     div.style.display = 'block';
     const videoElm = <HTMLVideoElement>$('screenshare-video');
     screenSharePub.videoTrack?.attach(videoElm);
+    if (screenShareAudioPub) {
+      screenShareAudioPub.audioTrack?.attach(videoElm);
+    }
     videoElm.onresize = () => {
       updateVideoSize(videoElm, <HTMLSpanElement>$('screenshare-resolution'));
     };
