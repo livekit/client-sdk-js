@@ -208,7 +208,6 @@ export default class LocalParticipant extends Participant {
               break;
             case Track.Source.Microphone:
               localTracks = await this.createTracks({
-                ...(options as AudioCaptureOptions),
                 audio: (options as AudioCaptureOptions | undefined) ?? true,
               });
               break;
