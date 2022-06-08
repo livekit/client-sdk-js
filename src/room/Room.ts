@@ -377,6 +377,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @internal for testing
    */
   simulateScenario(scenario: string) {
+    let postAction = () => {};
     let req: SimulateScenario | undefined;
     switch (scenario) {
       case 'speaker':
@@ -399,10 +400,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           migration: true,
         });
         break;
+      case 'switch-candidate':
+        req = SimulateScenario.fromPartial({
+          switchCandidateProtocol: 1,
+        });
+        postAction = () => {
+          this.engine.publisher?.createAndSendOffer({ iceRestart: true });
+        };
+        break;
       default:
     }
     if (req) {
       this.engine.client.sendSimulateScenario(req);
+      postAction();
     }
   }
 
