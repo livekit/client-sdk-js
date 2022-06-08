@@ -219,9 +219,14 @@ export default class LocalParticipant extends Participant {
             default:
               throw new TrackInvalidError(source);
           }
+          const publishPromises: Array<Promise<LocalTrackPublication>> = [];
           for (const localTrack of localTracks) {
-            track = await this.publishTrack(localTrack);
+            publishPromises.push(this.publishTrack(localTrack));
           }
+          const publishedTracks = await Promise.all(publishPromises);
+          // for screen share publications including audio, this will only return the screen share publication, not the screen share audio one
+          // revisit if we'd want to return an array of tracks instead for v2
+          [track] = publishedTracks;
         } catch (e) {
           if (e instanceof Error && !(e instanceof TrackInvalidError)) {
             this.emit(ParticipantEvent.MediaDevicesError, e);
