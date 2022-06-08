@@ -19,9 +19,8 @@ import {
   VideoCodec,
   VideoQuality,
   RemoteVideoTrack,
+  LogLevel,
 } from '../src/index';
-import { LogLevel } from '../src/logger';
-import { TrackSource } from '../src/proto/livekit_models';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -630,7 +629,7 @@ function renderBitrate() {
         totalBitrate += t.track.currentBitrate;
       }
 
-      if (t.trackInfo?.source === TrackSource.CAMERA) {
+      if (t.source === Track.Source.Camera) {
         if (t.videoTrack instanceof RemoteVideoTrack) {
           const codecElm = $(`codec-${p.identity}`)!;
           codecElm.innerHTML = t.videoTrack.getDecoderImplementation() ?? '';
