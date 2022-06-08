@@ -225,7 +225,7 @@ export default class LocalParticipant extends Participant {
           }
           const publishedTracks = await Promise.all(publishPromises);
           // for screen share publications including audio, this will only return the screen share publication, not the screen share audio one
-          // revisit if we'd want to return an array of tracks instead for v2
+          // revisit if we want to return an array of tracks instead for v2
           [track] = publishedTracks;
         } catch (e) {
           if (e instanceof Error && !(e instanceof TrackInvalidError)) {
