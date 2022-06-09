@@ -13,6 +13,7 @@ export const publishDefaults: TrackPublishDefaults = {
   simulcast: true,
   screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
   stopMicTrackOnMute: false,
+  videoCodec: 'vp8',
 };
 
 export const audioDefaults: AudioCaptureOptions = {
