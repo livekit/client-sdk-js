@@ -209,11 +209,13 @@ export default class LocalVideoTrack extends LocalTrack {
       } else {
         const simulcastCodecInfo = this.simulcastCodecs.get(codec.codec as VideoCodec);
         log.debug(`try setPublishingCodec for ${codec.codec}`, simulcastCodecInfo);
-        if (!simulcastCodecInfo || !simulcastCodecInfo.sender) {
+        if ((!simulcastCodecInfo || !simulcastCodecInfo.sender) && this.sender && this.encodings) {
+          // if simulcast codec is not supported, use classic dynacast instead
+          await setPublishingLayersForSender(this.sender, this.encodings, codec.qualities);
           return;
         }
 
-        if (simulcastCodecInfo.encodings) {
+        if (simulcastCodecInfo?.encodings && simulcastCodecInfo.sender) {
           log.debug(`try setPublishingLayersForSender ${codec.codec}`);
           await setPublishingLayersForSender(
             simulcastCodecInfo.sender,
