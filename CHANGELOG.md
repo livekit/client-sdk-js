@@ -1,5 +1,12 @@
 # Change Log
 
+## 1.0.4
+
+### Patch Changes
+
+- 3e5e3b8: Fix dynacast fallback when simulcast codec is not available
+- 4a51ae0: Fix getParticipantIdentity returning `undefined` in some cases
+
 ## 1.0.3
 
 ### Patch Changes
