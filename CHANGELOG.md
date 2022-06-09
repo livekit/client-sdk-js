@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.0.3
+
+### Patch Changes
+
+- 9487a4d: Fix typescript declaration location
+
 ## 1.0.2
 
 ### Patch Changes
