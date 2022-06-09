@@ -643,7 +643,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
         this.handleParticipantDisconnected(info.sid, remoteParticipant);
       } else if (isNewParticipant) {
-        this.identityToSid.set(info.identity, info.sid);
         // fire connected event
         this.emit(RoomEvent.ParticipantConnected, remoteParticipant);
       } else {
@@ -850,6 +849,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // when this happens, we'll create the participant and make the track work
     const participant = this.createParticipant(id, info);
     this.participants.set(id, participant);
+    if (info) {
+      this.identityToSid.set(info.identity, info.sid);
+    }
 
     // also forward events
     // trackPublished is only fired for tracks added after both local participant
