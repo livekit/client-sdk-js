@@ -15,7 +15,7 @@
     "dist",
     "src"
   ],
-  "types": "dist/index.d.ts",
+  "types": "dist/src/index.d.ts",
   "repository": "git@github.com:livekit/client-sdk-js.git",
   "author": "David Zhao <david@davidzhao.com>",
   "license": "Apache-2.0",
