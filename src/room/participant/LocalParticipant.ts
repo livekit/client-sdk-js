@@ -794,35 +794,36 @@ export default class LocalParticipant extends Participant {
     const cap = RTCRtpSender.getCapabilities(kind);
     if (!cap) return;
     log.debug('get capabilities', cap);
-    let selected: RTCRtpCodecCapability | undefined;
-    const codecs: RTCRtpCodecCapability[] = [];
+    const matched: RTCRtpCodecCapability[] = [];
+    const partialMatched: RTCRtpCodecCapability[] = [];
+    const unmatched: RTCRtpCodecCapability[] = [];
     cap.codecs.forEach((c) => {
       const codec = c.mimeType.toLowerCase();
+      if (codec === 'audio/opus') {
+        matched.push(c);
+        return;
+      }
       const matchesVideoCodec = codec === `video/${videoCodec}`;
-
-      if (selected !== undefined) {
-        codecs.push(c);
+      if (!matchesVideoCodec) {
+        unmatched.push(c);
         return;
       }
       // for h264 codecs that have sdpFmtpLine available, use only if the
       // profile-level-id is 42e01f for cross-browser compatibility
-      if (videoCodec === 'h264' && c.sdpFmtpLine) {
-        if (matchesVideoCodec && c.sdpFmtpLine.includes('profile-level-id=42e01f')) {
-          selected = c;
-          return;
+      if (videoCodec === 'h264') {
+        if (c.sdpFmtpLine && c.sdpFmtpLine.includes('profile-level-id=42e01f')) {
+          matched.push(c);
+        } else {
+          partialMatched.push(c);
         }
-      }
-      if (matchesVideoCodec || codec === 'audio/opus') {
-        selected = c;
         return;
       }
-      codecs.push(c);
+
+      matched.push(c);
     });
 
-    if (selected && 'setCodecPreferences' in transceiver) {
-      // @ts-ignore
-      codecs.unshift(selected);
-      transceiver.setCodecPreferences(codecs);
+    if ('setCodecPreferences' in transceiver) {
+      transceiver.setCodecPreferences(matched.concat(partialMatched, unmatched));
     }
   }
 
