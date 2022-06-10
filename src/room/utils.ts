@@ -67,33 +67,11 @@ export interface ObservableMediaElement extends HTMLMediaElement {
   handleVisibilityChanged: (entry: IntersectionObserverEntry) => void;
 }
 
-function browserName(): string {
-  const { userAgent } = navigator;
-  let browser = '';
-
-  if (userAgent.match(/chrome|chromium|crios/i)) {
-    browser = 'chrome';
-  } else if (userAgent.match(/firefox|fxios/i)) {
-    browser = 'firefox';
-  } else if (userAgent.match(/safari/i)) {
-    browser = 'safari';
-  } else if (userAgent.match(/opr\//i)) {
-    browser = 'opera';
-  } else if (userAgent.match(/edg/i)) {
-    browser = 'edge';
-  } else {
-    browser = '';
-  }
-
-  return browser;
-}
-
 export function getClientInfo(): ClientInfo {
   const info = ClientInfo.fromPartial({
     sdk: ClientInfo_SDK.JS,
     protocol: protocolVersion,
     version,
-    browser: browserName(),
   });
   return info;
 }
