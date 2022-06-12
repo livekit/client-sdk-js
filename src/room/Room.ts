@@ -139,9 +139,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
-    this.engine = new RTCEngine();
+    this.engine = new RTCEngine(this.options);
 
-    this.engine.client.signalLatency = this.options.expSignalLatency;
     this.engine.client.onParticipantUpdate = this.handleParticipantUpdates;
     this.engine.client.onRoomUpdate = this.handleRoomUpdate;
     this.engine.client.onSpeakersChanged = this.handleSpeakersChanged;

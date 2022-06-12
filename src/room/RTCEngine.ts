@@ -22,12 +22,13 @@ import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from '.
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
 import { isFireFox, isWeb, sleep } from './utils';
+import { RoomOptions } from '../options';
+import { IReconnectPolicy, ReconnectContext } from './IReconnectPolicy';
+import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
-const maxReconnectRetries = 10;
 const minReconnectWait = 2 * 1000;
-const maxReconnectDuration = 60 * 1000;
 export const maxICEConnectTimeout = 15 * 1000;
 
 enum PCState {
@@ -95,9 +96,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private attemptingReconnect: boolean = false;
 
-  constructor() {
+  private reconnectPolicy: IReconnectPolicy;
+
+  constructor(private options: RoomOptions) {
     super();
     this.client = new SignalClient();
+    this.client.signalLatency = this.options.expSignalLatency;
+    this.reconnectPolicy = this.options.reconnectPolicy ?? new DefaultReconnectPolicy();
   }
 
   async join(
@@ -416,17 +421,37 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
   // continues to work, we can reconnect to websocket to continue the session
   // after a number of retries, we'll close and give up permanently
-  private handleDisconnect = (connection: string) => {
+  private handleDisconnect = (connection: string, signalEvents: boolean = false) => {
     if (this._isClosed) {
       return;
     }
+
     log.debug(`${connection} disconnected`);
     if (this.reconnectAttempts === 0) {
       // only reset start time on the first try
       this.reconnectStart = Date.now();
     }
 
-    const delay = this.reconnectAttempts * this.reconnectAttempts * 300;
+    const disconnect = (duration: number) => {
+      log.info(
+        `could not recover connection after ${this.reconnectAttempts} attempts, ${duration}ms. giving up`,
+      );
+      this.emit(EngineEvent.Disconnected);
+      this.close();
+    };
+
+    let duration = Date.now() - this.reconnectStart;
+    let reconnectContext = new ReconnectContext(duration, this.reconnectAttempts);
+
+    let delay = this.getNextRetryDelay(reconnectContext);
+
+    if (delay === null) {
+      disconnect(duration);
+      return;
+    }
+
+    log.debug(`reconnecting in ${delay}ms`);
+
     setTimeout(async () => {
       if (this._isClosed) {
         return;
@@ -448,45 +473,31 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       try {
         this.attemptingReconnect = true;
         if (this.fullReconnectOnNext) {
-          await this.restartConnection();
+          await this.restartConnection(signalEvents);
         } else {
-          await this.resumeConnection();
+          await this.resumeConnection(signalEvents);
         }
         this.reconnectAttempts = 0;
         this.fullReconnectOnNext = false;
       } catch (e) {
+        log.debug('received reconnect error', { error: e });
         this.reconnectAttempts += 1;
-        let reconnectRequired = false;
-        let recoverable = true;
-        if (e instanceof UnexpectedConnectionState) {
-          log.debug('received unrecoverable error', { error: e });
-          // unrecoverable
-          recoverable = false;
-        } else if (!(e instanceof SignalReconnectError)) {
-          // cannot resume
-          reconnectRequired = true;
+        let requireSignalEvents = false;
+        if (e instanceof UnexpectedConnectionState || !(e instanceof SignalReconnectError)) {
+          if (!this.fullReconnectOnNext) {
+            this.fullReconnectOnNext = true;
+            requireSignalEvents = true;
+          }
         }
 
-        // when we flip from resume to reconnect, we need to reset reconnectAttempts
-        // this is needed to fire the right reconnecting events
-        if (reconnectRequired && !this.fullReconnectOnNext) {
-          this.fullReconnectOnNext = true;
-          this.reconnectAttempts = 0;
-        }
+        duration = Date.now() - this.reconnectStart;
+        reconnectContext = new ReconnectContext(duration, this.reconnectAttempts, e);
+        delay = this.getNextRetryDelay(reconnectContext);
 
-        const duration = Date.now() - this.reconnectStart;
-        if (this.reconnectAttempts >= maxReconnectRetries || duration > maxReconnectDuration) {
-          recoverable = false;
-        }
-
-        if (recoverable) {
-          this.handleDisconnect('reconnect');
+        if (delay === null) {
+          disconnect(duration);
         } else {
-          log.info(
-            `could not recover connection after ${maxReconnectRetries} attempts, ${duration}ms. giving up`,
-          );
-          this.emit(EngineEvent.Disconnected);
-          this.close();
+          this.handleDisconnect('reconnect', requireSignalEvents);
         }
       } finally {
         this.attemptingReconnect = false;
@@ -494,14 +505,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }, delay);
   };
 
-  private async restartConnection() {
+  private getNextRetryDelay(context: ReconnectContext) {
+    try {
+      return this.reconnectPolicy.nextRetryDelayInMs(context);
+    } catch (e) {
+      log.warn('encountered error in reconnect policy', { error: e });
+    }
+
+    // error in user code with provided reconnect policy, stop reconnecting
+    return null;
+  }
+
+  private async restartConnection(emitRestarting: boolean = false) {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
       throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
     }
 
     log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
-    if (this.reconnectAttempts === 0) {
+    if (emitRestarting || this.reconnectAttempts === 0) {
       this.emit(EngineEvent.Restarting);
     }
 
@@ -529,7 +551,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.emit(EngineEvent.Restarted, joinResponse);
   }
 
-  private async resumeConnection(): Promise<void> {
+  private async resumeConnection(emitResuming: boolean = false): Promise<void> {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
       throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
@@ -540,25 +562,42 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
-    if (this.reconnectAttempts === 0) {
+    if (emitResuming || this.reconnectAttempts === 0) {
       this.emit(EngineEvent.Resuming);
     }
 
     try {
       await this.client.reconnect(this.url, this.token);
     } catch (e) {
-      throw new SignalReconnectError();
+      throw new SignalReconnectError(e);
     }
-    this.emit(EngineEvent.SignalResumed);
 
+    this.emit(EngineEvent.SignalResumed);
     this.subscriber.restartingIce = true;
+
+    let waitForPcCompleted = false;
+    const waitForPc = this.waitForPCConnected()
+      .then(() => (waitForPcCompleted = true))
+      .catch((_) => Error('failed to wait for peer connection'));
+
+    while (!waitForPcCompleted) {
+      // TODO: this is a workaround to check if the socket was closed while we are reconnecting
+      // if signal client reconnects with ?reconnect=1 ws.onclose is almost immediately called after ws.onopen
+      if (!this.client.isConnected) {
+        this.fullReconnectOnNext = true;
+        throw new SignalReconnectError('socket closed after opening');
+      }
+
+      await sleep(50);
+    }
+
+    await waitForPc;
 
     // only restart publisher if it's needed
     if (this.hasPublished) {
       await this.publisher.createAndSendOffer({ iceRestart: true });
     }
 
-    await this.waitForPCConnected();
     this.client.setReconnected();
 
     // resume success

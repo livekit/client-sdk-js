@@ -5,6 +5,7 @@ import Participant, { ConnectionQuality } from './room/participant/Participant';
 import { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
 import RemoteParticipant from './room/participant/RemoteParticipant';
 import Room, { ConnectionState, RoomState } from './room/Room';
+import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import LocalAudioTrack from './room/track/LocalAudioTrack';
 import LocalTrack from './room/track/LocalTrack';
 import LocalTrackPublication from './room/track/LocalTrackPublication';
@@ -47,4 +48,5 @@ export {
   VideoQuality,
   ConnectionQuality,
   ElementInfo,
+  DefaultReconnectPolicy
 };
