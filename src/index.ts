@@ -48,5 +48,5 @@ export {
   VideoQuality,
   ConnectionQuality,
   ElementInfo,
-  DefaultReconnectPolicy
+  DefaultReconnectPolicy,
 };

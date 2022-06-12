@@ -577,8 +577,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     let waitForPcCompleted = false;
     const waitForPc = this.waitForPCConnected()
-      .then(() => (waitForPcCompleted = true))
-      .catch((_) => Error('failed to wait for peer connection'));
+      .then(() => {
+        waitForPcCompleted = true;
+      })
+      .catch(() => Error('failed to wait for peer connection'));
 
     while (!waitForPcCompleted) {
       // TODO: this is a workaround to check if the socket was closed while we are reconnecting
