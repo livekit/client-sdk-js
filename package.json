@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -15,7 +15,7 @@
     "dist",
     "src"
   ],
-  "types": "dist/index.d.ts",
+  "types": "dist/src/index.d.ts",
   "repository": "git@github.com:livekit/client-sdk-js.git",
   "author": "David Zhao <david@davidzhao.com>",
   "license": "Apache-2.0",
@@ -43,6 +43,7 @@
   "devDependencies": {
     "@babel/core": "^7.17.9",
     "@babel/preset-env": "^7.16.11",
+    "@changesets/changelog-github": "^0.4.4",
     "@changesets/cli": "^2.22.0",
     "@rollup/plugin-babel": "^5.3.1",
     "@rollup/plugin-commonjs": "^21.0.3",

@@ -377,6 +377,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @internal for testing
    */
   simulateScenario(scenario: string) {
+    let postAction = () => {};
     let req: SimulateScenario | undefined;
     switch (scenario) {
       case 'speaker':
@@ -399,10 +400,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           migration: true,
         });
         break;
+      case 'switch-candidate':
+        req = SimulateScenario.fromPartial({
+          switchCandidateProtocol: 1,
+        });
+        postAction = () => {
+          this.engine.publisher?.createAndSendOffer({ iceRestart: true });
+        };
+        break;
       default:
     }
     if (req) {
       this.engine.client.sendSimulateScenario(req);
+      postAction();
     }
   }
 
@@ -633,7 +643,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
         this.handleParticipantDisconnected(info.sid, remoteParticipant);
       } else if (isNewParticipant) {
-        this.identityToSid.set(info.identity, info.sid);
         // fire connected event
         this.emit(RoomEvent.ParticipantConnected, remoteParticipant);
       } else {
@@ -840,6 +849,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // when this happens, we'll create the participant and make the track work
     const participant = this.createParticipant(id, info);
     this.participants.set(id, participant);
+    if (info) {
+      this.identityToSid.set(info.identity, info.sid);
+    }
 
     // also forward events
     // trackPublished is only fired for tracks added after both local participant

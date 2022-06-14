@@ -93,6 +93,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private connectedServerAddr?: string;
 
+  private attemptingReconnect: boolean = false;
+
   constructor() {
     super();
     this.client = new SignalClient();
@@ -429,6 +431,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (this._isClosed) {
         return;
       }
+      // guard for attempting reconnection multiple times while one attempt is still not finished
+      if (this.attemptingReconnect) {
+        return;
+      }
       if (
         isFireFox() || // TODO remove once clientConfiguration handles firefox case server side
         this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED ||
@@ -440,6 +446,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       try {
+        this.attemptingReconnect = true;
         if (this.fullReconnectOnNext) {
           await this.restartConnection();
         } else {
@@ -481,6 +488,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           this.emit(EngineEvent.Disconnected);
           this.close();
         }
+      } finally {
+        this.attemptingReconnect = false;
       }
     }, delay);
   };
@@ -529,6 +538,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.publisher || !this.subscriber) {
       throw new UnexpectedConnectionState('publisher and subscriber connections unset');
     }
+
     log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
     if (this.reconnectAttempts === 0) {
       this.emit(EngineEvent.Resuming);
