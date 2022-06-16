@@ -1,11 +1,11 @@
 import { debounce } from 'ts-debounce';
+import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency, VideoReceiverStats } from '../stats';
 import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
 import { AdaptiveStreamSettings } from './types';
-import log from '../../logger';
 
 const REACTION_DELAY = 100;
 
@@ -305,7 +305,7 @@ class HTMLElementInfo implements ElementInfo {
   }
 
   height(): number {
-    return this.element.clientWidth;
+    return this.element.clientHeight;
   }
 
   observe() {
