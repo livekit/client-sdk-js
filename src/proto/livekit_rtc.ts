@@ -209,6 +209,8 @@ export interface AddTrackRequest {
   source: TrackSource;
   layers: VideoLayer[];
   simulcastCodecs: SimulcastCodec[];
+  /** server ID of track, publish new codec to exist track */
+  sid: string;
 }
 
 export interface TrickleRequest {
@@ -993,6 +995,7 @@ function createBaseAddTrackRequest(): AddTrackRequest {
     source: 0,
     layers: [],
     simulcastCodecs: [],
+    sid: '',
   };
 }
 
@@ -1027,6 +1030,9 @@ export const AddTrackRequest = {
     }
     for (const v of message.simulcastCodecs) {
       SimulcastCodec.encode(v!, writer.uint32(82).fork()).ldelim();
+    }
+    if (message.sid !== '') {
+      writer.uint32(90).string(message.sid);
     }
     return writer;
   },
@@ -1068,6 +1074,9 @@ export const AddTrackRequest = {
         case 10:
           message.simulcastCodecs.push(SimulcastCodec.decode(reader, reader.uint32()));
           break;
+        case 11:
+          message.sid = reader.string();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1092,6 +1101,7 @@ export const AddTrackRequest = {
       simulcastCodecs: Array.isArray(object?.simulcastCodecs)
         ? object.simulcastCodecs.map((e: any) => SimulcastCodec.fromJSON(e))
         : [],
+      sid: isSet(object.sid) ? String(object.sid) : '',
     };
   },
 
@@ -1117,6 +1127,7 @@ export const AddTrackRequest = {
     } else {
       obj.simulcastCodecs = [];
     }
+    message.sid !== undefined && (obj.sid = message.sid);
     return obj;
   },
 
@@ -1133,6 +1144,7 @@ export const AddTrackRequest = {
     message.layers = object.layers?.map((e) => VideoLayer.fromPartial(e)) || [];
     message.simulcastCodecs =
       object.simulcastCodecs?.map((e) => SimulcastCodec.fromPartial(e)) || [];
+    message.sid = object.sid ?? '';
     return message;
   },
 };
