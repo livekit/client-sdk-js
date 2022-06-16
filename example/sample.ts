@@ -1,27 +1,16 @@
 import {
-  ConnectionQuality,
-  DataPacket_Kind,
-  LocalParticipant,
-  MediaDeviceFailure,
+  ConnectionQuality, ConnectionState, DataPacket_Kind,
+  LocalParticipant, LogLevel, MediaDeviceFailure,
   Participant,
   ParticipantEvent,
-  RemoteParticipant,
-  Room,
+  RemoteParticipant, RemoteTrackPublication, RemoteVideoTrack, Room,
   RoomConnectOptions,
   RoomEvent,
-  RoomOptions,
-  ConnectionState,
-  setLogLevel,
+  RoomOptions, setLogLevel,
   Track,
   TrackPublication,
-  VideoCaptureOptions,
-  VideoPresets,
-  VideoCodec,
-  VideoQuality,
-  RemoteVideoTrack,
-  RemoteTrackPublication,
-  LogLevel,
-} from '../src/index';
+  VideoCaptureOptions, VideoCodec, VideoPresets, VideoQuality
+} from '../src/index'
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -64,11 +53,7 @@ const appActions = {
     updateSearchParams(url, token);
 
     const roomOpts: RoomOptions = {
-      adaptiveStream: adaptiveStream
-        ? {
-            pixelDensity: 'screen',
-          }
-        : false,
+      adaptiveStream,
       dynacast,
       publishDefaults: {
         simulcast,
@@ -464,7 +449,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         <input id="volume-${identity}" type="range" min="0" max="1" step="0.1" value="1" orient="vertical" />
       </div>`
       }
-      
+
     `;
     container.appendChild(div);
 
