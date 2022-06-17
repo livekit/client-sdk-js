@@ -202,9 +202,13 @@ export default class LocalVideoTrack extends LocalTrack {
    */
   async setPublishingCodecs(codecs: SubscribedCodec[]): Promise<VideoCodec[]> {
     log.debug('setting publishing codecs', codecs);
+    // only enable simulcast codec for preference codec setted
+    if (!this.codec && codecs.length > 0) {
+      await this.setPublishingLayers(codecs[0].qualities);
+      return [];
+    }
 
     const newCodecs: VideoCodec[] = [];
-
     for await (const codec of codecs) {
       if (this.codec === codec.codec) {
         await this.setPublishingLayers(codec.qualities);
