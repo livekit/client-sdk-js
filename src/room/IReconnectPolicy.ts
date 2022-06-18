@@ -23,17 +23,3 @@ export interface IReconnectContext {
    */
   readonly retryReason?: Error;
 }
-
-export class ReconnectContext implements IReconnectContext {
-  public readonly elapsedMs: number;
-
-  public readonly retryCount: number;
-
-  public readonly retryReason?: Error;
-
-  constructor(elapsedMilliseconds: number, retryCount: number, retryReason?: Error) {
-    this.elapsedMs = elapsedMilliseconds;
-    this.retryCount = retryCount;
-    this.retryReason = retryReason;
-  }
-}

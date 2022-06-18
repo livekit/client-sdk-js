@@ -1,4 +1,4 @@
-import { IReconnectPolicy, ReconnectContext } from './IReconnectPolicy';
+import { IReconnectContext, IReconnectPolicy } from './IReconnectPolicy';
 
 const DEFAULT_RETRY_DELAYS_IN_MS = [
   0,
@@ -11,20 +11,20 @@ const DEFAULT_RETRY_DELAYS_IN_MS = [
   7 * 7 * 300,
   8 * 8 * 300,
   9 * 9 * 300,
-  null,
 ];
 
 class DefaultReconnectPolicy implements IReconnectPolicy {
-  private readonly _retryDelays: (number | null)[];
+  private readonly _retryDelays: number[];
 
   constructor(retryDelays?: number[]) {
-    this._retryDelays =
-      retryDelays !== undefined ? [...retryDelays, null] : DEFAULT_RETRY_DELAYS_IN_MS;
+    this._retryDelays = retryDelays !== undefined ? [...retryDelays] : DEFAULT_RETRY_DELAYS_IN_MS;
   }
 
-  public nextRetryDelayInMs(context: ReconnectContext): number | null {
+  public nextRetryDelayInMs(context: IReconnectContext): number | null {
+    if (context.retryCount === this._retryDelays.length) return null;
+
     const retryDelay = this._retryDelays[context.retryCount];
-    if (!retryDelay || context.retryCount <= 1) return retryDelay;
+    if (context.retryCount <= 1) return retryDelay;
 
     return retryDelay + Math.random() * 1_000;
   }

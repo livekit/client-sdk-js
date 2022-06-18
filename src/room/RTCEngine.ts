@@ -23,7 +23,7 @@ import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
 import { isFireFox, isWeb, sleep } from './utils';
 import { RoomOptions } from '../options';
-import { IReconnectPolicy, ReconnectContext } from './IReconnectPolicy';
+import { IReconnectContext, IReconnectPolicy } from './IReconnectPolicy';
 import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 
 const lossyDataChannel = '_lossy';
@@ -440,10 +440,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.close();
     };
 
-    let duration = Date.now() - this.reconnectStart;
-    let reconnectContext = new ReconnectContext(duration, this.reconnectAttempts);
-
-    let delay = this.getNextRetryDelay(reconnectContext);
+    const duration = Date.now() - this.reconnectStart;
+    const delay = this.getNextRetryDelay({
+      elapsedMs: duration,
+      retryCount: this.reconnectAttempts,
+    });
 
     if (delay === null) {
       disconnect(duration);
@@ -480,24 +481,30 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.reconnectAttempts = 0;
         this.fullReconnectOnNext = false;
       } catch (e) {
-        log.debug('received reconnect error', { error: e });
         this.reconnectAttempts += 1;
+        let reconnectRequired = false;
+        let recoverable = true;
         let requireSignalEvents = false;
-        if (e instanceof UnexpectedConnectionState || !(e instanceof SignalReconnectError)) {
-          if (!this.fullReconnectOnNext) {
-            this.fullReconnectOnNext = true;
-            requireSignalEvents = true;
-          }
+        if (e instanceof UnexpectedConnectionState) {
+          log.debug('received unrecoverable error', { error: e });
+          // unrecoverable
+          recoverable = false;
+        } else if (!(e instanceof SignalReconnectError)) {
+          // cannot resume
+          reconnectRequired = true;
         }
 
-        duration = Date.now() - this.reconnectStart;
-        reconnectContext = new ReconnectContext(duration, this.reconnectAttempts, e);
-        delay = this.getNextRetryDelay(reconnectContext);
+        // when we flip from resume to reconnect
+        // we need to fire the right reconnecting events
+        if (reconnectRequired && !this.fullReconnectOnNext) {
+          this.fullReconnectOnNext = true;
+          requireSignalEvents = true;
+        }
 
-        if (delay === null) {
-          disconnect(duration);
-        } else {
+        if (recoverable) {
           this.handleDisconnect('reconnect', requireSignalEvents);
+        } else {
+          disconnect(Date.now() - this.reconnectStart);
         }
       } finally {
         this.attemptingReconnect = false;
@@ -505,7 +512,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }, delay);
   };
 
-  private getNextRetryDelay(context: ReconnectContext) {
+  private getNextRetryDelay(context: IReconnectContext) {
     try {
       return this.reconnectPolicy.nextRetryDelayInMs(context);
     } catch (e) {
