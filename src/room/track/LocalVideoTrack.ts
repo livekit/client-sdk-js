@@ -24,6 +24,8 @@ export class SimulcastTrackInfo {
   }
 }
 
+const refreshSubscribedCodecAfterNewCodec = 5000;
+
 export default class LocalVideoTrack extends LocalTrack {
   /* internal */
   signalClient?: SignalClient;
@@ -36,6 +38,8 @@ export default class LocalVideoTrack extends LocalTrack {
     VideoCodec,
     SimulcastTrackInfo
   >();
+
+  private subscribedCodecs?: SubscribedCodec[];
 
   constructor(mediaTrack: MediaStreamTrack, constraints?: MediaTrackConstraints) {
     super(mediaTrack, Track.Kind.Video, constraints);
@@ -194,18 +198,34 @@ export default class LocalVideoTrack extends LocalTrack {
       return;
     }
     simulcastCodecInfo.sender = sender;
+
+    // browser will reenable disabled codec/layers after new codec has been published,
+    // so refresh subscribedCodecs after publish a new codec
+    setTimeout(() => {
+      if (this.subscribedCodecs) {
+        this.setPublishingCodecs(this.subscribedCodecs);
+      }
+    }, refreshSubscribedCodecAfterNewCodec);
   }
 
   /**
    * @internal
    * Sets codecs that should be publishing
    */
-  async setPublishingCodecs(codecs: SubscribedCodec[]) {
+  async setPublishingCodecs(codecs: SubscribedCodec[]): Promise<VideoCodec[]> {
     log.debug('setting publishing codecs', {
       codecs,
       currentCodec: this.codec,
     });
+    // only enable simulcast codec for preference codec setted
+    if (!this.codec && codecs.length > 0) {
+      await this.setPublishingLayers(codecs[0].qualities);
+      return [];
+    }
 
+    this.subscribedCodecs = codecs;
+
+    const newCodecs: VideoCodec[] = [];
     for await (const codec of codecs) {
       if (!this.codec || this.codec === codec.codec) {
         await this.setPublishingLayers(codec.qualities);
@@ -213,10 +233,13 @@ export default class LocalVideoTrack extends LocalTrack {
         const simulcastCodecInfo = this.simulcastCodecs.get(codec.codec as VideoCodec);
         log.debug(`try setPublishingCodec for ${codec.codec}`, simulcastCodecInfo);
         if (!simulcastCodecInfo || !simulcastCodecInfo.sender) {
-          return;
-        }
-
-        if (simulcastCodecInfo.encodings) {
+          for (const q of codec.qualities) {
+            if (q.enabled) {
+              newCodecs.push(codec.codec as VideoCodec);
+              break;
+            }
+          }
+        } else if (simulcastCodecInfo.encodings) {
           log.debug(`try setPublishingLayersForSender ${codec.codec}`);
           await setPublishingLayersForSender(
             simulcastCodecInfo.sender,
@@ -226,6 +249,7 @@ export default class LocalVideoTrack extends LocalTrack {
         }
       }
     }
+    return newCodecs;
   }
 
   /**

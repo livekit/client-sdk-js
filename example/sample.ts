@@ -1,16 +1,27 @@
 import {
-  ConnectionQuality, ConnectionState, DataPacket_Kind,
-  LocalParticipant, LogLevel, MediaDeviceFailure,
+  ConnectionQuality,
+  ConnectionState,
+  DataPacket_Kind,
+  LocalParticipant,
+  LogLevel,
+  MediaDeviceFailure,
   Participant,
   ParticipantEvent,
-  RemoteParticipant, RemoteTrackPublication, RemoteVideoTrack, Room,
+  RemoteParticipant,
+  RemoteTrackPublication,
+  RemoteVideoTrack,
+  Room,
   RoomConnectOptions,
   RoomEvent,
-  RoomOptions, setLogLevel,
+  RoomOptions,
+  setLogLevel,
   Track,
   TrackPublication,
-  VideoCaptureOptions, VideoCodec, VideoPresets, VideoQuality
-} from '../src/index'
+  VideoCaptureOptions,
+  VideoCodec,
+  VideoPresets,
+  VideoQuality,
+} from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
 
