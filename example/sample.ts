@@ -58,7 +58,7 @@ const appActions = {
       publishDefaults: {
         simulcast,
         videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
-        videoCodec: preferredCodec,
+        videoCodec: preferredCodec || 'vp8',
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
