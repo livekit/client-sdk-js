@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-publish new codec when subscriber need
+Start publishing backwards-compatible codec only when subscribers need it
