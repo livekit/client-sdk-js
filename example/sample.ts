@@ -1,25 +1,26 @@
 import {
   ConnectionQuality,
+  ConnectionState,
   DataPacket_Kind,
   LocalParticipant,
+  LogLevel,
   MediaDeviceFailure,
   Participant,
   ParticipantEvent,
   RemoteParticipant,
+  RemoteTrackPublication,
+  RemoteVideoTrack,
   Room,
   RoomConnectOptions,
   RoomEvent,
   RoomOptions,
-  ConnectionState,
   setLogLevel,
   Track,
   TrackPublication,
   VideoCaptureOptions,
-  VideoPresets,
   VideoCodec,
+  VideoPresets,
   VideoQuality,
-  RemoteVideoTrack,
-  LogLevel,
 } from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
@@ -63,16 +64,12 @@ const appActions = {
     updateSearchParams(url, token);
 
     const roomOpts: RoomOptions = {
-      adaptiveStream: adaptiveStream
-        ? {
-            pixelDensity: 'screen',
-          }
-        : false,
+      adaptiveStream,
       dynacast,
       publishDefaults: {
         simulcast,
         videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
-        videoCodec: preferredCodec,
+        videoCodec: preferredCodec || 'vp8',
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -238,7 +235,7 @@ const appActions = {
     const enabled = currentRoom.localParticipant.isScreenShareEnabled;
     appendLog(`${enabled ? 'stopping' : 'starting'} screen share`);
     setButtonDisabled('share-screen-button', true);
-    await currentRoom.localParticipant.setScreenShareEnabled(!enabled);
+    await currentRoom.localParticipant.setScreenShareEnabled(!enabled, { audio: true });
     setButtonDisabled('share-screen-button', false);
     updateButtonsForPublishState();
   },
@@ -463,7 +460,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         <input id="volume-${identity}" type="range" min="0" max="1" step="0.1" value="1" orient="vertical" />
       </div>`
       }
-      
+
     `;
     container.appendChild(div);
 
@@ -585,6 +582,7 @@ function renderScreenShare() {
   let screenSharePub: TrackPublication | undefined = currentRoom.localParticipant.getTrack(
     Track.Source.ScreenShare,
   );
+  let screenShareAudioPub: RemoteTrackPublication | undefined;
   if (!screenSharePub) {
     currentRoom.participants.forEach((p) => {
       if (screenSharePub) {
@@ -595,6 +593,10 @@ function renderScreenShare() {
       if (pub?.isSubscribed) {
         screenSharePub = pub;
       }
+      const audioPub = p.getTrack(Track.Source.ScreenShareAudio);
+      if (audioPub?.isSubscribed) {
+        screenShareAudioPub = audioPub;
+      }
     });
   } else {
     participant = currentRoom.localParticipant;
@@ -604,6 +606,9 @@ function renderScreenShare() {
     div.style.display = 'block';
     const videoElm = <HTMLVideoElement>$('screenshare-video');
     screenSharePub.videoTrack?.attach(videoElm);
+    if (screenShareAudioPub) {
+      screenShareAudioPub.audioTrack?.attach(videoElm);
+    }
     videoElm.onresize = () => {
       updateVideoSize(videoElm, <HTMLSpanElement>$('screenshare-resolution'));
     };
