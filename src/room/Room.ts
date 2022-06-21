@@ -55,7 +55,7 @@ export const RoomState = ConnectionState;
  *
  * @noInheritDoc
  */
-class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
+class Room<T = RoomEventCallbacks> extends (EventEmitter as { new<T>(): TypedEmitter<T> })<T> {
   state: ConnectionState = ConnectionState.Disconnected;
 
   /** map of sid: [[RemoteParticipant]] */
