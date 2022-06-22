@@ -571,7 +571,6 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 function renderScreenShare(room: Room) {
   const div = $('screenshare-area')!;
   if (room.state !== ConnectionState.Connected) {
-    console.log('room not yet connected', room.state);
     div.style.display = 'none';
     return;
   }
@@ -587,7 +586,6 @@ function renderScreenShare(room: Room) {
       }
       participant = p;
       const pub = p.getTrack(Track.Source.ScreenShare);
-      console.log('found screen share from', p.identity, pub?.isSubscribed);
       if (pub?.isSubscribed) {
         screenSharePub = pub;
       }
@@ -597,7 +595,6 @@ function renderScreenShare(room: Room) {
       }
     });
   } else {
-    console.log('found local screen share');
     participant = room.localParticipant;
   }
 
