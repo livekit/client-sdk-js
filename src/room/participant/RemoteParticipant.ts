@@ -23,9 +23,7 @@ export default class RemoteParticipant extends Participant {
 
   /** @internal */
   static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
-    const rp = new RemoteParticipant(signalClient, pi.sid, pi.identity);
-    rp.updateInfo(pi);
-    return rp;
+    return new RemoteParticipant(signalClient, pi.sid, pi.identity);
   }
 
   /** @internal */
@@ -182,8 +180,6 @@ export default class RemoteParticipant extends Participant {
 
   /** @internal */
   updateInfo(info: ParticipantInfo) {
-    const alreadyHasMetadata = this.hasMetadata;
-
     super.updateInfo(info);
 
     // we are getting a list of all available tracks, reconcile in here
@@ -212,12 +208,10 @@ export default class RemoteParticipant extends Participant {
       validTracks.set(ti.sid, publication);
     });
 
-    // send new tracks
-    if (alreadyHasMetadata) {
-      newTracks.forEach((publication) => {
-        this.emit(ParticipantEvent.TrackPublished, publication);
-      });
-    }
+    // always emit events for new publications, Room will not forward them unless it's ready
+    newTracks.forEach((publication) => {
+      this.emit(ParticipantEvent.TrackPublished, publication);
+    });
 
     // detect removed tracks
     this.tracks.forEach((publication) => {

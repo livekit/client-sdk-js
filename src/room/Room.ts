@@ -850,7 +850,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // and remote participant joined the room
     participant
       .on(ParticipantEvent.TrackPublished, (trackPublication: RemoteTrackPublication) => {
-        this.emit(RoomEvent.TrackPublished, trackPublication, participant);
+        if (this.state === ConnectionState.Connected) {
+          this.emit(RoomEvent.TrackPublished, trackPublication, participant);
+        }
       })
       .on(
         ParticipantEvent.TrackSubscribed,
@@ -893,6 +895,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, participant);
         },
       );
+
+    // update info at the end after callbacks have been set up
+    if (info) {
+      participant.updateInfo(info);
+    }
     return participant;
   }
 
