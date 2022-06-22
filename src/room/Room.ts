@@ -500,6 +500,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     stream: MediaStream,
     receiver?: RTCRtpReceiver,
   ) {
+    // don't fire onSubscribed when connecting
+    // WebRTC fires onTrack as soon as setRemoteDescription is called on the offer
+    // at that time, ICE connectivity has not been established so the track is not
+    // technically subscribed.
+    // We'll defer these events until when the room is connected or eventually disconnected.
+    if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
+      setTimeout(() => {
+        this.onTrackAdded(mediaTrack, stream, receiver);
+      }, 10);
+      return;
+    }
+    if (this.state === ConnectionState.Disconnected) {
+      log.warn('skipping incoming track after Room disconnected');
+    }
     const parts = unpackStreamId(stream.id);
     const participantId = parts[0];
     let trackId = parts[1];

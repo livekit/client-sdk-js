@@ -20,8 +20,8 @@ import {
   VideoCaptureOptions,
   VideoCodec,
   VideoPresets,
-  VideoQuality,
-} from '../src/index';
+  VideoQuality
+} from '../src/index'
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -110,12 +110,12 @@ const appActions = {
       .on(RoomEvent.LocalTrackPublished, () => {
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
-        renderScreenShare();
+        renderScreenShare(room);
       })
       .on(RoomEvent.LocalTrackUnpublished, () => {
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
-        renderScreenShare();
+        renderScreenShare(room);
       })
       .on(RoomEvent.RoomMetadataChanged, (metadata) => {
         appendLog('new metadata for room', metadata);
@@ -138,9 +138,15 @@ const appActions = {
           appendLog('connection quality changed', participant?.identity, quality);
         },
       )
-      .on(RoomEvent.TrackSubscribed, (_1, _2, participant: RemoteParticipant) => {
+      .on(RoomEvent.TrackSubscribed, (_1, pub, participant) => {
+        appendLog('subscribed to track', pub.trackSid, participant.identity);
         renderParticipant(participant);
-        renderScreenShare();
+        renderScreenShare(room);
+      })
+      .on(RoomEvent.TrackUnsubscribed, (_, pub, participant) => {
+        appendLog('unsubscribed from track', pub.trackSid);
+        renderParticipant(participant);
+        renderScreenShare(room);
       })
       .on(RoomEvent.SignalConnected, async () => {
         if (shouldPublish) {
@@ -351,16 +357,6 @@ function handleData(msg: Uint8Array, participant?: RemoteParticipant) {
 function participantConnected(participant: Participant) {
   appendLog('participant', participant.identity, 'connected', participant.metadata);
   participant
-    .on(ParticipantEvent.TrackSubscribed, (_, pub: TrackPublication) => {
-      appendLog('subscribed to track', pub.trackSid, participant.identity);
-      renderParticipant(participant);
-      renderScreenShare();
-    })
-    .on(ParticipantEvent.TrackUnsubscribed, (_, pub: TrackPublication) => {
-      appendLog('unsubscribed from track', pub.trackSid);
-      renderParticipant(participant);
-      renderScreenShare();
-    })
     .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
       appendLog('track was muted', pub.trackSid, participant.identity);
       renderParticipant(participant);
@@ -391,7 +387,7 @@ function handleRoomDisconnect() {
   currentRoom.participants.forEach((p) => {
     renderParticipant(p, true);
   });
-  renderScreenShare();
+  renderScreenShare(currentRoom);
 
   const container = $('participants-area');
   if (container) {
@@ -572,24 +568,26 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
   }
 }
 
-function renderScreenShare() {
+function renderScreenShare(room: Room) {
   const div = $('screenshare-area')!;
-  if (!currentRoom || currentRoom.state !== ConnectionState.Connected) {
+  if (room.state !== ConnectionState.Connected) {
+    console.log('room not yet connected', room.state);
     div.style.display = 'none';
     return;
   }
   let participant: Participant | undefined;
-  let screenSharePub: TrackPublication | undefined = currentRoom.localParticipant.getTrack(
+  let screenSharePub: TrackPublication | undefined = room.localParticipant.getTrack(
     Track.Source.ScreenShare,
   );
   let screenShareAudioPub: RemoteTrackPublication | undefined;
   if (!screenSharePub) {
-    currentRoom.participants.forEach((p) => {
+    room.participants.forEach((p) => {
       if (screenSharePub) {
         return;
       }
       participant = p;
       const pub = p.getTrack(Track.Source.ScreenShare);
+      console.log('found screen share from', p.identity, pub?.isSubscribed);
       if (pub?.isSubscribed) {
         screenSharePub = pub;
       }
@@ -599,7 +597,8 @@ function renderScreenShare() {
       }
     });
   } else {
-    participant = currentRoom.localParticipant;
+    console.log('found local screen share');
+    participant = room.localParticipant;
   }
 
   if (screenSharePub && participant) {
