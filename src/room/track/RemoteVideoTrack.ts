@@ -342,7 +342,7 @@ function isElementInViewport(el: HTMLElement) {
   const width = el.offsetWidth;
   const height = el.offsetHeight;
   const { hidden } = el;
-  const { opacity } = getComputedStyle(el);
+  const { opacity, display } = getComputedStyle(el);
 
   while (el.offsetParent) {
     el = el.offsetParent as HTMLElement;
@@ -356,6 +356,7 @@ function isElementInViewport(el: HTMLElement) {
     top + height > window.pageYOffset &&
     left + width > window.pageXOffset &&
     !hidden &&
-    (opacity !== '' ? parseFloat(opacity) > 0 : true)
+    (opacity !== '' ? parseFloat(opacity) > 0 : true) &&
+    display !== 'none'
   );
 }
