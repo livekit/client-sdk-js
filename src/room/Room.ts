@@ -864,9 +864,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // and remote participant joined the room
     participant
       .on(ParticipantEvent.TrackPublished, (trackPublication: RemoteTrackPublication) => {
-        if (this.state === ConnectionState.Connected) {
-          this.emit(RoomEvent.TrackPublished, trackPublication, participant);
-        }
+        this.emitWhenConnected(RoomEvent.TrackPublished, trackPublication, participant);
       })
       .on(
         ParticipantEvent.TrackSubscribed,
@@ -880,7 +878,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       )
       .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
-        this.emit(RoomEvent.TrackUnpublished, publication, participant);
+        this.emitWhenConnected(RoomEvent.TrackUnpublished, publication, participant);
       })
       .on(
         ParticipantEvent.TrackUnsubscribed,
@@ -892,21 +890,25 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.TrackSubscriptionFailed, sid, participant);
       })
       .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
-        this.emit(RoomEvent.TrackMuted, pub, participant);
+        this.emitWhenConnected(RoomEvent.TrackMuted, pub, participant);
       })
       .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
-        this.emit(RoomEvent.TrackUnmuted, pub, participant);
+        this.emitWhenConnected(RoomEvent.TrackUnmuted, pub, participant);
       })
       .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: string | undefined) => {
-        this.emit(RoomEvent.ParticipantMetadataChanged, metadata, participant);
+        this.emitWhenConnected(RoomEvent.ParticipantMetadataChanged, metadata, participant);
       })
       .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
-        this.emit(RoomEvent.ConnectionQualityChanged, quality, participant);
+        this.emitWhenConnected(RoomEvent.ConnectionQualityChanged, quality, participant);
       })
       .on(
         ParticipantEvent.ParticipantPermissionsChanged,
         (prevPermissions: ParticipantPermission) => {
-          this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, participant);
+          this.emitWhenConnected(
+            RoomEvent.ParticipantPermissionsChanged,
+            prevPermissions,
+            participant,
+          );
         },
       );
 
@@ -978,6 +980,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.state = state;
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
     return true;
+  }
+
+  private emitWhenConnected<E extends keyof RoomEventCallbacks>(
+    event: E,
+    ...args: Parameters<RoomEventCallbacks[E]>
+  ): boolean {
+    if (this.state === ConnectionState.Connected) {
+      return this.emit(event, ...args);
+    }
+    return false;
   }
 
   // /** @internal */
