@@ -19,16 +19,20 @@ export default class LocalTrack extends Track {
 
   protected reacquireTrack: boolean;
 
+  protected managedTrack: boolean;
+
   protected constructor(
     mediaTrack: MediaStreamTrack,
     kind: Track.Kind,
     constraints?: MediaTrackConstraints,
+    managed = false,
   ) {
     super(mediaTrack, kind);
     this._mediaStreamTrack.addEventListener('ended', this.handleEnded);
     this.constraints = constraints ?? mediaTrack.getConstraints();
     this.reacquireTrack = false;
     this.wasMuted = false;
+    this.managedTrack = managed;
   }
 
   get id(): string {
@@ -54,6 +58,10 @@ export default class LocalTrack extends Track {
 
   get isUpstreamPaused() {
     return this._isUpstreamPaused;
+  }
+
+  get trackIsManaged() {
+    return this.managedTrack;
   }
 
   /**
@@ -184,7 +192,7 @@ export default class LocalTrack extends Track {
     if (!isMobile()) return;
     log.debug(`visibility changed, is in Background: ${this.isInBackground}`);
 
-    if (!this.isInBackground && this.needsReAcquisition) {
+    if (!this.isInBackground && this.needsReAcquisition && this.trackIsManaged) {
       log.debug(`track needs to be reaquired, restarting ${this.source}`);
       await this.restart();
       this.reacquireTrack = false;

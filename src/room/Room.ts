@@ -576,7 +576,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         const track = pub.track!;
         this.localParticipant.unpublishTrack(track, false);
         if (!track.isMuted) {
-          if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
+          if (
+            (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
+            track.trackIsManaged
+          ) {
             // we need to restart the track before publishing, often a full reconnect
             // is necessary because computer had gone to sleep.
             log.debug('restarting existing track', {

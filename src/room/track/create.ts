@@ -110,11 +110,11 @@ export async function createLocalScreenTracks(
   if (tracks.length === 0) {
     throw new TrackInvalidError('no video track found');
   }
-  const screenVideo = new LocalVideoTrack(tracks[0]);
+  const screenVideo = new LocalVideoTrack(tracks[0], undefined, true);
   screenVideo.source = Track.Source.ScreenShare;
   const localTracks: Array<LocalTrack> = [screenVideo];
   if (stream.getAudioTracks().length > 0) {
-    const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0]);
+    const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0], undefined, true);
     screenAudio.source = Track.Source.ScreenShareAudio;
     localTracks.push(screenAudio);
   }

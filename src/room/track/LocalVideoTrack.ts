@@ -41,8 +41,8 @@ export default class LocalVideoTrack extends LocalTrack {
 
   private subscribedCodecs?: SubscribedCodec[];
 
-  constructor(mediaTrack: MediaStreamTrack, constraints?: MediaTrackConstraints) {
-    super(mediaTrack, Track.Kind.Video, constraints);
+  constructor(mediaTrack: MediaStreamTrack, constraints?: MediaTrackConstraints, managed = false) {
+    super(mediaTrack, Track.Kind.Video, constraints, managed);
   }
 
   get isSimulcast(): boolean {
@@ -92,7 +92,7 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   async unmute(): Promise<LocalVideoTrack> {
-    if (this.source === Track.Source.Camera) {
+    if (this.source === Track.Source.Camera && this.trackIsManaged) {
       log.debug('reacquiring camera track');
       await this.restartTrack();
     }
