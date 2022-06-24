@@ -367,11 +367,11 @@ export default class LocalParticipant extends Participant {
     if (tracks.length === 0) {
       throw new TrackInvalidError('no video track found');
     }
-    const screenVideo = new LocalVideoTrack(tracks[0]);
+    const screenVideo = new LocalVideoTrack(tracks[0], undefined, false);
     screenVideo.source = Track.Source.ScreenShare;
     const localTracks: Array<LocalTrack> = [screenVideo];
     if (stream.getAudioTracks().length > 0) {
-      const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0]);
+      const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0], undefined, false);
       screenAudio.source = Track.Source.ScreenShareAudio;
       localTracks.push(screenAudio);
     }
@@ -396,10 +396,10 @@ export default class LocalParticipant extends Participant {
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
         case 'audio':
-          track = new LocalAudioTrack(track);
+          track = new LocalAudioTrack(track, undefined, true);
           break;
         case 'video':
-          track = new LocalVideoTrack(track);
+          track = new LocalVideoTrack(track, undefined, true);
           break;
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);

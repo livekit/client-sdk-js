@@ -19,16 +19,20 @@ export default class LocalTrack extends Track {
 
   protected reacquireTrack: boolean;
 
+  protected providedByUser: boolean;
+
   protected constructor(
     mediaTrack: MediaStreamTrack,
     kind: Track.Kind,
     constraints?: MediaTrackConstraints,
+    userProvidedTrack = false,
   ) {
     super(mediaTrack, kind);
     this._mediaStreamTrack.addEventListener('ended', this.handleEnded);
     this.constraints = constraints ?? mediaTrack.getConstraints();
     this.reacquireTrack = false;
     this.wasMuted = false;
+    this.providedByUser = userProvidedTrack;
   }
 
   get id(): string {
@@ -56,6 +60,10 @@ export default class LocalTrack extends Track {
     return this._isUpstreamPaused;
   }
 
+  get isUserProvided() {
+    return this.providedByUser;
+  }
+
   /**
    * @returns DeviceID of the device that is currently being used for this track
    */
@@ -80,7 +88,7 @@ export default class LocalTrack extends Track {
     return this;
   }
 
-  async replaceTrack(track: MediaStreamTrack): Promise<LocalTrack> {
+  async replaceTrack(track: MediaStreamTrack, userProvidedTrack = true): Promise<LocalTrack> {
     if (!this.sender) {
       throw new TrackInvalidError('unable to replace an unpublished track');
     }
@@ -108,6 +116,7 @@ export default class LocalTrack extends Track {
     });
 
     this.mediaStream = new MediaStream([track]);
+    this.providedByUser = userProvidedTrack;
     return this;
   }
 
@@ -184,7 +193,7 @@ export default class LocalTrack extends Track {
     if (!isMobile()) return;
     log.debug(`visibility changed, is in Background: ${this.isInBackground}`);
 
-    if (!this.isInBackground && this.needsReAcquisition) {
+    if (!this.isInBackground && this.needsReAcquisition && !this.isUserProvided) {
       log.debug(`track needs to be reaquired, restarting ${this.source}`);
       await this.restart();
       this.reacquireTrack = false;
