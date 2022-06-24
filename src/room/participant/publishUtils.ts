@@ -18,9 +18,9 @@ export function mediaTrackToLocalTrack(
 ): LocalVideoTrack | LocalAudioTrack {
   switch (mediaStreamTrack.kind) {
     case 'audio':
-      return new LocalAudioTrack(mediaStreamTrack, constraints, true);
+      return new LocalAudioTrack(mediaStreamTrack, constraints, false);
     case 'video':
-      return new LocalVideoTrack(mediaStreamTrack, constraints, true);
+      return new LocalVideoTrack(mediaStreamTrack, constraints, false);
     default:
       throw new TrackInvalidError(`unsupported track type: ${mediaStreamTrack.kind}`);
   }

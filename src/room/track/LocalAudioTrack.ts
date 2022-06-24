@@ -15,8 +15,12 @@ export default class LocalAudioTrack extends LocalTrack {
 
   private prevStats?: AudioSenderStats;
 
-  constructor(mediaTrack: MediaStreamTrack, constraints?: MediaTrackConstraints, managed = false) {
-    super(mediaTrack, Track.Kind.Audio, constraints, managed);
+  constructor(
+    mediaTrack: MediaStreamTrack,
+    constraints?: MediaTrackConstraints,
+    userProvidedTrack = true,
+  ) {
+    super(mediaTrack, Track.Kind.Audio, constraints, userProvidedTrack);
     this.checkForSilence();
   }
 
@@ -42,7 +46,7 @@ export default class LocalAudioTrack extends LocalTrack {
   }
 
   async unmute(): Promise<LocalAudioTrack> {
-    if (this.source === Track.Source.Microphone && this.stopOnMute && this.trackIsManaged) {
+    if (this.source === Track.Source.Microphone && this.stopOnMute && !this.isUserProvided) {
       log.debug('reacquiring mic track');
       await this.restartTrack();
     }

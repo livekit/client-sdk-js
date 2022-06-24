@@ -578,7 +578,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (!track.isMuted) {
           if (
             (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
-            track.trackIsManaged
+            !track.isUserProvided
           ) {
             // we need to restart the track before publishing, often a full reconnect
             // is necessary because computer had gone to sleep.
