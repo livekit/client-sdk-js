@@ -114,3 +114,18 @@ export function getEmptyAudioStreamTrack() {
   }
   return emptyAudioStreamTrack;
 }
+
+export class Future<T> {
+  promise: Promise<T>;
+
+  resolve!: (arg: T) => void;
+
+  reject!: (e: any) => void;
+
+  constructor() {
+    this.promise = new Promise<T>((resolve, reject) => {
+      this.resolve = resolve;
+      this.reject = reject;
+    });
+  }
+}
