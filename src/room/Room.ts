@@ -170,6 +170,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.Restarted, this.handleRestarted);
+
+    if (this.localParticipant) {
+      this.localParticipant.engine = this.engine;
+    }
   }
 
   /**
@@ -287,7 +291,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.metadata = joinResponse.room!.metadata;
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
-      this.engine.close();
+      this.recreateEngine();
       this.setAndEmitConnectionState(ConnectionState.Disconnected);
       throw err;
     }
@@ -296,14 +300,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     return new Promise<Room>((resolve, reject) => {
       const connectTimeout = setTimeout(() => {
         // timeout
-        this.engine.close();
+        this.recreateEngine();
         this.setAndEmitConnectionState(ConnectionState.Disconnected);
         reject(new ConnectionError('could not connect after timeout'));
       }, maxICEConnectTimeout);
       const abortHandler = () => {
         log.warn('closing engine');
         clearTimeout(connectTimeout);
-        this.engine.close();
+        this.recreateEngine();
         this.setAndEmitConnectionState(ConnectionState.Disconnected);
         reject(new ConnectionError('room connection has been cancelled'));
       };
@@ -495,6 +499,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
+  private recreateEngine() {
+    this.engine.close();
+    /* @ts-ignore */
+    this.engine = undefined;
+
+    // clear out existing remote participants, since they may have attached
+    // the old engine
+    this.participants.clear();
+
+    this.createEngine();
+  }
+
   private onTrackAdded(
     mediaTrack: MediaStreamTrack,
     stream: MediaStream,
@@ -508,7 +524,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
       setTimeout(() => {
         this.onTrackAdded(mediaTrack, stream, receiver);
-      }, 10);
+      }, 50);
       return;
     }
     if (this.state === ConnectionState.Disconnected) {
@@ -538,13 +554,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleRestarting = () => {
-    if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
-      this.emit(RoomEvent.Reconnecting);
-    }
-
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {
       this.handleParticipantDisconnected(p.sid, p);
+    }
+
+    if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
+      this.emit(RoomEvent.Reconnecting);
     }
   };
 
@@ -650,7 +666,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.handleParticipantDisconnected(info.sid, remoteParticipant);
       } else if (isNewParticipant) {
         // fire connected event
-        this.emit(RoomEvent.ParticipantConnected, remoteParticipant);
+        this.emitWhenConnected(RoomEvent.ParticipantConnected, remoteParticipant);
       } else {
         // just update, no events
         remoteParticipant.updateInfo(info);
@@ -669,7 +685,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant.tracks.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
     });
-    this.emit(RoomEvent.ParticipantDisconnected, participant);
+    this.emitWhenConnected(RoomEvent.ParticipantDisconnected, participant);
   }
 
   // updates are sent only when there's a change to speaker ordering
@@ -704,7 +720,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
 
     this.activeSpeakers = activeSpeakers;
-    this.emit(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
+    this.emitWhenConnected(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
   };
 
   // process list of changed speakers
@@ -733,7 +749,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const activeSpeakers = Array.from(lastSpeakers.values());
     activeSpeakers.sort((a, b) => b.audioLevel - a.audioLevel);
     this.activeSpeakers = activeSpeakers;
-    this.emit(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
+    this.emitWhenConnected(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
   };
 
   private handleStreamStateUpdate = (streamStateUpdate: StreamStateUpdate) => {
@@ -748,7 +764,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
       pub.track.streamState = Track.streamStateFromProto(streamState.state);
       participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
-      this.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState, participant);
+      this.emitWhenConnected(
+        ParticipantEvent.TrackStreamStateChanged,
+        pub,
+        pub.track.streamState,
+        participant,
+      );
     });
   };
 
@@ -768,7 +789,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       pub,
       pub.subscriptionStatus,
     );
-    this.emit(
+    this.emitWhenConnected(
       ParticipantEvent.TrackSubscriptionPermissionChanged,
       pub,
       pub.subscriptionStatus,
@@ -809,7 +830,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRoomUpdate = (r: RoomModel) => {
     this.metadata = r.metadata;
-    this.emit(RoomEvent.RoomMetadataChanged, r.metadata);
+    this.emitWhenConnected(RoomEvent.RoomMetadataChanged, r.metadata);
   };
 
   private handleConnectionQualityUpdate = (update: ConnectionQualityUpdate) => {

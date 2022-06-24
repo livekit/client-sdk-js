@@ -42,13 +42,14 @@ export default class LocalParticipant extends Participant {
   /** map of track sid => all published tracks */
   tracks: Map<string, LocalTrackPublication>;
 
+  /** @internal */
+  engine: RTCEngine;
+
   private pendingPublishing = new Set<Track.Source>();
 
   private cameraError: Error | undefined;
 
   private microphoneError: Error | undefined;
-
-  private engine: RTCEngine;
 
   private participantTrackPermissions: Array<ParticipantTrackPermission> = [];
 
