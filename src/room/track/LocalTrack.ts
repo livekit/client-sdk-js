@@ -88,7 +88,7 @@ export default class LocalTrack extends Track {
     return this;
   }
 
-  async replaceTrack(track: MediaStreamTrack): Promise<LocalTrack> {
+  async replaceTrack(track: MediaStreamTrack, userProvidedTrack = true): Promise<LocalTrack> {
     if (!this.sender) {
       throw new TrackInvalidError('unable to replace an unpublished track');
     }
@@ -116,6 +116,7 @@ export default class LocalTrack extends Track {
     });
 
     this.mediaStream = new MediaStream([track]);
+    this.providedByUser = userProvidedTrack;
     return this;
   }
 
