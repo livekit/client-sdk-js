@@ -807,7 +807,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       pub.subscriptionStatus,
     );
     this.emitWhenConnected(
-      ParticipantEvent.TrackSubscriptionPermissionChanged,
+      RoomEvent.TrackSubscriptionPermissionChanged,
       pub,
       pub.subscriptionStatus,
       participant,
