@@ -125,6 +125,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     return this.currentVideoQuality;
   }
 
+  /** @internal */
   setTrack(track?: Track) {
     if (this.track) {
       // unregister listener
@@ -164,6 +165,7 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected handleEnded = (track: RemoteTrack) => {
     this.emit(TrackEvent.Ended, track);
+    this.setTrack(undefined);
   };
 
   protected get isAdaptiveStream(): boolean {

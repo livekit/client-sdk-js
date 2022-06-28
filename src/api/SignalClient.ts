@@ -1,3 +1,4 @@
+import 'webrtc-adapter';
 import log from '../logger';
 import {
   ClientInfo,
@@ -29,7 +30,6 @@ import {
 import { ConnectionError } from '../room/errors';
 import { getClientInfo, sleep } from '../room/utils';
 import Queue from './RequestQueue';
-import 'webrtc-adapter';
 
 // internal options
 interface ConnectOpts {

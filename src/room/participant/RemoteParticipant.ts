@@ -156,6 +156,8 @@ export default class RemoteParticipant extends Participant {
     track.start();
 
     publication.setTrack(track);
+    // subscription means participant has permissions to subscribe
+    publication._allowed = true;
     // set participant volume on new microphone tracks
     if (
       this.volume !== undefined &&

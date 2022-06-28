@@ -782,7 +782,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       pub.track.streamState = Track.streamStateFromProto(streamState.state);
       participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
       this.emitWhenConnected(
-        ParticipantEvent.TrackStreamStateChanged,
+        RoomEvent.TrackStreamStateChanged,
         pub,
         pub.track.streamState,
         participant,
@@ -807,7 +807,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       pub.subscriptionStatus,
     );
     this.emitWhenConnected(
-      ParticipantEvent.TrackSubscriptionPermissionChanged,
+      RoomEvent.TrackSubscriptionPermissionChanged,
       pub,
       pub.subscriptionStatus,
       participant,
