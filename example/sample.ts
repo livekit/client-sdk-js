@@ -20,8 +20,8 @@ import {
   VideoCaptureOptions,
   VideoCodec,
   VideoPresets,
-  VideoQuality
-} from '../src/index'
+  VideoQuality,
+} from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -78,7 +78,7 @@ const appActions = {
 
     const connectOpts: RoomConnectOptions = {
       autoSubscribe: !publishOnly,
-      publishOnly: publishOnly ? 'publish_only' : undefined,
+      publishOnly,
     };
     if (forceTURN) {
       connectOpts.rtcConfig = {

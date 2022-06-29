@@ -37,7 +37,7 @@ interface ConnectOpts {
   /** internal */
   reconnect?: boolean;
 
-  publishOnly?: string;
+  publishOnly?: boolean;
 
   adaptiveStream?: boolean;
 }
@@ -45,7 +45,7 @@ interface ConnectOpts {
 // public options
 export interface SignalOptions {
   autoSubscribe?: boolean;
-  publishOnly?: string;
+  publishOnly?: boolean;
   adaptiveStream?: boolean;
 }
 
@@ -510,8 +510,8 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
     params.set('browser_version', info.browserVersion);
   }
 
-  if (opts?.publishOnly !== undefined) {
-    params.set('publish', opts.publishOnly);
+  if (opts?.publishOnly) {
+    params.set('publish', 'publish_only');
   }
 
   if (opts?.adaptiveStream) {

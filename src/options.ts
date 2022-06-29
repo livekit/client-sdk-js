@@ -70,5 +70,5 @@ export interface RoomConnectOptions {
   /**
    * publish only mode
    */
-  publishOnly?: string;
+  publishOnly?: boolean;
 }
