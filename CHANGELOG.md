@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.1.7
+
+### Patch Changes
+
+- [#289](https://github.com/livekit/client-sdk-js/pull/289) [`c65e206`](https://github.com/livekit/client-sdk-js/commit/c65e20652e4f0d50a0cfcaa7847e137e2e1d0844) Thanks [@davidzhao](https://github.com/davidzhao)! - Reconcile local mute status after resuming connection
+
 ## 1.1.6
 
 ### Patch Changes
