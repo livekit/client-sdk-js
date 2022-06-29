@@ -390,6 +390,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     let postAction = () => {};
     let req: SimulateScenario | undefined;
     switch (scenario) {
+      case 'signal-reconnect':
+        this.engine.client.close();
+        if (this.engine.client.onClose) {
+          this.engine.client.onClose('simulate disconnect');
+        }
+        break;
       case 'speaker':
         req = SimulateScenario.fromPartial({
           speakerUpdate: 3,
