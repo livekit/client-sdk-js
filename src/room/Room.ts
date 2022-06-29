@@ -226,7 +226,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         token,
         {
           autoSubscribe: opts?.autoSubscribe,
-          publishOnly: opts?.publishOnly,
+          publishOnly:
+            (typeof opts?.publishOnly === 'string' && opts.publishOnly === 'publish_only') ||
+            (typeof opts?.publishOnly === 'boolean' && opts.publishOnly),
           adaptiveStream:
             typeof this.options?.adaptiveStream === 'object' ? true : this.options?.adaptiveStream,
         },
