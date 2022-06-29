@@ -151,7 +151,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       )
       .on(EngineEvent.Disconnected, () => {
-        this.handleDisconnect();
+        this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       })
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
