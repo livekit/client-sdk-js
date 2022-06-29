@@ -975,7 +975,7 @@ export default class LocalParticipant extends Participant {
     this.tracks.forEach((track: LocalTrackPublication) => {
       if (track.track !== undefined) {
         infos.push({
-          cid: track.track.mediaStreamTrack.id,
+          cid: track.track.mediaStreamID,
           track: track.trackInfo,
         });
       }
