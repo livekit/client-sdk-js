@@ -288,7 +288,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
       // populate remote participants, these should not trigger new events
       joinResponse.otherParticipants.forEach((info) => {
-        this.getOrCreateParticipant(info.sid, info);
+        if (
+          info.sid !== this.localParticipant.sid &&
+          info.identity !== this.localParticipant.identity
+        ) {
+          this.getOrCreateParticipant(info.sid, info);
+        } else {
+          log.warn('received info to create local participant as remote participant', {
+            info,
+            localParticipant: this.localParticipant,
+          });
+        }
       });
 
       this.name = joinResponse.room!.name;
@@ -555,7 +565,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     let trackId = parts[1];
     if (!trackId || trackId === '') trackId = mediaTrack.id;
 
+    if (participantId === this.localParticipant.sid) {
+      log.warn('tried to create RemoteParticipant for local participant');
+      return;
+    }
     const participant = this.getOrCreateParticipant(participantId);
+
     let adaptiveStreamSettings: AdaptiveStreamSettings | undefined;
     if (this.options.adaptiveStream) {
       if (typeof this.options.adaptiveStream === 'object') {
