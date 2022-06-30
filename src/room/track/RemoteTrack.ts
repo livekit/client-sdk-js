@@ -21,6 +21,7 @@ export default abstract class RemoteTrack extends Track {
   setMuted(muted: boolean) {
     if (this.isMuted !== muted) {
       this.isMuted = muted;
+      this._mediaStreamTrack.enabled = !muted;
       this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
     }
   }
