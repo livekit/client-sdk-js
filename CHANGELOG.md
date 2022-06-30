@@ -1,5 +1,15 @@
 # Change Log
 
+## 1.1.8
+
+### Patch Changes
+
+- [#293](https://github.com/livekit/client-sdk-js/pull/293) [`e65443a`](https://github.com/livekit/client-sdk-js/commit/e65443a2433d323a0489d76e347572a37125a971) Thanks [@lukasIO](https://github.com/lukasIO)! - Respect stopLocalTrackOnUnpublish in event of engine disconnect
+
+* [#294](https://github.com/livekit/client-sdk-js/pull/294) [`d389fda`](https://github.com/livekit/client-sdk-js/commit/d389fda5339c4863c86d4e865dd8a9e7c47d0b3c) Thanks [@cnderrauber](https://github.com/cnderrauber)! - keep mediastream id unchange for migration
+
+- [#296](https://github.com/livekit/client-sdk-js/pull/296) [`9e78db7`](https://github.com/livekit/client-sdk-js/commit/9e78db7a41b0ee8c17536649549f84653465f3d0) Thanks [@lukasIO](https://github.com/lukasIO)! - Additional guards against creating localParticipant as remoteParticipant
+
 ## 1.1.7
 
 ### Patch Changes
