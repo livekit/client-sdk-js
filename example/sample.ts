@@ -20,8 +20,8 @@ import {
   VideoCaptureOptions,
   VideoCodec,
   VideoPresets,
-  VideoQuality
-} from '../src/index'
+  VideoQuality,
+} from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
 

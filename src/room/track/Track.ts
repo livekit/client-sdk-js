@@ -37,6 +37,8 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   protected _mediaStreamTrack: MediaStreamTrack;
 
+  protected _mediaStreamID: string;
+
   protected isInBackground: boolean;
 
   private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -47,6 +49,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
     super();
     this.kind = kind;
     this._mediaStreamTrack = mediaTrack;
+    this._mediaStreamID = mediaTrack.id;
     this.source = Track.Source.Unknown;
     if (isWeb()) {
       this.isInBackground = document.visibilityState === 'hidden';
@@ -63,6 +66,15 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   get mediaStreamTrack() {
     return this._mediaStreamTrack;
+  }
+
+  /**
+   * @internal
+   * used for keep mediaStream's first id, since it's id might change
+   * if we disable/enable a track
+   */
+  get mediaStreamID(): string {
+    return this._mediaStreamID;
   }
 
   /**
