@@ -38,6 +38,7 @@ await room.connect(...);
 ```typescript
 import {
   connect,
+  Room,
   RoomEvent,
   RemoteParticipant,
   RemoteTrackPublication,
