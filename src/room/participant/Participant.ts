@@ -12,6 +12,7 @@ import RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import { TrackPublication } from '../track/TrackPublication';
 import { RemoteTrack } from '../track/types';
+import log from '../../logger';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -179,6 +180,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
+    log.trace('update participant info', { info });
   }
 
   /** @internal */

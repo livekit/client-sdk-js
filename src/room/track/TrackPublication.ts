@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import log from '../../logger';
 import { TrackInfo } from '../../proto/livekit_models';
 import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
@@ -108,6 +109,7 @@ export class TrackPublication extends EventEmitter {
       this.simulcasted = info.simulcast;
     }
     this.trackInfo = info;
+    log.trace('update publication info', { info });
   }
 }
 

@@ -218,6 +218,10 @@ export default class RemoteParticipant extends Participant {
     // detect removed tracks
     this.tracks.forEach((publication) => {
       if (!validTracks.has(publication.trackSid)) {
+        log.trace('detected removed track on remote participant, unpublishing', {
+          publication,
+          participantSid: this.sid,
+        });
         this.unpublishTrack(publication.trackSid, true);
       }
     });

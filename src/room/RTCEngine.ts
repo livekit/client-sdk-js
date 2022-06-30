@@ -363,6 +363,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.emit(EngineEvent.Disconnected);
         this.close();
       }
+      log.trace('leave request', { leave });
     };
   }
 
