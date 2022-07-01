@@ -347,8 +347,7 @@ export class SignalClient {
   }
 
   async sendRequest(req: SignalRequest, fromQueue: boolean = false) {
-    // capture all requests while reconnecting and put them in a queue.
-    // keep order by queueing up new events as long as the queue is not empty
+    // capture all requests while reconnecting and put them in a queue
     // unless the request originates from the queue, then don't enqueue again
     const canQueue = !fromQueue && !canPassThroughQueue(req);
     if (canQueue && this.isReconnecting) {
