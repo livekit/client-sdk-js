@@ -1,3 +1,4 @@
+import Queue from 'async-await-queue';
 import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
@@ -21,6 +22,8 @@ export default class LocalTrack extends Track {
 
   protected providedByUser: boolean;
 
+  protected muteQueue: Queue;
+
   protected constructor(
     mediaTrack: MediaStreamTrack,
     kind: Track.Kind,
@@ -33,6 +36,7 @@ export default class LocalTrack extends Track {
     this.reacquireTrack = false;
     this.wasMuted = false;
     this.providedByUser = userProvidedTrack;
+    this.muteQueue = new Queue();
   }
 
   get id(): string {
@@ -170,6 +174,7 @@ export default class LocalTrack extends Track {
   }
 
   protected setTrackMuted(muted: boolean) {
+    log.debug(`setting ${this.kind} track ${muted ? 'muted' : 'unmuted'}`);
     if (this.isMuted === muted) {
       return;
     }

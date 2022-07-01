@@ -33,6 +33,7 @@
     "release": "yarn build && changeset publish"
   },
   "dependencies": {
+    "async-await-queue": "^1.2.1",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
     "protobufjs": "^6.11.2",

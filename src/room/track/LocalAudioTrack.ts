@@ -35,22 +35,26 @@ export default class LocalAudioTrack extends LocalTrack {
   }
 
   async mute(): Promise<LocalAudioTrack> {
-    // disabled special handling as it will cause BT headsets to switch communication modes
-    if (this.source === Track.Source.Microphone && this.stopOnMute) {
-      log.debug('stopping mic track');
-      // also stop the track, so that microphone indicator is turned off
-      this._mediaStreamTrack.stop();
-    }
-    await super.mute();
+    await this.muteQueue.run(async () => {
+      // disabled special handling as it will cause BT headsets to switch communication modes
+      if (this.source === Track.Source.Microphone && this.stopOnMute) {
+        log.debug('stopping mic track');
+        // also stop the track, so that microphone indicator is turned off
+        this._mediaStreamTrack.stop();
+      }
+      await super.mute();
+    });
     return this;
   }
 
   async unmute(): Promise<LocalAudioTrack> {
-    if (this.source === Track.Source.Microphone && this.stopOnMute && !this.isUserProvided) {
-      log.debug('reacquiring mic track');
-      await this.restartTrack();
-    }
-    await super.unmute();
+    await this.muteQueue.run(async () => {
+      if (this.source === Track.Source.Microphone && this.stopOnMute && !this.isUserProvided) {
+        log.debug('reacquiring mic track');
+        await this.restartTrack();
+      }
+      await super.unmute();
+    });
     return this;
   }
 
