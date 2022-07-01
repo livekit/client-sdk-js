@@ -6,6 +6,7 @@ import { babel } from '@rollup/plugin-babel';
 import json from '@rollup/plugin-json';
 import { terser } from 'rollup-plugin-terser';
 import replace from 'rollup-plugin-re';
+import filesize from 'rollup-plugin-filesize';
 
 import packageJson from './package.json';
 
@@ -55,5 +56,6 @@ export default {
         },
       ],
     }),
+    filesize(),
   ],
 };
