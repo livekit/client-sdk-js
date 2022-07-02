@@ -86,21 +86,25 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   async mute(): Promise<LocalVideoTrack> {
-    if (this.source === Track.Source.Camera) {
-      log.debug('stopping camera track');
-      // also stop the track, so that camera indicator is turned off
-      this._mediaStreamTrack.stop();
-    }
-    await super.mute();
+    await this.muteQueue.run(async () => {
+      if (this.source === Track.Source.Camera) {
+        log.debug('stopping camera track');
+        // also stop the track, so that camera indicator is turned off
+        this._mediaStreamTrack.stop();
+      }
+      await super.mute();
+    });
     return this;
   }
 
   async unmute(): Promise<LocalVideoTrack> {
-    if (this.source === Track.Source.Camera && !this.isUserProvided) {
-      log.debug('reacquiring camera track');
-      await this.restartTrack();
-    }
-    await super.unmute();
+    await this.muteQueue.run(async () => {
+      if (this.source === Track.Source.Camera && !this.isUserProvided) {
+        log.debug('reacquiring camera track');
+        await this.restartTrack();
+      }
+      await super.unmute();
+    });
     return this;
   }
 
