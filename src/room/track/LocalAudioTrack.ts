@@ -1,11 +1,11 @@
-import log from '../../logger'
-import { TrackEvent } from '../events'
-import { AudioSenderStats, computeBitrate, monitorFrequency } from '../stats'
-import { isWeb } from '../utils'
-import LocalTrack from './LocalTrack'
-import { AudioCaptureOptions } from './options'
-import { Track } from './Track'
-import { constraintsForOptions, detectSilence } from './utils'
+import log from '../../logger';
+import { TrackEvent } from '../events';
+import { AudioSenderStats, computeBitrate, monitorFrequency } from '../stats';
+import { isWeb } from '../utils';
+import LocalTrack from './LocalTrack';
+import { AudioCaptureOptions } from './options';
+import { Track } from './Track';
+import { constraintsForOptions, detectSilence } from './utils';
 
 export default class LocalAudioTrack extends LocalTrack {
   sender?: RTCRtpSender;
