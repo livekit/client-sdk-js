@@ -1,4 +1,5 @@
 import 'webrtc-adapter';
+import Queue from 'async-await-queue';
 import log from '../logger';
 import {
   ClientInfo,
@@ -29,7 +30,6 @@ import {
 } from '../proto/livekit_rtc';
 import { ConnectionError } from '../room/errors';
 import { getClientInfo, sleep } from '../room/utils';
-import Queue from './RequestQueue';
 
 // internal options
 interface ConnectOpts {
@@ -73,6 +73,8 @@ export class SignalClient {
   isReconnecting: boolean;
 
   requestQueue: Queue;
+
+  queuedRequests: Array<() => Promise<void>>;
 
   useJSON: boolean;
 
@@ -121,6 +123,7 @@ export class SignalClient {
     this.isReconnecting = false;
     this.useJSON = useJSON;
     this.requestQueue = new Queue();
+    this.queuedRequests = [];
   }
 
   async join(
@@ -344,13 +347,18 @@ export class SignalClient {
   }
 
   async sendRequest(req: SignalRequest, fromQueue: boolean = false) {
-    // capture all requests while reconnecting and put them in a queue.
-    // keep order by queueing up new events as long as the queue is not empty
+    // capture all requests while reconnecting and put them in a queue
     // unless the request originates from the queue, then don't enqueue again
     const canQueue = !fromQueue && !canPassThroughQueue(req);
-    if (canQueue && (this.isReconnecting || !this.requestQueue.isEmpty())) {
-      this.requestQueue.enqueue(() => this.sendRequest(req, true));
+    if (canQueue && this.isReconnecting) {
+      this.queuedRequests.push(async () => {
+        await this.sendRequest(req, true);
+      });
       return;
+    }
+    // make sure previously queued requests are being sent first
+    if (!fromQueue) {
+      await this.requestQueue.flush();
     }
     if (this.signalLatency) {
       await sleep(this.signalLatency);
@@ -441,8 +449,13 @@ export class SignalClient {
   }
 
   setReconnected() {
+    while (this.queuedRequests.length > 0) {
+      const req = this.queuedRequests.shift();
+      if (req) {
+        this.requestQueue.run(req);
+      }
+    }
     this.isReconnecting = false;
-    this.requestQueue.run();
   }
 
   private handleWSError(ev: Event) {
