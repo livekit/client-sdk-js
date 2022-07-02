@@ -7,6 +7,7 @@ import {
   ClientConfiguration,
   DataPacket,
   DataPacket_Kind,
+  DisconnectReason,
   SpeakerInfo,
   TrackInfo,
   UserPacket,
@@ -15,7 +16,6 @@ import {
   AddTrackRequest,
   JoinResponse,
   LeaveRequest,
-  LeaveRequest_LeaveReason,
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
@@ -717,7 +717,7 @@ class SignalReconnectError extends Error {}
 
 export type EngineEventCallbacks = {
   connected: () => void;
-  disconnected: (reason?: LeaveRequest_LeaveReason) => void;
+  disconnected: (reason?: DisconnectReason) => void;
   resuming: () => void;
   resumed: () => void;
   restarting: () => void;

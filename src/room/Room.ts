@@ -5,6 +5,7 @@ import log from '../logger';
 import { RoomConnectOptions, RoomOptions } from '../options';
 import {
   DataPacket_Kind,
+  DisconnectReason,
   ParticipantInfo,
   ParticipantInfo_State,
   ParticipantPermission,
@@ -1088,8 +1089,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 }
 
 export default Room;
-
-export type DisconnectReason = LeaveRequest_LeaveReason;
 
 export type RoomEventCallbacks = {
   reconnecting: () => void;

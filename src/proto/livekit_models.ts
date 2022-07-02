@@ -213,6 +213,68 @@ export function clientConfigSettingToJSON(object: ClientConfigSetting): string {
   }
 }
 
+export enum DisconnectReason {
+  UNKNOWN_REASON = 0,
+  CLIENT_INITIATED = 1,
+  DUPLICATE_IDENTITY = 2,
+  SERVER_SHUTDOWN = 3,
+  PARTICIPANT_REMOVED = 4,
+  ROOM_DELETED = 5,
+  STATE_MISMATCH = 6,
+  UNRECOGNIZED = -1,
+}
+
+export function disconnectReasonFromJSON(object: any): DisconnectReason {
+  switch (object) {
+    case 0:
+    case 'UNKNOWN_REASON':
+      return DisconnectReason.UNKNOWN_REASON;
+    case 1:
+    case 'CLIENT_INITIATED':
+      return DisconnectReason.CLIENT_INITIATED;
+    case 2:
+    case 'DUPLICATE_IDENTITY':
+      return DisconnectReason.DUPLICATE_IDENTITY;
+    case 3:
+    case 'SERVER_SHUTDOWN':
+      return DisconnectReason.SERVER_SHUTDOWN;
+    case 4:
+    case 'PARTICIPANT_REMOVED':
+      return DisconnectReason.PARTICIPANT_REMOVED;
+    case 5:
+    case 'ROOM_DELETED':
+      return DisconnectReason.ROOM_DELETED;
+    case 6:
+    case 'STATE_MISMATCH':
+      return DisconnectReason.STATE_MISMATCH;
+    case -1:
+    case 'UNRECOGNIZED':
+    default:
+      return DisconnectReason.UNRECOGNIZED;
+  }
+}
+
+export function disconnectReasonToJSON(object: DisconnectReason): string {
+  switch (object) {
+    case DisconnectReason.UNKNOWN_REASON:
+      return 'UNKNOWN_REASON';
+    case DisconnectReason.CLIENT_INITIATED:
+      return 'CLIENT_INITIATED';
+    case DisconnectReason.DUPLICATE_IDENTITY:
+      return 'DUPLICATE_IDENTITY';
+    case DisconnectReason.SERVER_SHUTDOWN:
+      return 'SERVER_SHUTDOWN';
+    case DisconnectReason.PARTICIPANT_REMOVED:
+      return 'PARTICIPANT_REMOVED';
+    case DisconnectReason.ROOM_DELETED:
+      return 'ROOM_DELETED';
+    case DisconnectReason.STATE_MISMATCH:
+      return 'STATE_MISMATCH';
+    default:
+      return 'UNKNOWN';
+  }
+}
+
 export interface Room {
   sid: string;
   name: string;

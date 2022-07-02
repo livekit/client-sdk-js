@@ -9,6 +9,7 @@ import {
   ClientConfiguration,
   TrackInfo,
   VideoQuality,
+  DisconnectReason,
   ConnectionQuality,
   VideoLayer,
   ParticipantTracks,
@@ -19,6 +20,8 @@ import {
   trackSourceToJSON,
   videoQualityFromJSON,
   videoQualityToJSON,
+  disconnectReasonFromJSON,
+  disconnectReasonToJSON,
   connectionQualityFromJSON,
   connectionQualityToJSON,
 } from './livekit_models';
@@ -283,69 +286,7 @@ export interface LeaveRequest {
    * indicates clients should attempt full-reconnect sequence
    */
   canReconnect: boolean;
-  reason: LeaveRequest_LeaveReason;
-}
-
-export enum LeaveRequest_LeaveReason {
-  UNKNOWN_REASON = 0,
-  CLIENT_INITIATED = 1,
-  DUPLICATE_IDENTITY = 2,
-  SERVER_SHUTDOWN = 3,
-  PARTICIPANT_REMOVED = 4,
-  ROOM_DELETED = 5,
-  STATE_MISMATCH = 6,
-  UNRECOGNIZED = -1,
-}
-
-export function leaveRequest_LeaveReasonFromJSON(object: any): LeaveRequest_LeaveReason {
-  switch (object) {
-    case 0:
-    case 'UNKNOWN_REASON':
-      return LeaveRequest_LeaveReason.UNKNOWN_REASON;
-    case 1:
-    case 'CLIENT_INITIATED':
-      return LeaveRequest_LeaveReason.CLIENT_INITIATED;
-    case 2:
-    case 'DUPLICATE_IDENTITY':
-      return LeaveRequest_LeaveReason.DUPLICATE_IDENTITY;
-    case 3:
-    case 'SERVER_SHUTDOWN':
-      return LeaveRequest_LeaveReason.SERVER_SHUTDOWN;
-    case 4:
-    case 'PARTICIPANT_REMOVED':
-      return LeaveRequest_LeaveReason.PARTICIPANT_REMOVED;
-    case 5:
-    case 'ROOM_DELETED':
-      return LeaveRequest_LeaveReason.ROOM_DELETED;
-    case 6:
-    case 'STATE_MISMATCH':
-      return LeaveRequest_LeaveReason.STATE_MISMATCH;
-    case -1:
-    case 'UNRECOGNIZED':
-    default:
-      return LeaveRequest_LeaveReason.UNRECOGNIZED;
-  }
-}
-
-export function leaveRequest_LeaveReasonToJSON(object: LeaveRequest_LeaveReason): string {
-  switch (object) {
-    case LeaveRequest_LeaveReason.UNKNOWN_REASON:
-      return 'UNKNOWN_REASON';
-    case LeaveRequest_LeaveReason.CLIENT_INITIATED:
-      return 'CLIENT_INITIATED';
-    case LeaveRequest_LeaveReason.DUPLICATE_IDENTITY:
-      return 'DUPLICATE_IDENTITY';
-    case LeaveRequest_LeaveReason.SERVER_SHUTDOWN:
-      return 'SERVER_SHUTDOWN';
-    case LeaveRequest_LeaveReason.PARTICIPANT_REMOVED:
-      return 'PARTICIPANT_REMOVED';
-    case LeaveRequest_LeaveReason.ROOM_DELETED:
-      return 'ROOM_DELETED';
-    case LeaveRequest_LeaveReason.STATE_MISMATCH:
-      return 'STATE_MISMATCH';
-    default:
-      return 'UNKNOWN';
-  }
+  reason: DisconnectReason;
 }
 
 /** message to indicate published video track dimensions are changing */
@@ -1937,14 +1878,14 @@ export const LeaveRequest = {
   fromJSON(object: any): LeaveRequest {
     return {
       canReconnect: isSet(object.canReconnect) ? Boolean(object.canReconnect) : false,
-      reason: isSet(object.reason) ? leaveRequest_LeaveReasonFromJSON(object.reason) : 0,
+      reason: isSet(object.reason) ? disconnectReasonFromJSON(object.reason) : 0,
     };
   },
 
   toJSON(message: LeaveRequest): unknown {
     const obj: any = {};
     message.canReconnect !== undefined && (obj.canReconnect = message.canReconnect);
-    message.reason !== undefined && (obj.reason = leaveRequest_LeaveReasonToJSON(message.reason));
+    message.reason !== undefined && (obj.reason = disconnectReasonToJSON(message.reason));
     return obj;
   },
 
