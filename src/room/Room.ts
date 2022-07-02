@@ -16,7 +16,6 @@ import {
 import {
   ConnectionQualityUpdate,
   JoinResponse,
-  LeaveRequest_LeaveReason,
   SimulateScenario,
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
