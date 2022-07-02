@@ -151,7 +151,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.onTrackAdded(mediaTrack, stream, receiver);
         },
       )
-      .on(EngineEvent.Disconnected, (reason?: LeaveRequest_LeaveReason) => {
+      .on(EngineEvent.Disconnected, (reason?: DisconnectReason) => {
         this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, reason);
       })
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
@@ -646,7 +646,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
   };
 
-  private handleDisconnect(shouldStopTracks = true, reason?: LeaveRequest_LeaveReason) {
+  private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
         p.unpublishTrack(pub.trackSid);
@@ -1089,10 +1089,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
 export default Room;
 
+export type DisconnectReason = LeaveRequest_LeaveReason;
+
 export type RoomEventCallbacks = {
   reconnecting: () => void;
   reconnected: () => void;
-  disconnected: (reason?: LeaveRequest_LeaveReason) => void;
+  disconnected: (reason?: DisconnectReason) => void;
   /** @deprecated stateChanged has been renamed to connectionStateChanged */
   stateChanged: (state: ConnectionState) => void;
   connectionStateChanged: (state: ConnectionState) => void;
