@@ -220,31 +220,36 @@ export default class LocalTrack extends Track {
   };
 
   async pauseUpstream() {
-    if (this._isUpstreamPaused === true) {
-      return;
-    }
-    if (!this.sender) {
-      log.warn('unable to pause upstream for an unpublished track');
-      return;
-    }
-    this._isUpstreamPaused = true;
-    this.emit(TrackEvent.UpstreamPaused, this);
-    const emptyTrack =
-      this.kind === Track.Kind.Audio ? getEmptyAudioStreamTrack() : getEmptyVideoStreamTrack();
-    await this.sender.replaceTrack(emptyTrack);
+    this.muteQueue.run(async () => {
+      if (this._isUpstreamPaused === true) {
+        return;
+      }
+      if (!this.sender) {
+        log.warn('unable to pause upstream for an unpublished track');
+        return;
+      }
+
+      this._isUpstreamPaused = true;
+      this.emit(TrackEvent.UpstreamPaused, this);
+      const emptyTrack =
+        this.kind === Track.Kind.Audio ? getEmptyAudioStreamTrack() : getEmptyVideoStreamTrack();
+      await this.sender.replaceTrack(emptyTrack);
+    });
   }
 
   async resumeUpstream() {
-    if (this._isUpstreamPaused === false) {
-      return;
-    }
-    if (!this.sender) {
-      log.warn('unable to resume upstream for an unpublished track');
-      return;
-    }
-    this._isUpstreamPaused = false;
-    this.emit(TrackEvent.UpstreamResumed, this);
+    this.muteQueue.run(async () => {
+      if (this._isUpstreamPaused === false) {
+        return;
+      }
+      if (!this.sender) {
+        log.warn('unable to resume upstream for an unpublished track');
+        return;
+      }
+      this._isUpstreamPaused = false;
+      this.emit(TrackEvent.UpstreamResumed, this);
 
-    await this.sender.replaceTrack(this._mediaStreamTrack);
+      await this.sender.replaceTrack(this._mediaStreamTrack);
+    });
   }
 }
