@@ -2,6 +2,7 @@ import {
   ConnectionQuality,
   ConnectionState,
   DataPacket_Kind,
+  DisconnectReason,
   LocalParticipant,
   LogLevel,
   MediaDeviceFailure,
@@ -20,8 +21,8 @@ import {
   VideoCaptureOptions,
   VideoCodec,
   VideoPresets,
-  VideoQuality,
-} from '../src/index';
+  VideoQuality
+} from '../src/index'
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -275,20 +276,8 @@ const appActions = {
   handleScenario: (e: Event) => {
     const scenario = (<HTMLSelectElement>e.target).value;
     if (scenario !== '') {
-      if (scenario === 'signal-reconnect') {
-        appActions.disconnectSignal();
-      } else {
-        currentRoom?.simulateScenario(scenario);
-      }
+      currentRoom?.simulateScenario(scenario);
       (<HTMLSelectElement>e.target).value = '';
-    }
-  },
-
-  disconnectSignal: () => {
-    if (!currentRoom) return;
-    currentRoom.engine.client.close();
-    if (currentRoom.engine.client.onClose) {
-      currentRoom.engine.client.onClose('manual disconnect');
     }
   },
 
@@ -379,9 +368,9 @@ function participantDisconnected(participant: RemoteParticipant) {
   renderParticipant(participant, true);
 }
 
-function handleRoomDisconnect() {
+function handleRoomDisconnect(reason?: DisconnectReason) {
   if (!currentRoom) return;
-  appendLog('disconnected from room');
+  appendLog('disconnected from room', {reason});
   setButtonsForState(false);
   renderParticipant(currentRoom.localParticipant, true);
   currentRoom.participants.forEach((p) => {
