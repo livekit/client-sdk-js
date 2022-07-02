@@ -315,6 +315,7 @@ export interface SimulcastCodecInfo {
   mimeType: string;
   mid: string;
   cid: string;
+  layers: VideoLayer[];
 }
 
 export interface TrackInfo {
@@ -499,10 +500,15 @@ export interface ClientConfiguration {
   video?: VideoConfiguration;
   screen?: VideoConfiguration;
   resumeConnection: ClientConfigSetting;
+  disabledCodecs?: DisabledCodecs;
 }
 
 export interface VideoConfiguration {
   hardwareEncoder: ClientConfigSetting;
+}
+
+export interface DisabledCodecs {
+  codecs: Codec[];
 }
 
 export interface RTPStats {
@@ -531,7 +537,9 @@ export interface RTPStats {
   jitterMax: number;
   gapHistogram: { [key: number]: number };
   nacks: number;
+  nackAcks: number;
   nackMisses: number;
+  nackRepeated: number;
   plis: number;
   lastPli?: Date;
   firs: number;
@@ -1015,7 +1023,7 @@ export const ParticipantInfo = {
 };
 
 function createBaseSimulcastCodecInfo(): SimulcastCodecInfo {
-  return { mimeType: '', mid: '', cid: '' };
+  return { mimeType: '', mid: '', cid: '', layers: [] };
 }
 
 export const SimulcastCodecInfo = {
@@ -1028,6 +1036,9 @@ export const SimulcastCodecInfo = {
     }
     if (message.cid !== '') {
       writer.uint32(26).string(message.cid);
+    }
+    for (const v of message.layers) {
+      VideoLayer.encode(v!, writer.uint32(34).fork()).ldelim();
     }
     return writer;
   },
@@ -1048,6 +1059,9 @@ export const SimulcastCodecInfo = {
         case 3:
           message.cid = reader.string();
           break;
+        case 4:
+          message.layers.push(VideoLayer.decode(reader, reader.uint32()));
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1061,6 +1075,9 @@ export const SimulcastCodecInfo = {
       mimeType: isSet(object.mimeType) ? String(object.mimeType) : '',
       mid: isSet(object.mid) ? String(object.mid) : '',
       cid: isSet(object.cid) ? String(object.cid) : '',
+      layers: Array.isArray(object?.layers)
+        ? object.layers.map((e: any) => VideoLayer.fromJSON(e))
+        : [],
     };
   },
 
@@ -1069,6 +1086,11 @@ export const SimulcastCodecInfo = {
     message.mimeType !== undefined && (obj.mimeType = message.mimeType);
     message.mid !== undefined && (obj.mid = message.mid);
     message.cid !== undefined && (obj.cid = message.cid);
+    if (message.layers) {
+      obj.layers = message.layers.map((e) => (e ? VideoLayer.toJSON(e) : undefined));
+    } else {
+      obj.layers = [];
+    }
     return obj;
   },
 
@@ -1077,6 +1099,7 @@ export const SimulcastCodecInfo = {
     message.mimeType = object.mimeType ?? '';
     message.mid = object.mid ?? '';
     message.cid = object.cid ?? '';
+    message.layers = object.layers?.map((e) => VideoLayer.fromPartial(e)) || [];
     return message;
   },
 };
@@ -1820,7 +1843,7 @@ export const ClientInfo = {
 };
 
 function createBaseClientConfiguration(): ClientConfiguration {
-  return { video: undefined, screen: undefined, resumeConnection: 0 };
+  return { video: undefined, screen: undefined, resumeConnection: 0, disabledCodecs: undefined };
 }
 
 export const ClientConfiguration = {
@@ -1833,6 +1856,9 @@ export const ClientConfiguration = {
     }
     if (message.resumeConnection !== 0) {
       writer.uint32(24).int32(message.resumeConnection);
+    }
+    if (message.disabledCodecs !== undefined) {
+      DisabledCodecs.encode(message.disabledCodecs, writer.uint32(34).fork()).ldelim();
     }
     return writer;
   },
@@ -1853,6 +1879,9 @@ export const ClientConfiguration = {
         case 3:
           message.resumeConnection = reader.int32() as any;
           break;
+        case 4:
+          message.disabledCodecs = DisabledCodecs.decode(reader, reader.uint32());
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1868,6 +1897,9 @@ export const ClientConfiguration = {
       resumeConnection: isSet(object.resumeConnection)
         ? clientConfigSettingFromJSON(object.resumeConnection)
         : 0,
+      disabledCodecs: isSet(object.disabledCodecs)
+        ? DisabledCodecs.fromJSON(object.disabledCodecs)
+        : undefined,
     };
   },
 
@@ -1879,6 +1911,10 @@ export const ClientConfiguration = {
       (obj.screen = message.screen ? VideoConfiguration.toJSON(message.screen) : undefined);
     message.resumeConnection !== undefined &&
       (obj.resumeConnection = clientConfigSettingToJSON(message.resumeConnection));
+    message.disabledCodecs !== undefined &&
+      (obj.disabledCodecs = message.disabledCodecs
+        ? DisabledCodecs.toJSON(message.disabledCodecs)
+        : undefined);
     return obj;
   },
 
@@ -1895,6 +1931,10 @@ export const ClientConfiguration = {
         ? VideoConfiguration.fromPartial(object.screen)
         : undefined;
     message.resumeConnection = object.resumeConnection ?? 0;
+    message.disabledCodecs =
+      object.disabledCodecs !== undefined && object.disabledCodecs !== null
+        ? DisabledCodecs.fromPartial(object.disabledCodecs)
+        : undefined;
     return message;
   },
 };
@@ -1951,6 +1991,59 @@ export const VideoConfiguration = {
   },
 };
 
+function createBaseDisabledCodecs(): DisabledCodecs {
+  return { codecs: [] };
+}
+
+export const DisabledCodecs = {
+  encode(message: DisabledCodecs, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    for (const v of message.codecs) {
+      Codec.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): DisabledCodecs {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDisabledCodecs();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.codecs.push(Codec.decode(reader, reader.uint32()));
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DisabledCodecs {
+    return {
+      codecs: Array.isArray(object?.codecs) ? object.codecs.map((e: any) => Codec.fromJSON(e)) : [],
+    };
+  },
+
+  toJSON(message: DisabledCodecs): unknown {
+    const obj: any = {};
+    if (message.codecs) {
+      obj.codecs = message.codecs.map((e) => (e ? Codec.toJSON(e) : undefined));
+    } else {
+      obj.codecs = [];
+    }
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<DisabledCodecs>, I>>(object: I): DisabledCodecs {
+    const message = createBaseDisabledCodecs();
+    message.codecs = object.codecs?.map((e) => Codec.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 function createBaseRTPStats(): RTPStats {
   return {
     startTime: undefined,
@@ -1978,7 +2071,9 @@ function createBaseRTPStats(): RTPStats {
     jitterMax: 0,
     gapHistogram: {},
     nacks: 0,
+    nackAcks: 0,
     nackMisses: 0,
+    nackRepeated: 0,
     plis: 0,
     lastPli: undefined,
     firs: 0,
@@ -2072,8 +2167,14 @@ export const RTPStats = {
     if (message.nacks !== 0) {
       writer.uint32(200).uint32(message.nacks);
     }
+    if (message.nackAcks !== 0) {
+      writer.uint32(296).uint32(message.nackAcks);
+    }
     if (message.nackMisses !== 0) {
       writer.uint32(208).uint32(message.nackMisses);
+    }
+    if (message.nackRepeated !== 0) {
+      writer.uint32(304).uint32(message.nackRepeated);
     }
     if (message.plis !== 0) {
       writer.uint32(216).uint32(message.plis);
@@ -2193,8 +2294,14 @@ export const RTPStats = {
         case 25:
           message.nacks = reader.uint32();
           break;
+        case 37:
+          message.nackAcks = reader.uint32();
+          break;
         case 26:
           message.nackMisses = reader.uint32();
+          break;
+        case 38:
+          message.nackRepeated = reader.uint32();
           break;
         case 27:
           message.plis = reader.uint32();
@@ -2273,7 +2380,9 @@ export const RTPStats = {
           )
         : {},
       nacks: isSet(object.nacks) ? Number(object.nacks) : 0,
+      nackAcks: isSet(object.nackAcks) ? Number(object.nackAcks) : 0,
       nackMisses: isSet(object.nackMisses) ? Number(object.nackMisses) : 0,
+      nackRepeated: isSet(object.nackRepeated) ? Number(object.nackRepeated) : 0,
       plis: isSet(object.plis) ? Number(object.plis) : 0,
       lastPli: isSet(object.lastPli) ? fromJsonTimestamp(object.lastPli) : undefined,
       firs: isSet(object.firs) ? Number(object.firs) : 0,
@@ -2327,7 +2436,9 @@ export const RTPStats = {
       });
     }
     message.nacks !== undefined && (obj.nacks = Math.round(message.nacks));
+    message.nackAcks !== undefined && (obj.nackAcks = Math.round(message.nackAcks));
     message.nackMisses !== undefined && (obj.nackMisses = Math.round(message.nackMisses));
+    message.nackRepeated !== undefined && (obj.nackRepeated = Math.round(message.nackRepeated));
     message.plis !== undefined && (obj.plis = Math.round(message.plis));
     message.lastPli !== undefined && (obj.lastPli = message.lastPli.toISOString());
     message.firs !== undefined && (obj.firs = Math.round(message.firs));
@@ -2376,7 +2487,9 @@ export const RTPStats = {
       return acc;
     }, {});
     message.nacks = object.nacks ?? 0;
+    message.nackAcks = object.nackAcks ?? 0;
     message.nackMisses = object.nackMisses ?? 0;
+    message.nackRepeated = object.nackRepeated ?? 0;
     message.plis = object.plis ?? 0;
     message.lastPli = object.lastPli ?? undefined;
     message.firs = object.firs ?? 0;
@@ -2480,9 +2593,9 @@ const btoa: (bin: string) => string =
   globalThis.btoa || ((bin) => globalThis.Buffer.from(bin, 'binary').toString('base64'));
 function base64FromBytes(arr: Uint8Array): string {
   const bin: string[] = [];
-  arr.forEach((byte) => {
+  for (const byte of arr) {
     bin.push(String.fromCharCode(byte));
-  });
+  }
   return btoa(bin.join(''));
 }
 

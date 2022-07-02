@@ -15,6 +15,7 @@ import {
 import {
   ConnectionQualityUpdate,
   JoinResponse,
+  LeaveRequest_LeaveReason,
   SimulateScenario,
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
@@ -150,8 +151,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.onTrackAdded(mediaTrack, stream, receiver);
         },
       )
-      .on(EngineEvent.Disconnected, () => {
-        this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+      .on(EngineEvent.Disconnected, (reason?: LeaveRequest_LeaveReason) => {
+        this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, reason);
       })
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
@@ -645,7 +646,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
   };
 
-  private handleDisconnect(shouldStopTracks = true) {
+  private handleDisconnect(shouldStopTracks = true, reason?: LeaveRequest_LeaveReason) {
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
         p.unpublishTrack(pub.trackSid);
@@ -673,7 +674,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
     }
     this.setAndEmitConnectionState(ConnectionState.Disconnected);
-    this.emit(RoomEvent.Disconnected);
+    this.emit(RoomEvent.Disconnected, reason);
   }
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
@@ -1091,7 +1092,7 @@ export default Room;
 export type RoomEventCallbacks = {
   reconnecting: () => void;
   reconnected: () => void;
-  disconnected: () => void;
+  disconnected: (reason?: LeaveRequest_LeaveReason) => void;
   /** @deprecated stateChanged has been renamed to connectionStateChanged */
   stateChanged: (state: ConnectionState) => void;
   connectionStateChanged: (state: ConnectionState) => void;

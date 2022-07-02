@@ -15,6 +15,7 @@ import {
   AddTrackRequest,
   JoinResponse,
   LeaveRequest,
+  LeaveRequest_LeaveReason,
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
@@ -360,7 +361,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.fullReconnectOnNext = true;
         this.primaryPC = undefined;
       } else {
-        this.emit(EngineEvent.Disconnected);
+        this.emit(EngineEvent.Disconnected, leave?.reason);
         this.close();
       }
       log.trace('leave request', { leave });
@@ -716,7 +717,7 @@ class SignalReconnectError extends Error {}
 
 export type EngineEventCallbacks = {
   connected: () => void;
-  disconnected: () => void;
+  disconnected: (reason?: LeaveRequest_LeaveReason) => void;
   resuming: () => void;
   resumed: () => void;
   restarting: () => void;
