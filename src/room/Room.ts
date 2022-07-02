@@ -551,14 +551,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // at that time, ICE connectivity has not been established so the track is not
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
-    if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
-      setTimeout(() => {
+    if (this.connectFuture) {
+      this.connectFuture.promise.then(() => {
         this.onTrackAdded(mediaTrack, stream, receiver);
-      }, 50);
+      });
       return;
     }
     if (this.state === ConnectionState.Disconnected) {
       log.warn('skipping incoming track after Room disconnected');
+      return;
     }
     const parts = unpackStreamId(stream.id);
     const participantId = parts[0];
