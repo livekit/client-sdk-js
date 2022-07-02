@@ -3,8 +3,8 @@ import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import { VideoCodec } from './options';
 import { getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, isMobile } from '../utils';
+import { VideoCodec } from './options';
 import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {
@@ -105,7 +105,9 @@ export default class LocalTrack extends Track {
     // on Safari, the old audio track must be stopped before attempting to acquire
     // the new track, otherwise the new track will stop with
     // 'A MediaStreamTrack ended due to a capture failure`
-    this._mediaStreamTrack.stop();
+    if (!this.providedByUser) {
+      this._mediaStreamTrack.stop();
+    }
 
     track.addEventListener('ended', this.handleEnded);
     log.debug('replace MediaStreamTrack');
