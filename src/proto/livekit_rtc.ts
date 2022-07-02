@@ -9,6 +9,7 @@ import {
   ClientConfiguration,
   TrackInfo,
   VideoQuality,
+  DisconnectReason,
   ConnectionQuality,
   VideoLayer,
   ParticipantTracks,
@@ -19,6 +20,8 @@ import {
   trackSourceToJSON,
   videoQualityFromJSON,
   videoQualityToJSON,
+  disconnectReasonFromJSON,
+  disconnectReasonToJSON,
   connectionQualityFromJSON,
   connectionQualityToJSON,
 } from './livekit_models';
@@ -283,6 +286,7 @@ export interface LeaveRequest {
    * indicates clients should attempt full-reconnect sequence
    */
   canReconnect: boolean;
+  reason: DisconnectReason;
 }
 
 /** message to indicate published video track dimensions are changing */
@@ -1836,13 +1840,16 @@ export const UpdateTrackSettings = {
 };
 
 function createBaseLeaveRequest(): LeaveRequest {
-  return { canReconnect: false };
+  return { canReconnect: false, reason: 0 };
 }
 
 export const LeaveRequest = {
   encode(message: LeaveRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.canReconnect === true) {
       writer.uint32(8).bool(message.canReconnect);
+    }
+    if (message.reason !== 0) {
+      writer.uint32(16).int32(message.reason);
     }
     return writer;
   },
@@ -1857,6 +1864,9 @@ export const LeaveRequest = {
         case 1:
           message.canReconnect = reader.bool();
           break;
+        case 2:
+          message.reason = reader.int32() as any;
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1868,18 +1878,21 @@ export const LeaveRequest = {
   fromJSON(object: any): LeaveRequest {
     return {
       canReconnect: isSet(object.canReconnect) ? Boolean(object.canReconnect) : false,
+      reason: isSet(object.reason) ? disconnectReasonFromJSON(object.reason) : 0,
     };
   },
 
   toJSON(message: LeaveRequest): unknown {
     const obj: any = {};
     message.canReconnect !== undefined && (obj.canReconnect = message.canReconnect);
+    message.reason !== undefined && (obj.reason = disconnectReasonToJSON(message.reason));
     return obj;
   },
 
   fromPartial<I extends Exact<DeepPartial<LeaveRequest>, I>>(object: I): LeaveRequest {
     const message = createBaseLeaveRequest();
     message.canReconnect = object.canReconnect ?? false;
+    message.reason = object.reason ?? 0;
     return message;
   },
 };
