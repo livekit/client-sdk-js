@@ -36,7 +36,7 @@ export default class LocalAudioTrack extends LocalTrack {
 
   async mute(): Promise<LocalAudioTrack> {
     // disabled special handling as it will cause BT headsets to switch communication modes
-    if (this.source === Track.Source.Microphone && this.stopOnMute) {
+    if (this.source === Track.Source.Microphone && this.stopOnMute && !this.isUserProvided) {
       log.debug('stopping mic track');
       // also stop the track, so that microphone indicator is turned off
       this._mediaStreamTrack.stop();

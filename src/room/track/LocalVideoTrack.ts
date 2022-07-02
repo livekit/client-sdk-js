@@ -86,7 +86,7 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   async mute(): Promise<LocalVideoTrack> {
-    if (this.source === Track.Source.Camera) {
+    if (this.source === Track.Source.Camera && !this.isUserProvided) {
       log.debug('stopping camera track');
       // also stop the track, so that camera indicator is turned off
       this._mediaStreamTrack.stop();
