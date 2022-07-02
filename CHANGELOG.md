@@ -1,5 +1,21 @@
 # Change Log
 
+## 1.1.9
+
+### Patch Changes
+
+- [#303](https://github.com/livekit/client-sdk-js/pull/303) [`3a76634`](https://github.com/livekit/client-sdk-js/commit/3a766349a9794ba5da3ec6858d1aad2abe23cf47) Thanks [@davidzhao](https://github.com/davidzhao)! - Do not stop tracks that are userProvided during mute
+
+* [#299](https://github.com/livekit/client-sdk-js/pull/299) [`22ee04a`](https://github.com/livekit/client-sdk-js/commit/22ee04aec41174acc0163c23527b9f979d560c5d) Thanks [@davidzhao](https://github.com/davidzhao)! - Do not attempt to add subscribed track when disconnected
+
+- [#297](https://github.com/livekit/client-sdk-js/pull/297) [`aef3470`](https://github.com/livekit/client-sdk-js/commit/aef34700a052563c77ebd58ff367c3b581a31a67) Thanks [@lukasIO](https://github.com/lukasIO)! - Mirror muted state on remote mediastreamtrack
+
+* [#301](https://github.com/livekit/client-sdk-js/pull/301) [`a2f36d6`](https://github.com/livekit/client-sdk-js/commit/a2f36d63aafd00e5630e39e3ac12ca32ac9d4d30) Thanks [@lukasIO](https://github.com/lukasIO)! - Re-use external queue library for signalling queue
+
+- [#300](https://github.com/livekit/client-sdk-js/pull/300) [`f294120`](https://github.com/livekit/client-sdk-js/commit/f294120d8f2f4f2794b11fd56ac5fd64c70a998a) Thanks [@lukasIO](https://github.com/lukasIO)! - Queue and await parallel calls to mute/unmute for a track
+
+* [#304](https://github.com/livekit/client-sdk-js/pull/304) [`9bb9430`](https://github.com/livekit/client-sdk-js/commit/9bb94303c3cd72d077d2e00af0d0916c7257fc5f) Thanks [@lukasIO](https://github.com/lukasIO)! - Forward reason of disconnected event
+
 ## 1.1.8
 
 ### Patch Changes
