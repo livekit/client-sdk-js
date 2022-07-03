@@ -1,5 +1,5 @@
-import 'webrtc-adapter';
 import Queue from 'async-await-queue';
+import 'webrtc-adapter';
 import log from '../logger';
 import {
   ClientInfo,

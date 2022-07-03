@@ -358,7 +358,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
-  disconnect = (stopTracks = true) => {
+  disconnect = async (stopTracks = true) => {
+    log.info('disconnect from room', { identity: this.localParticipant.identity });
     if (this.state === ConnectionState.Connecting) {
       // try aborting pending connection attempt
       log.warn('abort connection attempt');
@@ -367,14 +368,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     // send leave
     if (this.engine?.client.isConnected) {
-      this.engine.client.sendLeave();
+      await this.engine.client.sendLeave();
     }
     // close engine (also closes client)
     if (this.engine) {
       this.engine.close();
     }
 
-    this.handleDisconnect(stopTracks);
+    this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
     /* @ts-ignore */
     this.engine = undefined;
   };
@@ -647,6 +648,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
+    if (this.state === ConnectionState.Disconnected) {
+      return;
+    }
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
         p.unpublishTrack(pub.trackSid);
@@ -662,6 +666,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         pub.track?.stop();
       }
     });
+    this.localParticipant.tracks.clear();
+    this.localParticipant.videoTracks.clear();
+    this.localParticipant.audioTracks.clear();
 
     this.participants.clear();
     this.activeSpeakers = [];
@@ -823,18 +830,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
-    pub._allowed = update.allowed;
-    participant.emit(
-      ParticipantEvent.TrackSubscriptionPermissionChanged,
-      pub,
-      pub.subscriptionStatus,
-    );
-    this.emitWhenConnected(
-      RoomEvent.TrackSubscriptionPermissionChanged,
-      pub,
-      pub.subscriptionStatus,
-      participant,
-    );
+    pub.setAllowed(update.allowed);
   };
 
   private handleDataPacket = (userPacket: UserPacket, kind: DataPacket_Kind) => {
@@ -971,7 +967,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             participant,
           );
         },
-      );
+      )
+      .on(ParticipantEvent.TrackSubscriptionPermissionChanged, (pub, status) => {
+        this.emitWhenConnected(
+          RoomEvent.TrackSubscriptionPermissionChanged,
+          pub,
+          status,
+          participant,
+        );
+      });
 
     // update info at the end after callbacks have been set up
     if (info) {
