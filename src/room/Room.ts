@@ -375,7 +375,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.engine.close();
     }
 
-    this.handleDisconnect(stopTracks);
+    this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
     /* @ts-ignore */
     this.engine = undefined;
   };
@@ -648,6 +648,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
+    if (this.state === ConnectionState.Disconnected) {
+      return;
+    }
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
         p.unpublishTrack(pub.trackSid);
@@ -663,6 +666,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         pub.track?.stop();
       }
     });
+    this.localParticipant.tracks.clear();
+    this.localParticipant.videoTracks.clear();
+    this.localParticipant.audioTracks.clear();
 
     this.participants.clear();
     this.activeSpeakers = [];
