@@ -358,7 +358,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
-  disconnect = (stopTracks = true) => {
+  disconnect = async (stopTracks = true) => {
+    log.info('disconnect from room', { identity: this.localParticipant.identity });
     if (this.state === ConnectionState.Connecting) {
       // try aborting pending connection attempt
       log.warn('abort connection attempt');
@@ -367,7 +368,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     // send leave
     if (this.engine?.client.isConnected) {
-      this.engine.client.sendLeave();
+      await this.engine.client.sendLeave();
     }
     // close engine (also closes client)
     if (this.engine) {
