@@ -28,6 +28,9 @@ export default class RemoteTrackPublication extends TrackPublication {
    */
   setSubscribed(subscribed: boolean) {
     this.subscribed = subscribed;
+    // reset allowed status when desired subscription state changes
+    // server will notify client via signal message if it's not allowed
+    this._allowed = true;
 
     const sub: UpdateSubscription = {
       trackSids: [this.trackSid],
@@ -46,10 +49,10 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   get subscriptionStatus(): TrackPublication.SubscriptionStatus {
     if (this.subscribed === false || !super.isSubscribed) {
+      if (!this._allowed) {
+        return TrackPublication.SubscriptionStatus.NotAllowed;
+      }
       return TrackPublication.SubscriptionStatus.Unsubscribed;
-    }
-    if (!this._allowed) {
-      return TrackPublication.SubscriptionStatus.NotAllowed;
     }
     return TrackPublication.SubscriptionStatus.Subscribed;
   }
@@ -61,10 +64,11 @@ export default class RemoteTrackPublication extends TrackPublication {
     if (this.subscribed === false) {
       return false;
     }
-    if (!this._allowed) {
-      return false;
-    }
     return super.isSubscribed;
+  }
+
+  get shouldSubscribe(): boolean | undefined {
+    return this.subscribed;
   }
 
   get isEnabled(): boolean {
