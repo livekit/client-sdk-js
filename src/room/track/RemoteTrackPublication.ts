@@ -67,10 +67,6 @@ export default class RemoteTrackPublication extends TrackPublication {
     return super.isSubscribed;
   }
 
-  get shouldSubscribe(): boolean | undefined {
-    return this.subscribed;
-  }
-
   get isEnabled(): boolean {
     return !this.disabled;
   }
