@@ -824,18 +824,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
-    pub._allowed = update.allowed;
-    participant.emit(
-      ParticipantEvent.TrackSubscriptionPermissionChanged,
-      pub,
-      pub.subscriptionStatus,
-    );
-    this.emitWhenConnected(
-      RoomEvent.TrackSubscriptionPermissionChanged,
-      pub,
-      pub.subscriptionStatus,
-      participant,
-    );
+    pub.setAllowed(update.allowed);
   };
 
   private handleDataPacket = (userPacket: UserPacket, kind: DataPacket_Kind) => {
@@ -972,7 +961,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             participant,
           );
         },
-      );
+      )
+      .on(ParticipantEvent.TrackSubscriptionPermissionChanged, (pub, status) => {
+        this.emitWhenConnected(
+          RoomEvent.TrackSubscriptionPermissionChanged,
+          pub,
+          status,
+          participant,
+        );
+      });
 
     // update info at the end after callbacks have been set up
     if (info) {

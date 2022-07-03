@@ -402,6 +402,8 @@ export enum TrackEvent {
   Muted = 'muted',
   Unmuted = 'unmuted',
   Ended = 'ended',
+  Subscribed = 'subscribed',
+  Unsubscribed = 'unsubscribed',
   /** @internal */
   UpdateSettings = 'updateSettings',
   /** @internal */
@@ -433,4 +435,9 @@ export enum TrackEvent {
    * Only fires on LocalTracks
    */
   UpstreamResumed = 'upstreamResumed',
+  /**
+   * @internal
+   * Fires on RemoteTrackPublication
+   */
+  SubscriptionPermissionChanged = 'subscriptionPermissionChanged',
 }
