@@ -153,6 +153,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     }
   }
 
+  /** @internal */
   setAllowed(allowed: boolean) {
     const prevStatus = this.subscriptionStatus;
     this.allowed = allowed;
