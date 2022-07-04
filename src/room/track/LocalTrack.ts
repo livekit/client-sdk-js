@@ -117,6 +117,8 @@ export default class LocalTrack extends Track {
     }
     this._mediaStreamTrack = track;
 
+    await this.resumeUpstream();
+
     this.attachedElements.forEach((el) => {
       attachToElement(track, el);
     });
@@ -165,6 +167,8 @@ export default class LocalTrack extends Track {
     }
 
     this._mediaStreamTrack = newTrack;
+
+    await this.resumeUpstream();
 
     this.attachedElements.forEach((el) => {
       attachToElement(newTrack, el);
