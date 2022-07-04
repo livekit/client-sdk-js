@@ -99,7 +99,6 @@ const appActions = {
     shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
-    console.log('permissions', { permissions: navigator?.permissions });
 
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
