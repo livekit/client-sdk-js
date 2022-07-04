@@ -909,20 +909,18 @@ export default class LocalParticipant extends Participant {
       try {
         if (isWeb()) {
           const currentPermissions = await navigator?.permissions.query({
+            // the permission query for camera and microphone currently not supported in Safari and Firefox
             // @ts-ignore
             name: track.source === Track.Source.Camera ? 'camera' : 'microphone',
           });
-          // the permission query for camera and microphone currently not supported in Safari and Firefox
           if (currentPermissions && currentPermissions.state === 'denied') {
             log.warn(`user has revoked access to ${track.source}`);
 
             // detect granted change after permissions were denied to try and resume then
-            currentPermissions.onchange = (ev) => {
-              // @ts-ignore
-              if (ev?.target?.state !== 'denied') {
+            currentPermissions.onchange = () => {
+              if (currentPermissions.state !== 'denied') {
                 track.restartTrack();
-                // @ts-ignore
-                ev.target.onchange = undefined;
+                currentPermissions.onchange = null;
               }
             };
             throw new Error('GetUserMedia Permission denied');
