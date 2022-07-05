@@ -904,26 +904,30 @@ export default class LocalParticipant extends Participant {
       });
       this.unpublishTrack(track);
     } else if (track.isUserProvided) {
-      // do nothing for user managed tracks
+      await track.pauseUpstream();
     } else if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
       try {
         if (isWeb()) {
-          const currentPermissions = await navigator?.permissions.query({
-            // the permission query for camera and microphone currently not supported in Safari and Firefox
-            // @ts-ignore
-            name: track.source === Track.Source.Camera ? 'camera' : 'microphone',
-          });
-          if (currentPermissions && currentPermissions.state === 'denied') {
-            log.warn(`user has revoked access to ${track.source}`);
+          try {
+            const currentPermissions = await navigator?.permissions.query({
+              // the permission query for camera and microphone currently not supported in Safari and Firefox
+              // @ts-ignore
+              name: track.source === Track.Source.Camera ? 'camera' : 'microphone',
+            });
+            if (currentPermissions && currentPermissions.state === 'denied') {
+              log.warn(`user has revoked access to ${track.source}`);
 
-            // detect granted change after permissions were denied to try and resume then
-            currentPermissions.onchange = () => {
-              if (currentPermissions.state !== 'denied') {
-                track.restartTrack();
-                currentPermissions.onchange = null;
-              }
-            };
-            throw new Error('GetUserMedia Permission denied');
+              // detect granted change after permissions were denied to try and resume then
+              currentPermissions.onchange = () => {
+                if (currentPermissions.state !== 'denied') {
+                  track.restartTrack();
+                  currentPermissions.onchange = null;
+                }
+              };
+              throw new Error('GetUserMedia Permission denied');
+            }
+          } catch (e: any) {
+            // permissions query fails for firefox, but we continue and try to restart the track
           }
         }
         log.debug('track ended, attempting to use a different device');
