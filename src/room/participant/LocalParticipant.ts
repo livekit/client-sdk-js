@@ -927,7 +927,7 @@ export default class LocalParticipant extends Participant {
               throw new Error('GetUserMedia Permission denied');
             }
           } catch (e: any) {
-            // permissions query fails for firefox, but we continue and try to restart the track
+            // permissions query fails for firefox, we continue and try to restart the track
           }
         }
         log.debug('track ended, attempting to use a different device');
