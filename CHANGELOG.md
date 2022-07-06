@@ -1,5 +1,23 @@
 # Change Log
 
+## 1.2.0
+
+### Minor Changes
+
+- [#308](https://github.com/livekit/client-sdk-js/pull/308) [`5b1c5a0`](https://github.com/livekit/client-sdk-js/commit/5b1c5a0192ffdd68546b64ad855156bf1edfcc7e) Thanks [@lukasIO](https://github.com/lukasIO)! - Try to re-aquire mediastreamtrack when device has been disconnected, pause upstream if no device could be acquired
+
+* [#310](https://github.com/livekit/client-sdk-js/pull/310) [`40a51f5`](https://github.com/livekit/client-sdk-js/commit/40a51f52a3428a0a0614d206911eab0ac8b49ea9) Thanks [@lukasIO](https://github.com/lukasIO)! - Deprecate publishOnly connect option
+
+### Patch Changes
+
+- [#309](https://github.com/livekit/client-sdk-js/pull/309) [`9b8599d`](https://github.com/livekit/client-sdk-js/commit/9b8599deb177ebd066b4f9e4718e3e11f809d5e5) Thanks [@cnderrauber](https://github.com/cnderrauber)! - fix safari data channel migration failed
+
+* [#306](https://github.com/livekit/client-sdk-js/pull/306) [`c786143`](https://github.com/livekit/client-sdk-js/commit/c786143291c3cd2281e12eababff5ad71f14e248) Thanks [@davidzhao](https://github.com/davidzhao)! - Determine track allowed status primarily by precense of Track
+
+- [#306](https://github.com/livekit/client-sdk-js/pull/306) [`c786143`](https://github.com/livekit/client-sdk-js/commit/c786143291c3cd2281e12eababff5ad71f14e248) Thanks [@davidzhao](https://github.com/davidzhao)! - Improved Track event handling for permission changed
+
+* [#306](https://github.com/livekit/client-sdk-js/pull/306) [`c786143`](https://github.com/livekit/client-sdk-js/commit/c786143291c3cd2281e12eababff5ad71f14e248) Thanks [@davidzhao](https://github.com/davidzhao)! - Room.disconnect is now an async function
+
 ## 1.1.9
 
 ### Patch Changes
