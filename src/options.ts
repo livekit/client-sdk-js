@@ -68,6 +68,7 @@ export interface RoomConnectOptions {
   rtcConfig?: RTCConfiguration;
 
   /**
+   * @deprecated
    * publish only mode
    */
   publishOnly?: string;

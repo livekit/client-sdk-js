@@ -57,7 +57,6 @@ const appActions = {
     const dynacast = (<HTMLInputElement>$('dynacast')).checked;
     const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
     const adaptiveStream = (<HTMLInputElement>$('adaptive-stream')).checked;
-    const publishOnly = (<HTMLInputElement>$('publish-only')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
 
@@ -78,8 +77,7 @@ const appActions = {
     };
 
     const connectOpts: RoomConnectOptions = {
-      autoSubscribe: !publishOnly,
-      publishOnly: publishOnly ? 'publish_only' : undefined,
+      autoSubscribe: true,
     };
     if (forceTURN) {
       connectOpts.rtcConfig = {
