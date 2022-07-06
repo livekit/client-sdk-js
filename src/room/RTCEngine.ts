@@ -582,7 +582,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     await this.waitForPCConnected();
     this.client.setReconnected();
 
-    // recreate publish datachannel if it's id is null 
+    // recreate publish datachannel if it's id is null
     // (for safari https://bugs.webkit.org/show_bug.cgi?id=184688)
     if (this.reliableDC?.readyState === 'open' && this.reliableDC.id === null) {
       this.createDataChannels();
