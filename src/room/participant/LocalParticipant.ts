@@ -32,7 +32,7 @@ import {
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
-import { isFireFox } from '../utils';
+import { isFireFox, isWeb } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import { computeVideoEncodings, mediaTrackToLocalTrack } from './publishUtils';
@@ -894,11 +894,49 @@ export default class LocalParticipant extends Participant {
     this.unpublishTrack(track.track!);
   };
 
-  private handleTrackEnded = (track: LocalTrack) => {
-    log.debug('unpublishing local track due to TrackEnded', {
-      track: track.sid,
-    });
-    this.unpublishTrack(track);
+  private handleTrackEnded = async (track: LocalTrack) => {
+    if (
+      track.source === Track.Source.ScreenShare ||
+      track.source === Track.Source.ScreenShareAudio
+    ) {
+      log.debug('unpublishing local track due to TrackEnded', {
+        track: track.sid,
+      });
+      this.unpublishTrack(track);
+    } else if (track.isUserProvided) {
+      await track.pauseUpstream();
+    } else if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
+      try {
+        if (isWeb()) {
+          try {
+            const currentPermissions = await navigator?.permissions.query({
+              // the permission query for camera and microphone currently not supported in Safari and Firefox
+              // @ts-ignore
+              name: track.source === Track.Source.Camera ? 'camera' : 'microphone',
+            });
+            if (currentPermissions && currentPermissions.state === 'denied') {
+              log.warn(`user has revoked access to ${track.source}`);
+
+              // detect granted change after permissions were denied to try and resume then
+              currentPermissions.onchange = () => {
+                if (currentPermissions.state !== 'denied') {
+                  track.restartTrack();
+                  currentPermissions.onchange = null;
+                }
+              };
+              throw new Error('GetUserMedia Permission denied');
+            }
+          } catch (e: any) {
+            // permissions query fails for firefox, we continue and try to restart the track
+          }
+        }
+        log.debug('track ended, attempting to use a different device');
+        await track.restartTrack();
+      } catch (e) {
+        log.warn(`could not restart track, pausing upstream instead`);
+        await track.pauseUpstream();
+      }
+    }
   };
 
   private getPublicationForTrack(

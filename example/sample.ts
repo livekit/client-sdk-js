@@ -21,8 +21,8 @@ import {
   VideoCaptureOptions,
   VideoCodec,
   VideoPresets,
-  VideoQuality
-} from '../src/index'
+  VideoQuality,
+} from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -99,6 +99,7 @@ const appActions = {
     shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
+
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
       .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
@@ -370,7 +371,7 @@ function participantDisconnected(participant: RemoteParticipant) {
 
 function handleRoomDisconnect(reason?: DisconnectReason) {
   if (!currentRoom) return;
-  appendLog('disconnected from room', {reason});
+  appendLog('disconnected from room', { reason });
   setButtonsForState(false);
   renderParticipant(currentRoom.localParticipant, true);
   currentRoom.participants.forEach((p) => {
