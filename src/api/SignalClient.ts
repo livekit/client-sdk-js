@@ -37,6 +37,7 @@ interface ConnectOpts {
   /** internal */
   reconnect?: boolean;
 
+  /** @deprecated */
   publishOnly?: string;
 
   adaptiveStream?: boolean;
@@ -45,6 +46,7 @@ interface ConnectOpts {
 // public options
 export interface SignalOptions {
   autoSubscribe?: boolean;
+  /** @deprecated */
   publishOnly?: string;
   adaptiveStream?: boolean;
 }
