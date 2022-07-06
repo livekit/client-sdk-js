@@ -277,23 +277,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.emit(EngineEvent.MediaTrackAdded, track, ev.stream);
       };
     }
-    // data channels
-    this.lossyDC = this.publisher.pc.createDataChannel(lossyDataChannel, {
-      // will drop older packets that arrive
-      ordered: true,
-      maxRetransmits: 0,
-    });
-    this.reliableDC = this.publisher.pc.createDataChannel(reliableDataChannel, {
-      ordered: true,
-    });
 
-    // also handle messages over the pub channel, for backwards compatibility
-    this.lossyDC.onmessage = this.handleDataMessage;
-    this.reliableDC.onmessage = this.handleDataMessage;
-
-    // handle datachannel errors
-    this.lossyDC.onerror = this.handleDataError;
-    this.reliableDC.onerror = this.handleDataError;
+    this.createDataChannels();
 
     // configure signaling client
     this.client.onAnswer = async (sd) => {
@@ -366,6 +351,40 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       log.trace('leave request', { leave });
     };
+  }
+
+  private createDataChannels() {
+    if (!this.publisher) {
+      return;
+    }
+
+    // clear old data channel callbacks if recreate
+    if (this.lossyDC) {
+      this.lossyDC.onmessage = null;
+      this.lossyDC.onerror = null;
+    }
+    if (this.reliableDC) {
+      this.reliableDC.onmessage = null;
+      this.reliableDC.onerror = null;
+    }
+
+    // create data channels
+    this.lossyDC = this.publisher.pc.createDataChannel(lossyDataChannel, {
+      // will drop older packets that arrive
+      ordered: true,
+      maxRetransmits: 0,
+    });
+    this.reliableDC = this.publisher.pc.createDataChannel(reliableDataChannel, {
+      ordered: true,
+    });
+
+    // also handle messages over the pub channel, for backwards compatibility
+    this.lossyDC.onmessage = this.handleDataMessage;
+    this.reliableDC.onmessage = this.handleDataMessage;
+
+    // handle datachannel errors
+    this.lossyDC.onerror = this.handleDataError;
+    this.reliableDC.onerror = this.handleDataError;
   }
 
   private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
@@ -562,6 +581,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     await this.waitForPCConnected();
     this.client.setReconnected();
+
+    // recreate publish datachannel if it's id is null 
+    // (for safari https://bugs.webkit.org/show_bug.cgi?id=184688)
+    if (this.reliableDC?.readyState === 'open' && this.reliableDC.id === null) {
+      this.createDataChannels();
+    }
 
     // resume success
     this.emit(EngineEvent.Resumed);
