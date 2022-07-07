@@ -1,3 +1,5 @@
+import log from '../logger';
+
 const defaultId = 'default';
 
 export default class DeviceManager {
@@ -12,13 +14,23 @@ export default class DeviceManager {
     return this.instance;
   }
 
+  static getUserMediaPromise: Promise<MediaStream> | undefined;
+
   async getDevices(
     kind?: MediaDeviceKind,
     requestPermissions: boolean = true,
   ): Promise<MediaDeviceInfo[]> {
+    if (DeviceManager.getUserMediaPromise) {
+      log.debug('awaiting getUserMediaPromise');
+      try {
+        await DeviceManager.getUserMediaPromise;
+      } catch (e: any) {
+        log.warn('error waiting for media permissons');
+      }
+    }
     let devices = await navigator.mediaDevices.enumerateDevices();
 
-    if (requestPermissions) {
+    if (requestPermissions && !DeviceManager.getUserMediaPromise) {
       const isDummyDeviceOrEmpty =
         devices.length === 0 ||
         devices.some((device) => {
