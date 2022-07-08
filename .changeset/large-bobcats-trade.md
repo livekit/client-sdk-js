@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Avoid multiple calls to getUserMedia for getLocalDevices
+Use invalid getUserMedia calls for getLocalDevices, fixes iOS Safari stopping mediaTracks
