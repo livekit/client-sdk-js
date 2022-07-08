@@ -12,8 +12,6 @@ export default class DeviceManager {
     return this.instance;
   }
 
-  static getUserMediaPromise: Promise<MediaStream> | undefined;
-
   async getDevices(
     kind?: MediaDeviceKind,
     requestPermissions: boolean = true,
@@ -38,10 +36,7 @@ export default class DeviceManager {
           audio: kind !== 'videoinput' ? { deviceId: { exact: 'lk-dummy' } } : false,
         };
         try {
-          const stream = await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
-          stream.getTracks().forEach((track) => {
-            track.stop();
-          });
+          await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
         } catch (e: unknown) {
           // expected to not be able to acquire user media for 'lk-dummy' deviceId constraint
         }
