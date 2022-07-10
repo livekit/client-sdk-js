@@ -23,7 +23,7 @@ import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
 import { isFireFox, isWeb, sleep } from './utils';
 import { RoomOptions } from '../options';
-import { IReconnectContext, IReconnectPolicy } from './IReconnectPolicy';
+import { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 
 const lossyDataChannel = '_lossy';
@@ -96,7 +96,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private attemptingReconnect: boolean = false;
 
-  private reconnectPolicy: IReconnectPolicy;
+  private reconnectPolicy: ReconnectPolicy;
 
   constructor(private options: RoomOptions) {
     super();
@@ -512,7 +512,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }, delay);
   };
 
-  private getNextRetryDelay(context: IReconnectContext) {
+  private getNextRetryDelay(context: ReconnectContext) {
     try {
       return this.reconnectPolicy.nextRetryDelayInMs(context);
     } catch (e) {
@@ -578,35 +578,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } catch (e) {
       throw new SignalReconnectError(e);
     }
-
     this.emit(EngineEvent.SignalResumed);
+
     this.subscriber.restartingIce = true;
-
-    let waitForPcCompleted = false;
-    const waitForPc = this.waitForPCConnected()
-      .then(() => {
-        waitForPcCompleted = true;
-      })
-      .catch(() => Error('failed to wait for peer connection'));
-
-    while (!waitForPcCompleted) {
-      // TODO: this is a workaround to check if the socket was closed while we are reconnecting
-      // if signal client reconnects with ?reconnect=1 ws.onclose is almost immediately called after ws.onopen
-      if (!this.client.isConnected) {
-        this.fullReconnectOnNext = true;
-        throw new SignalReconnectError('socket closed after opening');
-      }
-
-      await sleep(50);
-    }
-
-    await waitForPc;
 
     // only restart publisher if it's needed
     if (this.hasPublished) {
       await this.publisher.createAndSendOffer({ iceRestart: true });
     }
 
+    await this.waitForPCConnected();
     this.client.setReconnected();
 
     // resume success

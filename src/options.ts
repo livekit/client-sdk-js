@@ -4,7 +4,7 @@ import {
   VideoCaptureOptions,
 } from './room/track/options';
 import { AdaptiveStreamSettings } from './room/track/types';
-import { IReconnectPolicy } from './room/IReconnectPolicy';
+import { ReconnectPolicy } from './room/ReconnectPolicy';
 
 /**
  * Options for when creating a new room
@@ -58,7 +58,7 @@ export interface RoomOptions {
   /**
    * policy to use when attempting to reconnect
    */
-  reconnectPolicy?: IReconnectPolicy;
+  reconnectPolicy?: ReconnectPolicy;
 }
 
 /**
