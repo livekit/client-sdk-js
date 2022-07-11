@@ -2,6 +2,13 @@ import { debounce } from 'ts-debounce';
 import log from '../logger';
 
 /** @internal */
+interface TrackBitrateInfo {
+  sid: string;
+  codec: string;
+  maxbr: number;
+}
+
+/** @internal */
 export default class PCTransport {
   pc: RTCPeerConnection;
 
@@ -10,6 +17,8 @@ export default class PCTransport {
   restartingIce: boolean = false;
 
   renegotiate: boolean = false;
+
+  trackBitrates: TrackBitrateInfo[] = [];
 
   onOffer?: (offer: RTCSessionDescriptionInit) => void;
 
@@ -78,8 +87,38 @@ export default class PCTransport {
     // actually negotiate
     log.debug('starting to negotiate');
     const offer = await this.pc.createOffer(options);
+
+    // mung sdp for codec bitrate setting that can't apply by sendEncoding
+    this.trackBitrates.forEach((trackbr) => {
+      let sdp = offer.sdp ?? '';
+      const sidIndex = sdp.search(new RegExp(`msid.* ${trackbr.sid}`));
+      if (sidIndex < 0) {
+        return;
+      }
+
+      const mlineStart = sdp.substring(0, sidIndex).lastIndexOf('m=');
+      const mlineEnd = sdp.indexOf('m=', sidIndex);
+      const mediaSection = sdp.substring(mlineStart, mlineEnd);
+
+      const mungedMediaSection = mediaSection.replace(
+        new RegExp(`a=rtpmap:(\\d+) ${trackbr.codec}/\\d+`, 'i'),
+        `$&\r\na=fmtp:$1 x-google-max-bitrate=${trackbr.maxbr}`,
+      );
+      sdp = sdp.substring(0, mlineStart) + mungedMediaSection + sdp.substring(mlineEnd);
+      offer.sdp = sdp;
+    });
+    this.trackBitrates = [];
+
     await this.pc.setLocalDescription(offer);
     this.onOffer(offer);
+  }
+
+  setTrackCodecBitrate(sid: string, codec: string, maxbr: number) {
+    this.trackBitrates.push({
+      sid,
+      codec,
+      maxbr,
+    });
   }
 
   close() {
