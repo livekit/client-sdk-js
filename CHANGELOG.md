@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.2.1
+
+### Patch Changes
+
+- [#316](https://github.com/livekit/client-sdk-js/pull/316) [`b534b95`](https://github.com/livekit/client-sdk-js/commit/b534b955a1b30b35da23a237a0bd98693b326c43) Thanks [@theomonnom](https://github.com/theomonnom)! - Add PublishOptions to Set\*Enabled
+
+* [#314](https://github.com/livekit/client-sdk-js/pull/314) [`d25b86c`](https://github.com/livekit/client-sdk-js/commit/d25b86caf40290310bfbc328f84e175e775dcf1f) Thanks [@cnderrauber](https://github.com/cnderrauber)! - apply av1 bitrate setting
+
 ## 1.2.0
 
 ### Minor Changes
