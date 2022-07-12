@@ -125,8 +125,9 @@ export default class LocalParticipant extends Participant {
   setCameraEnabled(
     enabled: boolean,
     options?: VideoCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.Camera, enabled, options);
+    return this.setTrackEnabled(Track.Source.Camera, enabled, options, publishOptions);
   }
 
   /**
@@ -138,8 +139,9 @@ export default class LocalParticipant extends Participant {
   setMicrophoneEnabled(
     enabled: boolean,
     options?: AudioCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.Microphone, enabled, options);
+    return this.setTrackEnabled(Track.Source.Microphone, enabled, options, publishOptions);
   }
 
   /**
@@ -149,8 +151,9 @@ export default class LocalParticipant extends Participant {
   setScreenShareEnabled(
     enabled: boolean,
     options?: ScreenShareCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options);
+    return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options, publishOptions);
   }
 
   /** @internal */
@@ -172,21 +175,25 @@ export default class LocalParticipant extends Participant {
     source: Extract<Track.Source, Track.Source.Camera>,
     enabled: boolean,
     options?: VideoCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
   private async setTrackEnabled(
     source: Extract<Track.Source, Track.Source.Microphone>,
     enabled: boolean,
     options?: AudioCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
   private async setTrackEnabled(
     source: Extract<Track.Source, Track.Source.ScreenShare>,
     enabled: boolean,
     options?: ScreenShareCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
   private async setTrackEnabled(
     source: Track.Source,
     enabled: true,
     options?: VideoCaptureOptions | AudioCaptureOptions | ScreenShareCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ) {
     log.debug('setTrackEnabled', { source, enabled });
     let track = this.getTrack(source);
@@ -224,7 +231,7 @@ export default class LocalParticipant extends Participant {
           }
           const publishPromises: Array<Promise<LocalTrackPublication>> = [];
           for (const localTrack of localTracks) {
-            publishPromises.push(this.publishTrack(localTrack));
+            publishPromises.push(this.publishTrack(localTrack, publishOptions));
           }
           const publishedTracks = await Promise.all(publishPromises);
           // for screen share publications including audio, this will only return the screen share publication, not the screen share audio one
