@@ -544,6 +544,14 @@ export default class LocalParticipant extends Participant {
       track.codec = opts.videoCodec;
     }
 
+    if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
+      this.engine.publisher.setTrackCodecBitrate(
+        req.cid,
+        track.codec,
+        encodings[0].maxBitrate / 1000,
+      );
+    }
+
     this.engine.negotiate();
 
     // store RTPSender
@@ -642,6 +650,13 @@ export default class LocalParticipant extends Participant {
     this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
     track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
 
+    if (videoCodec === 'av1' && encodings[0]?.maxBitrate) {
+      this.engine.publisher.setTrackCodecBitrate(
+        req.cid,
+        videoCodec,
+        encodings[0].maxBitrate / 1000,
+      );
+    }
     this.engine.negotiate();
     log.debug(`published ${opts.videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
   }
