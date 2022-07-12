@@ -102,7 +102,7 @@ export default class PCTransport {
 
       const mungedMediaSection = mediaSection.replace(
         new RegExp(`a=rtpmap:(\\d+) ${trackbr.codec}/\\d+`, 'i'),
-        `$&\r\na=fmtp:$1 x-google-max-bitrate=${trackbr.maxbr}`,
+        '$'.concat(`&\r\na=fmtp:$1 x-google-max-bitrate=${trackbr.maxbr}`), // Unity replaces '$&' by some random values when building ( Using concat as a workaround )
       );
       sdp = sdp.substring(0, mlineStart) + mungedMediaSection + sdp.substring(mlineEnd);
       offer.sdp = sdp;
