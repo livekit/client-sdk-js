@@ -1,5 +1,12 @@
 # Change Log
 
+## 1.2.2
+
+### Patch Changes
+
+- [#317](https://github.com/livekit/client-sdk-js/pull/317) [`68f6ae2`](https://github.com/livekit/client-sdk-js/commit/68f6ae2bf249e6469fc2c8b9a2acf95b98ed5d4d) Thanks [@theomonnom](https://github.com/theomonnom)! - Fix Unity issue with placeholders '
+  '
+
 ## 1.2.1
 
 ### Patch Changes
