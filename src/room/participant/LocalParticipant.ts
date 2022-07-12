@@ -650,7 +650,7 @@ export default class LocalParticipant extends Participant {
     this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
     track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
 
-    if (videoCodec === 'av1' && encodings[0].maxBitrate) {
+    if (videoCodec === 'av1' && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
         req.cid,
         videoCodec,
