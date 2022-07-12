@@ -544,7 +544,7 @@ export default class LocalParticipant extends Participant {
       track.codec = opts.videoCodec;
     }
 
-    if (track.codec === 'av1' && encodings && encodings[0].maxBitrate) {
+    if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
         req.cid,
         track.codec,
