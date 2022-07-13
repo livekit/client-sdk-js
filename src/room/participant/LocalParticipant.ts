@@ -563,7 +563,6 @@ export default class LocalParticipant extends Participant {
 
     // store RTPSender
     track.sender = transceiver.sender;
-    track.publishedTrackId = track.mediaStreamTrack.id;
     if (track instanceof LocalVideoTrack) {
       track.startMonitor(this.engine.client);
     } else if (track instanceof LocalAudioTrack) {
@@ -702,15 +701,12 @@ export default class LocalParticipant extends Participant {
       track.stop();
     }
 
-    const { mediaStreamTrack, publishedTrackId } = track;
+    const { mediaStreamTrack } = track;
 
     if (this.engine.publisher && this.engine.publisher.pc.connectionState !== 'closed') {
       const senders = this.engine.publisher.pc.getSenders();
       senders.forEach((sender) => {
-        if (
-          sender.track === mediaStreamTrack ||
-          (sender.track && publishedTrackId === sender.track.id)
-        ) {
+        if (sender.track === mediaStreamTrack) {
           try {
             this.engine.publisher?.pc.removeTrack(sender);
             this.engine.negotiate();
