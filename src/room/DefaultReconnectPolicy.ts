@@ -23,7 +23,7 @@ class DefaultReconnectPolicy implements ReconnectPolicy {
   }
 
   public nextRetryDelayInMs(context: ReconnectContext): number | null {
-    if (context.retryCount === this._retryDelays.length) return null;
+    if (context.retryCount >= this._retryDelays.length) return null;
 
     const retryDelay = this._retryDelays[context.retryCount];
     if (context.retryCount <= 1) return retryDelay;
