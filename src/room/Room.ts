@@ -334,10 +334,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  // private forwardEventToRoom = <T extends keyof Omit<ParticipantEventCallbacks, 'isSpeakingChanged'> = keyof Omit<ParticipantEventCallbacks, 'isSpeakingChanged'>,> (event: T, args: Parameters<ParticipantEventCallbacks[T]>) => {
-  //   this.emit(event, ...args, this.localParticipant);
-  // }
-
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
