@@ -686,8 +686,6 @@ export default class LocalParticipant extends Participant {
     }
 
     track = publication.track;
-
-    track.sender = undefined;
     track.off(TrackEvent.Muted, this.onTrackMuted);
     track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
     track.off(TrackEvent.Ended, this.handleTrackEnded);
@@ -701,21 +699,20 @@ export default class LocalParticipant extends Participant {
       track.stop();
     }
 
-    const { mediaStreamTrack } = track;
-
-    if (this.engine.publisher && this.engine.publisher.pc.connectionState !== 'closed') {
-      const senders = this.engine.publisher.pc.getSenders();
-      senders.forEach((sender) => {
-        if (sender.track === mediaStreamTrack) {
-          try {
-            this.engine.publisher?.pc.removeTrack(sender);
-            this.engine.negotiate();
-          } catch (e) {
-            log.warn('failed to remove track', { error: e, method: 'unpublishTrack' });
-          }
-        }
-      });
+    if (
+      this.engine.publisher &&
+      this.engine.publisher.pc.connectionState !== 'closed' &&
+      track.sender
+    ) {
+      try {
+        this.engine.publisher.pc.removeTrack(track.sender);
+        this.engine.negotiate();
+      } catch (e) {
+        log.warn('failed to remove track', { error: e, method: 'unpublishTrack' });
+      }
     }
+
+    track.sender = undefined;
 
     // remove from our maps
     this.tracks.delete(publication.trackSid);
