@@ -135,25 +135,6 @@ export default class PCTransport {
     });
 
     offer.sdp = write(sdpParsed);
-
-    // this.trackBitrates.forEach((trackbr) => {
-    //   let sdp = offer.sdp ?? '';
-    //   const sidIndex = sdp.search(new RegExp(`msid.* ${trackbr.sid}`));
-    //   if (sidIndex < 0) {
-    //     return;
-    //   }
-
-    //   const mlineStart = sdp.substring(0, sidIndex).lastIndexOf('m=');
-    //   const mlineEnd = sdp.indexOf('m=', sidIndex);
-    //   const mediaSection = sdp.substring(mlineStart, mlineEnd);
-
-    //   const mungedMediaSection = mediaSection.replace(
-    //     new RegExp(`a=rtpmap:(\\d+) ${trackbr.codec}/\\d+`, 'i'),
-    //     '$'.concat(`&\r\na=fmtp:$1 x-google-max-bitrate=${trackbr.maxbr}`), // Unity replaces '$&' by some random values when building ( Using concat as a workaround )
-    //   );
-    //   sdp = sdp.substring(0, mlineStart) + mungedMediaSection + sdp.substring(mlineEnd);
-    //   offer.sdp = sdp;
-    // });
     this.trackBitrates = [];
 
     await this.pc.setLocalDescription(offer);
