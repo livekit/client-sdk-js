@@ -254,36 +254,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.localParticipant.updateInfo(pi);
       // forward metadata changed for the local participant
       this.localParticipant
-        .on(ParticipantEvent.ParticipantMetadataChanged, (metadata: string | undefined) => {
-          this.emit(RoomEvent.ParticipantMetadataChanged, metadata, this.localParticipant);
-        })
-        .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
-          this.emit(RoomEvent.TrackMuted, pub, this.localParticipant);
-        })
-        .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
-          this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
-        })
-        .on(ParticipantEvent.LocalTrackPublished, (pub: LocalTrackPublication) => {
-          this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
-        })
-        .on(ParticipantEvent.LocalTrackUnpublished, (pub: LocalTrackPublication) => {
-          this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
-        })
-        .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
-          this.emit(RoomEvent.ConnectionQualityChanged, quality, this.localParticipant);
-        })
-        .on(ParticipantEvent.MediaDevicesError, (e: Error) => {
-          this.emit(RoomEvent.MediaDevicesError, e);
-        })
+        .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
+        .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
+        .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
+        .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
+        .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
+        .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
+        .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
         .on(
           ParticipantEvent.ParticipantPermissionsChanged,
-          (prevPermissions: ParticipantPermission) => {
-            this.emit(
-              RoomEvent.ParticipantPermissionsChanged,
-              prevPermissions,
-              this.localParticipant,
-            );
-          },
+          this.onLocalParticipantPermissionsChanged,
         );
 
       // populate remote participants, these should not trigger new events
@@ -656,6 +636,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
     });
 
+    this.localParticipant
+      .off(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
+      .off(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
+      .off(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
+      .off(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
+      .off(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
+      .off(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
+      .off(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
+      .off(
+        ParticipantEvent.ParticipantPermissionsChanged,
+        this.onLocalParticipantPermissionsChanged,
+      );
+
     this.localParticipant.tracks.forEach((pub) => {
       if (pub.track) {
         this.localParticipant.unpublishTrack(pub.track, shouldStopTracks);
@@ -665,6 +658,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         pub.track?.stop();
       }
     });
+
     this.localParticipant.tracks.clear();
     this.localParticipant.videoTracks.clear();
     this.localParticipant.audioTracks.clear();
@@ -1079,6 +1073,38 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     return false;
   }
+
+  private onLocalParticipantMetadataChanged = (metadata: string | undefined) => {
+    this.emit(RoomEvent.ParticipantMetadataChanged, metadata, this.localParticipant);
+  };
+
+  private onLocalTrackMuted = (pub: TrackPublication) => {
+    this.emit(RoomEvent.TrackMuted, pub, this.localParticipant);
+  };
+
+  private onLocalTrackUnmuted = (pub: TrackPublication) => {
+    this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
+  };
+
+  private onLocalTrackPublished = (pub: LocalTrackPublication) => {
+    this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
+  };
+
+  private onLocalTrackUnpublished = (pub: LocalTrackPublication) => {
+    this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
+  };
+
+  private onLocalConnectionQualityChanged = (quality: ConnectionQuality) => {
+    this.emit(RoomEvent.ConnectionQualityChanged, quality, this.localParticipant);
+  };
+
+  private onMediaDevicesError = (e: Error) => {
+    this.emit(RoomEvent.MediaDevicesError, e);
+  };
+
+  private onLocalParticipantPermissionsChanged = (prevPermissions: ParticipantPermission) => {
+    this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, this.localParticipant);
+  };
 
   // /** @internal */
   emit<E extends keyof RoomEventCallbacks>(
