@@ -4,6 +4,7 @@ import {
   VideoCaptureOptions,
 } from './room/track/options';
 import { AdaptiveStreamSettings } from './room/track/types';
+import { ReconnectPolicy } from './room/ReconnectPolicy';
 
 /**
  * Options for when creating a new room
@@ -53,6 +54,11 @@ export interface RoomOptions {
    * experimental flag, introduce a delay before sending signaling messages
    */
   expSignalLatency?: number;
+
+  /**
+   * policy to use when attempting to reconnect
+   */
+  reconnectPolicy?: ReconnectPolicy;
 }
 
 /**
