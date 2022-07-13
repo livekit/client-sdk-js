@@ -75,7 +75,6 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   stop() {
-    this.sender = undefined;
     this._mediaStreamTrack.getConstraints();
     this.simulcastCodecs.forEach((trackInfo) => {
       trackInfo.mediaStreamTrack.stop();
