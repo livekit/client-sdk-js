@@ -1,5 +1,5 @@
 import { debounce } from 'ts-debounce';
-import { parse, write } from 'sdp-transform';
+import { MediaDescription, parse, write } from 'sdp-transform';
 import log from '../logger';
 
 /** @internal */
@@ -92,29 +92,7 @@ export default class PCTransport {
     const sdpParsed = parse(offer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
       if (media.type === 'audio') {
-        // found opus codec to add nack fb
-        let opusPayload = 0
-        media.rtp.some((rtp): boolean => {
-          if (rtp.codec === 'opus') {
-            opusPayload = rtp.payload;
-            return true;
-          }
-          return false;
-        })
-
-        // add nack rtcpfb if not exist
-        if (opusPayload > 0) {
-          if (!media.rtcpFb) {
-            media.rtcpFb = [];
-          }
-
-          if (!media.rtcpFb.some((fb) => fb.payload === opusPayload && fb.type === 'nack')) {
-            media.rtcpFb.push({
-              payload: opusPayload,
-              type: 'nack',
-            });
-          }
-        }
+        ensureAudioNack(media);
       } else if (media.type === 'video') {
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
@@ -182,6 +160,19 @@ export default class PCTransport {
     this.onOffer(offer);
   }
 
+  async createAndSetAnswer(): Promise<RTCSessionDescriptionInit> {
+      const answer = await this.pc.createAnswer();
+      const sdpParsed = parse(answer.sdp ?? '');
+      sdpParsed.media.forEach((media) => {
+        if (media.type === 'audio') {
+          ensureAudioNack(media);
+        };
+      })
+      answer.sdp = write(sdpParsed);
+      await this.pc.setLocalDescription(answer);
+      return answer;
+  }
+
   setTrackCodecBitrate(sid: string, codec: string, maxbr: number) {
     this.trackBitrates.push({
       sid,
@@ -192,5 +183,36 @@ export default class PCTransport {
 
   close() {
     this.pc.close();
+  }
+}
+
+function ensureAudioNack(media: {
+  type: string;
+  port: number;
+  protocol: string;
+  payloads?: string | undefined;
+} & MediaDescription) {
+  // found opus codec to add nack fb
+  let opusPayload = 0
+  media.rtp.some((rtp): boolean => {
+    if (rtp.codec === 'opus') {
+      opusPayload = rtp.payload;
+      return true;
+    }
+    return false;
+  })
+
+  // add nack rtcpfb if not exist
+  if (opusPayload > 0) {
+    if (!media.rtcpFb) {
+      media.rtcpFb = [];
+    }
+
+    if (!media.rtcpFb.some((fb) => fb.payload === opusPayload && fb.type === 'nack')) {
+      media.rtcpFb.push({
+        payload: opusPayload,
+        type: 'nack',
+      });
+    }
   }
 }

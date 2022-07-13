@@ -317,8 +317,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       await this.subscriber.setRemoteDescription(sd);
 
       // answer the offer
-      const answer = await this.subscriber.pc.createAnswer();
-      await this.subscriber.pc.setLocalDescription(answer);
+      const answer = await this.subscriber.createAndSetAnswer();
       this.client.sendAnswer(answer);
     };
 
