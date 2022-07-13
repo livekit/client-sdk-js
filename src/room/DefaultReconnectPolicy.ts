@@ -1,16 +1,18 @@
 import { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 
+const maxRetryDelay = 7000;
+
 const DEFAULT_RETRY_DELAYS_IN_MS = [
   0,
   300,
   2 * 2 * 300,
   3 * 3 * 300,
   4 * 4 * 300,
-  5 * 5 * 300,
-  6 * 6 * 300,
-  7 * 7 * 300,
-  8 * 8 * 300,
-  9 * 9 * 300,
+  maxRetryDelay,
+  maxRetryDelay,
+  maxRetryDelay,
+  maxRetryDelay,
+  maxRetryDelay,
 ];
 
 class DefaultReconnectPolicy implements ReconnectPolicy {
