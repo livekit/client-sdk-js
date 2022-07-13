@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Reset local participant on disconnect
+Remove internal event listeners from local participant on disconnect
