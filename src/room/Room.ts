@@ -668,6 +668,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant.tracks.clear();
     this.localParticipant.videoTracks.clear();
     this.localParticipant.audioTracks.clear();
+    this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
 
     this.participants.clear();
     this.activeSpeakers = [];
