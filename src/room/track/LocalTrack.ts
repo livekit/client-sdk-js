@@ -60,6 +60,11 @@ export default class LocalTrack extends Track {
 
   private _isUpstreamPaused: boolean = false;
 
+  /**
+   * @internal
+   */
+  publishedTrackId: string | undefined;
+
   get isUpstreamPaused() {
     return this._isUpstreamPaused;
   }
@@ -114,6 +119,7 @@ export default class LocalTrack extends Track {
 
     if (this.sender) {
       await this.sender.replaceTrack(track);
+      this.publishedTrackId = track.id;
     }
     this._mediaStreamTrack = track;
 
@@ -164,6 +170,7 @@ export default class LocalTrack extends Track {
     if (this.sender) {
       // Track can be restarted after it's unpublished
       await this.sender.replaceTrack(newTrack);
+      this.publishedTrackId = newTrack.id;
     }
 
     this._mediaStreamTrack = newTrack;
@@ -240,6 +247,7 @@ export default class LocalTrack extends Track {
       const emptyTrack =
         this.kind === Track.Kind.Audio ? getEmptyAudioStreamTrack() : getEmptyVideoStreamTrack();
       await this.sender.replaceTrack(emptyTrack);
+      this.publishedTrackId = emptyTrack.id;
     });
   }
 
@@ -256,6 +264,7 @@ export default class LocalTrack extends Track {
       this.emit(TrackEvent.UpstreamResumed, this);
 
       await this.sender.replaceTrack(this._mediaStreamTrack);
+      this.publishedTrackId = this._mediaStreamTrack.id;
     });
   }
 }

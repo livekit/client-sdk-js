@@ -93,7 +93,7 @@ export function getEmptyVideoStreamTrack() {
     }
     emptyVideoStreamTrack.enabled = false;
   }
-  return emptyVideoStreamTrack;
+  return emptyVideoStreamTrack.clone();
 }
 
 let emptyAudioStreamTrack: MediaStreamTrack | undefined;
@@ -112,7 +112,7 @@ export function getEmptyAudioStreamTrack() {
     }
     emptyAudioStreamTrack.enabled = false;
   }
-  return emptyAudioStreamTrack;
+  return emptyAudioStreamTrack.clone();
 }
 
 export class Future<T> {
