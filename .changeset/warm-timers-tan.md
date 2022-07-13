@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-unpublish based on published mediastreamtrack id
+unpublish track based on published track.sender
