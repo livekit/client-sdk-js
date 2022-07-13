@@ -107,30 +107,30 @@ export default class PCTransport {
               return true;
             }
             return false;
-          })
-
-          log.debug(`found ${media.msid} for ${trackbr.codec}`);
+          });
 
           // add x-google-max-bitrate to fmtp line if not exist
           if (codecPayload > 0) {
-            if (!media.fmtp.some((fmtp): boolean => {
-              if (fmtp.payload === codecPayload) {
-                if (!fmtp.config.includes('x-google-max-bitrate')) {
-                  fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`
+            if (
+              !media.fmtp.some((fmtp): boolean => {
+                if (fmtp.payload === codecPayload) {
+                  if (!fmtp.config.includes('x-google-max-bitrate')) {
+                    fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
+                  }
+                  return true;
                 }
-                return true;
-              }
-              return false;
-            })) {
+                return false;
+              })
+            ) {
               media.fmtp.push({
                 payload: codecPayload,
                 config: `x-google-max-bitrate=${trackbr.maxbr}`,
-              })
+              });
             }
           }
 
           return true;
-        })
+        });
       }
     });
 
@@ -142,16 +142,16 @@ export default class PCTransport {
   }
 
   async createAndSetAnswer(): Promise<RTCSessionDescriptionInit> {
-      const answer = await this.pc.createAnswer();
-      const sdpParsed = parse(answer.sdp ?? '');
-      sdpParsed.media.forEach((media) => {
-        if (media.type === 'audio') {
-          ensureAudioNack(media);
-        };
-      })
-      answer.sdp = write(sdpParsed);
-      await this.pc.setLocalDescription(answer);
-      return answer;
+    const answer = await this.pc.createAnswer();
+    const sdpParsed = parse(answer.sdp ?? '');
+    sdpParsed.media.forEach((media) => {
+      if (media.type === 'audio') {
+        ensureAudioNack(media);
+      }
+    });
+    answer.sdp = write(sdpParsed);
+    await this.pc.setLocalDescription(answer);
+    return answer;
   }
 
   setTrackCodecBitrate(sid: string, codec: string, maxbr: number) {
@@ -167,21 +167,23 @@ export default class PCTransport {
   }
 }
 
-function ensureAudioNack(media: {
-  type: string;
-  port: number;
-  protocol: string;
-  payloads?: string | undefined;
-} & MediaDescription) {
+function ensureAudioNack(
+  media: {
+    type: string;
+    port: number;
+    protocol: string;
+    payloads?: string | undefined;
+  } & MediaDescription,
+) {
   // found opus codec to add nack fb
-  let opusPayload = 0
+  let opusPayload = 0;
   media.rtp.some((rtp): boolean => {
     if (rtp.codec === 'opus') {
       opusPayload = rtp.payload;
       return true;
     }
     return false;
-  })
+  });
 
   // add nack rtcpfb if not exist
   if (opusPayload > 0) {
