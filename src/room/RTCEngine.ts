@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
+import { RoomOptions } from '../options';
 import {
   ClientConfigSetting,
   ClientConfiguration,
@@ -19,13 +20,12 @@ import {
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
+import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
-import { isFireFox, isWeb, sleep } from './utils';
-import { RoomOptions } from '../options';
 import { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
-import DefaultReconnectPolicy from './DefaultReconnectPolicy';
+import { isFireFox, isWeb, sleep } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -98,6 +98,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private attemptingReconnect: boolean = false;
 
   private reconnectPolicy: ReconnectPolicy;
+
+  private reconnectTimeout?: ReturnType<typeof setTimeout>;
 
   constructor(private options: RoomOptions) {
     super();
@@ -474,7 +476,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     log.debug(`reconnecting in ${delay}ms`);
 
-    setTimeout(async () => {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+    this.reconnectTimeout = setTimeout(async () => {
       if (this._isClosed) {
         return;
       }
@@ -501,6 +506,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
         this.reconnectAttempts = 0;
         this.fullReconnectOnNext = false;
+        if (this.reconnectTimeout) {
+          clearTimeout(this.reconnectTimeout);
+        }
       } catch (e) {
         this.reconnectAttempts += 1;
         let reconnectRequired = false;
@@ -597,7 +605,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     try {
       await this.client.reconnect(this.url, this.token);
     } catch (e) {
-      throw new SignalReconnectError(e);
+      let message = '';
+      if (e instanceof Error) {
+        message = e.message;
+      }
+      throw new SignalReconnectError(message);
     }
     this.emit(EngineEvent.SignalResumed);
 
