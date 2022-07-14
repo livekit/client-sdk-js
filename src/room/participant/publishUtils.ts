@@ -83,9 +83,11 @@ export function computeVideoEncodings(
     return [{}];
   }
 
+  let usePresetEncoding = false;
   if (!videoEncoding) {
     // find the right encoding based on width/height
     videoEncoding = determineAppropriateEncoding(isScreenShare, width, height);
+    usePresetEncoding = true;
     log.debug('using video encoding', videoEncoding);
   }
 
@@ -98,6 +100,11 @@ export function computeVideoEncodings(
 
   log.debug(`scalabilityMode ${scalabilityMode}`);
   if (scalabilityMode) {
+    // for advanced codec(svc enabled), use 70% preset bitrate
+    if (usePresetEncoding) {
+      videoEncoding = { ...videoEncoding };
+      videoEncoding.maxBitrate *= 0.7;
+    }
     const encodings: RTCRtpEncodingParameters[] = [];
     // svc use first encoding as the original, so we sort encoding from high to low
     switch (scalabilityMode) {
