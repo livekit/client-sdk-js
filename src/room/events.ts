@@ -218,7 +218,7 @@ export enum RoomEvent {
    * When we have encountered an error while attempting to create a track.
    * The errors take place in getUserMedia().
    * Use MediaDeviceFailure.getFailure(error) to get the reason of failure.
-   * [[LocalParticipant]].lastCameraError() and [[LocalParticipant]].lastMicrophoneError()
+   * [[LocalParticipant.lastCameraError]] and [[LocalParticipant.lastMicrophoneError]]
    * will indicate if it had an error while creating the audio or video track respectively.
    *
    * args: (error: Error)
