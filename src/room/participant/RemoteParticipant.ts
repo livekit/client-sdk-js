@@ -225,10 +225,11 @@ export default class RemoteParticipant extends Participant {
       );
       if (existingTrackOfSource) {
         log.warn(
-          `received a second track publication with the same source: ${publication.source}`,
+          `received a second track publication for ${this.identity} with the same source: ${publication.source}`,
           {
             oldTrack: existingTrackOfSource,
             newTrack: publication,
+            participant: this,
           },
         );
       }
