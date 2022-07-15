@@ -224,20 +224,13 @@ export default class RemoteParticipant extends Participant {
         (publishedTrack) => publishedTrack.source === publication.source,
       );
       if (existingTrackOfSource) {
-        try {
-          // throw an Error in order to capture the stack trace
-          throw Error(
-            `received a second track publication with the same source: ${publication.source}`,
-          );
-        } catch (e: unknown) {
-          if (e instanceof Error) {
-            log.warn(e.message, {
-              oldTrack: existingTrackOfSource,
-              newTrack: publication,
-              trace: e.stack,
-            });
-          }
-        }
+        log.warn(
+          `received a second track publication with the same source: ${publication.source}`,
+          {
+            oldTrack: existingTrackOfSource,
+            newTrack: publication,
+          },
+        );
       }
     });
 
