@@ -166,7 +166,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     return new Promise<TrackInfo>((resolve, reject) => {
       const publicationTimeout = setTimeout(() => {
-        reject('Publication of local track timed out');
+        reject(
+          new ConnectionError('publication of local track timed out, no response from server'),
+        );
       }, 15_000);
       this.pendingTrackResolvers[req.cid] = (info: TrackInfo) => {
         clearTimeout(publicationTimeout);
