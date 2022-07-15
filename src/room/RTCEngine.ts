@@ -164,8 +164,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.pendingTrackResolvers[req.cid]) {
       throw new TrackInvalidError('a track with the same ID has already been published');
     }
-    return new Promise<TrackInfo>((resolve) => {
-      this.pendingTrackResolvers[req.cid] = resolve;
+    return new Promise<TrackInfo>((resolve, reject) => {
+      const publicationTimeout = setTimeout(() => {
+        reject('Publication of local track timed out');
+      }, 15_000);
+      this.pendingTrackResolvers[req.cid] = (info: TrackInfo) => {
+        clearTimeout(publicationTimeout);
+        resolve(info);
+      };
       this.client.sendAddTrack(req);
     });
   }
