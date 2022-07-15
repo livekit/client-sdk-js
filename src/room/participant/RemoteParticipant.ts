@@ -226,7 +226,9 @@ export default class RemoteParticipant extends Participant {
       if (existingTrackOfSource) {
         try {
           // throw an Error in order to capture the stack trace
-          throw Error(`publishing a second track with the same source: ${publication.source}`);
+          throw Error(
+            `received a second track publication with the same source: ${publication.source}`,
+          );
         } catch (e: unknown) {
           if (e instanceof Error) {
             log.warn(e.message, {
