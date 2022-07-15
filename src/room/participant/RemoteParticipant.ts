@@ -220,6 +220,23 @@ export default class RemoteParticipant extends Participant {
     // always emit events for new publications, Room will not forward them unless it's ready
     newTracks.forEach((publication) => {
       this.emit(ParticipantEvent.TrackPublished, publication);
+      const existingTrackOfSource = Array.from(this.tracks.values()).find(
+        (publishedTrack) => publishedTrack.source === publication.source,
+      );
+      if (existingTrackOfSource) {
+        try {
+          // throw an Error in order to capture the stack trace
+          throw Error(`publishing a second track with the same source: ${publication.source}`);
+        } catch (e: unknown) {
+          if (e instanceof Error) {
+            log.warn(e.message, {
+              oldTrack: existingTrackOfSource,
+              newTrack: publication,
+              trace: e.stack,
+            });
+          }
+        }
+      }
     });
 
     // detect removed tracks
