@@ -1,5 +1,23 @@
 # Change Log
 
+## 1.2.3
+
+### Patch Changes
+
+- [#328](https://github.com/livekit/client-sdk-js/pull/328) [`aac61a9`](https://github.com/livekit/client-sdk-js/commit/aac61a96b6e47246a3a411a791902159594331b3) Thanks [@lukasIO](https://github.com/lukasIO)! - Make local track publication timeout instead of waiting indefinitely for server response
+
+* [#321](https://github.com/livekit/client-sdk-js/pull/321) [`607aa81`](https://github.com/livekit/client-sdk-js/commit/607aa81106c3d460f15b455ad72f1baf001e41c7) Thanks [@davidzhao](https://github.com/davidzhao)! - Improve reconnect timeout handling
+
+- [#329](https://github.com/livekit/client-sdk-js/pull/329) [`5aea501`](https://github.com/livekit/client-sdk-js/commit/5aea5017d0a01246f1b0f325ed888797571475ca) Thanks [@lukasIO](https://github.com/lukasIO)! - Log warning if multiple tracks of the same source are published
+
+* [#322](https://github.com/livekit/client-sdk-js/pull/322) [`b9555d9`](https://github.com/livekit/client-sdk-js/commit/b9555d915f3ef27455ec51a9ae4a29cd402601c1) Thanks [@cnderrauber](https://github.com/cnderrauber)! - enable audio nack
+
+- [#323](https://github.com/livekit/client-sdk-js/pull/323) [`02c025f`](https://github.com/livekit/client-sdk-js/commit/02c025f526111c814dc55ac595a3a4fca85fb6ef) Thanks [@lukasIO](https://github.com/lukasIO)! - Remove internal event listeners from local participant on disconnect
+
+* [#321](https://github.com/livekit/client-sdk-js/pull/321) [`607aa81`](https://github.com/livekit/client-sdk-js/commit/607aa81106c3d460f15b455ad72f1baf001e41c7) Thanks [@davidzhao](https://github.com/davidzhao)! - Customizable reconnect policy
+
+- [#325](https://github.com/livekit/client-sdk-js/pull/325) [`56694b7`](https://github.com/livekit/client-sdk-js/commit/56694b7b2ecf30c96fff24d517fd9d3fe41ae3b5) Thanks [@lukasIO](https://github.com/lukasIO)! - unpublish track based on published track.sender
+
 ## 1.2.2
 
 ### Patch Changes
