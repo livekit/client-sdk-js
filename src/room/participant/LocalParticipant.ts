@@ -434,6 +434,23 @@ export default class LocalParticipant extends Participant {
     if (opts.source) {
       track.source = opts.source;
     }
+    const existingTrackOfSource = Array.from(this.tracks.values()).find(
+      (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
+    );
+    if (existingTrackOfSource) {
+      try {
+        // throw an Error in order to capture the stack trace
+        throw Error(`publishing a second track with the same source: ${track.source}`);
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          log.warn(e.message, {
+            oldTrack: existingTrackOfSource,
+            newTrack: track,
+            trace: e.stack,
+          });
+        }
+      }
+    }
     if (opts.stopMicTrackOnMute && track instanceof LocalAudioTrack) {
       track.stopOnMute = true;
     }
