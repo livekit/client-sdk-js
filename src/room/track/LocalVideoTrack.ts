@@ -276,7 +276,6 @@ export default class LocalVideoTrack extends LocalTrack {
    */
   resetMultiCodec() {
     this.simulcastCodecs.forEach((trackInfo) => {
-      trackInfo.mediaStreamTrack.stop();
       trackInfo.sender = undefined;
     });
     this.simulcastCodecs.clear();
