@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.2.4
+
+### Patch Changes
+
+- [#330](https://github.com/livekit/client-sdk-js/pull/330) [`dbbfe5f`](https://github.com/livekit/client-sdk-js/commit/dbbfe5faa8e9c74f5dd751f93fc6a4cdf49e7408) Thanks [@lukasIO](https://github.com/lukasIO)! - Check for duplicate source publications before adding them to tracks
+
 ## 1.2.3
 
 ### Patch Changes
