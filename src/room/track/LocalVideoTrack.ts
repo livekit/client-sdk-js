@@ -27,17 +27,15 @@ export class SimulcastTrackInfo {
 const refreshSubscribedCodecAfterNewCodec = 5000;
 
 export default class LocalVideoTrack extends LocalTrack {
-  /* internal */
+  /* @internal */
   signalClient?: SignalClient;
 
   private prevStats?: Map<string, VideoSenderStats>;
 
   private encodings?: RTCRtpEncodingParameters[];
 
-  private simulcastCodecs: Map<VideoCodec, SimulcastTrackInfo> = new Map<
-    VideoCodec,
-    SimulcastTrackInfo
-  >();
+  /* @internal */
+  simulcastCodecs: Map<VideoCodec, SimulcastTrackInfo> = new Map<VideoCodec, SimulcastTrackInfo>();
 
   private subscribedCodecs?: SubscribedCodec[];
 
