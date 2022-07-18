@@ -78,9 +78,7 @@ export default class LocalVideoTrack extends LocalTrack {
     this._mediaStreamTrack.getConstraints();
     this.simulcastCodecs.forEach((trackInfo) => {
       trackInfo.mediaStreamTrack.stop();
-      trackInfo.sender = undefined;
     });
-    this.simulcastCodecs.clear();
     super.stop();
   }
 
@@ -270,6 +268,18 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     await setPublishingLayersForSender(this.sender, this.encodings, qualities);
+  }
+
+  /**
+   *
+   * @internal
+   */
+  resetMultiCodec() {
+    this.simulcastCodecs.forEach((trackInfo) => {
+      trackInfo.mediaStreamTrack.stop();
+      trackInfo.sender = undefined;
+    });
+    this.simulcastCodecs.clear();
   }
 
   private monitorSender = async () => {

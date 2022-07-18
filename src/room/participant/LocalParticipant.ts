@@ -731,6 +731,10 @@ export default class LocalParticipant extends Participant {
 
     track.sender = undefined;
 
+    if (track instanceof LocalVideoTrack) {
+      track.resetMultiCodec();
+    }
+
     // remove from our maps
     this.tracks.delete(publication.trackSid);
     switch (publication.kind) {
