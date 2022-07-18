@@ -210,6 +210,20 @@ export default class RemoteParticipant extends Participant {
         publication = new RemoteTrackPublication(kind, ti.sid, ti.name);
         publication.updateInfo(ti);
         newTracks.set(ti.sid, publication);
+        const existingTrackOfSource = Array.from(this.tracks.values()).find(
+          (publishedTrack) => publishedTrack.source === publication?.source,
+        );
+        if (existingTrackOfSource) {
+          log.warn(
+            `received a second track publication for ${this.identity} with the same source: ${publication.source}`,
+            {
+              oldTrack: existingTrackOfSource,
+              newTrack: publication,
+              participant: this,
+              participantInfo: info,
+            },
+          );
+        }
         this.addTrackPublication(publication);
       } else {
         publication.updateInfo(ti);
@@ -220,19 +234,6 @@ export default class RemoteParticipant extends Participant {
     // always emit events for new publications, Room will not forward them unless it's ready
     newTracks.forEach((publication) => {
       this.emit(ParticipantEvent.TrackPublished, publication);
-      const existingTrackOfSource = Array.from(this.tracks.values()).find(
-        (publishedTrack) => publishedTrack.source === publication.source,
-      );
-      if (existingTrackOfSource) {
-        log.warn(
-          `received a second track publication for ${this.identity} with the same source: ${publication.source}`,
-          {
-            oldTrack: existingTrackOfSource,
-            newTrack: publication,
-            participant: this,
-          },
-        );
-      }
     });
 
     // detect removed tracks
