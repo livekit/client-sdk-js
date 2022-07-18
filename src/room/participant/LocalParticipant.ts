@@ -724,11 +724,13 @@ export default class LocalParticipant extends Participant {
       try {
         this.engine.publisher.pc.removeTrack(track.sender);
         if (track instanceof LocalVideoTrack) {
-          for (const [, info] of track.simulcastCodecs) {
-            if (info.sender) {
-              this.engine.publisher.pc.removeTrack(info.sender);
+          for (const [, trackInfo] of track.simulcastCodecs) {
+            if (trackInfo.sender) {
+              this.engine.publisher.pc.removeTrack(trackInfo.sender);
+              trackInfo.sender = undefined;
             }
           }
+          track.simulcastCodecs.clear();
         }
         this.engine.negotiate();
       } catch (e) {
@@ -737,10 +739,6 @@ export default class LocalParticipant extends Participant {
     }
 
     track.sender = undefined;
-
-    if (track instanceof LocalVideoTrack) {
-      track.resetMultiCodec();
-    }
 
     // remove from our maps
     this.tracks.delete(publication.trackSid);

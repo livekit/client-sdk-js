@@ -268,17 +268,6 @@ export default class LocalVideoTrack extends LocalTrack {
     await setPublishingLayersForSender(this.sender, this.encodings, qualities);
   }
 
-  /**
-   *
-   * @internal
-   */
-  resetMultiCodec() {
-    this.simulcastCodecs.forEach((trackInfo) => {
-      trackInfo.sender = undefined;
-    });
-    this.simulcastCodecs.clear();
-  }
-
   private monitorSender = async () => {
     if (!this.sender) {
       this._currentBitrate = 0;
