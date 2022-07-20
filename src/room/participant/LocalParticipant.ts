@@ -732,9 +732,10 @@ export default class LocalParticipant extends Participant {
           }
           track.simulcastCodecs.clear();
         }
-        this.engine.negotiate();
       } catch (e) {
         log.warn('failed to remove track', { error: e, method: 'unpublishTrack' });
+      } finally {
+        this.engine.negotiate();
       }
     }
 
