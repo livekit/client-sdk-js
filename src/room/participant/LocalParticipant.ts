@@ -723,9 +723,19 @@ export default class LocalParticipant extends Participant {
     ) {
       try {
         this.engine.publisher.pc.removeTrack(track.sender);
-        this.engine.negotiate();
+        if (track instanceof LocalVideoTrack) {
+          for (const [, trackInfo] of track.simulcastCodecs) {
+            if (trackInfo.sender) {
+              this.engine.publisher.pc.removeTrack(trackInfo.sender);
+              trackInfo.sender = undefined;
+            }
+          }
+          track.simulcastCodecs.clear();
+        }
       } catch (e) {
         log.warn('failed to remove track', { error: e, method: 'unpublishTrack' });
+      } finally {
+        this.engine.negotiate();
       }
     }
 

@@ -27,17 +27,15 @@ export class SimulcastTrackInfo {
 const refreshSubscribedCodecAfterNewCodec = 5000;
 
 export default class LocalVideoTrack extends LocalTrack {
-  /* internal */
+  /* @internal */
   signalClient?: SignalClient;
 
   private prevStats?: Map<string, VideoSenderStats>;
 
   private encodings?: RTCRtpEncodingParameters[];
 
-  private simulcastCodecs: Map<VideoCodec, SimulcastTrackInfo> = new Map<
-    VideoCodec,
-    SimulcastTrackInfo
-  >();
+  /* @internal */
+  simulcastCodecs: Map<VideoCodec, SimulcastTrackInfo> = new Map<VideoCodec, SimulcastTrackInfo>();
 
   private subscribedCodecs?: SubscribedCodec[];
 
@@ -78,9 +76,7 @@ export default class LocalVideoTrack extends LocalTrack {
     this._mediaStreamTrack.getConstraints();
     this.simulcastCodecs.forEach((trackInfo) => {
       trackInfo.mediaStreamTrack.stop();
-      trackInfo.sender = undefined;
     });
-    this.simulcastCodecs.clear();
     super.stop();
   }
 
