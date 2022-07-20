@@ -61,6 +61,25 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
   );
 };
 
+/**
+ *
+ * @internal
+ * @experimental
+ */
+export const computeDefaultPolycastEncodings = (width: number, height: number) => {
+  // use vp8 as a default
+  const vp8 = determineAppropriateEncoding(false, width, height);
+  const vp9 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.9 };
+  const h264 = { ...vp8, maxBitrate: vp8.maxBitrate * 1.1 };
+  const av1 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.7 };
+  return {
+    vp8,
+    vp9,
+    h264,
+    av1,
+  };
+};
+
 const videoRids = ['q', 'h', 'f'];
 
 /* @internal */
@@ -71,9 +90,14 @@ export function computeVideoEncodings(
   options?: TrackPublishOptions,
 ): RTCRtpEncodingParameters[] {
   let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
+  // in case the user provided polycast encoding, we prefer them to the videoEncoding setting as long as a videoCodec is set
+  if (options?.polycastEncodings && options.videoCodec) {
+    videoEncoding = options.polycastEncodings[options.videoCodec] ?? videoEncoding;
+  }
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
   }
+
   const useSimulcast = options?.simulcast;
   const scalabilityMode = options?.scalabilityMode;
 
@@ -83,9 +107,19 @@ export function computeVideoEncodings(
     return [{}];
   }
 
+  // merge default and user provided polycast encodings (we will fall back to the default ones)
+  const polycastEncodings = {
+    ...computeDefaultPolycastEncodings(width, height),
+    ...options?.polycastEncodings,
+  };
+
   if (!videoEncoding) {
     // find the right encoding based on width/height
-    videoEncoding = determineAppropriateEncoding(isScreenShare, width, height);
+    if (options?.videoCodec) {
+      videoEncoding = polycastEncodings[options.videoCodec];
+    } else {
+      videoEncoding = determineAppropriateEncoding(isScreenShare, width, height);
+    }
     log.debug('using video encoding', videoEncoding);
   }
 
@@ -99,6 +133,8 @@ export function computeVideoEncodings(
   log.debug(`scalabilityMode ${scalabilityMode}`);
   if (scalabilityMode) {
     const encodings: RTCRtpEncodingParameters[] = [];
+
+    const av1Encoding = polycastEncodings.av1;
     // svc use first encoding as the original, so we sort encoding from high to low
     switch (scalabilityMode) {
       case 'L3T3':
@@ -106,7 +142,7 @@ export function computeVideoEncodings(
           encodings.push({
             rid: videoRids[2 - i],
             scaleResolutionDownBy: 2 ** i,
-            maxBitrate: videoEncoding ? videoEncoding.maxBitrate / 3 ** i : 0,
+            maxBitrate: av1Encoding ? av1Encoding.maxBitrate / 3 ** i : 0,
             /* @ts-ignore */
             maxFramerate: original.encoding.maxFramerate,
             /* @ts-ignore */

@@ -102,6 +102,38 @@ describe('computeVideoEncodings', () => {
     expect(encodings![0].maxBitrate).toBe(VideoPresets43.h120.encoding.maxBitrate);
     expect(encodings![0].scaleResolutionDownBy).toBe(1);
   });
+
+  it('respects default polycast encodings', () => {
+    const vp8Encodings = computeVideoEncodings(false, 100, 120, { simulcast: true });
+    const h264Encodings = computeVideoEncodings(false, 100, 120, {
+      simulcast: true,
+      videoCodec: 'h264',
+    });
+    const av1Encodings = computeVideoEncodings(false, 100, 120, {
+      simulcast: true,
+      videoCodec: 'av1',
+    });
+    expect(h264Encodings).toHaveLength(1);
+    expect(h264Encodings![0].rid).toBe('q');
+    expect(h264Encodings![0].maxBitrate).toBe(vp8Encodings[0].maxBitrate! * 1.1);
+    expect(av1Encodings![0].maxBitrate).toBe(vp8Encodings[0].maxBitrate! * 0.7);
+    expect(h264Encodings![0].scaleResolutionDownBy).toBe(1);
+  });
+
+  it('respects custom polycast encodings', () => {
+    const encodings = computeVideoEncodings(false, 100, 120, {
+      simulcast: true,
+      videoCodec: 'h264',
+      polycastEncodings: {
+        vp8: { maxBitrate: 1_000 },
+        h264: { maxBitrate: 2_000 },
+      },
+    });
+    expect(encodings).toHaveLength(1);
+    expect(encodings![0].rid).toBe('q');
+    expect(encodings![0].maxBitrate).toBe(2_000);
+    expect(encodings![0].scaleResolutionDownBy).toBe(1);
+  });
 });
 
 describe('customSimulcastLayers', () => {
