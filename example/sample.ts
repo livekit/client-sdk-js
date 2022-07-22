@@ -348,10 +348,16 @@ function participantConnected(participant: Participant) {
     .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
       appendLog('track was muted', pub.trackSid, participant.identity);
       renderParticipant(participant);
+      if (currentRoom) {
+        renderScreenShare(currentRoom);
+      }
     })
     .on(ParticipantEvent.TrackUnmuted, (pub: TrackPublication) => {
       appendLog('track was unmuted', pub.trackSid, participant.identity);
       renderParticipant(participant);
+      if (currentRoom) {
+        renderScreenShare(currentRoom);
+      }
     })
     .on(ParticipantEvent.IsSpeakingChanged, () => {
       renderParticipant(participant);
@@ -586,7 +592,7 @@ function renderScreenShare(room: Room) {
     participant = room.localParticipant;
   }
 
-  if (screenSharePub && participant) {
+  if (screenSharePub && !screenSharePub.isMuted && participant) {
     div.style.display = 'block';
     const videoElm = <HTMLVideoElement>$('screenshare-video');
     screenSharePub.videoTrack?.attach(videoElm);

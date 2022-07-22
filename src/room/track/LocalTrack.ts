@@ -124,6 +124,7 @@ export default class LocalTrack extends Track {
     });
 
     this.mediaStream = new MediaStream([track]);
+    this.constraints = track.getConstraints();
     this.providedByUser = userProvidedTrack;
     return this;
   }
@@ -156,7 +157,14 @@ export default class LocalTrack extends Track {
     this._mediaStreamTrack.stop();
 
     // create new track and attach
-    const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
+    let mediaStream: MediaStream;
+    if (this.source === Track.Source.ScreenShare || this.source === Track.Source.ScreenShareAudio) {
+      // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
+      // @ts-ignore
+      mediaStream = await navigator.mediaDevices.getDisplayMedia(streamConstraints);
+    } else {
+      mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
+    }
     const newTrack = mediaStream.getTracks()[0];
     newTrack.addEventListener('ended', this.handleEnded);
     log.debug('re-acquired MediaStreamTrack');

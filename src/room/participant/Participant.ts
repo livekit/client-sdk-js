@@ -158,7 +158,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   get isScreenShareEnabled(): boolean {
     const track = this.getTrack(Track.Source.ScreenShare);
-    return !!track;
+    return !(track?.isMuted ?? true);
   }
 
   /** when participant joined the room */

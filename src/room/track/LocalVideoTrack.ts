@@ -5,7 +5,7 @@ import { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc';
 import { computeBitrate, monitorFrequency, VideoSenderStats } from '../stats';
 import { isFireFox, isMobile, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
-import { VideoCaptureOptions, VideoCodec } from './options';
+import { ScreenShareCaptureOptions, VideoCaptureOptions, VideoCodec } from './options';
 import { Track } from './Track';
 import { constraintsForOptions } from './utils';
 
@@ -82,8 +82,8 @@ export default class LocalVideoTrack extends LocalTrack {
 
   async mute(): Promise<LocalVideoTrack> {
     await this.muteQueue.run(async () => {
-      if (this.source === Track.Source.Camera && !this.isUserProvided) {
-        log.debug('stopping camera track');
+      if (!this.isUserProvided) {
+        log.debug('stopping video track');
         // also stop the track, so that camera indicator is turned off
         this._mediaStreamTrack.stop();
       }
@@ -94,8 +94,8 @@ export default class LocalVideoTrack extends LocalTrack {
 
   async unmute(): Promise<LocalVideoTrack> {
     await this.muteQueue.run(async () => {
-      if (this.source === Track.Source.Camera && !this.isUserProvided) {
-        log.debug('reacquiring camera track');
+      if (!this.isUserProvided) {
+        log.debug('reacquiring video track');
         await this.restartTrack();
       }
       await super.unmute();
@@ -170,9 +170,9 @@ export default class LocalVideoTrack extends LocalTrack {
     }
   }
 
-  async restartTrack(options?: VideoCaptureOptions) {
+  async restartTrack(options?: VideoCaptureOptions | ScreenShareCaptureOptions) {
     let constraints: MediaTrackConstraints | undefined;
-    if (options) {
+    if (options && this.source !== Track.Source.ScreenShare) {
       const streamConstraints = constraintsForOptions({ video: options });
       if (typeof streamConstraints.video !== 'boolean') {
         constraints = streamConstraints.video;

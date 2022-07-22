@@ -235,7 +235,7 @@ export default class LocalParticipant extends Participant {
           }
           const publishedTracks = await Promise.all(publishPromises);
           // for screen share publications including audio, this will only return the screen share publication, not the screen share audio one
-          // revisit if we want to return an array of tracks instead for v2
+          // TODO revisit if we want to return an array of tracks instead for v2
           [track] = publishedTracks;
         } catch (e) {
           if (e instanceof Error && !(e instanceof TrackInvalidError)) {
@@ -249,11 +249,11 @@ export default class LocalParticipant extends Participant {
     } else if (track && track.track) {
       // screenshare cannot be muted, unpublish instead
       if (source === Track.Source.ScreenShare) {
-        track = this.unpublishTrack(track.track);
+        track.track?.stop();
+        await track.mute();
         const screenAudioTrack = this.getTrack(Track.Source.ScreenShareAudio);
-        if (screenAudioTrack && screenAudioTrack.track) {
-          this.unpublishTrack(screenAudioTrack.track);
-        }
+        screenAudioTrack?.track?.stop();
+        await screenAudioTrack?.mute();
       } else {
         await track.mute();
       }
