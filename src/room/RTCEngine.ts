@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
+import { RoomOptions } from '../options';
 import {
   ClientConfigSetting,
   ClientConfiguration,
@@ -19,16 +20,16 @@ import {
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
+import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
+import { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import { isFireFox, isWeb, sleep } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
-const maxReconnectRetries = 10;
 const minReconnectWait = 2 * 1000;
-const maxReconnectDuration = 60 * 1000;
 export const maxICEConnectTimeout = 15 * 1000;
 
 enum PCState {
@@ -96,9 +97,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private attemptingReconnect: boolean = false;
 
-  constructor() {
+  private reconnectPolicy: ReconnectPolicy;
+
+  private reconnectTimeout?: ReturnType<typeof setTimeout>;
+
+  constructor(private options: RoomOptions) {
     super();
     this.client = new SignalClient();
+    this.client.signalLatency = this.options.expSignalLatency;
+    this.reconnectPolicy = this.options.reconnectPolicy ?? new DefaultReconnectPolicy();
   }
 
   async join(
@@ -157,8 +164,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.pendingTrackResolvers[req.cid]) {
       throw new TrackInvalidError('a track with the same ID has already been published');
     }
-    return new Promise<TrackInfo>((resolve) => {
-      this.pendingTrackResolvers[req.cid] = resolve;
+    return new Promise<TrackInfo>((resolve, reject) => {
+      const publicationTimeout = setTimeout(() => {
+        reject(
+          new ConnectionError('publication of local track timed out, no response from server'),
+        );
+      }, 15_000);
+      this.pendingTrackResolvers[req.cid] = (info: TrackInfo) => {
+        clearTimeout(publicationTimeout);
+        resolve(info);
+      };
       this.client.sendAddTrack(req);
     });
   }
@@ -317,8 +332,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       await this.subscriber.setRemoteDescription(sd);
 
       // answer the offer
-      const answer = await this.subscriber.pc.createAnswer();
-      await this.subscriber.pc.setLocalDescription(answer);
+      const answer = await this.subscriber.createAndSetAnswer();
       this.client.sendAnswer(answer);
     };
 
@@ -437,18 +451,42 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
   // continues to work, we can reconnect to websocket to continue the session
   // after a number of retries, we'll close and give up permanently
-  private handleDisconnect = (connection: string) => {
+  private handleDisconnect = (connection: string, signalEvents: boolean = false) => {
     if (this._isClosed) {
       return;
     }
+
     log.debug(`${connection} disconnected`);
     if (this.reconnectAttempts === 0) {
       // only reset start time on the first try
       this.reconnectStart = Date.now();
     }
 
-    const delay = this.reconnectAttempts * this.reconnectAttempts * 300;
-    setTimeout(async () => {
+    const disconnect = (duration: number) => {
+      log.info(
+        `could not recover connection after ${this.reconnectAttempts} attempts, ${duration}ms. giving up`,
+      );
+      this.emit(EngineEvent.Disconnected);
+      this.close();
+    };
+
+    const duration = Date.now() - this.reconnectStart;
+    const delay = this.getNextRetryDelay({
+      elapsedMs: duration,
+      retryCount: this.reconnectAttempts,
+    });
+
+    if (delay === null) {
+      disconnect(duration);
+      return;
+    }
+
+    log.debug(`reconnecting in ${delay}ms`);
+
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+    this.reconnectTimeout = setTimeout(async () => {
       if (this._isClosed) {
         return;
       }
@@ -469,16 +507,20 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       try {
         this.attemptingReconnect = true;
         if (this.fullReconnectOnNext) {
-          await this.restartConnection();
+          await this.restartConnection(signalEvents);
         } else {
-          await this.resumeConnection();
+          await this.resumeConnection(signalEvents);
         }
         this.reconnectAttempts = 0;
         this.fullReconnectOnNext = false;
+        if (this.reconnectTimeout) {
+          clearTimeout(this.reconnectTimeout);
+        }
       } catch (e) {
         this.reconnectAttempts += 1;
         let reconnectRequired = false;
         let recoverable = true;
+        let requireSignalEvents = false;
         if (e instanceof UnexpectedConnectionState) {
           log.debug('received unrecoverable error', { error: e });
           // unrecoverable
@@ -488,26 +530,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           reconnectRequired = true;
         }
 
-        // when we flip from resume to reconnect, we need to reset reconnectAttempts
-        // this is needed to fire the right reconnecting events
+        // when we flip from resume to reconnect
+        // we need to fire the right reconnecting events
         if (reconnectRequired && !this.fullReconnectOnNext) {
           this.fullReconnectOnNext = true;
-          this.reconnectAttempts = 0;
-        }
-
-        const duration = Date.now() - this.reconnectStart;
-        if (this.reconnectAttempts >= maxReconnectRetries || duration > maxReconnectDuration) {
-          recoverable = false;
+          requireSignalEvents = true;
         }
 
         if (recoverable) {
-          this.handleDisconnect('reconnect');
+          this.handleDisconnect('reconnect', requireSignalEvents);
         } else {
-          log.info(
-            `could not recover connection after ${maxReconnectRetries} attempts, ${duration}ms. giving up`,
-          );
-          this.emit(EngineEvent.Disconnected);
-          this.close();
+          disconnect(Date.now() - this.reconnectStart);
         }
       } finally {
         this.attemptingReconnect = false;
@@ -515,14 +548,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }, delay);
   };
 
-  private async restartConnection() {
+  private getNextRetryDelay(context: ReconnectContext) {
+    try {
+      return this.reconnectPolicy.nextRetryDelayInMs(context);
+    } catch (e) {
+      log.warn('encountered error in reconnect policy', { error: e });
+    }
+
+    // error in user code with provided reconnect policy, stop reconnecting
+    return null;
+  }
+
+  private async restartConnection(emitRestarting: boolean = false) {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
       throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
     }
 
     log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
-    if (this.reconnectAttempts === 0) {
+    if (emitRestarting || this.reconnectAttempts === 0) {
       this.emit(EngineEvent.Restarting);
     }
 
@@ -550,7 +594,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.emit(EngineEvent.Restarted, joinResponse);
   }
 
-  private async resumeConnection(): Promise<void> {
+  private async resumeConnection(emitResuming: boolean = false): Promise<void> {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
       throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
@@ -561,14 +605,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
-    if (this.reconnectAttempts === 0) {
+    if (emitResuming || this.reconnectAttempts === 0) {
       this.emit(EngineEvent.Resuming);
     }
 
     try {
       await this.client.reconnect(this.url, this.token);
     } catch (e) {
-      throw new SignalReconnectError();
+      let message = '';
+      if (e instanceof Error) {
+        message = e.message;
+      }
+      throw new SignalReconnectError(message);
     }
     this.emit(EngineEvent.SignalResumed);
 

@@ -125,8 +125,9 @@ export default class LocalParticipant extends Participant {
   setCameraEnabled(
     enabled: boolean,
     options?: VideoCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.Camera, enabled, options);
+    return this.setTrackEnabled(Track.Source.Camera, enabled, options, publishOptions);
   }
 
   /**
@@ -138,8 +139,9 @@ export default class LocalParticipant extends Participant {
   setMicrophoneEnabled(
     enabled: boolean,
     options?: AudioCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.Microphone, enabled, options);
+    return this.setTrackEnabled(Track.Source.Microphone, enabled, options, publishOptions);
   }
 
   /**
@@ -149,8 +151,9 @@ export default class LocalParticipant extends Participant {
   setScreenShareEnabled(
     enabled: boolean,
     options?: ScreenShareCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
-    return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options);
+    return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options, publishOptions);
   }
 
   /** @internal */
@@ -172,21 +175,25 @@ export default class LocalParticipant extends Participant {
     source: Extract<Track.Source, Track.Source.Camera>,
     enabled: boolean,
     options?: VideoCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
   private async setTrackEnabled(
     source: Extract<Track.Source, Track.Source.Microphone>,
     enabled: boolean,
     options?: AudioCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
   private async setTrackEnabled(
     source: Extract<Track.Source, Track.Source.ScreenShare>,
     enabled: boolean,
     options?: ScreenShareCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
   private async setTrackEnabled(
     source: Track.Source,
     enabled: true,
     options?: VideoCaptureOptions | AudioCaptureOptions | ScreenShareCaptureOptions,
+    publishOptions?: TrackPublishOptions,
   ) {
     log.debug('setTrackEnabled', { source, enabled });
     let track = this.getTrack(source);
@@ -224,7 +231,7 @@ export default class LocalParticipant extends Participant {
           }
           const publishPromises: Array<Promise<LocalTrackPublication>> = [];
           for (const localTrack of localTracks) {
-            publishPromises.push(this.publishTrack(localTrack));
+            publishPromises.push(this.publishTrack(localTrack, publishOptions));
           }
           const publishedTracks = await Promise.all(publishPromises);
           // for screen share publications including audio, this will only return the screen share publication, not the screen share audio one
@@ -427,6 +434,23 @@ export default class LocalParticipant extends Participant {
     if (opts.source) {
       track.source = opts.source;
     }
+    const existingTrackOfSource = Array.from(this.tracks.values()).find(
+      (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
+    );
+    if (existingTrackOfSource) {
+      try {
+        // throw an Error in order to capture the stack trace
+        throw Error(`publishing a second track with the same source: ${track.source}`);
+      } catch (e: unknown) {
+        if (e instanceof Error) {
+          log.warn(e.message, {
+            oldTrack: existingTrackOfSource,
+            newTrack: track,
+            trace: e.stack,
+          });
+        }
+      }
+    }
     if (opts.stopMicTrackOnMute && track instanceof LocalAudioTrack) {
       track.stopOnMute = true;
     }
@@ -544,6 +568,14 @@ export default class LocalParticipant extends Participant {
       track.codec = opts.videoCodec;
     }
 
+    if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
+      this.engine.publisher.setTrackCodecBitrate(
+        req.cid,
+        track.codec,
+        encodings[0].maxBitrate / 1000,
+      );
+    }
+
     this.engine.negotiate();
 
     // store RTPSender
@@ -642,6 +674,13 @@ export default class LocalParticipant extends Participant {
     this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
     track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
 
+    if (videoCodec === 'av1' && encodings[0]?.maxBitrate) {
+      this.engine.publisher.setTrackCodecBitrate(
+        req.cid,
+        videoCodec,
+        encodings[0].maxBitrate / 1000,
+      );
+    }
     this.engine.negotiate();
     log.debug(`published ${opts.videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
   }
@@ -664,8 +703,6 @@ export default class LocalParticipant extends Participant {
     }
 
     track = publication.track;
-
-    track.sender = undefined;
     track.off(TrackEvent.Muted, this.onTrackMuted);
     track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
     track.off(TrackEvent.Ended, this.handleTrackEnded);
@@ -679,21 +716,30 @@ export default class LocalParticipant extends Participant {
       track.stop();
     }
 
-    const { mediaStreamTrack } = track;
-
-    if (this.engine.publisher && this.engine.publisher.pc.connectionState !== 'closed') {
-      const senders = this.engine.publisher.pc.getSenders();
-      senders.forEach((sender) => {
-        if (sender.track === mediaStreamTrack) {
-          try {
-            this.engine.publisher?.pc.removeTrack(sender);
-            this.engine.negotiate();
-          } catch (e) {
-            log.warn('failed to remove track', { error: e, method: 'unpublishTrack' });
+    if (
+      this.engine.publisher &&
+      this.engine.publisher.pc.connectionState !== 'closed' &&
+      track.sender
+    ) {
+      try {
+        this.engine.publisher.pc.removeTrack(track.sender);
+        if (track instanceof LocalVideoTrack) {
+          for (const [, trackInfo] of track.simulcastCodecs) {
+            if (trackInfo.sender) {
+              this.engine.publisher.pc.removeTrack(trackInfo.sender);
+              trackInfo.sender = undefined;
+            }
           }
+          track.simulcastCodecs.clear();
         }
-      });
+      } catch (e) {
+        log.warn('failed to remove track', { error: e, method: 'unpublishTrack' });
+      } finally {
+        this.engine.negotiate();
+      }
     }
+
+    track.sender = undefined;
 
     // remove from our maps
     this.tracks.delete(publication.trackSid);

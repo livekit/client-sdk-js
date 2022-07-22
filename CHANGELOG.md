@@ -1,5 +1,44 @@
 # Change Log
 
+## 1.2.4
+
+### Patch Changes
+
+- [#330](https://github.com/livekit/client-sdk-js/pull/330) [`dbbfe5f`](https://github.com/livekit/client-sdk-js/commit/dbbfe5faa8e9c74f5dd751f93fc6a4cdf49e7408) Thanks [@lukasIO](https://github.com/lukasIO)! - Check for duplicate source publications before adding them to tracks
+
+## 1.2.3
+
+### Patch Changes
+
+- [#328](https://github.com/livekit/client-sdk-js/pull/328) [`aac61a9`](https://github.com/livekit/client-sdk-js/commit/aac61a96b6e47246a3a411a791902159594331b3) Thanks [@lukasIO](https://github.com/lukasIO)! - Make local track publication timeout instead of waiting indefinitely for server response
+
+* [#321](https://github.com/livekit/client-sdk-js/pull/321) [`607aa81`](https://github.com/livekit/client-sdk-js/commit/607aa81106c3d460f15b455ad72f1baf001e41c7) Thanks [@davidzhao](https://github.com/davidzhao)! - Improve reconnect timeout handling
+
+- [#329](https://github.com/livekit/client-sdk-js/pull/329) [`5aea501`](https://github.com/livekit/client-sdk-js/commit/5aea5017d0a01246f1b0f325ed888797571475ca) Thanks [@lukasIO](https://github.com/lukasIO)! - Log warning if multiple tracks of the same source are published
+
+* [#322](https://github.com/livekit/client-sdk-js/pull/322) [`b9555d9`](https://github.com/livekit/client-sdk-js/commit/b9555d915f3ef27455ec51a9ae4a29cd402601c1) Thanks [@cnderrauber](https://github.com/cnderrauber)! - enable audio nack
+
+- [#323](https://github.com/livekit/client-sdk-js/pull/323) [`02c025f`](https://github.com/livekit/client-sdk-js/commit/02c025f526111c814dc55ac595a3a4fca85fb6ef) Thanks [@lukasIO](https://github.com/lukasIO)! - Remove internal event listeners from local participant on disconnect
+
+* [#321](https://github.com/livekit/client-sdk-js/pull/321) [`607aa81`](https://github.com/livekit/client-sdk-js/commit/607aa81106c3d460f15b455ad72f1baf001e41c7) Thanks [@davidzhao](https://github.com/davidzhao)! - Customizable reconnect policy
+
+- [#325](https://github.com/livekit/client-sdk-js/pull/325) [`56694b7`](https://github.com/livekit/client-sdk-js/commit/56694b7b2ecf30c96fff24d517fd9d3fe41ae3b5) Thanks [@lukasIO](https://github.com/lukasIO)! - unpublish track based on published track.sender
+
+## 1.2.2
+
+### Patch Changes
+
+- [#317](https://github.com/livekit/client-sdk-js/pull/317) [`68f6ae2`](https://github.com/livekit/client-sdk-js/commit/68f6ae2bf249e6469fc2c8b9a2acf95b98ed5d4d) Thanks [@theomonnom](https://github.com/theomonnom)! - Fix Unity issue with placeholders '
+  '
+
+## 1.2.1
+
+### Patch Changes
+
+- [#316](https://github.com/livekit/client-sdk-js/pull/316) [`b534b95`](https://github.com/livekit/client-sdk-js/commit/b534b955a1b30b35da23a237a0bd98693b326c43) Thanks [@theomonnom](https://github.com/theomonnom)! - Add PublishOptions to Set\*Enabled
+
+* [#314](https://github.com/livekit/client-sdk-js/pull/314) [`d25b86c`](https://github.com/livekit/client-sdk-js/commit/d25b86caf40290310bfbc328f84e175e775dcf1f) Thanks [@cnderrauber](https://github.com/cnderrauber)! - apply av1 bitrate setting
+
 ## 1.2.0
 
 ### Minor Changes
