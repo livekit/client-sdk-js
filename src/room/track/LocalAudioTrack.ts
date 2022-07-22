@@ -8,8 +8,6 @@ import { Track } from './Track';
 import { constraintsForOptions, detectSilence } from './utils';
 
 export default class LocalAudioTrack extends LocalTrack {
-  sender?: RTCRtpSender;
-
   /** @internal */
   stopOnMute: boolean = false;
 
