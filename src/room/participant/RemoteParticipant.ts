@@ -78,6 +78,24 @@ export default class RemoteParticipant extends Participant {
     }
   }
 
+  getTracks() {
+    return super.getTracks() as Array<RemoteTrackPublication>;
+  }
+
+  /**
+   * returns all currently subscribed publications of this participant
+   */
+  getSubscribedTracks() {
+    return this.getTracks().filter((track) => track.isSubscribed);
+  }
+
+  /**
+   * subscribes/unsubscribes from all present publications of this participant
+   */
+  setAllTrackSubscribed(subscribed: boolean) {
+    this.getTracks().forEach((track) => track.setSubscribed(subscribed));
+  }
+
   /**
    * sets the volume on the participant's microphone track
    * if no track exists the volume will be applied when the microphone track is added

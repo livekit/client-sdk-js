@@ -116,6 +116,10 @@ export default class LocalParticipant extends Participant {
     }
   }
 
+  getTracks() {
+    return super.getTracks() as Array<LocalTrackPublication>;
+  }
+
   /**
    * Enable or disable a participant's camera track.
    *
