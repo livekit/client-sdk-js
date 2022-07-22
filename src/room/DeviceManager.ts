@@ -1,3 +1,5 @@
+import log from '../logger';
+
 const defaultId = 'default';
 
 export default class DeviceManager {
@@ -18,9 +20,17 @@ export default class DeviceManager {
     kind?: MediaDeviceKind,
     requestPermissions: boolean = true,
   ): Promise<MediaDeviceInfo[]> {
+    if (DeviceManager.getUserMediaPromise) {
+      log.debug('awaiting getUserMediaPromise');
+      try {
+        await DeviceManager.getUserMediaPromise;
+      } catch (e: any) {
+        log.warn('error waiting for media permissons');
+      }
+    }
     let devices = await navigator.mediaDevices.enumerateDevices();
 
-    if (requestPermissions) {
+    if (requestPermissions && !DeviceManager.getUserMediaPromise) {
       const isDummyDeviceOrEmpty =
         devices.length === 0 ||
         devices.some((device) => {
@@ -31,21 +41,14 @@ export default class DeviceManager {
 
       if (isDummyDeviceOrEmpty) {
         const permissionsToAcquire = {
-          video:
-            kind !== 'audioinput' && kind !== 'audiooutput'
-              ? { deviceId: { exact: 'lk-dummy' } }
-              : false,
-          audio: kind !== 'videoinput' ? { deviceId: { exact: 'lk-dummy' } } : false,
+          video: kind !== 'audioinput' && kind !== 'audiooutput',
+          audio: kind !== 'videoinput',
         };
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
-          stream.getTracks().forEach((track) => {
-            track.stop();
-          });
-        } catch (e: unknown) {
-          // expected to not be able to acquire user media for 'lk-dummy' deviceId constraint
-        }
+        const stream = await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
         devices = await navigator.mediaDevices.enumerateDevices();
+        stream.getTracks().forEach((track) => {
+          track.stop();
+        });
       }
     }
     if (kind) {
