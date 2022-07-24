@@ -8,7 +8,7 @@ import { TrackPublication } from './TrackPublication';
 import { RemoteTrack } from './types';
 
 export default class RemoteTrackPublication extends TrackPublication {
-  track?: RemoteTrack;
+  track?: RemoteTrack = undefined;
 
   /** @internal */
   protected allowed = true;
