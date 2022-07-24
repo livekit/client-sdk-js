@@ -1,4 +1,5 @@
 import log from '../logger';
+import { isSafari } from './utils';
 
 const defaultId = 'default';
 
@@ -14,23 +15,32 @@ export default class DeviceManager {
     return this.instance;
   }
 
-  static getUserMediaPromise: Promise<MediaStream> | undefined;
+  static userMediaPromiseMap: Map<MediaDeviceKind, Promise<MediaStream>> = new Map();
 
   async getDevices(
     kind?: MediaDeviceKind,
     requestPermissions: boolean = true,
   ): Promise<MediaDeviceInfo[]> {
-    if (DeviceManager.getUserMediaPromise) {
-      log.debug('awaiting getUserMediaPromise');
+    if (DeviceManager.userMediaPromiseMap?.size > 0) {
+      log.debug('awaiting getUserMedia promise');
       try {
-        await DeviceManager.getUserMediaPromise;
+        if (kind) {
+          await DeviceManager.userMediaPromiseMap.get(kind);
+        } else {
+          await Promise.all(DeviceManager.userMediaPromiseMap.values());
+        }
       } catch (e: any) {
         log.warn('error waiting for media permissons');
       }
     }
     let devices = await navigator.mediaDevices.enumerateDevices();
 
-    if (requestPermissions && !DeviceManager.getUserMediaPromise) {
+    if (
+      requestPermissions &&
+      kind &&
+      // for safari we need to skip this check, as otherwise it will re-acquire user media and fail on iOS https://bugs.webkit.org/show_bug.cgi?id=179363
+      (!DeviceManager.userMediaPromiseMap.get(kind) || !isSafari())
+    ) {
       const isDummyDeviceOrEmpty =
         devices.length === 0 ||
         devices.some((device) => {
