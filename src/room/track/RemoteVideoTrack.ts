@@ -10,9 +10,6 @@ import { AdaptiveStreamSettings } from './types';
 const REACTION_DELAY = 100;
 
 export default class RemoteVideoTrack extends RemoteTrack {
-  /** @internal */
-  receiver?: RTCRtpReceiver;
-
   private prevStats?: VideoReceiverStats;
 
   private elementInfos: ElementInfo[] = [];
