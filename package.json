@@ -54,7 +54,7 @@
     "@types/jest": "28.1.6",
     "@types/sdp-transform": "2.4.5",
     "@types/ws": "8.5.3",
-    "@typescript-eslint/eslint-plugin": "4.33.0",
+    "@typescript-eslint/eslint-plugin": "5.30.7",
     "eslint": "7.32.0",
     "eslint-config-airbnb-typescript": "12.3.1",
     "eslint-config-prettier": "8.5.0",
