@@ -99,7 +99,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** used for aborting pending connections to a LiveKit server */
   private abortController?: AbortController;
 
+  /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
+
+  /** future holding sdk initiated reconnection attempt */
+  private reconnectFuture?: Future<void>;
 
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
@@ -202,7 +206,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (this.connectFuture) {
       return this.connectFuture.promise;
+    } else if (this.reconnectFuture) {
+      this.connectFuture = this.reconnectFuture;
+      return this.connectFuture.promise;
     }
+
     this.setAndEmitConnectionState(ConnectionState.Connecting);
 
     if (!this.abortController || this.abortController.signal.aborted) {
@@ -339,11 +347,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   disconnect = async (stopTracks = true) => {
     log.info('disconnect from room', { identity: this.localParticipant.identity });
-    if (this.state === ConnectionState.Connecting) {
+    if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
       // try aborting pending connection attempt
       log.warn('abort connection attempt');
       this.abortController?.abort();
-      return;
     }
     // send leave
     if (this.engine?.client.isConnected) {
@@ -1037,10 +1044,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     switch (state) {
       case ConnectionState.Connecting:
-      case ConnectionState.Reconnecting:
         if (!this.connectFuture) {
           // reuse existing connect future if possible
-          this.connectFuture = new Future<void>();
+          this.connectFuture = this.reconnectFuture ?? new Future<void>();
+        }
+        break;
+      case ConnectionState.Reconnecting:
+        if (!this.reconnectFuture) {
+          // reuse existing connect future if possible
+          this.reconnectFuture = new Future<void>();
         }
         break;
       case ConnectionState.Connected:
@@ -1048,12 +1060,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.connectFuture.resolve();
           this.connectFuture = undefined;
         }
+        if (this.reconnectFuture) {
+          this.reconnectFuture.resolve();
+          this.reconnectFuture = undefined;
+        }
         break;
       case ConnectionState.Disconnected:
         if (this.connectFuture) {
           error ??= new Error('disconnected from Room');
           this.connectFuture.reject(error);
           this.connectFuture = undefined;
+          // do not reject reconnect future, as there is no way to catch it for the client
+          this.reconnectFuture = undefined;
         }
         break;
       default:
