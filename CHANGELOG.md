@@ -1,5 +1,19 @@
 # Change Log
 
+## 1.2.5
+
+### Patch Changes
+
+- [#359](https://github.com/livekit/client-sdk-js/pull/359) [`31e3883`](https://github.com/livekit/client-sdk-js/commit/31e3883ebe7fc57dc0269b374031029dc5730652) Thanks [@lukasIO](https://github.com/lukasIO)! - Only reject connection promise if it was triggered by a call to connect()
+
+* [#358](https://github.com/livekit/client-sdk-js/pull/358) [`8ceceff`](https://github.com/livekit/client-sdk-js/commit/8ceceff691d055191aab61109a56ea64a8984c43) Thanks [@lukasIO](https://github.com/lukasIO)! - Add safari explicitly to browserslist, to ensure compatibility with Safari 11"
+
+- [#363](https://github.com/livekit/client-sdk-js/pull/363) [`4665f74`](https://github.com/livekit/client-sdk-js/commit/4665f740e68c0f049989cdd1db130c38eb5dd624) Thanks [@lukasIO](https://github.com/lukasIO)! - Decrease publication timeout to 10s and clean local state on failed unpublish attempts
+
+* [#311](https://github.com/livekit/client-sdk-js/pull/311) [`61a41e0`](https://github.com/livekit/client-sdk-js/commit/61a41e0c13f6d2e7ea69da2cfab9bf8220df3dcf) Thanks [@lukasIO](https://github.com/lukasIO)! - Avoid multiple calls to getUserMedia for getLocalDevices
+
+- [#332](https://github.com/livekit/client-sdk-js/pull/332) [`b3df000`](https://github.com/livekit/client-sdk-js/commit/b3df0009788ecd86ee06b774253d50339468bf88) Thanks [@lukasIO](https://github.com/lukasIO)! - Clean up simulcast codecs in unpublishTrack
+
 ## 1.2.4
 
 ### Patch Changes
