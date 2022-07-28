@@ -72,7 +72,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private _isClosed: boolean = true;
 
-  private pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
+  private pendingTrackResolvers: {
+    [key: string]: { resolve: (info: TrackInfo) => void; reject: () => void };
+  } = {};
 
   // true if publisher connection has already been established.
   // this is helpful to know if we need to restart ICE on the publisher connection
@@ -166,16 +168,38 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     return new Promise<TrackInfo>((resolve, reject) => {
       const publicationTimeout = setTimeout(() => {
+        delete this.pendingTrackResolvers[req.cid];
         reject(
           new ConnectionError('publication of local track timed out, no response from server'),
         );
-      }, 15_000);
-      this.pendingTrackResolvers[req.cid] = (info: TrackInfo) => {
-        clearTimeout(publicationTimeout);
-        resolve(info);
+      }, 10_000);
+      this.pendingTrackResolvers[req.cid] = {
+        resolve: (info: TrackInfo) => {
+          clearTimeout(publicationTimeout);
+          resolve(info);
+        },
+        reject: () => {
+          clearTimeout(publicationTimeout);
+          reject('Cancelled publication by calling unpublish');
+        },
       };
       this.client.sendAddTrack(req);
     });
+  }
+
+  removeTrack(sender: RTCRtpSender) {
+    if (sender.track && this.pendingTrackResolvers[sender.track.id]) {
+      const { reject } = this.pendingTrackResolvers[sender.track.id];
+      if (reject) {
+        reject();
+      }
+      delete this.pendingTrackResolvers[sender.track.id];
+    }
+    try {
+      this.publisher?.pc.removeTrack(sender);
+    } catch (e: unknown) {
+      log.warn('failed to remove track', { error: e, method: 'removeTrack' });
+    }
   }
 
   updateMuteStatus(trackSid: string, muted: boolean) {
@@ -338,7 +362,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
       log.debug('received trackPublishedResponse', res);
-      const resolve = this.pendingTrackResolvers[res.cid];
+      const { resolve } = this.pendingTrackResolvers[res.cid];
       if (!resolve) {
         log.error(`missing track resolver for ${res.cid}`);
         return;
