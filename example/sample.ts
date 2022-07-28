@@ -21,8 +21,8 @@ import {
   VideoCaptureOptions,
   VideoCodec,
   VideoPresets,
-  VideoQuality,
-} from '../src/index';
+  VideoQuality
+} from '../src/index'
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -72,7 +72,7 @@ const appActions = {
         videoCodec: preferredCodec || 'vp8',
       },
       videoCaptureDefaults: {
-        resolution: VideoPresets.h720.resolution,
+        resolution: VideoPresets.h1080.resolution,
       },
     };
 
