@@ -79,6 +79,7 @@
   },
   "browserslist": [
     "defaults",
+    "safari >= 11",
     "not IE 11"
   ]
 }
