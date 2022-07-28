@@ -646,8 +646,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
     // reject potentially ongoing reconnection attempt
-    this.reconnectFuture?.reject(undefined);
-    this.reconnectFuture = undefined;
+    if (this.connectFuture === this.reconnectFuture) {
+      this.connectFuture?.reject(undefined);
+      this.connectFuture = undefined;
+      this.reconnectFuture = undefined;
+    }
 
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
