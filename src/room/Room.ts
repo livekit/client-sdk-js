@@ -726,10 +726,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
         this.handleParticipantDisconnected(info.sid, remoteParticipant);
-      } else if (isNewParticipant) {
-        // fire connected event
-        this.emitWhenConnected(RoomEvent.ParticipantConnected, remoteParticipant);
-      } else {
+      } else if (!isNewParticipant) {
         // just update, no events
         remoteParticipant.updateInfo(info);
       }
@@ -929,6 +926,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.participants.set(id, participant);
     if (info) {
       this.identityToSid.set(info.identity, info.sid);
+      // if we have valid info and the participant wasn't in the map before, we can assume the participant is new
+      // firing here to make sure that `ParticipantConnected` fires before the initial track events
+      this.emitWhenConnected(RoomEvent.ParticipantConnected, participant);
     }
 
     // also forward events
