@@ -303,6 +303,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.recreateEngine();
         this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
         reject(new ConnectionError('could not establish signal connection'));
+        return;
       }
 
       // don't return until ICE connected
@@ -335,10 +336,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.setAndEmitConnectionState(ConnectionState.Connected);
         resolve();
       });
-    });
+    }).finally(() => (this.connectFuture = undefined));
     this.connectFuture = new Future(connectPromise);
-
-    this.connectFuture.promise.finally(() => (this.connectFuture = undefined));
 
     return this.connectFuture.promise;
   };
