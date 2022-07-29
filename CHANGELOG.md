@@ -1,5 +1,15 @@
 # Change Log
 
+## 1.2.6
+
+### Patch Changes
+
+- [#365](https://github.com/livekit/client-sdk-js/pull/365) [`d040aff`](https://github.com/livekit/client-sdk-js/commit/d040aff8d2de895cb95bd3928e285a669a698bde) Thanks [@lukasIO](https://github.com/lukasIO)! - Make sure that ParticipantConnected fires before related TrackEvents
+
+* [#368](https://github.com/livekit/client-sdk-js/pull/368) [`7f8d1ce`](https://github.com/livekit/client-sdk-js/commit/7f8d1cec98b707c1c9a8eaf17457cc39e3f8da2c) Thanks [@lukasIO](https://github.com/lukasIO)! - Return after signal connection failed
+
+- [#366](https://github.com/livekit/client-sdk-js/pull/366) [`b52e7b3`](https://github.com/livekit/client-sdk-js/commit/b52e7b3433405759b63e413e1c17b5d3683ef809) Thanks [@lukasIO](https://github.com/lukasIO)! - Handle reconnect case in onTrackAdded
+
 ## 1.2.5
 
 ### Patch Changes
