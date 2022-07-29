@@ -542,8 +542,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // at that time, ICE connectivity has not been established so the track is not
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
-    if (this.connectFuture) {
-      this.connectFuture.promise.then(() => {
+    if (this.connectFuture || this.reconnectFuture) {
+      Promise.allSettled([this.connectFuture?.promise, this.reconnectFuture?.promise]).then(() => {
         this.onTrackAdded(mediaTrack, stream, receiver);
       });
       return;
