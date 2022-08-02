@@ -648,8 +648,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.connectFuture === this.reconnectFuture) {
       this.connectFuture?.reject(undefined);
       this.connectFuture = undefined;
-      this.reconnectFuture = undefined;
     }
+    this.reconnectFuture = undefined;
 
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
