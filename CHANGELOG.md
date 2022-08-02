@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.2.7
+
+### Patch Changes
+
+- [#369](https://github.com/livekit/client-sdk-js/pull/369) [`a3d6de6`](https://github.com/livekit/client-sdk-js/commit/a3d6de6b342a6650d66e10565d4e18aec250e7e4) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix reconnect promise not being reset after reconnect attempts are exhausted
+
 ## 1.2.6
 
 ### Patch Changes
