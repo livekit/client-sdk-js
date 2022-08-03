@@ -33,7 +33,7 @@ export default {
     typescript({ tsconfig: './example/tsconfig.json' }),
     commonjs(),
     json(),
-    serve({ contentBase: 'example', open: true, port: 8081 }),
+    serve({ contentBase: 'example', open: true, port: 8080 }),
     watcher(['example/index.html', 'example/styles.css']),
     livereload(),
   ],
