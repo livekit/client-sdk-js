@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.2.8
+
+### Patch Changes
+
+- [#371](https://github.com/livekit/client-sdk-js/pull/371) [`e1a004e`](https://github.com/livekit/client-sdk-js/commit/e1a004e4edb003c26bc7976546fff959b60bfd25) Thanks [@lukasIO](https://github.com/lukasIO)! - only set volume on attach if elementVolume has been previously set
+
 ## 1.2.7
 
 ### Patch Changes
