@@ -20,7 +20,10 @@ import RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
-import LocalVideoTrack, {SimulcastTrackInfo, videoLayersFromEncodings} from '../track/LocalVideoTrack';
+import LocalVideoTrack, {
+  SimulcastTrackInfo,
+  videoLayersFromEncodings,
+} from '../track/LocalVideoTrack';
 import {
   AudioCaptureOptions,
   CreateLocalTracksOptions,
@@ -557,7 +560,7 @@ export default class LocalParticipant extends Participant {
     }
     log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
 
-    track.sender = await this.createSender(track, opts, encodings)
+    track.sender = await this.createSender(track, opts, encodings);
     if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
         req.cid,
@@ -580,25 +583,33 @@ export default class LocalParticipant extends Participant {
     this.emit(ParticipantEvent.LocalTrackPublished, publication);
     return publication;
   }
-  
-  async createSender(track: LocalTrack, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
+
+  async createSender(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    encodings?: RTCRtpEncodingParameters[],
+  ) {
     // store RTCRtpSender
     // @ts-ignore
     if (this.supportsTransceiver) {
-      return this.createSenderTransceiver(track, opts, encodings)
+      return this.createSenderTransceiver(track, opts, encodings);
     }
     if (this.supportsAddTrack) {
-      console.log("using add-track")
-      return this.getTrackSender(track.mediaStreamTrack, track.mediaStream)
+      console.log('using add-track');
+      return this.getTrackSender(track.mediaStreamTrack, track.mediaStream);
     }
 
     if (track.mediaStream) {
-      return this.getStreamSender(track.mediaStream)
+      return this.getStreamSender(track.mediaStream);
     }
     throw new UnexpectedConnectionState('Cannot stream on this device');
   }
 
-  async createSenderTransceiver(track: LocalTrack, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
+  async createSenderTransceiver(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    encodings?: RTCRtpEncodingParameters[],
+  ) {
     if (!this.engine.publisher) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
@@ -609,8 +620,8 @@ export default class LocalParticipant extends Participant {
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
     const transceiver = await this.engine.publisher.pc.addTransceiver(
-        track.mediaStreamTrack,
-        transceiverInit,
+      track.mediaStreamTrack,
+      transceiverInit,
     );
     if (track.kind === Track.Kind.Video && opts.videoCodec) {
       this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
@@ -619,7 +630,12 @@ export default class LocalParticipant extends Participant {
     return transceiver.sender;
   }
 
-  async getSimulcastTransceiverSender(track: LocalVideoTrack, simulcastTrack: SimulcastTrackInfo, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
+  async getSimulcastTransceiverSender(
+    track: LocalVideoTrack,
+    simulcastTrack: SimulcastTrackInfo,
+    opts: TrackPublishOptions,
+    encodings?: RTCRtpEncodingParameters[],
+  ) {
     if (!this.engine.publisher) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
@@ -629,8 +645,8 @@ export default class LocalParticipant extends Participant {
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
     const transceiver = await this.engine.publisher.pc.addTransceiver(
-        simulcastTrack.mediaStreamTrack,
-        transceiverInit,
+      simulcastTrack.mediaStreamTrack,
+      transceiverInit,
     );
     if (!opts.videoCodec) {
       return;
@@ -645,16 +661,16 @@ export default class LocalParticipant extends Participant {
     }
     if (stream) {
       return this.engine.publisher.pc.addTrack(track, stream);
-    } 
+    }
     return this.engine.publisher.pc.addTrack(track);
   }
 
   get supportsTransceiver() {
-    return false // 'addTransceiver' in RTCPeerConnection.prototype && 'addTransceiver' in RTCPeerConnection
+    return false; // 'addTransceiver' in RTCPeerConnection.prototype && 'addTransceiver' in RTCPeerConnection
   }
 
   get supportsAddTrack() {
-    return false // 'addTrack' in RTCPeerConnection.prototype
+    return false; // 'addTrack' in RTCPeerConnection.prototype
   }
 
   async getStreamSender(stream: MediaStream) {
@@ -667,19 +683,26 @@ export default class LocalParticipant extends Participant {
 
     // @ts-ignore
     // Is THRE A BETTER WAY?????
-    this.engine.publisher.pc.addStream(stream)
-    return this.engine.publisher.pc.getSenders().find((s) => s?.track?.kind === "video") ?? undefined;
-}
+    this.engine.publisher.pc.addStream(stream);
+    return (
+      this.engine.publisher.pc.getSenders().find((s) => s?.track?.kind === 'video') ?? undefined
+    );
+  }
 
-  async getSimulcastSender(track: LocalVideoTrack, simulcastTrack: SimulcastTrackInfo, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
+  async getSimulcastSender(
+    track: LocalVideoTrack,
+    simulcastTrack: SimulcastTrackInfo,
+    opts: TrackPublishOptions,
+    encodings?: RTCRtpEncodingParameters[],
+  ) {
     // store RTCRtpSender
     // @ts-ignore
     if (this.supportsTransceiver) {
-      return this.getSimulcastTransceiverSender(track,simulcastTrack,  opts, encodings)
-    } 
+      return this.getSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
+    }
     if (this.supportsAddTrack) {
-      console.log("using add-track")
-      return this.getTrackSender(track.mediaStreamTrack, track.mediaStream)
+      console.log('using add-track');
+      return this.getTrackSender(track.mediaStreamTrack, track.mediaStream);
     }
     if (track.mediaStream) {
       return this.getStreamSender(track.mediaStream);
@@ -757,7 +780,7 @@ export default class LocalParticipant extends Participant {
     if (!this.engine.publisher) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
-    await this.getSimulcastSender(track, simulcastTrack, opts, encodings)
+    await this.getSimulcastSender(track, simulcastTrack, opts, encodings);
 
     if (videoCodec === 'av1' && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
@@ -1104,7 +1127,7 @@ export default class LocalParticipant extends Participant {
     }
 
     // There is an early return for compatability reasons
-    // eslint-disable-next-line compat/compat 
+    // eslint-disable-next-line compat/compat
     const cap = RTCRtpSender.getCapabilities(kind);
     if (!cap) return;
     log.debug('get capabilities', cap);
