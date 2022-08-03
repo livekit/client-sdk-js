@@ -37,6 +37,7 @@ import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import { computeVideoEncodings, mediaTrackToLocalTrack } from './publishUtils';
 import RemoteParticipant from './RemoteParticipant';
+import 'webrtc-adapter';
 
 const compatibleCodec = 'vp8';
 export default class LocalParticipant extends Participant {
@@ -590,6 +591,10 @@ export default class LocalParticipant extends Participant {
       console.log("using add-track")
       return this.getTrackSender(track.mediaStreamTrack, track.mediaStream)
     }
+
+    if (track.mediaStream) {
+      return this.getStreamSender(track.mediaStream)
+    }
     throw new UnexpectedConnectionState('Cannot stream on this device');
   }
 
@@ -645,12 +650,26 @@ export default class LocalParticipant extends Participant {
   }
 
   get supportsTransceiver() {
-    return 'addTransceiver' in RTCPeerConnection.prototype && 'addTransceiver' in RTCPeerConnection
+    return false // 'addTransceiver' in RTCPeerConnection.prototype && 'addTransceiver' in RTCPeerConnection
   }
 
   get supportsAddTrack() {
-    return 'addTrack' in RTCPeerConnection.prototype
+    return false // 'addTrack' in RTCPeerConnection.prototype
   }
+
+  async getStreamSender(stream: MediaStream) {
+    if (!this.engine.publisher) {
+      throw new UnexpectedConnectionState('publisher is closed');
+    }
+    if (!('addStream' in window.RTCPeerConnection.prototype)) {
+      throw new UnexpectedConnectionState('cannot stream!!!!!!!');
+    }
+
+    // @ts-ignore
+    // Is THRE A BETTER WAY?????
+    this.engine.publisher.pc.addStream(stream)
+    return this.engine.publisher.pc.getSenders().find((s) => s?.track?.kind === "video") ?? undefined;
+}
 
   async getSimulcastSender(track: LocalVideoTrack, simulcastTrack: SimulcastTrackInfo, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
     // store RTCRtpSender
@@ -662,6 +681,10 @@ export default class LocalParticipant extends Participant {
       console.log("using add-track")
       return this.getTrackSender(track.mediaStreamTrack, track.mediaStream)
     }
+    if (track.mediaStream) {
+      return this.getStreamSender(track.mediaStream);
+    }
+
     throw new UnexpectedConnectionState('Cannot stream on this device');
   }
 
