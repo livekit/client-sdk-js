@@ -556,6 +556,7 @@ export default class LocalParticipant extends Participant {
     }
     log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
 
+    track.sender = await this.getSender(track, opts, encodings)
     if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
         req.cid,
@@ -565,7 +566,6 @@ export default class LocalParticipant extends Participant {
     }
 
     this.engine.negotiate();
-    track.sender = await this.getSender(track, opts, encodings)
 
     if (track instanceof LocalVideoTrack) {
       track.startMonitor(this.engine.client);
