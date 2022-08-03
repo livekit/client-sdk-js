@@ -84,7 +84,6 @@
     "not IE 11",
     "chrome >= 56",
     "firefox >= 44",
-    "safari >= 10",
     "Opera >= 43",
     "edge >= 50",
 
