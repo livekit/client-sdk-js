@@ -20,7 +20,7 @@ import RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
-import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
+import LocalVideoTrack, {SimulcastTrackInfo, videoLayersFromEncodings} from '../track/LocalVideoTrack';
 import {
   AudioCaptureOptions,
   CreateLocalTracksOptions,
@@ -282,6 +282,7 @@ export default class LocalParticipant extends Participant {
         video: true,
       });
 
+      // eslint-disable-next-line compat/compat
       await Promise.all(tracks.map((track) => this.publishTrack(track)));
     } finally {
       this.pendingPublishing.delete(Track.Source.Camera);
@@ -554,19 +555,6 @@ export default class LocalParticipant extends Participant {
       throw new UnexpectedConnectionState('publisher is closed');
     }
     log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
-    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-    if (encodings) {
-      transceiverInit.sendEncodings = encodings;
-    }
-    // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.engine.publisher.pc.addTransceiver(
-      track.mediaStreamTrack,
-      transceiverInit,
-    );
-    if (track.kind === Track.Kind.Video && opts.videoCodec) {
-      this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
-      track.codec = opts.videoCodec;
-    }
 
     if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
@@ -577,9 +565,8 @@ export default class LocalParticipant extends Participant {
     }
 
     this.engine.negotiate();
+    track.sender = await this.getSender(track, opts, encodings)
 
-    // store RTPSender
-    track.sender = transceiver.sender;
     if (track instanceof LocalVideoTrack) {
       track.startMonitor(this.engine.client);
     } else if (track instanceof LocalAudioTrack) {
@@ -591,6 +578,101 @@ export default class LocalParticipant extends Participant {
     // send event for publication
     this.emit(ParticipantEvent.LocalTrackPublished, publication);
     return publication;
+  }
+
+  async getSenderDeprecated(track: LocalTrack) {
+    if (!this.engine.publisher) {
+      throw new UnexpectedConnectionState('publisher is closed');
+    }
+    if (!('addTrack' in RTCPeerConnection.prototype)) {
+      throw new UnexpectedConnectionState('Cannot stream on this device');
+    }
+    let sender;
+    if (track.mediaStream) {
+      sender = await this.engine.publisher.pc.addTrack(track.mediaStreamTrack, track.mediaStream);
+    } else {
+      sender = await this.engine.publisher.pc.addTrack(track.mediaStreamTrack);
+    }
+    return sender;
+  }
+  
+  async getSender(track: LocalTrack, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
+    // store RTCRtpSender
+    // @ts-ignore
+    if ('addTransceiver' in RTCPeerConnection.prototype && 'addTransceiver' in RTCPeerConnection) {
+      return this.getSenderTransceiver(track, opts, encodings)
+    }
+    console.log("Using AddTrack API")
+    return this.getSenderDeprecated(track)
+    
+  }
+
+  async getSenderTransceiver(track: LocalTrack, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
+    if (!this.engine.publisher) {
+      throw new UnexpectedConnectionState('publisher is closed');
+    }
+
+    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+    if (encodings) {
+      transceiverInit.sendEncodings = encodings;
+    }
+    // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
+    const transceiver = await this.engine.publisher.pc.addTransceiver(
+        track.mediaStreamTrack,
+        transceiverInit,
+    );
+    if (track.kind === Track.Kind.Video && opts.videoCodec) {
+      this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
+      track.codec = opts.videoCodec;
+    }
+    return transceiver.sender;
+  }
+
+  async useTransceiver(track: LocalVideoTrack, simulcastTrack: SimulcastTrackInfo, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
+    if (!this.engine.publisher) {
+      throw new UnexpectedConnectionState('publisher is closed');
+    }
+    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+    if (encodings) {
+      transceiverInit.sendEncodings = encodings;
+    }
+    // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
+    const transceiver = await this.engine.publisher.pc.addTransceiver(
+        simulcastTrack.mediaStreamTrack,
+        transceiverInit,
+    );
+    if (!opts.videoCodec) {
+      return;
+    }
+    this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
+    track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
+  }
+
+  async useTrack(track: LocalVideoTrack, simulcastTrack: SimulcastTrackInfo) {
+    if (!this.engine.publisher) {
+      throw new UnexpectedConnectionState('publisher is closed');
+    }
+
+    if (!('addTrack' in RTCPeerConnection.prototype)) {
+      throw new UnexpectedConnectionState('Cannot stream on this device');
+    }
+    let sender;
+    if (track.mediaStream) {
+      sender = await this.engine.publisher.pc.addTrack(simulcastTrack.mediaStreamTrack, track.mediaStream);
+    } else {
+      sender = await this.engine.publisher.pc.addTrack(simulcastTrack.mediaStreamTrack);
+    }
+    return sender;
+  }
+
+  async newCodecTrackCompatMethod(track: LocalVideoTrack, simulcastTrack: SimulcastTrackInfo, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
+    // store RTCRtpSender
+    // @ts-ignore
+    if ('addTransceiver' in RTCPeerConnection.prototype && 'addTransceiver' in RTCPeerConnection) {
+      return this.useTransceiver(track,simulcastTrack,  opts, encodings)
+    }
+    console.log("Using AddTrack API")
+    return this.useTrack(track, simulcastTrack)
   }
 
   /** @internal
@@ -662,17 +744,7 @@ export default class LocalParticipant extends Participant {
     if (!this.engine.publisher) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
-    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-    if (encodings) {
-      transceiverInit.sendEncodings = encodings;
-    }
-    // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.engine.publisher.pc.addTransceiver(
-      simulcastTrack.mediaStreamTrack,
-      transceiverInit,
-    );
-    this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
-    track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
+    await this.newCodecTrackCompatMethod(track, simulcastTrack, opts, encodings)
 
     if (videoCodec === 'av1' && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
@@ -1017,6 +1089,9 @@ export default class LocalParticipant extends Participant {
     if (!('getCapabilities' in RTCRtpSender)) {
       return;
     }
+
+    // There is an early return for compatability reasons
+    // eslint-disable-next-line compat/compat 
     const cap = RTCRtpSender.getCapabilities(kind);
     if (!cap) return;
     log.debug('get capabilities', cap);

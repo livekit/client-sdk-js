@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "async-await-queue": "^1.2.1",
+    "eslint-plugin-compat": "^4.0.2",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
     "protobufjs": "^7.0.0",
@@ -80,6 +81,20 @@
   "browserslist": [
     "defaults",
     "safari >= 11",
-    "not IE 11"
+    "not IE 11",
+    "chrome >= 56",
+    "firefox >= 44",
+    "safari >= 10",
+    "Opera >= 43",
+    "edge >= 50",
+
+    "Samsung >= 6.0",
+    "FirefoxAndroid >= 44",
+    "ChromeAndroid >= 56",
+    "ios_saf >= 11",
+    "Android >= 56",
+    "op_mob >= 43",
+    "not op_mini all",
+    "not dead"
   ]
 }

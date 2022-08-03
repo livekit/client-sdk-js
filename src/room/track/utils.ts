@@ -106,6 +106,7 @@ export async function detectSilence(track: AudioTrack, timeOffset = 200): Promis
  */
 export function getNewAudioContext(): AudioContext | void {
   // @ts-ignore
+  // eslint-disable-next-line compat/compat
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (AudioContext) {
     return new AudioContext();
