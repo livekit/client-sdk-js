@@ -5,11 +5,10 @@ import { Track } from './Track';
 export default class RemoteAudioTrack extends RemoteTrack {
   private prevStats?: AudioReceiverStats;
 
-  private elementVolume: number;
+  private elementVolume: number | undefined;
 
   constructor(mediaTrack: MediaStreamTrack, sid: string, receiver?: RTCRtpReceiver) {
     super(mediaTrack, sid, Track.Kind.Audio, receiver);
-    this.elementVolume = 1;
   }
 
   /**
@@ -23,10 +22,19 @@ export default class RemoteAudioTrack extends RemoteTrack {
   }
 
   /**
-   * gets the volume for all attached audio elements
+   * gets the volume of attached audio elements (loudest)
    */
   getVolume(): number {
-    return this.elementVolume;
+    if (this.elementVolume) {
+      return this.elementVolume;
+    }
+    let highestVolume = 0;
+    this.attachedElements.forEach((element) => {
+      if (element.volume > highestVolume) {
+        highestVolume = element.volume;
+      }
+    });
+    return highestVolume;
   }
 
   attach(): HTMLMediaElement;
@@ -37,7 +45,9 @@ export default class RemoteAudioTrack extends RemoteTrack {
     } else {
       super.attach(element);
     }
-    element.volume = this.elementVolume;
+    if (this.elementVolume) {
+      element.volume = this.elementVolume;
+    }
     return element;
   }
 
