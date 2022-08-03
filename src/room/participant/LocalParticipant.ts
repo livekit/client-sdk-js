@@ -583,10 +583,10 @@ export default class LocalParticipant extends Participant {
   async createSender(track: LocalTrack, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
     // store RTCRtpSender
     // @ts-ignore
-    if ('addTransceiver' in RTCPeerConnection.prototype && 'addTransceiver' in RTCPeerConnection) {
+    if (this.supportsTransceiver) {
       return this.createSenderTransceiver(track, opts, encodings)
     }
-    if ('addTrack' in RTCPeerConnection.prototype) {
+    if (this.supportsAddTrack) {
       console.log("using add-track")
       return this.getTrackSender(track.mediaStreamTrack, track.mediaStream)
     }
@@ -644,13 +644,21 @@ export default class LocalParticipant extends Participant {
     return this.engine.publisher.pc.addTrack(track);
   }
 
+  get supportsTransceiver() {
+    return 'addTransceiver' in RTCPeerConnection.prototype && 'addTransceiver' in RTCPeerConnection
+  }
+
+  get supportsAddTrack() {
+    return 'addTrack' in RTCPeerConnection.prototype
+  }
+
   async getSimulcastSender(track: LocalVideoTrack, simulcastTrack: SimulcastTrackInfo, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]) {
     // store RTCRtpSender
     // @ts-ignore
-    if ('addTransceiver' in RTCPeerConnection.prototype && 'addTransceiver' in RTCPeerConnection) {
+    if (this.supportsTransceiver) {
       return this.getSimulcastTransceiverSender(track,simulcastTrack,  opts, encodings)
     } 
-    if ('addTrack' in RTCPeerConnection.prototype) {
+    if (this.supportsAddTrack) {
       console.log("using add-track")
       return this.getTrackSender(track.mediaStreamTrack, track.mediaStream)
     }
