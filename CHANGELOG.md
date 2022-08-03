@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.2.9
+
+### Patch Changes
+
+- [#374](https://github.com/livekit/client-sdk-js/pull/374) [`148b9ff`](https://github.com/livekit/client-sdk-js/commit/148b9ffb78eb07f3bc287eb6f53f05bf900e9118) Thanks [@lukasIO](https://github.com/lukasIO)! - Detach track on unsubscribe
+
 ## 1.2.8
 
 ### Patch Changes
