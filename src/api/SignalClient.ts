@@ -160,7 +160,7 @@ export class SignalClient {
 
   async reconnect(url: string, token: string): Promise<void> {
     this.isReconnecting = true;
-    // clear ping timeout and restart it when reconnected
+    // clear ping timeout and reset it once reconnected
     if (this.pingTimeoutDuration) {
       clearTimeout(this.pingTimeoutDuration);
     }
@@ -285,6 +285,7 @@ export class SignalClient {
     if (this.pingTimeout) {
       clearTimeout(this.pingTimeout);
     }
+    this.stopPingInterval();
   }
 
   // initial offer after joining
@@ -496,16 +497,31 @@ export class SignalClient {
     if (this.pingTimeoutDuration) {
       clearTimeout(this.pingTimeoutDuration);
     }
+    if (!this.pingTimeoutDuration) {
+      return;
+    }
     this.pingTimeout = setTimeout(() => {
-      // TODO implement what to do
-    }, this.pingTimeoutDuration ?? 20_000);
+      if (this.onClose) {
+        this.onClose('ping timeout');
+      }
+    }, this.pingTimeoutDuration);
   }
 
   private startPingInterval() {
     this.resetPingTimeout();
+    this.stopPingInterval();
+    if (!this.pingIntervalDuration) {
+      return;
+    }
     this.pingInterval = setInterval(() => {
       this.sendPing();
-    }, this.pingIntervalDuration ?? 10_000);
+    }, this.pingIntervalDuration);
+  }
+
+  private stopPingInterval() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
   }
 }
 

@@ -24,7 +24,7 @@ export default class RemoteParticipant extends Participant {
 
   /** @internal */
   static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
-    return new RemoteParticipant(signalClient, pi.sid, pi.identity, pi.name);
+    return new RemoteParticipant(signalClient, pi.sid, pi.identity);
   }
 
   /** @internal */
