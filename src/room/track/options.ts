@@ -104,7 +104,7 @@ export interface VideoCaptureOptions {
   /**
    * a facing or an array of facings which are acceptable and/or required.
    */
-  facingMode?: 'user' | 'environment' | 'left' | 'right';
+  facingMode?: 'user' | 'environment' | 'left' | 'right' | ConstrainDOMStringParameters | boolean;
 
   resolution?: VideoResolution;
 }
