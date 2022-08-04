@@ -120,6 +120,14 @@ export class SignalClient {
 
   ws?: WebSocket;
 
+  private pingTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  private pingTimeoutDuration: number | undefined;
+
+  private pingIntervalDuration: number | undefined;
+
+  private pingInterval: ReturnType<typeof setInterval> | undefined;
+
   constructor(useJSON: boolean = false) {
     this.isConnected = false;
     this.isReconnecting = false;
@@ -152,6 +160,10 @@ export class SignalClient {
 
   async reconnect(url: string, token: string): Promise<void> {
     this.isReconnecting = true;
+    // clear ping timeout and restart it when reconnected
+    if (this.pingTimeoutDuration) {
+      clearTimeout(this.pingTimeoutDuration);
+    }
     await this.connect(url, token, {
       reconnect: true,
     });
@@ -212,6 +224,8 @@ export class SignalClient {
         if (opts.reconnect) {
           // upon reconnection, there will not be additional handshake
           this.isConnected = true;
+          // restart ping timeout as it's cleared for reconnection
+          this.resetPingTimeout();
           resolve();
         }
       };
@@ -234,6 +248,9 @@ export class SignalClient {
           if (msg.join) {
             this.isConnected = true;
             abortSignal?.removeEventListener('abort', abortHandler);
+            this.pingTimeoutDuration = msg.join.pingTimeout;
+            this.pingIntervalDuration = msg.join.pingInterval;
+            this.startPingInterval();
             resolve(msg.join);
           } else {
             reject(new ConnectionError('did not receive join response'));
@@ -265,6 +282,9 @@ export class SignalClient {
     if (this.ws) this.ws.onclose = null;
     this.ws?.close();
     this.ws = undefined;
+    if (this.pingTimeout) {
+      clearTimeout(this.pingTimeout);
+    }
   }
 
   // initial offer after joining
@@ -341,6 +361,12 @@ export class SignalClient {
   sendSimulateScenario(scenario: SimulateScenario) {
     this.sendRequest({
       simulate: scenario,
+    });
+  }
+
+  sendPing() {
+    this.sendRequest({
+      ping: { ping: true },
     });
   }
 
@@ -445,6 +471,8 @@ export class SignalClient {
       if (this.onLocalTrackUnpublished) {
         this.onLocalTrackUnpublished(msg.trackUnpublished);
       }
+    } else if (msg.pong) {
+      this.resetPingTimeout();
     } else {
       log.debug('unsupported message', msg);
     }
@@ -462,6 +490,22 @@ export class SignalClient {
 
   private handleWSError(ev: Event) {
     log.error('websocket error', ev);
+  }
+
+  private resetPingTimeout() {
+    if (this.pingTimeoutDuration) {
+      clearTimeout(this.pingTimeoutDuration);
+    }
+    this.pingTimeout = setTimeout(() => {
+      // TODO implement what to do
+    }, this.pingTimeoutDuration ?? 20_000);
+  }
+
+  private startPingInterval() {
+    this.resetPingTimeout();
+    this.pingInterval = setInterval(() => {
+      this.sendPing();
+    }, this.pingIntervalDuration ?? 10_000);
   }
 }
 

@@ -1,6 +1,4 @@
 /* eslint-disable */
-import Long from 'long';
-import * as _m0 from 'protobufjs/minimal';
 import {
   TrackType,
   TrackSource,
@@ -25,6 +23,7 @@ import {
   connectionQualityFromJSON,
   connectionQualityToJSON,
 } from './livekit_models';
+import _m0 from 'protobufjs/minimal';
 
 export const protobufPackage = 'livekit';
 
@@ -55,8 +54,9 @@ export function signalTargetToJSON(object: SignalTarget): string {
       return 'PUBLISHER';
     case SignalTarget.SUBSCRIBER:
       return 'SUBSCRIBER';
+    case SignalTarget.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -87,8 +87,9 @@ export function streamStateToJSON(object: StreamState): string {
       return 'ACTIVE';
     case StreamState.PAUSED:
       return 'PAUSED';
+    case StreamState.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -119,8 +120,9 @@ export function candidateProtocolToJSON(object: CandidateProtocol): string {
       return 'UDP';
     case CandidateProtocol.TCP:
       return 'TCP';
+    case CandidateProtocol.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -151,6 +153,8 @@ export interface SignalRequest {
   syncState?: SyncState | undefined;
   /** Simulate conditions, for client validations */
   simulate?: SimulateScenario | undefined;
+  /** client triggered ping to server */
+  ping?: Ping | undefined;
 }
 
 export interface SignalResponse {
@@ -189,6 +193,8 @@ export interface SignalResponse {
   refreshToken: string | undefined;
   /** server initiated track unpublish */
   trackUnpublished?: TrackUnpublishedResponse | undefined;
+  /** respond to ping */
+  pong: boolean | undefined;
 }
 
 export interface SimulcastCodec {
@@ -241,6 +247,8 @@ export interface JoinResponse {
   alternativeUrl: string;
   clientConfiguration?: ClientConfiguration;
   serverRegion: string;
+  pingTimeout: number;
+  pingInterval: number;
 }
 
 export interface TrackPublishedResponse {
@@ -390,6 +398,11 @@ export interface SimulateScenario {
   switchCandidateProtocol: CandidateProtocol | undefined;
 }
 
+/** declare Ping as message in order for it to stay "optional" in generated ts-proto files */
+export interface Ping {
+  ping: boolean;
+}
+
 function createBaseSignalRequest(): SignalRequest {
   return {
     offer: undefined,
@@ -404,6 +417,7 @@ function createBaseSignalRequest(): SignalRequest {
     subscriptionPermission: undefined,
     syncState: undefined,
     simulate: undefined,
+    ping: undefined,
   };
 }
 
@@ -447,6 +461,9 @@ export const SignalRequest = {
     }
     if (message.simulate !== undefined) {
       SimulateScenario.encode(message.simulate, writer.uint32(106).fork()).ldelim();
+    }
+    if (message.ping !== undefined) {
+      Ping.encode(message.ping, writer.uint32(114).fork()).ldelim();
     }
     return writer;
   },
@@ -494,6 +511,9 @@ export const SignalRequest = {
         case 13:
           message.simulate = SimulateScenario.decode(reader, reader.uint32());
           break;
+        case 14:
+          message.ping = Ping.decode(reader, reader.uint32());
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -524,6 +544,7 @@ export const SignalRequest = {
         : undefined,
       syncState: isSet(object.syncState) ? SyncState.fromJSON(object.syncState) : undefined,
       simulate: isSet(object.simulate) ? SimulateScenario.fromJSON(object.simulate) : undefined,
+      ping: isSet(object.ping) ? Ping.fromJSON(object.ping) : undefined,
     };
   },
 
@@ -561,6 +582,7 @@ export const SignalRequest = {
       (obj.syncState = message.syncState ? SyncState.toJSON(message.syncState) : undefined);
     message.simulate !== undefined &&
       (obj.simulate = message.simulate ? SimulateScenario.toJSON(message.simulate) : undefined);
+    message.ping !== undefined && (obj.ping = message.ping ? Ping.toJSON(message.ping) : undefined);
     return obj;
   },
 
@@ -614,6 +636,8 @@ export const SignalRequest = {
       object.simulate !== undefined && object.simulate !== null
         ? SimulateScenario.fromPartial(object.simulate)
         : undefined;
+    message.ping =
+      object.ping !== undefined && object.ping !== null ? Ping.fromPartial(object.ping) : undefined;
     return message;
   },
 };
@@ -636,6 +660,7 @@ function createBaseSignalResponse(): SignalResponse {
     subscriptionPermissionUpdate: undefined,
     refreshToken: undefined,
     trackUnpublished: undefined,
+    pong: undefined,
   };
 }
 
@@ -694,6 +719,9 @@ export const SignalResponse = {
     }
     if (message.trackUnpublished !== undefined) {
       TrackUnpublishedResponse.encode(message.trackUnpublished, writer.uint32(138).fork()).ldelim();
+    }
+    if (message.pong !== undefined) {
+      writer.uint32(144).bool(message.pong);
     }
     return writer;
   },
@@ -756,6 +784,9 @@ export const SignalResponse = {
         case 17:
           message.trackUnpublished = TrackUnpublishedResponse.decode(reader, reader.uint32());
           break;
+        case 18:
+          message.pong = reader.bool();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -796,6 +827,7 @@ export const SignalResponse = {
       trackUnpublished: isSet(object.trackUnpublished)
         ? TrackUnpublishedResponse.fromJSON(object.trackUnpublished)
         : undefined,
+      pong: isSet(object.pong) ? Boolean(object.pong) : undefined,
     };
   },
 
@@ -846,6 +878,7 @@ export const SignalResponse = {
       (obj.trackUnpublished = message.trackUnpublished
         ? TrackUnpublishedResponse.toJSON(message.trackUnpublished)
         : undefined);
+    message.pong !== undefined && (obj.pong = message.pong);
     return obj;
   },
 
@@ -913,6 +946,7 @@ export const SignalResponse = {
       object.trackUnpublished !== undefined && object.trackUnpublished !== null
         ? TrackUnpublishedResponse.fromPartial(object.trackUnpublished)
         : undefined;
+    message.pong = object.pong ?? undefined;
     return message;
   },
 };
@@ -1280,6 +1314,8 @@ function createBaseJoinResponse(): JoinResponse {
     alternativeUrl: '',
     clientConfiguration: undefined,
     serverRegion: '',
+    pingTimeout: 0,
+    pingInterval: 0,
   };
 }
 
@@ -1311,6 +1347,12 @@ export const JoinResponse = {
     }
     if (message.serverRegion !== '') {
       writer.uint32(74).string(message.serverRegion);
+    }
+    if (message.pingTimeout !== 0) {
+      writer.uint32(80).int32(message.pingTimeout);
+    }
+    if (message.pingInterval !== 0) {
+      writer.uint32(88).int32(message.pingInterval);
     }
     return writer;
   },
@@ -1349,6 +1391,12 @@ export const JoinResponse = {
         case 9:
           message.serverRegion = reader.string();
           break;
+        case 10:
+          message.pingTimeout = reader.int32();
+          break;
+        case 11:
+          message.pingInterval = reader.int32();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1378,6 +1426,8 @@ export const JoinResponse = {
         ? ClientConfiguration.fromJSON(object.clientConfiguration)
         : undefined,
       serverRegion: isSet(object.serverRegion) ? String(object.serverRegion) : '',
+      pingTimeout: isSet(object.pingTimeout) ? Number(object.pingTimeout) : 0,
+      pingInterval: isSet(object.pingInterval) ? Number(object.pingInterval) : 0,
     };
   },
 
@@ -1408,6 +1458,8 @@ export const JoinResponse = {
         ? ClientConfiguration.toJSON(message.clientConfiguration)
         : undefined);
     message.serverRegion !== undefined && (obj.serverRegion = message.serverRegion);
+    message.pingTimeout !== undefined && (obj.pingTimeout = Math.round(message.pingTimeout));
+    message.pingInterval !== undefined && (obj.pingInterval = Math.round(message.pingInterval));
     return obj;
   },
 
@@ -1430,6 +1482,8 @@ export const JoinResponse = {
         ? ClientConfiguration.fromPartial(object.clientConfiguration)
         : undefined;
     message.serverRegion = object.serverRegion ?? '';
+    message.pingTimeout = object.pingTimeout ?? 0;
+    message.pingInterval = object.pingInterval ?? 0;
     return message;
   },
 };
@@ -3091,6 +3145,55 @@ export const SimulateScenario = {
   },
 };
 
+function createBasePing(): Ping {
+  return { ping: false };
+}
+
+export const Ping = {
+  encode(message: Ping, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.ping === true) {
+      writer.uint32(8).bool(message.ping);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): Ping {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePing();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.ping = reader.bool();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Ping {
+    return {
+      ping: isSet(object.ping) ? Boolean(object.ping) : false,
+    };
+  },
+
+  toJSON(message: Ping): unknown {
+    const obj: any = {};
+    message.ping !== undefined && (obj.ping = message.ping);
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<Ping>, I>>(object: I): Ping {
+    const message = createBasePing();
+    message.ping = object.ping ?? false;
+    return message;
+  },
+};
+
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
 export type DeepPartial<T> = T extends Builtin
@@ -3107,11 +3210,6 @@ type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin
   ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & Record<Exclude<keyof I, KeysOfUnion<P>>, never>;
-
-if (_m0.util.Long !== Long) {
-  _m0.util.Long = Long as any;
-  _m0.configure();
-}
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;
