@@ -800,10 +800,13 @@ export default class LocalParticipant extends Participant {
 
     const packet: DataPacket = {
       kind,
-      user: {
-        participantSid: this.sid,
-        payload: data,
-        destinationSids: dest,
+      value: {
+        $case: 'user',
+        user: {
+          participantSid: this.sid,
+          payload: data,
+          destinationSids: dest,
+        },
       },
     };
 

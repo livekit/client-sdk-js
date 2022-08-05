@@ -180,7 +180,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         },
         reject: () => {
           clearTimeout(publicationTimeout);
-          reject('Cancelled publication by calling unpublish');
+          reject(new Error('Cancelled publication by calling unpublish'));
         },
       };
       this.client.sendAddTrack(req);
@@ -452,11 +452,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
     const dp = DataPacket.decode(new Uint8Array(buffer));
-    if (dp.speaker) {
+    if (dp.value?.$case === 'speaker') {
       // dispatch speaker updates
-      this.emit(EngineEvent.ActiveSpeakersUpdate, dp.speaker.speakers);
-    } else if (dp.user) {
-      this.emit(EngineEvent.DataPacketReceived, dp.user, dp.kind);
+      this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.speaker.speakers);
+    } else if (dp.value?.$case === 'user') {
+      this.emit(EngineEvent.DataPacketReceived, dp.value.user, dp.kind);
     }
   };
 

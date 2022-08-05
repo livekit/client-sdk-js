@@ -432,8 +432,7 @@ export interface VideoLayer {
 /** new DataPacket API */
 export interface DataPacket {
   kind: DataPacket_Kind;
-  user?: UserPacket | undefined;
-  speaker?: ActiveSpeakerUpdate | undefined;
+  value?: { $case: 'user'; user: UserPacket } | { $case: 'speaker'; speaker: ActiveSpeakerUpdate };
 }
 
 export enum DataPacket_Kind {
@@ -1455,7 +1454,7 @@ export const VideoLayer = {
 };
 
 function createBaseDataPacket(): DataPacket {
-  return { kind: 0, user: undefined, speaker: undefined };
+  return { kind: 0, value: undefined };
 }
 
 export const DataPacket = {
@@ -1463,11 +1462,11 @@ export const DataPacket = {
     if (message.kind !== 0) {
       writer.uint32(8).int32(message.kind);
     }
-    if (message.user !== undefined) {
-      UserPacket.encode(message.user, writer.uint32(18).fork()).ldelim();
+    if (message.value?.$case === 'user') {
+      UserPacket.encode(message.value.user, writer.uint32(18).fork()).ldelim();
     }
-    if (message.speaker !== undefined) {
-      ActiveSpeakerUpdate.encode(message.speaker, writer.uint32(26).fork()).ldelim();
+    if (message.value?.$case === 'speaker') {
+      ActiveSpeakerUpdate.encode(message.value.speaker, writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },
@@ -1483,10 +1482,13 @@ export const DataPacket = {
           message.kind = reader.int32() as any;
           break;
         case 2:
-          message.user = UserPacket.decode(reader, reader.uint32());
+          message.value = { $case: 'user', user: UserPacket.decode(reader, reader.uint32()) };
           break;
         case 3:
-          message.speaker = ActiveSpeakerUpdate.decode(reader, reader.uint32());
+          message.value = {
+            $case: 'speaker',
+            speaker: ActiveSpeakerUpdate.decode(reader, reader.uint32()),
+          };
           break;
         default:
           reader.skipType(tag & 7);
@@ -1499,32 +1501,46 @@ export const DataPacket = {
   fromJSON(object: any): DataPacket {
     return {
       kind: isSet(object.kind) ? dataPacket_KindFromJSON(object.kind) : 0,
-      user: isSet(object.user) ? UserPacket.fromJSON(object.user) : undefined,
-      speaker: isSet(object.speaker) ? ActiveSpeakerUpdate.fromJSON(object.speaker) : undefined,
+      value: isSet(object.user)
+        ? { $case: 'user', user: UserPacket.fromJSON(object.user) }
+        : isSet(object.speaker)
+        ? { $case: 'speaker', speaker: ActiveSpeakerUpdate.fromJSON(object.speaker) }
+        : undefined,
     };
   },
 
   toJSON(message: DataPacket): unknown {
     const obj: any = {};
     message.kind !== undefined && (obj.kind = dataPacket_KindToJSON(message.kind));
-    message.user !== undefined &&
-      (obj.user = message.user ? UserPacket.toJSON(message.user) : undefined);
-    message.speaker !== undefined &&
-      (obj.speaker = message.speaker ? ActiveSpeakerUpdate.toJSON(message.speaker) : undefined);
+    message.value?.$case === 'user' &&
+      (obj.user = message.value?.user ? UserPacket.toJSON(message.value?.user) : undefined);
+    message.value?.$case === 'speaker' &&
+      (obj.speaker = message.value?.speaker
+        ? ActiveSpeakerUpdate.toJSON(message.value?.speaker)
+        : undefined);
     return obj;
   },
 
   fromPartial<I extends Exact<DeepPartial<DataPacket>, I>>(object: I): DataPacket {
     const message = createBaseDataPacket();
     message.kind = object.kind ?? 0;
-    message.user =
-      object.user !== undefined && object.user !== null
-        ? UserPacket.fromPartial(object.user)
-        : undefined;
-    message.speaker =
-      object.speaker !== undefined && object.speaker !== null
-        ? ActiveSpeakerUpdate.fromPartial(object.speaker)
-        : undefined;
+    if (
+      object.value?.$case === 'user' &&
+      object.value?.user !== undefined &&
+      object.value?.user !== null
+    ) {
+      message.value = { $case: 'user', user: UserPacket.fromPartial(object.value.user) };
+    }
+    if (
+      object.value?.$case === 'speaker' &&
+      object.value?.speaker !== undefined &&
+      object.value?.speaker !== null
+    ) {
+      message.value = {
+        $case: 'speaker',
+        speaker: ActiveSpeakerUpdate.fromPartial(object.value.speaker),
+      };
+    }
     return message;
   },
 };
@@ -2747,6 +2763,8 @@ export type DeepPartial<T> = T extends Builtin
   ? Array<DeepPartial<U>>
   : T extends ReadonlyArray<infer U>
   ? ReadonlyArray<DeepPartial<U>>
+  : T extends { $case: string }
+  ? { [K in keyof Omit<T, '$case'>]?: DeepPartial<T[K]> } & { $case: T['$case'] }
   : T extends {}
   ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;
