@@ -1,4 +1,4 @@
-import { VideoQuality } from '../../proto/livekit_models';
+import { VideoQuality } from '../../proto/livekit_models_pb';
 import { videoLayersFromEncodings } from './LocalVideoTrack';
 
 describe('videoLayersFromEncodings', () => {
