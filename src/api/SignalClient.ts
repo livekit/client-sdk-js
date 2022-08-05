@@ -52,9 +52,9 @@ export interface SignalOptions {
   adaptiveStream?: boolean;
 }
 
-type SignalMessage = NonNullable<SignalRequest['message']>;
+type SignalMessage = SignalRequest['message'];
 
-type SignalKind = SignalMessage['$case'];
+type SignalKind = NonNullable<SignalMessage>['$case'];
 
 const passThroughQueueSignals: Array<SignalKind> = [
   'syncState',
@@ -65,7 +65,7 @@ const passThroughQueueSignals: Array<SignalKind> = [
   'leave',
 ];
 
-function canPassThroughQueue(req: SignalRequest['message']): boolean {
+function canPassThroughQueue(req: SignalMessage): boolean {
   const canPass = passThroughQueueSignals.includes(req!.$case);
   log.trace('request allowed to bypass queue:', { canPass, req });
   return canPass;
@@ -374,7 +374,7 @@ export class SignalClient {
     });
   }
 
-  async sendRequest(message: SignalRequest['message'], fromQueue: boolean = false) {
+  async sendRequest(message: SignalMessage, fromQueue: boolean = false) {
     // capture all requests while reconnecting and put them in a queue
     // unless the request originates from the queue, then don't enqueue again
     const canQueue = !fromQueue && !canPassThroughQueue(message);
