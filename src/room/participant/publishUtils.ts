@@ -136,26 +136,28 @@ export function computeVideoEncodings(
       sortPresets(options?.videoSimulcastLayers) ?? defaultSimulcastLayers(isScreenShare, original);
   }
   let midPreset: VideoPreset | undefined;
-  const lowPreset = presets[0];
-  if (presets.length > 1) {
-    [, midPreset] = presets;
-  }
+  if (presets.length > 0) {
+    const lowPreset = presets[0];
+    if (presets.length > 1) {
+      [, midPreset] = presets;
+    }
 
-  // NOTE:
-  //   1. Ordering of these encodings is important. Chrome seems
-  //      to use the index into encodings to decide which layer
-  //      to disable when CPU constrained.
-  //      So encodings should be ordered in increasing spatial
-  //      resolution order.
-  //   2. ion-sfu translates rids into layers. So, all encodings
-  //      should have the base layer `q` and then more added
-  //      based on other conditions.
-  const size = Math.max(width, height);
-  if (size >= 960 && midPreset) {
-    return encodingsFromPresets(width, height, [lowPreset, midPreset, original]);
-  }
-  if (size >= 480) {
-    return encodingsFromPresets(width, height, [lowPreset, original]);
+    // NOTE:
+    //   1. Ordering of these encodings is important. Chrome seems
+    //      to use the index into encodings to decide which layer
+    //      to disable when CPU constrained.
+    //      So encodings should be ordered in increasing spatial
+    //      resolution order.
+    //   2. ion-sfu translates rids into layers. So, all encodings
+    //      should have the base layer `q` and then more added
+    //      based on other conditions.
+    const size = Math.max(width, height);
+    if (size >= 960 && midPreset) {
+      return encodingsFromPresets(width, height, [lowPreset, midPreset, original]);
+    }
+    if (size >= 480) {
+      return encodingsFromPresets(width, height, [lowPreset, original]);
+    }
   }
   return encodingsFromPresets(width, height, [original]);
 }
