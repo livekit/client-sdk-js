@@ -251,11 +251,14 @@ export class SignalClient {
             abortSignal?.removeEventListener('abort', abortHandler);
             this.pingTimeoutDuration = resp.message.join.pingTimeout;
             this.pingIntervalDuration = resp.message.join.pingInterval;
-            log.debug('ping config', {
-              timeout: this.pingTimeoutDuration,
-              interval: this.pingIntervalDuration,
-            });
-            this.startPingInterval();
+
+            if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
+              log.debug('ping config', {
+                timeout: this.pingTimeoutDuration,
+                interval: this.pingIntervalDuration,
+              });
+              this.startPingInterval();
+            }
             resolve(resp.message.join);
           } else {
             reject(new ConnectionError('did not receive join response'));
