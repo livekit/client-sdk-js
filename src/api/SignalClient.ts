@@ -542,7 +542,6 @@ export class SignalClient {
   }
 
   private clearPingTimeout() {
-    log.debug('clearing ping timeout');
     if (this.pingTimeout) {
       clearTimeout(this.pingTimeout);
     }
