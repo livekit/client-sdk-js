@@ -1,7 +1,7 @@
 /* eslint-disable */
-import Long from 'long';
-import * as _m0 from 'protobufjs/minimal';
 import { Timestamp } from './google/protobuf/timestamp';
+import Long from 'long';
+import _m0 from 'protobufjs/minimal';
 
 export const protobufPackage = 'livekit';
 
@@ -38,8 +38,9 @@ export function trackTypeToJSON(object: TrackType): string {
       return 'VIDEO';
     case TrackType.DATA:
       return 'DATA';
+    case TrackType.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -88,8 +89,9 @@ export function trackSourceToJSON(object: TrackSource): string {
       return 'SCREEN_SHARE';
     case TrackSource.SCREEN_SHARE_AUDIO:
       return 'SCREEN_SHARE_AUDIO';
+    case TrackSource.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -132,8 +134,9 @@ export function videoQualityToJSON(object: VideoQuality): string {
       return 'HIGH';
     case VideoQuality.OFF:
       return 'OFF';
+    case VideoQuality.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -170,8 +173,9 @@ export function connectionQualityToJSON(object: ConnectionQuality): string {
       return 'GOOD';
     case ConnectionQuality.EXCELLENT:
       return 'EXCELLENT';
+    case ConnectionQuality.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -208,8 +212,9 @@ export function clientConfigSettingToJSON(object: ClientConfigSetting): string {
       return 'DISABLED';
     case ClientConfigSetting.ENABLED:
       return 'ENABLED';
+    case ClientConfigSetting.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -270,8 +275,9 @@ export function disconnectReasonToJSON(object: DisconnectReason): string {
       return 'ROOM_DELETED';
     case DisconnectReason.STATE_MISMATCH:
       return 'STATE_MISMATCH';
+    case DisconnectReason.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -368,8 +374,9 @@ export function participantInfo_StateToJSON(object: ParticipantInfo_State): stri
       return 'ACTIVE';
     case ParticipantInfo_State.DISCONNECTED:
       return 'DISCONNECTED';
+    case ParticipantInfo_State.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -419,8 +426,7 @@ export interface VideoLayer {
 /** new DataPacket API */
 export interface DataPacket {
   kind: DataPacket_Kind;
-  user?: UserPacket | undefined;
-  speaker?: ActiveSpeakerUpdate | undefined;
+  value?: { $case: 'user'; user: UserPacket } | { $case: 'speaker'; speaker: ActiveSpeakerUpdate };
 }
 
 export enum DataPacket_Kind {
@@ -450,8 +456,9 @@ export function dataPacket_KindToJSON(object: DataPacket_Kind): string {
       return 'RELIABLE';
     case DataPacket_Kind.LOSSY:
       return 'LOSSY';
+    case DataPacket_Kind.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -552,8 +559,9 @@ export function clientInfo_SDKToJSON(object: ClientInfo_SDK): string {
       return 'GO';
     case ClientInfo_SDK.UNITY:
       return 'UNITY';
+    case ClientInfo_SDK.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -1435,7 +1443,7 @@ export const VideoLayer = {
 };
 
 function createBaseDataPacket(): DataPacket {
-  return { kind: 0, user: undefined, speaker: undefined };
+  return { kind: 0, value: undefined };
 }
 
 export const DataPacket = {
@@ -1443,11 +1451,11 @@ export const DataPacket = {
     if (message.kind !== 0) {
       writer.uint32(8).int32(message.kind);
     }
-    if (message.user !== undefined) {
-      UserPacket.encode(message.user, writer.uint32(18).fork()).ldelim();
+    if (message.value?.$case === 'user') {
+      UserPacket.encode(message.value.user, writer.uint32(18).fork()).ldelim();
     }
-    if (message.speaker !== undefined) {
-      ActiveSpeakerUpdate.encode(message.speaker, writer.uint32(26).fork()).ldelim();
+    if (message.value?.$case === 'speaker') {
+      ActiveSpeakerUpdate.encode(message.value.speaker, writer.uint32(26).fork()).ldelim();
     }
     return writer;
   },
@@ -1463,10 +1471,13 @@ export const DataPacket = {
           message.kind = reader.int32() as any;
           break;
         case 2:
-          message.user = UserPacket.decode(reader, reader.uint32());
+          message.value = { $case: 'user', user: UserPacket.decode(reader, reader.uint32()) };
           break;
         case 3:
-          message.speaker = ActiveSpeakerUpdate.decode(reader, reader.uint32());
+          message.value = {
+            $case: 'speaker',
+            speaker: ActiveSpeakerUpdate.decode(reader, reader.uint32()),
+          };
           break;
         default:
           reader.skipType(tag & 7);
@@ -1479,32 +1490,46 @@ export const DataPacket = {
   fromJSON(object: any): DataPacket {
     return {
       kind: isSet(object.kind) ? dataPacket_KindFromJSON(object.kind) : 0,
-      user: isSet(object.user) ? UserPacket.fromJSON(object.user) : undefined,
-      speaker: isSet(object.speaker) ? ActiveSpeakerUpdate.fromJSON(object.speaker) : undefined,
+      value: isSet(object.user)
+        ? { $case: 'user', user: UserPacket.fromJSON(object.user) }
+        : isSet(object.speaker)
+        ? { $case: 'speaker', speaker: ActiveSpeakerUpdate.fromJSON(object.speaker) }
+        : undefined,
     };
   },
 
   toJSON(message: DataPacket): unknown {
     const obj: any = {};
     message.kind !== undefined && (obj.kind = dataPacket_KindToJSON(message.kind));
-    message.user !== undefined &&
-      (obj.user = message.user ? UserPacket.toJSON(message.user) : undefined);
-    message.speaker !== undefined &&
-      (obj.speaker = message.speaker ? ActiveSpeakerUpdate.toJSON(message.speaker) : undefined);
+    message.value?.$case === 'user' &&
+      (obj.user = message.value?.user ? UserPacket.toJSON(message.value?.user) : undefined);
+    message.value?.$case === 'speaker' &&
+      (obj.speaker = message.value?.speaker
+        ? ActiveSpeakerUpdate.toJSON(message.value?.speaker)
+        : undefined);
     return obj;
   },
 
   fromPartial<I extends Exact<DeepPartial<DataPacket>, I>>(object: I): DataPacket {
     const message = createBaseDataPacket();
     message.kind = object.kind ?? 0;
-    message.user =
-      object.user !== undefined && object.user !== null
-        ? UserPacket.fromPartial(object.user)
-        : undefined;
-    message.speaker =
-      object.speaker !== undefined && object.speaker !== null
-        ? ActiveSpeakerUpdate.fromPartial(object.speaker)
-        : undefined;
+    if (
+      object.value?.$case === 'user' &&
+      object.value?.user !== undefined &&
+      object.value?.user !== null
+    ) {
+      message.value = { $case: 'user', user: UserPacket.fromPartial(object.value.user) };
+    }
+    if (
+      object.value?.$case === 'speaker' &&
+      object.value?.speaker !== undefined &&
+      object.value?.speaker !== null
+    ) {
+      message.value = {
+        $case: 'speaker',
+        speaker: ActiveSpeakerUpdate.fromPartial(object.value.speaker),
+      };
+    }
     return message;
   },
 };
@@ -2655,9 +2680,9 @@ const btoa: (bin: string) => string =
   globalThis.btoa || ((bin) => globalThis.Buffer.from(bin, 'binary').toString('base64'));
 function base64FromBytes(arr: Uint8Array): string {
   const bin: string[] = [];
-  for (const byte of arr) {
+  arr.forEach((byte) => {
     bin.push(String.fromCharCode(byte));
-  }
+  });
   return btoa(bin.join(''));
 }
 
@@ -2669,6 +2694,8 @@ export type DeepPartial<T> = T extends Builtin
   ? Array<DeepPartial<U>>
   : T extends ReadonlyArray<infer U>
   ? ReadonlyArray<DeepPartial<U>>
+  : T extends { $case: string }
+  ? { [K in keyof Omit<T, '$case'>]?: DeepPartial<T[K]> } & { $case: T['$case'] }
   : T extends {}
   ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;

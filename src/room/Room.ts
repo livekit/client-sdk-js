@@ -211,7 +211,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (this.connectFuture) {
       return this.connectFuture.promise;
-    } else if (this.reconnectFuture) {
+    }
+    if (this.reconnectFuture) {
       this.connectFuture = this.reconnectFuture;
       return this.connectFuture.promise;
     }
@@ -398,27 +399,42 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         break;
       case 'speaker':
         req = SimulateScenario.fromPartial({
-          speakerUpdate: 3,
+          scenario: {
+            $case: 'speakerUpdate',
+            speakerUpdate: 3,
+          },
         });
         break;
       case 'node-failure':
         req = SimulateScenario.fromPartial({
-          nodeFailure: true,
+          scenario: {
+            $case: 'nodeFailure',
+            nodeFailure: true,
+          },
         });
         break;
       case 'server-leave':
         req = SimulateScenario.fromPartial({
-          serverLeave: true,
+          scenario: {
+            $case: 'serverLeave',
+            serverLeave: true,
+          },
         });
         break;
       case 'migration':
         req = SimulateScenario.fromPartial({
-          migration: true,
+          scenario: {
+            $case: 'migration',
+            migration: true,
+          },
         });
         break;
       case 'switch-candidate':
         req = SimulateScenario.fromPartial({
-          switchCandidateProtocol: 1,
+          scenario: {
+            $case: 'switchCandidateProtocol',
+            switchCandidateProtocol: 1,
+          },
         });
         postAction = () => {
           this.engine.publisher?.createAndSendOffer({ iceRestart: true });
