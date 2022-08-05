@@ -1,6 +1,6 @@
 import log from '../../logger';
-import { TrackInfo, VideoQuality } from '../../proto/livekit_models';
-import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
+import { TrackInfo, VideoQuality } from '../../proto/livekit_models_pb';
+import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
@@ -32,7 +32,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     // server will notify client via signal message if it's not allowed
     this.allowed = true;
 
-    const sub: UpdateSubscription = {
+    const sub: UpdateSubscription = new UpdateSubscription({
       trackSids: [this.trackSid],
       subscribe: this.subscribed,
       participantTracks: [
@@ -43,7 +43,7 @@ export default class RemoteTrackPublication extends TrackPublication {
           trackSids: [this.trackSid],
         },
       ],
-    };
+    });
     this.emit(TrackEvent.UpdateSubscription, sub);
   }
 
@@ -217,7 +217,7 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   /* @internal */
   emitTrackUpdate() {
-    const settings: UpdateTrackSettings = UpdateTrackSettings.fromPartial({
+    const settings: UpdateTrackSettings = new UpdateTrackSettings({
       trackSids: [this.trackSid],
       disabled: this.disabled,
     });

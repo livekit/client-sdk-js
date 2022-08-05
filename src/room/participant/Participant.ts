@@ -5,7 +5,7 @@ import {
   DataPacket_Kind,
   ParticipantInfo,
   ParticipantPermission,
-} from '../../proto/livekit_models';
+} from '../../proto/livekit_models_pb';
 import { ParticipantEvent, TrackEvent } from '../events';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
@@ -164,7 +164,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   /** when participant joined the room */
   get joinedAt(): Date | undefined {
     if (this.participantInfo) {
-      return new Date(this.participantInfo.joinedAt * 1000);
+      return new Date(Number(this.participantInfo.joinedAt) * 1000);
     }
     return new Date();
   }

@@ -8,12 +8,13 @@ import {
   Room,
   SpeakerInfo,
   VideoLayer,
-} from '../proto/livekit_models';
+} from '../proto/livekit_models_pb';
 import {
   AddTrackRequest,
   ConnectionQualityUpdate,
   JoinResponse,
   LeaveRequest,
+  MuteTrackRequest,
   SessionDescription,
   SignalRequest,
   SignalResponse,
@@ -21,14 +22,17 @@ import {
   SimulateScenario,
   StreamStateUpdate,
   SubscribedQualityUpdate,
+  SubscriptionPermission,
   SubscriptionPermissionUpdate,
   SyncState,
   TrackPermission,
   TrackPublishedResponse,
   TrackUnpublishedResponse,
+  TrickleRequest,
   UpdateSubscription,
   UpdateTrackSettings,
-} from '../proto/livekit_rtc';
+  UpdateVideoLayers,
+} from '../proto/livekit_rtc_pb';
 import { ConnectionError } from '../room/errors';
 import { getClientInfo, sleep } from '../room/utils';
 
@@ -54,7 +58,7 @@ export interface SignalOptions {
 
 type SignalMessage = SignalRequest['message'];
 
-type SignalKind = NonNullable<SignalMessage>['$case'];
+type SignalKind = NonNullable<SignalMessage>['case'];
 
 const passThroughQueueSignals: Array<SignalKind> = [
   'syncState',
@@ -66,7 +70,7 @@ const passThroughQueueSignals: Array<SignalKind> = [
 ];
 
 function canPassThroughQueue(req: SignalMessage): boolean {
-  const canPass = passThroughQueueSignals.includes(req!.$case);
+  const canPass = passThroughQueueSignals.includes(req!.case);
   log.trace('request allowed to bypass queue:', { canPass, req });
   return canPass;
 }
@@ -236,9 +240,9 @@ export class SignalClient {
         let resp: SignalResponse;
         if (typeof ev.data === 'string') {
           const json = JSON.parse(ev.data);
-          resp = SignalResponse.fromJSON(json);
+          resp = SignalResponse.fromJson(json);
         } else if (ev.data instanceof ArrayBuffer) {
-          resp = SignalResponse.decode(new Uint8Array(ev.data));
+          resp = SignalResponse.fromBinary(new Uint8Array(ev.data));
         } else {
           log.error(`could not decode websocket message: ${typeof ev.data}`);
           return;
@@ -246,13 +250,13 @@ export class SignalClient {
 
         if (!this.isConnected) {
           // handle join message only
-          if (resp.message?.$case === 'join') {
+          if (resp.message?.case === 'join') {
             this.isConnected = true;
             abortSignal?.removeEventListener('abort', abortHandler);
-            this.pingTimeoutDuration = resp.message.join.pingTimeout;
-            this.pingIntervalDuration = resp.message.join.pingInterval;
+            this.pingTimeoutDuration = resp.message.value.pingTimeout;
+            this.pingIntervalDuration = resp.message.value.pingInterval;
             this.startPingInterval();
-            resolve(resp.message.join);
+            resolve(resp.message.value);
           } else {
             reject(new ConnectionError('did not receive join response'));
           }
@@ -290,8 +294,8 @@ export class SignalClient {
   sendOffer(offer: RTCSessionDescriptionInit) {
     log.debug('sending offer', offer);
     this.sendRequest({
-      $case: 'offer',
-      offer: toProtoSessionDescription(offer),
+      case: 'offer',
+      value: toProtoSessionDescription(offer),
     });
   }
 
@@ -299,101 +303,101 @@ export class SignalClient {
   sendAnswer(answer: RTCSessionDescriptionInit) {
     log.debug('sending answer');
     this.sendRequest({
-      $case: 'answer',
-      answer: toProtoSessionDescription(answer),
+      case: 'answer',
+      value: toProtoSessionDescription(answer),
     });
   }
 
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
     log.trace('sending ice candidate', candidate);
     this.sendRequest({
-      $case: 'trickle',
-      trickle: {
+      case: 'trickle',
+      value: new TrickleRequest({
         candidateInit: JSON.stringify(candidate),
         target,
-      },
+      }),
     });
   }
 
   sendMuteTrack(trackSid: string, muted: boolean) {
     this.sendRequest({
-      $case: 'mute',
-      mute: {
+      case: 'mute',
+      value: MuteTrackRequest.fromJson({
         sid: trackSid,
         muted,
-      },
+      }),
     });
   }
 
   sendAddTrack(req: AddTrackRequest): void {
     this.sendRequest({
-      $case: 'addTrack',
-      addTrack: AddTrackRequest.fromPartial(req),
+      case: 'addTrack',
+      value: req,
     });
   }
 
   sendUpdateTrackSettings(settings: UpdateTrackSettings) {
     this.sendRequest({
-      $case: 'trackSetting',
-      trackSetting: settings,
+      case: 'trackSetting',
+      value: settings,
     });
   }
 
   sendUpdateSubscription(sub: UpdateSubscription) {
     this.sendRequest({
-      $case: 'subscription',
-      subscription: sub,
+      case: 'subscription',
+      value: sub,
     });
   }
 
   sendSyncState(sync: SyncState) {
     this.sendRequest({
-      $case: 'syncState',
-      syncState: sync,
+      case: 'syncState',
+      value: sync,
     });
   }
 
   sendUpdateVideoLayers(trackSid: string, layers: VideoLayer[]) {
     this.sendRequest({
-      $case: 'updateLayers',
-      updateLayers: {
+      case: 'updateLayers',
+      value: new UpdateVideoLayers({
         trackSid,
         layers,
-      },
+      }),
     });
   }
 
   sendUpdateSubscriptionPermissions(allParticipants: boolean, trackPermissions: TrackPermission[]) {
     this.sendRequest({
-      $case: 'subscriptionPermission',
-      subscriptionPermission: {
+      case: 'subscriptionPermission',
+      value: new SubscriptionPermission({
         allParticipants,
         trackPermissions,
-      },
+      }),
     });
   }
 
   sendSimulateScenario(scenario: SimulateScenario) {
     this.sendRequest({
-      $case: 'simulate',
-      simulate: scenario,
+      case: 'simulate',
+      value: scenario,
     });
   }
 
   sendPing() {
     this.sendRequest({
-      $case: 'ping',
-      ping: Date.now(),
+      case: 'ping',
+      value: BigInt(Date.now()),
     });
   }
 
   async sendLeave() {
     await this.sendRequest({
-      $case: 'leave',
-      leave: {
+      case: 'leave',
+      value: LeaveRequest.fromJson({
         canReconnect: false,
         reason: DisconnectReason.CLIENT_INITIATED,
-      },
+      }),
     });
   }
 
@@ -419,14 +423,14 @@ export class SignalClient {
       return;
     }
 
-    const req = {
+    const req = new SignalRequest({
       message,
-    };
+    });
     try {
       if (this.useJSON) {
-        this.ws.send(JSON.stringify(SignalRequest.toJSON(req)));
+        this.ws.send(JSON.stringify(req.toJson()));
       } else {
-        this.ws.send(SignalRequest.encode(req).finish());
+        this.ws.send(req.toBinary());
       }
     } catch (e) {
       log.error('error sending signal message', { error: e });
@@ -435,70 +439,70 @@ export class SignalClient {
 
   private handleSignalResponse(res: SignalResponse) {
     const msg = res.message!;
-    if (msg.$case === 'answer') {
-      const sd = fromProtoSessionDescription(msg.answer);
+    if (msg.case === 'answer') {
+      const sd = fromProtoSessionDescription(msg.value);
       if (this.onAnswer) {
         this.onAnswer(sd);
       }
-    } else if (msg.$case === 'offer') {
-      const sd = fromProtoSessionDescription(msg.offer);
+    } else if (msg.case === 'offer') {
+      const sd = fromProtoSessionDescription(msg.value);
       if (this.onOffer) {
         this.onOffer(sd);
       }
-    } else if (msg.$case === 'trickle') {
-      const candidate: RTCIceCandidateInit = JSON.parse(msg.trickle.candidateInit!);
+    } else if (msg.case === 'trickle') {
+      const candidate: RTCIceCandidateInit = JSON.parse(msg.value.candidateInit!);
       if (this.onTrickle) {
-        this.onTrickle(candidate, msg.trickle.target);
+        this.onTrickle(candidate, msg.value.target);
       }
-    } else if (msg.$case === 'update') {
+    } else if (msg.case === 'update') {
       if (this.onParticipantUpdate) {
-        this.onParticipantUpdate(msg.update.participants ?? []);
+        this.onParticipantUpdate(msg.value.participants ?? []);
       }
-    } else if (msg.$case === 'trackPublished') {
+    } else if (msg.case === 'trackPublished') {
       if (this.onLocalTrackPublished) {
-        this.onLocalTrackPublished(msg.trackPublished);
+        this.onLocalTrackPublished(msg.value);
       }
-    } else if (msg.$case === 'speakersChanged') {
+    } else if (msg.case === 'speakersChanged') {
       if (this.onSpeakersChanged) {
-        this.onSpeakersChanged(msg.speakersChanged.speakers ?? []);
+        this.onSpeakersChanged(msg.value.speakers ?? []);
       }
-    } else if (msg.$case === 'leave') {
+    } else if (msg.case === 'leave') {
       if (this.onLeave) {
-        this.onLeave(msg.leave);
+        this.onLeave(msg.value);
       }
-    } else if (msg.$case === 'mute') {
+    } else if (msg.case === 'mute') {
       if (this.onRemoteMuteChanged) {
-        this.onRemoteMuteChanged(msg.mute.sid, msg.mute.muted);
+        this.onRemoteMuteChanged(msg.value.sid, msg.value.muted);
       }
-    } else if (msg.$case === 'roomUpdate') {
-      if (this.onRoomUpdate && msg.roomUpdate.room) {
-        this.onRoomUpdate(msg.roomUpdate.room);
+    } else if (msg.case === 'roomUpdate') {
+      if (this.onRoomUpdate && msg.value.room) {
+        this.onRoomUpdate(msg.value.room);
       }
-    } else if (msg.$case === 'connectionQuality') {
+    } else if (msg.case === 'connectionQuality') {
       if (this.onConnectionQuality) {
-        this.onConnectionQuality(msg.connectionQuality);
+        this.onConnectionQuality(msg.value);
       }
-    } else if (msg.$case === 'streamStateUpdate') {
+    } else if (msg.case === 'streamStateUpdate') {
       if (this.onStreamStateUpdate) {
-        this.onStreamStateUpdate(msg.streamStateUpdate);
+        this.onStreamStateUpdate(msg.value);
       }
-    } else if (msg.$case === 'subscribedQualityUpdate') {
+    } else if (msg.case === 'subscribedQualityUpdate') {
       if (this.onSubscribedQualityUpdate) {
-        this.onSubscribedQualityUpdate(msg.subscribedQualityUpdate);
+        this.onSubscribedQualityUpdate(msg.value);
       }
-    } else if (msg.$case === 'subscriptionPermissionUpdate') {
+    } else if (msg.case === 'subscriptionPermissionUpdate') {
       if (this.onSubscriptionPermissionUpdate) {
-        this.onSubscriptionPermissionUpdate(msg.subscriptionPermissionUpdate);
+        this.onSubscriptionPermissionUpdate(msg.value);
       }
-    } else if (msg.$case === 'refreshToken') {
+    } else if (msg.case === 'refreshToken') {
       if (this.onTokenRefresh) {
-        this.onTokenRefresh(msg.refreshToken);
+        this.onTokenRefresh(msg.value);
       }
-    } else if (msg.$case === 'trackUnpublished') {
+    } else if (msg.case === 'trackUnpublished') {
       if (this.onLocalTrackUnpublished) {
-        this.onLocalTrackUnpublished(msg.trackUnpublished);
+        this.onLocalTrackUnpublished(msg.value);
       }
-    } else if (msg.$case === 'pong') {
+    } else if (msg.case === 'pong') {
       this.resetPingTimeout();
     } else {
       log.debug('unsupported message', msg);
@@ -582,10 +586,10 @@ function fromProtoSessionDescription(sd: SessionDescription): RTCSessionDescript
 export function toProtoSessionDescription(
   rsd: RTCSessionDescription | RTCSessionDescriptionInit,
 ): SessionDescription {
-  const sd: SessionDescription = {
+  const sd = new SessionDescription({
     sdp: rsd.sdp!,
     type: rsd.type!,
-  };
+  });
   return sd;
 }
 

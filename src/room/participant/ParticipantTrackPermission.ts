@@ -1,4 +1,4 @@
-import { TrackPermission } from '../../proto/livekit_rtc';
+import { TrackPermission } from '../../proto/livekit_rtc_pb';
 
 export interface ParticipantTrackPermission {
   /**
@@ -33,10 +33,10 @@ export function trackPermissionToProto(perms: ParticipantTrackPermission): Track
       'Invalid track permission, must provide at least one of participantIdentity and participantSid',
     );
   }
-  return {
+  return new TrackPermission({
     participantIdentity: perms.participantIdentity ?? '',
     participantSid: perms.participantSid ?? '',
     allTracks: perms.allowAll ?? false,
     trackSids: perms.allowedTrackSids || [],
-  };
+  });
 }

@@ -12,14 +12,15 @@ import {
   Room as RoomModel,
   SpeakerInfo,
   UserPacket,
-} from '../proto/livekit_models';
+} from '../proto/livekit_models_pb';
 import {
   ConnectionQualityUpdate,
   JoinResponse,
   SimulateScenario,
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
-} from '../proto/livekit_rtc';
+  SyncState,
+} from '../proto/livekit_rtc_pb';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
@@ -398,42 +399,42 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
         break;
       case 'speaker':
-        req = SimulateScenario.fromPartial({
+        req = new SimulateScenario({
           scenario: {
-            $case: 'speakerUpdate',
-            speakerUpdate: 3,
+            case: 'speakerUpdate',
+            value: 3,
           },
         });
         break;
       case 'node-failure':
-        req = SimulateScenario.fromPartial({
+        req = new SimulateScenario({
           scenario: {
-            $case: 'nodeFailure',
-            nodeFailure: true,
+            case: 'nodeFailure',
+            value: true,
           },
         });
         break;
       case 'server-leave':
-        req = SimulateScenario.fromPartial({
+        req = new SimulateScenario({
           scenario: {
-            $case: 'serverLeave',
-            serverLeave: true,
+            case: 'serverLeave',
+            value: true,
           },
         });
         break;
       case 'migration':
-        req = SimulateScenario.fromPartial({
+        req = new SimulateScenario({
           scenario: {
-            $case: 'migration',
-            migration: true,
+            case: 'migration',
+            value: true,
           },
         });
         break;
       case 'switch-candidate':
-        req = SimulateScenario.fromPartial({
+        req = new SimulateScenario({
           scenario: {
-            $case: 'switchCandidateProtocol',
-            switchCandidateProtocol: 1,
+            case: 'switchCandidateProtocol',
+            value: 1,
           },
         });
         postAction = () => {
@@ -1038,19 +1039,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
     });
 
-    this.engine.client.sendSyncState({
-      answer: toProtoSessionDescription({
-        sdp: previousSdp.sdp,
-        type: previousSdp.type,
+    this.engine.client.sendSyncState(
+      new SyncState({
+        answer: toProtoSessionDescription({
+          sdp: previousSdp.sdp,
+          type: previousSdp.type,
+        }),
+        subscription: {
+          trackSids,
+          subscribe: !sendUnsub,
+          participantTracks: [],
+        },
+        publishTracks: this.localParticipant.publishedTracksInfo(),
+        dataChannels: this.localParticipant.dataChannelsInfo(),
       }),
-      subscription: {
-        trackSids,
-        subscribe: !sendUnsub,
-        participantTracks: [],
-      },
-      publishTracks: this.localParticipant.publishedTracksInfo(),
-      dataChannels: this.localParticipant.dataChannelsInfo(),
-    });
+    );
   }
 
   /**

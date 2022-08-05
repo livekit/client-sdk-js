@@ -1,5 +1,5 @@
 import { LogLevel, setLogExtension, setLogLevel } from './logger';
-import { DataPacket_Kind, VideoQuality, DisconnectReason } from './proto/livekit_models';
+import { DataPacket_Kind, VideoQuality, DisconnectReason } from './proto/livekit_models_pb';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './room/participant/Participant';
 import { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';

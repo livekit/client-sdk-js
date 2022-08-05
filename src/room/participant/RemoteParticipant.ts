@@ -1,7 +1,7 @@
 import { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
-import { ParticipantInfo } from '../../proto/livekit_models';
-import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
+import { ParticipantInfo } from '../../proto/livekit_models_pb';
+import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';

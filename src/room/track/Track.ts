@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
-import { TrackSource, TrackType } from '../../proto/livekit_models';
-import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
+import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
+import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import { isFireFox, isSafari, isWeb } from '../utils';
 
@@ -318,7 +318,7 @@ export namespace Track {
       case Kind.Video:
         return TrackType.VIDEO;
       default:
-        return TrackType.UNRECOGNIZED;
+        return TrackType.DATA;
     }
   }
 
@@ -346,7 +346,7 @@ export namespace Track {
       case Source.ScreenShareAudio:
         return TrackSource.SCREEN_SHARE_AUDIO;
       default:
-        return TrackSource.UNRECOGNIZED;
+        return TrackSource.UNKNOWN;
     }
   }
 

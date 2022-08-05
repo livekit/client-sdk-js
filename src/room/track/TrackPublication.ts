@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import log from '../../logger';
-import { TrackInfo } from '../../proto/livekit_models';
+import { TrackInfo } from '../../proto/livekit_models_pb';
 import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalVideoTrack from './LocalVideoTrack';

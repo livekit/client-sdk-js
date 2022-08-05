@@ -12,14 +12,14 @@ import {
   SpeakerInfo,
   TrackInfo,
   UserPacket,
-} from '../proto/livekit_models';
+} from '../proto/livekit_models_pb';
 import {
   AddTrackRequest,
   JoinResponse,
   LeaveRequest,
   SignalTarget,
   TrackPublishedResponse,
-} from '../proto/livekit_rtc';
+} from '../proto/livekit_rtc_pb';
 import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
@@ -451,12 +451,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       log.error('unsupported data type', message.data);
       return;
     }
-    const dp = DataPacket.decode(new Uint8Array(buffer));
-    if (dp.value?.$case === 'speaker') {
+    const dp = DataPacket.fromBinary(new Uint8Array(buffer));
+    if (dp.value?.case === 'speaker') {
       // dispatch speaker updates
-      this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.speaker.speakers);
-    } else if (dp.value?.$case === 'user') {
-      this.emit(EngineEvent.DataPacketReceived, dp.value.user, dp.kind);
+      this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
+    } else if (dp.value?.case === 'user') {
+      this.emit(EngineEvent.DataPacketReceived, dp.value.value, dp.kind);
     }
   };
 
@@ -701,7 +701,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
-    const msg = DataPacket.encode(packet).finish();
+    const msg = packet.toBinary();
 
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);

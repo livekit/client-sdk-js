@@ -1302,6 +1302,25 @@
   resolved "https://registry.yarnpkg.com/@bcoe/v8-coverage/-/v8-coverage-0.2.3.tgz#75a2e8b51cb758a7553d6804a5932d7aace75c39"
   integrity sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==
 
+"@bufbuild/protobuf@0.0.10":
+  version "0.0.10"
+  resolved "https://registry.yarnpkg.com/@bufbuild/protobuf/-/protobuf-0.0.10.tgz#9678de76e39b026af9418afc93c5494eab575b54"
+  integrity sha512-KAIMq9+zgRms902o6Cwyv9q4+rf1cOlF41QpEPU8lWbyj+QViD7JjG4370Ev9JFJtJr1qO3ZMdjUhglH0gsDrg==
+
+"@bufbuild/protoc-gen-es@^0.0.10":
+  version "0.0.10"
+  resolved "https://registry.yarnpkg.com/@bufbuild/protoc-gen-es/-/protoc-gen-es-0.0.10.tgz#662affe8d3971ee6cc772c469877b96d93ec267c"
+  integrity sha512-RhIEinP4eKyZH7Zr0IkZU8Jhp9kxeiuSHh71K0cAlsp0HR1YdBNJ56GW+1e9nJUV/gmFkbQ3L72X1TaWdZ548A==
+  dependencies:
+    "@bufbuild/protoplugin" "0.0.10"
+
+"@bufbuild/protoplugin@0.0.10":
+  version "0.0.10"
+  resolved "https://registry.yarnpkg.com/@bufbuild/protoplugin/-/protoplugin-0.0.10.tgz#c3bffddadd2cb290dccfc6504e662fb888cd0564"
+  integrity sha512-cfC5ODqmkVpNNU8zXhZNSwXQgPZcG6Sqbe4d/UqiOyDh1kH6hYVEuqNKXNBRDzQXjwRAeBEi2m4Zp8MpCoP5Ug==
+  dependencies:
+    "@bufbuild/protobuf" "0.0.10"
+
 "@changesets/apply-release-plan@^6.0.3":
   version "6.0.3"
   resolved "https://registry.yarnpkg.com/@changesets/apply-release-plan/-/apply-release-plan-6.0.3.tgz#cd1113e57ac58d98ea9a52f2d39304c2d398a9dd"
