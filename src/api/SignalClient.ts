@@ -527,6 +527,11 @@ export class SignalClient {
     this.pingTimeout = setTimeout(() => {
       if (this.onClose) {
         this.onClose('ping timeout');
+        log.warn(
+          `ping timeout triggered. last received pong at: ${new Date(
+            Date.now() - this.pingTimeoutDuration! * 1000,
+          ).toUTCString()}`,
+        );
       }
     }, this.pingTimeoutDuration * 1000);
   }
