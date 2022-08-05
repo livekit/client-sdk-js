@@ -52,7 +52,11 @@ export interface SignalOptions {
   adaptiveStream?: boolean;
 }
 
-const passThroughQueueSignals: string[] = [
+type SignalMessage = NonNullable<SignalRequest['message']>;
+
+type SignalKind = SignalMessage['$case'];
+
+const passThroughQueueSignals: Array<SignalKind> = [
   'syncState',
   'trickle',
   'offer',
