@@ -163,10 +163,8 @@ export class SignalClient {
 
   async reconnect(url: string, token: string): Promise<void> {
     this.isReconnecting = true;
-    // clear ping timeout and reset it once reconnected
-    if (this.pingTimeoutDuration) {
-      clearTimeout(this.pingTimeoutDuration);
-    }
+    // clear ping interval and restart it once reconnected
+    this.clearPingInterval();
     await this.connect(url, token, {
       reconnect: true,
     });
@@ -227,8 +225,8 @@ export class SignalClient {
         if (opts.reconnect) {
           // upon reconnection, there will not be additional handshake
           this.isConnected = true;
-          // restart ping timeout as it's cleared for reconnection
-          this.resetPingTimeout();
+          // restart ping interval as it's cleared for reconnection
+          this.startPingInterval();
           resolve();
         }
       };
@@ -285,10 +283,7 @@ export class SignalClient {
     if (this.ws) this.ws.onclose = null;
     this.ws?.close();
     this.ws = undefined;
-    if (this.pingTimeout) {
-      clearTimeout(this.pingTimeout);
-    }
-    this.stopPingInterval();
+    this.clearPingInterval();
   }
 
   // initial offer after joining
@@ -503,7 +498,7 @@ export class SignalClient {
       if (this.onLocalTrackUnpublished) {
         this.onLocalTrackUnpublished(msg.trackUnpublished);
       }
-    } else if (msg.pong) {
+    } else if (msg.$case === 'pong') {
       this.resetPingTimeout();
     } else {
       log.debug('unsupported message', msg);
@@ -525,9 +520,7 @@ export class SignalClient {
   }
 
   private resetPingTimeout() {
-    if (this.pingTimeoutDuration) {
-      clearTimeout(this.pingTimeoutDuration);
-    }
+    this.clearPingTimeout();
     if (!this.pingTimeoutDuration) {
       return;
     }
@@ -535,21 +528,28 @@ export class SignalClient {
       if (this.onClose) {
         this.onClose('ping timeout');
       }
-    }, this.pingTimeoutDuration);
+    }, this.pingTimeoutDuration * 1000);
+  }
+
+  private clearPingTimeout() {
+    if (this.pingTimeout) {
+      clearTimeout(this.pingTimeout);
+    }
   }
 
   private startPingInterval() {
     this.resetPingTimeout();
-    this.stopPingInterval();
+    this.clearPingInterval();
     if (!this.pingIntervalDuration) {
       return;
     }
     this.pingInterval = setInterval(() => {
       this.sendPing();
-    }, this.pingIntervalDuration);
+    }, this.pingIntervalDuration * 1000);
   }
 
-  private stopPingInterval() {
+  private clearPingInterval() {
+    this.clearPingTimeout();
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
     }
