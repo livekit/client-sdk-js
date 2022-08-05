@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.2.10
+
+### Patch Changes
+
+- [#377](https://github.com/livekit/client-sdk-js/pull/377) [`08d6c60`](https://github.com/livekit/client-sdk-js/commit/08d6c60bdfa17eeb1dc419d4344dd602c2cec1db) Thanks [@lukasIO](https://github.com/lukasIO)! - Add ping pong heartbeat for signal connection
+
+* [#382](https://github.com/livekit/client-sdk-js/pull/382) [`8499723`](https://github.com/livekit/client-sdk-js/commit/8499723cccb0bba3eed4fe169888dfd412c55de8) Thanks [@lukasIO](https://github.com/lukasIO)! - Disable simulcast if an user provides empty array for custom layers
+
+- [#376](https://github.com/livekit/client-sdk-js/pull/376) [`8ec5c02`](https://github.com/livekit/client-sdk-js/commit/8ec5c02c73fe10ba7e56cd7e8740f44e0db74f23) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix setting name on RemoteParticipant creation
+
+* [#379](https://github.com/livekit/client-sdk-js/pull/379) [`fc97dd1`](https://github.com/livekit/client-sdk-js/commit/fc97dd13f390ceb8d0da4ed398a54f6f400f1efd) Thanks [@davidzhao](https://github.com/davidzhao)! - Use stricter union types for oneof messages
+
 ## 1.2.9
 
 ### Patch Changes
