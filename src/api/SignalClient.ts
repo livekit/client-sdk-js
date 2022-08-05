@@ -251,7 +251,7 @@ export class SignalClient {
             abortSignal?.removeEventListener('abort', abortHandler);
             this.pingTimeoutDuration = resp.message.join.pingTimeout;
             this.pingIntervalDuration = resp.message.join.pingInterval;
-            log.info('ping config', {
+            log.debug('ping config', {
               timeout: this.pingTimeoutDuration,
               interval: this.pingIntervalDuration,
             });
