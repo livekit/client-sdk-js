@@ -226,6 +226,7 @@ export enum DisconnectReason {
   PARTICIPANT_REMOVED = 4,
   ROOM_DELETED = 5,
   STATE_MISMATCH = 6,
+  JOIN_FAILURE = 7,
   UNRECOGNIZED = -1,
 }
 
@@ -252,6 +253,9 @@ export function disconnectReasonFromJSON(object: any): DisconnectReason {
     case 6:
     case 'STATE_MISMATCH':
       return DisconnectReason.STATE_MISMATCH;
+    case 7:
+    case 'JOIN_FAILURE':
+      return DisconnectReason.JOIN_FAILURE;
     case -1:
     case 'UNRECOGNIZED':
     default:
@@ -275,6 +279,8 @@ export function disconnectReasonToJSON(object: DisconnectReason): string {
       return 'ROOM_DELETED';
     case DisconnectReason.STATE_MISMATCH:
       return 'STATE_MISMATCH';
+    case DisconnectReason.JOIN_FAILURE:
+      return 'JOIN_FAILURE';
     case DisconnectReason.UNRECOGNIZED:
     default:
       return 'UNRECOGNIZED';
@@ -625,6 +631,11 @@ export interface RTPStats {
 export interface RTPStats_GapHistogramEntry {
   key: number;
   value: number;
+}
+
+export interface TimedVersion {
+  unixMicro: number;
+  ticks: number;
 }
 
 function createBaseRoom(): Room {
@@ -2650,6 +2661,64 @@ export const RTPStats_GapHistogramEntry = {
     const message = createBaseRTPStats_GapHistogramEntry();
     message.key = object.key ?? 0;
     message.value = object.value ?? 0;
+    return message;
+  },
+};
+
+function createBaseTimedVersion(): TimedVersion {
+  return { unixMicro: 0, ticks: 0 };
+}
+
+export const TimedVersion = {
+  encode(message: TimedVersion, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.unixMicro !== 0) {
+      writer.uint32(8).int64(message.unixMicro);
+    }
+    if (message.ticks !== 0) {
+      writer.uint32(16).int32(message.ticks);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): TimedVersion {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTimedVersion();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.unixMicro = longToNumber(reader.int64() as Long);
+          break;
+        case 2:
+          message.ticks = reader.int32();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TimedVersion {
+    return {
+      unixMicro: isSet(object.unixMicro) ? Number(object.unixMicro) : 0,
+      ticks: isSet(object.ticks) ? Number(object.ticks) : 0,
+    };
+  },
+
+  toJSON(message: TimedVersion): unknown {
+    const obj: any = {};
+    message.unixMicro !== undefined && (obj.unixMicro = Math.round(message.unixMicro));
+    message.ticks !== undefined && (obj.ticks = Math.round(message.ticks));
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<TimedVersion>, I>>(object: I): TimedVersion {
+    const message = createBaseTimedVersion();
+    message.unixMicro = object.unixMicro ?? 0;
+    message.ticks = object.ticks ?? 0;
     return message;
   },
 };

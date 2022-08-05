@@ -23,6 +23,7 @@ import {
   connectionQualityFromJSON,
   connectionQualityToJSON,
 } from './livekit_models';
+import Long from 'long';
 import _m0 from 'protobufjs/minimal';
 
 export const protobufPackage = 'livekit';
@@ -139,7 +140,8 @@ export interface SignalRequest {
     | { $case: 'updateLayers'; updateLayers: UpdateVideoLayers }
     | { $case: 'subscriptionPermission'; subscriptionPermission: SubscriptionPermission }
     | { $case: 'syncState'; syncState: SyncState }
-    | { $case: 'simulate'; simulate: SimulateScenario };
+    | { $case: 'simulate'; simulate: SimulateScenario }
+    | { $case: 'ping'; ping: number };
 }
 
 export interface SignalResponse {
@@ -162,7 +164,8 @@ export interface SignalResponse {
         subscriptionPermissionUpdate: SubscriptionPermissionUpdate;
       }
     | { $case: 'refreshToken'; refreshToken: string }
-    | { $case: 'trackUnpublished'; trackUnpublished: TrackUnpublishedResponse };
+    | { $case: 'trackUnpublished'; trackUnpublished: TrackUnpublishedResponse }
+    | { $case: 'pong'; pong: number };
 }
 
 export interface SimulcastCodec {
@@ -215,6 +218,8 @@ export interface JoinResponse {
   alternativeUrl: string;
   clientConfiguration?: ClientConfiguration;
   serverRegion: string;
+  pingTimeout: number;
+  pingInterval: number;
 }
 
 export interface TrackPublishedResponse {
@@ -405,6 +410,9 @@ export const SignalRequest = {
     if (message.message?.$case === 'simulate') {
       SimulateScenario.encode(message.message.simulate, writer.uint32(106).fork()).ldelim();
     }
+    if (message.message?.$case === 'ping') {
+      writer.uint32(112).int64(message.message.ping);
+    }
     return writer;
   },
 
@@ -484,6 +492,9 @@ export const SignalRequest = {
             simulate: SimulateScenario.decode(reader, reader.uint32()),
           };
           break;
+        case 14:
+          message.message = { $case: 'ping', ping: longToNumber(reader.int64() as Long) };
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -521,6 +532,8 @@ export const SignalRequest = {
         ? { $case: 'syncState', syncState: SyncState.fromJSON(object.syncState) }
         : isSet(object.simulate)
         ? { $case: 'simulate', simulate: SimulateScenario.fromJSON(object.simulate) }
+        : isSet(object.ping)
+        ? { $case: 'ping', ping: Number(object.ping) }
         : undefined,
     };
   },
@@ -575,6 +588,7 @@ export const SignalRequest = {
       (obj.simulate = message.message?.simulate
         ? SimulateScenario.toJSON(message.message?.simulate)
         : undefined);
+    message.message?.$case === 'ping' && (obj.ping = Math.round(message.message?.ping));
     return obj;
   },
 
@@ -696,6 +710,13 @@ export const SignalRequest = {
         simulate: SimulateScenario.fromPartial(object.message.simulate),
       };
     }
+    if (
+      object.message?.$case === 'ping' &&
+      object.message?.ping !== undefined &&
+      object.message?.ping !== null
+    ) {
+      message.message = { $case: 'ping', ping: object.message.ping };
+    }
     return message;
   },
 };
@@ -771,6 +792,9 @@ export const SignalResponse = {
         message.message.trackUnpublished,
         writer.uint32(138).fork(),
       ).ldelim();
+    }
+    if (message.message?.$case === 'pong') {
+      writer.uint32(144).int64(message.message.pong);
     }
     return writer;
   },
@@ -872,6 +896,9 @@ export const SignalResponse = {
             trackUnpublished: TrackUnpublishedResponse.decode(reader, reader.uint32()),
           };
           break;
+        case 18:
+          message.message = { $case: 'pong', pong: longToNumber(reader.int64() as Long) };
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -939,6 +966,8 @@ export const SignalResponse = {
             $case: 'trackUnpublished',
             trackUnpublished: TrackUnpublishedResponse.fromJSON(object.trackUnpublished),
           }
+        : isSet(object.pong)
+        ? { $case: 'pong', pong: Number(object.pong) }
         : undefined,
     };
   },
@@ -1004,6 +1033,7 @@ export const SignalResponse = {
       (obj.trackUnpublished = message.message?.trackUnpublished
         ? TrackUnpublishedResponse.toJSON(message.message?.trackUnpublished)
         : undefined);
+    message.message?.$case === 'pong' && (obj.pong = Math.round(message.message?.pong));
     return obj;
   },
 
@@ -1160,6 +1190,13 @@ export const SignalResponse = {
         $case: 'trackUnpublished',
         trackUnpublished: TrackUnpublishedResponse.fromPartial(object.message.trackUnpublished),
       };
+    }
+    if (
+      object.message?.$case === 'pong' &&
+      object.message?.pong !== undefined &&
+      object.message?.pong !== null
+    ) {
+      message.message = { $case: 'pong', pong: object.message.pong };
     }
     return message;
   },
@@ -1528,6 +1565,8 @@ function createBaseJoinResponse(): JoinResponse {
     alternativeUrl: '',
     clientConfiguration: undefined,
     serverRegion: '',
+    pingTimeout: 0,
+    pingInterval: 0,
   };
 }
 
@@ -1559,6 +1598,12 @@ export const JoinResponse = {
     }
     if (message.serverRegion !== '') {
       writer.uint32(74).string(message.serverRegion);
+    }
+    if (message.pingTimeout !== 0) {
+      writer.uint32(80).int32(message.pingTimeout);
+    }
+    if (message.pingInterval !== 0) {
+      writer.uint32(88).int32(message.pingInterval);
     }
     return writer;
   },
@@ -1597,6 +1642,12 @@ export const JoinResponse = {
         case 9:
           message.serverRegion = reader.string();
           break;
+        case 10:
+          message.pingTimeout = reader.int32();
+          break;
+        case 11:
+          message.pingInterval = reader.int32();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1626,6 +1677,8 @@ export const JoinResponse = {
         ? ClientConfiguration.fromJSON(object.clientConfiguration)
         : undefined,
       serverRegion: isSet(object.serverRegion) ? String(object.serverRegion) : '',
+      pingTimeout: isSet(object.pingTimeout) ? Number(object.pingTimeout) : 0,
+      pingInterval: isSet(object.pingInterval) ? Number(object.pingInterval) : 0,
     };
   },
 
@@ -1656,6 +1709,8 @@ export const JoinResponse = {
         ? ClientConfiguration.toJSON(message.clientConfiguration)
         : undefined);
     message.serverRegion !== undefined && (obj.serverRegion = message.serverRegion);
+    message.pingTimeout !== undefined && (obj.pingTimeout = Math.round(message.pingTimeout));
+    message.pingInterval !== undefined && (obj.pingInterval = Math.round(message.pingInterval));
     return obj;
   },
 
@@ -1678,6 +1733,8 @@ export const JoinResponse = {
         ? ClientConfiguration.fromPartial(object.clientConfiguration)
         : undefined;
     message.serverRegion = object.serverRegion ?? '';
+    message.pingTimeout = object.pingTimeout ?? 0;
+    message.pingInterval = object.pingInterval ?? 0;
     return message;
   },
 };
@@ -3377,6 +3434,17 @@ export const SimulateScenario = {
   },
 };
 
+declare var self: any | undefined;
+declare var window: any | undefined;
+declare var global: any | undefined;
+var globalThis: any = (() => {
+  if (typeof globalThis !== 'undefined') return globalThis;
+  if (typeof self !== 'undefined') return self;
+  if (typeof window !== 'undefined') return window;
+  if (typeof global !== 'undefined') return global;
+  throw 'Unable to locate global object';
+})();
+
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
 export type DeepPartial<T> = T extends Builtin
@@ -3395,6 +3463,18 @@ type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin
   ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & Record<Exclude<keyof I, KeysOfUnion<P>>, never>;
+
+function longToNumber(long: Long): number {
+  if (long.gt(Number.MAX_SAFE_INTEGER)) {
+    throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
+  }
+  return long.toNumber();
+}
+
+if (_m0.util.Long !== Long) {
+  _m0.util.Long = Long as any;
+  _m0.configure();
+}
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

@@ -123,6 +123,14 @@ export class SignalClient {
 
   ws?: WebSocket;
 
+  private pingTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  private pingTimeoutDuration: number | undefined;
+
+  private pingIntervalDuration: number | undefined;
+
+  private pingInterval: ReturnType<typeof setInterval> | undefined;
+
   constructor(useJSON: boolean = false) {
     this.isConnected = false;
     this.isReconnecting = false;
@@ -155,6 +163,8 @@ export class SignalClient {
 
   async reconnect(url: string, token: string): Promise<void> {
     this.isReconnecting = true;
+    // clear ping interval and restart it once reconnected
+    this.clearPingInterval();
     await this.connect(url, token, {
       reconnect: true,
     });
@@ -215,18 +225,20 @@ export class SignalClient {
         if (opts.reconnect) {
           // upon reconnection, there will not be additional handshake
           this.isConnected = true;
+          // restart ping interval as it's cleared for reconnection
+          this.startPingInterval();
           resolve();
         }
       };
 
       ws.onmessage = async (ev: MessageEvent) => {
         // not considered connected until JoinResponse is received
-        let msg: SignalResponse;
+        let resp: SignalResponse;
         if (typeof ev.data === 'string') {
           const json = JSON.parse(ev.data);
-          msg = SignalResponse.fromJSON(json);
+          resp = SignalResponse.fromJSON(json);
         } else if (ev.data instanceof ArrayBuffer) {
-          msg = SignalResponse.decode(new Uint8Array(ev.data));
+          resp = SignalResponse.decode(new Uint8Array(ev.data));
         } else {
           log.error(`could not decode websocket message: ${typeof ev.data}`);
           return;
@@ -234,10 +246,20 @@ export class SignalClient {
 
         if (!this.isConnected) {
           // handle join message only
-          if (msg.message?.$case === 'join') {
+          if (resp.message?.$case === 'join') {
             this.isConnected = true;
             abortSignal?.removeEventListener('abort', abortHandler);
-            resolve(msg.message.join);
+            this.pingTimeoutDuration = resp.message.join.pingTimeout;
+            this.pingIntervalDuration = resp.message.join.pingInterval;
+
+            if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
+              log.debug('ping config', {
+                timeout: this.pingTimeoutDuration,
+                interval: this.pingIntervalDuration,
+              });
+              this.startPingInterval();
+            }
+            resolve(resp.message.join);
           } else {
             reject(new ConnectionError('did not receive join response'));
           }
@@ -247,7 +269,7 @@ export class SignalClient {
         if (this.signalLatency) {
           await sleep(this.signalLatency);
         }
-        this.handleSignalResponse(msg);
+        this.handleSignalResponse(resp);
       };
 
       ws.onclose = (ev: CloseEvent) => {
@@ -268,6 +290,7 @@ export class SignalClient {
     if (this.ws) this.ws.onclose = null;
     this.ws?.close();
     this.ws = undefined;
+    this.clearPingInterval();
   }
 
   // initial offer after joining
@@ -361,6 +384,13 @@ export class SignalClient {
     this.sendRequest({
       $case: 'simulate',
       simulate: scenario,
+    });
+  }
+
+  sendPing() {
+    this.sendRequest({
+      $case: 'ping',
+      ping: Date.now(),
     });
   }
 
@@ -475,6 +505,8 @@ export class SignalClient {
       if (this.onLocalTrackUnpublished) {
         this.onLocalTrackUnpublished(msg.trackUnpublished);
       }
+    } else if (msg.$case === 'pong') {
+      this.resetPingTimeout();
     } else {
       log.debug('unsupported message', msg);
     }
@@ -492,6 +524,51 @@ export class SignalClient {
 
   private handleWSError(ev: Event) {
     log.error('websocket error', ev);
+  }
+
+  private resetPingTimeout() {
+    this.clearPingTimeout();
+    if (!this.pingTimeoutDuration) {
+      log.warn('ping timeout duration not set');
+      return;
+    }
+    this.pingTimeout = setTimeout(() => {
+      log.warn(
+        `ping timeout triggered. last pong received at: ${new Date(
+          Date.now() - this.pingTimeoutDuration! * 1000,
+        ).toUTCString()}`,
+      );
+      if (this.onClose) {
+        this.onClose('ping timeout');
+      }
+    }, this.pingTimeoutDuration * 1000);
+  }
+
+  private clearPingTimeout() {
+    if (this.pingTimeout) {
+      clearTimeout(this.pingTimeout);
+    }
+  }
+
+  private startPingInterval() {
+    this.clearPingInterval();
+    this.resetPingTimeout();
+    if (!this.pingIntervalDuration) {
+      log.warn('ping interval duration not set');
+      return;
+    }
+    log.debug('start ping interval');
+    this.pingInterval = setInterval(() => {
+      this.sendPing();
+    }, this.pingIntervalDuration * 1000);
+  }
+
+  private clearPingInterval() {
+    log.debug('clearing ping interval');
+    this.clearPingTimeout();
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
   }
 }
 
