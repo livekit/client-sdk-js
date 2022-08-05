@@ -255,6 +255,10 @@ export class SignalClient {
             abortSignal?.removeEventListener('abort', abortHandler);
             this.pingTimeoutDuration = resp.message.value.pingTimeout;
             this.pingIntervalDuration = resp.message.value.pingInterval;
+            log.info('ping config', {
+              timeout: this.pingTimeoutDuration,
+              interval: this.pingIntervalDuration,
+            });
             this.startPingInterval();
             resolve(resp.message.value);
           } else {
@@ -526,38 +530,43 @@ export class SignalClient {
   private resetPingTimeout() {
     this.clearPingTimeout();
     if (!this.pingTimeoutDuration) {
+      log.warn('ping timeout duration not set');
       return;
     }
     this.pingTimeout = setTimeout(() => {
+      log.warn(
+        `ping timeout triggered. last pong received at: ${new Date(
+          Date.now() - this.pingTimeoutDuration! * 1000,
+        ).toUTCString()}`,
+      );
       if (this.onClose) {
         this.onClose('ping timeout');
-        log.warn(
-          `ping timeout triggered. last received pong at: ${new Date(
-            Date.now() - this.pingTimeoutDuration! * 1000,
-          ).toUTCString()}`,
-        );
       }
     }, this.pingTimeoutDuration * 1000);
   }
 
   private clearPingTimeout() {
+    log.debug('clearing ping timeout');
     if (this.pingTimeout) {
       clearTimeout(this.pingTimeout);
     }
   }
 
   private startPingInterval() {
-    this.resetPingTimeout();
     this.clearPingInterval();
+    this.resetPingTimeout();
     if (!this.pingIntervalDuration) {
+      log.warn('ping interval duration not set');
       return;
     }
+    log.debug('start ping interval');
     this.pingInterval = setInterval(() => {
       this.sendPing();
     }, this.pingIntervalDuration * 1000);
   }
 
   private clearPingInterval() {
+    log.debug('clearing ping interval');
     this.clearPingTimeout();
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
