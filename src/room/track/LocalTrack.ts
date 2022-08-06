@@ -182,11 +182,11 @@ export default class LocalTrack extends Track {
   protected setTrackMuted(muted: boolean) {
     log.debug(`setting ${this.kind} track ${muted ? 'muted' : 'unmuted'}`);
 
-    this.isMuted = muted;
     this._mediaStreamTrack.enabled = !muted;
     if (this.isMuted === muted) {
       return;
     }
+    this.isMuted = muted;
     this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
   }
 
