@@ -16,8 +16,6 @@ export default class LocalTrack extends Track {
 
   protected constraints: MediaTrackConstraints;
 
-  protected wasMuted: boolean;
-
   protected reacquireTrack: boolean;
 
   protected providedByUser: boolean;
@@ -34,7 +32,6 @@ export default class LocalTrack extends Track {
     this._mediaStreamTrack.addEventListener('ended', this.handleEnded);
     this.constraints = constraints ?? mediaTrack.getConstraints();
     this.reacquireTrack = false;
-    this.wasMuted = false;
     this.providedByUser = userProvidedTrack;
     this.muteQueue = new Queue();
   }
@@ -182,11 +179,12 @@ export default class LocalTrack extends Track {
   protected setTrackMuted(muted: boolean) {
     log.debug(`setting ${this.kind} track ${muted ? 'muted' : 'unmuted'}`);
 
-    this._mediaStreamTrack.enabled = !muted;
-    if (this.isMuted === muted) {
+    if (this.isMuted === muted && this._mediaStreamTrack.enabled !== muted) {
       return;
     }
+
     this.isMuted = muted;
+    this._mediaStreamTrack.enabled = !muted;
     this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
   }
 
@@ -204,17 +202,10 @@ export default class LocalTrack extends Track {
     if (!isMobile()) return;
     log.debug(`visibility changed, is in Background: ${this.isInBackground}`);
 
-    if (!this.isInBackground && this.needsReAcquisition && !this.isUserProvided) {
+    if (!this.isInBackground && this.needsReAcquisition && !this.isUserProvided && !this.isMuted) {
       log.debug(`track needs to be reaquired, restarting ${this.source}`);
       await this.restart();
       this.reacquireTrack = false;
-      // Restore muted state if had to be restarted
-      this.setTrackMuted(this.wasMuted);
-    }
-
-    // store muted state each time app goes to background
-    if (this.isInBackground) {
-      this.wasMuted = this.isMuted;
     }
   }
 
