@@ -30,6 +30,7 @@ import { isFireFox, isWeb, sleep } from './utils';
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
+const leaveReconnect = 'leave-reconnect';
 export const maxICEConnectTimeout = 15 * 1000;
 
 enum PCState {
@@ -383,6 +384,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (leave?.canReconnect) {
         this.fullReconnectOnNext = true;
         this.primaryPC = undefined;
+        // reconnect immediately instead of waiting for next attempt
+        this.handleDisconnect(leaveReconnect);
       } else {
         this.emit(EngineEvent.Disconnected, leave?.reason);
         this.close();
@@ -495,7 +498,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     const duration = Date.now() - this.reconnectStart;
-    const delay = this.getNextRetryDelay({
+    let delay = this.getNextRetryDelay({
       elapsedMs: duration,
       retryCount: this.reconnectAttempts,
     });
@@ -503,6 +506,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (delay === null) {
       disconnect(duration);
       return;
+    }
+    if (connection === leaveReconnect) {
+      delay = 0;
     }
 
     log.debug(`reconnecting in ${delay}ms`);
