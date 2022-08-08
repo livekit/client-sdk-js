@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-always apply mute state when calling setMute
+Don't reacquire muted tracks when app visibility changes
