@@ -134,10 +134,18 @@ export default class PCTransport {
       }
     });
 
-    offer.sdp = write(sdpParsed);
     this.trackBitrates = [];
-
-    await this.pc.setLocalDescription(offer);
+    const originalSdp = offer.sdp;
+    try {
+      offer.sdp = write(sdpParsed);
+      await this.pc.setLocalDescription(offer);
+    } catch (e: unknown) {
+      log.warn('not able to set desired local description, falling back to unmodified offer', {
+        error: e,
+      });
+      offer.sdp = originalSdp;
+      await this.pc.setLocalDescription(offer);
+    }
     this.onOffer(offer);
   }
 
