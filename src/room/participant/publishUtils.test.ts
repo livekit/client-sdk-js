@@ -93,6 +93,18 @@ describe('computeVideoEncodings', () => {
     expect(encodings![1].maxBitrate).toBe(VideoPresets.h360.encoding.maxBitrate);
   });
 
+  it('returns one encoding if an empty array is provided for custom screen share layers', () => {
+    const encodings = computeVideoEncodings(true, 1920, 1080, {
+      simulcast: true,
+      screenShareSimulcastLayers: [],
+    });
+    expect(encodings).toHaveLength(1);
+
+    // ensure they are what we expect
+    expect(encodings![0].rid).toBe('q');
+    expect(encodings![0].scaleResolutionDownBy).toBe(1);
+  });
+
   it('respects provided min resolution', () => {
     const encodings = computeVideoEncodings(false, 100, 120, {
       simulcast: true,

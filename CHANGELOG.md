@@ -1,5 +1,59 @@
 # Change Log
 
+## 1.2.10
+
+### Patch Changes
+
+- [#377](https://github.com/livekit/client-sdk-js/pull/377) [`08d6c60`](https://github.com/livekit/client-sdk-js/commit/08d6c60bdfa17eeb1dc419d4344dd602c2cec1db) Thanks [@lukasIO](https://github.com/lukasIO)! - Add ping pong heartbeat for signal connection
+
+* [#382](https://github.com/livekit/client-sdk-js/pull/382) [`8499723`](https://github.com/livekit/client-sdk-js/commit/8499723cccb0bba3eed4fe169888dfd412c55de8) Thanks [@lukasIO](https://github.com/lukasIO)! - Disable simulcast if an user provides empty array for custom layers
+
+- [#376](https://github.com/livekit/client-sdk-js/pull/376) [`8ec5c02`](https://github.com/livekit/client-sdk-js/commit/8ec5c02c73fe10ba7e56cd7e8740f44e0db74f23) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix setting name on RemoteParticipant creation
+
+* [#379](https://github.com/livekit/client-sdk-js/pull/379) [`fc97dd1`](https://github.com/livekit/client-sdk-js/commit/fc97dd13f390ceb8d0da4ed398a54f6f400f1efd) Thanks [@davidzhao](https://github.com/davidzhao)! - Use stricter union types for oneof messages
+
+## 1.2.9
+
+### Patch Changes
+
+- [#374](https://github.com/livekit/client-sdk-js/pull/374) [`148b9ff`](https://github.com/livekit/client-sdk-js/commit/148b9ffb78eb07f3bc287eb6f53f05bf900e9118) Thanks [@lukasIO](https://github.com/lukasIO)! - Detach track on unsubscribe
+
+## 1.2.8
+
+### Patch Changes
+
+- [#371](https://github.com/livekit/client-sdk-js/pull/371) [`e1a004e`](https://github.com/livekit/client-sdk-js/commit/e1a004e4edb003c26bc7976546fff959b60bfd25) Thanks [@lukasIO](https://github.com/lukasIO)! - only set volume on attach if elementVolume has been previously set
+
+## 1.2.7
+
+### Patch Changes
+
+- [#369](https://github.com/livekit/client-sdk-js/pull/369) [`a3d6de6`](https://github.com/livekit/client-sdk-js/commit/a3d6de6b342a6650d66e10565d4e18aec250e7e4) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix reconnect promise not being reset after reconnect attempts are exhausted
+
+## 1.2.6
+
+### Patch Changes
+
+- [#365](https://github.com/livekit/client-sdk-js/pull/365) [`d040aff`](https://github.com/livekit/client-sdk-js/commit/d040aff8d2de895cb95bd3928e285a669a698bde) Thanks [@lukasIO](https://github.com/lukasIO)! - Make sure that ParticipantConnected fires before related TrackEvents
+
+* [#368](https://github.com/livekit/client-sdk-js/pull/368) [`7f8d1ce`](https://github.com/livekit/client-sdk-js/commit/7f8d1cec98b707c1c9a8eaf17457cc39e3f8da2c) Thanks [@lukasIO](https://github.com/lukasIO)! - Return after signal connection failed
+
+- [#366](https://github.com/livekit/client-sdk-js/pull/366) [`b52e7b3`](https://github.com/livekit/client-sdk-js/commit/b52e7b3433405759b63e413e1c17b5d3683ef809) Thanks [@lukasIO](https://github.com/lukasIO)! - Handle reconnect case in onTrackAdded
+
+## 1.2.5
+
+### Patch Changes
+
+- [#359](https://github.com/livekit/client-sdk-js/pull/359) [`31e3883`](https://github.com/livekit/client-sdk-js/commit/31e3883ebe7fc57dc0269b374031029dc5730652) Thanks [@lukasIO](https://github.com/lukasIO)! - Only reject connection promise if it was triggered by a call to connect()
+
+* [#358](https://github.com/livekit/client-sdk-js/pull/358) [`8ceceff`](https://github.com/livekit/client-sdk-js/commit/8ceceff691d055191aab61109a56ea64a8984c43) Thanks [@lukasIO](https://github.com/lukasIO)! - Add safari explicitly to browserslist, to ensure compatibility with Safari 11"
+
+- [#363](https://github.com/livekit/client-sdk-js/pull/363) [`4665f74`](https://github.com/livekit/client-sdk-js/commit/4665f740e68c0f049989cdd1db130c38eb5dd624) Thanks [@lukasIO](https://github.com/lukasIO)! - Decrease publication timeout to 10s and clean local state on failed unpublish attempts
+
+* [#311](https://github.com/livekit/client-sdk-js/pull/311) [`61a41e0`](https://github.com/livekit/client-sdk-js/commit/61a41e0c13f6d2e7ea69da2cfab9bf8220df3dcf) Thanks [@lukasIO](https://github.com/lukasIO)! - Avoid multiple calls to getUserMedia for getLocalDevices
+
+- [#332](https://github.com/livekit/client-sdk-js/pull/332) [`b3df000`](https://github.com/livekit/client-sdk-js/commit/b3df0009788ecd86ee06b774253d50339468bf88) Thanks [@lukasIO](https://github.com/lukasIO)! - Clean up simulcast codecs in unpublishTrack
+
 ## 1.2.4
 
 ### Patch Changes

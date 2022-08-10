@@ -26,7 +26,6 @@ export default {
       format: 'esm',
       strict: true,
       sourcemap: true,
-      inlineDynamicImports: true,
     },
   ],
   plugins: [

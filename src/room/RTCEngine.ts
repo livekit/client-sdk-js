@@ -30,6 +30,7 @@ import { isFireFox, isWeb, sleep } from './utils';
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
+const leaveReconnect = 'leave-reconnect';
 export const maxICEConnectTimeout = 15 * 1000;
 
 enum PCState {
@@ -72,7 +73,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private _isClosed: boolean = true;
 
-  private pendingTrackResolvers: { [key: string]: (info: TrackInfo) => void } = {};
+  private pendingTrackResolvers: {
+    [key: string]: { resolve: (info: TrackInfo) => void; reject: () => void };
+  } = {};
 
   // true if publisher connection has already been established.
   // this is helpful to know if we need to restart ICE on the publisher connection
@@ -166,16 +169,38 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     return new Promise<TrackInfo>((resolve, reject) => {
       const publicationTimeout = setTimeout(() => {
+        delete this.pendingTrackResolvers[req.cid];
         reject(
           new ConnectionError('publication of local track timed out, no response from server'),
         );
-      }, 15_000);
-      this.pendingTrackResolvers[req.cid] = (info: TrackInfo) => {
-        clearTimeout(publicationTimeout);
-        resolve(info);
+      }, 10_000);
+      this.pendingTrackResolvers[req.cid] = {
+        resolve: (info: TrackInfo) => {
+          clearTimeout(publicationTimeout);
+          resolve(info);
+        },
+        reject: () => {
+          clearTimeout(publicationTimeout);
+          reject(new Error('Cancelled publication by calling unpublish'));
+        },
       };
       this.client.sendAddTrack(req);
     });
+  }
+
+  removeTrack(sender: RTCRtpSender) {
+    if (sender.track && this.pendingTrackResolvers[sender.track.id]) {
+      const { reject } = this.pendingTrackResolvers[sender.track.id];
+      if (reject) {
+        reject();
+      }
+      delete this.pendingTrackResolvers[sender.track.id];
+    }
+    try {
+      this.publisher?.pc.removeTrack(sender);
+    } catch (e: unknown) {
+      log.warn('failed to remove track', { error: e, method: 'removeTrack' });
+    }
   }
 
   updateMuteStatus(trackSid: string, muted: boolean) {
@@ -338,7 +363,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
       log.debug('received trackPublishedResponse', res);
-      const resolve = this.pendingTrackResolvers[res.cid];
+      const { resolve } = this.pendingTrackResolvers[res.cid];
       if (!resolve) {
         log.error(`missing track resolver for ${res.cid}`);
         return;
@@ -359,6 +384,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (leave?.canReconnect) {
         this.fullReconnectOnNext = true;
         this.primaryPC = undefined;
+        // reconnect immediately instead of waiting for next attempt
+        this.handleDisconnect(leaveReconnect);
       } else {
         this.emit(EngineEvent.Disconnected, leave?.reason);
         this.close();
@@ -428,11 +455,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
     const dp = DataPacket.decode(new Uint8Array(buffer));
-    if (dp.speaker) {
+    if (dp.value?.$case === 'speaker') {
       // dispatch speaker updates
-      this.emit(EngineEvent.ActiveSpeakersUpdate, dp.speaker.speakers);
-    } else if (dp.user) {
-      this.emit(EngineEvent.DataPacketReceived, dp.user, dp.kind);
+      this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.speaker.speakers);
+    } else if (dp.value?.$case === 'user') {
+      this.emit(EngineEvent.DataPacketReceived, dp.value.user, dp.kind);
     }
   };
 
@@ -471,7 +498,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     const duration = Date.now() - this.reconnectStart;
-    const delay = this.getNextRetryDelay({
+    let delay = this.getNextRetryDelay({
       elapsedMs: duration,
       retryCount: this.reconnectAttempts,
     });
@@ -479,6 +506,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (delay === null) {
       disconnect(duration);
       return;
+    }
+    if (connection === leaveReconnect) {
+      delay = 0;
     }
 
     log.debug(`reconnecting in ${delay}ms`);

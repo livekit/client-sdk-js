@@ -3,6 +3,7 @@ import 'webrtc-adapter';
 import log from '../logger';
 import {
   ClientInfo,
+  DisconnectReason,
   ParticipantInfo,
   Room,
   SpeakerInfo,
@@ -51,7 +52,11 @@ export interface SignalOptions {
   adaptiveStream?: boolean;
 }
 
-const passThroughQueueSignals: Array<keyof SignalRequest> = [
+type SignalMessage = SignalRequest['message'];
+
+type SignalKind = NonNullable<SignalMessage>['$case'];
+
+const passThroughQueueSignals: Array<SignalKind> = [
   'syncState',
   'trickle',
   'offer',
@@ -60,10 +65,8 @@ const passThroughQueueSignals: Array<keyof SignalRequest> = [
   'leave',
 ];
 
-function canPassThroughQueue(req: SignalRequest): boolean {
-  const canPass =
-    Object.keys(req).find((key) => passThroughQueueSignals.includes(key as keyof SignalRequest)) !==
-    undefined;
+function canPassThroughQueue(req: SignalMessage): boolean {
+  const canPass = passThroughQueueSignals.includes(req!.$case);
   log.trace('request allowed to bypass queue:', { canPass, req });
   return canPass;
 }
@@ -120,6 +123,14 @@ export class SignalClient {
 
   ws?: WebSocket;
 
+  private pingTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  private pingTimeoutDuration: number | undefined;
+
+  private pingIntervalDuration: number | undefined;
+
+  private pingInterval: ReturnType<typeof setInterval> | undefined;
+
   constructor(useJSON: boolean = false) {
     this.isConnected = false;
     this.isReconnecting = false;
@@ -152,6 +163,8 @@ export class SignalClient {
 
   async reconnect(url: string, token: string): Promise<void> {
     this.isReconnecting = true;
+    // clear ping interval and restart it once reconnected
+    this.clearPingInterval();
     await this.connect(url, token, {
       reconnect: true,
     });
@@ -212,18 +225,20 @@ export class SignalClient {
         if (opts.reconnect) {
           // upon reconnection, there will not be additional handshake
           this.isConnected = true;
+          // restart ping interval as it's cleared for reconnection
+          this.startPingInterval();
           resolve();
         }
       };
 
       ws.onmessage = async (ev: MessageEvent) => {
         // not considered connected until JoinResponse is received
-        let msg: SignalResponse;
+        let resp: SignalResponse;
         if (typeof ev.data === 'string') {
           const json = JSON.parse(ev.data);
-          msg = SignalResponse.fromJSON(json);
+          resp = SignalResponse.fromJSON(json);
         } else if (ev.data instanceof ArrayBuffer) {
-          msg = SignalResponse.decode(new Uint8Array(ev.data));
+          resp = SignalResponse.decode(new Uint8Array(ev.data));
         } else {
           log.error(`could not decode websocket message: ${typeof ev.data}`);
           return;
@@ -231,10 +246,20 @@ export class SignalClient {
 
         if (!this.isConnected) {
           // handle join message only
-          if (msg.join) {
+          if (resp.message?.$case === 'join') {
             this.isConnected = true;
             abortSignal?.removeEventListener('abort', abortHandler);
-            resolve(msg.join);
+            this.pingTimeoutDuration = resp.message.join.pingTimeout;
+            this.pingIntervalDuration = resp.message.join.pingInterval;
+
+            if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
+              log.debug('ping config', {
+                timeout: this.pingTimeoutDuration,
+                interval: this.pingIntervalDuration,
+              });
+              this.startPingInterval();
+            }
+            resolve(resp.message.join);
           } else {
             reject(new ConnectionError('did not receive join response'));
           }
@@ -244,7 +269,7 @@ export class SignalClient {
         if (this.signalLatency) {
           await sleep(this.signalLatency);
         }
-        this.handleSignalResponse(msg);
+        this.handleSignalResponse(resp);
       };
 
       ws.onclose = (ev: CloseEvent) => {
@@ -265,12 +290,14 @@ export class SignalClient {
     if (this.ws) this.ws.onclose = null;
     this.ws?.close();
     this.ws = undefined;
+    this.clearPingInterval();
   }
 
   // initial offer after joining
   sendOffer(offer: RTCSessionDescriptionInit) {
     log.debug('sending offer', offer);
     this.sendRequest({
+      $case: 'offer',
       offer: toProtoSessionDescription(offer),
     });
   }
@@ -279,6 +306,7 @@ export class SignalClient {
   sendAnswer(answer: RTCSessionDescriptionInit) {
     log.debug('sending answer');
     this.sendRequest({
+      $case: 'answer',
       answer: toProtoSessionDescription(answer),
     });
   }
@@ -286,6 +314,7 @@ export class SignalClient {
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
     log.trace('sending ice candidate', candidate);
     this.sendRequest({
+      $case: 'trickle',
       trickle: {
         candidateInit: JSON.stringify(candidate),
         target,
@@ -295,6 +324,7 @@ export class SignalClient {
 
   sendMuteTrack(trackSid: string, muted: boolean) {
     this.sendRequest({
+      $case: 'mute',
       mute: {
         sid: trackSid,
         muted,
@@ -304,24 +334,35 @@ export class SignalClient {
 
   sendAddTrack(req: AddTrackRequest): void {
     this.sendRequest({
+      $case: 'addTrack',
       addTrack: AddTrackRequest.fromPartial(req),
     });
   }
 
   sendUpdateTrackSettings(settings: UpdateTrackSettings) {
-    this.sendRequest({ trackSetting: settings });
+    this.sendRequest({
+      $case: 'trackSetting',
+      trackSetting: settings,
+    });
   }
 
   sendUpdateSubscription(sub: UpdateSubscription) {
-    this.sendRequest({ subscription: sub });
+    this.sendRequest({
+      $case: 'subscription',
+      subscription: sub,
+    });
   }
 
   sendSyncState(sync: SyncState) {
-    this.sendRequest({ syncState: sync });
+    this.sendRequest({
+      $case: 'syncState',
+      syncState: sync,
+    });
   }
 
   sendUpdateVideoLayers(trackSid: string, layers: VideoLayer[]) {
     this.sendRequest({
+      $case: 'updateLayers',
       updateLayers: {
         trackSid,
         layers,
@@ -331,6 +372,7 @@ export class SignalClient {
 
   sendUpdateSubscriptionPermissions(allParticipants: boolean, trackPermissions: TrackPermission[]) {
     this.sendRequest({
+      $case: 'subscriptionPermission',
       subscriptionPermission: {
         allParticipants,
         trackPermissions,
@@ -340,21 +382,35 @@ export class SignalClient {
 
   sendSimulateScenario(scenario: SimulateScenario) {
     this.sendRequest({
+      $case: 'simulate',
       simulate: scenario,
     });
   }
 
-  async sendLeave() {
-    await this.sendRequest(SignalRequest.fromPartial({ leave: {} }));
+  sendPing() {
+    this.sendRequest({
+      $case: 'ping',
+      ping: Date.now(),
+    });
   }
 
-  async sendRequest(req: SignalRequest, fromQueue: boolean = false) {
+  async sendLeave() {
+    await this.sendRequest({
+      $case: 'leave',
+      leave: {
+        canReconnect: false,
+        reason: DisconnectReason.CLIENT_INITIATED,
+      },
+    });
+  }
+
+  async sendRequest(message: SignalMessage, fromQueue: boolean = false) {
     // capture all requests while reconnecting and put them in a queue
     // unless the request originates from the queue, then don't enqueue again
-    const canQueue = !fromQueue && !canPassThroughQueue(req);
+    const canQueue = !fromQueue && !canPassThroughQueue(message);
     if (canQueue && this.isReconnecting) {
       this.queuedRequests.push(async () => {
-        await this.sendRequest(req, true);
+        await this.sendRequest(message, true);
       });
       return;
     }
@@ -370,6 +426,9 @@ export class SignalClient {
       return;
     }
 
+    const req = {
+      message,
+    };
     try {
       if (this.useJSON) {
         this.ws.send(JSON.stringify(SignalRequest.toJSON(req)));
@@ -381,70 +440,73 @@ export class SignalClient {
     }
   }
 
-  private handleSignalResponse(msg: SignalResponse) {
-    if (msg.answer) {
+  private handleSignalResponse(res: SignalResponse) {
+    const msg = res.message!;
+    if (msg.$case === 'answer') {
       const sd = fromProtoSessionDescription(msg.answer);
       if (this.onAnswer) {
         this.onAnswer(sd);
       }
-    } else if (msg.offer) {
+    } else if (msg.$case === 'offer') {
       const sd = fromProtoSessionDescription(msg.offer);
       if (this.onOffer) {
         this.onOffer(sd);
       }
-    } else if (msg.trickle) {
-      const candidate: RTCIceCandidateInit = JSON.parse(msg.trickle.candidateInit);
+    } else if (msg.$case === 'trickle') {
+      const candidate: RTCIceCandidateInit = JSON.parse(msg.trickle.candidateInit!);
       if (this.onTrickle) {
         this.onTrickle(candidate, msg.trickle.target);
       }
-    } else if (msg.update) {
+    } else if (msg.$case === 'update') {
       if (this.onParticipantUpdate) {
-        this.onParticipantUpdate(msg.update.participants);
+        this.onParticipantUpdate(msg.update.participants ?? []);
       }
-    } else if (msg.trackPublished) {
+    } else if (msg.$case === 'trackPublished') {
       if (this.onLocalTrackPublished) {
         this.onLocalTrackPublished(msg.trackPublished);
       }
-    } else if (msg.speakersChanged) {
+    } else if (msg.$case === 'speakersChanged') {
       if (this.onSpeakersChanged) {
-        this.onSpeakersChanged(msg.speakersChanged.speakers);
+        this.onSpeakersChanged(msg.speakersChanged.speakers ?? []);
       }
-    } else if (msg.leave) {
+    } else if (msg.$case === 'leave') {
       if (this.onLeave) {
         this.onLeave(msg.leave);
       }
-    } else if (msg.mute) {
+    } else if (msg.$case === 'mute') {
       if (this.onRemoteMuteChanged) {
         this.onRemoteMuteChanged(msg.mute.sid, msg.mute.muted);
       }
-    } else if (msg.roomUpdate) {
-      if (this.onRoomUpdate) {
-        this.onRoomUpdate(msg.roomUpdate.room!);
+    } else if (msg.$case === 'roomUpdate') {
+      if (this.onRoomUpdate && msg.roomUpdate.room) {
+        this.onRoomUpdate(msg.roomUpdate.room);
       }
-    } else if (msg.connectionQuality) {
+    } else if (msg.$case === 'connectionQuality') {
       if (this.onConnectionQuality) {
         this.onConnectionQuality(msg.connectionQuality);
       }
-    } else if (msg.streamStateUpdate) {
+    } else if (msg.$case === 'streamStateUpdate') {
       if (this.onStreamStateUpdate) {
         this.onStreamStateUpdate(msg.streamStateUpdate);
       }
-    } else if (msg.subscribedQualityUpdate) {
+    } else if (msg.$case === 'subscribedQualityUpdate') {
       if (this.onSubscribedQualityUpdate) {
         this.onSubscribedQualityUpdate(msg.subscribedQualityUpdate);
       }
-    } else if (msg.subscriptionPermissionUpdate) {
+    } else if (msg.$case === 'subscriptionPermissionUpdate') {
       if (this.onSubscriptionPermissionUpdate) {
         this.onSubscriptionPermissionUpdate(msg.subscriptionPermissionUpdate);
       }
-    } else if (msg.refreshToken) {
+    } else if (msg.$case === 'refreshToken') {
       if (this.onTokenRefresh) {
         this.onTokenRefresh(msg.refreshToken);
       }
-    } else if (msg.trackUnpublished) {
+    } else if (msg.$case === 'trackUnpublished') {
       if (this.onLocalTrackUnpublished) {
         this.onLocalTrackUnpublished(msg.trackUnpublished);
       }
+    } else if (msg.$case === 'pong') {
+      this.resetPingTimeout();
     } else {
       log.debug('unsupported message', msg);
     }
@@ -462,6 +524,51 @@ export class SignalClient {
 
   private handleWSError(ev: Event) {
     log.error('websocket error', ev);
+  }
+
+  private resetPingTimeout() {
+    this.clearPingTimeout();
+    if (!this.pingTimeoutDuration) {
+      log.warn('ping timeout duration not set');
+      return;
+    }
+    this.pingTimeout = setTimeout(() => {
+      log.warn(
+        `ping timeout triggered. last pong received at: ${new Date(
+          Date.now() - this.pingTimeoutDuration! * 1000,
+        ).toUTCString()}`,
+      );
+      if (this.onClose) {
+        this.onClose('ping timeout');
+      }
+    }, this.pingTimeoutDuration * 1000);
+  }
+
+  private clearPingTimeout() {
+    if (this.pingTimeout) {
+      clearTimeout(this.pingTimeout);
+    }
+  }
+
+  private startPingInterval() {
+    this.clearPingInterval();
+    this.resetPingTimeout();
+    if (!this.pingIntervalDuration) {
+      log.warn('ping interval duration not set');
+      return;
+    }
+    log.debug('start ping interval');
+    this.pingInterval = setInterval(() => {
+      this.sendPing();
+    }, this.pingIntervalDuration * 1000);
+  }
+
+  private clearPingInterval() {
+    log.debug('clearing ping interval');
+    this.clearPingTimeout();
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
   }
 }
 
@@ -507,8 +614,8 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
 
   // ClientInfo
   params.set('sdk', 'js');
-  params.set('version', info.version);
-  params.set('protocol', info.protocol.toString());
+  params.set('version', info.version!);
+  params.set('protocol', info.protocol!.toString());
   if (info.deviceModel) {
     params.set('device_model', info.deviceModel);
   }

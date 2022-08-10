@@ -8,7 +8,7 @@ import { TrackPublication } from './TrackPublication';
 import { RemoteTrack } from './types';
 
 export default class RemoteTrackPublication extends TrackPublication {
-  track?: RemoteTrack;
+  track?: RemoteTrack = undefined;
 
   /** @internal */
   protected allowed = true;
@@ -134,6 +134,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       prevTrack.off(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
       prevTrack.off(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
       prevTrack.off(TrackEvent.Ended, this.handleEnded);
+      prevTrack.detach();
     }
     super.setTrack(track);
     if (track) {

@@ -1,6 +1,4 @@
 /* eslint-disable */
-import Long from 'long';
-import * as _m0 from 'protobufjs/minimal';
 import {
   TrackType,
   TrackSource,
@@ -25,6 +23,8 @@ import {
   connectionQualityFromJSON,
   connectionQualityToJSON,
 } from './livekit_models';
+import Long from 'long';
+import _m0 from 'protobufjs/minimal';
 
 export const protobufPackage = 'livekit';
 
@@ -55,8 +55,9 @@ export function signalTargetToJSON(object: SignalTarget): string {
       return 'PUBLISHER';
     case SignalTarget.SUBSCRIBER:
       return 'SUBSCRIBER';
+    case SignalTarget.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -87,8 +88,9 @@ export function streamStateToJSON(object: StreamState): string {
       return 'ACTIVE';
     case StreamState.PAUSED:
       return 'PAUSED';
+    case StreamState.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -119,76 +121,51 @@ export function candidateProtocolToJSON(object: CandidateProtocol): string {
       return 'UDP';
     case CandidateProtocol.TCP:
       return 'TCP';
+    case CandidateProtocol.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
 export interface SignalRequest {
-  /** initial join exchange, for publisher */
-  offer?: SessionDescription | undefined;
-  /** participant answering publisher offer */
-  answer?: SessionDescription | undefined;
-  trickle?: TrickleRequest | undefined;
-  addTrack?: AddTrackRequest | undefined;
-  /** mute the participant's published tracks */
-  mute?: MuteTrackRequest | undefined;
-  /** Subscribe or unsubscribe from tracks */
-  subscription?: UpdateSubscription | undefined;
-  /** Update settings of subscribed tracks */
-  trackSetting?: UpdateTrackSettings | undefined;
-  /** Immediately terminate session */
-  leave?: LeaveRequest | undefined;
-  /**
-   * Set active published layers, deprecated in favor of automatic tracking
-   *    SetSimulcastLayers simulcast = 9;
-   * Update published video layers
-   */
-  updateLayers?: UpdateVideoLayers | undefined;
-  /** Update subscriber permissions */
-  subscriptionPermission?: SubscriptionPermission | undefined;
-  /** sync client's subscribe state to server during reconnect */
-  syncState?: SyncState | undefined;
-  /** Simulate conditions, for client validations */
-  simulate?: SimulateScenario | undefined;
+  message?:
+    | { $case: 'offer'; offer: SessionDescription }
+    | { $case: 'answer'; answer: SessionDescription }
+    | { $case: 'trickle'; trickle: TrickleRequest }
+    | { $case: 'addTrack'; addTrack: AddTrackRequest }
+    | { $case: 'mute'; mute: MuteTrackRequest }
+    | { $case: 'subscription'; subscription: UpdateSubscription }
+    | { $case: 'trackSetting'; trackSetting: UpdateTrackSettings }
+    | { $case: 'leave'; leave: LeaveRequest }
+    | { $case: 'updateLayers'; updateLayers: UpdateVideoLayers }
+    | { $case: 'subscriptionPermission'; subscriptionPermission: SubscriptionPermission }
+    | { $case: 'syncState'; syncState: SyncState }
+    | { $case: 'simulate'; simulate: SimulateScenario }
+    | { $case: 'ping'; ping: number };
 }
 
 export interface SignalResponse {
-  /** sent when join is accepted */
-  join?: JoinResponse | undefined;
-  /** sent when server answers publisher */
-  answer?: SessionDescription | undefined;
-  /** sent when server is sending subscriber an offer */
-  offer?: SessionDescription | undefined;
-  /** sent when an ICE candidate is available */
-  trickle?: TrickleRequest | undefined;
-  /** sent when participants in the room has changed */
-  update?: ParticipantUpdate | undefined;
-  /** sent to the participant when their track has been published */
-  trackPublished?: TrackPublishedResponse | undefined;
-  /** Immediately terminate session */
-  leave?: LeaveRequest | undefined;
-  /** server initiated mute */
-  mute?: MuteTrackRequest | undefined;
-  /** indicates changes to speaker status, including when they've gone to not speaking */
-  speakersChanged?: SpeakersChanged | undefined;
-  /** sent when metadata of the room has changed */
-  roomUpdate?: RoomUpdate | undefined;
-  /** when connection quality changed */
-  connectionQuality?: ConnectionQualityUpdate | undefined;
-  /**
-   * when streamed tracks state changed, used to notify when any of the streams were paused due to
-   * congestion
-   */
-  streamStateUpdate?: StreamStateUpdate | undefined;
-  /** when max subscribe quality changed, used by dynamic broadcasting to disable unused layers */
-  subscribedQualityUpdate?: SubscribedQualityUpdate | undefined;
-  /** when subscription permission changed */
-  subscriptionPermissionUpdate?: SubscriptionPermissionUpdate | undefined;
-  /** update the token the client was using, to prevent an active client from using an expired token */
-  refreshToken: string | undefined;
-  /** server initiated track unpublish */
-  trackUnpublished?: TrackUnpublishedResponse | undefined;
+  message?:
+    | { $case: 'join'; join: JoinResponse }
+    | { $case: 'answer'; answer: SessionDescription }
+    | { $case: 'offer'; offer: SessionDescription }
+    | { $case: 'trickle'; trickle: TrickleRequest }
+    | { $case: 'update'; update: ParticipantUpdate }
+    | { $case: 'trackPublished'; trackPublished: TrackPublishedResponse }
+    | { $case: 'leave'; leave: LeaveRequest }
+    | { $case: 'mute'; mute: MuteTrackRequest }
+    | { $case: 'speakersChanged'; speakersChanged: SpeakersChanged }
+    | { $case: 'roomUpdate'; roomUpdate: RoomUpdate }
+    | { $case: 'connectionQuality'; connectionQuality: ConnectionQualityUpdate }
+    | { $case: 'streamStateUpdate'; streamStateUpdate: StreamStateUpdate }
+    | { $case: 'subscribedQualityUpdate'; subscribedQualityUpdate: SubscribedQualityUpdate }
+    | {
+        $case: 'subscriptionPermissionUpdate';
+        subscriptionPermissionUpdate: SubscriptionPermissionUpdate;
+      }
+    | { $case: 'refreshToken'; refreshToken: string }
+    | { $case: 'trackUnpublished'; trackUnpublished: TrackUnpublishedResponse }
+    | { $case: 'pong'; pong: number };
 }
 
 export interface SimulcastCodec {
@@ -241,6 +218,8 @@ export interface JoinResponse {
   alternativeUrl: string;
   clientConfiguration?: ClientConfiguration;
   serverRegion: string;
+  pingTimeout: number;
+  pingInterval: number;
 }
 
 export interface TrackPublishedResponse {
@@ -378,75 +357,61 @@ export interface DataChannelInfo {
 }
 
 export interface SimulateScenario {
-  /** simulate N seconds of speaker activity */
-  speakerUpdate: number | undefined;
-  /** simulate local node failure */
-  nodeFailure: boolean | undefined;
-  /** simulate migration */
-  migration: boolean | undefined;
-  /** server to send leave */
-  serverLeave: boolean | undefined;
-  /** switch candidate protocol to tcp */
-  switchCandidateProtocol: CandidateProtocol | undefined;
+  scenario?:
+    | { $case: 'speakerUpdate'; speakerUpdate: number }
+    | { $case: 'nodeFailure'; nodeFailure: boolean }
+    | { $case: 'migration'; migration: boolean }
+    | { $case: 'serverLeave'; serverLeave: boolean }
+    | { $case: 'switchCandidateProtocol'; switchCandidateProtocol: CandidateProtocol };
 }
 
 function createBaseSignalRequest(): SignalRequest {
-  return {
-    offer: undefined,
-    answer: undefined,
-    trickle: undefined,
-    addTrack: undefined,
-    mute: undefined,
-    subscription: undefined,
-    trackSetting: undefined,
-    leave: undefined,
-    updateLayers: undefined,
-    subscriptionPermission: undefined,
-    syncState: undefined,
-    simulate: undefined,
-  };
+  return { message: undefined };
 }
 
 export const SignalRequest = {
   encode(message: SignalRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.offer !== undefined) {
-      SessionDescription.encode(message.offer, writer.uint32(10).fork()).ldelim();
+    if (message.message?.$case === 'offer') {
+      SessionDescription.encode(message.message.offer, writer.uint32(10).fork()).ldelim();
     }
-    if (message.answer !== undefined) {
-      SessionDescription.encode(message.answer, writer.uint32(18).fork()).ldelim();
+    if (message.message?.$case === 'answer') {
+      SessionDescription.encode(message.message.answer, writer.uint32(18).fork()).ldelim();
     }
-    if (message.trickle !== undefined) {
-      TrickleRequest.encode(message.trickle, writer.uint32(26).fork()).ldelim();
+    if (message.message?.$case === 'trickle') {
+      TrickleRequest.encode(message.message.trickle, writer.uint32(26).fork()).ldelim();
     }
-    if (message.addTrack !== undefined) {
-      AddTrackRequest.encode(message.addTrack, writer.uint32(34).fork()).ldelim();
+    if (message.message?.$case === 'addTrack') {
+      AddTrackRequest.encode(message.message.addTrack, writer.uint32(34).fork()).ldelim();
     }
-    if (message.mute !== undefined) {
-      MuteTrackRequest.encode(message.mute, writer.uint32(42).fork()).ldelim();
+    if (message.message?.$case === 'mute') {
+      MuteTrackRequest.encode(message.message.mute, writer.uint32(42).fork()).ldelim();
     }
-    if (message.subscription !== undefined) {
-      UpdateSubscription.encode(message.subscription, writer.uint32(50).fork()).ldelim();
+    if (message.message?.$case === 'subscription') {
+      UpdateSubscription.encode(message.message.subscription, writer.uint32(50).fork()).ldelim();
     }
-    if (message.trackSetting !== undefined) {
-      UpdateTrackSettings.encode(message.trackSetting, writer.uint32(58).fork()).ldelim();
+    if (message.message?.$case === 'trackSetting') {
+      UpdateTrackSettings.encode(message.message.trackSetting, writer.uint32(58).fork()).ldelim();
     }
-    if (message.leave !== undefined) {
-      LeaveRequest.encode(message.leave, writer.uint32(66).fork()).ldelim();
+    if (message.message?.$case === 'leave') {
+      LeaveRequest.encode(message.message.leave, writer.uint32(66).fork()).ldelim();
     }
-    if (message.updateLayers !== undefined) {
-      UpdateVideoLayers.encode(message.updateLayers, writer.uint32(82).fork()).ldelim();
+    if (message.message?.$case === 'updateLayers') {
+      UpdateVideoLayers.encode(message.message.updateLayers, writer.uint32(82).fork()).ldelim();
     }
-    if (message.subscriptionPermission !== undefined) {
+    if (message.message?.$case === 'subscriptionPermission') {
       SubscriptionPermission.encode(
-        message.subscriptionPermission,
+        message.message.subscriptionPermission,
         writer.uint32(90).fork(),
       ).ldelim();
     }
-    if (message.syncState !== undefined) {
-      SyncState.encode(message.syncState, writer.uint32(98).fork()).ldelim();
+    if (message.message?.$case === 'syncState') {
+      SyncState.encode(message.message.syncState, writer.uint32(98).fork()).ldelim();
     }
-    if (message.simulate !== undefined) {
-      SimulateScenario.encode(message.simulate, writer.uint32(106).fork()).ldelim();
+    if (message.message?.$case === 'simulate') {
+      SimulateScenario.encode(message.message.simulate, writer.uint32(106).fork()).ldelim();
+    }
+    if (message.message?.$case === 'ping') {
+      writer.uint32(112).int64(message.message.ping);
     }
     return writer;
   },
@@ -459,40 +424,76 @@ export const SignalRequest = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.offer = SessionDescription.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'offer',
+            offer: SessionDescription.decode(reader, reader.uint32()),
+          };
           break;
         case 2:
-          message.answer = SessionDescription.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'answer',
+            answer: SessionDescription.decode(reader, reader.uint32()),
+          };
           break;
         case 3:
-          message.trickle = TrickleRequest.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'trickle',
+            trickle: TrickleRequest.decode(reader, reader.uint32()),
+          };
           break;
         case 4:
-          message.addTrack = AddTrackRequest.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'addTrack',
+            addTrack: AddTrackRequest.decode(reader, reader.uint32()),
+          };
           break;
         case 5:
-          message.mute = MuteTrackRequest.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'mute',
+            mute: MuteTrackRequest.decode(reader, reader.uint32()),
+          };
           break;
         case 6:
-          message.subscription = UpdateSubscription.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'subscription',
+            subscription: UpdateSubscription.decode(reader, reader.uint32()),
+          };
           break;
         case 7:
-          message.trackSetting = UpdateTrackSettings.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'trackSetting',
+            trackSetting: UpdateTrackSettings.decode(reader, reader.uint32()),
+          };
           break;
         case 8:
-          message.leave = LeaveRequest.decode(reader, reader.uint32());
+          message.message = { $case: 'leave', leave: LeaveRequest.decode(reader, reader.uint32()) };
           break;
         case 10:
-          message.updateLayers = UpdateVideoLayers.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'updateLayers',
+            updateLayers: UpdateVideoLayers.decode(reader, reader.uint32()),
+          };
           break;
         case 11:
-          message.subscriptionPermission = SubscriptionPermission.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'subscriptionPermission',
+            subscriptionPermission: SubscriptionPermission.decode(reader, reader.uint32()),
+          };
           break;
         case 12:
-          message.syncState = SyncState.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'syncState',
+            syncState: SyncState.decode(reader, reader.uint32()),
+          };
           break;
         case 13:
-          message.simulate = SimulateScenario.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'simulate',
+            simulate: SimulateScenario.decode(reader, reader.uint32()),
+          };
+          break;
+        case 14:
+          message.message = { $case: 'ping', ping: longToNumber(reader.int64() as Long) };
           break;
         default:
           reader.skipType(tag & 7);
@@ -504,196 +505,296 @@ export const SignalRequest = {
 
   fromJSON(object: any): SignalRequest {
     return {
-      offer: isSet(object.offer) ? SessionDescription.fromJSON(object.offer) : undefined,
-      answer: isSet(object.answer) ? SessionDescription.fromJSON(object.answer) : undefined,
-      trickle: isSet(object.trickle) ? TrickleRequest.fromJSON(object.trickle) : undefined,
-      addTrack: isSet(object.addTrack) ? AddTrackRequest.fromJSON(object.addTrack) : undefined,
-      mute: isSet(object.mute) ? MuteTrackRequest.fromJSON(object.mute) : undefined,
-      subscription: isSet(object.subscription)
-        ? UpdateSubscription.fromJSON(object.subscription)
+      message: isSet(object.offer)
+        ? { $case: 'offer', offer: SessionDescription.fromJSON(object.offer) }
+        : isSet(object.answer)
+        ? { $case: 'answer', answer: SessionDescription.fromJSON(object.answer) }
+        : isSet(object.trickle)
+        ? { $case: 'trickle', trickle: TrickleRequest.fromJSON(object.trickle) }
+        : isSet(object.addTrack)
+        ? { $case: 'addTrack', addTrack: AddTrackRequest.fromJSON(object.addTrack) }
+        : isSet(object.mute)
+        ? { $case: 'mute', mute: MuteTrackRequest.fromJSON(object.mute) }
+        : isSet(object.subscription)
+        ? { $case: 'subscription', subscription: UpdateSubscription.fromJSON(object.subscription) }
+        : isSet(object.trackSetting)
+        ? { $case: 'trackSetting', trackSetting: UpdateTrackSettings.fromJSON(object.trackSetting) }
+        : isSet(object.leave)
+        ? { $case: 'leave', leave: LeaveRequest.fromJSON(object.leave) }
+        : isSet(object.updateLayers)
+        ? { $case: 'updateLayers', updateLayers: UpdateVideoLayers.fromJSON(object.updateLayers) }
+        : isSet(object.subscriptionPermission)
+        ? {
+            $case: 'subscriptionPermission',
+            subscriptionPermission: SubscriptionPermission.fromJSON(object.subscriptionPermission),
+          }
+        : isSet(object.syncState)
+        ? { $case: 'syncState', syncState: SyncState.fromJSON(object.syncState) }
+        : isSet(object.simulate)
+        ? { $case: 'simulate', simulate: SimulateScenario.fromJSON(object.simulate) }
+        : isSet(object.ping)
+        ? { $case: 'ping', ping: Number(object.ping) }
         : undefined,
-      trackSetting: isSet(object.trackSetting)
-        ? UpdateTrackSettings.fromJSON(object.trackSetting)
-        : undefined,
-      leave: isSet(object.leave) ? LeaveRequest.fromJSON(object.leave) : undefined,
-      updateLayers: isSet(object.updateLayers)
-        ? UpdateVideoLayers.fromJSON(object.updateLayers)
-        : undefined,
-      subscriptionPermission: isSet(object.subscriptionPermission)
-        ? SubscriptionPermission.fromJSON(object.subscriptionPermission)
-        : undefined,
-      syncState: isSet(object.syncState) ? SyncState.fromJSON(object.syncState) : undefined,
-      simulate: isSet(object.simulate) ? SimulateScenario.fromJSON(object.simulate) : undefined,
     };
   },
 
   toJSON(message: SignalRequest): unknown {
     const obj: any = {};
-    message.offer !== undefined &&
-      (obj.offer = message.offer ? SessionDescription.toJSON(message.offer) : undefined);
-    message.answer !== undefined &&
-      (obj.answer = message.answer ? SessionDescription.toJSON(message.answer) : undefined);
-    message.trickle !== undefined &&
-      (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
-    message.addTrack !== undefined &&
-      (obj.addTrack = message.addTrack ? AddTrackRequest.toJSON(message.addTrack) : undefined);
-    message.mute !== undefined &&
-      (obj.mute = message.mute ? MuteTrackRequest.toJSON(message.mute) : undefined);
-    message.subscription !== undefined &&
-      (obj.subscription = message.subscription
-        ? UpdateSubscription.toJSON(message.subscription)
+    message.message?.$case === 'offer' &&
+      (obj.offer = message.message?.offer
+        ? SessionDescription.toJSON(message.message?.offer)
         : undefined);
-    message.trackSetting !== undefined &&
-      (obj.trackSetting = message.trackSetting
-        ? UpdateTrackSettings.toJSON(message.trackSetting)
+    message.message?.$case === 'answer' &&
+      (obj.answer = message.message?.answer
+        ? SessionDescription.toJSON(message.message?.answer)
         : undefined);
-    message.leave !== undefined &&
-      (obj.leave = message.leave ? LeaveRequest.toJSON(message.leave) : undefined);
-    message.updateLayers !== undefined &&
-      (obj.updateLayers = message.updateLayers
-        ? UpdateVideoLayers.toJSON(message.updateLayers)
+    message.message?.$case === 'trickle' &&
+      (obj.trickle = message.message?.trickle
+        ? TrickleRequest.toJSON(message.message?.trickle)
         : undefined);
-    message.subscriptionPermission !== undefined &&
-      (obj.subscriptionPermission = message.subscriptionPermission
-        ? SubscriptionPermission.toJSON(message.subscriptionPermission)
+    message.message?.$case === 'addTrack' &&
+      (obj.addTrack = message.message?.addTrack
+        ? AddTrackRequest.toJSON(message.message?.addTrack)
         : undefined);
-    message.syncState !== undefined &&
-      (obj.syncState = message.syncState ? SyncState.toJSON(message.syncState) : undefined);
-    message.simulate !== undefined &&
-      (obj.simulate = message.simulate ? SimulateScenario.toJSON(message.simulate) : undefined);
+    message.message?.$case === 'mute' &&
+      (obj.mute = message.message?.mute
+        ? MuteTrackRequest.toJSON(message.message?.mute)
+        : undefined);
+    message.message?.$case === 'subscription' &&
+      (obj.subscription = message.message?.subscription
+        ? UpdateSubscription.toJSON(message.message?.subscription)
+        : undefined);
+    message.message?.$case === 'trackSetting' &&
+      (obj.trackSetting = message.message?.trackSetting
+        ? UpdateTrackSettings.toJSON(message.message?.trackSetting)
+        : undefined);
+    message.message?.$case === 'leave' &&
+      (obj.leave = message.message?.leave
+        ? LeaveRequest.toJSON(message.message?.leave)
+        : undefined);
+    message.message?.$case === 'updateLayers' &&
+      (obj.updateLayers = message.message?.updateLayers
+        ? UpdateVideoLayers.toJSON(message.message?.updateLayers)
+        : undefined);
+    message.message?.$case === 'subscriptionPermission' &&
+      (obj.subscriptionPermission = message.message?.subscriptionPermission
+        ? SubscriptionPermission.toJSON(message.message?.subscriptionPermission)
+        : undefined);
+    message.message?.$case === 'syncState' &&
+      (obj.syncState = message.message?.syncState
+        ? SyncState.toJSON(message.message?.syncState)
+        : undefined);
+    message.message?.$case === 'simulate' &&
+      (obj.simulate = message.message?.simulate
+        ? SimulateScenario.toJSON(message.message?.simulate)
+        : undefined);
+    message.message?.$case === 'ping' && (obj.ping = Math.round(message.message?.ping));
     return obj;
   },
 
   fromPartial<I extends Exact<DeepPartial<SignalRequest>, I>>(object: I): SignalRequest {
     const message = createBaseSignalRequest();
-    message.offer =
-      object.offer !== undefined && object.offer !== null
-        ? SessionDescription.fromPartial(object.offer)
-        : undefined;
-    message.answer =
-      object.answer !== undefined && object.answer !== null
-        ? SessionDescription.fromPartial(object.answer)
-        : undefined;
-    message.trickle =
-      object.trickle !== undefined && object.trickle !== null
-        ? TrickleRequest.fromPartial(object.trickle)
-        : undefined;
-    message.addTrack =
-      object.addTrack !== undefined && object.addTrack !== null
-        ? AddTrackRequest.fromPartial(object.addTrack)
-        : undefined;
-    message.mute =
-      object.mute !== undefined && object.mute !== null
-        ? MuteTrackRequest.fromPartial(object.mute)
-        : undefined;
-    message.subscription =
-      object.subscription !== undefined && object.subscription !== null
-        ? UpdateSubscription.fromPartial(object.subscription)
-        : undefined;
-    message.trackSetting =
-      object.trackSetting !== undefined && object.trackSetting !== null
-        ? UpdateTrackSettings.fromPartial(object.trackSetting)
-        : undefined;
-    message.leave =
-      object.leave !== undefined && object.leave !== null
-        ? LeaveRequest.fromPartial(object.leave)
-        : undefined;
-    message.updateLayers =
-      object.updateLayers !== undefined && object.updateLayers !== null
-        ? UpdateVideoLayers.fromPartial(object.updateLayers)
-        : undefined;
-    message.subscriptionPermission =
-      object.subscriptionPermission !== undefined && object.subscriptionPermission !== null
-        ? SubscriptionPermission.fromPartial(object.subscriptionPermission)
-        : undefined;
-    message.syncState =
-      object.syncState !== undefined && object.syncState !== null
-        ? SyncState.fromPartial(object.syncState)
-        : undefined;
-    message.simulate =
-      object.simulate !== undefined && object.simulate !== null
-        ? SimulateScenario.fromPartial(object.simulate)
-        : undefined;
+    if (
+      object.message?.$case === 'offer' &&
+      object.message?.offer !== undefined &&
+      object.message?.offer !== null
+    ) {
+      message.message = {
+        $case: 'offer',
+        offer: SessionDescription.fromPartial(object.message.offer),
+      };
+    }
+    if (
+      object.message?.$case === 'answer' &&
+      object.message?.answer !== undefined &&
+      object.message?.answer !== null
+    ) {
+      message.message = {
+        $case: 'answer',
+        answer: SessionDescription.fromPartial(object.message.answer),
+      };
+    }
+    if (
+      object.message?.$case === 'trickle' &&
+      object.message?.trickle !== undefined &&
+      object.message?.trickle !== null
+    ) {
+      message.message = {
+        $case: 'trickle',
+        trickle: TrickleRequest.fromPartial(object.message.trickle),
+      };
+    }
+    if (
+      object.message?.$case === 'addTrack' &&
+      object.message?.addTrack !== undefined &&
+      object.message?.addTrack !== null
+    ) {
+      message.message = {
+        $case: 'addTrack',
+        addTrack: AddTrackRequest.fromPartial(object.message.addTrack),
+      };
+    }
+    if (
+      object.message?.$case === 'mute' &&
+      object.message?.mute !== undefined &&
+      object.message?.mute !== null
+    ) {
+      message.message = { $case: 'mute', mute: MuteTrackRequest.fromPartial(object.message.mute) };
+    }
+    if (
+      object.message?.$case === 'subscription' &&
+      object.message?.subscription !== undefined &&
+      object.message?.subscription !== null
+    ) {
+      message.message = {
+        $case: 'subscription',
+        subscription: UpdateSubscription.fromPartial(object.message.subscription),
+      };
+    }
+    if (
+      object.message?.$case === 'trackSetting' &&
+      object.message?.trackSetting !== undefined &&
+      object.message?.trackSetting !== null
+    ) {
+      message.message = {
+        $case: 'trackSetting',
+        trackSetting: UpdateTrackSettings.fromPartial(object.message.trackSetting),
+      };
+    }
+    if (
+      object.message?.$case === 'leave' &&
+      object.message?.leave !== undefined &&
+      object.message?.leave !== null
+    ) {
+      message.message = { $case: 'leave', leave: LeaveRequest.fromPartial(object.message.leave) };
+    }
+    if (
+      object.message?.$case === 'updateLayers' &&
+      object.message?.updateLayers !== undefined &&
+      object.message?.updateLayers !== null
+    ) {
+      message.message = {
+        $case: 'updateLayers',
+        updateLayers: UpdateVideoLayers.fromPartial(object.message.updateLayers),
+      };
+    }
+    if (
+      object.message?.$case === 'subscriptionPermission' &&
+      object.message?.subscriptionPermission !== undefined &&
+      object.message?.subscriptionPermission !== null
+    ) {
+      message.message = {
+        $case: 'subscriptionPermission',
+        subscriptionPermission: SubscriptionPermission.fromPartial(
+          object.message.subscriptionPermission,
+        ),
+      };
+    }
+    if (
+      object.message?.$case === 'syncState' &&
+      object.message?.syncState !== undefined &&
+      object.message?.syncState !== null
+    ) {
+      message.message = {
+        $case: 'syncState',
+        syncState: SyncState.fromPartial(object.message.syncState),
+      };
+    }
+    if (
+      object.message?.$case === 'simulate' &&
+      object.message?.simulate !== undefined &&
+      object.message?.simulate !== null
+    ) {
+      message.message = {
+        $case: 'simulate',
+        simulate: SimulateScenario.fromPartial(object.message.simulate),
+      };
+    }
+    if (
+      object.message?.$case === 'ping' &&
+      object.message?.ping !== undefined &&
+      object.message?.ping !== null
+    ) {
+      message.message = { $case: 'ping', ping: object.message.ping };
+    }
     return message;
   },
 };
 
 function createBaseSignalResponse(): SignalResponse {
-  return {
-    join: undefined,
-    answer: undefined,
-    offer: undefined,
-    trickle: undefined,
-    update: undefined,
-    trackPublished: undefined,
-    leave: undefined,
-    mute: undefined,
-    speakersChanged: undefined,
-    roomUpdate: undefined,
-    connectionQuality: undefined,
-    streamStateUpdate: undefined,
-    subscribedQualityUpdate: undefined,
-    subscriptionPermissionUpdate: undefined,
-    refreshToken: undefined,
-    trackUnpublished: undefined,
-  };
+  return { message: undefined };
 }
 
 export const SignalResponse = {
   encode(message: SignalResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.join !== undefined) {
-      JoinResponse.encode(message.join, writer.uint32(10).fork()).ldelim();
+    if (message.message?.$case === 'join') {
+      JoinResponse.encode(message.message.join, writer.uint32(10).fork()).ldelim();
     }
-    if (message.answer !== undefined) {
-      SessionDescription.encode(message.answer, writer.uint32(18).fork()).ldelim();
+    if (message.message?.$case === 'answer') {
+      SessionDescription.encode(message.message.answer, writer.uint32(18).fork()).ldelim();
     }
-    if (message.offer !== undefined) {
-      SessionDescription.encode(message.offer, writer.uint32(26).fork()).ldelim();
+    if (message.message?.$case === 'offer') {
+      SessionDescription.encode(message.message.offer, writer.uint32(26).fork()).ldelim();
     }
-    if (message.trickle !== undefined) {
-      TrickleRequest.encode(message.trickle, writer.uint32(34).fork()).ldelim();
+    if (message.message?.$case === 'trickle') {
+      TrickleRequest.encode(message.message.trickle, writer.uint32(34).fork()).ldelim();
     }
-    if (message.update !== undefined) {
-      ParticipantUpdate.encode(message.update, writer.uint32(42).fork()).ldelim();
+    if (message.message?.$case === 'update') {
+      ParticipantUpdate.encode(message.message.update, writer.uint32(42).fork()).ldelim();
     }
-    if (message.trackPublished !== undefined) {
-      TrackPublishedResponse.encode(message.trackPublished, writer.uint32(50).fork()).ldelim();
+    if (message.message?.$case === 'trackPublished') {
+      TrackPublishedResponse.encode(
+        message.message.trackPublished,
+        writer.uint32(50).fork(),
+      ).ldelim();
     }
-    if (message.leave !== undefined) {
-      LeaveRequest.encode(message.leave, writer.uint32(66).fork()).ldelim();
+    if (message.message?.$case === 'leave') {
+      LeaveRequest.encode(message.message.leave, writer.uint32(66).fork()).ldelim();
     }
-    if (message.mute !== undefined) {
-      MuteTrackRequest.encode(message.mute, writer.uint32(74).fork()).ldelim();
+    if (message.message?.$case === 'mute') {
+      MuteTrackRequest.encode(message.message.mute, writer.uint32(74).fork()).ldelim();
     }
-    if (message.speakersChanged !== undefined) {
-      SpeakersChanged.encode(message.speakersChanged, writer.uint32(82).fork()).ldelim();
+    if (message.message?.$case === 'speakersChanged') {
+      SpeakersChanged.encode(message.message.speakersChanged, writer.uint32(82).fork()).ldelim();
     }
-    if (message.roomUpdate !== undefined) {
-      RoomUpdate.encode(message.roomUpdate, writer.uint32(90).fork()).ldelim();
+    if (message.message?.$case === 'roomUpdate') {
+      RoomUpdate.encode(message.message.roomUpdate, writer.uint32(90).fork()).ldelim();
     }
-    if (message.connectionQuality !== undefined) {
-      ConnectionQualityUpdate.encode(message.connectionQuality, writer.uint32(98).fork()).ldelim();
+    if (message.message?.$case === 'connectionQuality') {
+      ConnectionQualityUpdate.encode(
+        message.message.connectionQuality,
+        writer.uint32(98).fork(),
+      ).ldelim();
     }
-    if (message.streamStateUpdate !== undefined) {
-      StreamStateUpdate.encode(message.streamStateUpdate, writer.uint32(106).fork()).ldelim();
+    if (message.message?.$case === 'streamStateUpdate') {
+      StreamStateUpdate.encode(
+        message.message.streamStateUpdate,
+        writer.uint32(106).fork(),
+      ).ldelim();
     }
-    if (message.subscribedQualityUpdate !== undefined) {
+    if (message.message?.$case === 'subscribedQualityUpdate') {
       SubscribedQualityUpdate.encode(
-        message.subscribedQualityUpdate,
+        message.message.subscribedQualityUpdate,
         writer.uint32(114).fork(),
       ).ldelim();
     }
-    if (message.subscriptionPermissionUpdate !== undefined) {
+    if (message.message?.$case === 'subscriptionPermissionUpdate') {
       SubscriptionPermissionUpdate.encode(
-        message.subscriptionPermissionUpdate,
+        message.message.subscriptionPermissionUpdate,
         writer.uint32(122).fork(),
       ).ldelim();
     }
-    if (message.refreshToken !== undefined) {
-      writer.uint32(130).string(message.refreshToken);
+    if (message.message?.$case === 'refreshToken') {
+      writer.uint32(130).string(message.message.refreshToken);
     }
-    if (message.trackUnpublished !== undefined) {
-      TrackUnpublishedResponse.encode(message.trackUnpublished, writer.uint32(138).fork()).ldelim();
+    if (message.message?.$case === 'trackUnpublished') {
+      TrackUnpublishedResponse.encode(
+        message.message.trackUnpublished,
+        writer.uint32(138).fork(),
+      ).ldelim();
+    }
+    if (message.message?.$case === 'pong') {
+      writer.uint32(144).int64(message.message.pong);
     }
     return writer;
   },
@@ -706,55 +807,97 @@ export const SignalResponse = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.join = JoinResponse.decode(reader, reader.uint32());
+          message.message = { $case: 'join', join: JoinResponse.decode(reader, reader.uint32()) };
           break;
         case 2:
-          message.answer = SessionDescription.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'answer',
+            answer: SessionDescription.decode(reader, reader.uint32()),
+          };
           break;
         case 3:
-          message.offer = SessionDescription.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'offer',
+            offer: SessionDescription.decode(reader, reader.uint32()),
+          };
           break;
         case 4:
-          message.trickle = TrickleRequest.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'trickle',
+            trickle: TrickleRequest.decode(reader, reader.uint32()),
+          };
           break;
         case 5:
-          message.update = ParticipantUpdate.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'update',
+            update: ParticipantUpdate.decode(reader, reader.uint32()),
+          };
           break;
         case 6:
-          message.trackPublished = TrackPublishedResponse.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'trackPublished',
+            trackPublished: TrackPublishedResponse.decode(reader, reader.uint32()),
+          };
           break;
         case 8:
-          message.leave = LeaveRequest.decode(reader, reader.uint32());
+          message.message = { $case: 'leave', leave: LeaveRequest.decode(reader, reader.uint32()) };
           break;
         case 9:
-          message.mute = MuteTrackRequest.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'mute',
+            mute: MuteTrackRequest.decode(reader, reader.uint32()),
+          };
           break;
         case 10:
-          message.speakersChanged = SpeakersChanged.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'speakersChanged',
+            speakersChanged: SpeakersChanged.decode(reader, reader.uint32()),
+          };
           break;
         case 11:
-          message.roomUpdate = RoomUpdate.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'roomUpdate',
+            roomUpdate: RoomUpdate.decode(reader, reader.uint32()),
+          };
           break;
         case 12:
-          message.connectionQuality = ConnectionQualityUpdate.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'connectionQuality',
+            connectionQuality: ConnectionQualityUpdate.decode(reader, reader.uint32()),
+          };
           break;
         case 13:
-          message.streamStateUpdate = StreamStateUpdate.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'streamStateUpdate',
+            streamStateUpdate: StreamStateUpdate.decode(reader, reader.uint32()),
+          };
           break;
         case 14:
-          message.subscribedQualityUpdate = SubscribedQualityUpdate.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'subscribedQualityUpdate',
+            subscribedQualityUpdate: SubscribedQualityUpdate.decode(reader, reader.uint32()),
+          };
           break;
         case 15:
-          message.subscriptionPermissionUpdate = SubscriptionPermissionUpdate.decode(
-            reader,
-            reader.uint32(),
-          );
+          message.message = {
+            $case: 'subscriptionPermissionUpdate',
+            subscriptionPermissionUpdate: SubscriptionPermissionUpdate.decode(
+              reader,
+              reader.uint32(),
+            ),
+          };
           break;
         case 16:
-          message.refreshToken = reader.string();
+          message.message = { $case: 'refreshToken', refreshToken: reader.string() };
           break;
         case 17:
-          message.trackUnpublished = TrackUnpublishedResponse.decode(reader, reader.uint32());
+          message.message = {
+            $case: 'trackUnpublished',
+            trackUnpublished: TrackUnpublishedResponse.decode(reader, reader.uint32()),
+          };
+          break;
+        case 18:
+          message.message = { $case: 'pong', pong: longToNumber(reader.int64() as Long) };
           break;
         default:
           reader.skipType(tag & 7);
@@ -766,153 +909,295 @@ export const SignalResponse = {
 
   fromJSON(object: any): SignalResponse {
     return {
-      join: isSet(object.join) ? JoinResponse.fromJSON(object.join) : undefined,
-      answer: isSet(object.answer) ? SessionDescription.fromJSON(object.answer) : undefined,
-      offer: isSet(object.offer) ? SessionDescription.fromJSON(object.offer) : undefined,
-      trickle: isSet(object.trickle) ? TrickleRequest.fromJSON(object.trickle) : undefined,
-      update: isSet(object.update) ? ParticipantUpdate.fromJSON(object.update) : undefined,
-      trackPublished: isSet(object.trackPublished)
-        ? TrackPublishedResponse.fromJSON(object.trackPublished)
-        : undefined,
-      leave: isSet(object.leave) ? LeaveRequest.fromJSON(object.leave) : undefined,
-      mute: isSet(object.mute) ? MuteTrackRequest.fromJSON(object.mute) : undefined,
-      speakersChanged: isSet(object.speakersChanged)
-        ? SpeakersChanged.fromJSON(object.speakersChanged)
-        : undefined,
-      roomUpdate: isSet(object.roomUpdate) ? RoomUpdate.fromJSON(object.roomUpdate) : undefined,
-      connectionQuality: isSet(object.connectionQuality)
-        ? ConnectionQualityUpdate.fromJSON(object.connectionQuality)
-        : undefined,
-      streamStateUpdate: isSet(object.streamStateUpdate)
-        ? StreamStateUpdate.fromJSON(object.streamStateUpdate)
-        : undefined,
-      subscribedQualityUpdate: isSet(object.subscribedQualityUpdate)
-        ? SubscribedQualityUpdate.fromJSON(object.subscribedQualityUpdate)
-        : undefined,
-      subscriptionPermissionUpdate: isSet(object.subscriptionPermissionUpdate)
-        ? SubscriptionPermissionUpdate.fromJSON(object.subscriptionPermissionUpdate)
-        : undefined,
-      refreshToken: isSet(object.refreshToken) ? String(object.refreshToken) : undefined,
-      trackUnpublished: isSet(object.trackUnpublished)
-        ? TrackUnpublishedResponse.fromJSON(object.trackUnpublished)
+      message: isSet(object.join)
+        ? { $case: 'join', join: JoinResponse.fromJSON(object.join) }
+        : isSet(object.answer)
+        ? { $case: 'answer', answer: SessionDescription.fromJSON(object.answer) }
+        : isSet(object.offer)
+        ? { $case: 'offer', offer: SessionDescription.fromJSON(object.offer) }
+        : isSet(object.trickle)
+        ? { $case: 'trickle', trickle: TrickleRequest.fromJSON(object.trickle) }
+        : isSet(object.update)
+        ? { $case: 'update', update: ParticipantUpdate.fromJSON(object.update) }
+        : isSet(object.trackPublished)
+        ? {
+            $case: 'trackPublished',
+            trackPublished: TrackPublishedResponse.fromJSON(object.trackPublished),
+          }
+        : isSet(object.leave)
+        ? { $case: 'leave', leave: LeaveRequest.fromJSON(object.leave) }
+        : isSet(object.mute)
+        ? { $case: 'mute', mute: MuteTrackRequest.fromJSON(object.mute) }
+        : isSet(object.speakersChanged)
+        ? {
+            $case: 'speakersChanged',
+            speakersChanged: SpeakersChanged.fromJSON(object.speakersChanged),
+          }
+        : isSet(object.roomUpdate)
+        ? { $case: 'roomUpdate', roomUpdate: RoomUpdate.fromJSON(object.roomUpdate) }
+        : isSet(object.connectionQuality)
+        ? {
+            $case: 'connectionQuality',
+            connectionQuality: ConnectionQualityUpdate.fromJSON(object.connectionQuality),
+          }
+        : isSet(object.streamStateUpdate)
+        ? {
+            $case: 'streamStateUpdate',
+            streamStateUpdate: StreamStateUpdate.fromJSON(object.streamStateUpdate),
+          }
+        : isSet(object.subscribedQualityUpdate)
+        ? {
+            $case: 'subscribedQualityUpdate',
+            subscribedQualityUpdate: SubscribedQualityUpdate.fromJSON(
+              object.subscribedQualityUpdate,
+            ),
+          }
+        : isSet(object.subscriptionPermissionUpdate)
+        ? {
+            $case: 'subscriptionPermissionUpdate',
+            subscriptionPermissionUpdate: SubscriptionPermissionUpdate.fromJSON(
+              object.subscriptionPermissionUpdate,
+            ),
+          }
+        : isSet(object.refreshToken)
+        ? { $case: 'refreshToken', refreshToken: String(object.refreshToken) }
+        : isSet(object.trackUnpublished)
+        ? {
+            $case: 'trackUnpublished',
+            trackUnpublished: TrackUnpublishedResponse.fromJSON(object.trackUnpublished),
+          }
+        : isSet(object.pong)
+        ? { $case: 'pong', pong: Number(object.pong) }
         : undefined,
     };
   },
 
   toJSON(message: SignalResponse): unknown {
     const obj: any = {};
-    message.join !== undefined &&
-      (obj.join = message.join ? JoinResponse.toJSON(message.join) : undefined);
-    message.answer !== undefined &&
-      (obj.answer = message.answer ? SessionDescription.toJSON(message.answer) : undefined);
-    message.offer !== undefined &&
-      (obj.offer = message.offer ? SessionDescription.toJSON(message.offer) : undefined);
-    message.trickle !== undefined &&
-      (obj.trickle = message.trickle ? TrickleRequest.toJSON(message.trickle) : undefined);
-    message.update !== undefined &&
-      (obj.update = message.update ? ParticipantUpdate.toJSON(message.update) : undefined);
-    message.trackPublished !== undefined &&
-      (obj.trackPublished = message.trackPublished
-        ? TrackPublishedResponse.toJSON(message.trackPublished)
+    message.message?.$case === 'join' &&
+      (obj.join = message.message?.join ? JoinResponse.toJSON(message.message?.join) : undefined);
+    message.message?.$case === 'answer' &&
+      (obj.answer = message.message?.answer
+        ? SessionDescription.toJSON(message.message?.answer)
         : undefined);
-    message.leave !== undefined &&
-      (obj.leave = message.leave ? LeaveRequest.toJSON(message.leave) : undefined);
-    message.mute !== undefined &&
-      (obj.mute = message.mute ? MuteTrackRequest.toJSON(message.mute) : undefined);
-    message.speakersChanged !== undefined &&
-      (obj.speakersChanged = message.speakersChanged
-        ? SpeakersChanged.toJSON(message.speakersChanged)
+    message.message?.$case === 'offer' &&
+      (obj.offer = message.message?.offer
+        ? SessionDescription.toJSON(message.message?.offer)
         : undefined);
-    message.roomUpdate !== undefined &&
-      (obj.roomUpdate = message.roomUpdate ? RoomUpdate.toJSON(message.roomUpdate) : undefined);
-    message.connectionQuality !== undefined &&
-      (obj.connectionQuality = message.connectionQuality
-        ? ConnectionQualityUpdate.toJSON(message.connectionQuality)
+    message.message?.$case === 'trickle' &&
+      (obj.trickle = message.message?.trickle
+        ? TrickleRequest.toJSON(message.message?.trickle)
         : undefined);
-    message.streamStateUpdate !== undefined &&
-      (obj.streamStateUpdate = message.streamStateUpdate
-        ? StreamStateUpdate.toJSON(message.streamStateUpdate)
+    message.message?.$case === 'update' &&
+      (obj.update = message.message?.update
+        ? ParticipantUpdate.toJSON(message.message?.update)
         : undefined);
-    message.subscribedQualityUpdate !== undefined &&
-      (obj.subscribedQualityUpdate = message.subscribedQualityUpdate
-        ? SubscribedQualityUpdate.toJSON(message.subscribedQualityUpdate)
+    message.message?.$case === 'trackPublished' &&
+      (obj.trackPublished = message.message?.trackPublished
+        ? TrackPublishedResponse.toJSON(message.message?.trackPublished)
         : undefined);
-    message.subscriptionPermissionUpdate !== undefined &&
-      (obj.subscriptionPermissionUpdate = message.subscriptionPermissionUpdate
-        ? SubscriptionPermissionUpdate.toJSON(message.subscriptionPermissionUpdate)
+    message.message?.$case === 'leave' &&
+      (obj.leave = message.message?.leave
+        ? LeaveRequest.toJSON(message.message?.leave)
         : undefined);
-    message.refreshToken !== undefined && (obj.refreshToken = message.refreshToken);
-    message.trackUnpublished !== undefined &&
-      (obj.trackUnpublished = message.trackUnpublished
-        ? TrackUnpublishedResponse.toJSON(message.trackUnpublished)
+    message.message?.$case === 'mute' &&
+      (obj.mute = message.message?.mute
+        ? MuteTrackRequest.toJSON(message.message?.mute)
         : undefined);
+    message.message?.$case === 'speakersChanged' &&
+      (obj.speakersChanged = message.message?.speakersChanged
+        ? SpeakersChanged.toJSON(message.message?.speakersChanged)
+        : undefined);
+    message.message?.$case === 'roomUpdate' &&
+      (obj.roomUpdate = message.message?.roomUpdate
+        ? RoomUpdate.toJSON(message.message?.roomUpdate)
+        : undefined);
+    message.message?.$case === 'connectionQuality' &&
+      (obj.connectionQuality = message.message?.connectionQuality
+        ? ConnectionQualityUpdate.toJSON(message.message?.connectionQuality)
+        : undefined);
+    message.message?.$case === 'streamStateUpdate' &&
+      (obj.streamStateUpdate = message.message?.streamStateUpdate
+        ? StreamStateUpdate.toJSON(message.message?.streamStateUpdate)
+        : undefined);
+    message.message?.$case === 'subscribedQualityUpdate' &&
+      (obj.subscribedQualityUpdate = message.message?.subscribedQualityUpdate
+        ? SubscribedQualityUpdate.toJSON(message.message?.subscribedQualityUpdate)
+        : undefined);
+    message.message?.$case === 'subscriptionPermissionUpdate' &&
+      (obj.subscriptionPermissionUpdate = message.message?.subscriptionPermissionUpdate
+        ? SubscriptionPermissionUpdate.toJSON(message.message?.subscriptionPermissionUpdate)
+        : undefined);
+    message.message?.$case === 'refreshToken' && (obj.refreshToken = message.message?.refreshToken);
+    message.message?.$case === 'trackUnpublished' &&
+      (obj.trackUnpublished = message.message?.trackUnpublished
+        ? TrackUnpublishedResponse.toJSON(message.message?.trackUnpublished)
+        : undefined);
+    message.message?.$case === 'pong' && (obj.pong = Math.round(message.message?.pong));
     return obj;
   },
 
   fromPartial<I extends Exact<DeepPartial<SignalResponse>, I>>(object: I): SignalResponse {
     const message = createBaseSignalResponse();
-    message.join =
-      object.join !== undefined && object.join !== null
-        ? JoinResponse.fromPartial(object.join)
-        : undefined;
-    message.answer =
-      object.answer !== undefined && object.answer !== null
-        ? SessionDescription.fromPartial(object.answer)
-        : undefined;
-    message.offer =
-      object.offer !== undefined && object.offer !== null
-        ? SessionDescription.fromPartial(object.offer)
-        : undefined;
-    message.trickle =
-      object.trickle !== undefined && object.trickle !== null
-        ? TrickleRequest.fromPartial(object.trickle)
-        : undefined;
-    message.update =
-      object.update !== undefined && object.update !== null
-        ? ParticipantUpdate.fromPartial(object.update)
-        : undefined;
-    message.trackPublished =
-      object.trackPublished !== undefined && object.trackPublished !== null
-        ? TrackPublishedResponse.fromPartial(object.trackPublished)
-        : undefined;
-    message.leave =
-      object.leave !== undefined && object.leave !== null
-        ? LeaveRequest.fromPartial(object.leave)
-        : undefined;
-    message.mute =
-      object.mute !== undefined && object.mute !== null
-        ? MuteTrackRequest.fromPartial(object.mute)
-        : undefined;
-    message.speakersChanged =
-      object.speakersChanged !== undefined && object.speakersChanged !== null
-        ? SpeakersChanged.fromPartial(object.speakersChanged)
-        : undefined;
-    message.roomUpdate =
-      object.roomUpdate !== undefined && object.roomUpdate !== null
-        ? RoomUpdate.fromPartial(object.roomUpdate)
-        : undefined;
-    message.connectionQuality =
-      object.connectionQuality !== undefined && object.connectionQuality !== null
-        ? ConnectionQualityUpdate.fromPartial(object.connectionQuality)
-        : undefined;
-    message.streamStateUpdate =
-      object.streamStateUpdate !== undefined && object.streamStateUpdate !== null
-        ? StreamStateUpdate.fromPartial(object.streamStateUpdate)
-        : undefined;
-    message.subscribedQualityUpdate =
-      object.subscribedQualityUpdate !== undefined && object.subscribedQualityUpdate !== null
-        ? SubscribedQualityUpdate.fromPartial(object.subscribedQualityUpdate)
-        : undefined;
-    message.subscriptionPermissionUpdate =
-      object.subscriptionPermissionUpdate !== undefined &&
-      object.subscriptionPermissionUpdate !== null
-        ? SubscriptionPermissionUpdate.fromPartial(object.subscriptionPermissionUpdate)
-        : undefined;
-    message.refreshToken = object.refreshToken ?? undefined;
-    message.trackUnpublished =
-      object.trackUnpublished !== undefined && object.trackUnpublished !== null
-        ? TrackUnpublishedResponse.fromPartial(object.trackUnpublished)
-        : undefined;
+    if (
+      object.message?.$case === 'join' &&
+      object.message?.join !== undefined &&
+      object.message?.join !== null
+    ) {
+      message.message = { $case: 'join', join: JoinResponse.fromPartial(object.message.join) };
+    }
+    if (
+      object.message?.$case === 'answer' &&
+      object.message?.answer !== undefined &&
+      object.message?.answer !== null
+    ) {
+      message.message = {
+        $case: 'answer',
+        answer: SessionDescription.fromPartial(object.message.answer),
+      };
+    }
+    if (
+      object.message?.$case === 'offer' &&
+      object.message?.offer !== undefined &&
+      object.message?.offer !== null
+    ) {
+      message.message = {
+        $case: 'offer',
+        offer: SessionDescription.fromPartial(object.message.offer),
+      };
+    }
+    if (
+      object.message?.$case === 'trickle' &&
+      object.message?.trickle !== undefined &&
+      object.message?.trickle !== null
+    ) {
+      message.message = {
+        $case: 'trickle',
+        trickle: TrickleRequest.fromPartial(object.message.trickle),
+      };
+    }
+    if (
+      object.message?.$case === 'update' &&
+      object.message?.update !== undefined &&
+      object.message?.update !== null
+    ) {
+      message.message = {
+        $case: 'update',
+        update: ParticipantUpdate.fromPartial(object.message.update),
+      };
+    }
+    if (
+      object.message?.$case === 'trackPublished' &&
+      object.message?.trackPublished !== undefined &&
+      object.message?.trackPublished !== null
+    ) {
+      message.message = {
+        $case: 'trackPublished',
+        trackPublished: TrackPublishedResponse.fromPartial(object.message.trackPublished),
+      };
+    }
+    if (
+      object.message?.$case === 'leave' &&
+      object.message?.leave !== undefined &&
+      object.message?.leave !== null
+    ) {
+      message.message = { $case: 'leave', leave: LeaveRequest.fromPartial(object.message.leave) };
+    }
+    if (
+      object.message?.$case === 'mute' &&
+      object.message?.mute !== undefined &&
+      object.message?.mute !== null
+    ) {
+      message.message = { $case: 'mute', mute: MuteTrackRequest.fromPartial(object.message.mute) };
+    }
+    if (
+      object.message?.$case === 'speakersChanged' &&
+      object.message?.speakersChanged !== undefined &&
+      object.message?.speakersChanged !== null
+    ) {
+      message.message = {
+        $case: 'speakersChanged',
+        speakersChanged: SpeakersChanged.fromPartial(object.message.speakersChanged),
+      };
+    }
+    if (
+      object.message?.$case === 'roomUpdate' &&
+      object.message?.roomUpdate !== undefined &&
+      object.message?.roomUpdate !== null
+    ) {
+      message.message = {
+        $case: 'roomUpdate',
+        roomUpdate: RoomUpdate.fromPartial(object.message.roomUpdate),
+      };
+    }
+    if (
+      object.message?.$case === 'connectionQuality' &&
+      object.message?.connectionQuality !== undefined &&
+      object.message?.connectionQuality !== null
+    ) {
+      message.message = {
+        $case: 'connectionQuality',
+        connectionQuality: ConnectionQualityUpdate.fromPartial(object.message.connectionQuality),
+      };
+    }
+    if (
+      object.message?.$case === 'streamStateUpdate' &&
+      object.message?.streamStateUpdate !== undefined &&
+      object.message?.streamStateUpdate !== null
+    ) {
+      message.message = {
+        $case: 'streamStateUpdate',
+        streamStateUpdate: StreamStateUpdate.fromPartial(object.message.streamStateUpdate),
+      };
+    }
+    if (
+      object.message?.$case === 'subscribedQualityUpdate' &&
+      object.message?.subscribedQualityUpdate !== undefined &&
+      object.message?.subscribedQualityUpdate !== null
+    ) {
+      message.message = {
+        $case: 'subscribedQualityUpdate',
+        subscribedQualityUpdate: SubscribedQualityUpdate.fromPartial(
+          object.message.subscribedQualityUpdate,
+        ),
+      };
+    }
+    if (
+      object.message?.$case === 'subscriptionPermissionUpdate' &&
+      object.message?.subscriptionPermissionUpdate !== undefined &&
+      object.message?.subscriptionPermissionUpdate !== null
+    ) {
+      message.message = {
+        $case: 'subscriptionPermissionUpdate',
+        subscriptionPermissionUpdate: SubscriptionPermissionUpdate.fromPartial(
+          object.message.subscriptionPermissionUpdate,
+        ),
+      };
+    }
+    if (
+      object.message?.$case === 'refreshToken' &&
+      object.message?.refreshToken !== undefined &&
+      object.message?.refreshToken !== null
+    ) {
+      message.message = { $case: 'refreshToken', refreshToken: object.message.refreshToken };
+    }
+    if (
+      object.message?.$case === 'trackUnpublished' &&
+      object.message?.trackUnpublished !== undefined &&
+      object.message?.trackUnpublished !== null
+    ) {
+      message.message = {
+        $case: 'trackUnpublished',
+        trackUnpublished: TrackUnpublishedResponse.fromPartial(object.message.trackUnpublished),
+      };
+    }
+    if (
+      object.message?.$case === 'pong' &&
+      object.message?.pong !== undefined &&
+      object.message?.pong !== null
+    ) {
+      message.message = { $case: 'pong', pong: object.message.pong };
+    }
     return message;
   },
 };
@@ -1280,6 +1565,8 @@ function createBaseJoinResponse(): JoinResponse {
     alternativeUrl: '',
     clientConfiguration: undefined,
     serverRegion: '',
+    pingTimeout: 0,
+    pingInterval: 0,
   };
 }
 
@@ -1311,6 +1598,12 @@ export const JoinResponse = {
     }
     if (message.serverRegion !== '') {
       writer.uint32(74).string(message.serverRegion);
+    }
+    if (message.pingTimeout !== 0) {
+      writer.uint32(80).int32(message.pingTimeout);
+    }
+    if (message.pingInterval !== 0) {
+      writer.uint32(88).int32(message.pingInterval);
     }
     return writer;
   },
@@ -1349,6 +1642,12 @@ export const JoinResponse = {
         case 9:
           message.serverRegion = reader.string();
           break;
+        case 10:
+          message.pingTimeout = reader.int32();
+          break;
+        case 11:
+          message.pingInterval = reader.int32();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1378,6 +1677,8 @@ export const JoinResponse = {
         ? ClientConfiguration.fromJSON(object.clientConfiguration)
         : undefined,
       serverRegion: isSet(object.serverRegion) ? String(object.serverRegion) : '',
+      pingTimeout: isSet(object.pingTimeout) ? Number(object.pingTimeout) : 0,
+      pingInterval: isSet(object.pingInterval) ? Number(object.pingInterval) : 0,
     };
   },
 
@@ -1408,6 +1709,8 @@ export const JoinResponse = {
         ? ClientConfiguration.toJSON(message.clientConfiguration)
         : undefined);
     message.serverRegion !== undefined && (obj.serverRegion = message.serverRegion);
+    message.pingTimeout !== undefined && (obj.pingTimeout = Math.round(message.pingTimeout));
+    message.pingInterval !== undefined && (obj.pingInterval = Math.round(message.pingInterval));
     return obj;
   },
 
@@ -1430,6 +1733,8 @@ export const JoinResponse = {
         ? ClientConfiguration.fromPartial(object.clientConfiguration)
         : undefined;
     message.serverRegion = object.serverRegion ?? '';
+    message.pingTimeout = object.pingTimeout ?? 0;
+    message.pingInterval = object.pingInterval ?? 0;
     return message;
   },
 };
@@ -2995,31 +3300,25 @@ export const DataChannelInfo = {
 };
 
 function createBaseSimulateScenario(): SimulateScenario {
-  return {
-    speakerUpdate: undefined,
-    nodeFailure: undefined,
-    migration: undefined,
-    serverLeave: undefined,
-    switchCandidateProtocol: undefined,
-  };
+  return { scenario: undefined };
 }
 
 export const SimulateScenario = {
   encode(message: SimulateScenario, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.speakerUpdate !== undefined) {
-      writer.uint32(8).int32(message.speakerUpdate);
+    if (message.scenario?.$case === 'speakerUpdate') {
+      writer.uint32(8).int32(message.scenario.speakerUpdate);
     }
-    if (message.nodeFailure !== undefined) {
-      writer.uint32(16).bool(message.nodeFailure);
+    if (message.scenario?.$case === 'nodeFailure') {
+      writer.uint32(16).bool(message.scenario.nodeFailure);
     }
-    if (message.migration !== undefined) {
-      writer.uint32(24).bool(message.migration);
+    if (message.scenario?.$case === 'migration') {
+      writer.uint32(24).bool(message.scenario.migration);
     }
-    if (message.serverLeave !== undefined) {
-      writer.uint32(32).bool(message.serverLeave);
+    if (message.scenario?.$case === 'serverLeave') {
+      writer.uint32(32).bool(message.scenario.serverLeave);
     }
-    if (message.switchCandidateProtocol !== undefined) {
-      writer.uint32(40).int32(message.switchCandidateProtocol);
+    if (message.scenario?.$case === 'switchCandidateProtocol') {
+      writer.uint32(40).int32(message.scenario.switchCandidateProtocol);
     }
     return writer;
   },
@@ -3032,19 +3331,22 @@ export const SimulateScenario = {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          message.speakerUpdate = reader.int32();
+          message.scenario = { $case: 'speakerUpdate', speakerUpdate: reader.int32() };
           break;
         case 2:
-          message.nodeFailure = reader.bool();
+          message.scenario = { $case: 'nodeFailure', nodeFailure: reader.bool() };
           break;
         case 3:
-          message.migration = reader.bool();
+          message.scenario = { $case: 'migration', migration: reader.bool() };
           break;
         case 4:
-          message.serverLeave = reader.bool();
+          message.scenario = { $case: 'serverLeave', serverLeave: reader.bool() };
           break;
         case 5:
-          message.switchCandidateProtocol = reader.int32() as any;
+          message.scenario = {
+            $case: 'switchCandidateProtocol',
+            switchCandidateProtocol: reader.int32() as any,
+          };
           break;
         default:
           reader.skipType(tag & 7);
@@ -3056,40 +3358,92 @@ export const SimulateScenario = {
 
   fromJSON(object: any): SimulateScenario {
     return {
-      speakerUpdate: isSet(object.speakerUpdate) ? Number(object.speakerUpdate) : undefined,
-      nodeFailure: isSet(object.nodeFailure) ? Boolean(object.nodeFailure) : undefined,
-      migration: isSet(object.migration) ? Boolean(object.migration) : undefined,
-      serverLeave: isSet(object.serverLeave) ? Boolean(object.serverLeave) : undefined,
-      switchCandidateProtocol: isSet(object.switchCandidateProtocol)
-        ? candidateProtocolFromJSON(object.switchCandidateProtocol)
+      scenario: isSet(object.speakerUpdate)
+        ? { $case: 'speakerUpdate', speakerUpdate: Number(object.speakerUpdate) }
+        : isSet(object.nodeFailure)
+        ? { $case: 'nodeFailure', nodeFailure: Boolean(object.nodeFailure) }
+        : isSet(object.migration)
+        ? { $case: 'migration', migration: Boolean(object.migration) }
+        : isSet(object.serverLeave)
+        ? { $case: 'serverLeave', serverLeave: Boolean(object.serverLeave) }
+        : isSet(object.switchCandidateProtocol)
+        ? {
+            $case: 'switchCandidateProtocol',
+            switchCandidateProtocol: candidateProtocolFromJSON(object.switchCandidateProtocol),
+          }
         : undefined,
     };
   },
 
   toJSON(message: SimulateScenario): unknown {
     const obj: any = {};
-    message.speakerUpdate !== undefined && (obj.speakerUpdate = Math.round(message.speakerUpdate));
-    message.nodeFailure !== undefined && (obj.nodeFailure = message.nodeFailure);
-    message.migration !== undefined && (obj.migration = message.migration);
-    message.serverLeave !== undefined && (obj.serverLeave = message.serverLeave);
-    message.switchCandidateProtocol !== undefined &&
+    message.scenario?.$case === 'speakerUpdate' &&
+      (obj.speakerUpdate = Math.round(message.scenario?.speakerUpdate));
+    message.scenario?.$case === 'nodeFailure' && (obj.nodeFailure = message.scenario?.nodeFailure);
+    message.scenario?.$case === 'migration' && (obj.migration = message.scenario?.migration);
+    message.scenario?.$case === 'serverLeave' && (obj.serverLeave = message.scenario?.serverLeave);
+    message.scenario?.$case === 'switchCandidateProtocol' &&
       (obj.switchCandidateProtocol =
-        message.switchCandidateProtocol !== undefined
-          ? candidateProtocolToJSON(message.switchCandidateProtocol)
+        message.scenario?.switchCandidateProtocol !== undefined
+          ? candidateProtocolToJSON(message.scenario?.switchCandidateProtocol)
           : undefined);
     return obj;
   },
 
   fromPartial<I extends Exact<DeepPartial<SimulateScenario>, I>>(object: I): SimulateScenario {
     const message = createBaseSimulateScenario();
-    message.speakerUpdate = object.speakerUpdate ?? undefined;
-    message.nodeFailure = object.nodeFailure ?? undefined;
-    message.migration = object.migration ?? undefined;
-    message.serverLeave = object.serverLeave ?? undefined;
-    message.switchCandidateProtocol = object.switchCandidateProtocol ?? undefined;
+    if (
+      object.scenario?.$case === 'speakerUpdate' &&
+      object.scenario?.speakerUpdate !== undefined &&
+      object.scenario?.speakerUpdate !== null
+    ) {
+      message.scenario = { $case: 'speakerUpdate', speakerUpdate: object.scenario.speakerUpdate };
+    }
+    if (
+      object.scenario?.$case === 'nodeFailure' &&
+      object.scenario?.nodeFailure !== undefined &&
+      object.scenario?.nodeFailure !== null
+    ) {
+      message.scenario = { $case: 'nodeFailure', nodeFailure: object.scenario.nodeFailure };
+    }
+    if (
+      object.scenario?.$case === 'migration' &&
+      object.scenario?.migration !== undefined &&
+      object.scenario?.migration !== null
+    ) {
+      message.scenario = { $case: 'migration', migration: object.scenario.migration };
+    }
+    if (
+      object.scenario?.$case === 'serverLeave' &&
+      object.scenario?.serverLeave !== undefined &&
+      object.scenario?.serverLeave !== null
+    ) {
+      message.scenario = { $case: 'serverLeave', serverLeave: object.scenario.serverLeave };
+    }
+    if (
+      object.scenario?.$case === 'switchCandidateProtocol' &&
+      object.scenario?.switchCandidateProtocol !== undefined &&
+      object.scenario?.switchCandidateProtocol !== null
+    ) {
+      message.scenario = {
+        $case: 'switchCandidateProtocol',
+        switchCandidateProtocol: object.scenario.switchCandidateProtocol,
+      };
+    }
     return message;
   },
 };
+
+declare var self: any | undefined;
+declare var window: any | undefined;
+declare var global: any | undefined;
+var globalThis: any = (() => {
+  if (typeof globalThis !== 'undefined') return globalThis;
+  if (typeof self !== 'undefined') return self;
+  if (typeof window !== 'undefined') return window;
+  if (typeof global !== 'undefined') return global;
+  throw 'Unable to locate global object';
+})();
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
@@ -3099,6 +3453,8 @@ export type DeepPartial<T> = T extends Builtin
   ? Array<DeepPartial<U>>
   : T extends ReadonlyArray<infer U>
   ? ReadonlyArray<DeepPartial<U>>
+  : T extends { $case: string }
+  ? { [K in keyof Omit<T, '$case'>]?: DeepPartial<T[K]> } & { $case: T['$case'] }
   : T extends {}
   ? { [K in keyof T]?: DeepPartial<T[K]> }
   : Partial<T>;
@@ -3107,6 +3463,13 @@ type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin
   ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & Record<Exclude<keyof I, KeysOfUnion<P>>, never>;
+
+function longToNumber(long: Long): number {
+  if (long.gt(Number.MAX_SAFE_INTEGER)) {
+    throw new globalThis.Error('Value is larger than Number.MAX_SAFE_INTEGER');
+  }
+  return long.toNumber();
+}
 
 if (_m0.util.Long !== Long) {
   _m0.util.Long = Long as any;

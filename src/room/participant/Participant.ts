@@ -69,10 +69,11 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
   /** @internal */
-  constructor(sid: string, identity: string) {
+  constructor(sid: string, identity: string, name?: string) {
     super();
     this.sid = sid;
     this.identity = identity;
+    this.name = name;
     this.audioTracks = new Map();
     this.videoTracks = new Map();
     this.tracks = new Map();

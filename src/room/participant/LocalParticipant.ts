@@ -509,7 +509,7 @@ export default class LocalParticipant extends Participant {
         }
 
         // set vp8 codec as backup for any other codecs
-        if (opts.videoCodec && opts.videoCodec !== 'vp8') {
+        if (opts.videoCodec && opts.videoCodec !== 'vp8' && !isFireFox()) {
           req.simulcastCodecs = [
             {
               codec: opts.videoCodec,
@@ -722,18 +722,18 @@ export default class LocalParticipant extends Participant {
       track.sender
     ) {
       try {
-        this.engine.publisher.pc.removeTrack(track.sender);
+        this.engine.removeTrack(track.sender);
         if (track instanceof LocalVideoTrack) {
           for (const [, trackInfo] of track.simulcastCodecs) {
             if (trackInfo.sender) {
-              this.engine.publisher.pc.removeTrack(trackInfo.sender);
+              this.engine.removeTrack(trackInfo.sender);
               trackInfo.sender = undefined;
             }
           }
           track.simulcastCodecs.clear();
         }
       } catch (e) {
-        log.warn('failed to remove track', { error: e, method: 'unpublishTrack' });
+        log.warn('failed to unpublish track', { error: e, method: 'unpublishTrack' });
       } finally {
         this.engine.negotiate();
       }
@@ -800,10 +800,13 @@ export default class LocalParticipant extends Participant {
 
     const packet: DataPacket = {
       kind,
-      user: {
-        participantSid: this.sid,
-        payload: data,
-        destinationSids: dest,
+      value: {
+        $case: 'user',
+        user: {
+          participantSid: this.sid,
+          payload: data,
+          destinationSids: dest,
+        },
       },
     };
 

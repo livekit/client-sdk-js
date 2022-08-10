@@ -99,7 +99,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** used for aborting pending connections to a LiveKit server */
   private abortController?: AbortController;
 
+  /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
+
+  /** future holding sdk initiated reconnection attempt */
+  private reconnectFuture?: Future<void>;
 
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
@@ -156,12 +160,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
+        if (!this.reconnectFuture) {
+          this.reconnectFuture = new Future();
+        }
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
         }
       })
       .on(EngineEvent.Resumed, () => {
         this.setAndEmitConnectionState(ConnectionState.Connected);
+        this.reconnectFuture?.resolve();
+        this.reconnectFuture = undefined;
         this.emit(RoomEvent.Reconnected);
         this.updateSubscriptions();
       })
@@ -193,145 +202,145 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     return DeviceManager.getInstance().getDevices(kind, requestPermissions);
   }
 
-  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+  connect = (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
     if (this.state === ConnectionState.Connected) {
       // when the state is reconnecting or connected, this function returns immediately
       log.warn(`already connected to room ${this.name}`);
-      return;
+      return Promise.resolve();
     }
 
     if (this.connectFuture) {
       return this.connectFuture.promise;
     }
-    this.setAndEmitConnectionState(ConnectionState.Connecting);
-
-    if (!this.abortController || this.abortController.signal.aborted) {
-      this.abortController = new AbortController();
+    if (this.reconnectFuture) {
+      this.connectFuture = this.reconnectFuture;
+      return this.connectFuture.promise;
     }
-
-    // recreate engine if previously disconnected
-    this.createEngine();
-
-    this.acquireAudioContext();
-
-    if (opts?.rtcConfig) {
-      this.engine.rtcConfig = opts.rtcConfig;
-    }
-
-    this.connOptions = opts;
-
-    try {
-      const joinResponse = await this.engine.join(
-        url,
-        token,
-        {
-          autoSubscribe: opts?.autoSubscribe,
-          publishOnly: opts?.publishOnly,
-          adaptiveStream:
-            typeof this.options?.adaptiveStream === 'object' ? true : this.options?.adaptiveStream,
-        },
-        this.abortController.signal,
-      );
-      log.debug(
-        `connected to Livekit Server version: ${joinResponse.serverVersion}, region: ${joinResponse.serverRegion}`,
-      );
-
-      if (!joinResponse.serverVersion) {
-        throw new UnsupportedServer('unknown server version');
+    const connectPromise = new Promise<void>(async (resolve, reject) => {
+      this.setAndEmitConnectionState(ConnectionState.Connecting);
+      if (!this.abortController || this.abortController.signal.aborted) {
+        this.abortController = new AbortController();
       }
 
-      if (joinResponse.serverVersion === '0.15.1' && this.options.dynacast) {
-        log.debug('disabling dynacast due to server version');
-        // dynacast has a bug in 0.15.1, so we cannot use it then
-        this.options.dynacast = false;
+      // recreate engine if previously disconnected
+      this.createEngine();
+
+      this.acquireAudioContext();
+
+      if (opts?.rtcConfig) {
+        this.engine.rtcConfig = opts.rtcConfig;
       }
 
-      const pi = joinResponse.participant!;
+      this.connOptions = opts;
 
-      this.localParticipant.sid = pi.sid;
-      this.localParticipant.identity = pi.identity;
-
-      this.localParticipant.updateInfo(pi);
-      // forward metadata changed for the local participant
-      this.localParticipant
-        .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
-        .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
-        .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
-        .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
-        .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
-        .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
-        .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
-        .on(
-          ParticipantEvent.ParticipantPermissionsChanged,
-          this.onLocalParticipantPermissionsChanged,
+      try {
+        const joinResponse = await this.engine.join(
+          url,
+          token,
+          {
+            autoSubscribe: opts?.autoSubscribe,
+            publishOnly: opts?.publishOnly,
+            adaptiveStream:
+              typeof this.options?.adaptiveStream === 'object'
+                ? true
+                : this.options?.adaptiveStream,
+          },
+          this.abortController.signal,
+        );
+        log.debug(
+          `connected to Livekit Server version: ${joinResponse.serverVersion}, region: ${joinResponse.serverRegion}`,
         );
 
-      // populate remote participants, these should not trigger new events
-      joinResponse.otherParticipants.forEach((info) => {
-        if (
-          info.sid !== this.localParticipant.sid &&
-          info.identity !== this.localParticipant.identity
-        ) {
-          this.getOrCreateParticipant(info.sid, info);
-        } else {
-          log.warn('received info to create local participant as remote participant', {
-            info,
-            localParticipant: this.localParticipant,
-          });
+        if (!joinResponse.serverVersion) {
+          throw new UnsupportedServer('unknown server version');
         }
-      });
 
-      this.name = joinResponse.room!.name;
-      this.sid = joinResponse.room!.sid;
-      this.metadata = joinResponse.room!.metadata;
-      this.emit(RoomEvent.SignalConnected);
-    } catch (err) {
-      this.recreateEngine();
-      this.setAndEmitConnectionState(
-        ConnectionState.Disconnected,
-        new ConnectionError('could not establish signal connection'),
-      );
-      throw err;
-    }
+        if (joinResponse.serverVersion === '0.15.1' && this.options.dynacast) {
+          log.debug('disabling dynacast due to server version');
+          // dynacast has a bug in 0.15.1, so we cannot use it then
+          this.options.dynacast = false;
+        }
 
-    // don't return until ICE connected
-    const connectTimeout = setTimeout(() => {
-      // timeout
-      this.recreateEngine();
-      this.setAndEmitConnectionState(
-        ConnectionState.Disconnected,
-        new ConnectionError('could not connect PeerConnection after timeout'),
-      );
-    }, maxICEConnectTimeout);
-    const abortHandler = () => {
-      log.warn('closing engine');
-      clearTimeout(connectTimeout);
-      this.recreateEngine();
-      this.setAndEmitConnectionState(
-        ConnectionState.Disconnected,
-        new ConnectionError('room connection has been cancelled'),
-      );
-    };
-    if (this.abortController?.signal.aborted) {
-      abortHandler();
-    }
-    this.abortController?.signal.addEventListener('abort', abortHandler);
+        const pi = joinResponse.participant!;
 
-    this.engine.once(EngineEvent.Connected, () => {
-      clearTimeout(connectTimeout);
-      this.abortController?.signal.removeEventListener('abort', abortHandler);
-      // also hook unload event
-      if (isWeb()) {
-        window.addEventListener('beforeunload', this.onBeforeUnload);
-        navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
+        this.localParticipant.sid = pi.sid;
+        this.localParticipant.identity = pi.identity;
+
+        this.localParticipant.updateInfo(pi);
+        // forward metadata changed for the local participant
+        this.localParticipant
+          .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
+          .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
+          .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
+          .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
+          .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
+          .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
+          .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
+          .on(
+            ParticipantEvent.ParticipantPermissionsChanged,
+            this.onLocalParticipantPermissionsChanged,
+          );
+
+        // populate remote participants, these should not trigger new events
+        joinResponse.otherParticipants.forEach((info) => {
+          if (
+            info.sid !== this.localParticipant.sid &&
+            info.identity !== this.localParticipant.identity
+          ) {
+            this.getOrCreateParticipant(info.sid, info);
+          } else {
+            log.warn('received info to create local participant as remote participant', {
+              info,
+              localParticipant: this.localParticipant,
+            });
+          }
+        });
+
+        this.name = joinResponse.room!.name;
+        this.sid = joinResponse.room!.sid;
+        this.metadata = joinResponse.room!.metadata;
+        this.emit(RoomEvent.SignalConnected);
+      } catch (err) {
+        this.recreateEngine();
+        this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+        reject(new ConnectionError('could not establish signal connection'));
+        return;
       }
-      this.setAndEmitConnectionState(ConnectionState.Connected);
-    });
 
-    if (this.connectFuture) {
-      /** @ts-ignore */
-      return this.connectFuture.promise;
-    }
+      // don't return until ICE connected
+      const connectTimeout = setTimeout(() => {
+        // timeout
+        this.recreateEngine();
+        this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+        reject(new ConnectionError('could not connect PeerConnection after timeout'));
+      }, maxICEConnectTimeout);
+      const abortHandler = () => {
+        log.warn('closing engine');
+        clearTimeout(connectTimeout);
+        this.recreateEngine();
+        this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+        reject(new ConnectionError('room connection has been cancelled'));
+      };
+      if (this.abortController?.signal.aborted) {
+        abortHandler();
+      }
+      this.abortController?.signal.addEventListener('abort', abortHandler);
+
+      this.engine.once(EngineEvent.Connected, () => {
+        clearTimeout(connectTimeout);
+        this.abortController?.signal.removeEventListener('abort', abortHandler);
+        // also hook unload event
+        if (isWeb()) {
+          window.addEventListener('beforeunload', this.onBeforeUnload);
+          navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
+        }
+        this.setAndEmitConnectionState(ConnectionState.Connected);
+        resolve();
+      });
+    }).finally(() => (this.connectFuture = undefined));
+    this.connectFuture = new Future(connectPromise);
+
+    return this.connectFuture.promise;
   };
 
   /**
@@ -339,11 +348,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   disconnect = async (stopTracks = true) => {
     log.info('disconnect from room', { identity: this.localParticipant.identity });
-    if (this.state === ConnectionState.Connecting) {
+    if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
       // try aborting pending connection attempt
       log.warn('abort connection attempt');
       this.abortController?.abort();
-      return;
+      // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
+      this.connectFuture?.reject(new ConnectionError('Client initiated disconnect'));
+      this.connectFuture = undefined;
     }
     // send leave
     if (this.engine?.client.isConnected) {
@@ -353,7 +364,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.engine) {
       this.engine.close();
     }
-
     this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
     /* @ts-ignore */
     this.engine = undefined;
@@ -389,27 +399,42 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         break;
       case 'speaker':
         req = SimulateScenario.fromPartial({
-          speakerUpdate: 3,
+          scenario: {
+            $case: 'speakerUpdate',
+            speakerUpdate: 3,
+          },
         });
         break;
       case 'node-failure':
         req = SimulateScenario.fromPartial({
-          nodeFailure: true,
+          scenario: {
+            $case: 'nodeFailure',
+            nodeFailure: true,
+          },
         });
         break;
       case 'server-leave':
         req = SimulateScenario.fromPartial({
-          serverLeave: true,
+          scenario: {
+            $case: 'serverLeave',
+            serverLeave: true,
+          },
         });
         break;
       case 'migration':
         req = SimulateScenario.fromPartial({
-          migration: true,
+          scenario: {
+            $case: 'migration',
+            migration: true,
+          },
         });
         break;
       case 'switch-candidate':
         req = SimulateScenario.fromPartial({
-          switchCandidateProtocol: 1,
+          scenario: {
+            $case: 'switchCandidateProtocol',
+            switchCandidateProtocol: 1,
+          },
         });
         postAction = () => {
           this.engine.publisher?.createAndSendOffer({ iceRestart: true });
@@ -532,8 +557,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // at that time, ICE connectivity has not been established so the track is not
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
-    if (this.connectFuture) {
-      this.connectFuture.promise.then(() => {
+    if (this.connectFuture || this.reconnectFuture) {
+      Promise.allSettled([this.connectFuture?.promise, this.reconnectFuture?.promise]).then(() => {
         this.onTrackAdded(mediaTrack, stream, receiver);
       });
       return;
@@ -571,6 +596,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleRestarting = () => {
+    if (!this.reconnectFuture) {
+      this.reconnectFuture = new Future();
+    }
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {
       this.handleParticipantDisconnected(p.sid, p);
@@ -587,6 +615,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
+    this.reconnectFuture?.resolve();
+    this.reconnectFuture = undefined;
 
     // rehydrate participants
     if (joinResponse.participant) {
@@ -630,6 +660,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
+    // reject potentially ongoing reconnection attempt
+    if (this.connectFuture === this.reconnectFuture) {
+      this.connectFuture?.reject(undefined);
+      this.connectFuture = undefined;
+    }
+    this.reconnectFuture = undefined;
+
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
         p.unpublishTrack(pub.trackSid);
@@ -704,10 +741,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
         this.handleParticipantDisconnected(info.sid, remoteParticipant);
-      } else if (isNewParticipant) {
-        // fire connected event
-        this.emitWhenConnected(RoomEvent.ParticipantConnected, remoteParticipant);
-      } else {
+      } else if (!isNewParticipant) {
         // just update, no events
         remoteParticipant.updateInfo(info);
       }
@@ -907,6 +941,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.participants.set(id, participant);
     if (info) {
       this.identityToSid.set(info.identity, info.sid);
+      // if we have valid info and the participant wasn't in the map before, we can assume the participant is new
+      // firing here to make sure that `ParticipantConnected` fires before the initial track events
+      this.emitWhenConnected(RoomEvent.ParticipantConnected, participant);
     }
 
     // also forward events
@@ -1030,34 +1067,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private setAndEmitConnectionState(state: ConnectionState, error?: Error): boolean {
+  private setAndEmitConnectionState(state: ConnectionState): boolean {
     if (state === this.state) {
       // unchanged
       return false;
-    }
-    switch (state) {
-      case ConnectionState.Connecting:
-      case ConnectionState.Reconnecting:
-        if (!this.connectFuture) {
-          // reuse existing connect future if possible
-          this.connectFuture = new Future<void>();
-        }
-        break;
-      case ConnectionState.Connected:
-        if (this.connectFuture) {
-          this.connectFuture.resolve();
-          this.connectFuture = undefined;
-        }
-        break;
-      case ConnectionState.Disconnected:
-        if (this.connectFuture) {
-          error ??= new Error('disconnected from Room');
-          this.connectFuture.reject(error);
-          this.connectFuture = undefined;
-        }
-        break;
-      default:
-      // nothing
     }
     this.state = state;
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
