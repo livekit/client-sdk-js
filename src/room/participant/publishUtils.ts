@@ -66,7 +66,7 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
  * @internal
  * @experimental
  */
-export const computeDefaultmultiCodecSimulcastEncodings = (width: number, height: number) => {
+export const computeDefaultMultiCodecSimulcastEncodings = (width: number, height: number) => {
   // use vp8 as a default
   const vp8 = determineAppropriateEncoding(false, width, height);
   const vp9 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.9 };
@@ -109,7 +109,7 @@ export function computeVideoEncodings(
 
   // merge default and user provided multiCodecSimulcast encodings (we will fall back to the default ones)
   const multiCodecSimulcastEncodings = {
-    ...computeDefaultmultiCodecSimulcastEncodings(width, height),
+    ...computeDefaultMultiCodecSimulcastEncodings(width, height),
     ...options?.multiCodecSimulcastEncodings,
   };
 
