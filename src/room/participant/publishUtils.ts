@@ -66,7 +66,7 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
  * @internal
  * @experimental
  */
-export const computeDefaultPolycastEncodings = (width: number, height: number) => {
+export const computeDefaultmultiCodecSimulcastEncodings = (width: number, height: number) => {
   // use vp8 as a default
   const vp8 = determineAppropriateEncoding(false, width, height);
   const vp9 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.9 };
@@ -90,9 +90,9 @@ export function computeVideoEncodings(
   options?: TrackPublishOptions,
 ): RTCRtpEncodingParameters[] {
   let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
-  // in case the user provided polycast encoding, we prefer them to the videoEncoding setting as long as a videoCodec is set
-  if (options?.polycastEncodings && options.videoCodec) {
-    videoEncoding = options.polycastEncodings[options.videoCodec] ?? videoEncoding;
+  // in case the user provided multiCodecSimulcast encoding, we prefer them to the videoEncoding setting as long as a videoCodec is set
+  if (options?.multiCodecSimulcastEncodings && options.videoCodec) {
+    videoEncoding = options.multiCodecSimulcastEncodings[options.videoCodec] ?? videoEncoding;
   }
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
@@ -107,16 +107,16 @@ export function computeVideoEncodings(
     return [{}];
   }
 
-  // merge default and user provided polycast encodings (we will fall back to the default ones)
-  const polycastEncodings = {
-    ...computeDefaultPolycastEncodings(width, height),
-    ...options?.polycastEncodings,
+  // merge default and user provided multiCodecSimulcast encodings (we will fall back to the default ones)
+  const multiCodecSimulcastEncodings = {
+    ...computeDefaultmultiCodecSimulcastEncodings(width, height),
+    ...options?.multiCodecSimulcastEncodings,
   };
 
   if (!videoEncoding) {
     // find the right encoding based on width/height
     if (options?.videoCodec) {
-      videoEncoding = polycastEncodings[options.videoCodec];
+      videoEncoding = multiCodecSimulcastEncodings[options.videoCodec];
     } else {
       videoEncoding = determineAppropriateEncoding(isScreenShare, width, height);
     }
@@ -134,7 +134,7 @@ export function computeVideoEncodings(
   if (scalabilityMode) {
     const encodings: RTCRtpEncodingParameters[] = [];
 
-    const av1Encoding = polycastEncodings.av1;
+    const av1Encoding = multiCodecSimulcastEncodings.av1;
     // svc use first encoding as the original, so we sort encoding from high to low
     switch (scalabilityMode) {
       case 'L3T3':

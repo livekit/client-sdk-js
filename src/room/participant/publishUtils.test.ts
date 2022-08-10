@@ -115,7 +115,7 @@ describe('computeVideoEncodings', () => {
     expect(encodings![0].scaleResolutionDownBy).toBe(1);
   });
 
-  it('respects default polycast encodings', () => {
+  it('respects default multiCodecSimulcast encodings', () => {
     const vp8Encodings = computeVideoEncodings(false, 100, 120, { simulcast: true });
     const h264Encodings = computeVideoEncodings(false, 100, 120, {
       simulcast: true,
@@ -132,11 +132,11 @@ describe('computeVideoEncodings', () => {
     expect(h264Encodings![0].scaleResolutionDownBy).toBe(1);
   });
 
-  it('respects custom polycast encodings', () => {
+  it('respects custom multiCodecSimulcast encodings', () => {
     const encodings = computeVideoEncodings(false, 100, 120, {
       simulcast: true,
       videoCodec: 'h264',
-      polycastEncodings: {
+      multiCodecSimulcastEncodings: {
         vp8: { maxBitrate: 1_000 },
         h264: { maxBitrate: 2_000 },
       },
