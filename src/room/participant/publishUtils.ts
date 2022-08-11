@@ -3,6 +3,7 @@ import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
 import {
+  BackupVideoCodec,
   ScreenSharePresets,
   TrackPublishOptions,
   VideoCodec,
@@ -11,6 +12,7 @@ import {
   VideoPresets,
   VideoPresets43,
 } from '../track/options';
+import { Track } from '../track/Track';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
@@ -107,6 +109,7 @@ export function computeVideoEncodings(
   }
 
   if (!videoEncoding) {
+    // find the right encoding based on width/height
     videoEncoding = determineAppropriateEncoding(isScreenShare, width, height, videoCodec);
     log.debug('using video encoding', videoEncoding);
   }
@@ -185,6 +188,39 @@ export function computeVideoEncodings(
     }
   }
   return encodingsFromPresets(width, height, [original]);
+}
+
+export function computeTrackBackupEncodings(
+  track: LocalVideoTrack,
+  videoCodec: BackupVideoCodec,
+  opts: TrackPublishOptions,
+) {
+  if (!opts.backupCodec) {
+    // backup codec publishing is disabled
+    return;
+  }
+  if (videoCodec !== opts.backupCodec.codec) {
+    log.warn('requested a different codec than specified as backup', {
+      serverRequested: videoCodec,
+      backup: opts.backupCodec.codec,
+    });
+  }
+
+  opts.videoCodec = videoCodec;
+  // use backup encoding setting as videoEncoding for backup codec publishing
+  opts.videoEncoding = opts.backupCodec.encoding;
+
+  const settings = track.mediaStreamTrack.getSettings();
+  const width = settings.width ?? track.dimensions?.width;
+  const height = settings.height ?? track.dimensions?.height;
+
+  const encodings = computeVideoEncodings(
+    track.source === Track.Source.ScreenShare,
+    width,
+    height,
+    opts,
+  );
+  return encodings;
 }
 
 /* @internal */

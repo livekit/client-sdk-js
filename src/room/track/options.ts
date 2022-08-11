@@ -9,7 +9,7 @@ export interface TrackPublishDefaults {
   /**
    * @experimental
    */
-  backupCodec?: { codec: VideoCodec; encoding: VideoEncoding };
+  backupCodec?: { codec: BackupVideoCodec; encoding: VideoEncoding };
 
   /**
    * encoding parameters for screen share track
@@ -210,7 +210,16 @@ export interface AudioPreset {
   maxBitrate: number;
 }
 
-export type VideoCodec = 'vp8' | 'h264' | 'av1' | 'vp9';
+const codecs = ['vp8', 'h264', 'av1', 'vp9'] as const;
+const backupCodecs = ['vp8', 'h264'] as const;
+
+export type VideoCodec = typeof codecs[number];
+
+export type BackupVideoCodec = typeof backupCodecs[number];
+
+export function isBackupCodec(codec: string): codec is BackupVideoCodec {
+  return !!backupCodecs.find((backup) => backup === codec);
+}
 
 /**
  * scalability modes for svc, only supprot l3t3 now.

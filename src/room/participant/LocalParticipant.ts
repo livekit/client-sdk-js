@@ -23,7 +23,9 @@ import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import {
   AudioCaptureOptions,
+  BackupVideoCodec,
   CreateLocalTracksOptions,
+  isBackupCodec,
   ScreenShareCaptureOptions,
   ScreenSharePresets,
   TrackPublishOptions,
@@ -35,10 +37,13 @@ import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
 import { isFireFox, isWeb } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
-import { computeVideoEncodings, mediaTrackToLocalTrack } from './publishUtils';
+import {
+  computeTrackBackupEncodings,
+  computeVideoEncodings,
+  mediaTrackToLocalTrack,
+} from './publishUtils';
 import RemoteParticipant from './RemoteParticipant';
 
-const compatibleCodec = 'vp8';
 export default class LocalParticipant extends Participant {
   audioTracks: Map<string, LocalTrackPublication>;
 
@@ -492,24 +497,23 @@ export default class LocalParticipant extends Participant {
       req.height = height ?? 0;
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
-        if (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1') {
+        if (opts.backupCodec && (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1')) {
           // set scalabilityMode to 'L3T3' by default
           opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
 
           // add backup codec track
           const simOpts = { ...opts };
           simOpts.simulcast = true;
-          simOpts.scalabilityMode = undefined;
-          simEncodings = computeVideoEncodings(
-            track.source === Track.Source.ScreenShare,
-            width,
-            height,
-            simOpts,
-          );
+          simEncodings = computeTrackBackupEncodings(track, opts.backupCodec.codec, simOpts);
         }
 
         // set vp8 codec as backup for any other codecs
-        if (opts.videoCodec && opts.videoCodec !== 'vp8' && !isFireFox()) {
+        if (
+          opts.videoCodec &&
+          opts.backupCodec &&
+          opts.videoCodec !== opts.backupCodec.codec &&
+          !isFireFox()
+        ) {
           req.simulcastCodecs = [
             {
               codec: opts.videoCodec,
@@ -517,7 +521,7 @@ export default class LocalParticipant extends Participant {
               enableSimulcastLayers: true,
             },
             {
-              codec: compatibleCodec,
+              codec: opts.backupCodec.codec,
               cid: '',
               enableSimulcastLayers: true,
             },
@@ -598,28 +602,9 @@ export default class LocalParticipant extends Participant {
    */
   async publishAdditionalCodecForTrack(
     track: LocalTrack | MediaStreamTrack,
-    videoCodec: VideoCodec,
+    videoCodec: BackupVideoCodec,
     options?: TrackPublishOptions,
   ) {
-    const opts: TrackPublishOptions = {
-      ...this.roomOptions?.publishDefaults,
-      ...options,
-    };
-    if (!opts.backupCodec) {
-      // backup codec publishing is disabled
-      return;
-    }
-    if (videoCodec !== opts.backupCodec.codec) {
-      log.warn('server requested a different codec than specified as backup', {
-        serverRequested: videoCodec,
-        backup: opts.backupCodec.codec,
-      });
-    }
-
-    opts.videoCodec = videoCodec;
-    // use backup encoding setting as videoEncoding for backup codec publishing
-    opts.videoEncoding = opts.backupCodec.encoding;
-
     // is it not published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
     this.tracks.forEach((publication) => {
@@ -638,17 +623,19 @@ export default class LocalParticipant extends Participant {
       throw new TrackInvalidError('track is not a video track');
     }
 
-    const settings = track.mediaStreamTrack.getSettings();
-    const width = settings.width ?? track.dimensions?.width;
-    const height = settings.height ?? track.dimensions?.height;
+    const opts: TrackPublishOptions = {
+      ...this.roomOptions?.publishDefaults,
+      ...options,
+    };
 
-    const encodings = computeVideoEncodings(
-      track.source === Track.Source.ScreenShare,
-      width,
-      height,
-      opts,
-    );
-    const simulcastTrack = track.addSimulcastTrack(opts.videoCodec, encodings);
+    const encodings = computeTrackBackupEncodings(track, videoCodec, opts);
+    if (!encodings) {
+      log.info(
+        `backup codec has been disabled, ignoring request to add additional codec for track`,
+      );
+      return;
+    }
+    const simulcastTrack = track.addSimulcastTrack(videoCodec, encodings);
     const req = AddTrackRequest.fromPartial({
       cid: simulcastTrack.mediaStreamTrack.id,
       type: Track.kindToProto(track.kind),
@@ -683,18 +670,19 @@ export default class LocalParticipant extends Participant {
       simulcastTrack.mediaStreamTrack,
       transceiverInit,
     );
-    this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
-    track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
+    this.setPreferredCodec(transceiver, track.kind, videoCodec);
+    track.setSimulcastTrackSender(videoCodec, transceiver.sender);
 
-    if (videoCodec === 'av1' && encodings[0]?.maxBitrate) {
-      this.engine.publisher.setTrackCodecBitrate(
-        req.cid,
-        videoCodec,
-        encodings[0].maxBitrate / 1000,
-      );
-    }
+    // TODO do we want to support av1 as a backup codec?
+    // if (videoCodec === 'av1' && encodings[0]?.maxBitrate) {
+    //   this.engine.publisher.setTrackCodecBitrate(
+    //     req.cid,
+    //     videoCodec,
+    //     encodings[0].maxBitrate / 1000,
+    //   );
+    // }
     this.engine.negotiate();
-    log.debug(`published ${opts.videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
+    log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
   }
 
   unpublishTrack(
@@ -935,8 +923,10 @@ export default class LocalParticipant extends Participant {
       }
       const newCodecs = await pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
       for await (const codec of newCodecs) {
-        log.debug(`publish ${codec} for ${pub.videoTrack.sid}`);
-        await this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
+        if (isBackupCodec(codec)) {
+          log.debug(`publish ${codec} for ${pub.videoTrack.sid}`);
+          await this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
+        }
       }
     } else if (update.subscribedQualities.length > 0) {
       pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
