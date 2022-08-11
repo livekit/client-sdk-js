@@ -195,7 +195,7 @@ export function computeTrackBackupEncodings(
   videoCodec: BackupVideoCodec,
   opts: TrackPublishOptions,
 ) {
-  if (!opts.backupCodec) {
+  if (!opts.backupCodec || opts.backupCodec.codec === opts.videoCodec) {
     // backup codec publishing is disabled
     return;
   }
