@@ -5,6 +5,7 @@ import LocalVideoTrack from '../track/LocalVideoTrack';
 import {
   ScreenSharePresets,
   TrackPublishOptions,
+  VideoCodec,
   VideoEncoding,
   VideoPreset,
   VideoPresets,
@@ -61,24 +62,24 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
   );
 };
 
-/**
- *
- * @internal
- * @experimental
- */
-export const computeDefaultMultiCodecSimulcastEncodings = (width: number, height: number) => {
-  // use vp8 as a default
-  const vp8 = determineAppropriateEncoding(false, width, height);
-  const vp9 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.9 };
-  const h264 = { ...vp8, maxBitrate: vp8.maxBitrate * 1.1 };
-  const av1 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.7 };
-  return {
-    vp8,
-    vp9,
-    h264,
-    av1,
-  };
-};
+// /**
+//  *
+//  * @internal
+//  * @experimental
+//  */
+// const computeDefaultMultiCodecSimulcastEncodings = (width: number, height: number) => {
+//   // use vp8 as a default
+//   const vp8 = determineAppropriateEncoding(false, width, height);
+//   const vp9 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.9 };
+//   const h264 = { ...vp8, maxBitrate: vp8.maxBitrate * 1.1 };
+//   const av1 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.7 };
+//   return {
+//     vp8,
+//     vp9,
+//     h264,
+//     av1,
+//   };
+// };
 
 const videoRids = ['q', 'h', 'f'];
 
@@ -97,6 +98,7 @@ export function computeVideoEncodings(
 
   const useSimulcast = options?.simulcast;
   const scalabilityMode = options?.scalabilityMode;
+  const videoCodec = options?.videoCodec;
 
   if ((!videoEncoding && !useSimulcast && !scalabilityMode) || !width || !height) {
     // when we aren't simulcasting or svc, will need to return a single encoding without
@@ -104,21 +106,8 @@ export function computeVideoEncodings(
     return [{}];
   }
 
-  // merge default and user provided multiCodecSimulcast encodings (we will fall back to the default ones)
-  if (options?.backupCodec) {
-  }
-  const multiCodecSimulcastEncodings = {
-    ...computeDefaultMultiCodecSimulcastEncodings(width, height),
-    ...options?.backupCodec,
-  };
-
   if (!videoEncoding) {
-    // find the right encoding based on width/height
-    if (options?.videoCodec) {
-      videoEncoding = multiCodecSimulcastEncodings[options.videoCodec];
-    } else {
-      videoEncoding = determineAppropriateEncoding(isScreenShare, width, height);
-    }
+    videoEncoding = determineAppropriateEncoding(isScreenShare, width, height, videoCodec);
     log.debug('using video encoding', videoEncoding);
   }
 
@@ -129,11 +118,12 @@ export function computeVideoEncodings(
     videoEncoding.maxFramerate,
   );
 
-  log.debug(`scalabilityMode ${scalabilityMode}`);
-  if (scalabilityMode) {
+  if (scalabilityMode && videoCodec === 'av1') {
+    // TODO decide if this path should be enabled for vp9 also
+    log.debug(`using svc with scalabilityMode ${scalabilityMode}`);
+
     const encodings: RTCRtpEncodingParameters[] = [];
 
-    const av1Encoding = multiCodecSimulcastEncodings.av1;
     // svc use first encoding as the original, so we sort encoding from high to low
     switch (scalabilityMode) {
       case 'L3T3':
@@ -141,7 +131,7 @@ export function computeVideoEncodings(
           encodings.push({
             rid: videoRids[2 - i],
             scaleResolutionDownBy: 2 ** i,
-            maxBitrate: av1Encoding.maxBitrate / 3 ** i,
+            maxBitrate: videoEncoding.maxBitrate / 3 ** i,
             /* @ts-ignore */
             maxFramerate: original.encoding.maxFramerate,
             /* @ts-ignore */
@@ -202,6 +192,7 @@ export function determineAppropriateEncoding(
   isScreenShare: boolean,
   width: number,
   height: number,
+  codec?: VideoCodec,
 ): VideoEncoding {
   const presets = presetsForResolution(isScreenShare, width, height);
   let { encoding } = presets[0];
@@ -214,6 +205,20 @@ export function determineAppropriateEncoding(
     encoding = preset.encoding;
     if (preset.width >= size) {
       break;
+    }
+  }
+  // presets are based on the assumption of vp8 as a codec
+  // for other codecs we adjust the maxBitrate if no specific videoEncoding has been provided
+  // TODO make the bitrate multipliers configurable per codec
+  if (codec) {
+    switch (codec) {
+      case 'av1':
+        encoding.maxBitrate = encoding.maxBitrate * 0.7;
+        break;
+      case 'h264':
+        encoding.maxBitrate = encoding.maxBitrate * 1.1;
+      default:
+        break;
     }
   }
 

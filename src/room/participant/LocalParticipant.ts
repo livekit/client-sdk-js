@@ -605,9 +605,21 @@ export default class LocalParticipant extends Participant {
       ...this.roomOptions?.publishDefaults,
       ...options,
     };
-    // clear scalabilityMode setting for backup codec
-    opts.scalabilityMode = undefined;
+    if (!opts.backupCodec) {
+      // backup codec publishing is disabled
+      return;
+    }
+    if (videoCodec !== opts.backupCodec.codec) {
+      log.warn('server requested a different codec than specified as backup', {
+        serverRequested: videoCodec,
+        backup: opts.backupCodec.codec,
+      });
+    }
+
     opts.videoCodec = videoCodec;
+    // use backup encoding setting as videoEncoding for backup codec publishing
+    opts.videoEncoding = opts.backupCodec.encoding;
+
     // is it not published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
     this.tracks.forEach((publication) => {
