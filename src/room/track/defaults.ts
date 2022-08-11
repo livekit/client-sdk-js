@@ -14,6 +14,7 @@ export const publishDefaults: TrackPublishDefaults = {
   screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
   stopMicTrackOnMute: false,
   videoCodec: 'vp8',
+  backupCodec: { codec: 'vp8', encoding: VideoPresets.h540.encoding },
 };
 
 export const audioDefaults: AudioCaptureOptions = {

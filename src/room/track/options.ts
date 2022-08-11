@@ -9,7 +9,7 @@ export interface TrackPublishDefaults {
   /**
    * @experimental
    */
-  backupCodec?: { codec: BackupVideoCodec; encoding: VideoEncoding };
+  backupCodec?: { codec: BackupVideoCodec; encoding: VideoEncoding } | false;
 
   /**
    * encoding parameters for screen share track
