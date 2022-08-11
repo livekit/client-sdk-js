@@ -5,6 +5,7 @@ import { Track } from './Track';
 export default abstract class RemoteTrack extends Track {
   /** @internal */
   receiver?: RTCRtpReceiver;
+
   monitorStarted = false;
 
   constructor(
