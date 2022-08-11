@@ -5,6 +5,7 @@ import {
   Room,
   ParticipantInfo,
   ClientConfiguration,
+  ServerInfo,
   TrackInfo,
   VideoQuality,
   DisconnectReason,
@@ -207,6 +208,7 @@ export interface JoinResponse {
   room?: Room;
   participant?: ParticipantInfo;
   otherParticipants: ParticipantInfo[];
+  /** deprecated. use server_info.version instead. */
   serverVersion: string;
   iceServers: ICEServer[];
   /** use subscriber as the primary PeerConnection */
@@ -217,9 +219,11 @@ export interface JoinResponse {
    */
   alternativeUrl: string;
   clientConfiguration?: ClientConfiguration;
+  /** deprecated. use server_info.region instead. */
   serverRegion: string;
   pingTimeout: number;
   pingInterval: number;
+  serverInfo?: ServerInfo;
 }
 
 export interface TrackPublishedResponse {
@@ -1567,6 +1571,7 @@ function createBaseJoinResponse(): JoinResponse {
     serverRegion: '',
     pingTimeout: 0,
     pingInterval: 0,
+    serverInfo: undefined,
   };
 }
 
@@ -1604,6 +1609,9 @@ export const JoinResponse = {
     }
     if (message.pingInterval !== 0) {
       writer.uint32(88).int32(message.pingInterval);
+    }
+    if (message.serverInfo !== undefined) {
+      ServerInfo.encode(message.serverInfo, writer.uint32(98).fork()).ldelim();
     }
     return writer;
   },
@@ -1648,6 +1656,9 @@ export const JoinResponse = {
         case 11:
           message.pingInterval = reader.int32();
           break;
+        case 12:
+          message.serverInfo = ServerInfo.decode(reader, reader.uint32());
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1679,6 +1690,7 @@ export const JoinResponse = {
       serverRegion: isSet(object.serverRegion) ? String(object.serverRegion) : '',
       pingTimeout: isSet(object.pingTimeout) ? Number(object.pingTimeout) : 0,
       pingInterval: isSet(object.pingInterval) ? Number(object.pingInterval) : 0,
+      serverInfo: isSet(object.serverInfo) ? ServerInfo.fromJSON(object.serverInfo) : undefined,
     };
   },
 
@@ -1711,6 +1723,8 @@ export const JoinResponse = {
     message.serverRegion !== undefined && (obj.serverRegion = message.serverRegion);
     message.pingTimeout !== undefined && (obj.pingTimeout = Math.round(message.pingTimeout));
     message.pingInterval !== undefined && (obj.pingInterval = Math.round(message.pingInterval));
+    message.serverInfo !== undefined &&
+      (obj.serverInfo = message.serverInfo ? ServerInfo.toJSON(message.serverInfo) : undefined);
     return obj;
   },
 
@@ -1735,6 +1749,10 @@ export const JoinResponse = {
     message.serverRegion = object.serverRegion ?? '';
     message.pingTimeout = object.pingTimeout ?? 0;
     message.pingInterval = object.pingInterval ?? 0;
+    message.serverInfo =
+      object.serverInfo !== undefined && object.serverInfo !== null
+        ? ServerInfo.fromPartial(object.serverInfo)
+        : undefined;
     return message;
   },
 };
@@ -3462,7 +3480,7 @@ export type DeepPartial<T> = T extends Builtin
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin
   ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & Record<Exclude<keyof I, KeysOfUnion<P>>, never>;
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function longToNumber(long: Long): number {
   if (long.gt(Number.MAX_SAFE_INTEGER)) {

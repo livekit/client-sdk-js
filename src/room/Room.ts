@@ -10,6 +10,7 @@ import {
   ParticipantInfo_State,
   ParticipantPermission,
   Room as RoomModel,
+  ServerInfo,
   SpeakerInfo,
   UserPacket,
 } from '../proto/livekit_models';
@@ -247,8 +248,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
           this.abortController.signal,
         );
+
+        let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
+        if (!serverInfo) {
+          serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
+        }
+
         log.debug(
-          `connected to Livekit Server version: ${joinResponse.serverVersion}, region: ${joinResponse.serverRegion}`,
+          `connected to Livekit Server ${Object.entries(serverInfo)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(' ')}`,
         );
 
         if (!joinResponse.serverVersion) {
