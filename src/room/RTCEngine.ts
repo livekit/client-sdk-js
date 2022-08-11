@@ -25,7 +25,7 @@ import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from '.
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
 import { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
-import { isFireFox, isWeb, sleep } from './utils';
+import { isWeb, sleep } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -525,7 +525,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
       if (
-        isFireFox() || // TODO remove once clientConfiguration handles firefox case server side
         this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED ||
         // signaling state could change to closed due to hardware sleep
         // those connections cannot be resumed
