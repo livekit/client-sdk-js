@@ -91,8 +91,8 @@ export function computeVideoEncodings(
 ): RTCRtpEncodingParameters[] {
   let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
   // in case the user provided multiCodecSimulcast encoding, we prefer them to the videoEncoding setting as long as a videoCodec is set
-  if (options?.multiCodecSimulcastEncodings && options.videoCodec) {
-    videoEncoding = options.multiCodecSimulcastEncodings[options.videoCodec] ?? videoEncoding;
+  if (options?.backupCodec && options.videoCodec) {
+    videoEncoding = options.backupCodec[options.videoCodec] ?? videoEncoding;
   }
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
@@ -110,7 +110,7 @@ export function computeVideoEncodings(
   // merge default and user provided multiCodecSimulcast encodings (we will fall back to the default ones)
   const multiCodecSimulcastEncodings = {
     ...computeDefaultMultiCodecSimulcastEncodings(width, height),
-    ...options?.multiCodecSimulcastEncodings,
+    ...options?.backupCodec,
   };
 
   if (!videoEncoding) {

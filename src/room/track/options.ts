@@ -9,7 +9,7 @@ export interface TrackPublishDefaults {
   /**
    * @experimental
    */
-  multiCodecSimulcastEncodings?: Partial<Record<VideoCodec, VideoEncoding>>;
+  backupCodec?: { codec: VideoCodec; encoding: VideoEncoding };
 
   /**
    * encoding parameters for screen share track
