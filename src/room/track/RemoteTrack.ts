@@ -5,6 +5,7 @@ import { Track } from './Track';
 export default abstract class RemoteTrack extends Track {
   /** @internal */
   receiver?: RTCRtpReceiver;
+  monitorStarted = false;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -52,9 +53,12 @@ export default abstract class RemoteTrack extends Track {
 
   /* @internal */
   startMonitor() {
-    setTimeout(() => {
-      this.monitorReceiver();
-    }, monitorFrequency);
+    if (!this.monitorStarted) {
+      setTimeout(() => {
+        this.monitorReceiver();
+      }, monitorFrequency);
+      this.monitorStarted = true;
+    }
   }
 
   protected abstract monitorReceiver(): void;
