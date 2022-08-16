@@ -251,8 +251,6 @@ export function determineAppropriateEncoding(
       case 'av1':
         encoding.maxBitrate = encoding.maxBitrate * 0.7;
         break;
-      case 'h264':
-        encoding.maxBitrate = encoding.maxBitrate * 1.1;
       default:
         break;
     }
