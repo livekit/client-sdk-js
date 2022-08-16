@@ -509,7 +509,7 @@ export default class LocalParticipant extends Participant {
         }
 
         // set vp8 codec as backup for any other codecs
-        if (opts.videoCodec && opts.videoCodec !== 'vp8' && !isFireFox()) {
+        if (opts.videoCodec && opts.videoCodec !== 'vp8') {
           req.simulcastCodecs = [
             {
               codec: opts.videoCodec,
