@@ -495,6 +495,50 @@ export interface ParticipantTracks {
   trackSids: string[];
 }
 
+/** details about the server */
+export interface ServerInfo {
+  edition: ServerInfo_Edition;
+  version: string;
+  protocol: number;
+  region: string;
+  nodeId: string;
+  /** additional debugging information. sent only if server is in development mode */
+  debugInfo: string;
+}
+
+export enum ServerInfo_Edition {
+  Standard = 0,
+  Cloud = 1,
+  UNRECOGNIZED = -1,
+}
+
+export function serverInfo_EditionFromJSON(object: any): ServerInfo_Edition {
+  switch (object) {
+    case 0:
+    case 'Standard':
+      return ServerInfo_Edition.Standard;
+    case 1:
+    case 'Cloud':
+      return ServerInfo_Edition.Cloud;
+    case -1:
+    case 'UNRECOGNIZED':
+    default:
+      return ServerInfo_Edition.UNRECOGNIZED;
+  }
+}
+
+export function serverInfo_EditionToJSON(object: ServerInfo_Edition): string {
+  switch (object) {
+    case ServerInfo_Edition.Standard:
+      return 'Standard';
+    case ServerInfo_Edition.Cloud:
+      return 'Cloud';
+    case ServerInfo_Edition.UNRECOGNIZED:
+    default:
+      return 'UNRECOGNIZED';
+  }
+}
+
 /** details about the client */
 export interface ClientInfo {
   sdk: ClientInfo_SDK;
@@ -1809,6 +1853,100 @@ export const ParticipantTracks = {
   },
 };
 
+function createBaseServerInfo(): ServerInfo {
+  return { edition: 0, version: '', protocol: 0, region: '', nodeId: '', debugInfo: '' };
+}
+
+export const ServerInfo = {
+  encode(message: ServerInfo, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.edition !== 0) {
+      writer.uint32(8).int32(message.edition);
+    }
+    if (message.version !== '') {
+      writer.uint32(18).string(message.version);
+    }
+    if (message.protocol !== 0) {
+      writer.uint32(24).int32(message.protocol);
+    }
+    if (message.region !== '') {
+      writer.uint32(34).string(message.region);
+    }
+    if (message.nodeId !== '') {
+      writer.uint32(42).string(message.nodeId);
+    }
+    if (message.debugInfo !== '') {
+      writer.uint32(50).string(message.debugInfo);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ServerInfo {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseServerInfo();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.edition = reader.int32() as any;
+          break;
+        case 2:
+          message.version = reader.string();
+          break;
+        case 3:
+          message.protocol = reader.int32();
+          break;
+        case 4:
+          message.region = reader.string();
+          break;
+        case 5:
+          message.nodeId = reader.string();
+          break;
+        case 6:
+          message.debugInfo = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ServerInfo {
+    return {
+      edition: isSet(object.edition) ? serverInfo_EditionFromJSON(object.edition) : 0,
+      version: isSet(object.version) ? String(object.version) : '',
+      protocol: isSet(object.protocol) ? Number(object.protocol) : 0,
+      region: isSet(object.region) ? String(object.region) : '',
+      nodeId: isSet(object.nodeId) ? String(object.nodeId) : '',
+      debugInfo: isSet(object.debugInfo) ? String(object.debugInfo) : '',
+    };
+  },
+
+  toJSON(message: ServerInfo): unknown {
+    const obj: any = {};
+    message.edition !== undefined && (obj.edition = serverInfo_EditionToJSON(message.edition));
+    message.version !== undefined && (obj.version = message.version);
+    message.protocol !== undefined && (obj.protocol = Math.round(message.protocol));
+    message.region !== undefined && (obj.region = message.region);
+    message.nodeId !== undefined && (obj.nodeId = message.nodeId);
+    message.debugInfo !== undefined && (obj.debugInfo = message.debugInfo);
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<ServerInfo>, I>>(object: I): ServerInfo {
+    const message = createBaseServerInfo();
+    message.edition = object.edition ?? 0;
+    message.version = object.version ?? '';
+    message.protocol = object.protocol ?? 0;
+    message.region = object.region ?? '';
+    message.nodeId = object.nodeId ?? '';
+    message.debugInfo = object.debugInfo ?? '';
+    return message;
+  },
+};
+
 function createBaseClientInfo(): ClientInfo {
   return {
     sdk: 0,
@@ -2734,25 +2872,29 @@ var globalThis: any = (() => {
   throw 'Unable to locate global object';
 })();
 
-const atob: (b64: string) => string =
-  globalThis.atob || ((b64) => globalThis.Buffer.from(b64, 'base64').toString('binary'));
 function bytesFromBase64(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; ++i) {
-    arr[i] = bin.charCodeAt(i);
+  if (globalThis.Buffer) {
+    return Uint8Array.from(globalThis.Buffer.from(b64, 'base64'));
+  } else {
+    const bin = globalThis.atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; ++i) {
+      arr[i] = bin.charCodeAt(i);
+    }
+    return arr;
   }
-  return arr;
 }
 
-const btoa: (bin: string) => string =
-  globalThis.btoa || ((bin) => globalThis.Buffer.from(bin, 'binary').toString('base64'));
 function base64FromBytes(arr: Uint8Array): string {
-  const bin: string[] = [];
-  arr.forEach((byte) => {
-    bin.push(String.fromCharCode(byte));
-  });
-  return btoa(bin.join(''));
+  if (globalThis.Buffer) {
+    return globalThis.Buffer.from(arr).toString('base64');
+  } else {
+    const bin: string[] = [];
+    arr.forEach((byte) => {
+      bin.push(String.fromCharCode(byte));
+    });
+    return globalThis.btoa(bin.join(''));
+  }
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
@@ -2772,7 +2914,7 @@ export type DeepPartial<T> = T extends Builtin
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin
   ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & Record<Exclude<keyof I, KeysOfUnion<P>>, never>;
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function toTimestamp(date: Date): Timestamp {
   const seconds = date.getTime() / 1_000;

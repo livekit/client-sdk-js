@@ -1,5 +1,23 @@
 # Change Log
 
+## 1.2.11
+
+### Patch Changes
+
+- [#390](https://github.com/livekit/client-sdk-js/pull/390) [`b9ca04f`](https://github.com/livekit/client-sdk-js/commit/b9ca04fccd9c3e7657069a9ad3da7d64c9df5a5a) Thanks [@davidzhao](https://github.com/davidzhao)! - Enable ICE restart for Firefox
+
+* [#388](https://github.com/livekit/client-sdk-js/pull/388) [`5cc13e4`](https://github.com/livekit/client-sdk-js/commit/5cc13e481e65e6fe853fd709d02c0c30b72f0647) Thanks [@cnderrauber](https://github.com/cnderrauber)! - don't declare simulcast codecs for firefox
+
+- [#395](https://github.com/livekit/client-sdk-js/pull/395) [`213233c`](https://github.com/livekit/client-sdk-js/commit/213233c4009c906c75a78b8b2221abfcb3863305) Thanks [@lukasIO](https://github.com/lukasIO)! - Set metadata when creating participant
+
+* [#391](https://github.com/livekit/client-sdk-js/pull/391) [`e5851ea`](https://github.com/livekit/client-sdk-js/commit/e5851ea6c9a8c4be74f60e9ece6f72cdf3560b5b) Thanks [@lukasIO](https://github.com/lukasIO)! - Log consolidated serverinfo on connect
+
+- [#384](https://github.com/livekit/client-sdk-js/pull/384) [`961fcc4`](https://github.com/livekit/client-sdk-js/commit/961fcc42f27e8298daf13e198067268d8b4d12ce) Thanks [@davidzhao](https://github.com/davidzhao)! - Perform full reconnect faster when server is unable to resume
+
+* [#385](https://github.com/livekit/client-sdk-js/pull/385) [`c11d99d`](https://github.com/livekit/client-sdk-js/commit/c11d99d89f8465ffa63ee19b58d1c2d4223e5479) Thanks [@lukasIO](https://github.com/lukasIO)! - Don't reacquire muted tracks when app visibility changes
+
+- [#386](https://github.com/livekit/client-sdk-js/pull/386) [`e64cb2f`](https://github.com/livekit/client-sdk-js/commit/e64cb2fbb7368bc0d45c46f927e705353e8c1882) Thanks [@lukasIO](https://github.com/lukasIO)! - Add fallback to unmunged sdp offer
+
 ## 1.2.10
 
 ### Patch Changes
