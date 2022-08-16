@@ -497,23 +497,17 @@ export default class LocalParticipant extends Participant {
       req.height = height ?? 0;
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
-        if (opts.backupCodec && (opts?.videoCodec === 'vp9' || opts?.videoCodec === 'av1')) {
+        if (opts?.videoCodec === 'av1') {
           // set scalabilityMode to 'L3T3' by default
           opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
+        }
 
-          // add backup codec track
+        // set up backup
+        if (opts.videoCodec && opts.backupCodec && opts.videoCodec !== opts.backupCodec.codec) {
           const simOpts = { ...opts };
           simOpts.simulcast = true;
           simEncodings = computeTrackBackupEncodings(track, opts.backupCodec.codec, simOpts);
-        }
 
-        // set vp8 codec as backup for any other codecs
-        if (
-          opts.videoCodec &&
-          opts.backupCodec &&
-          opts.videoCodec !== opts.backupCodec.codec &&
-          !isFireFox()
-        ) {
           req.simulcastCodecs = [
             {
               codec: opts.videoCodec,
