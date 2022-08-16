@@ -24,12 +24,18 @@ export default class RemoteParticipant extends Participant {
 
   /** @internal */
   static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
-    return new RemoteParticipant(signalClient, pi.sid, pi.identity, pi.name);
+    return new RemoteParticipant(signalClient, pi.sid, pi.identity, pi.name, pi.metadata);
   }
 
   /** @internal */
-  constructor(signalClient: SignalClient, sid: string, identity?: string, name?: string) {
-    super(sid, identity || '', name);
+  constructor(
+    signalClient: SignalClient,
+    sid: string,
+    identity?: string,
+    name?: string,
+    metadata?: string,
+  ) {
+    super(sid, identity || '', name, metadata);
     this.signalClient = signalClient;
     this.tracks = new Map();
     this.audioTracks = new Map();
