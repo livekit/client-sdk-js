@@ -640,5 +640,9 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
     params.set('adaptive_stream', '1');
   }
 
+  if (navigator.connection?.type) {
+    params.set('network', navigator.connection.type);
+  }
+
   return `?${params.toString()}`;
 }

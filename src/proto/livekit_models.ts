@@ -550,6 +550,8 @@ export interface ClientInfo {
   browser: string;
   browserVersion: string;
   address: string;
+  /** wifi, wired, cellular, vpn, empty if not known */
+  network: string;
 }
 
 export enum ClientInfo_SDK {
@@ -638,6 +640,7 @@ export interface RTPStats {
   packets: number;
   packetRate: number;
   bytes: number;
+  headerBytes: number;
   bitrate: number;
   packetsLost: number;
   packetLossRate: number;
@@ -645,10 +648,12 @@ export interface RTPStats {
   packetsDuplicate: number;
   packetDuplicateRate: number;
   bytesDuplicate: number;
+  headerBytesDuplicate: number;
   bitrateDuplicate: number;
   packetsPadding: number;
   packetPaddingRate: number;
   bytesPadding: number;
+  headerBytesPadding: number;
   bitratePadding: number;
   packetsOutOfOrder: number;
   frames: number;
@@ -1958,6 +1963,7 @@ function createBaseClientInfo(): ClientInfo {
     browser: '',
     browserVersion: '',
     address: '',
+    network: '',
   };
 }
 
@@ -1989,6 +1995,9 @@ export const ClientInfo = {
     }
     if (message.address !== '') {
       writer.uint32(74).string(message.address);
+    }
+    if (message.network !== '') {
+      writer.uint32(82).string(message.network);
     }
     return writer;
   },
@@ -2027,6 +2036,9 @@ export const ClientInfo = {
         case 9:
           message.address = reader.string();
           break;
+        case 10:
+          message.network = reader.string();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -2046,6 +2058,7 @@ export const ClientInfo = {
       browser: isSet(object.browser) ? String(object.browser) : '',
       browserVersion: isSet(object.browserVersion) ? String(object.browserVersion) : '',
       address: isSet(object.address) ? String(object.address) : '',
+      network: isSet(object.network) ? String(object.network) : '',
     };
   },
 
@@ -2060,6 +2073,7 @@ export const ClientInfo = {
     message.browser !== undefined && (obj.browser = message.browser);
     message.browserVersion !== undefined && (obj.browserVersion = message.browserVersion);
     message.address !== undefined && (obj.address = message.address);
+    message.network !== undefined && (obj.network = message.network);
     return obj;
   },
 
@@ -2074,6 +2088,7 @@ export const ClientInfo = {
     message.browser = object.browser ?? '';
     message.browserVersion = object.browserVersion ?? '';
     message.address = object.address ?? '';
+    message.network = object.network ?? '';
     return message;
   },
 };
@@ -2288,6 +2303,7 @@ function createBaseRTPStats(): RTPStats {
     packets: 0,
     packetRate: 0,
     bytes: 0,
+    headerBytes: 0,
     bitrate: 0,
     packetsLost: 0,
     packetLossRate: 0,
@@ -2295,10 +2311,12 @@ function createBaseRTPStats(): RTPStats {
     packetsDuplicate: 0,
     packetDuplicateRate: 0,
     bytesDuplicate: 0,
+    headerBytesDuplicate: 0,
     bitrateDuplicate: 0,
     packetsPadding: 0,
     packetPaddingRate: 0,
     bytesPadding: 0,
+    headerBytesPadding: 0,
     bitratePadding: 0,
     packetsOutOfOrder: 0,
     frames: 0,
@@ -2343,6 +2361,9 @@ export const RTPStats = {
     if (message.bytes !== 0) {
       writer.uint32(48).uint64(message.bytes);
     }
+    if (message.headerBytes !== 0) {
+      writer.uint32(312).uint64(message.headerBytes);
+    }
     if (message.bitrate !== 0) {
       writer.uint32(57).double(message.bitrate);
     }
@@ -2364,6 +2385,9 @@ export const RTPStats = {
     if (message.bytesDuplicate !== 0) {
       writer.uint32(104).uint64(message.bytesDuplicate);
     }
+    if (message.headerBytesDuplicate !== 0) {
+      writer.uint32(320).uint64(message.headerBytesDuplicate);
+    }
     if (message.bitrateDuplicate !== 0) {
       writer.uint32(113).double(message.bitrateDuplicate);
     }
@@ -2375,6 +2399,9 @@ export const RTPStats = {
     }
     if (message.bytesPadding !== 0) {
       writer.uint32(136).uint64(message.bytesPadding);
+    }
+    if (message.headerBytesPadding !== 0) {
+      writer.uint32(328).uint64(message.headerBytesPadding);
     }
     if (message.bitratePadding !== 0) {
       writer.uint32(145).double(message.bitratePadding);
@@ -2470,6 +2497,9 @@ export const RTPStats = {
         case 6:
           message.bytes = longToNumber(reader.uint64() as Long);
           break;
+        case 39:
+          message.headerBytes = longToNumber(reader.uint64() as Long);
+          break;
         case 7:
           message.bitrate = reader.double();
           break;
@@ -2491,6 +2521,9 @@ export const RTPStats = {
         case 13:
           message.bytesDuplicate = longToNumber(reader.uint64() as Long);
           break;
+        case 40:
+          message.headerBytesDuplicate = longToNumber(reader.uint64() as Long);
+          break;
         case 14:
           message.bitrateDuplicate = reader.double();
           break;
@@ -2502,6 +2535,9 @@ export const RTPStats = {
           break;
         case 17:
           message.bytesPadding = longToNumber(reader.uint64() as Long);
+          break;
+        case 41:
+          message.headerBytesPadding = longToNumber(reader.uint64() as Long);
           break;
         case 18:
           message.bitratePadding = reader.double();
@@ -2585,6 +2621,7 @@ export const RTPStats = {
       packets: isSet(object.packets) ? Number(object.packets) : 0,
       packetRate: isSet(object.packetRate) ? Number(object.packetRate) : 0,
       bytes: isSet(object.bytes) ? Number(object.bytes) : 0,
+      headerBytes: isSet(object.headerBytes) ? Number(object.headerBytes) : 0,
       bitrate: isSet(object.bitrate) ? Number(object.bitrate) : 0,
       packetsLost: isSet(object.packetsLost) ? Number(object.packetsLost) : 0,
       packetLossRate: isSet(object.packetLossRate) ? Number(object.packetLossRate) : 0,
@@ -2596,10 +2633,14 @@ export const RTPStats = {
         ? Number(object.packetDuplicateRate)
         : 0,
       bytesDuplicate: isSet(object.bytesDuplicate) ? Number(object.bytesDuplicate) : 0,
+      headerBytesDuplicate: isSet(object.headerBytesDuplicate)
+        ? Number(object.headerBytesDuplicate)
+        : 0,
       bitrateDuplicate: isSet(object.bitrateDuplicate) ? Number(object.bitrateDuplicate) : 0,
       packetsPadding: isSet(object.packetsPadding) ? Number(object.packetsPadding) : 0,
       packetPaddingRate: isSet(object.packetPaddingRate) ? Number(object.packetPaddingRate) : 0,
       bytesPadding: isSet(object.bytesPadding) ? Number(object.bytesPadding) : 0,
+      headerBytesPadding: isSet(object.headerBytesPadding) ? Number(object.headerBytesPadding) : 0,
       bitratePadding: isSet(object.bitratePadding) ? Number(object.bitratePadding) : 0,
       packetsOutOfOrder: isSet(object.packetsOutOfOrder) ? Number(object.packetsOutOfOrder) : 0,
       frames: isSet(object.frames) ? Number(object.frames) : 0,
@@ -2642,6 +2683,7 @@ export const RTPStats = {
     message.packets !== undefined && (obj.packets = Math.round(message.packets));
     message.packetRate !== undefined && (obj.packetRate = message.packetRate);
     message.bytes !== undefined && (obj.bytes = Math.round(message.bytes));
+    message.headerBytes !== undefined && (obj.headerBytes = Math.round(message.headerBytes));
     message.bitrate !== undefined && (obj.bitrate = message.bitrate);
     message.packetsLost !== undefined && (obj.packetsLost = Math.round(message.packetsLost));
     message.packetLossRate !== undefined && (obj.packetLossRate = message.packetLossRate);
@@ -2653,11 +2695,15 @@ export const RTPStats = {
       (obj.packetDuplicateRate = message.packetDuplicateRate);
     message.bytesDuplicate !== undefined &&
       (obj.bytesDuplicate = Math.round(message.bytesDuplicate));
+    message.headerBytesDuplicate !== undefined &&
+      (obj.headerBytesDuplicate = Math.round(message.headerBytesDuplicate));
     message.bitrateDuplicate !== undefined && (obj.bitrateDuplicate = message.bitrateDuplicate);
     message.packetsPadding !== undefined &&
       (obj.packetsPadding = Math.round(message.packetsPadding));
     message.packetPaddingRate !== undefined && (obj.packetPaddingRate = message.packetPaddingRate);
     message.bytesPadding !== undefined && (obj.bytesPadding = Math.round(message.bytesPadding));
+    message.headerBytesPadding !== undefined &&
+      (obj.headerBytesPadding = Math.round(message.headerBytesPadding));
     message.bitratePadding !== undefined && (obj.bitratePadding = message.bitratePadding);
     message.packetsOutOfOrder !== undefined &&
       (obj.packetsOutOfOrder = Math.round(message.packetsOutOfOrder));
@@ -2697,6 +2743,7 @@ export const RTPStats = {
     message.packets = object.packets ?? 0;
     message.packetRate = object.packetRate ?? 0;
     message.bytes = object.bytes ?? 0;
+    message.headerBytes = object.headerBytes ?? 0;
     message.bitrate = object.bitrate ?? 0;
     message.packetsLost = object.packetsLost ?? 0;
     message.packetLossRate = object.packetLossRate ?? 0;
@@ -2704,10 +2751,12 @@ export const RTPStats = {
     message.packetsDuplicate = object.packetsDuplicate ?? 0;
     message.packetDuplicateRate = object.packetDuplicateRate ?? 0;
     message.bytesDuplicate = object.bytesDuplicate ?? 0;
+    message.headerBytesDuplicate = object.headerBytesDuplicate ?? 0;
     message.bitrateDuplicate = object.bitrateDuplicate ?? 0;
     message.packetsPadding = object.packetsPadding ?? 0;
     message.packetPaddingRate = object.packetPaddingRate ?? 0;
     message.bytesPadding = object.bytesPadding ?? 0;
+    message.headerBytesPadding = object.headerBytesPadding ?? 0;
     message.bitratePadding = object.bitratePadding ?? 0;
     message.packetsOutOfOrder = object.packetsOutOfOrder ?? 0;
     message.frames = object.frames ?? 0;
@@ -2872,29 +2921,25 @@ var globalThis: any = (() => {
   throw 'Unable to locate global object';
 })();
 
+const atob: (b64: string) => string =
+  globalThis.atob || ((b64) => globalThis.Buffer.from(b64, 'base64').toString('binary'));
 function bytesFromBase64(b64: string): Uint8Array {
-  if (globalThis.Buffer) {
-    return Uint8Array.from(globalThis.Buffer.from(b64, 'base64'));
-  } else {
-    const bin = globalThis.atob(b64);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; ++i) {
-      arr[i] = bin.charCodeAt(i);
-    }
-    return arr;
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; ++i) {
+    arr[i] = bin.charCodeAt(i);
   }
+  return arr;
 }
 
+const btoa: (bin: string) => string =
+  globalThis.btoa || ((bin) => globalThis.Buffer.from(bin, 'binary').toString('base64'));
 function base64FromBytes(arr: Uint8Array): string {
-  if (globalThis.Buffer) {
-    return globalThis.Buffer.from(arr).toString('base64');
-  } else {
-    const bin: string[] = [];
-    arr.forEach((byte) => {
-      bin.push(String.fromCharCode(byte));
-    });
-    return globalThis.btoa(bin.join(''));
-  }
+  const bin: string[] = [];
+  arr.forEach((byte) => {
+    bin.push(String.fromCharCode(byte));
+  });
+  return btoa(bin.join(''));
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
@@ -2914,7 +2959,7 @@ export type DeepPartial<T> = T extends Builtin
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin
   ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & Record<Exclude<keyof I, KeysOfUnion<P>>, never>;
 
 function toTimestamp(date: Date): Timestamp {
   const seconds = date.getTime() / 1_000;
