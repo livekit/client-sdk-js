@@ -1,7 +1,7 @@
 import { debounce } from 'ts-debounce';
 import log from '../../logger';
 import { TrackEvent } from '../events';
-import { computeBitrate, monitorFrequency, VideoReceiverStats } from '../stats';
+import { computeBitrate, VideoReceiverStats } from '../stats';
 import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
@@ -160,9 +160,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
     }
 
     this.prevStats = stats;
-    setTimeout(() => {
-      this.monitorReceiver();
-    }, monitorFrequency);
   };
 
   private async getReceiverStats(): Promise<VideoReceiverStats | undefined> {
