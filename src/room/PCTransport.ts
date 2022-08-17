@@ -162,7 +162,7 @@ export default class PCTransport {
       answer.sdp = write(sdpParsed);
       await this.pc.setLocalDescription(answer);
     } catch (e: unknown) {
-      log.warn('not able to set desired local description, falling back to unmodified offer', {
+      log.warn('not able to set desired local description, falling back to unmodified answer', {
         error: e,
       });
       answer.sdp = originalSdp;
