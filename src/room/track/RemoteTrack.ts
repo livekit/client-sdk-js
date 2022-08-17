@@ -55,7 +55,7 @@ export default abstract class RemoteTrack extends Track {
   /* @internal */
   startMonitor() {
     if (!this.monitorInterval) {
-      this.monitorInterval = setInterval(() => this.monitorReceiver(), monitorFrequency)
+      this.monitorInterval = setInterval(() => this.monitorReceiver(), monitorFrequency);
     }
   }
 
