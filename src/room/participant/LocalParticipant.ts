@@ -667,14 +667,6 @@ export default class LocalParticipant extends Participant {
     this.setPreferredCodec(transceiver, track.kind, videoCodec);
     track.setSimulcastTrackSender(videoCodec, transceiver.sender);
 
-    // TODO do we want to support av1 as a backup codec?
-    // if (videoCodec === 'av1' && encodings[0]?.maxBitrate) {
-    //   this.engine.publisher.setTrackCodecBitrate(
-    //     req.cid,
-    //     videoCodec,
-    //     encodings[0].maxBitrate / 1000,
-    //   );
-    // }
     this.engine.negotiate();
     log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
   }
