@@ -647,7 +647,7 @@ export default class LocalParticipant extends Participant {
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
     }
-    await this.engine.setupSimulcastSender(track, simulcastTrack, opts, encodings);
+    await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
 
     this.engine.negotiate();
     log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
