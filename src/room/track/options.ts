@@ -99,6 +99,14 @@ export interface CreateLocalTracksOptions {
   video?: boolean | VideoCaptureOptions;
 }
 
+type FacingMode = 'user' | 'environment' | 'left' | 'right';
+interface ConstrainDOMFacingModeParameters extends ConstrainDOMStringParameters {
+  ideal?: FacingMode;
+  exact?: FacingMode;
+}
+
+type ConstrainDOMFacingMode = FacingMode | ConstrainDOMFacingModeParameters;
+
 export interface VideoCaptureOptions {
   /**
    * A ConstrainDOMString object specifying a device ID or an array of device
@@ -109,7 +117,7 @@ export interface VideoCaptureOptions {
   /**
    * a facing or an array of facings which are acceptable and/or required.
    */
-  facingMode?: 'user' | 'environment' | 'left' | 'right';
+  facingMode?: ConstrainDOMFacingMode;
 
   resolution?: VideoResolution;
 }
