@@ -1,4 +1,4 @@
-import { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
+import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 
 const maxRetryDelay = 7000;
 

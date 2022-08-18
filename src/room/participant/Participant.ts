@@ -7,11 +7,11 @@ import {
   ParticipantPermission,
 } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
-import LocalTrackPublication from '../track/LocalTrackPublication';
-import RemoteTrackPublication from '../track/RemoteTrackPublication';
+import type LocalTrackPublication from '../track/LocalTrackPublication';
+import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
-import { TrackPublication } from '../track/TrackPublication';
-import { RemoteTrack } from '../track/types';
+import type { TrackPublication } from '../track/TrackPublication';
+import type { RemoteTrack } from '../track/types';
 import log from '../../logger';
 
 export enum ConnectionQuality {

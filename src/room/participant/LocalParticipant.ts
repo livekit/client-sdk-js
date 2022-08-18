@@ -1,5 +1,5 @@
 import log from '../../logger';
-import { RoomOptions } from '../../options';
+import type { RoomOptions } from '../../options';
 import {
   DataPacket,
   DataPacket_Kind,
@@ -16,7 +16,7 @@ import {
 } from '../../proto/livekit_rtc';
 import { TrackInvalidError, UnexpectedConnectionState } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
-import RTCEngine from '../RTCEngine';
+import type RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';

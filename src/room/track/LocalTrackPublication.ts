@@ -1,10 +1,10 @@
-import { TrackInfo } from '../../proto/livekit_models';
+import type { TrackInfo } from '../../proto/livekit_models';
 import { TrackEvent } from '../events';
-import LocalAudioTrack from './LocalAudioTrack';
-import LocalTrack from './LocalTrack';
-import LocalVideoTrack from './LocalVideoTrack';
-import { TrackPublishOptions } from './options';
-import { Track } from './Track';
+import type LocalAudioTrack from './LocalAudioTrack';
+import type LocalTrack from './LocalTrack';
+import type LocalVideoTrack from './LocalVideoTrack';
+import type { TrackPublishOptions } from './options';
+import type { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
 
 export default class LocalTrackPublication extends TrackPublication {

@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
-import { RoomOptions } from '../options';
+import type { RoomOptions } from '../options';
 import {
   ClientConfigSetting,
   ClientConfiguration,
@@ -24,10 +24,11 @@ import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
-import { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
-import LocalTrack from './track/LocalTrack';
-import LocalVideoTrack, { SimulcastTrackInfo } from './track/LocalVideoTrack';
-import { TrackPublishOptions, VideoCodec } from './track/options';
+import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
+import type LocalTrack from './track/LocalTrack';
+import type LocalVideoTrack from './track/LocalVideoTrack';
+import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
+import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { Track } from './track/Track';
 import { isWeb, sleep, supportsAddTrack, supportsTransceiver } from './utils';
 

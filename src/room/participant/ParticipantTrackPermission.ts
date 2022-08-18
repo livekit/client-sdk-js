@@ -1,4 +1,4 @@
-import { TrackPermission } from '../../proto/livekit_rtc';
+import type { TrackPermission } from '../../proto/livekit_rtc';
 
 export interface ParticipantTrackPermission {
   /**

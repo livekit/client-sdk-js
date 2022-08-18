@@ -4,7 +4,7 @@ import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import { getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, isMobile } from '../utils';
-import { VideoCodec } from './options';
+import type { VideoCodec } from './options';
 import { attachToElement, detachTrack, Track } from './Track';
 
 export default class LocalTrack extends Track {

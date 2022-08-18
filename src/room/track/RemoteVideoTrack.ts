@@ -5,7 +5,7 @@ import { computeBitrate, monitorFrequency, VideoReceiverStats } from '../stats';
 import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
-import { AdaptiveStreamSettings } from './types';
+import type { AdaptiveStreamSettings } from './types';
 
 const REACTION_DELAY = 100;
 
