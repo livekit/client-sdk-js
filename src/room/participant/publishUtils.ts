@@ -122,7 +122,6 @@ export function computeVideoEncodings(
   );
 
   if (scalabilityMode && videoCodec === 'av1') {
-    // TODO decide if this path should be enabled for vp9 also
     log.debug(`using svc with scalabilityMode ${scalabilityMode}`);
 
     const encodings: RTCRtpEncodingParameters[] = [];
