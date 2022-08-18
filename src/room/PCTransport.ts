@@ -157,8 +157,17 @@ export default class PCTransport {
         ensureAudioNack(media);
       }
     });
-    answer.sdp = write(sdpParsed);
-    await this.pc.setLocalDescription(answer);
+    const originalSdp = answer.sdp;
+    try {
+      answer.sdp = write(sdpParsed);
+      await this.pc.setLocalDescription(answer);
+    } catch (e: unknown) {
+      log.warn('not able to set desired local description, falling back to unmodified answer', {
+        error: e,
+      });
+      answer.sdp = originalSdp;
+      await this.pc.setLocalDescription(answer);
+    }
     return answer;
   }
 
