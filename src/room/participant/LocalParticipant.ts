@@ -42,7 +42,6 @@ import {
   mediaTrackToLocalTrack,
 } from './publishUtils';
 import RemoteParticipant from './RemoteParticipant';
-import 'webrtc-adapter';
 
 export default class LocalParticipant extends Participant {
   audioTracks: Map<string, LocalTrackPublication>;
