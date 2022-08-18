@@ -20,7 +20,10 @@ import RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
-import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
+import LocalVideoTrack, {
+  SimulcastTrackInfo,
+  videoLayersFromEncodings,
+} from '../track/LocalVideoTrack';
 import {
   AudioCaptureOptions,
   BackupVideoCodec,
@@ -34,7 +37,7 @@ import {
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
-import { isFireFox, isWeb } from '../utils';
+import { isFireFox, isWeb, supportsAddTrack, supportsTransceiver } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import {
@@ -43,6 +46,7 @@ import {
   mediaTrackToLocalTrack,
 } from './publishUtils';
 import RemoteParticipant from './RemoteParticipant';
+import 'webrtc-adapter';
 
 export default class LocalParticipant extends Participant {
   audioTracks: Map<string, LocalTrackPublication>;
@@ -577,7 +581,7 @@ export default class LocalParticipant extends Participant {
     this.engine.negotiate();
 
     // store RTPSender
-    track.sender = transceiver.sender;
+    track.sender = await this.createSender(track, opts, encodings);
     if (track instanceof LocalVideoTrack) {
       track.startMonitor(this.engine.client);
     } else if (track instanceof LocalAudioTrack) {
@@ -589,6 +593,97 @@ export default class LocalParticipant extends Participant {
     // send event for publication
     this.emit(ParticipantEvent.LocalTrackPublished, publication);
     return publication;
+  }
+
+  async createSender(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    encodings?: RTCRtpEncodingParameters[],
+  ) {
+    if (supportsTransceiver()) {
+      return this.createSenderTransceiver(track, opts, encodings);
+    }
+    if (supportsAddTrack()) {
+      console.log('using add-track fallback');
+      return this.getTrackSender(track.mediaStreamTrack);
+    }
+    throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
+  }
+
+  async createSenderTransceiver(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    encodings?: RTCRtpEncodingParameters[],
+  ) {
+    if (!this.engine.publisher) {
+      throw new UnexpectedConnectionState('publisher is closed');
+    }
+
+    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+    if (encodings) {
+      transceiverInit.sendEncodings = encodings;
+    }
+    // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
+    const transceiver = await this.engine.publisher.pc.addTransceiver(
+      track.mediaStreamTrack,
+      transceiverInit,
+    );
+    if (track.kind === Track.Kind.Video && opts.videoCodec) {
+      this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
+      track.codec = opts.videoCodec;
+    }
+    return transceiver.sender;
+  }
+
+  async getSimulcastTransceiverSender(
+    track: LocalVideoTrack,
+    simulcastTrack: SimulcastTrackInfo,
+    opts: TrackPublishOptions,
+    encodings?: RTCRtpEncodingParameters[],
+  ) {
+    if (!this.engine.publisher) {
+      throw new UnexpectedConnectionState('publisher is closed');
+    }
+    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+    if (encodings) {
+      transceiverInit.sendEncodings = encodings;
+    }
+    // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
+    const transceiver = await this.engine.publisher.pc.addTransceiver(
+      simulcastTrack.mediaStreamTrack,
+      transceiverInit,
+    );
+    if (!opts.videoCodec) {
+      return;
+    }
+    this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
+    track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
+  }
+
+  async getTrackSender(track: MediaStreamTrack) {
+    if (!this.engine.publisher) {
+      throw new UnexpectedConnectionState('publisher is closed');
+    }
+    return this.engine.publisher.pc.addTrack(track);
+  }
+
+  async setupSimulcastSender(
+    track: LocalVideoTrack,
+    simulcastTrack: SimulcastTrackInfo,
+    opts: TrackPublishOptions,
+    encodings?: RTCRtpEncodingParameters[],
+  ) {
+    // store RTCRtpSender
+    // @ts-ignore
+    if (supportsTransceiver()) {
+      return this.getSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
+    }
+    if (supportsAddTrack()) {
+      console.log('using add-track');
+      return this.getTrackSender(track.mediaStreamTrack);
+    }
+
+    throw new UnexpectedConnectionState('Cannot stream on this device');
   }
 
   /** @internal
@@ -660,12 +755,7 @@ export default class LocalParticipant extends Participant {
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.engine.publisher.pc.addTransceiver(
-      simulcastTrack.mediaStreamTrack,
-      transceiverInit,
-    );
-    this.setPreferredCodec(transceiver, track.kind, videoCodec);
-    track.setSimulcastTrackSender(videoCodec, transceiver.sender);
+    await this.setupSimulcastSender(track, simulcastTrack, opts, encodings);
 
     this.engine.negotiate();
     log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
