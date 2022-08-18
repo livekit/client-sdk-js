@@ -29,6 +29,10 @@ export function supportsAdaptiveStream() {
   return typeof ResizeObserver !== undefined && typeof IntersectionObserver !== undefined;
 }
 
+export function supportsDynacast() {
+  return supportsTransceiver();
+}
+
 export function isDeviceSupported() {
   return supportsTransceiver() || supportsAddTrack();
 }
