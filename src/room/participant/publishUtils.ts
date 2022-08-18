@@ -3,13 +3,16 @@ import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
 import {
+  BackupVideoCodec,
   ScreenSharePresets,
   TrackPublishOptions,
+  VideoCodec,
   VideoEncoding,
   VideoPreset,
   VideoPresets,
   VideoPresets43,
 } from '../track/options';
+import { Track } from '../track/Track';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
@@ -61,6 +64,25 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
   );
 };
 
+// /**
+//  *
+//  * @internal
+//  * @experimental
+//  */
+// const computeDefaultMultiCodecSimulcastEncodings = (width: number, height: number) => {
+//   // use vp8 as a default
+//   const vp8 = determineAppropriateEncoding(false, width, height);
+//   const vp9 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.9 };
+//   const h264 = { ...vp8, maxBitrate: vp8.maxBitrate * 1.1 };
+//   const av1 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.7 };
+//   return {
+//     vp8,
+//     vp9,
+//     h264,
+//     av1,
+//   };
+// };
+
 const videoRids = ['q', 'h', 'f'];
 
 /* @internal */
@@ -71,11 +93,14 @@ export function computeVideoEncodings(
   options?: TrackPublishOptions,
 ): RTCRtpEncodingParameters[] {
   let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
+
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
   }
+
   const useSimulcast = options?.simulcast;
   const scalabilityMode = options?.scalabilityMode;
+  const videoCodec = options?.videoCodec;
 
   if ((!videoEncoding && !useSimulcast && !scalabilityMode) || !width || !height) {
     // when we aren't simulcasting or svc, will need to return a single encoding without
@@ -85,7 +110,7 @@ export function computeVideoEncodings(
 
   if (!videoEncoding) {
     // find the right encoding based on width/height
-    videoEncoding = determineAppropriateEncoding(isScreenShare, width, height);
+    videoEncoding = determineAppropriateEncoding(isScreenShare, width, height, videoCodec);
     log.debug('using video encoding', videoEncoding);
   }
 
@@ -96,9 +121,11 @@ export function computeVideoEncodings(
     videoEncoding.maxFramerate,
   );
 
-  log.debug(`scalabilityMode ${scalabilityMode}`);
-  if (scalabilityMode) {
+  if (scalabilityMode && videoCodec === 'av1') {
+    log.debug(`using svc with scalabilityMode ${scalabilityMode}`);
+
     const encodings: RTCRtpEncodingParameters[] = [];
+
     // svc use first encoding as the original, so we sort encoding from high to low
     switch (scalabilityMode) {
       case 'L3T3':
@@ -106,7 +133,7 @@ export function computeVideoEncodings(
           encodings.push({
             rid: videoRids[2 - i],
             scaleResolutionDownBy: 2 ** i,
-            maxBitrate: videoEncoding ? videoEncoding.maxBitrate / 3 ** i : 0,
+            maxBitrate: videoEncoding.maxBitrate / 3 ** i,
             /* @ts-ignore */
             maxFramerate: original.encoding.maxFramerate,
             /* @ts-ignore */
@@ -162,11 +189,45 @@ export function computeVideoEncodings(
   return encodingsFromPresets(width, height, [original]);
 }
 
+export function computeTrackBackupEncodings(
+  track: LocalVideoTrack,
+  videoCodec: BackupVideoCodec,
+  opts: TrackPublishOptions,
+) {
+  if (!opts.backupCodec || opts.backupCodec.codec === opts.videoCodec) {
+    // backup codec publishing is disabled
+    return;
+  }
+  if (videoCodec !== opts.backupCodec.codec) {
+    log.warn('requested a different codec than specified as backup', {
+      serverRequested: videoCodec,
+      backup: opts.backupCodec.codec,
+    });
+  }
+
+  opts.videoCodec = videoCodec;
+  // use backup encoding setting as videoEncoding for backup codec publishing
+  opts.videoEncoding = opts.backupCodec.encoding;
+
+  const settings = track.mediaStreamTrack.getSettings();
+  const width = settings.width ?? track.dimensions?.width;
+  const height = settings.height ?? track.dimensions?.height;
+
+  const encodings = computeVideoEncodings(
+    track.source === Track.Source.ScreenShare,
+    width,
+    height,
+    opts,
+  );
+  return encodings;
+}
+
 /* @internal */
 export function determineAppropriateEncoding(
   isScreenShare: boolean,
   width: number,
   height: number,
+  codec?: VideoCodec,
 ): VideoEncoding {
   const presets = presetsForResolution(isScreenShare, width, height);
   let { encoding } = presets[0];
@@ -179,6 +240,18 @@ export function determineAppropriateEncoding(
     encoding = preset.encoding;
     if (preset.width >= size) {
       break;
+    }
+  }
+  // presets are based on the assumption of vp8 as a codec
+  // for other codecs we adjust the maxBitrate if no specific videoEncoding has been provided
+  // TODO make the bitrate multipliers configurable per codec
+  if (codec) {
+    switch (codec) {
+      case 'av1':
+        encoding.maxBitrate = encoding.maxBitrate * 0.7;
+        break;
+      default:
+        break;
     }
   }
 
