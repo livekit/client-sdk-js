@@ -48,6 +48,7 @@ export default abstract class RemoteTrack extends Track {
   }
 
   stop() {
+    this.stopMonitor();
     // use `enabled` of track to enable re-use of transceiver
     super.disable();
   }
@@ -56,6 +57,13 @@ export default abstract class RemoteTrack extends Track {
   startMonitor() {
     if (!this.monitorInterval) {
       this.monitorInterval = setInterval(() => this.monitorReceiver(), monitorFrequency);
+    }
+  }
+
+  /* @internal */
+  stopMonitor() {
+    if (this.monitorInterval) {
+      clearInterval(this.monitorInterval);
     }
   }
 
