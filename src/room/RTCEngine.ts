@@ -532,7 +532,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return this.createTransceiverRTCRtpSender(track, opts, encodings);
     }
     if (supportsAddTrack()) {
-      console.log('using add-track fallback');
+      log.debug('using add-track fallback');
       return this.createRTCRtpSender(track.mediaStreamTrack);
     }
     throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
@@ -550,7 +550,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
     }
     if (supportsAddTrack()) {
-      console.log('using add-track');
+      log.debug('using add-track fallback');
       return this.createRTCRtpSender(track.mediaStreamTrack);
     }
 

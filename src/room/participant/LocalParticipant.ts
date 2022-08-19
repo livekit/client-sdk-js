@@ -564,10 +564,11 @@ export default class LocalParticipant extends Participant {
       );
     }
 
-    this.engine.negotiate();
-
     // store RTPSender
     track.sender = await this.engine.createSender(track, opts, encodings);
+
+    this.engine.negotiate();
+
     if (track instanceof LocalVideoTrack) {
       track.startMonitor(this.engine.client);
     } else if (track instanceof LocalAudioTrack) {
