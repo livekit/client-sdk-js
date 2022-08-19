@@ -15,7 +15,13 @@ import RemoteTrack from './room/track/RemoteTrack';
 import RemoteTrackPublication from './room/track/RemoteTrackPublication';
 import RemoteVideoTrack, { ElementInfo } from './room/track/RemoteVideoTrack';
 import { TrackPublication } from './room/track/TrackPublication';
-import { getEmptyAudioStreamTrack, getEmptyVideoStreamTrack } from './room/utils';
+import {
+  getEmptyAudioStreamTrack,
+  getEmptyVideoStreamTrack,
+  isDeviceSupported,
+  supportsAdaptiveStream,
+  supportsDynacast,
+} from './room/utils';
 
 export * from './options';
 export * from './room/errors';
@@ -30,6 +36,9 @@ export {
   setLogExtension,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
+  isDeviceSupported,
+  supportsAdaptiveStream,
+  supportsDynacast,
   LogLevel,
   Room,
   ConnectionState,

@@ -30,7 +30,6 @@ import {
   ScreenSharePresets,
   TrackPublishOptions,
   VideoCaptureOptions,
-  VideoCodec,
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
@@ -552,19 +551,9 @@ export default class LocalParticipant extends Participant {
       throw new UnexpectedConnectionState('publisher is closed');
     }
     log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
-    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-    if (encodings) {
-      transceiverInit.sendEncodings = encodings;
-    }
-    // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.engine.publisher.pc.addTransceiver(
-      track.mediaStreamTrack,
-      transceiverInit,
-    );
-    if (track.kind === Track.Kind.Video && opts.videoCodec) {
-      this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
-      track.codec = opts.videoCodec;
-    }
+
+    // store RTPSender
+    track.sender = await this.engine.createSender(track, opts, encodings);
 
     if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
@@ -576,8 +565,6 @@ export default class LocalParticipant extends Participant {
 
     this.engine.negotiate();
 
-    // store RTPSender
-    track.sender = transceiver.sender;
     if (track instanceof LocalVideoTrack) {
       track.startMonitor(this.engine.client);
     } else if (track instanceof LocalAudioTrack) {
@@ -652,20 +639,11 @@ export default class LocalParticipant extends Participant {
 
     const ti = await this.engine.addTrack(req);
 
-    if (!this.engine.publisher) {
-      throw new UnexpectedConnectionState('publisher is closed');
-    }
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
     }
-    // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.engine.publisher.pc.addTransceiver(
-      simulcastTrack.mediaStreamTrack,
-      transceiverInit,
-    );
-    this.setPreferredCodec(transceiver, track.kind, videoCodec);
-    track.setSimulcastTrackSender(videoCodec, transceiver.sender);
+    await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
 
     this.engine.negotiate();
     log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
@@ -998,50 +976,6 @@ export default class LocalParticipant extends Participant {
       }
     });
     return publication;
-  }
-
-  private setPreferredCodec(
-    transceiver: RTCRtpTransceiver,
-    kind: Track.Kind,
-    videoCodec: VideoCodec,
-  ) {
-    if (!('getCapabilities' in RTCRtpSender)) {
-      return;
-    }
-    const cap = RTCRtpSender.getCapabilities(kind);
-    if (!cap) return;
-    log.debug('get capabilities', cap);
-    const matched: RTCRtpCodecCapability[] = [];
-    const partialMatched: RTCRtpCodecCapability[] = [];
-    const unmatched: RTCRtpCodecCapability[] = [];
-    cap.codecs.forEach((c) => {
-      const codec = c.mimeType.toLowerCase();
-      if (codec === 'audio/opus') {
-        matched.push(c);
-        return;
-      }
-      const matchesVideoCodec = codec === `video/${videoCodec}`;
-      if (!matchesVideoCodec) {
-        unmatched.push(c);
-        return;
-      }
-      // for h264 codecs that have sdpFmtpLine available, use only if the
-      // profile-level-id is 42e01f for cross-browser compatibility
-      if (videoCodec === 'h264') {
-        if (c.sdpFmtpLine && c.sdpFmtpLine.includes('profile-level-id=42e01f')) {
-          matched.push(c);
-        } else {
-          partialMatched.push(c);
-        }
-        return;
-      }
-
-      matched.push(c);
-    });
-
-    if ('setCodecPreferences' in transceiver) {
-      transceiver.setCodecPreferences(matched.concat(partialMatched, unmatched));
-    }
   }
 
   /** @internal */
