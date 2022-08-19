@@ -17,12 +17,12 @@ export async function sleep(duration: number): Promise<void> {
 
 /** @internal */
 export function supportsTransceiver() {
-  return 'addTransceiver' in RTCPeerConnection;
+  return 'addTransceiver' in RTCPeerConnection.prototype;
 }
 
 /** @internal */
 export function supportsAddTrack() {
-  return 'addTrack' in RTCPeerConnection;
+  return 'addTrack' in RTCPeerConnection.prototype;
 }
 
 export function supportsAdaptiveStream() {

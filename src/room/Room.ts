@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { toProtoSessionDescription } from '../api/SignalClient';
 import log from '../logger';
-import { RoomConnectOptions, RoomOptions } from '../options';
+import type { RoomConnectOptions, RoomOptions } from '../options';
 import {
   DataPacket_Kind,
   DisconnectReason,
@@ -25,17 +25,18 @@ import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
-import Participant, { ConnectionQuality } from './participant/Participant';
+import type Participant from './participant/Participant';
+import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
 import { audioDefaults, publishDefaults, videoDefaults } from './track/defaults';
 import LocalAudioTrack from './track/LocalAudioTrack';
-import LocalTrackPublication from './track/LocalTrackPublication';
+import type LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
-import { TrackPublication } from './track/TrackPublication';
-import { AdaptiveStreamSettings, RemoteTrack } from './track/types';
+import type { TrackPublication } from './track/TrackPublication';
+import type { AdaptiveStreamSettings, RemoteTrack } from './track/types';
 import { getNewAudioContext } from './track/utils';
 import { Future, isWeb, unpackStreamId } from './utils';
 

@@ -3,7 +3,7 @@ import { TrackEvent } from '../events';
 import { AudioSenderStats, computeBitrate, monitorFrequency } from '../stats';
 import { isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
-import { AudioCaptureOptions } from './options';
+import type { AudioCaptureOptions } from './options';
 import { Track } from './Track';
 import { constraintsForOptions, detectSilence } from './utils';
 
