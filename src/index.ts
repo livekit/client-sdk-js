@@ -18,7 +18,7 @@ import { TrackPublication } from './room/track/TrackPublication';
 import {
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
-  isDeviceSupported,
+  isBrowserSupported,
   supportsAdaptiveStream,
   supportsDynacast,
 } from './room/utils';
@@ -36,7 +36,7 @@ export {
   setLogExtension,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
-  isDeviceSupported,
+  isBrowserSupported,
   supportsAdaptiveStream,
   supportsDynacast,
   LogLevel,

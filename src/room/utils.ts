@@ -33,7 +33,7 @@ export function supportsDynacast() {
   return supportsTransceiver();
 }
 
-export function isDeviceSupported() {
+export function isBrowserSupported() {
   return supportsTransceiver() || supportsAddTrack();
 }
 

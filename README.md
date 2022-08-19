@@ -279,7 +279,9 @@ setLogExtension((level: LogLevel, msg: string, context: object) => {
 | Edge (Chromium) | Windows, macOS        |           |
 
 We aim to support a broad range of browser versions by transpiling the library code with babel.
-Note that some features like adaptiveStream and dynacast rely on specific browser APIs to be present.
-You can check compatibility with the helper functions `supportsAdaptiveStream()` and `supportsDynacast()`
+
+> Note that the library requires some specific browser APIs to be present present.
+> You can check general compatibility with the helper function `isBrowserSupported()`.
+> Support for more modern features like adaptiveStream and dynacast can be checked for with `supportsAdaptiveStream()` and `supportsDynacast()`.
 
 If you are targeting legacy browsers, but still want adaptiveStream functionality you'll likely need to use polyfills for [ResizeObserver](https://www.npmjs.com/package/resize-observer-polyfill) and [IntersectionObserver](https://www.npmjs.com/package/intersection-observer).
