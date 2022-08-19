@@ -78,8 +78,15 @@
     "typescript": "4.7.4"
   },
   "browserslist": [
-    "defaults",
     "safari >= 11",
-    "not IE 11"
+    "ios_saf >= 11",
+    "chrome >= 56",
+    "and_chr >= 56",
+    "android >= 56",
+    "firefox >= 53",
+    "edge >= 50",
+    "Samsung >= 6.0",
+    "not IE 11",
+    "not dead"
   ]
 }
