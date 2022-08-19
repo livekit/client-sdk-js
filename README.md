@@ -277,3 +277,12 @@ setLogExtension((level: LogLevel, msg: string, context: object) => {
 | Firefox         | Windows, macOS, Linux | Android   |
 | Safari          | macOS                 | iOS       |
 | Edge (Chromium) | Windows, macOS        |           |
+
+We aim to support a broad range of browser versions by transpiling the library code with babel.
+You can have a look at the `"browerslist"` section of `package.json` for more details.
+
+> Note that the library requires some specific browser APIs to be present.
+> You can check general compatibility with the helper function `isBrowserSupported()`.
+> Support for more modern features like adaptiveStream and dynacast can be checked for with `supportsAdaptiveStream()` and `supportsDynacast()`.
+
+If you are targeting legacy browsers, but still want adaptiveStream functionality you'll likely need to use polyfills for [ResizeObserver](https://www.npmjs.com/package/resize-observer-polyfill) and [IntersectionObserver](https://www.npmjs.com/package/intersection-observer).
