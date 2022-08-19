@@ -533,13 +533,32 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return this.createTransceiverRTCRtpSender(track, opts, encodings);
     }
     if (supportsAddTrack()) {
-      console.log('using add-track fallback');
+      log.debug('using add-track fallback');
       return this.createRTCRtpSender(track.mediaStreamTrack);
     }
     throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
   }
 
-  async createTransceiverRTCRtpSender(
+  async createSimulcastSender(
+    track: LocalVideoTrack,
+    simulcastTrack: SimulcastTrackInfo,
+    opts: TrackPublishOptions,
+    encodings?: RTCRtpEncodingParameters[],
+  ) {
+    // store RTCRtpSender
+    // @ts-ignore
+    if (supportsTransceiver()) {
+      return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
+    }
+    if (supportsAddTrack()) {
+      log.debug('using add-track fallback');
+      return this.createRTCRtpSender(track.mediaStreamTrack);
+    }
+
+    throw new UnexpectedConnectionState('Cannot stream on this device');
+  }
+
+  private async createTransceiverRTCRtpSender(
     track: LocalTrack,
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
@@ -564,7 +583,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return transceiver.sender;
   }
 
-  async createSimulcastTransceiverSender(
+  private async createSimulcastTransceiverSender(
     track: LocalVideoTrack,
     simulcastTrack: SimulcastTrackInfo,
     opts: TrackPublishOptions,
@@ -590,30 +609,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return transceiver.sender;
   }
 
-  async createRTCRtpSender(track: MediaStreamTrack) {
+  private async createRTCRtpSender(track: MediaStreamTrack) {
     if (!this.publisher) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
     return this.publisher.pc.addTrack(track);
-  }
-
-  async setupSimulcastSender(
-    track: LocalVideoTrack,
-    simulcastTrack: SimulcastTrackInfo,
-    opts: TrackPublishOptions,
-    encodings?: RTCRtpEncodingParameters[],
-  ) {
-    // store RTCRtpSender
-    // @ts-ignore
-    if (supportsTransceiver()) {
-      return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
-    }
-    if (supportsAddTrack()) {
-      console.log('using add-track');
-      return this.createRTCRtpSender(track.mediaStreamTrack);
-    }
-
-    throw new UnexpectedConnectionState('Cannot stream on this device');
   }
 
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection

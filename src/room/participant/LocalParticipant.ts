@@ -552,10 +552,9 @@ export default class LocalParticipant extends Participant {
       throw new UnexpectedConnectionState('publisher is closed');
     }
     log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
-    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-    if (encodings) {
-      transceiverInit.sendEncodings = encodings;
-    }
+
+    // store RTPSender
+    track.sender = await this.engine.createSender(track, opts, encodings);
 
     if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
@@ -567,8 +566,6 @@ export default class LocalParticipant extends Participant {
 
     this.engine.negotiate();
 
-    // store RTPSender
-    track.sender = await this.engine.createSender(track, opts, encodings);
     if (track instanceof LocalVideoTrack) {
       track.startMonitor(this.engine.client);
     } else if (track instanceof LocalAudioTrack) {
@@ -647,7 +644,7 @@ export default class LocalParticipant extends Participant {
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
     }
-    await this.engine.setupSimulcastSender(track, simulcastTrack, opts, encodings);
+    await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
 
     this.engine.negotiate();
     log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
