@@ -29,13 +29,13 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: "Please include browser console and server logs around the time this bug occurred. Please try not to insert an image but copy paste the log text."
+      description: "Please include browser console and server logs around the time this bug occurred. Enable debug logging by calling `setLogLevel('debug')` from the livekit-client package as early as possible. Please try not to insert an image but copy paste the log text."
       render: shell
   - type: textarea
     id: system-info
     attributes:
       label: System Info
-      description: If it is a browser specific problem, please mention the OS (incl. Version) and Browser (including exact version) where you are seeing the problem. For ease of use you can run `npx envinfo --system --binaries --browsers --npmPackages "{livekit-client, @livekit/*}" from within your livekit project, to give us all the needed info about your current environment`
+      description: Please mention the OS (incl. Version) and Browser (including exact version) on which you are seeing this issue. For ease of use you can run `npx envinfo --system --binaries --browsers --npmPackages "{livekit-client, @livekit/*}" from within your livekit project, to give us all the needed info about your current environment`
       render: shell
       placeholder: System, Binaries, Browsers
     validations:
