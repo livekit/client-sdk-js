@@ -87,7 +87,7 @@
     "and_ff >= 53",
     "edge >= 79",
     "Opera >= 52",
-    "Samsung >= 6.0",
+    "Samsung >= 9.2",
     "not IE 11",
     "not dead"
   ]
