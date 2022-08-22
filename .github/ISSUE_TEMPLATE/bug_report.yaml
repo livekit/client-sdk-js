@@ -5,7 +5,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to fill out this bug report!
-        Please report security issues by email to security@matrix.org
+        Please report security issues by email to security@livekit.io
         **Before you start, make sure you have the latest versions of the `livekit-client` npm package installed**
   - type: textarea
     id: bug-description
@@ -35,7 +35,7 @@ body:
     id: system-info
     attributes:
       label: System Info
-      description: Output of `npx envinfo --system --binaries --browsers --npmPackages "{livekit-client, @livekit/*}"`
+      description: If it is a browser specific problem, please mention the OS (incl. Version) and Browser (including exact version) where you are seeing the problem. For ease of use you can run `npx envinfo --system --binaries --browsers --npmPackages "{livekit-client, @livekit/*}" from within your livekit project, to give us all the needed info about your current environment`
       render: shell
       placeholder: System, Binaries, Browsers
     validations:
