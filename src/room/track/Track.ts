@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
+import type { SignalClient } from '../../api/SignalClient';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
@@ -11,7 +12,7 @@ const BACKGROUND_REACTION_DELAY = 5000;
 // Safari tracks which audio elements have been "blessed" by the user.
 const recycledElements: Array<HTMLAudioElement> = [];
 
-export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
+export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
   kind: Track.Kind;
 
   attachedElements: HTMLMediaElement[] = [];
@@ -44,6 +45,8 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
   private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
 
   protected _currentBitrate: number = 0;
+
+  protected monitorInterval?: ReturnType<typeof setInterval>;
 
   protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
     super();
@@ -170,6 +173,7 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
   }
 
   stop() {
+    this.stopMonitor();
     this._mediaStreamTrack.stop();
     if (isWeb()) {
       document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
@@ -182,6 +186,16 @@ export class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEve
 
   protected disable() {
     this._mediaStreamTrack.enabled = false;
+  }
+
+  /* @internal */
+  abstract startMonitor(signalClient?: SignalClient): void;
+
+  /* @internal */
+  protected stopMonitor() {
+    if (this.monitorInterval) {
+      clearInterval(this.monitorInterval);
+    }
   }
 
   private recycleElement(element: HTMLMediaElement) {

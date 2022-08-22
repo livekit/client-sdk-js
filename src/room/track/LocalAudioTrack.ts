@@ -78,12 +78,15 @@ export default class LocalAudioTrack extends LocalTrack {
     if (!isWeb()) {
       return;
     }
-    setTimeout(() => {
+    if (this.monitorInterval) {
+      return;
+    }
+    this.monitorInterval = setInterval(() => {
       this.monitorSender();
     }, monitorFrequency);
   }
 
-  private monitorSender = async () => {
+  protected monitorSender = async () => {
     if (!this.sender) {
       this._currentBitrate = 0;
       return;
@@ -102,9 +105,6 @@ export default class LocalAudioTrack extends LocalTrack {
     }
 
     this.prevStats = stats;
-    setTimeout(() => {
-      this.monitorSender();
-    }, monitorFrequency);
   };
 
   async getSenderStats(): Promise<AudioSenderStats | undefined> {
