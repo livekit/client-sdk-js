@@ -6,6 +6,8 @@ export default abstract class RemoteTrack extends Track {
   /** @internal */
   receiver?: RTCRtpReceiver;
 
+  monitorInterval?: ReturnType<typeof setInterval>;
+
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
@@ -46,15 +48,23 @@ export default abstract class RemoteTrack extends Track {
   }
 
   stop() {
+    this.stopMonitor();
     // use `enabled` of track to enable re-use of transceiver
     super.disable();
   }
 
   /* @internal */
   startMonitor() {
-    setTimeout(() => {
-      this.monitorReceiver();
-    }, monitorFrequency);
+    if (!this.monitorInterval) {
+      this.monitorInterval = setInterval(() => this.monitorReceiver(), monitorFrequency);
+    }
+  }
+
+  /* @internal */
+  stopMonitor() {
+    if (this.monitorInterval) {
+      clearInterval(this.monitorInterval);
+    }
   }
 
   protected abstract monitorReceiver(): void;
