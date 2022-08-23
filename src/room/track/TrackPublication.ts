@@ -1,14 +1,17 @@
 import { EventEmitter } from 'events';
+import type TypedEventEmitter from 'typed-emitter';
 import log from '../../logger';
 import type { TrackInfo } from '../../proto/livekit_models';
+import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import RemoteAudioTrack from './RemoteAudioTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
+import type { RemoteTrack } from './types';
 
-export class TrackPublication extends EventEmitter {
+export class TrackPublication extends (EventEmitter as new () => TypedEventEmitter<PublicationEventCallbacks>) {
   kind: Track.Kind;
 
   trackName: string;
@@ -120,3 +123,17 @@ export namespace TrackPublication {
     Unsubscribed = 'unsubscribed',
   }
 }
+
+export type PublicationEventCallbacks = {
+  muted: () => void;
+  unmuted: () => void;
+  ended: (track?: Track) => void;
+  updateSettings: (settings: UpdateTrackSettings) => void;
+  subscriptionPermissionChanged: (
+    status: TrackPublication.SubscriptionStatus,
+    prevStatus: TrackPublication.SubscriptionStatus,
+  ) => void;
+  updateSubscription: (sub: UpdateSubscription) => void;
+  subscribed: (track: RemoteTrack) => void;
+  unsubscribed: (track: RemoteTrack) => void;
+};

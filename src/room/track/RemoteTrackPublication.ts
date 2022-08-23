@@ -126,7 +126,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   /** @internal */
-  setTrack(track?: Track) {
+  setTrack(track?: RemoteTrack) {
     const prevStatus = this.subscriptionStatus;
     const prevTrack = this.track;
     if (prevTrack) {
@@ -148,7 +148,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       // when undefined status changes, there's a subscription changed event
       if (track) {
         this.emit(TrackEvent.Subscribed, track);
-      } else {
+      } else if (prevTrack) {
         this.emit(TrackEvent.Unsubscribed, prevTrack);
       }
     }
