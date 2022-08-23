@@ -67,7 +67,10 @@ export default class LocalVideoTrack extends LocalTrack {
       this.encodings = params.encodings;
     }
 
-    setTimeout(() => {
+    if (this.monitorInterval) {
+      return;
+    }
+    this.monitorInterval = setInterval(() => {
       this.monitorSender();
     }, monitorFrequency);
   }
@@ -268,7 +271,7 @@ export default class LocalVideoTrack extends LocalTrack {
     await setPublishingLayersForSender(this.sender, this.encodings, qualities);
   }
 
-  private monitorSender = async () => {
+  protected monitorSender = async () => {
     if (!this.sender) {
       this._currentBitrate = 0;
       return;
@@ -293,9 +296,6 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     this.prevStats = statsMap;
-    setTimeout(() => {
-      this.monitorSender();
-    }, monitorFrequency);
   };
 
   protected async handleAppVisibilityChanged() {

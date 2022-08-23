@@ -7,7 +7,7 @@ import { getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, isMobile } from '..
 import type { VideoCodec } from './options';
 import { attachToElement, detachTrack, Track } from './Track';
 
-export default class LocalTrack extends Track {
+export default abstract class LocalTrack extends Track {
   /** @internal */
   sender?: RTCRtpSender;
 
@@ -249,4 +249,6 @@ export default class LocalTrack extends Track {
       await this.sender.replaceTrack(this._mediaStreamTrack);
     });
   }
+
+  protected abstract monitorSender(): void;
 }
