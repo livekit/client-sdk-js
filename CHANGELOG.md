@@ -1,5 +1,29 @@
 # Change Log
 
+## 1.3.0
+
+### Minor Changes
+
+- [#407](https://github.com/livekit/client-sdk-js/pull/407) [`91f6648`](https://github.com/livekit/client-sdk-js/commit/91f6648da8c3b888b3f063a46f62aeaa47ec0b3d) Thanks [@lukasIO](https://github.com/lukasIO)! - add types for publication events
+
+### Patch Changes
+
+- [#400](https://github.com/livekit/client-sdk-js/pull/400) [`d6dd20c`](https://github.com/livekit/client-sdk-js/commit/d6dd20c00633d9e3303c813ba303812c75783ba9) Thanks [@lukasIO](https://github.com/lukasIO)! - Fallback to unmunged sdp for answer
+
+* [#334](https://github.com/livekit/client-sdk-js/pull/334) [`8cb17ec`](https://github.com/livekit/client-sdk-js/commit/8cb17ecc6170b4d723813c90ee5a04cb0bd5fe2b) Thanks [@lukasIO](https://github.com/lukasIO)! - Add experimental support for fallback codec
+
+- [#396](https://github.com/livekit/client-sdk-js/pull/396) [`027ede3`](https://github.com/livekit/client-sdk-js/commit/027ede3c6f776a1c5e690e38a58a7edca1583fbd) Thanks [@davidzhao](https://github.com/davidzhao)! - Send current network type to server
+
+* [#410](https://github.com/livekit/client-sdk-js/pull/410) [`5b31a19`](https://github.com/livekit/client-sdk-js/commit/5b31a19543b80f90349a086016ac9fc37a91bcb1) Thanks [@lukasIO](https://github.com/lukasIO)! - Move monitor APIs in parent classes
+
+- [#393](https://github.com/livekit/client-sdk-js/pull/393) [`bfad4b3`](https://github.com/livekit/client-sdk-js/commit/bfad4b319398c9c06d439bb9dcc03d185ac37b74) Thanks [@wcarle](https://github.com/wcarle)! - Prevent multiple redundant monitors from being started if start is called multiple times on a RemoteTrack
+
+* [#397](https://github.com/livekit/client-sdk-js/pull/397) [`0f6b399`](https://github.com/livekit/client-sdk-js/commit/0f6b39999b90ceabd83daca7617171a145ad6dca) Thanks [@cnderrauber](https://github.com/cnderrauber)! - enable simucalst codecs for firefox
+
+- [#403](https://github.com/livekit/client-sdk-js/pull/403) [`fb2b221`](https://github.com/livekit/client-sdk-js/commit/fb2b221555eccc9ec0f1bc663d3b383dd513f384) Thanks [@lukasIO](https://github.com/lukasIO)! - Add fallback for addTrack if addTransceiver is not supported
+
+* [#405](https://github.com/livekit/client-sdk-js/pull/405) [`2983939`](https://github.com/livekit/client-sdk-js/commit/2983939a48068def9ee0cf86c18af7f9ef0ec045) Thanks [@lukasIO](https://github.com/lukasIO)! - Update browserslist
+
 ## 1.2.11
 
 ### Patch Changes
