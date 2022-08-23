@@ -89,6 +89,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** options of room */
   options: RoomOptions;
 
+  /** if the current room has a participant with `recorder: true` in its JWT grant */
+  isRecording = () => this._isRecording;
+
+  private _isRecording: boolean = false;
+
   private identityToSid: Map<string, string>;
 
   /** connect options of room */
@@ -309,6 +314,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.name = joinResponse.room!.name;
         this.sid = joinResponse.room!.sid;
         this.metadata = joinResponse.room!.metadata;
+        this._isRecording = joinResponse.room!.activeRecording;
         this.emit(RoomEvent.SignalConnected);
       } catch (err) {
         this.recreateEngine();
@@ -903,6 +909,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRoomUpdate = (r: RoomModel) => {
     this.metadata = r.metadata;
+    this._isRecording = r.activeRecording;
     this.emitWhenConnected(RoomEvent.RoomMetadataChanged, r.metadata);
   };
 
