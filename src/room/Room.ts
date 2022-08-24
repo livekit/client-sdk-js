@@ -89,9 +89,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** options of room */
   options: RoomOptions;
 
-  /** if the current room has a participant with `recorder: true` in its JWT grant */
-  isRecording = () => this._isRecording;
-
   private _isRecording: boolean = false;
 
   private identityToSid: Map<string, string>;
@@ -398,6 +395,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (sid) {
       return this.participants.get(sid);
     }
+  }
+
+  /**
+   * if the current room has a participant with `recorder: true` in its JWT grant
+   **/
+  get isRecording() {
+    return this._isRecording;
   }
 
   /**
