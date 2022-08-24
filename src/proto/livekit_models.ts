@@ -1,7 +1,7 @@
 /* eslint-disable */
-import { Timestamp } from './google/protobuf/timestamp';
 import Long from 'long';
-import _m0 from 'protobufjs/minimal';
+import * as _m0 from 'protobufjs/minimal';
+import { Timestamp } from './google/protobuf/timestamp';
 
 export const protobufPackage = 'livekit';
 
@@ -38,9 +38,8 @@ export function trackTypeToJSON(object: TrackType): string {
       return 'VIDEO';
     case TrackType.DATA:
       return 'DATA';
-    case TrackType.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -89,9 +88,8 @@ export function trackSourceToJSON(object: TrackSource): string {
       return 'SCREEN_SHARE';
     case TrackSource.SCREEN_SHARE_AUDIO:
       return 'SCREEN_SHARE_AUDIO';
-    case TrackSource.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -134,9 +132,8 @@ export function videoQualityToJSON(object: VideoQuality): string {
       return 'HIGH';
     case VideoQuality.OFF:
       return 'OFF';
-    case VideoQuality.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -173,9 +170,8 @@ export function connectionQualityToJSON(object: ConnectionQuality): string {
       return 'GOOD';
     case ConnectionQuality.EXCELLENT:
       return 'EXCELLENT';
-    case ConnectionQuality.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -212,9 +208,8 @@ export function clientConfigSettingToJSON(object: ClientConfigSetting): string {
       return 'DISABLED';
     case ClientConfigSetting.ENABLED:
       return 'ENABLED';
-    case ClientConfigSetting.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -281,9 +276,8 @@ export function disconnectReasonToJSON(object: DisconnectReason): string {
       return 'STATE_MISMATCH';
     case DisconnectReason.JOIN_FAILURE:
       return 'JOIN_FAILURE';
-    case DisconnectReason.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -380,9 +374,8 @@ export function participantInfo_StateToJSON(object: ParticipantInfo_State): stri
       return 'ACTIVE';
     case ParticipantInfo_State.DISCONNECTED:
       return 'DISCONNECTED';
-    case ParticipantInfo_State.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -462,9 +455,8 @@ export function dataPacket_KindToJSON(object: DataPacket_Kind): string {
       return 'RELIABLE';
     case DataPacket_Kind.LOSSY:
       return 'LOSSY';
-    case DataPacket_Kind.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -533,9 +525,8 @@ export function serverInfo_EditionToJSON(object: ServerInfo_Edition): string {
       return 'Standard';
     case ServerInfo_Edition.Cloud:
       return 'Cloud';
-    case ServerInfo_Edition.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -611,9 +602,8 @@ export function clientInfo_SDKToJSON(object: ClientInfo_SDK): string {
       return 'GO';
     case ClientInfo_SDK.UNITY:
       return 'UNITY';
-    case ClientInfo_SDK.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -623,6 +613,7 @@ export interface ClientConfiguration {
   screen?: VideoConfiguration;
   resumeConnection: ClientConfigSetting;
   disabledCodecs?: DisabledCodecs;
+  forceRelay: ClientConfigSetting;
 }
 
 export interface VideoConfiguration {
@@ -2094,7 +2085,13 @@ export const ClientInfo = {
 };
 
 function createBaseClientConfiguration(): ClientConfiguration {
-  return { video: undefined, screen: undefined, resumeConnection: 0, disabledCodecs: undefined };
+  return {
+    video: undefined,
+    screen: undefined,
+    resumeConnection: 0,
+    disabledCodecs: undefined,
+    forceRelay: 0,
+  };
 }
 
 export const ClientConfiguration = {
@@ -2110,6 +2107,9 @@ export const ClientConfiguration = {
     }
     if (message.disabledCodecs !== undefined) {
       DisabledCodecs.encode(message.disabledCodecs, writer.uint32(34).fork()).ldelim();
+    }
+    if (message.forceRelay !== 0) {
+      writer.uint32(40).int32(message.forceRelay);
     }
     return writer;
   },
@@ -2133,6 +2133,9 @@ export const ClientConfiguration = {
         case 4:
           message.disabledCodecs = DisabledCodecs.decode(reader, reader.uint32());
           break;
+        case 5:
+          message.forceRelay = reader.int32() as any;
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -2151,6 +2154,7 @@ export const ClientConfiguration = {
       disabledCodecs: isSet(object.disabledCodecs)
         ? DisabledCodecs.fromJSON(object.disabledCodecs)
         : undefined,
+      forceRelay: isSet(object.forceRelay) ? clientConfigSettingFromJSON(object.forceRelay) : 0,
     };
   },
 
@@ -2166,6 +2170,8 @@ export const ClientConfiguration = {
       (obj.disabledCodecs = message.disabledCodecs
         ? DisabledCodecs.toJSON(message.disabledCodecs)
         : undefined);
+    message.forceRelay !== undefined &&
+      (obj.forceRelay = clientConfigSettingToJSON(message.forceRelay));
     return obj;
   },
 
@@ -2186,6 +2192,7 @@ export const ClientConfiguration = {
       object.disabledCodecs !== undefined && object.disabledCodecs !== null
         ? DisabledCodecs.fromPartial(object.disabledCodecs)
         : undefined;
+    message.forceRelay = object.forceRelay ?? 0;
     return message;
   },
 };
@@ -2921,29 +2928,25 @@ var globalThis: any = (() => {
   throw 'Unable to locate global object';
 })();
 
+const atob: (b64: string) => string =
+  globalThis.atob || ((b64) => globalThis.Buffer.from(b64, 'base64').toString('binary'));
 function bytesFromBase64(b64: string): Uint8Array {
-  if (globalThis.Buffer) {
-    return Uint8Array.from(globalThis.Buffer.from(b64, 'base64'));
-  } else {
-    const bin = globalThis.atob(b64);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; ++i) {
-      arr[i] = bin.charCodeAt(i);
-    }
-    return arr;
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; ++i) {
+    arr[i] = bin.charCodeAt(i);
   }
+  return arr;
 }
 
+const btoa: (bin: string) => string =
+  globalThis.btoa || ((bin) => globalThis.Buffer.from(bin, 'binary').toString('base64'));
 function base64FromBytes(arr: Uint8Array): string {
-  if (globalThis.Buffer) {
-    return globalThis.Buffer.from(arr).toString('base64');
-  } else {
-    const bin: string[] = [];
-    arr.forEach((byte) => {
-      bin.push(String.fromCharCode(byte));
-    });
-    return globalThis.btoa(bin.join(''));
+  const bin: string[] = [];
+  for (const byte of arr) {
+    bin.push(String.fromCharCode(byte));
   }
+  return btoa(bin.join(''));
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
@@ -2963,7 +2966,7 @@ export type DeepPartial<T> = T extends Builtin
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin
   ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & Record<Exclude<keyof I, KeysOfUnion<P>>, never>;
 
 function toTimestamp(date: Date): Timestamp {
   const seconds = date.getTime() / 1_000;

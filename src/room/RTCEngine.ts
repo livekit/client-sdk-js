@@ -242,6 +242,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.rtcConfig.iceServers = rtcIceServers;
     }
 
+    if (
+      joinResponse.clientConfiguration &&
+      joinResponse.clientConfiguration.forceRelay === ClientConfigSetting.ENABLED
+    ) {
+      this.rtcConfig.iceTransportPolicy = 'relay';
+    }
+
     // @ts-ignore
     this.rtcConfig.sdpSemantics = 'unified-plan';
     // @ts-ignore

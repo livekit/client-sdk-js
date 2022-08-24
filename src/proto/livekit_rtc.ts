@@ -1,4 +1,6 @@
 /* eslint-disable */
+import Long from 'long';
+import * as _m0 from 'protobufjs/minimal';
 import {
   TrackType,
   TrackSource,
@@ -24,8 +26,6 @@ import {
   connectionQualityFromJSON,
   connectionQualityToJSON,
 } from './livekit_models';
-import Long from 'long';
-import _m0 from 'protobufjs/minimal';
 
 export const protobufPackage = 'livekit';
 
@@ -56,9 +56,8 @@ export function signalTargetToJSON(object: SignalTarget): string {
       return 'PUBLISHER';
     case SignalTarget.SUBSCRIBER:
       return 'SUBSCRIBER';
-    case SignalTarget.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -89,15 +88,15 @@ export function streamStateToJSON(object: StreamState): string {
       return 'ACTIVE';
     case StreamState.PAUSED:
       return 'PAUSED';
-    case StreamState.UNRECOGNIZED:
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
 export enum CandidateProtocol {
   UDP = 0,
   TCP = 1,
+  TLS = 2,
   UNRECOGNIZED = -1,
 }
 
@@ -109,6 +108,9 @@ export function candidateProtocolFromJSON(object: any): CandidateProtocol {
     case 1:
     case 'TCP':
       return CandidateProtocol.TCP;
+    case 2:
+    case 'TLS':
+      return CandidateProtocol.TLS;
     case -1:
     case 'UNRECOGNIZED':
     default:
@@ -122,9 +124,10 @@ export function candidateProtocolToJSON(object: CandidateProtocol): string {
       return 'UDP';
     case CandidateProtocol.TCP:
       return 'TCP';
-    case CandidateProtocol.UNRECOGNIZED:
+    case CandidateProtocol.TLS:
+      return 'TLS';
     default:
-      return 'UNRECOGNIZED';
+      return 'UNKNOWN';
   }
 }
 
@@ -3480,7 +3483,7 @@ export type DeepPartial<T> = T extends Builtin
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin
   ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & Record<Exclude<keyof I, KeysOfUnion<P>>, never>;
 
 function longToNumber(long: Long): number {
   if (long.gt(Number.MAX_SAFE_INTEGER)) {
