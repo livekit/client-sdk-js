@@ -7,6 +7,7 @@ import json from '@rollup/plugin-json';
 import { terser } from 'rollup-plugin-terser';
 import replace from 'rollup-plugin-re';
 import filesize from 'rollup-plugin-filesize';
+import webWorkerLoader from 'rollup-plugin-web-worker-loader';
 
 import packageJson from './package.json';
 
@@ -36,6 +37,8 @@ export default {
   ],
   plugins: [
     nodeResolve({ browser: true, preferBuiltins: false }),
+    // @ts-ignore
+    webWorkerLoader(),
     typescript({ tsconfig: './tsconfig.json' }),
     commonjs(),
     json(),

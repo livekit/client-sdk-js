@@ -98,6 +98,13 @@ const appActions = {
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
+    // const e2ee = new E2EEManager(room);
+
+    // const encryptionKey = await createE2EEKey();
+
+    // e2ee.setEnabled(true);
+    // e2ee.setKey(encryptionKey, room.localParticipant.identity);
+
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
       .on(RoomEvent.ParticipantDisconnected, participantDisconnected)

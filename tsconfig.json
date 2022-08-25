@@ -16,7 +16,7 @@
     "importsNotUsedAsValues": "error"
   },
   "exclude": ["dist", "**/*.test.ts"],
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "worker.d.ts"],
   "typedocOptions": {
     "entryPoints": ["src/index.ts"],
     "excludeInternal": true,

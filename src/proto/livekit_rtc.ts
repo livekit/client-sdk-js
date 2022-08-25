@@ -98,6 +98,7 @@ export function streamStateToJSON(object: StreamState): string {
 export enum CandidateProtocol {
   UDP = 0,
   TCP = 1,
+  TLS = 2,
   UNRECOGNIZED = -1,
 }
 
@@ -109,6 +110,9 @@ export function candidateProtocolFromJSON(object: any): CandidateProtocol {
     case 1:
     case 'TCP':
       return CandidateProtocol.TCP;
+    case 2:
+    case 'TLS':
+      return CandidateProtocol.TLS;
     case -1:
     case 'UNRECOGNIZED':
     default:
@@ -122,6 +126,8 @@ export function candidateProtocolToJSON(object: CandidateProtocol): string {
       return 'UDP';
     case CandidateProtocol.TCP:
       return 'TCP';
+    case CandidateProtocol.TLS:
+      return 'TLS';
     case CandidateProtocol.UNRECOGNIZED:
     default:
       return 'UNRECOGNIZED';

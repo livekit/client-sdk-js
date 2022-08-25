@@ -247,6 +247,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // @ts-ignore
     this.rtcConfig.continualGatheringPolicy = 'gather_continually';
 
+    log.debug('E2EE - setting insertable streams constraints');
+    // @ts-ignore
+    this.rtcConfig.encodedInsertableStreams = true;
+
     this.publisher = new PCTransport(this.rtcConfig);
     this.subscriber = new PCTransport(this.rtcConfig);
 
@@ -530,11 +534,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     encodings?: RTCRtpEncodingParameters[],
   ) {
     if (supportsTransceiver()) {
-      return this.createTransceiverRTCRtpSender(track, opts, encodings);
+      const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
+      return sender;
     }
     if (supportsAddTrack()) {
       log.debug('using add-track fallback');
-      return this.createRTCRtpSender(track.mediaStreamTrack);
+      const sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+      return sender;
     }
     throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
   }
@@ -567,7 +573,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('publisher is closed');
     }
 
-    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+    const streams = [];
+
+    if (track.mediaStream) {
+      streams.push(track.mediaStream);
+    }
+
+    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly', streams };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
     }
@@ -576,6 +588,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       track.mediaStreamTrack,
       transceiverInit,
     );
+
     if (track.kind === Track.Kind.Video && opts.videoCodec) {
       this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
       track.codec = opts.videoCodec;
@@ -974,4 +987,6 @@ export type EngineEventCallbacks = {
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
+  /** @internal */
+  trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;
 };

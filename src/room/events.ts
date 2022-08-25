@@ -380,6 +380,9 @@ export enum ParticipantEvent {
    * args: (prevPermissions: [[ParticipantPermission]])
    */
   ParticipantPermissionsChanged = 'participantPermissionsChanged',
+
+  /** @internal */
+  PCTrackAdded = 'pcTrackAdded',
 }
 
 /** @internal */

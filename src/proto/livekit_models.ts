@@ -623,6 +623,7 @@ export interface ClientConfiguration {
   screen?: VideoConfiguration;
   resumeConnection: ClientConfigSetting;
   disabledCodecs?: DisabledCodecs;
+  forceRelay: ClientConfigSetting;
 }
 
 export interface VideoConfiguration {
@@ -2094,7 +2095,13 @@ export const ClientInfo = {
 };
 
 function createBaseClientConfiguration(): ClientConfiguration {
-  return { video: undefined, screen: undefined, resumeConnection: 0, disabledCodecs: undefined };
+  return {
+    video: undefined,
+    screen: undefined,
+    resumeConnection: 0,
+    disabledCodecs: undefined,
+    forceRelay: 0,
+  };
 }
 
 export const ClientConfiguration = {
@@ -2110,6 +2117,9 @@ export const ClientConfiguration = {
     }
     if (message.disabledCodecs !== undefined) {
       DisabledCodecs.encode(message.disabledCodecs, writer.uint32(34).fork()).ldelim();
+    }
+    if (message.forceRelay !== 0) {
+      writer.uint32(40).int32(message.forceRelay);
     }
     return writer;
   },
@@ -2133,6 +2143,9 @@ export const ClientConfiguration = {
         case 4:
           message.disabledCodecs = DisabledCodecs.decode(reader, reader.uint32());
           break;
+        case 5:
+          message.forceRelay = reader.int32() as any;
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -2151,6 +2164,7 @@ export const ClientConfiguration = {
       disabledCodecs: isSet(object.disabledCodecs)
         ? DisabledCodecs.fromJSON(object.disabledCodecs)
         : undefined,
+      forceRelay: isSet(object.forceRelay) ? clientConfigSettingFromJSON(object.forceRelay) : 0,
     };
   },
 
@@ -2166,6 +2180,8 @@ export const ClientConfiguration = {
       (obj.disabledCodecs = message.disabledCodecs
         ? DisabledCodecs.toJSON(message.disabledCodecs)
         : undefined);
+    message.forceRelay !== undefined &&
+      (obj.forceRelay = clientConfigSettingToJSON(message.forceRelay));
     return obj;
   },
 
@@ -2186,6 +2202,7 @@ export const ClientConfiguration = {
       object.disabledCodecs !== undefined && object.disabledCodecs !== null
         ? DisabledCodecs.fromPartial(object.disabledCodecs)
         : undefined;
+    message.forceRelay = object.forceRelay ?? 0;
     return message;
   },
 };
