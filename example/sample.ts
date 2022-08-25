@@ -1,7 +1,6 @@
 import {
   ConnectionQuality,
   ConnectionState,
-  createE2EEKey,
   DataPacket_Kind,
   DisconnectReason,
   E2EEManager,
@@ -44,9 +43,10 @@ const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
 const storedToken = searchParams.get('token') ?? '';
 (<HTMLInputElement>$('url')).value = storedUrl;
 (<HTMLInputElement>$('token')).value = storedToken;
+const storedKey = searchParams.get('key') ?? 'test-encrypt-key';
 
-function updateSearchParams(url: string, token: string) {
-  const params = new URLSearchParams({ url, token });
+function updateSearchParams(url: string, token: string, key: string) {
+  const params = new URLSearchParams({ url, token, key });
   window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 }
 
@@ -62,8 +62,11 @@ const appActions = {
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
 
+    // const encryptionKey = JSON.parse(storedKey);
+    console.log('key', { key: storedKey });
+
     setLogLevel(LogLevel.debug);
-    updateSearchParams(url, token);
+    updateSearchParams(url, token, storedKey);
 
     const roomOpts: RoomOptions = {
       adaptiveStream,
@@ -86,7 +89,7 @@ const appActions = {
         iceTransportPolicy: 'relay',
       };
     }
-    await appActions.connectToRoom(url, token, roomOpts, connectOpts, shouldPublish);
+    await appActions.connectToRoom(url, token, roomOpts, connectOpts, shouldPublish, storedKey);
 
     state.bitrateInterval = setInterval(renderBitrate, 1000);
   },
@@ -97,15 +100,16 @@ const appActions = {
     roomOptions?: RoomOptions,
     connectOptions?: RoomConnectOptions,
     shouldPublish?: boolean,
+    e2eeKey?: string,
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
-    const e2ee = new E2EEManager(room);
+    if (e2eeKey) {
+      const e2ee = new E2EEManager(room);
 
-    const encryptionKey = await createE2EEKey();
-
-    e2ee.setEnabled(true);
-    e2ee.setKey(encryptionKey, room.localParticipant.identity);
+      e2ee.setEnabled(true);
+      e2ee.setKey(e2eeKey, 'lk-local-id');
+    }
 
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
@@ -159,10 +163,7 @@ const appActions = {
       })
       .on(RoomEvent.SignalConnected, async () => {
         if (shouldPublish) {
-          await Promise.all([
-            room.localParticipant.setCameraEnabled(true),
-            room.localParticipant.setMicrophoneEnabled(true),
-          ]);
+          await Promise.all([room.localParticipant.setCameraEnabled(true)]);
           updateButtonsForPublishState();
         }
       });

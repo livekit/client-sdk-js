@@ -8,7 +8,6 @@ import type Room from '../Room';
 import { ParticipantEvent, RoomEvent } from '../events';
 import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteParticipant from '../participant/RemoteParticipant';
-import type LocalParticipant from '../participant/LocalParticipant';
 import type { Track } from '../track/Track';
 import LocalTrack from '../track/LocalTrack';
 
@@ -30,17 +29,20 @@ export class E2EEManager {
 
   private room: Room;
 
+  sharedKey?: string;
+
   constructor(room: Room) {
     this.room = room;
     this.setupEventListeners();
   }
 
   private setupEventListeners() {
-    this.room.on(RoomEvent.TrackSubscribed, (track, _, participant) =>
-      this.setupE2EEReceiver(track, participant),
-    );
+    this.room.on(RoomEvent.TrackSubscribed, (track, _, participant) => {
+      if (this.sharedKey) this.setKey(this.sharedKey, participant.identity);
+      this.setupE2EEReceiver(track, participant);
+    });
     this.room.localParticipant.on(ParticipantEvent.PCTrackAdded, (track, sender) =>
-      this.setupE2EESender(track, sender as RTCRtpSender, this.room.localParticipant),
+      this.setupE2EESender(track, sender as RTCRtpSender, 'lk-local-id'),
     );
   }
 
@@ -53,7 +55,8 @@ export class E2EEManager {
     }
   }
 
-  setKey(key: JsonWebKey, participantId: string) {
+  setKey(key: string, participantId: string) {
+    this.sharedKey = key;
     if (this.worker) {
       const msg: SetKeyMessage = {
         kind: 'setKey',
@@ -73,11 +76,11 @@ export class E2EEManager {
     this.handleReceiver(track.receiver, participant.identity);
   }
 
-  setupE2EESender(track: Track, sender: RTCRtpSender, participant: LocalParticipant) {
+  setupE2EESender(track: Track, sender: RTCRtpSender, localId: string) {
     if (!(track instanceof LocalTrack) || !sender) {
       return;
     }
-    this.handleSender(sender, participant.identity);
+    this.handleSender(sender, localId);
   }
 
   /**
@@ -94,7 +97,7 @@ export class E2EEManager {
 
     if (supportsScriptTransform()) {
       const options = {
-        operation: 'decode',
+        kind: 'decode',
         participantId,
       };
       // @ts-ignore
@@ -102,16 +105,15 @@ export class E2EEManager {
     } else {
       // @ts-ignore
       const receiverStreams = receiver.createEncodedStreams();
-
-      this.worker.postMessage(
-        {
-          operation: 'decode',
+      const msg: EncodeMessage = {
+        kind: 'decode',
+        payload: {
           readableStream: receiverStreams.readable,
           writableStream: receiverStreams.writable,
           participantId,
         },
-        [receiverStreams.readable, receiverStreams.writable],
-      );
+      };
+      this.worker.postMessage(msg, [receiverStreams.readable, receiverStreams.writable]);
     }
   }
 
@@ -129,7 +131,7 @@ export class E2EEManager {
 
     if (supportsScriptTransform()) {
       const options = {
-        operation: 'encode',
+        kind: 'encode',
         participantId,
       };
       // @ts-ignore

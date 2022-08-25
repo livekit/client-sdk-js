@@ -11,7 +11,7 @@ export interface SetKeyMessage extends BaseMessage {
   kind: 'setKey';
   payload: {
     participantId: string;
-    key: JsonWebKey;
+    key: string;
     keyIndex?: number;
   };
 }
