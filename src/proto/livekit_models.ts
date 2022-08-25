@@ -1,7 +1,7 @@
 /* eslint-disable */
-import Long from 'long';
-import * as _m0 from 'protobufjs/minimal';
 import { Timestamp } from './google/protobuf/timestamp';
+import Long from 'long';
+import _m0 from 'protobufjs/minimal';
 
 export const protobufPackage = 'livekit';
 
@@ -38,8 +38,9 @@ export function trackTypeToJSON(object: TrackType): string {
       return 'VIDEO';
     case TrackType.DATA:
       return 'DATA';
+    case TrackType.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -88,8 +89,9 @@ export function trackSourceToJSON(object: TrackSource): string {
       return 'SCREEN_SHARE';
     case TrackSource.SCREEN_SHARE_AUDIO:
       return 'SCREEN_SHARE_AUDIO';
+    case TrackSource.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -132,8 +134,9 @@ export function videoQualityToJSON(object: VideoQuality): string {
       return 'HIGH';
     case VideoQuality.OFF:
       return 'OFF';
+    case VideoQuality.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -170,8 +173,9 @@ export function connectionQualityToJSON(object: ConnectionQuality): string {
       return 'GOOD';
     case ConnectionQuality.EXCELLENT:
       return 'EXCELLENT';
+    case ConnectionQuality.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -208,8 +212,9 @@ export function clientConfigSettingToJSON(object: ClientConfigSetting): string {
       return 'DISABLED';
     case ClientConfigSetting.ENABLED:
       return 'ENABLED';
+    case ClientConfigSetting.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -276,8 +281,9 @@ export function disconnectReasonToJSON(object: DisconnectReason): string {
       return 'STATE_MISMATCH';
     case DisconnectReason.JOIN_FAILURE:
       return 'JOIN_FAILURE';
+    case DisconnectReason.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -374,8 +380,9 @@ export function participantInfo_StateToJSON(object: ParticipantInfo_State): stri
       return 'ACTIVE';
     case ParticipantInfo_State.DISCONNECTED:
       return 'DISCONNECTED';
+    case ParticipantInfo_State.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -455,8 +462,9 @@ export function dataPacket_KindToJSON(object: DataPacket_Kind): string {
       return 'RELIABLE';
     case DataPacket_Kind.LOSSY:
       return 'LOSSY';
+    case DataPacket_Kind.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -525,8 +533,9 @@ export function serverInfo_EditionToJSON(object: ServerInfo_Edition): string {
       return 'Standard';
     case ServerInfo_Edition.Cloud:
       return 'Cloud';
+    case ServerInfo_Edition.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -602,8 +611,9 @@ export function clientInfo_SDKToJSON(object: ClientInfo_SDK): string {
       return 'GO';
     case ClientInfo_SDK.UNITY:
       return 'UNITY';
+    case ClientInfo_SDK.UNRECOGNIZED:
     default:
-      return 'UNKNOWN';
+      return 'UNRECOGNIZED';
   }
 }
 
@@ -2928,25 +2938,29 @@ var globalThis: any = (() => {
   throw 'Unable to locate global object';
 })();
 
-const atob: (b64: string) => string =
-  globalThis.atob || ((b64) => globalThis.Buffer.from(b64, 'base64').toString('binary'));
 function bytesFromBase64(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; ++i) {
-    arr[i] = bin.charCodeAt(i);
+  if (globalThis.Buffer) {
+    return Uint8Array.from(globalThis.Buffer.from(b64, 'base64'));
+  } else {
+    const bin = globalThis.atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; ++i) {
+      arr[i] = bin.charCodeAt(i);
+    }
+    return arr;
   }
-  return arr;
 }
 
-const btoa: (bin: string) => string =
-  globalThis.btoa || ((bin) => globalThis.Buffer.from(bin, 'binary').toString('base64'));
 function base64FromBytes(arr: Uint8Array): string {
-  const bin: string[] = [];
-  for (const byte of arr) {
-    bin.push(String.fromCharCode(byte));
+  if (globalThis.Buffer) {
+    return globalThis.Buffer.from(arr).toString('base64');
+  } else {
+    const bin: string[] = [];
+    arr.forEach((byte) => {
+      bin.push(String.fromCharCode(byte));
+    });
+    return globalThis.btoa(bin.join(''));
   }
-  return btoa(bin.join(''));
 }
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
@@ -2966,7 +2980,7 @@ export type DeepPartial<T> = T extends Builtin
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin
   ? P
-  : P & { [K in keyof P]: Exact<P[K], I[K]> } & Record<Exclude<keyof I, KeysOfUnion<P>>, never>;
+  : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function toTimestamp(date: Date): Timestamp {
   const seconds = date.getTime() / 1_000;
