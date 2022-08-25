@@ -109,7 +109,6 @@ const appActions = {
 
     if (e2eeKey) {
       const e2ee = new E2EEManager(room);
-
       e2ee.setEnabled(true);
       e2ee.setKey(e2eeKey, 'lk-local-id');
     }
