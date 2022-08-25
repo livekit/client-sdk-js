@@ -1,11 +1,11 @@
 import { e2eeFlag, ENCRYPTION_ALGORITHM } from './constants';
 import log from '../../logger';
-import type { SetKeyMessage } from './types';
+import type { EncodeMessage, SetKeyMessage } from './types';
 // eslint-disable-next-line import/extensions
 import WebWorker from 'web-worker:./e2ee.worker.ts';
 import { supportsScriptTransform } from './utils';
 import type Room from '../Room';
-import { ParticipantEvent } from '../events';
+import { ParticipantEvent, RoomEvent } from '../events';
 import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteParticipant from '../participant/RemoteParticipant';
 import type LocalParticipant from '../participant/LocalParticipant';
@@ -36,9 +36,9 @@ export class E2EEManager {
   }
 
   private setupEventListeners() {
-    // this.room.on(RoomEvent.TrackSubscribed, (track, _, participant) =>
-    //   this.setupE2EEReceiver(track, participant),
-    // );
+    this.room.on(RoomEvent.TrackSubscribed, (track, _, participant) =>
+      this.setupE2EEReceiver(track, participant),
+    );
     this.room.localParticipant.on(ParticipantEvent.PCTrackAdded, (track, sender) =>
       this.setupE2EESender(track, sender as RTCRtpSender, this.room.localParticipant),
     );
@@ -135,18 +135,18 @@ export class E2EEManager {
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
+      console.warn('initialize encoder');
       // @ts-ignore
       const senderStreams = sender.createEncodedStreams();
-
-      this.worker.postMessage(
-        {
-          operation: 'encode',
+      const msg: EncodeMessage = {
+        kind: 'encode',
+        payload: {
           readableStream: senderStreams.readable,
           writableStream: senderStreams.writable,
           participantId,
         },
-        [senderStreams.readable, senderStreams.writable],
-      );
+      };
+      this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);
     }
   }
 }

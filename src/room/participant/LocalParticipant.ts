@@ -555,6 +555,7 @@ export default class LocalParticipant extends Participant {
 
     // store RTPSender
     track.sender = await this.engine.createSender(track, opts, encodings);
+    this.emit(ParticipantEvent.PCTrackAdded, track, track.sender);
 
     if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(

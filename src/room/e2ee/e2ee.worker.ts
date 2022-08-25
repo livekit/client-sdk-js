@@ -13,6 +13,7 @@ onmessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
     case 'decode':
     case 'encode':
       let cipher = getParticipantCipher(payload.participantId);
+      console.log('received encode message');
       transform(cipher, kind, payload.readableStream, payload.writableStream);
       break;
     case 'setKey':

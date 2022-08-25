@@ -59,6 +59,8 @@ export class Cipher {
   ) {
     const keyIndex = this.currentKeyIndex;
 
+    console.log('encoding frame');
+
     if (this.cryptoKeyRing[keyIndex]) {
       const iv = this.makeIV(
         encodedFrame.getMetadata().synchronizationSource ?? 0,
@@ -206,6 +208,7 @@ export class Cipher {
       newUint8.set(new Uint8Array(plainText), frameHeader.byteLength);
 
       encodedFrame.data = newData;
+      console.log('frame encrypted');
     } catch (error) {
       console.error(error);
     }

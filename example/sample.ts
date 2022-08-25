@@ -1,8 +1,10 @@
 import {
   ConnectionQuality,
   ConnectionState,
+  createE2EEKey,
   DataPacket_Kind,
   DisconnectReason,
+  E2EEManager,
   LocalParticipant,
   LogLevel,
   MediaDeviceFailure,
@@ -98,12 +100,12 @@ const appActions = {
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
-    // const e2ee = new E2EEManager(room);
+    const e2ee = new E2EEManager(room);
 
-    // const encryptionKey = await createE2EEKey();
+    const encryptionKey = await createE2EEKey();
 
-    // e2ee.setEnabled(true);
-    // e2ee.setKey(encryptionKey, room.localParticipant.identity);
+    e2ee.setEnabled(true);
+    e2ee.setKey(encryptionKey, room.localParticipant.identity);
 
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)

@@ -19,7 +19,7 @@ export const UNENCRYPTED_BYTES = {
   key: 10,
   delta: 3,
   audio: 1, // frame.type is not set on audio, so this is set manually
-  empty: 0,
+  empty: 1,
 } as const;
 
 /* We use a 96 bit IV for AES GCM. This is signalled in plain together with the
