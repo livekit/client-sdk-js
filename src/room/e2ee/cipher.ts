@@ -1,4 +1,4 @@
-// TODO code inspired by lib-jitsi-meet
+// TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 
 import { KEYRING_SIZE, UNENCRYPTED_BYTES } from './constants';
 import { isVideoFrame } from './utils';

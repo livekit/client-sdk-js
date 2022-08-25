@@ -44,6 +44,7 @@ const storedToken = searchParams.get('token') ?? '';
 (<HTMLInputElement>$('url')).value = storedUrl;
 (<HTMLInputElement>$('token')).value = storedToken;
 const storedKey = searchParams.get('key') ?? 'test-encrypt-key';
+(<HTMLSelectElement>$('crypto-key')).value = storedKey;
 
 function updateSearchParams(url: string, token: string, key: string) {
   const params = new URLSearchParams({ url, token, key });
@@ -61,12 +62,13 @@ const appActions = {
     const adaptiveStream = (<HTMLInputElement>$('adaptive-stream')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
+    const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
 
     // const encryptionKey = JSON.parse(storedKey);
-    console.log('key', { key: storedKey });
+    console.log('key', { key: cryptoKey });
 
     setLogLevel(LogLevel.debug);
-    updateSearchParams(url, token, storedKey);
+    updateSearchParams(url, token, cryptoKey);
 
     const roomOpts: RoomOptions = {
       adaptiveStream,
@@ -89,7 +91,7 @@ const appActions = {
         iceTransportPolicy: 'relay',
       };
     }
-    await appActions.connectToRoom(url, token, roomOpts, connectOpts, shouldPublish, storedKey);
+    await appActions.connectToRoom(url, token, roomOpts, connectOpts, shouldPublish, cryptoKey);
 
     state.bitrateInterval = setInterval(renderBitrate, 1000);
   },
