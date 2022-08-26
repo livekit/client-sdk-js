@@ -130,6 +130,8 @@ export class E2EEManager {
     sender[e2eeFlag] = true;
 
     if (supportsScriptTransform()) {
+      console.warn('initialize script transform');
+
       const options = {
         kind: 'encode',
         participantId,

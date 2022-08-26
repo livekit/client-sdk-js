@@ -24,19 +24,6 @@ onmessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
   }
 };
 
-// Operations using RTCRtpScriptTransform.
-// @ts-ignore
-if (self.RTCTransformEvent) {
-  // @ts-ignore
-  self.onrtctransform = (event) => {
-    const transformer = event.transformer;
-    const { kind, participantId } = transformer.options;
-    const cipher = getParticipantCipher(participantId);
-
-    transform(cipher, kind, transformer.readable, transformer.writable);
-  };
-}
-
 function transform(
   cipher: Cipher,
   operation: 'encode' | 'decode',
@@ -62,4 +49,20 @@ function getParticipantCipher(id: string) {
     participantCiphers.set(id, cipher);
   }
   return cipher;
+}
+
+// Operations using RTCRtpScriptTransform.
+// @ts-ignore
+if (self.RTCTransformEvent) {
+  console.warn('setup transform event');
+  // @ts-ignore
+  self.onrtctransform = (event) => {
+    const transformer = event.transformer;
+    const { kind, participantId } = transformer.options;
+    const cipher = getParticipantCipher(participantId);
+
+    console.log('transform', kind, participantId, cipher);
+
+    transform(cipher, kind, transformer.readable, transformer.writable);
+  };
 }

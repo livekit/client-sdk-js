@@ -85,6 +85,8 @@ export class Cipher {
       newView.setUint32(encodedFrame.data.byteLength + 1, 0xdeadbeef);
 
       encodedFrame.data = newData;
+    } else {
+      console.warn('not using e2ee: encode');
     }
     controller.enqueue(encodedFrame);
   }
@@ -128,7 +130,10 @@ export class Cipher {
       }
       encodedFrame.data = newData;
     } else if (checksum === 0xdeadbeef) {
+      console.warn('no key, decode');
       return; // encrypted in-flight frame but we already forgot about the key.
+    } else {
+      console.warn('not using e2ee: decode');
     }
     controller.enqueue(encodedFrame);
   }
