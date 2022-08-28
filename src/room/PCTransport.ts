@@ -1,6 +1,7 @@
-import { debounce } from 'ts-debounce';
 import { MediaDescription, parse, write } from 'sdp-transform';
+import { debounce } from 'ts-debounce';
 import log from '../logger';
+import { NegotiationError } from './errors';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -54,8 +55,16 @@ export default class PCTransport {
   }
 
   // debounced negotiate interface
-  negotiate = debounce(() => {
-    this.createAndSendOffer();
+  negotiate = debounce((onError?: (e: Error) => void) => {
+    try {
+      this.createAndSendOffer();
+    } catch (e) {
+      if (onError) {
+        onError(e as Error);
+      } else {
+        throw e;
+      }
+    }
   }, 100);
 
   async createAndSendOffer(options?: RTCOfferOptions) {
@@ -135,17 +144,8 @@ export default class PCTransport {
     });
 
     this.trackBitrates = [];
-    const originalSdp = offer.sdp;
-    try {
-      offer.sdp = write(sdpParsed);
-      await this.pc.setLocalDescription(offer);
-    } catch (e: unknown) {
-      log.warn('not able to set desired local description, falling back to unmodified offer', {
-        error: e,
-      });
-      offer.sdp = originalSdp;
-      await this.pc.setLocalDescription(offer);
-    }
+
+    await this.setMungedLocalDescription(offer, write(sdpParsed));
     this.onOffer(offer);
   }
 
@@ -157,17 +157,7 @@ export default class PCTransport {
         ensureAudioNack(media);
       }
     });
-    const originalSdp = answer.sdp;
-    try {
-      answer.sdp = write(sdpParsed);
-      await this.pc.setLocalDescription(answer);
-    } catch (e: unknown) {
-      log.warn('not able to set desired local description, falling back to unmodified answer', {
-        error: e,
-      });
-      answer.sdp = originalSdp;
-      await this.pc.setLocalDescription(answer);
-    }
+    await this.setMungedLocalDescription(answer, write(sdpParsed));
     return answer;
   }
 
@@ -181,6 +171,35 @@ export default class PCTransport {
 
   close() {
     this.pc.close();
+  }
+
+  private async setMungedLocalDescription(sd: RTCSessionDescriptionInit, munged: string) {
+    const originalSdp = sd.sdp;
+    sd.sdp = munged;
+    try {
+      log.debug('setting munged local description');
+      await this.pc.setLocalDescription(sd);
+      return;
+    } catch (e) {
+      log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
+        error: e,
+      });
+      sd.sdp = originalSdp;
+    }
+
+    try {
+      await this.pc.setLocalDescription(sd);
+    } catch (e) {
+      // this error cannot always be caught.
+      // If the local description has a setCodecPreferences error, this error will be uncaught
+      let msg = 'unknown error';
+      if (e instanceof Error) {
+        msg = e.message;
+      } else if (typeof e === 'string') {
+        msg = e;
+      }
+      throw new NegotiationError(msg);
+    }
   }
 }
 

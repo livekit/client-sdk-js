@@ -21,7 +21,12 @@ import {
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
 import DefaultReconnectPolicy from './DefaultReconnectPolicy';
-import { ConnectionError, TrackInvalidError, UnexpectedConnectionState } from './errors';
+import {
+  ConnectionError,
+  NegotiationError,
+  TrackInvalidError,
+  UnexpectedConnectionState,
+} from './errors';
 import { EngineEvent } from './events';
 import PCTransport from './PCTransport';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
@@ -30,7 +35,13 @@ import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { Track } from './track/Track';
-import { isWeb, sleep, supportsAddTrack, supportsTransceiver } from './utils';
+import {
+  isWeb,
+  sleep,
+  supportsAddTrack,
+  supportsSetCodecPreferences,
+  supportsTransceiver,
+} from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -519,7 +530,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       matched.push(c);
     });
 
-    if ('setCodecPreferences' in transceiver) {
+    if (supportsSetCodecPreferences(transceiver)) {
       transceiver.setCodecPreferences(matched.concat(partialMatched, unmatched));
     }
   }
@@ -900,7 +911,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.hasPublished = true;
 
-    this.publisher.negotiate();
+    this.publisher.negotiate((e) => {
+      if (e instanceof NegotiationError) {
+        this.fullReconnectOnNext = true;
+      }
+      this.handleDisconnect('negotiation');
+    });
   }
 
   dataChannelForKind(kind: DataPacket_Kind, sub?: boolean): RTCDataChannel | undefined {
