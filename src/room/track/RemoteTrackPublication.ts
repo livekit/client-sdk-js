@@ -129,6 +129,9 @@ export default class RemoteTrackPublication extends TrackPublication {
   setTrack(track?: RemoteTrack) {
     const prevStatus = this.subscriptionStatus;
     const prevTrack = this.track;
+    if (!!prevTrack === !!track) {
+      return;
+    }
     if (prevTrack) {
       // unregister listener
       prevTrack.off(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
