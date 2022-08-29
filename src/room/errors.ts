@@ -15,25 +15,31 @@ export class ConnectionError extends LivekitError {
 
 export class TrackInvalidError extends LivekitError {
   constructor(message?: string) {
-    super(20, message || 'Track is invalid');
+    super(20, message ?? 'track is invalid');
   }
 }
 
 export class UnsupportedServer extends LivekitError {
   constructor(message?: string) {
-    super(10, message || 'Unsupported server');
+    super(10, message ?? 'unsupported server');
   }
 }
 
 export class UnexpectedConnectionState extends LivekitError {
   constructor(message?: string) {
-    super(12, message || 'Unexpected connection state');
+    super(12, message ?? 'unexpected connection state');
+  }
+}
+
+export class NegotiationError extends LivekitError {
+  constructor(message?: string) {
+    super(13, message ?? 'unable to negotiate');
   }
 }
 
 export class PublishDataError extends LivekitError {
   constructor(message?: string) {
-    super(13, message || 'Unable to publish data');
+    super(13, message ?? 'unable to publish data');
   }
 }
 
