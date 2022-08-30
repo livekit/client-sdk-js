@@ -640,7 +640,9 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
     params.set('adaptive_stream', '1');
   }
 
+  // @ts-ignore
   if (navigator.connection?.type) {
+    // @ts-ignore
     params.set('network', navigator.connection.type);
   }
 
