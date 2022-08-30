@@ -129,7 +129,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   setTrack(track?: RemoteTrack) {
     const prevStatus = this.subscriptionStatus;
     const prevTrack = this.track;
-    if (!!prevTrack === !!track) {
+    if (prevTrack === track) {
       return;
     }
     if (prevTrack) {
@@ -138,6 +138,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       prevTrack.off(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
       prevTrack.off(TrackEvent.Ended, this.handleEnded);
       prevTrack.detach();
+      this.emit(TrackEvent.Unsubscribed, prevTrack);
     }
     super.setTrack(track);
     if (track) {
@@ -145,16 +146,9 @@ export default class RemoteTrackPublication extends TrackPublication {
       track.on(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
       track.on(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
       track.on(TrackEvent.Ended, this.handleEnded);
+      this.emit(TrackEvent.Subscribed, track);
     }
     this.emitSubscriptionUpdateIfChanged(prevStatus);
-    if (!!track !== !!prevTrack) {
-      // when undefined status changes, there's a subscription changed event
-      if (track) {
-        this.emit(TrackEvent.Subscribed, track);
-      } else if (prevTrack) {
-        this.emit(TrackEvent.Unsubscribed, prevTrack);
-      }
-    }
   }
 
   /** @internal */
