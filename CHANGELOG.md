@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.3.1
+
+### Patch Changes
+
+- [#414](https://github.com/livekit/client-sdk-js/pull/414) [`6b748da`](https://github.com/livekit/client-sdk-js/commit/6b748daaff89f3f6c903283af88440d35b0273d5) Thanks [@cnderrauber](https://github.com/cnderrauber)! - add force relay configuration
+
+* [#418](https://github.com/livekit/client-sdk-js/pull/418) [`82107cf`](https://github.com/livekit/client-sdk-js/commit/82107cf5861a5fe903cb3f91ab32900c9d116cf4) Thanks [@davidzhao](https://github.com/davidzhao)! - Fixed compatibility with older browsers with setCodecPreferences (Chrome 96)
+
+- [#419](https://github.com/livekit/client-sdk-js/pull/419) [`84a96b2`](https://github.com/livekit/client-sdk-js/commit/84a96b2bd8d354c68f94f8a3309bf13803aad8ab) Thanks [@cnderrauber](https://github.com/cnderrauber)! - fix video track lost for safari migration
+
+* [#420](https://github.com/livekit/client-sdk-js/pull/420) [`0c45c73`](https://github.com/livekit/client-sdk-js/commit/0c45c73095a46b876810d90306c3d350f4a5f857) Thanks [@lukasIO](https://github.com/lukasIO)! - Add permission track event to typed callbacks
+
 ## 1.3.0
 
 ### Minor Changes
