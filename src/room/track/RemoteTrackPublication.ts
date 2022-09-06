@@ -50,11 +50,11 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   get subscriptionStatus(): TrackPublication.SubscriptionStatus {
-    if (this.subscribed === false) {
-      if (!this.allowed) {
-        return TrackPublication.SubscriptionStatus.NotAllowed;
-      }
+    if (!this.subscribed) {
       return TrackPublication.SubscriptionStatus.Unsubscribed;
+    }
+    if (this.subscribed && !this.allowed) {
+      return TrackPublication.SubscriptionStatus.NotAllowed;
     }
     if (!super.isSubscribed) {
       return TrackPublication.SubscriptionStatus.Desired;
