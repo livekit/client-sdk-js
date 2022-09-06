@@ -283,4 +283,8 @@ export type ParticipantEventCallbacks = {
   ) => void;
   mediaDevicesError: (error: Error) => void;
   participantPermissionsChanged: (prevPermissions: ParticipantPermission) => void;
+  trackSubscriptionStatusChanged: (
+    publication: RemoteTrackPublication,
+    status: TrackPublication.SubscriptionStatus,
+  ) => void;
 };

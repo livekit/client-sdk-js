@@ -27,6 +27,7 @@ export default class RemoteTrackPublication extends TrackPublication {
    * @param subscribed true to subscribe to a track, false to unsubscribe
    */
   setSubscribed(subscribed: boolean) {
+    const prevStatus = this.subscriptionStatus;
     this.subscribed = subscribed;
     // reset allowed status when desired subscription state changes
     // server will notify client via signal message if it's not allowed
@@ -45,14 +46,18 @@ export default class RemoteTrackPublication extends TrackPublication {
       ],
     };
     this.emit(TrackEvent.UpdateSubscription, sub);
+    this.emitSubscriptionUpdateIfChanged(prevStatus);
   }
 
   get subscriptionStatus(): TrackPublication.SubscriptionStatus {
-    if (this.subscribed === false || !super.isSubscribed) {
+    if (this.subscribed === false) {
       if (!this.allowed) {
         return TrackPublication.SubscriptionStatus.NotAllowed;
       }
       return TrackPublication.SubscriptionStatus.Unsubscribed;
+    }
+    if (!super.isSubscribed) {
+      return TrackPublication.SubscriptionStatus.Desired;
     }
     return TrackPublication.SubscriptionStatus.Subscribed;
   }
@@ -152,14 +157,14 @@ export default class RemoteTrackPublication extends TrackPublication {
       track.on(TrackEvent.Ended, this.handleEnded);
       this.emit(TrackEvent.Subscribed, track);
     }
-    this.emitSubscriptionUpdateIfChanged(prevStatus);
+    this.emitSubscriptionUpdateIfChanged(prevStatus, true);
   }
 
   /** @internal */
   setAllowed(allowed: boolean) {
     const prevStatus = this.subscriptionStatus;
     this.allowed = allowed;
-    this.emitSubscriptionUpdateIfChanged(prevStatus);
+    this.emitSubscriptionUpdateIfChanged(prevStatus, true);
   }
 
   /** @internal */
@@ -169,12 +174,18 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.track?.setMuted(info.muted);
   }
 
-  private emitSubscriptionUpdateIfChanged(previousStatus: TrackPublication.SubscriptionStatus) {
+  private emitSubscriptionUpdateIfChanged(
+    previousStatus: TrackPublication.SubscriptionStatus,
+    emitPermissionUpdate: boolean = false,
+  ) {
     const currentStatus = this.subscriptionStatus;
     if (previousStatus === currentStatus) {
       return;
     }
-    this.emit(TrackEvent.SubscriptionPermissionChanged, currentStatus, previousStatus);
+    if (emitPermissionUpdate) {
+      this.emit(TrackEvent.SubscriptionPermissionChanged, currentStatus, previousStatus);
+    }
+    this.emit(TrackEvent.SubscriptionStatusChanged, currentStatus, previousStatus);
   }
 
   private isManualOperationAllowed(): boolean {

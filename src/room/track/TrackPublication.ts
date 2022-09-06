@@ -121,6 +121,7 @@ export namespace TrackPublication {
     Subscribed = 'subscribed',
     NotAllowed = 'not_allowed',
     Unsubscribed = 'unsubscribed',
+    Desired = 'desired',
   }
 }
 
@@ -136,4 +137,8 @@ export type PublicationEventCallbacks = {
   updateSubscription: (sub: UpdateSubscription) => void;
   subscribed: (track: RemoteTrack) => void;
   unsubscribed: (track: RemoteTrack) => void;
+  subscriptionStatusChanged: (
+    status: TrackPublication.SubscriptionStatus,
+    prevStatus: TrackPublication.SubscriptionStatus,
+  ) => void;
 };
