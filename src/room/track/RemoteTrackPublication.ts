@@ -13,7 +13,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   /** @internal */
   protected allowed = true;
 
-  // keeps track of client's desire to subscribe to a track
+  // keeps track of client's desire to subscribe to a track, also true if autoSubscribe is active
   protected subscribed?: boolean;
 
   protected disabled: boolean = false;
@@ -21,6 +21,11 @@ export default class RemoteTrackPublication extends TrackPublication {
   protected currentVideoQuality?: VideoQuality = VideoQuality.HIGH;
 
   protected videoDimensions?: Track.Dimensions;
+
+  constructor(kind: Track.Kind, id: string, name: string, autoSubscribe: boolean | undefined) {
+    super(kind, id, name);
+    this.subscribed = autoSubscribe;
+  }
 
   /**
    * Subscribe or unsubscribe to this remote track
@@ -50,11 +55,11 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   get subscriptionStatus(): TrackPublication.SubscriptionStatus {
+    if (!this.allowed) {
+      return TrackPublication.SubscriptionStatus.NotAllowed;
+    }
     if (!this.subscribed) {
       return TrackPublication.SubscriptionStatus.Unsubscribed;
-    }
-    if (this.subscribed && !this.allowed) {
-      return TrackPublication.SubscriptionStatus.NotAllowed;
     }
     if (!super.isSubscribed) {
       return TrackPublication.SubscriptionStatus.Desired;
@@ -72,6 +77,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     return super.isSubscribed;
   }
 
+  // returns client's desire to subscribe to a track, also true if autoSubscribe is enabled
   get isDesired(): boolean {
     return !!this.subscribed;
   }
@@ -157,14 +163,14 @@ export default class RemoteTrackPublication extends TrackPublication {
       track.on(TrackEvent.Ended, this.handleEnded);
       this.emit(TrackEvent.Subscribed, track);
     }
-    this.emitSubscriptionUpdateIfChanged(prevStatus, true);
+    this.emitSubscriptionUpdateIfChanged(prevStatus);
   }
 
   /** @internal */
   setAllowed(allowed: boolean) {
     const prevStatus = this.subscriptionStatus;
     this.allowed = allowed;
-    this.emitSubscriptionUpdateIfChanged(prevStatus, true);
+    this.emitSubscriptionUpdateIfChanged(prevStatus);
   }
 
   /** @internal */
@@ -174,18 +180,31 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.track?.setMuted(info.muted);
   }
 
-  private emitSubscriptionUpdateIfChanged(
-    previousStatus: TrackPublication.SubscriptionStatus,
-    emitPermissionUpdate: boolean = false,
-  ) {
+  private emitSubscriptionUpdateIfChanged(previousStatus: TrackPublication.SubscriptionStatus) {
     const currentStatus = this.subscriptionStatus;
     if (previousStatus === currentStatus) {
       return;
     }
-    if (emitPermissionUpdate) {
+    log.info('subscription status', { previousStatus, currentStatus });
+    if (this.isPermissionUpdate(previousStatus, currentStatus)) {
       this.emit(TrackEvent.SubscriptionPermissionChanged, currentStatus, previousStatus);
     }
     this.emit(TrackEvent.SubscriptionStatusChanged, currentStatus, previousStatus);
+  }
+
+  private isPermissionUpdate(
+    previous: TrackPublication.SubscriptionStatus,
+    current: TrackPublication.SubscriptionStatus,
+  ) {
+    return !(
+      // desired state is not of interest for permissions
+      (
+        current === TrackPublication.SubscriptionStatus.Desired ||
+        // transition from desired to subscribed is not a permission relevant event
+        (previous === TrackPublication.SubscriptionStatus.Desired &&
+          current === TrackPublication.SubscriptionStatus.Subscribed)
+      )
+    );
   }
 
   private isManualOperationAllowed(): boolean {
