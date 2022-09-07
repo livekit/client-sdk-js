@@ -120,6 +120,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reconnectTimeout?: ReturnType<typeof setTimeout>;
 
+  private participantSid?: string;
+
   constructor(private options: RoomOptions) {
     super();
     this.client = new SignalClient();
@@ -236,6 +238,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.publisher || this.subscriber) {
       return;
     }
+
+    this.participantSid = joinResponse.participant?.sid;
 
     // update ICE servers before creating PeerConnection
     if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
@@ -798,7 +802,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     try {
-      await this.client.reconnect(this.url, this.token);
+      await this.client.reconnect(this.url, this.token, this.participantSid);
     } catch (e) {
       let message = '';
       if (e instanceof Error) {
