@@ -38,6 +38,9 @@ interface ConnectOpts {
   /** internal */
   reconnect?: boolean;
 
+  /** internal */
+  sid?: string;
+
   /** @deprecated */
   publishOnly?: string;
 
@@ -161,12 +164,13 @@ export class SignalClient {
     return res as JoinResponse;
   }
 
-  async reconnect(url: string, token: string): Promise<void> {
+  async reconnect(url: string, token: string, sid?: string): Promise<void> {
     this.isReconnecting = true;
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
     await this.connect(url, token, {
       reconnect: true,
+      sid,
     });
   }
 
@@ -607,6 +611,9 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
   // opts
   if (opts?.reconnect) {
     params.set('reconnect', '1');
+    if(opts?.sid) {
+      params.set('sid', opts.sid);
+    }
   }
   if (opts?.autoSubscribe !== undefined) {
     params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
