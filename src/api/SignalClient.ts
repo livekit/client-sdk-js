@@ -611,7 +611,7 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
   // opts
   if (opts?.reconnect) {
     params.set('reconnect', '1');
-    if(opts?.sid) {
+    if (opts?.sid) {
       params.set('sid', opts.sid);
     }
   }
