@@ -188,8 +188,8 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   protected handleEnded = (track: RemoteTrack) => {
-    this.emit(TrackEvent.Ended, track);
     this.setTrack(undefined);
+    this.emit(TrackEvent.Ended, track);
   };
 
   protected get isAdaptiveStream(): boolean {
