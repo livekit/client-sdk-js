@@ -123,6 +123,11 @@ export namespace TrackPublication {
     Unsubscribed = 'unsubscribed',
     Desired = 'desired',
   }
+
+  export enum PermissionStatus {
+    Allowed = 'allowed',
+    NotAllowed = 'not_allowed',
+  }
 }
 
 export type PublicationEventCallbacks = {

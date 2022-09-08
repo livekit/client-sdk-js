@@ -67,6 +67,12 @@ export default class RemoteTrackPublication extends TrackPublication {
     return TrackPublication.SubscriptionStatus.Subscribed;
   }
 
+  get permissionStatus(): TrackPublication.PermissionStatus {
+    return this.allowed
+      ? TrackPublication.PermissionStatus.Allowed
+      : TrackPublication.PermissionStatus.NotAllowed;
+  }
+
   /**
    * Returns true if track is subscribed, and ready for playback
    */
@@ -143,6 +149,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   /** @internal */
   setTrack(track?: RemoteTrack) {
     const prevStatus = this.subscriptionStatus;
+    const prevPermission = this.permissionStatus;
     const prevTrack = this.track;
     if (prevTrack === track) {
       return;
@@ -163,13 +170,17 @@ export default class RemoteTrackPublication extends TrackPublication {
       track.on(TrackEvent.Ended, this.handleEnded);
       this.emit(TrackEvent.Subscribed, track);
     }
+    this.emitPermissionUpdateIfChanged(prevStatus, prevPermission);
+
     this.emitSubscriptionUpdateIfChanged(prevStatus);
   }
 
   /** @internal */
   setAllowed(allowed: boolean) {
     const prevStatus = this.subscriptionStatus;
+    const prevPermission = this.permissionStatus;
     this.allowed = allowed;
+    this.emitPermissionUpdateIfChanged(prevStatus, prevPermission);
     this.emitSubscriptionUpdateIfChanged(prevStatus);
   }
 
@@ -185,25 +196,22 @@ export default class RemoteTrackPublication extends TrackPublication {
     if (previousStatus === currentStatus) {
       return;
     }
-    log.info('subscription status', { previousStatus, currentStatus });
-    if (this.isPermissionUpdate(previousStatus, currentStatus)) {
-      this.emit(TrackEvent.SubscriptionPermissionChanged, currentStatus, previousStatus);
-    }
     this.emit(TrackEvent.SubscriptionStatusChanged, currentStatus, previousStatus);
   }
 
-  private isPermissionUpdate(
-    previous: TrackPublication.SubscriptionStatus,
-    current: TrackPublication.SubscriptionStatus,
+  private emitPermissionUpdateIfChanged(
+    previousSubscriptionStatus: TrackPublication.SubscriptionStatus,
+    previousPermissionStatus: TrackPublication.PermissionStatus,
   ) {
-    return !(
-      // desired state is not of interest for permissions
-      (
-        current === TrackPublication.SubscriptionStatus.Desired ||
-        // transition from desired to subscribed is not a permission relevant event
-        (previous === TrackPublication.SubscriptionStatus.Desired &&
-          current === TrackPublication.SubscriptionStatus.Subscribed)
-      )
+    const currentPermissionStatus = this.permissionStatus;
+    if (previousPermissionStatus === currentPermissionStatus) {
+      return;
+    }
+    // emitting subscription status instead of permission status to not break 1.0 API
+    this.emit(
+      TrackEvent.SubscriptionPermissionChanged,
+      this.subscriptionStatus,
+      previousSubscriptionStatus,
     );
   }
 
