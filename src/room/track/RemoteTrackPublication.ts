@@ -79,7 +79,7 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   // returns client's desire to subscribe to a track, also true if autoSubscribe is enabled
   get isDesired(): boolean {
-    return !!this.subscribed;
+    return this.subscribed !== false;
   }
 
   get isEnabled(): boolean {
