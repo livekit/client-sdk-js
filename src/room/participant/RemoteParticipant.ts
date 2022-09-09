@@ -20,6 +20,8 @@ export default class RemoteParticipant extends Participant {
 
   signalClient: SignalClient;
 
+  readonly desiredSubscriptions: Set<Track.Source>;
+
   private volume?: number;
 
   /** @internal */
@@ -40,6 +42,7 @@ export default class RemoteParticipant extends Participant {
     this.tracks = new Map();
     this.audioTracks = new Map();
     this.videoTracks = new Map();
+    this.desiredSubscriptions = new Set();
   }
 
   protected addTrackPublication(publication: RemoteTrackPublication) {
@@ -219,12 +222,10 @@ export default class RemoteParticipant extends Participant {
         if (!kind) {
           return;
         }
-        publication = new RemoteTrackPublication(
-          kind,
-          ti.sid,
-          ti.name,
-          this.signalClient.connectOptions?.autoSubscribe,
-        );
+        const shouldSubscribe =
+          this.signalClient.connectOptions?.autoSubscribe ??
+          this.desiredSubscriptions.has(Track.sourceFromProto(ti.source));
+        publication = new RemoteTrackPublication(kind, ti.sid, ti.name, ti.source, shouldSubscribe);
         publication.updateInfo(ti);
         newTracks.set(ti.sid, publication);
         const existingTrackOfSource = Array.from(this.tracks.values()).find(
@@ -295,6 +296,21 @@ export default class RemoteParticipant extends Participant {
     if (sendUnpublish) {
       this.emit(ParticipantEvent.TrackUnpublished, publication);
     }
+  }
+
+  subscribeToTracks(sources?: Track.Source[], subscribe: boolean = true) {
+    (sources ?? Object.values(Track.Source)).forEach((source) => {
+      if (subscribe) {
+        this.desiredSubscriptions.add(source);
+      } else {
+        this.desiredSubscriptions.delete(source);
+      }
+      this.getTrack(source)?.setSubscribed(subscribe);
+    });
+  }
+
+  unsubscribeFromTracks(sources?: Track.Source[]) {
+    this.subscribeToTracks(sources, false);
   }
 
   /** @internal */

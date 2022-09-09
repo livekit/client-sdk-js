@@ -1,5 +1,5 @@
 import log from '../../logger';
-import { TrackInfo, VideoQuality } from '../../proto/livekit_models';
+import { TrackInfo, TrackSource, VideoQuality } from '../../proto/livekit_models';
 import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import RemoteVideoTrack from './RemoteVideoTrack';
@@ -22,8 +22,14 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected videoDimensions?: Track.Dimensions;
 
-  constructor(kind: Track.Kind, id: string, name: string, autoSubscribe: boolean | undefined) {
-    super(kind, id, name);
+  constructor(
+    kind: Track.Kind,
+    id: string,
+    name: string,
+    source?: TrackSource,
+    autoSubscribe?: boolean,
+  ) {
+    super(kind, id, name, source);
     this.subscribed = autoSubscribe;
   }
 
