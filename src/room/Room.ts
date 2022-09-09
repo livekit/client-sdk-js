@@ -1031,7 +1031,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     ) {
       return;
     }
-    const previousSdp = this.engine.subscriber.pc.localDescription;
+    const previousAnswer = this.engine.subscriber.pc.localDescription;
+    const previousOffer = this.engine.subscriber.pc.remoteDescription;
 
     /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
           in this case, we send unsub tracks, so server add all tracks to this
@@ -1050,9 +1051,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.engine.client.sendSyncState({
       answer: toProtoSessionDescription({
-        sdp: previousSdp.sdp,
-        type: previousSdp.type,
+        sdp: previousAnswer.sdp,
+        type: previousAnswer.type,
       }),
+      offer: previousOffer !== null ? toProtoSessionDescription({
+        sdp: previousOffer.sdp,
+        type: previousOffer.type,
+      }) : undefined,
       subscription: {
         trackSids,
         subscribe: !sendUnsub,
