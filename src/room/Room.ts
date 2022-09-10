@@ -1054,13 +1054,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         sdp: previousAnswer.sdp,
         type: previousAnswer.type,
       }),
-      offer:
-        previousOffer !== null
-          ? toProtoSessionDescription({
-              sdp: previousOffer.sdp,
-              type: previousOffer.type,
-            })
-          : undefined,
+      offer: previousOffer
+        ? toProtoSessionDescription({
+            sdp: previousOffer.sdp,
+            type: previousOffer.type,
+          })
+        : undefined,
       subscription: {
         trackSids,
         subscribe: !sendUnsub,
