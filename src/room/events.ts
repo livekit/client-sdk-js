@@ -208,6 +208,16 @@ export enum RoomEvent {
   TrackSubscriptionPermissionChanged = 'trackSubscriptionPermissionChanged',
 
   /**
+   * One of subscribed tracks have changed its status for the current
+   * participant.
+   *
+   * args: (pub: [[RemoteTrackPublication]],
+   *        status: [[TrackPublication.SubscriptionStatus]],
+   *        participant: [[RemoteParticipant]])
+   */
+  TrackSubscriptionStatusChanged = 'trackSubscriptionStatusChanged',
+
+  /**
    * LiveKit will attempt to autoplay all audio tracks when you attach them to
    * audio elements. However, if that fails, we'll notify you via AudioPlaybackStatusChanged.
    * `Room.canPlayAudio` will indicate if audio playback is permitted.
@@ -371,6 +381,12 @@ export enum ParticipantEvent {
    */
   TrackSubscriptionPermissionChanged = 'trackSubscriptionPermissionChanged',
 
+  /**
+   * One of the remote participants publications has changed its subscription status.
+   *
+   */
+  TrackSubscriptionStatusChanged = 'trackSubscriptionStatusChanged',
+
   // fired only on LocalParticipant
   /** @internal */
   MediaDevicesError = 'mediaDevicesError',
@@ -440,4 +456,8 @@ export enum TrackEvent {
    * Fires on RemoteTrackPublication
    */
   SubscriptionPermissionChanged = 'subscriptionPermissionChanged',
+  /**
+   * Fires on RemoteTrackPublication
+   */
+  SubscriptionStatusChanged = 'subscriptionStatusChanged',
 }

@@ -124,6 +124,8 @@ export class SignalClient {
 
   onLeave?: (leave: LeaveRequest) => void;
 
+  connectOptions?: ConnectOpts;
+
   ws?: WebSocket;
 
   private pingTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -180,6 +182,7 @@ export class SignalClient {
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse | void> {
+    this.connectOptions = opts;
     if (url.startsWith('http')) {
       url = url.replace('http', 'ws');
     }

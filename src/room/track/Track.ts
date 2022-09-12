@@ -5,7 +5,6 @@ import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import { isFireFox, isSafari, isWeb } from '../utils';
-import type { TrackPublication } from './TrackPublication';
 
 const BACKGROUND_REACTION_DELAY = 5000;
 
@@ -410,8 +409,4 @@ export type TrackEventCallbacks = {
   elementDetached: (element: HTMLMediaElement) => void;
   upstreamPaused: (track: any) => void;
   upstreamResumed: (track: any) => void;
-  subscriptionPermissionChanged: (
-    status: TrackPublication.SubscriptionStatus,
-    previousStatus: TrackPublication.SubscriptionStatus,
-  ) => void;
 };

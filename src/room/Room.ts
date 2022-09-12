@@ -1008,6 +1008,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           );
         },
       )
+      .on(ParticipantEvent.TrackSubscriptionStatusChanged, (pub, status) => {
+        this.emitWhenConnected(RoomEvent.TrackSubscriptionStatusChanged, pub, status, participant);
+      })
       .on(ParticipantEvent.TrackSubscriptionPermissionChanged, (pub, status) => {
         this.emitWhenConnected(
           RoomEvent.TrackSubscriptionPermissionChanged,
@@ -1201,6 +1204,11 @@ export type RoomEventCallbacks = {
     participant: RemoteParticipant,
   ) => void;
   trackSubscriptionPermissionChanged: (
+    publication: RemoteTrackPublication,
+    status: TrackPublication.SubscriptionStatus,
+    participant: RemoteParticipant,
+  ) => void;
+  trackSubscriptionStatusChanged: (
     publication: RemoteTrackPublication,
     status: TrackPublication.SubscriptionStatus,
     participant: RemoteParticipant,

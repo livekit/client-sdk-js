@@ -62,6 +62,12 @@ export default class RemoteParticipant extends Participant {
         this.emit(ParticipantEvent.TrackSubscriptionPermissionChanged, publication, status);
       },
     );
+    publication.on(
+      TrackEvent.SubscriptionStatusChanged,
+      (status: TrackPublication.SubscriptionStatus) => {
+        this.emit(ParticipantEvent.TrackSubscriptionStatusChanged, publication, status);
+      },
+    );
     publication.on(TrackEvent.Subscribed, (track: RemoteTrack) => {
       this.emit(ParticipantEvent.TrackSubscribed, track, publication);
     });
@@ -213,7 +219,12 @@ export default class RemoteParticipant extends Participant {
         if (!kind) {
           return;
         }
-        publication = new RemoteTrackPublication(kind, ti.sid, ti.name);
+        publication = new RemoteTrackPublication(
+          kind,
+          ti.sid,
+          ti.name,
+          this.signalClient.connectOptions?.autoSubscribe,
+        );
         publication.updateInfo(ti);
         newTracks.set(ti.sid, publication);
         const existingTrackOfSource = Array.from(this.tracks.values()).find(

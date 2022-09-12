@@ -13,7 +13,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   /** @internal */
   protected allowed = true;
 
-  // keeps track of client's desire to subscribe to a track
+  // keeps track of client's desire to subscribe to a track, also true if autoSubscribe is active
   protected subscribed?: boolean;
 
   protected disabled: boolean = false;
@@ -22,11 +22,17 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected videoDimensions?: Track.Dimensions;
 
+  constructor(kind: Track.Kind, id: string, name: string, autoSubscribe: boolean | undefined) {
+    super(kind, id, name);
+    this.subscribed = autoSubscribe;
+  }
+
   /**
    * Subscribe or unsubscribe to this remote track
    * @param subscribed true to subscribe to a track, false to unsubscribe
    */
   setSubscribed(subscribed: boolean) {
+    const prevStatus = this.subscriptionStatus;
     this.subscribed = subscribed;
     // reset allowed status when desired subscription state changes
     // server will notify client via signal message if it's not allowed
@@ -45,16 +51,26 @@ export default class RemoteTrackPublication extends TrackPublication {
       ],
     };
     this.emit(TrackEvent.UpdateSubscription, sub);
+    this.emitSubscriptionUpdateIfChanged(prevStatus);
   }
 
   get subscriptionStatus(): TrackPublication.SubscriptionStatus {
-    if (this.subscribed === false || !super.isSubscribed) {
-      if (!this.allowed) {
-        return TrackPublication.SubscriptionStatus.NotAllowed;
-      }
+    if (!this.allowed) {
+      return TrackPublication.SubscriptionStatus.NotAllowed;
+    }
+    if (this.subscribed === false) {
       return TrackPublication.SubscriptionStatus.Unsubscribed;
     }
+    if (!super.isSubscribed) {
+      return TrackPublication.SubscriptionStatus.Desired;
+    }
     return TrackPublication.SubscriptionStatus.Subscribed;
+  }
+
+  get permissionStatus(): TrackPublication.PermissionStatus {
+    return this.allowed
+      ? TrackPublication.PermissionStatus.Allowed
+      : TrackPublication.PermissionStatus.NotAllowed;
   }
 
   /**
@@ -65,6 +81,11 @@ export default class RemoteTrackPublication extends TrackPublication {
       return false;
     }
     return super.isSubscribed;
+  }
+
+  // returns client's desire to subscribe to a track, also true if autoSubscribe is enabled
+  get isDesired(): boolean {
+    return this.subscribed !== false;
   }
 
   get isEnabled(): boolean {
@@ -128,6 +149,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   /** @internal */
   setTrack(track?: RemoteTrack) {
     const prevStatus = this.subscriptionStatus;
+    const prevPermission = this.permissionStatus;
     const prevTrack = this.track;
     if (prevTrack === track) {
       return;
@@ -148,13 +170,17 @@ export default class RemoteTrackPublication extends TrackPublication {
       track.on(TrackEvent.Ended, this.handleEnded);
       this.emit(TrackEvent.Subscribed, track);
     }
+    this.emitPermissionUpdateIfChanged(prevStatus, prevPermission);
+
     this.emitSubscriptionUpdateIfChanged(prevStatus);
   }
 
   /** @internal */
   setAllowed(allowed: boolean) {
     const prevStatus = this.subscriptionStatus;
+    const prevPermission = this.permissionStatus;
     this.allowed = allowed;
+    this.emitPermissionUpdateIfChanged(prevStatus, prevPermission);
     this.emitSubscriptionUpdateIfChanged(prevStatus);
   }
 
@@ -170,7 +196,23 @@ export default class RemoteTrackPublication extends TrackPublication {
     if (previousStatus === currentStatus) {
       return;
     }
-    this.emit(TrackEvent.SubscriptionPermissionChanged, currentStatus, previousStatus);
+    this.emit(TrackEvent.SubscriptionStatusChanged, currentStatus, previousStatus);
+  }
+
+  private emitPermissionUpdateIfChanged(
+    previousSubscriptionStatus: TrackPublication.SubscriptionStatus,
+    previousPermissionStatus: TrackPublication.PermissionStatus,
+  ) {
+    const currentPermissionStatus = this.permissionStatus;
+    if (previousPermissionStatus === currentPermissionStatus) {
+      return;
+    }
+    // emitting subscription status instead of permission status to not break 1.0 API
+    this.emit(
+      TrackEvent.SubscriptionPermissionChanged,
+      this.subscriptionStatus,
+      previousSubscriptionStatus,
+    );
   }
 
   private isManualOperationAllowed(): boolean {
