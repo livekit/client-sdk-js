@@ -155,8 +155,8 @@ export class SignalClient {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.isConnected = false;
-    const res = await this.connect(url, token, opts, abortSignal);
     this.options = opts;
+    const res = await this.connect(url, token, opts, abortSignal);
     return res as JoinResponse;
   }
 
@@ -169,7 +169,7 @@ export class SignalClient {
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    await this.connect(url, token, { ...this.options, sid });
+    await this.connect(url, token, { ...this.options, reconnect: true, sid });
   }
 
   connect(
