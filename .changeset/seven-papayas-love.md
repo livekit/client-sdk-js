@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Add isDesired getter
+Add subscriptionStatusChanged event and isDesired getter for RemoteTrack Publications
