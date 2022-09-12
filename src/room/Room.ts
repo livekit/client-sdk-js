@@ -2,7 +2,12 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { toProtoSessionDescription } from '../api/SignalClient';
 import log from '../logger';
-import type { RoomConnectOptions, RoomOptions } from '../options';
+import type {
+  InternalRoomConnectOptions,
+  InternalRoomOptions,
+  RoomConnectOptions,
+  RoomOptions,
+} from '../options';
 import {
   DataPacket_Kind,
   DisconnectReason,
@@ -21,6 +26,7 @@ import {
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
 } from '../proto/livekit_rtc';
+import { defaultRoomConnectOptions, defaultRoomOptions } from './defaults';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
@@ -87,12 +93,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   metadata: string | undefined = undefined;
 
   /** options of room */
-  options: RoomOptions;
+  options: InternalRoomOptions;
 
   private identityToSid: Map<string, string>;
 
   /** connect options of room */
-  private connOptions?: RoomConnectOptions;
+  private connOptions?: InternalRoomConnectOptions;
 
   private audioEnabled = true;
 
@@ -111,11 +117,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
    */
-  constructor(options?: RoomOptions) {
+  constructor(options?: Partial<RoomOptions>) {
     super();
     this.participants = new Map();
     this.identityToSid = new Map();
-    this.options = options || {};
+    this.options = { ...defaultRoomOptions, ...options };
 
     this.options.audioCaptureDefaults = {
       ...audioDefaults,
@@ -229,23 +235,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
       this.acquireAudioContext();
 
-      if (opts?.rtcConfig) {
-        this.engine.rtcConfig = opts.rtcConfig;
-      }
+      this.connOptions = { ...defaultRoomConnectOptions, ...opts } as InternalRoomConnectOptions;
 
-      this.connOptions = opts;
+      if (this.connOptions.rtcConfig) {
+        this.engine.rtcConfig = this.connOptions.rtcConfig;
+      }
 
       try {
         const joinResponse = await this.engine.join(
           url,
           token,
           {
-            autoSubscribe: opts?.autoSubscribe,
-            publishOnly: opts?.publishOnly,
+            autoSubscribe: this.connOptions.autoSubscribe,
+            publishOnly: this.connOptions.publishOnly,
             adaptiveStream:
-              typeof this.options?.adaptiveStream === 'object'
-                ? true
-                : this.options?.adaptiveStream,
+              typeof this.options.adaptiveStream === 'object' ? true : this.options.adaptiveStream,
           },
           this.abortController.signal,
         );

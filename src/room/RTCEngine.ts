@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
-import type { RoomOptions } from '../options';
+import type { InternalRoomOptions } from '../options';
 import {
   ClientConfigSetting,
   ClientConfiguration,
@@ -20,7 +20,6 @@ import {
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
-import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 import {
   ConnectionError,
   NegotiationError,
@@ -122,17 +121,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private participantSid?: string;
 
-  constructor(private options: RoomOptions) {
+  constructor(private options: InternalRoomOptions) {
     super();
     this.client = new SignalClient();
     this.client.signalLatency = this.options.expSignalLatency;
-    this.reconnectPolicy = this.options.reconnectPolicy ?? new DefaultReconnectPolicy();
+    this.reconnectPolicy = this.options.reconnectPolicy;
   }
 
   async join(
     url: string,
     token: string,
-    opts?: SignalOptions,
+    opts: SignalOptions,
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse> {
     this.url = url;
@@ -774,6 +773,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     let joinResponse: JoinResponse;
     try {
+      if (!this.signalOpts) {
+        log.warn('attempted connection restart, without signal options present');
+        throw new SignalReconnectError();
+      }
       joinResponse = await this.join(this.url, this.token, this.signalOpts);
     } catch (e) {
       throw new SignalReconnectError();
