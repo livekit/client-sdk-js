@@ -182,16 +182,23 @@ export function getEmptyAudioStreamTrack() {
 export class Future<T> {
   promise: Promise<T>;
 
-  resolve!: (arg: T) => void;
+  resolve?: (arg: T) => void;
 
-  reject!: (e: any) => void;
+  reject?: (e: any) => void;
 
-  constructor(promise?: Promise<T>) {
-    this.promise =
-      promise ??
-      new Promise<T>((resolve, reject) => {
-        this.resolve = resolve;
-        this.reject = reject;
-      });
+  onFinally?: () => void;
+
+  constructor(
+    futureBase?: (resolve: (arg: T) => void, reject: (e: any) => void) => void,
+    onFinally?: () => void,
+  ) {
+    this.onFinally = onFinally;
+    this.promise = new Promise<T>(async (resolve, reject) => {
+      this.resolve = resolve;
+      this.reject = reject;
+      if (futureBase) {
+        await futureBase(resolve, reject);
+      }
+    }).finally(() => this.onFinally?.());
   }
 }

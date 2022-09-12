@@ -171,7 +171,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.Resumed, () => {
         this.setAndEmitConnectionState(ConnectionState.Connected);
-        this.reconnectFuture?.resolve();
+        this.reconnectFuture?.resolve?.();
         this.reconnectFuture = undefined;
         this.emit(RoomEvent.Reconnected);
         this.updateSubscriptions();
@@ -218,7 +218,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.connectFuture = this.reconnectFuture;
       return this.connectFuture.promise;
     }
-    const connectPromise = new Promise<void>(async (resolve, reject) => {
+    const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
       this.setAndEmitConnectionState(ConnectionState.Connecting);
       if (!this.abortController || this.abortController.signal.aborted) {
         this.abortController = new AbortController();
@@ -347,8 +347,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.setAndEmitConnectionState(ConnectionState.Connected);
         resolve();
       });
-    }).finally(() => (this.connectFuture = undefined));
-    this.connectFuture = new Future(connectPromise);
+    };
+    this.connectFuture = new Future(connectFn, () => {
+      this.connectFuture = undefined;
+      this.emit(RoomEvent.Connected);
+    });
 
     return this.connectFuture.promise;
   };
@@ -363,7 +366,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       log.warn('abort connection attempt');
       this.abortController?.abort();
       // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
-      this.connectFuture?.reject(new ConnectionError('Client initiated disconnect'));
+      this.connectFuture?.reject?.(new ConnectionError('Client initiated disconnect'));
       this.connectFuture = undefined;
     }
     // send leave
@@ -625,7 +628,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
-    this.reconnectFuture?.resolve();
+    this.reconnectFuture?.resolve?.();
     this.reconnectFuture = undefined;
 
     // rehydrate participants
@@ -672,7 +675,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     // reject potentially ongoing reconnection attempt
     if (this.connectFuture === this.reconnectFuture) {
-      this.connectFuture?.reject(undefined);
+      this.connectFuture?.reject?.(undefined);
       this.connectFuture = undefined;
     }
     this.reconnectFuture = undefined;
@@ -1152,6 +1155,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 export default Room;
 
 export type RoomEventCallbacks = {
+  connected: () => void;
   reconnecting: () => void;
   reconnected: () => void;
   disconnected: (reason?: DisconnectReason) => void;
