@@ -117,7 +117,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
    */
-  constructor(options?: Partial<RoomOptions>) {
+  constructor(options?: RoomOptions) {
     super();
     this.participants = new Map();
     this.identityToSid = new Map();
