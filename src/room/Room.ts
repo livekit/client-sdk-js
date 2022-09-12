@@ -26,7 +26,13 @@ import {
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
 } from '../proto/livekit_rtc';
-import { defaultRoomConnectOptions, defaultRoomOptions } from './defaults';
+import {
+  roomConnectOptionDefaults,
+  roomOptionDefaults,
+  audioDefaults,
+  publishDefaults,
+  videoDefaults,
+} from './defaults';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
@@ -35,7 +41,6 @@ import type Participant from './participant/Participant';
 import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
-import { audioDefaults, publishDefaults, videoDefaults } from './track/defaults';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
@@ -121,7 +126,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     super();
     this.participants = new Map();
     this.identityToSid = new Map();
-    this.options = { ...defaultRoomOptions, ...options };
+    this.options = { ...roomOptionDefaults, ...options };
 
     this.options.audioCaptureDefaults = {
       ...audioDefaults,
@@ -235,7 +240,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
       this.acquireAudioContext();
 
-      this.connOptions = { ...defaultRoomConnectOptions, ...opts } as InternalRoomConnectOptions;
+      this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
 
       if (this.connOptions.rtcConfig) {
         this.engine.rtcConfig = this.connOptions.rtcConfig;
