@@ -2,7 +2,7 @@ import type { InternalRoomConnectOptions, InternalRoomOptions } from '../options
 import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 
 export const defaultRoomOptions: InternalRoomOptions = {
-  adaptiveStream: true,
+  adaptiveStream: false,
   dynacast: false,
   stopLocalTrackOnUnpublish: false,
   reconnectPolicy: new DefaultReconnectPolicy(),
