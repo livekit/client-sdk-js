@@ -34,7 +34,7 @@ import { getClientInfo, sleep } from '../room/utils';
 
 // internal options
 interface ConnectOpts {
-  autoSubscribe?: boolean;
+  autoSubscribe: boolean;
   /** internal */
   reconnect?: boolean;
 
@@ -49,7 +49,7 @@ interface ConnectOpts {
 
 // public options
 export interface SignalOptions {
-  autoSubscribe?: boolean;
+  autoSubscribe: boolean;
   /** @deprecated */
   publishOnly?: string;
   adaptiveStream?: boolean;
@@ -128,6 +128,8 @@ export class SignalClient {
 
   ws?: WebSocket;
 
+  private options?: SignalOptions;
+
   private pingTimeout: ReturnType<typeof setTimeout> | undefined;
 
   private pingTimeoutDuration: number | undefined;
@@ -147,33 +149,27 @@ export class SignalClient {
   async join(
     url: string,
     token: string,
-    opts?: SignalOptions,
+    opts: SignalOptions,
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.isConnected = false;
-    const res = await this.connect(
-      url,
-      token,
-      {
-        autoSubscribe: opts?.autoSubscribe,
-        publishOnly: opts?.publishOnly,
-        adaptiveStream: opts?.adaptiveStream,
-      },
-      abortSignal,
-    );
+    this.options = opts;
+    const res = await this.connect(url, token, opts, abortSignal);
     return res as JoinResponse;
   }
 
   async reconnect(url: string, token: string, sid?: string): Promise<void> {
+    if (!this.options) {
+      log.warn('attempted to reconnect without signal options being set, ignoring');
+      return;
+    }
     this.isReconnecting = true;
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
-    await this.connect(url, token, {
-      reconnect: true,
-      sid,
-    });
+
+    await this.connect(url, token, { ...this.options, reconnect: true, sid });
   }
 
   connect(
@@ -607,20 +603,19 @@ export function toProtoSessionDescription(
   return sd;
 }
 
-function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectOpts): string {
+function createConnectionParams(token: string, info: ClientInfo, opts: ConnectOpts): string {
   const params = new URLSearchParams();
   params.set('access_token', token);
 
   // opts
-  if (opts?.reconnect) {
+  if (opts.reconnect) {
     params.set('reconnect', '1');
-    if (opts?.sid) {
+    if (opts.sid) {
       params.set('sid', opts.sid);
     }
   }
-  if (opts?.autoSubscribe !== undefined) {
-    params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
-  }
+
+  params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
 
   // ClientInfo
   params.set('sdk', 'js');
@@ -642,11 +637,11 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
     params.set('browser_version', info.browserVersion);
   }
 
-  if (opts?.publishOnly !== undefined) {
+  if (opts.publishOnly !== undefined) {
     params.set('publish', opts.publishOnly);
   }
 
-  if (opts?.adaptiveStream) {
+  if (opts.adaptiveStream) {
     params.set('adaptive_stream', '1');
   }
 
