@@ -27,10 +27,10 @@ import {
   SubscriptionPermissionUpdate,
 } from '../proto/livekit_rtc';
 import {
-  roomConnectOptionDefaults,
-  roomOptionDefaults,
   audioDefaults,
   publishDefaults,
+  roomConnectOptionDefaults,
+  roomOptionDefaults,
   videoDefaults,
 } from './defaults';
 import DeviceManager from './DeviceManager';
@@ -451,15 +451,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         });
         break;
-      case 'switch-candidate':
+      case 'force-tcp':
+      case 'force-tls':
         req = SimulateScenario.fromPartial({
           scenario: {
             $case: 'switchCandidateProtocol',
-            switchCandidateProtocol: 1,
+            switchCandidateProtocol: scenario === 'force-tls' ? 2 : 1,
           },
         });
-        postAction = () => {
-          this.engine.publisher?.createAndSendOffer({ iceRestart: true });
+        postAction = async () => {
+          const onLeave = this.engine.client.onLeave;
+          if (onLeave) {
+            onLeave({
+              reason: DisconnectReason.CLIENT_INITIATED,
+              canReconnect: true,
+            });
+          }
         };
         break;
       default:
