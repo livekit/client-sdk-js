@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.3.3
+
+### Patch Changes
+
+- [#423](https://github.com/livekit/client-sdk-js/pull/423) [`e4ead3d`](https://github.com/livekit/client-sdk-js/commit/e4ead3d0f62d935214b97f76c274da66991c34ea) Thanks [@lukasIO](https://github.com/lukasIO)! - Add subscriptionStatusChanged event and isDesired getter for RemoteTrack Publications
+
+- [#432](https://github.com/livekit/client-sdk-js/pull/432) [`3c80714`](https://github.com/livekit/client-sdk-js/commit/3c807143e69f94950f4969eb309d81200280c41a) Thanks [@cnderrauber](https://github.com/cnderrauber)! - send previous server offer when reconnecting
+
+- [#431](https://github.com/livekit/client-sdk-js/pull/431) [`4004426`](https://github.com/livekit/client-sdk-js/commit/40044262a3c30d039dbc8f66dac8dffb3ecdd8f3) Thanks [@lukasIO](https://github.com/lukasIO)! - Add RoomEvent.Connected, fix connectFuture rejection exception
+
+- [#436](https://github.com/livekit/client-sdk-js/pull/436) [`1715877`](https://github.com/livekit/client-sdk-js/commit/17158772667a221f2fc31d459473f9a049402fbe) Thanks [@lukasIO](https://github.com/lukasIO)! - Use explicit defaults for room and connect options
+
 ## 1.3.2
 
 ### Patch Changes
