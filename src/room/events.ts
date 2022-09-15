@@ -10,6 +10,11 @@
 
 export enum RoomEvent {
   /**
+   * When the connection to the server has been established
+   */
+  Connected = 'connected',
+
+  /**
    * When the connection to the server has been interrupted and it's attempting
    * to reconnect.
    */

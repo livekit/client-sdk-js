@@ -1,5 +1,37 @@
 # Change Log
 
+## 1.3.3
+
+### Patch Changes
+
+- [#423](https://github.com/livekit/client-sdk-js/pull/423) [`e4ead3d`](https://github.com/livekit/client-sdk-js/commit/e4ead3d0f62d935214b97f76c274da66991c34ea) Thanks [@lukasIO](https://github.com/lukasIO)! - Add subscriptionStatusChanged event and isDesired getter for RemoteTrack Publications
+
+- [#432](https://github.com/livekit/client-sdk-js/pull/432) [`3c80714`](https://github.com/livekit/client-sdk-js/commit/3c807143e69f94950f4969eb309d81200280c41a) Thanks [@cnderrauber](https://github.com/cnderrauber)! - send previous server offer when reconnecting
+
+- [#431](https://github.com/livekit/client-sdk-js/pull/431) [`4004426`](https://github.com/livekit/client-sdk-js/commit/40044262a3c30d039dbc8f66dac8dffb3ecdd8f3) Thanks [@lukasIO](https://github.com/lukasIO)! - Add RoomEvent.Connected, fix connectFuture rejection exception
+
+- [#436](https://github.com/livekit/client-sdk-js/pull/436) [`1715877`](https://github.com/livekit/client-sdk-js/commit/17158772667a221f2fc31d459473f9a049402fbe) Thanks [@lukasIO](https://github.com/lukasIO)! - Use explicit defaults for room and connect options
+
+## 1.3.2
+
+### Patch Changes
+
+- [#425](https://github.com/livekit/client-sdk-js/pull/425) [`6a77802`](https://github.com/livekit/client-sdk-js/commit/6a77802eb4d585b99a1152dbde9e6f70da064862) Thanks [@cnderrauber](https://github.com/cnderrauber)! - add participant id when reconnecting
+
+- [#427](https://github.com/livekit/client-sdk-js/pull/427) [`c477b77`](https://github.com/livekit/client-sdk-js/commit/c477b77e5dac3e2cf8c734193f9f94e529b45311) Thanks [@cnderrauber](https://github.com/cnderrauber)! - fix video attach to incorrect element when tranceiver reuse
+
+## 1.3.1
+
+### Patch Changes
+
+- [#414](https://github.com/livekit/client-sdk-js/pull/414) [`6b748da`](https://github.com/livekit/client-sdk-js/commit/6b748daaff89f3f6c903283af88440d35b0273d5) Thanks [@cnderrauber](https://github.com/cnderrauber)! - add force relay configuration
+
+* [#418](https://github.com/livekit/client-sdk-js/pull/418) [`82107cf`](https://github.com/livekit/client-sdk-js/commit/82107cf5861a5fe903cb3f91ab32900c9d116cf4) Thanks [@davidzhao](https://github.com/davidzhao)! - Fixed compatibility with older browsers with setCodecPreferences (Chrome 96)
+
+- [#419](https://github.com/livekit/client-sdk-js/pull/419) [`84a96b2`](https://github.com/livekit/client-sdk-js/commit/84a96b2bd8d354c68f94f8a3309bf13803aad8ab) Thanks [@cnderrauber](https://github.com/cnderrauber)! - fix video track lost for safari migration
+
+* [#420](https://github.com/livekit/client-sdk-js/pull/420) [`0c45c73`](https://github.com/livekit/client-sdk-js/commit/0c45c73095a46b876810d90306c3d350f4a5f857) Thanks [@lukasIO](https://github.com/lukasIO)! - Add permission track event to typed callbacks
+
 ## 1.3.0
 
 ### Minor Changes

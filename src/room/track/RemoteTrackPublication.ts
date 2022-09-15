@@ -39,10 +39,13 @@ export default class RemoteTrackPublication extends TrackPublication {
    */
   setSubscribed(subscribed: boolean) {
     const prevStatus = this.subscriptionStatus;
+    const prevPermission = this.permissionStatus;
     this.subscribed = subscribed;
     // reset allowed status when desired subscription state changes
     // server will notify client via signal message if it's not allowed
-    this.allowed = true;
+    if (subscribed) {
+      this.allowed = true;
+    }
 
     const sub: UpdateSubscription = {
       trackSids: [this.trackSid],
@@ -58,10 +61,11 @@ export default class RemoteTrackPublication extends TrackPublication {
     };
     this.emit(TrackEvent.UpdateSubscription, sub);
     this.emitSubscriptionUpdateIfChanged(prevStatus);
+    this.emitPermissionUpdateIfChanged(prevStatus, prevPermission);
   }
 
   get subscriptionStatus(): TrackPublication.SubscriptionStatus {
-    if (!this.allowed) {
+    if (!this.allowed && this.subscribed === true) {
       return TrackPublication.SubscriptionStatus.NotAllowed;
     }
     if (this.subscribed === false) {
@@ -210,7 +214,11 @@ export default class RemoteTrackPublication extends TrackPublication {
     previousPermissionStatus: TrackPublication.PermissionStatus,
   ) {
     const currentPermissionStatus = this.permissionStatus;
-    if (previousPermissionStatus === currentPermissionStatus) {
+    if (
+      (previousPermissionStatus === currentPermissionStatus ||
+        this.subscriptionStatus === TrackPublication.SubscriptionStatus.Desired) &&
+      previousSubscriptionStatus !== TrackPublication.SubscriptionStatus.Desired
+    ) {
       return;
     }
     // emitting subscription status instead of permission status to not break 1.0 API
@@ -236,8 +244,8 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   protected handleEnded = (track: RemoteTrack) => {
-    this.emit(TrackEvent.Ended, track);
     this.setTrack(undefined);
+    this.emit(TrackEvent.Ended, track);
   };
 
   protected get isAdaptiveStream(): boolean {

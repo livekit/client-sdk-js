@@ -2,7 +2,12 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { toProtoSessionDescription } from '../api/SignalClient';
 import log from '../logger';
-import type { RoomConnectOptions, RoomOptions } from '../options';
+import type {
+  InternalRoomConnectOptions,
+  InternalRoomOptions,
+  RoomConnectOptions,
+  RoomOptions,
+} from '../options';
 import {
   DataPacket_Kind,
   DisconnectReason,
@@ -21,6 +26,13 @@ import {
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
 } from '../proto/livekit_rtc';
+import {
+  audioDefaults,
+  publishDefaults,
+  roomConnectOptionDefaults,
+  roomOptionDefaults,
+  videoDefaults,
+} from './defaults';
 import DeviceManager from './DeviceManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
@@ -29,7 +41,6 @@ import type Participant from './participant/Participant';
 import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
-import { audioDefaults, publishDefaults, videoDefaults } from './track/defaults';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
@@ -87,12 +98,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   metadata: string | undefined = undefined;
 
   /** options of room */
-  options: RoomOptions;
+  options: InternalRoomOptions;
 
   private identityToSid: Map<string, string>;
 
   /** connect options of room */
-  private connOptions?: RoomConnectOptions;
+  private connOptions?: InternalRoomConnectOptions;
 
   private audioEnabled = true;
 
@@ -118,7 +129,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     super();
     this.participants = new Map();
     this.identityToSid = new Map();
-    this.options = options || {};
+    this.options = { ...roomOptionDefaults, ...options };
 
     this.options.audioCaptureDefaults = {
       ...audioDefaults,
@@ -176,7 +187,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.Resumed, () => {
         this.setAndEmitConnectionState(ConnectionState.Connected);
-        this.reconnectFuture?.resolve();
+        this.reconnectFuture?.resolve?.();
         this.reconnectFuture = undefined;
         this.emit(RoomEvent.Reconnected);
         this.updateSubscriptions();
@@ -223,7 +234,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.connectFuture = this.reconnectFuture;
       return this.connectFuture.promise;
     }
-    const connectPromise = new Promise<void>(async (resolve, reject) => {
+    const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
       this.setAndEmitConnectionState(ConnectionState.Connecting);
       if (!this.abortController || this.abortController.signal.aborted) {
         this.abortController = new AbortController();
@@ -234,23 +245,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
       this.acquireAudioContext();
 
-      if (opts?.rtcConfig) {
-        this.engine.rtcConfig = opts.rtcConfig;
-      }
+      this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
 
-      this.connOptions = opts;
+      if (this.connOptions.rtcConfig) {
+        this.engine.rtcConfig = this.connOptions.rtcConfig;
+      }
 
       try {
         const joinResponse = await this.engine.join(
           url,
           token,
           {
-            autoSubscribe: opts?.autoSubscribe,
-            publishOnly: opts?.publishOnly,
+            autoSubscribe: this.connOptions.autoSubscribe,
+            publishOnly: this.connOptions.publishOnly,
             adaptiveStream:
-              typeof this.options?.adaptiveStream === 'object'
-                ? true
-                : this.options?.adaptiveStream,
+              typeof this.options.adaptiveStream === 'object' ? true : this.options.adaptiveStream,
           },
           this.abortController.signal,
         );
@@ -352,8 +361,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.setAndEmitConnectionState(ConnectionState.Connected);
         resolve();
       });
-    }).finally(() => (this.connectFuture = undefined));
-    this.connectFuture = new Future(connectPromise);
+    };
+    this.connectFuture = new Future(connectFn, () => {
+      this.connectFuture = undefined;
+      this.emit(RoomEvent.Connected);
+    });
 
     return this.connectFuture.promise;
   };
@@ -368,7 +380,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       log.warn('abort connection attempt');
       this.abortController?.abort();
       // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
-      this.connectFuture?.reject(new ConnectionError('Client initiated disconnect'));
+      this.connectFuture?.reject?.(new ConnectionError('Client initiated disconnect'));
       this.connectFuture = undefined;
     }
     // send leave
@@ -444,15 +456,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         });
         break;
-      case 'switch-candidate':
+      case 'force-tcp':
+      case 'force-tls':
         req = SimulateScenario.fromPartial({
           scenario: {
             $case: 'switchCandidateProtocol',
-            switchCandidateProtocol: 1,
+            switchCandidateProtocol: scenario === 'force-tls' ? 2 : 1,
           },
         });
-        postAction = () => {
-          this.engine.publisher?.createAndSendOffer({ iceRestart: true });
+        postAction = async () => {
+          const onLeave = this.engine.client.onLeave;
+          if (onLeave) {
+            onLeave({
+              reason: DisconnectReason.CLIENT_INITIATED,
+              canReconnect: true,
+            });
+          }
         };
         break;
       default:
@@ -647,7 +666,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
-    this.reconnectFuture?.resolve();
+    this.reconnectFuture?.resolve?.();
     this.reconnectFuture = undefined;
 
     // rehydrate participants
@@ -694,7 +713,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     // reject potentially ongoing reconnection attempt
     if (this.connectFuture === this.reconnectFuture) {
-      this.connectFuture?.reject(undefined);
+      this.connectFuture?.reject?.(undefined);
       this.connectFuture = undefined;
     }
     this.reconnectFuture = undefined;
@@ -1067,7 +1086,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     ) {
       return;
     }
-    const previousSdp = this.engine.subscriber.pc.localDescription;
+    const previousAnswer = this.engine.subscriber.pc.localDescription;
+    const previousOffer = this.engine.subscriber.pc.remoteDescription;
 
     /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
           in this case, we send unsub tracks, so server add all tracks to this
@@ -1086,9 +1106,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.engine.client.sendSyncState({
       answer: toProtoSessionDescription({
-        sdp: previousSdp.sdp,
-        type: previousSdp.type,
+        sdp: previousAnswer.sdp,
+        type: previousAnswer.type,
       }),
+      offer: previousOffer
+        ? toProtoSessionDescription({
+            sdp: previousOffer.sdp,
+            type: previousOffer.type,
+          })
+        : undefined,
       subscription: {
         trackSids,
         subscribe: !sendUnsub,
@@ -1178,6 +1204,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 export default Room;
 
 export type RoomEventCallbacks = {
+  connected: () => void;
   reconnecting: () => void;
   reconnected: () => void;
   disconnected: (reason?: DisconnectReason) => void;

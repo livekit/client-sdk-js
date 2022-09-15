@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { SignalClient, SignalOptions } from '../api/SignalClient';
 import log from '../logger';
-import type { RoomOptions } from '../options';
+import type { InternalRoomOptions } from '../options';
 import {
   ClientConfigSetting,
   ClientConfiguration,
@@ -20,7 +20,6 @@ import {
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
-import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 import {
   ConnectionError,
   NegotiationError,
@@ -120,17 +119,19 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reconnectTimeout?: ReturnType<typeof setTimeout>;
 
-  constructor(private options: RoomOptions) {
+  private participantSid?: string;
+
+  constructor(private options: InternalRoomOptions) {
     super();
     this.client = new SignalClient();
     this.client.signalLatency = this.options.expSignalLatency;
-    this.reconnectPolicy = this.options.reconnectPolicy ?? new DefaultReconnectPolicy();
+    this.reconnectPolicy = this.options.reconnectPolicy;
   }
 
   async join(
     url: string,
     token: string,
-    opts?: SignalOptions,
+    opts: SignalOptions,
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse> {
     this.url = url;
@@ -236,6 +237,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.publisher || this.subscriber) {
       return;
     }
+
+    this.participantSid = joinResponse.participant?.sid;
 
     // update ICE servers before creating PeerConnection
     if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
@@ -770,6 +773,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     let joinResponse: JoinResponse;
     try {
+      if (!this.signalOpts) {
+        log.warn('attempted connection restart, without signal options present');
+        throw new SignalReconnectError();
+      }
       joinResponse = await this.join(this.url, this.token, this.signalOpts);
     } catch (e) {
       throw new SignalReconnectError();
@@ -798,7 +805,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     try {
-      await this.client.reconnect(this.url, this.token);
+      await this.client.reconnect(this.url, this.token, this.participantSid);
     } catch (e) {
       let message = '';
       if (e instanceof Error) {
