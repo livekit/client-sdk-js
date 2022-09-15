@@ -107,6 +107,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** future holding sdk initiated reconnection attempt */
   private reconnectFuture?: Future<void>;
 
+  /** map keeping track of desired subscriptions per participant */
+  private readonly desiredSubscriptions: Map<string, Set<Track.Source>>;
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -133,6 +136,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.createEngine();
 
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
+
+    this.desiredSubscriptions = new Map();
   }
 
   private createEngine() {
@@ -545,6 +550,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
+  subscribeToParticipantTracks(participantIdentity: string, sources: Track.Source[]) {
+    if (participantIdentity === this.localParticipant.identity) {
+      log.warn('cannot subscribe to tracks of local participant');
+      return;
+    }
+
+    // store desired subscriptions for when a participant connects / reconnects
+    const trackSet = new Set<Track.Source>(sources);
+    this.desiredSubscriptions.set(participantIdentity, trackSet);
+
+    // in case the participant is in the room already, update subscriptions
+    const remoteParticipant = this.getParticipantByIdentity(participantIdentity) as
+      | RemoteParticipant
+      | undefined;
+    remoteParticipant?.subscribeToTracks(sources);
+  }
+
   private recreateEngine() {
     this.engine.close();
     /* @ts-ignore */
@@ -934,9 +956,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private createParticipant(id: string, info?: ParticipantInfo): RemoteParticipant {
     let participant: RemoteParticipant;
     if (info) {
-      participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info);
+      participant = RemoteParticipant.fromParticipantInfo(
+        this.engine.client,
+        info,
+        this.desiredSubscriptions.get(id),
+      );
     } else {
-      participant = new RemoteParticipant(this.engine.client, id, '');
+      participant = new RemoteParticipant(
+        this.engine.client,
+        id,
+        '',
+        '',
+        '',
+        this.desiredSubscriptions.get(id),
+      );
     }
     return participant;
   }

@@ -20,13 +20,24 @@ export default class RemoteParticipant extends Participant {
 
   signalClient: SignalClient;
 
-  readonly desiredSubscriptions: Set<Track.Source>;
-
   private volume?: number;
 
+  private desiredSubscriptions: Set<Track.Source>;
+
   /** @internal */
-  static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
-    return new RemoteParticipant(signalClient, pi.sid, pi.identity, pi.name, pi.metadata);
+  static fromParticipantInfo(
+    signalClient: SignalClient,
+    pi: ParticipantInfo,
+    desiredSubscriptions?: Set<Track.Source>,
+  ): RemoteParticipant {
+    return new RemoteParticipant(
+      signalClient,
+      pi.sid,
+      pi.identity,
+      pi.name,
+      pi.metadata,
+      desiredSubscriptions,
+    );
   }
 
   /** @internal */
@@ -36,13 +47,14 @@ export default class RemoteParticipant extends Participant {
     identity?: string,
     name?: string,
     metadata?: string,
+    desiredSubscriptions?: Set<Track.Source>,
   ) {
     super(sid, identity || '', name, metadata);
     this.signalClient = signalClient;
     this.tracks = new Map();
     this.audioTracks = new Map();
     this.videoTracks = new Map();
-    this.desiredSubscriptions = new Set();
+    this.desiredSubscriptions = desiredSubscriptions ?? new Set();
   }
 
   protected addTrackPublication(publication: RemoteTrackPublication) {
@@ -114,6 +126,15 @@ export default class RemoteParticipant extends Participant {
       return (audioPublication.track as RemoteAudioTrack).getVolume();
     }
     return this.volume;
+  }
+
+  subscribeToTracks(sources: Track.Source[]) {
+    this.desiredSubscriptions = new Set(sources);
+    // in case the desired track is present already, set desire to subscribe
+    this.getTracks().forEach(({ source }) => {
+      const subscribe = this.desiredSubscriptions.has(source);
+      this.getTrack(source)?.setSubscribed(subscribe);
+    });
   }
 
   /** @internal */
@@ -296,21 +317,6 @@ export default class RemoteParticipant extends Participant {
     if (sendUnpublish) {
       this.emit(ParticipantEvent.TrackUnpublished, publication);
     }
-  }
-
-  subscribeToTracks(sources?: Track.Source[], subscribe: boolean = true) {
-    (sources ?? Object.values(Track.Source)).forEach((source) => {
-      if (subscribe) {
-        this.desiredSubscriptions.add(source);
-      } else {
-        this.desiredSubscriptions.delete(source);
-      }
-      this.getTrack(source)?.setSubscribed(subscribe);
-    });
-  }
-
-  unsubscribeFromTracks(sources?: Track.Source[]) {
-    this.subscribeToTracks(sources, false);
   }
 
   /** @internal */
