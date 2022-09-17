@@ -1061,11 +1061,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           subscribe pc and unsub special tracks from it.
        2. autosubscribe off, we send subscribed tracks.
     */
-    const sendUnsub = this.connOptions?.autoSubscribe || false;
+    const shouldSubscribe = this.connOptions?.autoSubscribe;
     const trackSids = new Array<string>();
     this.participants.forEach((participant) => {
       participant.tracks.forEach((track) => {
-        if (track.isSubscribed !== sendUnsub) {
+        if (track.isDesired !== shouldSubscribe) {
           trackSids.push(track.trackSid);
         }
       });
@@ -1084,7 +1084,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         : undefined,
       subscription: {
         trackSids,
-        subscribe: !sendUnsub,
+        subscribe: !shouldSubscribe,
         participantTracks: [],
       },
       publishTracks: this.localParticipant.publishedTracksInfo(),
