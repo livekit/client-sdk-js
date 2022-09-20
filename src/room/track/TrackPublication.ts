@@ -118,10 +118,9 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
 
 export namespace TrackPublication {
   export enum SubscriptionStatus {
-    Subscribed = 'subscribed',
-    NotAllowed = 'not_allowed',
-    Unsubscribed = 'unsubscribed',
     Desired = 'desired',
+    Subscribed = 'subscribed',
+    Unsubscribed = 'unsubscribed',
   }
 
   export enum PermissionStatus {
@@ -136,8 +135,8 @@ export type PublicationEventCallbacks = {
   ended: (track?: Track) => void;
   updateSettings: (settings: UpdateTrackSettings) => void;
   subscriptionPermissionChanged: (
-    status: TrackPublication.SubscriptionStatus,
-    prevStatus: TrackPublication.SubscriptionStatus,
+    status: TrackPublication.PermissionStatus,
+    prevStatus: TrackPublication.PermissionStatus,
   ) => void;
   updateSubscription: (sub: UpdateSubscription) => void;
   subscribed: (track: RemoteTrack) => void;
