@@ -58,7 +58,7 @@ export default class RemoteParticipant extends Participant {
     });
     publication.on(
       TrackEvent.SubscriptionPermissionChanged,
-      (status: TrackPublication.SubscriptionStatus) => {
+      (status: TrackPublication.PermissionStatus) => {
         this.emit(ParticipantEvent.TrackSubscriptionPermissionChanged, publication, status);
       },
     );

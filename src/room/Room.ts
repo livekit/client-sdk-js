@@ -1225,7 +1225,7 @@ export type RoomEventCallbacks = {
   ) => void;
   trackSubscriptionPermissionChanged: (
     publication: RemoteTrackPublication,
-    status: TrackPublication.SubscriptionStatus,
+    status: TrackPublication.PermissionStatus,
     participant: RemoteParticipant,
   ) => void;
   trackSubscriptionStatusChanged: (
