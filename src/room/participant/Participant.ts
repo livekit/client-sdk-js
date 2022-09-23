@@ -71,6 +71,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   /** @internal */
   constructor(sid: string, identity: string, name?: string, metadata?: string) {
     super();
+    this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
     this.name = name;
