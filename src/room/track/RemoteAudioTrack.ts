@@ -1,6 +1,7 @@
 import { AudioReceiverStats, computeBitrate } from '../stats';
 import RemoteTrack from './RemoteTrack';
 import { Track } from './Track';
+import log from '../../logger';
 
 export default class RemoteAudioTrack extends RemoteTrack {
   private prevStats?: AudioReceiverStats;
@@ -67,7 +68,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     this.gainNode?.disconnect();
     this.sourceNode?.disconnect();
     if (this.audioContext) {
-      console.log('using audio context mapping');
+      log.debug('using audio context mapping');
       this.setupWebAudio(this.audioContext, element);
       element.volume = 0;
       element.muted = true;
