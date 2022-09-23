@@ -7,8 +7,20 @@ export default class RemoteAudioTrack extends RemoteTrack {
 
   private elementVolume: number | undefined;
 
-  constructor(mediaTrack: MediaStreamTrack, sid: string, receiver?: RTCRtpReceiver) {
+  private audioContext?: AudioContext;
+
+  private gainNode?: GainNode;
+
+  private sourceNode?: MediaStreamAudioSourceNode;
+
+  constructor(
+    mediaTrack: MediaStreamTrack,
+    sid: string,
+    receiver?: RTCRtpReceiver,
+    audioContext?: AudioContext,
+  ) {
     super(mediaTrack, sid, Track.Kind.Audio, receiver);
+    this.audioContext = audioContext;
   }
 
   /**
@@ -16,7 +28,11 @@ export default class RemoteAudioTrack extends RemoteTrack {
    */
   setVolume(volume: number) {
     for (const el of this.attachedElements) {
-      el.volume = volume;
+      if (this.audioContext) {
+        this.gainNode?.gain.setTargetAtTime(volume, 0, 0.1);
+      } else {
+        el.volume = volume;
+      }
     }
     this.elementVolume = volume;
   }
@@ -48,7 +64,39 @@ export default class RemoteAudioTrack extends RemoteTrack {
     if (this.elementVolume) {
       element.volume = this.elementVolume;
     }
+    this.gainNode?.disconnect();
+    this.sourceNode?.disconnect();
+    if (this.audioContext) {
+      console.log('using audio context mapping');
+      this.setupWebAudio(this.audioContext, element);
+      element.volume = 0;
+      element.muted = true;
+    }
     return element;
+  }
+
+  /**
+   * @internal
+   */
+  setAudioContext(audioContext: AudioContext) {
+    this.audioContext = audioContext;
+    if (this.attachedElements.length > 0) {
+      this.setupWebAudio(audioContext, this.attachedElements[0]);
+    }
+  }
+
+  private setupWebAudio(context: AudioContext, element: HTMLMediaElement) {
+    this.gainNode?.disconnect();
+    this.sourceNode?.disconnect();
+    // @ts-ignore our attached elements always have a srcObject set
+    this.sourceNode = context.createMediaStreamSource(element.srcObject);
+    this.gainNode = context.createGain();
+    this.sourceNode.connect(this.gainNode);
+    this.gainNode.connect(context.destination);
+
+    if (this.elementVolume) {
+      this.gainNode.gain.setTargetAtTime(this.elementVolume, 0, 0.1);
+    }
   }
 
   protected monitorReceiver = async () => {
