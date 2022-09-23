@@ -569,7 +569,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  subscribeToParticipantTracks(participantIdentity: string, sources: Track.Source[]) {
+  setParticipantTrackSubscriptions(participantIdentity: string, sources: Track.Source[]) {
     if (participantIdentity === this.localParticipant.identity) {
       log.warn('cannot subscribe to tracks of local participant');
       return;
@@ -583,7 +583,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const remoteParticipant = this.getParticipantByIdentity(participantIdentity) as
       | RemoteParticipant
       | undefined;
-    remoteParticipant?.subscribeToTracks(sources);
+    remoteParticipant?.setTrackSubscriptions(sources);
   }
 
   private recreateEngine() {

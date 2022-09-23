@@ -128,7 +128,7 @@ export default class RemoteParticipant extends Participant {
     return this.volume;
   }
 
-  subscribeToTracks(sources: Track.Source[]) {
+  setTrackSubscriptions(sources: Track.Source[]) {
     this.desiredSubscriptions = new Set(sources);
     // in case the desired track is present already, set desire to subscribe
     this.getTracks().forEach(({ source }) => {
