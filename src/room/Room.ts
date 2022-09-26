@@ -124,6 +124,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   constructor(options?: RoomOptions) {
     super();
+    this.setMaxListeners(100);
     this.participants = new Map();
     this.identityToSid = new Map();
     this.options = { ...roomOptionDefaults, ...options };

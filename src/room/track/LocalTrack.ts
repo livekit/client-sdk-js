@@ -22,6 +22,13 @@ export default abstract class LocalTrack extends Track {
 
   protected muteQueue: Queue;
 
+  /**
+   *
+   * @param mediaTrack
+   * @param kind
+   * @param constraints MediaTrackConstraints that are being used when restarting or reacquiring tracks
+   * @param userProvidedTrack Signals to the SDK whether or not the mediaTrack should be managed (i.e. released and reacquired) internally by the SDK
+   */
   protected constructor(
     mediaTrack: MediaStreamTrack,
     kind: Track.Kind,

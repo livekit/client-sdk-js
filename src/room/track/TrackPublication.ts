@@ -38,6 +38,7 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
 
   constructor(kind: Track.Kind, id: string, name: string) {
     super();
+    this.setMaxListeners(100);
     this.kind = kind;
     this.trackSid = id;
     this.trackName = name;
