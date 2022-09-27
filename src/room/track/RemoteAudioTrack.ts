@@ -86,13 +86,19 @@ export default class RemoteAudioTrack extends RemoteTrack {
    */
   detach(element: HTMLMediaElement): HTMLMediaElement;
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
+    this.disconnectWebAudio();
     let detached: HTMLMediaElement | HTMLMediaElement[];
     if (!element) {
       detached = super.detach();
     } else {
       detached = super.detach(element);
+      // if there are still any attached elements after detaching, reconnect webaudio to the first element
+      if (this.audioContext && this.attachedElements.length > 0) {
+        if (this.attachedElements.length > 0) {
+          this.connectWebAudio(this.audioContext, this.attachedElements[0]);
+        }
+      }
     }
-    this.disconnectWebAudio();
     return detached;
   }
 
