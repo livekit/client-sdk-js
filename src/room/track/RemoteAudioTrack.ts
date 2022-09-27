@@ -129,6 +129,8 @@ export default class RemoteAudioTrack extends RemoteTrack {
     if (force || this.attachedElements.length === 0) {
       this.gainNode?.disconnect();
       this.sourceNode?.disconnect();
+      this.gainNode = undefined;
+      this.sourceNode = undefined;
     }
   }
 
