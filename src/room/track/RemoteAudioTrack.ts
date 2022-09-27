@@ -65,15 +65,35 @@ export default class RemoteAudioTrack extends RemoteTrack {
     if (this.elementVolume) {
       element.volume = this.elementVolume;
     }
-    this.gainNode?.disconnect();
-    this.sourceNode?.disconnect();
+    this.disconnectWebAudio(true);
     if (this.audioContext) {
       log.debug('using audio context mapping');
-      this.setupWebAudio(this.audioContext, element);
+      this.connectWebAudio(this.audioContext, element);
       element.volume = 0;
       element.muted = true;
     }
     return element;
+  }
+
+  /**
+   * Detaches from all attached elements
+   */
+  detach(): HTMLMediaElement[];
+
+  /**
+   * Detach from a single element
+   * @param element
+   */
+  detach(element: HTMLMediaElement): HTMLMediaElement;
+  detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
+    let detached: HTMLMediaElement | HTMLMediaElement[];
+    if (!element) {
+      detached = super.detach();
+    } else {
+      detached = super.detach(element);
+    }
+    this.disconnectWebAudio();
+    return detached;
   }
 
   /**
@@ -82,14 +102,13 @@ export default class RemoteAudioTrack extends RemoteTrack {
   setAudioContext(audioContext: AudioContext) {
     this.audioContext = audioContext;
     if (this.attachedElements.length > 0) {
-      this.setupWebAudio(audioContext, this.attachedElements[0]);
+      this.connectWebAudio(audioContext, this.attachedElements[0]);
     }
   }
 
-  private setupWebAudio(context: AudioContext, element: HTMLMediaElement) {
-    this.gainNode?.disconnect();
-    this.sourceNode?.disconnect();
-    // @ts-ignore our attached elements always have a srcObject set
+  private connectWebAudio(context: AudioContext, element: HTMLMediaElement) {
+    this.disconnectWebAudio(true);
+    // @ts-ignore attached elements always have a srcObject set
     this.sourceNode = context.createMediaStreamSource(element.srcObject);
     this.gainNode = context.createGain();
     this.sourceNode.connect(this.gainNode);
@@ -97,6 +116,13 @@ export default class RemoteAudioTrack extends RemoteTrack {
 
     if (this.elementVolume) {
       this.gainNode.gain.setTargetAtTime(this.elementVolume, 0, 0.1);
+    }
+  }
+
+  private disconnectWebAudio(force?: boolean) {
+    if (force || this.attachedElements.length === 0) {
+      this.gainNode?.disconnect();
+      this.sourceNode?.disconnect();
     }
   }
 
