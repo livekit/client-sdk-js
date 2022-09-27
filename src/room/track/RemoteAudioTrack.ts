@@ -65,7 +65,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     if (this.elementVolume) {
       element.volume = this.elementVolume;
     }
-    this.disconnectWebAudio(true);
+    this.disconnectWebAudio();
     if (this.audioContext) {
       log.debug('using audio context mapping');
       this.connectWebAudio(this.audioContext, element);
@@ -86,13 +86,13 @@ export default class RemoteAudioTrack extends RemoteTrack {
    */
   detach(element: HTMLMediaElement): HTMLMediaElement;
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
-    this.disconnectWebAudio();
     let detached: HTMLMediaElement | HTMLMediaElement[];
     if (!element) {
       detached = super.detach();
+      this.disconnectWebAudio();
     } else {
       detached = super.detach(element);
-      // if there are still any attached elements after detaching, reconnect webaudio to the first element
+      // if there are still any attached elements after detaching, connect webaudio to the first element that's left
       if (this.audioContext && this.attachedElements.length > 0) {
         if (this.attachedElements.length > 0) {
           this.connectWebAudio(this.audioContext, this.attachedElements[0]);
@@ -113,7 +113,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
   }
 
   private connectWebAudio(context: AudioContext, element: HTMLMediaElement) {
-    this.disconnectWebAudio(true);
+    this.disconnectWebAudio();
     // @ts-ignore attached elements always have a srcObject set
     this.sourceNode = context.createMediaStreamSource(element.srcObject);
     this.gainNode = context.createGain();
@@ -125,13 +125,11 @@ export default class RemoteAudioTrack extends RemoteTrack {
     }
   }
 
-  private disconnectWebAudio(force?: boolean) {
-    if (force || this.attachedElements.length === 0) {
-      this.gainNode?.disconnect();
-      this.sourceNode?.disconnect();
-      this.gainNode = undefined;
-      this.sourceNode = undefined;
-    }
+  private disconnectWebAudio() {
+    this.gainNode?.disconnect();
+    this.sourceNode?.disconnect();
+    this.gainNode = undefined;
+    this.sourceNode = undefined;
   }
 
   protected monitorReceiver = async () => {
