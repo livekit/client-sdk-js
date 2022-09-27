@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.4.0
+
+### Minor Changes
+
+- [#443](https://github.com/livekit/client-sdk-js/pull/443) [`438d067`](https://github.com/livekit/client-sdk-js/commit/438d0679bf215b5c5edd20b900d1dca0362d651c) Thanks [@lukasIO](https://github.com/lukasIO)! - **Breaking** Decouple SubscriptionStatus and SubscriptionPermissionStatus
+
+### Patch Changes
+
+- [#440](https://github.com/livekit/client-sdk-js/pull/440) [`b74eae6`](https://github.com/livekit/client-sdk-js/commit/b74eae69adedeed814e1fad09073ac2c431de49c) Thanks [@davidzhao](https://github.com/davidzhao)! - Improve handling of connection resume failures
+
+- [#445](https://github.com/livekit/client-sdk-js/pull/445) [`dabebad`](https://github.com/livekit/client-sdk-js/commit/dabebad0574a874915366223783182338f84f02b) Thanks [@lukasIO](https://github.com/lukasIO)! - Increase event listener limit
+
 ## 1.3.3
 
 ### Patch Changes
