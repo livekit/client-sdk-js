@@ -530,7 +530,7 @@ export default class LocalParticipant extends Participant {
         opts,
       );
       req.layers = videoLayersFromEncodings(req.width, req.height, simEncodings ?? encodings);
-    } else if (track.kind === Track.Kind.Audio && opts.audioBitrate) {
+    } else if (track instanceof LocalAudioTrack && opts.audioBitrate) {
       encodings = [
         {
           maxBitrate: opts.audioBitrate,
