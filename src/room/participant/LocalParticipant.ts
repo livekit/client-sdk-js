@@ -579,6 +579,10 @@ export default class LocalParticipant extends Participant {
     return publication;
   }
 
+  override get isLocal(): boolean {
+    return true;
+  }
+
   /** @internal
    * publish additional codec to existing track
    */

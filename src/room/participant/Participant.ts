@@ -164,6 +164,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     return !!track;
   }
 
+  get isLocal(): boolean {
+    return false;
+  }
+
   /** when participant joined the room */
   get joinedAt(): Date | undefined {
     if (this.participantInfo) {
