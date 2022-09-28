@@ -32,7 +32,7 @@ export const videoDefaults: VideoCaptureOptions = {
 export const roomOptionDefaults: InternalRoomOptions = {
   adaptiveStream: false,
   dynacast: false,
-  stopLocalTrackOnUnpublish: false,
+  stopLocalTrackOnUnpublish: true,
   reconnectPolicy: new DefaultReconnectPolicy(),
 } as const;
 
