@@ -22,10 +22,13 @@ export default class PCTransport {
 
   trackBitrates: TrackBitrateInfo[] = [];
 
+  forceStereoAudioSupport: boolean = false;
+
   onOffer?: (offer: RTCSessionDescriptionInit) => void;
 
-  constructor(config?: RTCConfiguration) {
+  constructor(config?: RTCConfiguration, forceStereoAudioSupport?: boolean) {
     this.pc = new RTCPeerConnection(config);
+    this.forceStereoAudioSupport = forceStereoAudioSupport ?? false;
   }
 
   get isICEConnected(): boolean {
@@ -102,6 +105,9 @@ export default class PCTransport {
     sdpParsed.media.forEach((media) => {
       if (media.type === 'audio') {
         ensureAudioNack(media);
+        if (this.forceStereoAudioSupport) {
+          ensureStereoAudio(media);
+        }
       } else if (media.type === 'video') {
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
@@ -155,6 +161,9 @@ export default class PCTransport {
     sdpParsed.media.forEach((media) => {
       if (media.type === 'audio') {
         ensureAudioNack(media);
+        if (this.forceStereoAudioSupport) {
+          ensureStereoAudio(media);
+        }
       }
     });
     await this.setMungedLocalDescription(answer, write(sdpParsed));
@@ -232,6 +241,14 @@ function ensureAudioNack(
         payload: opusPayload,
         type: 'nack',
       });
+    }
+  }
+}
+
+function ensureStereoAudio(media: MediaDescription) {
+  for (const attributes of media.fmtp) {
+    if (attributes.payload == 111 && !attributes.config.includes('stereo=')) {
+      attributes.config += ';stereo=1';
     }
   }
 }

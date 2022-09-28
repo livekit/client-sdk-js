@@ -44,6 +44,12 @@ export interface InternalRoomOptions {
   publishDefaults?: TrackPublishDefaults;
 
   /**
+   * whether to force inclusion of stereo=1 in opus audio codec sdp, defaults to false
+   * see https://github.com/w3c/webrtc-extensions/issues/63
+   */
+  forceStereoAudioSupport: boolean;
+
+  /**
    * should local tracks be stopped when they are unpublished. defaults to true
    * set this to false if you would prefer to clean up unpublished local tracks manually.
    */

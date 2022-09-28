@@ -268,8 +268,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // @ts-ignore
     this.rtcConfig.continualGatheringPolicy = 'gather_continually';
 
-    this.publisher = new PCTransport(this.rtcConfig);
-    this.subscriber = new PCTransport(this.rtcConfig);
+    this.publisher = new PCTransport(this.rtcConfig, this.options.forceStereoAudioSupport);
+    this.subscriber = new PCTransport(this.rtcConfig, this.options.forceStereoAudioSupport);
 
     this.emit(EngineEvent.TransportsCreated, this.publisher, this.subscriber);
 

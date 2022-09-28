@@ -33,6 +33,7 @@ export const roomOptionDefaults: InternalRoomOptions = {
   adaptiveStream: false,
   dynacast: false,
   stopLocalTrackOnUnpublish: true,
+  forceStereoAudioSupport: false,
   reconnectPolicy: new DefaultReconnectPolicy(),
 } as const;
 
