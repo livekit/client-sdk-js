@@ -108,7 +108,7 @@ export default class LocalParticipant extends Participant {
   }
 
   getTrack(source: Track.Source): LocalTrackPublication | undefined {
-    const track = super.getTrack(source);
+    const track = super.getTrack(source, true);
     if (track) {
       return track as LocalTrackPublication;
     }

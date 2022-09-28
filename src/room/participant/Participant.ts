@@ -88,10 +88,11 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   /**
    * Finds the first track that matches the source filter, for example, getting
    * the user's camera track with getTrackBySource(Track.Source.Camera).
-   * @param source
-   * @returns
+   * @param {Track.Source} source
+   * @param {boolean | undefined} exact - Specifies whether only exact source matches should be returned or if a best guess is acceptable
+   * @returns {TrackPublication | undefined }
    */
-  getTrack(source: Track.Source): TrackPublication | undefined {
+  getTrack(source: Track.Source, exact?: boolean): TrackPublication | undefined {
     if (source === Track.Source.Unknown) {
       return;
     }
@@ -99,34 +100,38 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       if (pub.source === source) {
         return pub;
       }
-      if (pub.source === Track.Source.Unknown) {
-        if (
-          source === Track.Source.Microphone &&
-          pub.kind === Track.Kind.Audio &&
-          pub.trackName !== 'screen'
-        ) {
-          return pub;
-        }
-        if (
-          source === Track.Source.Camera &&
-          pub.kind === Track.Kind.Video &&
-          pub.trackName !== 'screen'
-        ) {
-          return pub;
-        }
-        if (
-          source === Track.Source.ScreenShare &&
-          pub.kind === Track.Kind.Video &&
-          pub.trackName === 'screen'
-        ) {
-          return pub;
-        }
-        if (
-          source === Track.Source.ScreenShareAudio &&
-          pub.kind === Track.Kind.Audio &&
-          pub.trackName === 'screen'
-        ) {
-          return pub;
+    }
+    if (!exact) {
+      for (const [, pub] of this.tracks) {
+        if (pub.source === Track.Source.Unknown) {
+          if (
+            source === Track.Source.Microphone &&
+            pub.kind === Track.Kind.Audio &&
+            pub.trackName !== 'screen'
+          ) {
+            return pub;
+          }
+          if (
+            source === Track.Source.Camera &&
+            pub.kind === Track.Kind.Video &&
+            pub.trackName !== 'screen'
+          ) {
+            return pub;
+          }
+          if (
+            source === Track.Source.ScreenShare &&
+            pub.kind === Track.Kind.Video &&
+            pub.trackName === 'screen'
+          ) {
+            return pub;
+          }
+          if (
+            source === Track.Source.ScreenShareAudio &&
+            pub.kind === Track.Kind.Audio &&
+            pub.trackName === 'screen'
+          ) {
+            return pub;
+          }
         }
       }
     }
