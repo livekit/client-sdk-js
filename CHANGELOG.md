@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.4.1
+
+### Patch Changes
+
+- [#448](https://github.com/livekit/client-sdk-js/pull/448) [`14f71de`](https://github.com/livekit/client-sdk-js/commit/14f71de26fa06a1fe23a767d0584921a7a7de1a1) Thanks [@lukasIO](https://github.com/lukasIO)! - fix localTrackUnpublish true by default
+
 ## 1.4.0
 
 ### Minor Changes
