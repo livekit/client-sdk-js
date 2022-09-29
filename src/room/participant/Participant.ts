@@ -99,36 +99,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       if (pub.source === source) {
         return pub;
       }
-      if (pub.source === Track.Source.Unknown) {
-        if (
-          source === Track.Source.Microphone &&
-          pub.kind === Track.Kind.Audio &&
-          pub.trackName !== 'screen'
-        ) {
-          return pub;
-        }
-        if (
-          source === Track.Source.Camera &&
-          pub.kind === Track.Kind.Video &&
-          pub.trackName !== 'screen'
-        ) {
-          return pub;
-        }
-        if (
-          source === Track.Source.ScreenShare &&
-          pub.kind === Track.Kind.Video &&
-          pub.trackName === 'screen'
-        ) {
-          return pub;
-        }
-        if (
-          source === Track.Source.ScreenShareAudio &&
-          pub.kind === Track.Kind.Audio &&
-          pub.trackName === 'screen'
-        ) {
-          return pub;
-        }
-      }
     }
   }
 
