@@ -107,8 +107,8 @@ export default class LocalParticipant extends Participant {
     return this.microphoneError;
   }
 
-  getTrack(source: Track.Source, exact?: boolean): LocalTrackPublication | undefined {
-    const track = super.getTrack(source, exact);
+  getTrack(source: Track.Source): LocalTrackPublication | undefined {
+    const track = super.getTrack(source, true);
     if (track) {
       return track as LocalTrackPublication;
     }
@@ -201,7 +201,7 @@ export default class LocalParticipant extends Participant {
     publishOptions?: TrackPublishOptions,
   ) {
     log.debug('setTrackEnabled', { source, enabled });
-    let track = this.getTrack(source, true);
+    let track = this.getTrack(source);
     if (enabled) {
       if (track) {
         await track.unmute();
