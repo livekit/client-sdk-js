@@ -8,8 +8,11 @@ export class LivekitError extends Error {
 }
 
 export class ConnectionError extends LivekitError {
-  constructor(message?: string) {
+  status?: number;
+
+  constructor(message?: string, status?: number) {
     super(1, message);
+    this.status = status;
   }
 }
 

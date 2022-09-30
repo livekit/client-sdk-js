@@ -138,12 +138,15 @@ export class SignalClient {
 
   private pingInterval: ReturnType<typeof setInterval> | undefined;
 
+  private reconnectAttempts: number;
+
   constructor(useJSON: boolean = false) {
     this.isConnected = false;
     this.isReconnecting = false;
     this.useJSON = useJSON;
     this.requestQueue = new Queue();
     this.queuedRequests = [];
+    this.reconnectAttempts = 0;
   }
 
   async join(
@@ -195,6 +198,16 @@ export class SignalClient {
         this.close();
         reject(new ConnectionError('room connection has been cancelled'));
       };
+      const retryConnection = async () => {
+        log.warn('signal connection could not be established, retrying');
+        try {
+          this.reconnectAttempts += 1;
+          await this.connect(url, token, opts, abortSignal);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      };
       if (abortSignal?.aborted) {
         abortHandler();
       }
@@ -210,11 +223,21 @@ export class SignalClient {
             const resp = await fetch(`http${url.substring(2)}/validate${params}`);
             if (!resp.ok) {
               const msg = await resp.text();
-              reject(new ConnectionError(msg));
+              if (
+                this.reconnectAttempts === 0 &&
+                // don't retry if the token is expired/user is not authenticated
+                resp.status !== 401
+              ) {
+                await retryConnection();
+              }
+              reject(new ConnectionError(msg, resp.status));
             } else {
-              reject(new ConnectionError('Internal error'));
+              reject(new ConnectionError('Internal error', resp.status));
             }
           } catch (e) {
+            if (this.reconnectAttempts === 0) {
+              await retryConnection();
+            }
             reject(new ConnectionError('server was not reachable'));
           }
           return;
@@ -230,6 +253,7 @@ export class SignalClient {
           this.isConnected = true;
           // restart ping interval as it's cleared for reconnection
           this.startPingInterval();
+          this.reconnectAttempts = 0;
           resolve();
         }
       };
