@@ -1,3 +1,4 @@
+import 'webrtc-adapter';
 import log from '../../logger';
 import type { RoomOptions } from '../../options';
 import {
@@ -33,7 +34,7 @@ import {
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
-import { isFireFox, isWeb } from '../utils';
+import { isFireFox, isWeb, supportsAV1 } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import {
@@ -42,7 +43,6 @@ import {
   mediaTrackToLocalTrack,
 } from './publishUtils';
 import RemoteParticipant from './RemoteParticipant';
-import 'webrtc-adapter';
 
 export default class LocalParticipant extends Participant {
   audioTracks: Map<string, LocalTrackPublication>;
@@ -464,6 +464,11 @@ export default class LocalParticipant extends Participant {
       // Firefox does not work well with simulcasted screen share
       // we frequently get no data on layer 0 when enabled
       opts.simulcast = false;
+    }
+
+    // require full AV1 SVC support prior to using it
+    if (opts.videoCodec === 'av1' && !supportsAV1()) {
+      opts.videoCodec = undefined;
     }
 
     // handle track actions
