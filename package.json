@@ -73,7 +73,7 @@
     "rollup-plugin-serve": "2.0.1",
     "rollup-plugin-terser": "7.0.2",
     "rollup-plugin-typescript2": "0.34.0",
-    "ts-jest": "28.0.8",
+    "ts-jest": "29.0.3",
     "ts-proto": "1.126.1",
     "typedoc": "0.23.15",
     "typedoc-plugin-no-inherit": "1.4.0",
