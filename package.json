@@ -28,7 +28,7 @@
     "lint": "eslint src",
     "test": "jest",
     "deploy": "gh-pages -d example/dist",
-    "format": "prettier --write src",
+    "format": "prettier --write src example/sample.ts",
     "format:check": "prettier --check src",
     "release": "yarn build && changeset publish"
   },
