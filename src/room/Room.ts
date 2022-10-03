@@ -703,6 +703,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
     });
 
+    this.localParticipant.tracks.forEach((pub) => {
+      if (pub.track) {
+        this.localParticipant.unpublishTrack(pub.track, shouldStopTracks);
+      }
+      if (shouldStopTracks) {
+        pub.track?.detach();
+        pub.track?.stop();
+      }
+    });
+
     this.localParticipant
       .off(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
       .off(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
@@ -715,16 +725,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         ParticipantEvent.ParticipantPermissionsChanged,
         this.onLocalParticipantPermissionsChanged,
       );
-
-    this.localParticipant.tracks.forEach((pub) => {
-      if (pub.track) {
-        this.localParticipant.unpublishTrack(pub.track, shouldStopTracks);
-      }
-      if (shouldStopTracks) {
-        pub.track?.detach();
-        pub.track?.stop();
-      }
-    });
 
     this.localParticipant.tracks.clear();
     this.localParticipant.videoTracks.clear();
