@@ -6,10 +6,9 @@
   "unpkg": "./dist/livekit-client.umd.js",
   "module": "./dist/livekit-client.esm.mjs",
   "exports": {
-    ".": {
-      "import": "./dist/livekit-client.esm.mjs",
-      "require": "./dist/livekit-client.umd.js"
-    }
+    "types": "./dist/src/index.d.ts",
+    "import": "./dist/livekit-client.esm.mjs",
+    "require": "./dist/livekit-client.umd.js"
   },
   "files": [
     "dist",
