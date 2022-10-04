@@ -175,7 +175,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
         if (!this.reconnectFuture) {
-          this.reconnectFuture = new Future();
+          this.reconnectFuture = new Future(undefined, () => {
+            this.clearConnectionFutures();
+          });
         }
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
@@ -359,7 +361,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
     };
     this.connectFuture = new Future(connectFn, () => {
-      this.connectFuture = undefined;
+      this.clearConnectionFutures();
       this.emit(RoomEvent.Connected);
     });
 
@@ -405,6 +407,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (sid) {
       return this.participants.get(sid);
     }
+  }
+
+  private clearConnectionFutures() {
+    this.connectFuture = undefined;
+    this.reconnectFuture = undefined;
   }
 
   /**
@@ -627,7 +634,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRestarting = () => {
     if (!this.reconnectFuture) {
-      this.reconnectFuture = new Future();
+      this.reconnectFuture = new Future(undefined, () => {
+        this.clearConnectionFutures();
+      });
     }
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {
