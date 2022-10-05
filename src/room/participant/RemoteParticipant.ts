@@ -230,7 +230,7 @@ export default class RemoteParticipant extends Participant {
         const existingTrackOfSource = Array.from(this.tracks.values()).find(
           (publishedTrack) => publishedTrack.source === publication?.source,
         );
-        if (existingTrackOfSource) {
+        if (existingTrackOfSource && publication.source !== Track.Source.Unknown) {
           log.warn(
             `received a second track publication for ${this.identity} with the same source: ${publication.source}`,
             {

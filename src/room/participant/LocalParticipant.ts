@@ -442,7 +442,7 @@ export default class LocalParticipant extends Participant {
     const existingTrackOfSource = Array.from(this.tracks.values()).find(
       (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
     );
-    if (existingTrackOfSource) {
+    if (existingTrackOfSource && track.source !== Track.Source.Unknown) {
       try {
         // throw an Error in order to capture the stack trace
         throw Error(`publishing a second track with the same source: ${track.source}`);

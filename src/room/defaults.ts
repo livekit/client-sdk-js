@@ -10,7 +10,7 @@ import {
 } from './track/options';
 
 export const publishDefaults: TrackPublishDefaults = {
-  audioBitrate: AudioPresets.speech.maxBitrate,
+  audioBitrate: AudioPresets.music.maxBitrate,
   dtx: true,
   simulcast: true,
   screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
