@@ -22,6 +22,8 @@ export default class RemoteParticipant extends Participant {
 
   private volume?: number;
 
+  private audioContext?: AudioContext;
+
   /** @internal */
   static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
     return new RemoteParticipant(signalClient, pi.sid, pi.identity, pi.name, pi.metadata);
@@ -167,7 +169,7 @@ export default class RemoteParticipant extends Participant {
     if (isVideo) {
       track = new RemoteVideoTrack(mediaTrack, sid, receiver, adaptiveStreamSettings);
     } else {
-      track = new RemoteAudioTrack(mediaTrack, sid, receiver);
+      track = new RemoteAudioTrack(mediaTrack, sid, receiver, this.audioContext);
     }
 
     // set track info
@@ -295,6 +297,13 @@ export default class RemoteParticipant extends Participant {
     if (sendUnpublish) {
       this.emit(ParticipantEvent.TrackUnpublished, publication);
     }
+  }
+
+  /**
+   * @internal
+   */
+  setAudioContext(ctx: AudioContext | undefined) {
+    this.audioContext = ctx;
   }
 
   /** @internal */
