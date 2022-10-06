@@ -60,6 +60,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
   attach(): HTMLMediaElement;
   attach(element: HTMLMediaElement): HTMLMediaElement;
   attach(element?: HTMLMediaElement): HTMLMediaElement {
+    const needsNewWebAudioConnection = this.attachedElements.length === 0;
     if (!element) {
       element = super.attach();
     } else {
@@ -68,8 +69,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     if (this.elementVolume) {
       element.volume = this.elementVolume;
     }
-    this.disconnectWebAudio();
-    if (this.audioContext) {
+    if (this.audioContext && needsNewWebAudioConnection) {
       log.debug('using audio context mapping');
       this.connectWebAudio(this.audioContext, element);
       element.volume = 0;
