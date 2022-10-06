@@ -14,6 +14,8 @@ export default class RemoteAudioTrack extends RemoteTrack {
 
   private sourceNode?: MediaStreamAudioSourceNode;
 
+  private webAudioPluginNodes: AudioNode[];
+
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
@@ -22,6 +24,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
   ) {
     super(mediaTrack, sid, Track.Kind.Audio, receiver);
     this.audioContext = audioContext;
+    this.webAudioPluginNodes = [];
   }
 
   /**
@@ -104,6 +107,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
 
   /**
    * @internal
+   * @experimental
    */
   setAudioContext(audioContext: AudioContext) {
     this.audioContext = audioContext;
@@ -112,12 +116,29 @@ export default class RemoteAudioTrack extends RemoteTrack {
     }
   }
 
+  /**
+   * @internal
+   * @experimental
+   * @param {AudioNode[]} nodes - An array of WebAudio nodes. These nodes should not be connected to each other when passed, as the sdk will take care of connecting them in the order of the array.
+   */
+  setWebAudioPlugins(nodes: AudioNode[]) {
+    this.webAudioPluginNodes = nodes;
+    if (this.attachedElements.length > 0 && this.audioContext) {
+      this.connectWebAudio(this.audioContext, this.attachedElements[0]);
+    }
+  }
+
   private connectWebAudio(context: AudioContext, element: HTMLMediaElement) {
     this.disconnectWebAudio();
     // @ts-ignore attached elements always have a srcObject set
     this.sourceNode = context.createMediaStreamSource(element.srcObject);
+    let lastNode: AudioNode = this.sourceNode;
+    this.webAudioPluginNodes.forEach((node) => {
+      lastNode.connect(node);
+      lastNode = node;
+    });
     this.gainNode = context.createGain();
-    this.sourceNode.connect(this.gainNode);
+    lastNode.connect(this.gainNode);
     this.gainNode.connect(context.destination);
 
     if (this.elementVolume) {
