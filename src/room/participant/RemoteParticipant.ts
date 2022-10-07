@@ -162,6 +162,15 @@ export default class RemoteParticipant extends Participant {
       return;
     }
 
+    if (mediaTrack.readyState === 'ended') {
+      log.error(
+        'unable to subscribe because MediaStreamTrack is ended. Do not call MediaStreamTrack.stop()',
+        { participant: this.sid, trackSid: sid },
+      );
+      this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
+      return;
+    }
+
     const isVideo = mediaTrack.kind === 'video';
     let track: RemoteTrack;
     if (isVideo) {
