@@ -2,6 +2,7 @@ import { AudioReceiverStats, computeBitrate } from '../stats';
 import RemoteTrack from './RemoteTrack';
 import { Track } from './Track';
 import log from '../../logger';
+import { TrackEvent } from '../events';
 
 export default class RemoteAudioTrack extends RemoteTrack {
   private prevStats?: AudioReceiverStats;
@@ -144,6 +145,20 @@ export default class RemoteAudioTrack extends RemoteTrack {
     if (this.elementVolume) {
       this.gainNode.gain.setTargetAtTime(this.elementVolume, 0, 0.1);
     }
+
+    context
+      .resume()
+      .then(() => {
+        if (context.state !== 'running') {
+          this.emit(
+            TrackEvent.AudioPlaybackFailed,
+            new Error("Audio Context couldn't be started automatically"),
+          );
+        }
+      })
+      .catch((e) => {
+        this.emit(TrackEvent.AudioPlaybackFailed, e);
+      });
   }
 
   private disconnectWebAudio() {
