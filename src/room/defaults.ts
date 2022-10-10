@@ -34,6 +34,7 @@ export const roomOptionDefaults: InternalRoomOptions = {
   dynacast: false,
   stopLocalTrackOnUnpublish: true,
   reconnectPolicy: new DefaultReconnectPolicy(),
+  maxJoinAttempts: 1,
 } as const;
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {

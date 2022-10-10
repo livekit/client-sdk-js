@@ -59,6 +59,9 @@ export interface InternalRoomOptions {
    * policy to use when attempting to reconnect
    */
   reconnectPolicy: ReconnectPolicy;
+
+  /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
+  maxJoinAttempts: number;
 }
 
 /**

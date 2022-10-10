@@ -125,14 +125,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** keeps track of how often an initial join connection has been tried */
   private joinAttempts: number = 0;
 
-  /** how often an initial join connection is allowed to retry */
-  private maxJoinAttempts: number = 2;
+  /** specifies how often an initial join connection is allowed to retry */
+  private maxJoinAttempts: number = 1;
 
   constructor(private options: InternalRoomOptions) {
     super();
     this.client = new SignalClient();
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
+    this.maxJoinAttempts = this.options.maxJoinAttempts;
   }
 
   async join(
