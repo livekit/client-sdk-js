@@ -7,12 +7,21 @@ export class LivekitError extends Error {
   }
 }
 
+export const enum ConnectionErrorReason {
+  NotAllowed,
+  ServerUnreachable,
+  InternalError,
+}
+
 export class ConnectionError extends LivekitError {
   status?: number;
 
-  constructor(message?: string, status?: number) {
+  reason?: ConnectionErrorReason;
+
+  constructor(message?: string, reason?: ConnectionErrorReason, status?: number) {
     super(1, message);
     this.status = status;
+    this.reason = reason;
   }
 }
 
