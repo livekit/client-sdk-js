@@ -108,6 +108,6 @@ export function getNewAudioContext(): AudioContext | void {
   // @ts-ignore
   const AudioContext = window.AudioContext || window.webkitAudioContext;
   if (AudioContext) {
-    return new AudioContext();
+    return new AudioContext({ latencyHint: 'interactive' });
   }
 }

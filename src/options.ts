@@ -50,18 +50,26 @@ export interface InternalRoomOptions {
   stopLocalTrackOnUnpublish: boolean;
 
   /**
-   * @internal
-   * experimental flag, introduce a delay before sending signaling messages
-   */
-  expSignalLatency?: number;
-
-  /**
    * policy to use when attempting to reconnect
    */
   reconnectPolicy: ReconnectPolicy;
 
   /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
   maxJoinAttempts: number;
+
+  /**
+   * @internal
+   * experimental flag, introduce a delay before sending signaling messages
+   */
+  expSignalLatency?: number;
+
+  /**
+   * @internal
+   * @experimental
+   * experimental flag, mix all audio tracks in web audio
+   */
+
+  expWebAudioMix: boolean;
 }
 
 /**

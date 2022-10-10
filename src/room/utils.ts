@@ -34,6 +34,30 @@ export function supportsDynacast() {
   return supportsTransceiver();
 }
 
+export function supportsAV1(): boolean {
+  const capabilities = RTCRtpReceiver.getCapabilities('video');
+  let hasAV1 = false;
+  let hasDDExt = false;
+  if (capabilities) {
+    for (const codec of capabilities.codecs) {
+      if (codec.mimeType === 'video/AV1') {
+        hasAV1 = true;
+        break;
+      }
+    }
+    for (const ext of capabilities.headerExtensions) {
+      if (
+        ext.uri ===
+        'https://aomediacodec.github.io/av1-rtp-spec/#dependency-descriptor-rtp-header-extension'
+      ) {
+        hasDDExt = true;
+        break;
+      }
+    }
+  }
+  return hasAV1 && hasDDExt;
+}
+
 const setCodecPreferencesVersions: { [key: string]: string } = {
   Chrome: '100',
   Chromium: '100',

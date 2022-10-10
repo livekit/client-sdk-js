@@ -1,5 +1,19 @@
 # Change Log
 
+## 1.4.2
+
+### Patch Changes
+
+- [#451](https://github.com/livekit/client-sdk-js/pull/451) [`627aa3e`](https://github.com/livekit/client-sdk-js/commit/627aa3e84df8a6c26a3488f053250ce2112d3050) Thanks [@lukasIO](https://github.com/lukasIO)! - Add isLocal getter to participant class
+
+- [#462](https://github.com/livekit/client-sdk-js/pull/462) [`5024e26`](https://github.com/livekit/client-sdk-js/commit/5024e26a1c839e17bb073d5316c6a91911474754) Thanks [@KallynGowdy](https://github.com/KallynGowdy)! - Fix local participant events being disabled before tracks unpublished
+
+- [#463](https://github.com/livekit/client-sdk-js/pull/463) [`90260b8`](https://github.com/livekit/client-sdk-js/commit/90260b87ab41813645a87a5c4cbbfd41d688b84a) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix: reset connect future to undefined when promise is rejected
+
+- [#456](https://github.com/livekit/client-sdk-js/pull/456) [`84f00b8`](https://github.com/livekit/client-sdk-js/commit/84f00b893d46bc7b1d0d6fa3785ace85f08f0584) Thanks [@davidzhao](https://github.com/davidzhao)! - Added supportsAV1 helper function
+
+- [#460](https://github.com/livekit/client-sdk-js/pull/460) [`ef3c38f`](https://github.com/livekit/client-sdk-js/commit/ef3c38f60ae77011ffc48b496d4baaff9ffa1214) Thanks [@scott-lc](https://github.com/scott-lc)! - Add missing ESM types subpath export condition to support TS Node16 and NodeNext module resolution
+
 ## 1.4.1
 
 ### Patch Changes

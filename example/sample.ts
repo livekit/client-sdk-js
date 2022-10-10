@@ -274,7 +274,15 @@ const appActions = {
 
   handleScenario: (e: Event) => {
     const scenario = (<HTMLSelectElement>e.target).value;
-    if (scenario !== '') {
+    if (scenario === 'subscribe-all') {
+      currentRoom?.participants.forEach((p) => {
+        p.tracks.forEach((rp) => rp.setSubscribed(true));
+      });
+    } else if (scenario === 'unsubscribe-all') {
+      currentRoom?.participants.forEach((p) => {
+        p.tracks.forEach((rp) => rp.setSubscribed(false));
+      });
+    } else if (scenario !== '') {
       currentRoom?.simulateScenario(scenario);
       (<HTMLSelectElement>e.target).value = '';
     }

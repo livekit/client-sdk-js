@@ -22,6 +22,8 @@ export default class RemoteParticipant extends Participant {
 
   private volume?: number;
 
+  private audioContext?: AudioContext;
+
   /** @internal */
   static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
     return new RemoteParticipant(signalClient, pi.sid, pi.identity, pi.name, pi.metadata);
@@ -162,12 +164,21 @@ export default class RemoteParticipant extends Participant {
       return;
     }
 
+    if (mediaTrack.readyState === 'ended') {
+      log.error(
+        'unable to subscribe because MediaStreamTrack is ended. Do not call MediaStreamTrack.stop()',
+        { participant: this.sid, trackSid: sid },
+      );
+      this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
+      return;
+    }
+
     const isVideo = mediaTrack.kind === 'video';
     let track: RemoteTrack;
     if (isVideo) {
       track = new RemoteVideoTrack(mediaTrack, sid, receiver, adaptiveStreamSettings);
     } else {
-      track = new RemoteAudioTrack(mediaTrack, sid, receiver);
+      track = new RemoteAudioTrack(mediaTrack, sid, receiver, this.audioContext);
     }
 
     // set track info
@@ -230,7 +241,7 @@ export default class RemoteParticipant extends Participant {
         const existingTrackOfSource = Array.from(this.tracks.values()).find(
           (publishedTrack) => publishedTrack.source === publication?.source,
         );
-        if (existingTrackOfSource) {
+        if (existingTrackOfSource && publication.source !== Track.Source.Unknown) {
           log.warn(
             `received a second track publication for ${this.identity} with the same source: ${publication.source}`,
             {
@@ -295,6 +306,13 @@ export default class RemoteParticipant extends Participant {
     if (sendUnpublish) {
       this.emit(ParticipantEvent.TrackUnpublished, publication);
     }
+  }
+
+  /**
+   * @internal
+   */
+  setAudioContext(ctx: AudioContext | undefined) {
+    this.audioContext = ctx;
   }
 
   /** @internal */

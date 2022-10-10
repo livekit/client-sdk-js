@@ -175,7 +175,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
         if (!this.reconnectFuture) {
-          this.reconnectFuture = new Future();
+          this.reconnectFuture = new Future(undefined, () => {
+            this.clearConnectionFutures();
+          });
         }
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
@@ -360,7 +362,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
     };
     this.connectFuture = new Future(connectFn, () => {
-      this.connectFuture = undefined;
+      this.clearConnectionFutures();
     });
 
     return this.connectFuture.promise;
@@ -405,6 +407,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (sid) {
       return this.participants.get(sid);
     }
+  }
+
+  private clearConnectionFutures() {
+    this.connectFuture = undefined;
+    this.reconnectFuture = undefined;
   }
 
   /**
@@ -627,7 +634,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRestarting = () => {
     if (!this.reconnectFuture) {
-      this.reconnectFuture = new Future();
+      this.reconnectFuture = new Future(undefined, () => {
+        this.clearConnectionFutures();
+      });
     }
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {
@@ -703,6 +712,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
     });
 
+    this.localParticipant.tracks.forEach((pub) => {
+      if (pub.track) {
+        this.localParticipant.unpublishTrack(pub.track, shouldStopTracks);
+      }
+      if (shouldStopTracks) {
+        pub.track?.detach();
+        pub.track?.stop();
+      }
+    });
+
     this.localParticipant
       .off(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
       .off(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
@@ -715,16 +734,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         ParticipantEvent.ParticipantPermissionsChanged,
         this.onLocalParticipantPermissionsChanged,
       );
-
-    this.localParticipant.tracks.forEach((pub) => {
-      if (pub.track) {
-        this.localParticipant.unpublishTrack(pub.track, shouldStopTracks);
-      }
-      if (shouldStopTracks) {
-        pub.track?.detach();
-        pub.track?.stop();
-      }
-    });
 
     this.localParticipant.tracks.clear();
     this.localParticipant.videoTracks.clear();
@@ -948,6 +957,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const ctx = getNewAudioContext();
     if (ctx) {
       this.audioContext = ctx;
+      if (this.options.expWebAudioMix) {
+        this.participants.forEach((participant) => participant.setAudioContext(this.audioContext));
+      }
     }
   }
 
@@ -956,7 +968,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (info) {
       participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info);
     } else {
-      participant = new RemoteParticipant(this.engine.client, id, '');
+      participant = new RemoteParticipant(this.engine.client, id, '', undefined, undefined);
+    }
+    if (this.options.expWebAudioMix) {
+      participant.setAudioContext(this.audioContext);
     }
     return participant;
   }
