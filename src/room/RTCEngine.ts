@@ -241,7 +241,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.participantSid = joinResponse.participant?.sid;
 
     // update ICE servers before creating PeerConnection
-    if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
+    if (joinResponse.iceServers)  {
       const rtcIceServers: RTCIceServer[] = [];
       joinResponse.iceServers.forEach((iceServer) => {
         const rtcIceServer: RTCIceServer = {
