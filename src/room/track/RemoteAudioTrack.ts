@@ -146,19 +146,22 @@ export default class RemoteAudioTrack extends RemoteTrack {
       this.gainNode.gain.setTargetAtTime(this.elementVolume, 0, 0.1);
     }
 
-    context
-      .resume()
-      .then(() => {
-        if (context.state !== 'running') {
-          this.emit(
-            TrackEvent.AudioPlaybackFailed,
-            new Error("Audio Context couldn't be started automatically"),
-          );
-        }
-      })
-      .catch((e) => {
-        this.emit(TrackEvent.AudioPlaybackFailed, e);
-      });
+    // try to resume the context if it isn't running already
+    if (context.state !== 'running') {
+      context
+        .resume()
+        .then(() => {
+          if (context.state !== 'running') {
+            this.emit(
+              TrackEvent.AudioPlaybackFailed,
+              new Error("Audio Context couldn't be started automatically"),
+            );
+          }
+        })
+        .catch((e) => {
+          this.emit(TrackEvent.AudioPlaybackFailed, e);
+        });
+    }
   }
 
   private disconnectWebAudio() {
