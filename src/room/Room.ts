@@ -218,6 +218,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     return DeviceManager.getInstance().getDevices(kind, requestPermissions);
   }
 
+  /**
+   * prepares the connection to the livekit server by sending a HEAD request in order to
+   * 1. speed up DNS resolving on the connection attempt
+   * 2. cache CORS headers on the client side to avoid additional preflight requests
+   * throws an error if server is not reachable after the request timeout
+   * @param url
+   */
+  async prepareConnection(url: string) {
+    await fetch(`http${url.substring(2)}`, { method: 'HEAD' });
+  }
+
   connect = (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
     if (this.state === ConnectionState.Connected) {
       // when the state is reconnecting or connected, this function returns immediately
