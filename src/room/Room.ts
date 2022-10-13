@@ -224,7 +224,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * 2. speed up TLS setup
    * on the actual connection request
    * throws an error if server is not reachable after the request timeout
-   * @param url
+   * @experimental
    */
   async prepareConnection(url: string) {
     await fetch(`http${url.substring(2)}`, { method: 'HEAD' });
