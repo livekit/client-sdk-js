@@ -313,6 +313,9 @@ export default class RemoteParticipant extends Participant {
    */
   setAudioContext(ctx: AudioContext | undefined) {
     this.audioContext = ctx;
+    this.tracks.forEach(
+      (track) => track.track instanceof RemoteAudioTrack && track.track.setAudioContext(ctx),
+    );
   }
 
   /** @internal */

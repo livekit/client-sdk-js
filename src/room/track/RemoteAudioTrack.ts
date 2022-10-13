@@ -113,10 +113,12 @@ export default class RemoteAudioTrack extends RemoteTrack {
    * @internal
    * @experimental
    */
-  setAudioContext(audioContext: AudioContext) {
+  setAudioContext(audioContext: AudioContext | undefined) {
     this.audioContext = audioContext;
-    if (this.attachedElements.length > 0) {
+    if (audioContext && this.attachedElements.length > 0) {
       this.connectWebAudio(audioContext, this.attachedElements[0]);
+    } else if (!audioContext) {
+      this.disconnectWebAudio();
     }
   }
 
