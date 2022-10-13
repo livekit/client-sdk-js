@@ -97,9 +97,12 @@ export default class RemoteAudioTrack extends RemoteTrack {
     } else {
       detached = super.detach(element);
       // if there are still any attached elements after detaching, connect webaudio to the first element that's left
-      if (this.audioContext && this.attachedElements.length > 0) {
+      // disconnect webaudio otherwise
+      if (this.audioContext) {
         if (this.attachedElements.length > 0) {
           this.connectWebAudio(this.audioContext, this.attachedElements[0]);
+        } else {
+          this.disconnectWebAudio();
         }
       }
     }
