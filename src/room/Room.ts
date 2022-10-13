@@ -220,8 +220,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /**
    * prepares the connection to the livekit server by sending a HEAD request in order to
-   * 1. speed up DNS resolving on the connection attempt
-   * 2. cache CORS headers on the client side to avoid additional preflight requests
+   * 1. speed up DNS resolution
+   * 2. speed up TLS setup
+   * on the actual connection request
    * throws an error if server is not reachable after the request timeout
    * @param url
    */
