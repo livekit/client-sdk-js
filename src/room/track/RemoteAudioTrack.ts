@@ -2,6 +2,7 @@ import { AudioReceiverStats, computeBitrate } from '../stats';
 import RemoteTrack from './RemoteTrack';
 import { Track } from './Track';
 import log from '../../logger';
+import { TrackEvent } from '../events';
 
 export default class RemoteAudioTrack extends RemoteTrack {
   private prevStats?: AudioReceiverStats;
@@ -96,9 +97,12 @@ export default class RemoteAudioTrack extends RemoteTrack {
     } else {
       detached = super.detach(element);
       // if there are still any attached elements after detaching, connect webaudio to the first element that's left
-      if (this.audioContext && this.attachedElements.length > 0) {
+      // disconnect webaudio otherwise
+      if (this.audioContext) {
         if (this.attachedElements.length > 0) {
           this.connectWebAudio(this.audioContext, this.attachedElements[0]);
+        } else {
+          this.disconnectWebAudio();
         }
       }
     }
@@ -109,10 +113,12 @@ export default class RemoteAudioTrack extends RemoteTrack {
    * @internal
    * @experimental
    */
-  setAudioContext(audioContext: AudioContext) {
+  setAudioContext(audioContext: AudioContext | undefined) {
     this.audioContext = audioContext;
-    if (this.attachedElements.length > 0) {
+    if (audioContext && this.attachedElements.length > 0) {
       this.connectWebAudio(audioContext, this.attachedElements[0]);
+    } else if (!audioContext) {
+      this.disconnectWebAudio();
     }
   }
 
@@ -143,6 +149,23 @@ export default class RemoteAudioTrack extends RemoteTrack {
 
     if (this.elementVolume) {
       this.gainNode.gain.setTargetAtTime(this.elementVolume, 0, 0.1);
+    }
+
+    // try to resume the context if it isn't running already
+    if (context.state !== 'running') {
+      context
+        .resume()
+        .then(() => {
+          if (context.state !== 'running') {
+            this.emit(
+              TrackEvent.AudioPlaybackFailed,
+              new Error("Audio Context couldn't be started automatically"),
+            );
+          }
+        })
+        .catch((e) => {
+          this.emit(TrackEvent.AudioPlaybackFailed, e);
+        });
     }
   }
 
