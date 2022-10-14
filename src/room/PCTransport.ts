@@ -243,7 +243,9 @@ function ensureAudioNackAndStereo(
     if (stereoMids.includes(media.mid!)) {
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
-          fmtp.config += ';stereo=1';
+          if (!fmtp.config.includes('stereo=1')) {
+            fmtp.config += ';stereo=1';
+          }
           return true;
         }
         return false;
