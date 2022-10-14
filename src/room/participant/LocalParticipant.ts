@@ -214,6 +214,29 @@ export default class LocalParticipant extends Participant {
         }
         this.pendingPublishing.add(source);
         try {
+          // disable red and dtx for stereo track if not enabled explicitly
+          let channelCount: ConstrainULong | undefined;
+          if (options) {
+            if ('channelCount' in options) {
+              channelCount = options.channelCount;
+            } else if ('audio' in options && options.audio && typeof options.audio !== 'boolean') {
+              channelCount = options.audio.channelCount;
+            }
+          }
+          if (channelCount && channelCount > 1) {
+            if (!publishOptions) {
+              publishOptions = { red: false, dtx: false };
+            } else {
+              if (publishOptions.red !== true) {
+                publishOptions.red = false;
+              }
+              if (publishOptions.dtx !== true) {
+                publishOptions.dtx = false;
+              }
+            }
+            publishOptions.stereo = true;
+          }
+
           switch (source) {
             case Track.Source.Camera:
               localTracks = await this.createTracks({
@@ -486,7 +509,9 @@ export default class LocalParticipant extends Participant {
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
-      disableDtx: !(opts?.dtx ?? true),
+      disableDtx: !(opts.dtx ?? true),
+      stereo: opts.stereo ?? false,
+      disableRed: !(opts.red ?? true),
     });
 
     // compute encodings and layers for video
