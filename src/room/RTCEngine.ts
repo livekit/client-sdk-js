@@ -20,6 +20,7 @@ import {
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
+import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
   NegotiationError,
@@ -46,7 +47,6 @@ const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
-export const maxICEConnectTimeout = 15 * 1000;
 
 enum PCState {
   New,
@@ -65,6 +65,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   client: SignalClient;
 
   rtcConfig: RTCConfiguration = {};
+
+  peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
 
   get isClosed() {
     return this._isClosed;
@@ -841,7 +843,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.pcState = PCState.Reconnecting;
 
     log.debug('waiting for peer connection to reconnect');
-    while (now - startTime < maxICEConnectTimeout) {
+    while (now - startTime < this.peerConnectionTimeout) {
       if (this.primaryPC === undefined) {
         // we can abort early, connection is hosed
         break;
@@ -904,7 +906,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     // wait until publisher ICE connected
-    const endTime = new Date().getTime() + maxICEConnectTimeout;
+    const endTime = new Date().getTime() + this.peerConnectionTimeout;
     while (new Date().getTime() < endTime) {
       if (this.publisher.isICEConnected && this.dataChannelForKind(kind)?.readyState === 'open') {
         return;

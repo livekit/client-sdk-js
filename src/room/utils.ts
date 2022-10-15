@@ -58,6 +58,16 @@ export function supportsAV1(): boolean {
   return hasAV1 && hasDDExt;
 }
 
+export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
+  if (!document) {
+    return false;
+  }
+  if (!elm) {
+    elm = document.createElement('audio');
+  }
+  return 'setSinkId' in elm;
+}
+
 const setCodecPreferencesVersions: { [key: string]: string } = {
   Chrome: '100',
   Chromium: '100',
