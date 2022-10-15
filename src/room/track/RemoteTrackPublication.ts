@@ -219,7 +219,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       });
       return false;
     }
-    if (!this.isSubscribed) {
+    if (!this.isDesired) {
       log.warn('cannot update track settings when not subscribed', { trackSid: this.trackSid });
       return false;
     }

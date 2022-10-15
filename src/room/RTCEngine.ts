@@ -298,9 +298,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     this.primaryPC = primaryPC;
     primaryPC.onconnectionstatechange = async () => {
-      log.debug('primary PC state changed', {
-        state: primaryPC.connectionState,
-      });
+      log.debug(`primary PC state changed ${primaryPC.connectionState}`);
       if (primaryPC.connectionState === 'connected') {
         try {
           this.connectedServerAddr = await getConnectedAddress(primaryPC);
@@ -322,9 +320,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     };
     secondaryPC.onconnectionstatechange = async () => {
-      log.debug('secondary PC state changed', {
-        state: secondaryPC.connectionState,
-      });
+      log.debug(`secondary PC state changed ${secondaryPC.connectionState}`);
       // also reconnect if secondary peerconnection fails
       if (secondaryPC.connectionState === 'failed') {
         this.handleDisconnect('secondary peerconnection');

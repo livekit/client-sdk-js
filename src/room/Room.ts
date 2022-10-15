@@ -1191,7 +1191,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     event: E,
     ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
-    log.debug('room event', { event, args });
+    // active speaker updates are too spammy
+    if (event !== RoomEvent.ActiveSpeakersChanged) {
+      log.debug(`room event ${event}`, { event, args });
+    }
     return super.emit(event, ...args);
   }
 }
