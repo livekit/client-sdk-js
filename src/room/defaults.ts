@@ -39,4 +39,5 @@ export const roomOptionDefaults: InternalRoomOptions = {
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {
   autoSubscribe: true,
+  peerConnectionTimeout: 15_000,
 } as const;

@@ -168,6 +168,15 @@ export interface AudioCaptureOptions {
   sampleSize?: ConstrainULong;
 }
 
+export interface AudioOutputOptions {
+  /**
+   * deviceId to output audio
+   *
+   * Only supported on browsers where `setSinkId` is available
+   */
+  deviceId?: string;
+}
+
 export interface VideoResolution {
   width: number;
   height: number;

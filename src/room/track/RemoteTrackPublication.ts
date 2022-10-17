@@ -2,10 +2,10 @@ import log from '../../logger';
 import { TrackInfo, VideoQuality } from '../../proto/livekit_models';
 import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
+import type RemoteTrack from './RemoteTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import type { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
-import type { RemoteTrack } from './types';
 
 export default class RemoteTrackPublication extends TrackPublication {
   track?: RemoteTrack = undefined;

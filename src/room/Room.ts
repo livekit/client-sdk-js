@@ -40,16 +40,17 @@ import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import RTCEngine, { maxICEConnectTimeout } from './RTCEngine';
+import RTCEngine from './RTCEngine';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
+import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
-import type { AdaptiveStreamSettings, RemoteTrack } from './track/types';
+import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
-import { Future, isWeb, unpackStreamId } from './utils';
+import { Future, isWeb, supportsSetSinkId, unpackStreamId } from './utils';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -260,6 +261,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (this.connOptions.rtcConfig) {
         this.engine.rtcConfig = this.connOptions.rtcConfig;
       }
+      if (this.connOptions.peerConnectionTimeout) {
+        this.engine.peerConnectionTimeout = this.connOptions.peerConnectionTimeout;
+      }
 
       try {
         const joinResponse = await this.engine.join(
@@ -347,7 +351,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.recreateEngine();
         this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
         reject(new ConnectionError('could not connect PeerConnection after timeout'));
-      }, maxICEConnectTimeout);
+      }, this.connOptions.peerConnectionTimeout);
       const abortHandler = () => {
         log.warn('closing engine');
         clearTimeout(connectTimeout);
@@ -550,37 +554,51 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   async switchActiveDevice(kind: MediaDeviceKind, deviceId: string) {
     if (kind === 'audioinput') {
+      const prevDeviceId = this.options.audioCaptureDefaults!.deviceId;
+      this.options.audioCaptureDefaults!.deviceId = deviceId;
       const tracks = Array.from(this.localParticipant.audioTracks.values()).filter(
         (track) => track.source === Track.Source.Microphone,
       );
-      await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceId)));
-      this.options.audioCaptureDefaults!.deviceId = deviceId;
+      try {
+        await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceId)));
+      } catch (e) {
+        this.options.audioCaptureDefaults!.deviceId = prevDeviceId;
+        throw e;
+      }
     } else if (kind === 'videoinput') {
+      const prevDeviceId = this.options.videoCaptureDefaults!.deviceId;
+      this.options.videoCaptureDefaults!.deviceId = deviceId;
       const tracks = Array.from(this.localParticipant.videoTracks.values()).filter(
         (track) => track.source === Track.Source.Camera,
       );
-      await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceId)));
-      this.options.videoCaptureDefaults!.deviceId = deviceId;
+      try {
+        await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceId)));
+      } catch (e) {
+        this.options.videoCaptureDefaults!.deviceId = prevDeviceId;
+        throw e;
+      }
     } else if (kind === 'audiooutput') {
-      const elements: HTMLMediaElement[] = [];
+      // TODO add support for webaudio mix once the API becomes available https://github.com/WebAudio/web-audio-api/pull/2498
+      if (!supportsSetSinkId()) {
+        throw new Error('cannot switch audio output, setSinkId not supported');
+      }
+      this.options.audioOutput ??= {};
+      const prevDeviceId = this.options.audioOutput.deviceId;
+      this.options.audioOutput.deviceId = deviceId;
+      const promises: Promise<void>[] = [];
       this.participants.forEach((p) => {
-        p.audioTracks.forEach((t) => {
-          if (t.isSubscribed && t.track) {
-            t.track.attachedElements.forEach((e) => {
-              elements.push(e);
-            });
-          }
-        });
+        promises.push(
+          p.setAudioOutput({
+            deviceId,
+          }),
+        );
       });
-
-      await Promise.all(
-        elements.map(async (e) => {
-          if ('setSinkId' in e) {
-            /* @ts-ignore */
-            await e.setSinkId(deviceId);
-          }
-        }),
-      );
+      try {
+        await Promise.all(promises);
+      } catch (e) {
+        this.options.audioOutput.deviceId = prevDeviceId;
+        throw e;
+      }
     }
   }
 

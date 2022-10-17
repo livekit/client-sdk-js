@@ -1,8 +1,10 @@
-import { AudioReceiverStats, computeBitrate } from '../stats';
-import RemoteTrack from './RemoteTrack';
-import { Track } from './Track';
 import log from '../../logger';
 import { TrackEvent } from '../events';
+import { AudioReceiverStats, computeBitrate } from '../stats';
+import { supportsSetSinkId } from '../utils';
+import type { AudioOutputOptions } from './options';
+import RemoteTrack from './RemoteTrack';
+import { Track } from './Track';
 
 export default class RemoteAudioTrack extends RemoteTrack {
   private prevStats?: AudioReceiverStats;
@@ -17,15 +19,21 @@ export default class RemoteAudioTrack extends RemoteTrack {
 
   private webAudioPluginNodes: AudioNode[];
 
+  private sinkId?: string;
+
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
     receiver?: RTCRtpReceiver,
     audioContext?: AudioContext,
+    audioOutput?: AudioOutputOptions,
   ) {
     super(mediaTrack, sid, Track.Kind.Audio, receiver);
     this.audioContext = audioContext;
     this.webAudioPluginNodes = [];
+    if (audioOutput) {
+      this.sinkId = audioOutput.deviceId;
+    }
   }
 
   /**
@@ -58,6 +66,23 @@ export default class RemoteAudioTrack extends RemoteTrack {
     return highestVolume;
   }
 
+  /**
+   * calls setSinkId on all attached elements, if supported
+   * @param deviceId audio output device
+   */
+  async setSinkId(deviceId: string) {
+    this.sinkId = deviceId;
+    await Promise.all(
+      this.attachedElements.map((elm) => {
+        if (!supportsSetSinkId(elm)) {
+          return;
+        }
+        /* @ts-ignore */
+        return elm.setSinkId(deviceId) as Promise<void>;
+      }),
+    );
+  }
+
   attach(): HTMLMediaElement;
   attach(element: HTMLMediaElement): HTMLMediaElement;
   attach(element?: HTMLMediaElement): HTMLMediaElement {
@@ -69,6 +94,10 @@ export default class RemoteAudioTrack extends RemoteTrack {
     }
     if (this.elementVolume) {
       element.volume = this.elementVolume;
+    }
+    if (this.sinkId && supportsSetSinkId(element)) {
+      /* @ts-ignore */
+      element.setSinkId(this.sinkId);
     }
     if (this.audioContext && needsNewWebAudioConnection) {
       log.debug('using audio context mapping');
