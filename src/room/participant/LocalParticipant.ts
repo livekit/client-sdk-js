@@ -430,11 +430,13 @@ export default class LocalParticipant extends Participant {
       if (!options) {
         options = {};
       }
+      if (options.red === undefined || options.dtx === undefined) {
+        log.warn(
+          `Opus RED and DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
+        );
+      }
       options.red ??= false;
       options.dtx ??= false;
-      log.warn(
-        `Opus RED and DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
-      );
     }
     const opts: TrackPublishOptions = {
       ...this.roomOptions.publishDefaults,
