@@ -1,6 +1,6 @@
 import 'webrtc-adapter';
 import log from '../../logger';
-import type { RoomOptions } from '../../options';
+import type { InternalRoomOptions } from '../../options';
 import {
   DataPacket,
   DataPacket_Kind,
@@ -66,10 +66,10 @@ export default class LocalParticipant extends Participant {
   private allParticipantsAllowedToSubscribe: boolean = true;
 
   // keep a pointer to room options
-  private roomOptions?: RoomOptions;
+  private roomOptions: InternalRoomOptions;
 
   /** @internal */
-  constructor(sid: string, identity: string, engine: RTCEngine, options: RoomOptions) {
+  constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
     super(sid, identity);
     this.audioTracks = new Map();
     this.videoTracks = new Map();
@@ -214,26 +214,6 @@ export default class LocalParticipant extends Participant {
         }
         this.pendingPublishing.add(source);
         try {
-          // determine stereo option by channel count if not set.
-          if (!publishOptions || publishOptions.stereo === undefined) {
-            let channelCount: ConstrainULong | undefined;
-            if (options) {
-              if ('channelCount' in options) {
-                channelCount = options.channelCount;
-              } else if (
-                'audio' in options &&
-                options.audio &&
-                typeof options.audio !== 'boolean'
-              ) {
-                channelCount = options.audio.channelCount;
-              }
-            }
-            if (channelCount && channelCount > 1) {
-              publishOptions ??= {};
-              publishOptions.stereo = true;
-            }
-          }
-
           switch (source) {
             case Track.Source.Camera:
               localTracks = await this.createTracks({
@@ -424,16 +404,6 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
-    // disable red and dtx for stereo track if not enabled explicitly
-    if (options?.stereo) {
-      options.red ??= false;
-      options.dtx ??= false;
-    }
-    const opts: TrackPublishOptions = {
-      ...this.roomOptions?.publishDefaults,
-      ...options,
-    };
-
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
@@ -447,6 +417,31 @@ export default class LocalParticipant extends Participant {
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
       }
     }
+
+    const isStereo =
+      options?.forceStereo ||
+      ('channelCount' in track.mediaStreamTrack.getSettings() &&
+        // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
+        track.mediaStreamTrack.getSettings().channelCount === 2) ||
+      track.mediaStreamTrack.getConstraints().channelCount === 2;
+
+    // disable red and dtx for stereo track if not enabled explicitly
+    if (isStereo) {
+      if (!options) {
+        options = {};
+      }
+      if (options.red === undefined || options.dtx === undefined) {
+        log.warn(
+          `Opus RED and DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
+        );
+      }
+      options.red ??= false;
+      options.dtx ??= false;
+    }
+    const opts: TrackPublishOptions = {
+      ...this.roomOptions.publishDefaults,
+      ...options,
+    };
 
     // is it already published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
@@ -512,7 +507,7 @@ export default class LocalParticipant extends Participant {
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
       disableDtx: !(opts.dtx ?? true),
-      stereo: opts.stereo ?? false,
+      stereo: isStereo,
       disableRed: !(opts.red ?? true),
     });
 
