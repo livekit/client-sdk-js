@@ -38,8 +38,7 @@ export interface TrackPublishDefaults {
   red?: boolean;
 
   /**
-   * @internal
-   * stereo audio track, determined by capture channel count.
+   * stereo audio track. defaults determined by capture channel count.
    */
   stereo?: boolean;
 

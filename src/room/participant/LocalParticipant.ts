@@ -214,27 +214,20 @@ export default class LocalParticipant extends Participant {
         }
         this.pendingPublishing.add(source);
         try {
-          // disable red and dtx for stereo track if not enabled explicitly
-          let channelCount: ConstrainULong | undefined;
-          if (options) {
-            if ('channelCount' in options) {
-              channelCount = options.channelCount;
-            } else if ('audio' in options && options.audio && typeof options.audio !== 'boolean') {
-              channelCount = options.audio.channelCount;
-            }
-          }
-          if (channelCount && channelCount > 1) {
-            if (!publishOptions) {
-              publishOptions = { red: false, dtx: false };
-            } else {
-              if (publishOptions.red !== true) {
-                publishOptions.red = false;
-              }
-              if (publishOptions.dtx !== true) {
-                publishOptions.dtx = false;
+          // determine stereo option by channel count if not set.
+          if (!publishOptions || publishOptions.stereo === undefined) {
+            let channelCount: ConstrainULong | undefined;
+            if (options) {
+              if ('channelCount' in options) {
+                channelCount = options.channelCount;
+              } else if ('audio' in options && options.audio && typeof options.audio !== 'boolean') {
+                channelCount = options.audio.channelCount;
               }
             }
-            publishOptions.stereo = true;
+            if (channelCount && channelCount > 1) {
+              publishOptions ??= {};
+              publishOptions.stereo = true;
+            }
           }
 
           switch (source) {
@@ -427,6 +420,11 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
+    // disable red and dtx for stereo track if not enabled explicitly
+    if (options?.stereo) {
+      options.red ??= false;
+      options.dtx ??= false;
+    }
     const opts: TrackPublishOptions = {
       ...this.roomOptions?.publishDefaults,
       ...options,
