@@ -505,7 +505,7 @@ export default class LocalParticipant extends Participant {
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
       disableDtx: !(opts.dtx ?? true),
-      stereo: isStereo ?? false,
+      stereo: isStereo,
       disableRed: !(opts.red ?? true),
     });
 
