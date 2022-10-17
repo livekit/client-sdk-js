@@ -578,6 +578,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     } else if (kind === 'audiooutput') {
+      // TODO add support for webaudio mix once the API becomes available https://github.com/WebAudio/web-audio-api/pull/2498
       if (!supportsSetSinkId()) {
         throw new Error('cannot switch audio output, setSinkId not supported');
       }
