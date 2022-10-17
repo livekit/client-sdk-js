@@ -220,7 +220,11 @@ export default class LocalParticipant extends Participant {
             if (options) {
               if ('channelCount' in options) {
                 channelCount = options.channelCount;
-              } else if ('audio' in options && options.audio && typeof options.audio !== 'boolean') {
+              } else if (
+                'audio' in options &&
+                options.audio &&
+                typeof options.audio !== 'boolean'
+              ) {
                 channelCount = options.audio.channelCount;
               }
             }
