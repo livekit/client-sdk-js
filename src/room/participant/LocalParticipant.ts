@@ -423,7 +423,7 @@ export default class LocalParticipant extends Participant {
       ('channelCount' in track.mediaStreamTrack.getSettings() &&
         // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
         track.mediaStreamTrack.getSettings().channelCount === 2) ||
-      track.mediaStreamTrack.getConstraints().channelCount == 2;
+      track.mediaStreamTrack.getConstraints().channelCount === 2;
 
     // disable red and dtx for stereo track if not enabled explicitly
     if (isStereo) {
