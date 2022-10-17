@@ -40,7 +40,7 @@ export interface TrackPublishDefaults {
   /**
    * stereo audio track. defaults determined by capture channel count.
    */
-  stereo?: boolean;
+  forceStereo?: boolean;
 
   /**
    * use simulcast, defaults to true.
