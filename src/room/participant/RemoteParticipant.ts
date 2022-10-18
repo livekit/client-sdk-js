@@ -3,12 +3,14 @@ import log from '../../logger';
 import type { ParticipantInfo } from '../../proto/livekit_models';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { ParticipantEvent, TrackEvent } from '../events';
+import type { AudioOutputOptions } from '../track/options';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
+import type RemoteTrack from '../track/RemoteTrack';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
 import RemoteVideoTrack from '../track/RemoteVideoTrack';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
-import type { AdaptiveStreamSettings, RemoteTrack } from '../track/types';
+import type { AdaptiveStreamSettings } from '../track/types';
 import Participant, { ParticipantEventCallbacks } from './Participant';
 
 export default class RemoteParticipant extends Participant {
@@ -23,6 +25,8 @@ export default class RemoteParticipant extends Participant {
   private volume?: number;
 
   private audioContext?: AudioContext;
+
+  private audioOutput?: AudioOutputOptions;
 
   /** @internal */
   static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
@@ -178,7 +182,7 @@ export default class RemoteParticipant extends Participant {
     if (isVideo) {
       track = new RemoteVideoTrack(mediaTrack, sid, receiver, adaptiveStreamSettings);
     } else {
-      track = new RemoteAudioTrack(mediaTrack, sid, receiver, this.audioContext);
+      track = new RemoteAudioTrack(mediaTrack, sid, receiver, this.audioContext, this.audioOutput);
     }
 
     // set track info
@@ -313,6 +317,23 @@ export default class RemoteParticipant extends Participant {
    */
   setAudioContext(ctx: AudioContext | undefined) {
     this.audioContext = ctx;
+    this.audioTracks.forEach(
+      (track) => track.track instanceof RemoteAudioTrack && track.track.setAudioContext(ctx),
+    );
+  }
+
+  /**
+   * @internal
+   */
+  async setAudioOutput(output: AudioOutputOptions) {
+    this.audioOutput = output;
+    const promises: Promise<void>[] = [];
+    this.audioTracks.forEach((pub) => {
+      if (pub.track instanceof RemoteAudioTrack) {
+        promises.push(pub.track.setSinkId(output.deviceId ?? 'default'));
+      }
+    });
+    await Promise.all(promises);
   }
 
   /** @internal */

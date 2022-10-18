@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
+import log from '../../logger';
 import {
   ConnectionQuality as ProtoQuality,
   DataPacket_Kind,
@@ -8,11 +9,10 @@ import {
 } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
+import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
-import type { RemoteTrack } from '../track/types';
-import log from '../../logger';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',

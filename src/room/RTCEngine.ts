@@ -20,6 +20,7 @@ import {
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
+import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
   ConnectionErrorReason,
@@ -47,7 +48,6 @@ const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
-export const maxICEConnectTimeout = 15 * 1000;
 
 enum PCState {
   New,
@@ -66,6 +66,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   client: SignalClient;
 
   rtcConfig: RTCConfiguration = {};
+
+  peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
 
   get isClosed() {
     return this._isClosed;
@@ -262,7 +264,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.participantSid = joinResponse.participant?.sid;
 
     // update ICE servers before creating PeerConnection
-    if (joinResponse.iceServers && !this.rtcConfig.iceServers) {
+    if (joinResponse.iceServers) {
       const rtcIceServers: RTCIceServer[] = [];
       joinResponse.iceServers.forEach((iceServer) => {
         const rtcIceServer: RTCIceServer = {
@@ -319,9 +321,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     this.primaryPC = primaryPC;
     primaryPC.onconnectionstatechange = async () => {
-      log.debug('primary PC state changed', {
-        state: primaryPC.connectionState,
-      });
+      log.debug(`primary PC state changed ${primaryPC.connectionState}`);
       if (primaryPC.connectionState === 'connected') {
         try {
           this.connectedServerAddr = await getConnectedAddress(primaryPC);
@@ -343,9 +343,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     };
     secondaryPC.onconnectionstatechange = async () => {
-      log.debug('secondary PC state changed', {
-        state: secondaryPC.connectionState,
-      });
+      log.debug(`secondary PC state changed ${secondaryPC.connectionState}`);
       // also reconnect if secondary peerconnection fails
       if (secondaryPC.connectionState === 'failed') {
         this.handleDisconnect('secondary peerconnection');
@@ -862,7 +860,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.pcState = PCState.Reconnecting;
 
     log.debug('waiting for peer connection to reconnect');
-    while (now - startTime < maxICEConnectTimeout) {
+    while (now - startTime < this.peerConnectionTimeout) {
       if (this.primaryPC === undefined) {
         // we can abort early, connection is hosed
         break;
@@ -925,7 +923,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     // wait until publisher ICE connected
-    const endTime = new Date().getTime() + maxICEConnectTimeout;
+    const endTime = new Date().getTime() + this.peerConnectionTimeout;
     while (new Date().getTime() < endTime) {
       if (this.publisher.isICEConnected && this.dataChannelForKind(kind)?.readyState === 'open') {
         return;

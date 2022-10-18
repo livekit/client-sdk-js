@@ -1,5 +1,21 @@
 # Change Log
 
+## 1.4.3
+
+### Patch Changes
+
+- [#446](https://github.com/livekit/client-sdk-js/pull/446) [`88743d4`](https://github.com/livekit/client-sdk-js/commit/88743d4c4deb438140ce6cf520d2f92d975c4f56) Thanks [@lukasIO](https://github.com/lukasIO)! - Add experimental option to pipe attached audio tracks through webaudio API
+
+- [#466](https://github.com/livekit/client-sdk-js/pull/466) [`a34daba`](https://github.com/livekit/client-sdk-js/commit/a34dabacf2901e10efc9b5e2901b6eb6633af649) Thanks [@davidzhao](https://github.com/davidzhao)! - Fail subscription when reusing stopped MediaStreamTrack
+
+- [#467](https://github.com/livekit/client-sdk-js/pull/467) [`951a07c`](https://github.com/livekit/client-sdk-js/commit/951a07ceb3a19fb9ca0606c1cb33b29b9c415f09) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Update ice servers from join response
+
+- [#464](https://github.com/livekit/client-sdk-js/pull/464) [`af04dda`](https://github.com/livekit/client-sdk-js/commit/af04dda814a8400734f08ddd13b703323e4bc70c) Thanks [@davidzhao](https://github.com/davidzhao)! - Increase default audio bitrate; additional audio presets
+
+- [#469](https://github.com/livekit/client-sdk-js/pull/469) [`fcad243`](https://github.com/livekit/client-sdk-js/commit/fcad2432cc4a6800ce32ec7906c2bdcbd5c223c6) Thanks [@lukasIO](https://github.com/lukasIO)! - Add experimental method to prepare connection for speeding up subsequent first connection attempt
+
+- [#468](https://github.com/livekit/client-sdk-js/pull/468) [`91541ab`](https://github.com/livekit/client-sdk-js/commit/91541ab357125fb21d441d9f6669e0df9be31e17) Thanks [@lukasIO](https://github.com/lukasIO)! - Emit AudioPlaybackFailed event also in experimental web audio mix mode"
+
 ## 1.4.2
 
 ### Patch Changes
