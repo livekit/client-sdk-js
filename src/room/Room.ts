@@ -234,7 +234,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   connect = (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
     if (this.state === ConnectionState.Connected) {
       // when the state is reconnecting or connected, this function returns immediately
-      log.warn(`already connected to room ${this.name}`);
+      log.info(`already connected to room ${this.name}`);
       return Promise.resolve();
     }
 
@@ -244,7 +244,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.reconnectFuture) {
       this.reconnectFuture.reject?.('Reconnection attempt rejected by new connection attempt');
       this.reconnectFuture = undefined;
-      this.engine.clearPendingReconnect();
     }
     const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
       this.setAndEmitConnectionState(ConnectionState.Connecting);

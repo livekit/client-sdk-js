@@ -181,8 +181,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   close() {
     this._isClosed = true;
-
+    //changed
     this.removeAllListeners();
+    this.unRegisterOnLineListener();
+    this.clearPendingReconnect();
     if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
       this.publisher.pc.getSenders().forEach((sender) => {
         try {
@@ -201,7 +203,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.subscriber.close();
       this.subscriber = undefined;
     }
-    this.unRegisterOnLineListener();
     this.client.close();
   }
 
@@ -980,7 +981,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  clearPendingReconnect() {
+  private clearPendingReconnect() {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
