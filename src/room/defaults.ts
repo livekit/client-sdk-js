@@ -34,10 +34,10 @@ export const roomOptionDefaults: InternalRoomOptions = {
   dynacast: false,
   stopLocalTrackOnUnpublish: true,
   reconnectPolicy: new DefaultReconnectPolicy(),
-  maxJoinAttempts: 1,
   expWebAudioMix: false,
 } as const;
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {
   autoSubscribe: true,
+  maxRetries: 1,
 } as const;

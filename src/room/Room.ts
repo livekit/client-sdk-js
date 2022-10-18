@@ -258,6 +258,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             publishOnly: this.connOptions.publishOnly,
             adaptiveStream:
               typeof this.options.adaptiveStream === 'object' ? true : this.options.adaptiveStream,
+            maxRetries: this.connOptions.maxRetries,
           },
           this.abortController.signal,
         );

@@ -53,6 +53,7 @@ export interface SignalOptions {
   /** @deprecated */
   publishOnly?: string;
   adaptiveStream?: boolean;
+  maxRetries: number;
 }
 
 type SignalMessage = SignalRequest['message'];

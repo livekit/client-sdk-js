@@ -133,7 +133,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client = new SignalClient();
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
-    this.maxJoinAttempts = this.options.maxJoinAttempts;
   }
 
   async join(

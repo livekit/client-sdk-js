@@ -54,9 +54,6 @@ export interface InternalRoomOptions {
    */
   reconnectPolicy: ReconnectPolicy;
 
-  /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
-  maxJoinAttempts: number;
-
   /**
    * @internal
    * experimental flag, introduce a delay before sending signaling messages
@@ -94,6 +91,9 @@ export interface InternalRoomConnectOptions {
    * publish only mode
    */
   publishOnly?: string;
+
+  /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
+  maxRetries: number;
 }
 
 /**
