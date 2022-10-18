@@ -431,7 +431,7 @@ export default class LocalParticipant extends Participant {
         options = {};
       }
       if (options.dtx === undefined) {
-        log.warn(
+        log.info(
           `Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
         );
       }
