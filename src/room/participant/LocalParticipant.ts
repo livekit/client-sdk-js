@@ -425,17 +425,16 @@ export default class LocalParticipant extends Participant {
         track.mediaStreamTrack.getSettings().channelCount === 2) ||
       track.mediaStreamTrack.getConstraints().channelCount === 2;
 
-    // disable red and dtx for stereo track if not enabled explicitly
+    // disable dtx for stereo track if not enabled explicitly
     if (isStereo) {
       if (!options) {
         options = {};
       }
-      if (options.red === undefined || options.dtx === undefined) {
+      if (options.dtx === undefined) {
         log.warn(
-          `Opus RED and DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
+          `Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
         );
       }
-      options.red ??= false;
       options.dtx ??= false;
     }
     const opts: TrackPublishOptions = {
