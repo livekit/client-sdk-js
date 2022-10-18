@@ -135,6 +135,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client = new SignalClient();
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
+    this.registerOnLineListener();
   }
 
   async join(
@@ -200,6 +201,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.subscriber.close();
       this.subscriber = undefined;
     }
+    this.unRegisterOnLineListener();
     this.client.close();
   }
 
@@ -697,66 +699,74 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
     }
-    this.reconnectTimeout = setTimeout(async () => {
-      if (this._isClosed) {
-        return;
-      }
-      // guard for attempting reconnection multiple times while one attempt is still not finished
-      if (this.attemptingReconnect) {
-        return;
-      }
-      if (
-        this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED ||
-        // signaling state could change to closed due to hardware sleep
-        // those connections cannot be resumed
-        (this.primaryPC?.signalingState ?? 'closed') === 'closed'
-      ) {
-        this.fullReconnectOnNext = true;
-      }
-
-      try {
-        this.attemptingReconnect = true;
-        if (this.fullReconnectOnNext) {
-          await this.restartConnection(signalEvents);
-        } else {
-          await this.resumeConnection(signalEvents);
-        }
-        this.reconnectAttempts = 0;
-        this.fullReconnectOnNext = false;
-        if (this.reconnectTimeout) {
-          clearTimeout(this.reconnectTimeout);
-        }
-      } catch (e) {
-        this.reconnectAttempts += 1;
-        let reconnectRequired = false;
-        let recoverable = true;
-        let requireSignalEvents = false;
-        if (e instanceof UnexpectedConnectionState) {
-          log.debug('received unrecoverable error', { error: e });
-          // unrecoverable
-          recoverable = false;
-        } else if (!(e instanceof SignalReconnectError)) {
-          // cannot resume
-          reconnectRequired = true;
-        }
-
-        // when we flip from resume to reconnect
-        // we need to fire the right reconnecting events
-        if (reconnectRequired && !this.fullReconnectOnNext) {
-          this.fullReconnectOnNext = true;
-          requireSignalEvents = true;
-        }
-
-        if (recoverable) {
-          this.handleDisconnect('reconnect', requireSignalEvents);
-        } else {
-          disconnect(Date.now() - this.reconnectStart);
-        }
-      } finally {
-        this.attemptingReconnect = false;
-      }
-    }, delay);
+    this.reconnectTimeout = setTimeout(() => this.attemptReconnect(signalEvents), delay);
   };
+
+  private async attemptReconnect(signalEvents: boolean = false) {
+    if (this._isClosed) {
+      return;
+    }
+    // guard for attempting reconnection multiple times while one attempt is still not finished
+    if (this.attemptingReconnect) {
+      return;
+    }
+    if (
+      this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED ||
+      // signaling state could change to closed due to hardware sleep
+      // those connections cannot be resumed
+      (this.primaryPC?.signalingState ?? 'closed') === 'closed'
+    ) {
+      this.fullReconnectOnNext = true;
+    }
+
+    try {
+      this.attemptingReconnect = true;
+      if (this.fullReconnectOnNext) {
+        await this.restartConnection(signalEvents);
+      } else {
+        await this.resumeConnection(signalEvents);
+      }
+      this.reconnectAttempts = 0;
+      this.fullReconnectOnNext = false;
+      if (this.reconnectTimeout) {
+        clearTimeout(this.reconnectTimeout);
+      }
+    } catch (e) {
+      this.reconnectAttempts += 1;
+      let reconnectRequired = false;
+      let recoverable = true;
+      let requireSignalEvents = false;
+      if (e instanceof UnexpectedConnectionState) {
+        log.debug('received unrecoverable error', { error: e });
+        // unrecoverable
+        recoverable = false;
+      } else if (!(e instanceof SignalReconnectError)) {
+        // cannot resume
+        reconnectRequired = true;
+      }
+
+      // when we flip from resume to reconnect
+      // we need to fire the right reconnecting events
+      if (reconnectRequired && !this.fullReconnectOnNext) {
+        this.fullReconnectOnNext = true;
+        requireSignalEvents = true;
+      }
+
+      if (recoverable) {
+        this.handleDisconnect('reconnect', requireSignalEvents);
+      } else {
+        log.info(
+          `could not recover connection after ${this.reconnectAttempts} attempts, ${
+            Date.now() - this.reconnectStart
+          }ms. giving up`,
+        );
+        this.emit(EngineEvent.Disconnected);
+        this.close();
+      }
+    } finally {
+      this.attemptingReconnect = false;
+    }
+  }
 
   private getNextRetryDelay(context: ReconnectContext) {
     try {
@@ -967,6 +977,35 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (kind === DataPacket_Kind.RELIABLE) {
         return this.reliableDCSub;
       }
+    }
+  }
+
+  clearPendingReconnect() {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+    }
+    this.reconnectAttempts = 0;
+  }
+
+  private handleBrowserOnLine = () => {
+    // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
+    if (this.client.isReconnecting) {
+      if (this.reconnectTimeout) {
+        clearTimeout(this.reconnectTimeout);
+      }
+      this.attemptReconnect(true);
+    }
+  };
+
+  private registerOnLineListener() {
+    if (isWeb()) {
+      window.addEventListener('online', this.handleBrowserOnLine);
+    }
+  }
+
+  private unRegisterOnLineListener() {
+    if (isWeb()) {
+      window.removeEventListener('online', this.handleBrowserOnLine);
     }
   }
 }

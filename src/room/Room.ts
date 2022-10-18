@@ -238,12 +238,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return Promise.resolve();
     }
 
-    if (this.connectFuture) {
+    if (this.connectFuture && !this.reconnectFuture) {
       return this.connectFuture.promise;
     }
     if (this.reconnectFuture) {
-      this.connectFuture = this.reconnectFuture;
-      return this.connectFuture.promise;
+      this.reconnectFuture.reject?.('Reconnection attempt rejected by new connection attempt');
+      this.reconnectFuture = undefined;
+      this.engine.clearPendingReconnect();
     }
     const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
       this.setAndEmitConnectionState(ConnectionState.Connecting);
@@ -252,7 +253,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
 
       // recreate engine if previously disconnected
-      this.createEngine();
+      this.recreateEngine();
 
       this.acquireAudioContext();
 
