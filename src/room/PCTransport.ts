@@ -22,6 +22,8 @@ export default class PCTransport {
 
   trackBitrates: TrackBitrateInfo[] = [];
 
+  remoteStereoMids: string[] = [];
+
   onOffer?: (offer: RTCSessionDescriptionInit) => void;
 
   constructor(config?: RTCConfiguration) {
@@ -40,6 +42,9 @@ export default class PCTransport {
   }
 
   async setRemoteDescription(sd: RTCSessionDescriptionInit): Promise<void> {
+    if (sd.type === 'offer') {
+      this.remoteStereoMids = extractStereoTracksFromOffer(sd);
+    }
     await this.pc.setRemoteDescription(sd);
 
     this.pendingCandidates.forEach((candidate) => {
@@ -101,7 +106,7 @@ export default class PCTransport {
     const sdpParsed = parse(offer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
       if (media.type === 'audio') {
-        ensureAudioNack(media);
+        ensureAudioNackAndStereo(media, []);
       } else if (media.type === 'video') {
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
@@ -154,7 +159,7 @@ export default class PCTransport {
     const sdpParsed = parse(answer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
       if (media.type === 'audio') {
-        ensureAudioNack(media);
+        ensureAudioNackAndStereo(media, this.remoteStereoMids);
       }
     });
     await this.setMungedLocalDescription(answer, write(sdpParsed));
@@ -203,13 +208,14 @@ export default class PCTransport {
   }
 }
 
-function ensureAudioNack(
+function ensureAudioNackAndStereo(
   media: {
     type: string;
     port: number;
     protocol: string;
     payloads?: string | undefined;
   } & MediaDescription,
+  stereoMids: string[],
 ) {
   // found opus codec to add nack fb
   let opusPayload = 0;
@@ -233,5 +239,45 @@ function ensureAudioNack(
         type: 'nack',
       });
     }
+
+    if (stereoMids.includes(media.mid!)) {
+      media.fmtp.some((fmtp): boolean => {
+        if (fmtp.payload === opusPayload) {
+          if (!fmtp.config.includes('stereo=1')) {
+            fmtp.config += ';stereo=1';
+          }
+          return true;
+        }
+        return false;
+      });
+    }
   }
+}
+
+function extractStereoTracksFromOffer(offer: RTCSessionDescriptionInit): string[] {
+  const stereoMids: string[] = [];
+  const sdpParsed = parse(offer.sdp ?? '');
+  let opusPayload = 0;
+  sdpParsed.media.forEach((media) => {
+    if (media.type === 'audio') {
+      media.rtp.some((rtp): boolean => {
+        if (rtp.codec === 'opus') {
+          opusPayload = rtp.payload;
+          return true;
+        }
+        return false;
+      });
+
+      media.fmtp.some((fmtp): boolean => {
+        if (fmtp.payload === opusPayload) {
+          if (fmtp.config.includes('sprop-stereo=1')) {
+            stereoMids.push(media.mid!);
+          }
+          return true;
+        }
+        return false;
+      });
+    }
+  });
+  return stereoMids;
 }
