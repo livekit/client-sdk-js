@@ -238,7 +238,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return Promise.resolve();
     }
 
-    if (this.connectFuture && !this.reconnectFuture) {
+    if (this.connectFuture) {
       return this.connectFuture.promise;
     }
     if (this.reconnectFuture) {
