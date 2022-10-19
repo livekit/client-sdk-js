@@ -242,8 +242,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.participantSid = joinResponse.participant?.sid;
 
+    const rtcConfig = { ...this.rtcConfig };
+
     // update ICE servers before creating PeerConnection
-    if (joinResponse.iceServers) {
+    if (joinResponse.iceServers && !rtcConfig.iceServers) {
       const rtcIceServers: RTCIceServer[] = [];
       joinResponse.iceServers.forEach((iceServer) => {
         const rtcIceServer: RTCIceServer = {
@@ -255,23 +257,23 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
         rtcIceServers.push(rtcIceServer);
       });
-      this.rtcConfig.iceServers = rtcIceServers;
+      rtcConfig.iceServers = rtcIceServers;
     }
 
     if (
       joinResponse.clientConfiguration &&
       joinResponse.clientConfiguration.forceRelay === ClientConfigSetting.ENABLED
     ) {
-      this.rtcConfig.iceTransportPolicy = 'relay';
+      rtcConfig.iceTransportPolicy = 'relay';
     }
 
     // @ts-ignore
-    this.rtcConfig.sdpSemantics = 'unified-plan';
+    rtcConfig.sdpSemantics = 'unified-plan';
     // @ts-ignore
-    this.rtcConfig.continualGatheringPolicy = 'gather_continually';
+    rtcConfig.continualGatheringPolicy = 'gather_continually';
 
-    this.publisher = new PCTransport(this.rtcConfig);
-    this.subscriber = new PCTransport(this.rtcConfig);
+    this.publisher = new PCTransport(rtcConfig);
+    this.subscriber = new PCTransport(rtcConfig);
 
     this.emit(EngineEvent.TransportsCreated, this.publisher, this.subscriber);
 
