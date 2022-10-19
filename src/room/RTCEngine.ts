@@ -37,7 +37,6 @@ import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { Track } from './track/Track';
 import {
-  isWeb,
   sleep,
   supportsAddTrack,
   supportsSetCodecPreferences,
@@ -352,18 +351,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     };
 
-    if (isWeb()) {
-      this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
-        this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
-      };
-    } else {
-      // TODO: react-native-webrtc doesn't have ontrack yet, replace when ready.
-      // @ts-ignore
-      this.subscriber.pc.onaddstream = (ev: { stream: MediaStream }) => {
-        const track = ev.stream.getTracks()[0];
-        this.emit(EngineEvent.MediaTrackAdded, track, ev.stream);
-      };
-    }
+    this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
+      this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
+      console.log("onAddTrack")
+      
+    };
 
     this.createDataChannels();
 
