@@ -36,12 +36,7 @@ import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { Track } from './track/Track';
-import {
-  sleep,
-  supportsAddTrack,
-  supportsSetCodecPreferences,
-  supportsTransceiver,
-} from './utils';
+import { sleep, supportsAddTrack, supportsSetCodecPreferences, supportsTransceiver } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -353,8 +348,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
-      console.log("onAddTrack")
-      
     };
 
     this.createDataChannels();
