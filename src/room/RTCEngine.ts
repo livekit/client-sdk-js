@@ -23,6 +23,7 @@ import {
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
+  ConnectionErrorReason,
   NegotiationError,
   TrackInvalidError,
   UnexpectedConnectionState,
@@ -123,6 +124,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private participantSid?: string;
 
+  /** keeps track of how often an initial join connection has been tried */
+  private joinAttempts: number = 0;
+
+  /** specifies how often an initial join connection is allowed to retry */
+  private maxJoinAttempts: number = 1;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.client = new SignalClient();
@@ -139,22 +146,36 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.url = url;
     this.token = token;
     this.signalOpts = opts;
+    try {
+      this.joinAttempts += 1;
+      const joinResponse = await this.client.join(url, token, opts, abortSignal);
+      this._isClosed = false;
 
-    const joinResponse = await this.client.join(url, token, opts, abortSignal);
-    this._isClosed = false;
+      this.subscriberPrimary = joinResponse.subscriberPrimary;
+      if (!this.publisher) {
+        this.configure(joinResponse);
+      }
 
-    this.subscriberPrimary = joinResponse.subscriberPrimary;
-    if (!this.publisher) {
-      this.configure(joinResponse);
+      // create offer
+      if (!this.subscriberPrimary) {
+        this.negotiate();
+      }
+      this.clientConfiguration = joinResponse.clientConfiguration;
+
+      return joinResponse;
+    } catch (e) {
+      if (e instanceof ConnectionError) {
+        if (e.reason === ConnectionErrorReason.ServerUnreachable) {
+          log.warn(
+            `Couldn't connect to server, attempt ${this.joinAttempts} of ${this.maxJoinAttempts}`,
+          );
+          if (this.joinAttempts < this.maxJoinAttempts) {
+            return this.join(url, token, opts, abortSignal);
+          }
+        }
+      }
+      throw e;
     }
-
-    // create offer
-    if (!this.subscriberPrimary) {
-      this.negotiate();
-    }
-    this.clientConfiguration = joinResponse.clientConfiguration;
-
-    return joinResponse;
   }
 
   close() {

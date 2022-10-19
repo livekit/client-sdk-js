@@ -274,6 +274,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             publishOnly: this.connOptions.publishOnly,
             adaptiveStream:
               typeof this.options.adaptiveStream === 'object' ? true : this.options.adaptiveStream,
+            maxRetries: this.connOptions.maxRetries,
           },
           this.abortController.signal,
         );
@@ -373,12 +374,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
         }
         this.setAndEmitConnectionState(ConnectionState.Connected);
+        this.emit(RoomEvent.Connected);
         resolve();
       });
     };
     this.connectFuture = new Future(connectFn, () => {
       this.clearConnectionFutures();
-      this.emit(RoomEvent.Connected);
     });
 
     return this.connectFuture.promise;

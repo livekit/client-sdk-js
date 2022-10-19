@@ -29,7 +29,7 @@ import {
   UpdateSubscription,
   UpdateTrackSettings,
 } from '../proto/livekit_rtc';
-import { ConnectionError } from '../room/errors';
+import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import { getClientInfo, sleep } from '../room/utils';
 
 // internal options
@@ -53,6 +53,7 @@ export interface SignalOptions {
   /** @deprecated */
   publishOnly?: string;
   adaptiveStream?: boolean;
+  maxRetries: number;
 }
 
 type SignalMessage = SignalRequest['message'];
@@ -195,6 +196,7 @@ export class SignalClient {
         this.close();
         reject(new ConnectionError('room connection has been cancelled'));
       };
+
       if (abortSignal?.aborted) {
         abortHandler();
       }
@@ -210,12 +212,23 @@ export class SignalClient {
             const resp = await fetch(`http${url.substring(2)}/validate${params}`);
             if (!resp.ok) {
               const msg = await resp.text();
-              reject(new ConnectionError(msg));
+              reject(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
             } else {
-              reject(new ConnectionError('Internal error'));
+              reject(
+                new ConnectionError(
+                  'Internal error',
+                  ConnectionErrorReason.InternalError,
+                  resp.status,
+                ),
+              );
             }
           } catch (e) {
-            reject(new ConnectionError('server was not reachable'));
+            reject(
+              new ConnectionError(
+                'server was not reachable',
+                ConnectionErrorReason.ServerUnreachable,
+              ),
+            );
           }
           return;
         }

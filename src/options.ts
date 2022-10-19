@@ -71,6 +71,7 @@ export interface InternalRoomOptions {
    * @experimental
    * experimental flag, mix all audio tracks in web audio
    */
+
   expWebAudioMix: boolean;
 }
 
@@ -99,6 +100,9 @@ export interface InternalRoomConnectOptions {
    * publish only mode
    */
   publishOnly?: string;
+
+  /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
+  maxRetries: number;
 }
 
 /**
