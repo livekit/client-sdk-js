@@ -33,6 +33,16 @@ export interface TrackPublishDefaults {
   dtx?: boolean;
 
   /**
+   * red (Redundant Audio Data), defaults to true
+   */
+  red?: boolean;
+
+  /**
+   * stereo audio track. defaults determined by capture channel count.
+   */
+  forceStereo?: boolean;
+
+  /**
    * use simulcast, defaults to true.
    * When using simulcast, LiveKit will publish up to three versions of the stream
    * at various resolutions.
