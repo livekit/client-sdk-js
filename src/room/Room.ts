@@ -242,7 +242,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return this.connectFuture.promise;
     }
     if (this.reconnectFuture) {
-      this.reconnectFuture.reject?.('Reconnection attempt rejected by new connection attempt');
+      log.info('Reconnection attempt replaced by new connection attempt');
       this.reconnectFuture = undefined;
     }
     const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
@@ -604,7 +604,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private recreateEngine() {
-    this.engine.close();
+    this.engine?.close();
     /* @ts-ignore */
     this.engine = undefined;
 
