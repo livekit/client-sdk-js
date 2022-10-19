@@ -192,7 +192,6 @@ export class SignalClient {
 
     return new Promise<JoinResponse | void>((resolve, reject) => {
       const abortHandler = () => {
-        ws.close();
         this.close();
         reject(new ConnectionError('room connection has been cancelled'));
       };
@@ -202,12 +201,14 @@ export class SignalClient {
       }
       abortSignal?.addEventListener('abort', abortHandler);
       log.debug(`connecting to ${url + params}`);
-      this.ws = undefined;
-      const ws = new WebSocket(url + params);
-      ws.binaryType = 'arraybuffer';
+      if (this.ws) {
+        this.close();
+      }
+      this.ws = new WebSocket(url + params);
+      this.ws.binaryType = 'arraybuffer';
 
-      ws.onerror = async (ev: Event) => {
-        if (!this.ws) {
+      this.ws.onerror = async (ev: Event) => {
+        if (!this.isConnected) {
           try {
             const resp = await fetch(`http${url.substring(2)}/validate${params}`);
             if (!resp.ok) {
@@ -236,8 +237,7 @@ export class SignalClient {
         this.handleWSError(ev);
       };
 
-      ws.onopen = () => {
-        this.ws = ws;
+      this.ws.onopen = () => {
         if (opts.reconnect) {
           // upon reconnection, there will not be additional handshake
           this.isConnected = true;
@@ -247,7 +247,7 @@ export class SignalClient {
         }
       };
 
-      ws.onmessage = async (ev: MessageEvent) => {
+      this.ws.onmessage = async (ev: MessageEvent) => {
         // not considered connected until JoinResponse is received
         let resp: SignalResponse;
         if (typeof ev.data === 'string') {
@@ -288,23 +288,27 @@ export class SignalClient {
         this.handleSignalResponse(resp);
       };
 
-      ws.onclose = (ev: CloseEvent) => {
-        if (!this.isConnected || this.ws !== ws) return;
+      this.ws.onclose = (ev: CloseEvent) => {
+        if (!this.isConnected) return;
 
         log.debug(`websocket connection closed: ${ev.reason}`);
         this.isConnected = false;
-        if (this.onClose) this.onClose(ev.reason);
-        if (this.ws === ws) {
-          this.ws = undefined;
+        if (this.onClose) {
+          this.onClose(ev.reason);
         }
+        this.ws = undefined;
       };
     });
   }
 
   close() {
     this.isConnected = false;
-    if (this.ws) this.ws.onclose = null;
-    this.ws?.close();
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.onmessage = null;
+      this.ws.onopen = null;
+      this.ws.close();
+    }
     this.ws = undefined;
     this.clearPingInterval();
   }
