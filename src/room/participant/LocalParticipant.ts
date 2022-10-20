@@ -908,7 +908,6 @@ export default class LocalParticipant extends Participant {
   };
 
   private handleSubscribedQualityUpdate = async (update: SubscribedQualityUpdate) => {
-    log.info('subscribed quality update', { update, dynacast: this.roomOptions.dynacast });
     if (!this.roomOptions?.dynacast) {
       return;
     }
