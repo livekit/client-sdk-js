@@ -190,7 +190,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.Restarted, this.handleRestarted);
 
     if (this.localParticipant) {
-      this.localParticipant.engine = this.engine;
+      this.localParticipant.setupEngine(this.engine);
     }
   }
 
@@ -233,6 +233,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     if (this.state === ConnectionState.Reconnecting) {
       log.info('Reconnection attempt replaced by new connection attempt');
+      this.recreateEngine();
     }
     const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
       this.setAndEmitConnectionState(ConnectionState.Connecting);
@@ -240,8 +241,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.abortController = new AbortController();
       }
 
-      // recreate engine if previously disconnected
-      this.recreateEngine();
+      // create engine if previously disconnected
+      this.createEngine();
 
       this.acquireAudioContext();
 
@@ -592,6 +593,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private recreateEngine() {
+    console.log('recreating engine', this.participants, this.engine);
+
     this.engine?.close();
     /* @ts-ignore */
     this.engine = undefined;
@@ -599,8 +602,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // clear out existing remote participants, since they may have attached
     // the old engine
     this.participants.clear();
-
     this.createEngine();
+    this.localParticipant.engine = this.engine;
   }
 
   private onTrackAdded(
@@ -614,6 +617,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
     if (this.state === ConnectionState.Connecting || this.state == ConnectionState.Reconnecting) {
+      log.info('defering on track added');
       const reconnectedHandler = () => {
         this.onTrackAdded(mediaTrack, stream, receiver);
         cleanup();

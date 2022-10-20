@@ -76,27 +76,7 @@ export default class LocalParticipant extends Participant {
     this.tracks = new Map();
     this.engine = engine;
     this.roomOptions = options;
-
-    this.engine.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
-      const pub = this.tracks.get(trackSid);
-      if (!pub || !pub.track) {
-        return;
-      }
-      if (muted) {
-        pub.mute();
-      } else {
-        pub.unmute();
-      }
-    };
-
-    this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
-
-    this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
-
-    this.engine
-      .on(EngineEvent.Connected, this.updateTrackSubscriptionPermissions)
-      .on(EngineEvent.Restarted, this.updateTrackSubscriptionPermissions)
-      .on(EngineEvent.Resumed, this.updateTrackSubscriptionPermissions);
+    this.setupEngine(engine);
   }
 
   get lastCameraError(): Error | undefined {
@@ -119,6 +99,33 @@ export default class LocalParticipant extends Participant {
     if (track) {
       return track as LocalTrackPublication;
     }
+  }
+
+  /**
+   * @internal
+   */
+  setupEngine(engine: RTCEngine) {
+    this.engine = engine;
+    this.engine.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
+      const pub = this.tracks.get(trackSid);
+      if (!pub || !pub.track) {
+        return;
+      }
+      if (muted) {
+        pub.mute();
+      } else {
+        pub.unmute();
+      }
+    };
+
+    this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
+
+    this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
+
+    this.engine
+      .on(EngineEvent.Connected, this.updateTrackSubscriptionPermissions)
+      .on(EngineEvent.Restarted, this.updateTrackSubscriptionPermissions)
+      .on(EngineEvent.Resumed, this.updateTrackSubscriptionPermissions);
   }
 
   /**
@@ -901,6 +908,7 @@ export default class LocalParticipant extends Participant {
   };
 
   private handleSubscribedQualityUpdate = async (update: SubscribedQualityUpdate) => {
+    log.info('subscribed quality update', { update, dynacast: this.roomOptions.dynacast });
     if (!this.roomOptions?.dynacast) {
       return;
     }
