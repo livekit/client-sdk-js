@@ -116,9 +116,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
 
-  /** future holding sdk initiated reconnection attempt */
-  private reconnectFuture?: Future<void>;
-
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -175,19 +172,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
-        if (!this.reconnectFuture) {
-          this.reconnectFuture = new Future(undefined, () => {
-            this.clearConnectionFutures();
-          });
-        }
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
         }
       })
       .on(EngineEvent.Resumed, () => {
         this.setAndEmitConnectionState(ConnectionState.Connected);
-        this.reconnectFuture?.resolve?.();
-        this.reconnectFuture = undefined;
         this.emit(RoomEvent.Reconnected);
         this.updateSubscriptions();
       })
@@ -234,16 +224,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   connect = (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
     if (this.state === ConnectionState.Connected) {
       // when the state is reconnecting or connected, this function returns immediately
-      log.warn(`already connected to room ${this.name}`);
+      log.info(`already connected to room ${this.name}`);
       return Promise.resolve();
     }
 
     if (this.connectFuture) {
       return this.connectFuture.promise;
     }
-    if (this.reconnectFuture) {
-      this.connectFuture = this.reconnectFuture;
-      return this.connectFuture.promise;
+    if (this.state === ConnectionState.Reconnecting) {
+      log.info('Reconnection attempt replaced by new connection attempt');
     }
     const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
       this.setAndEmitConnectionState(ConnectionState.Connecting);
@@ -252,7 +241,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
 
       // recreate engine if previously disconnected
-      this.createEngine();
+      this.recreateEngine();
 
       this.acquireAudioContext();
 
@@ -428,7 +417,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private clearConnectionFutures() {
     this.connectFuture = undefined;
-    this.reconnectFuture = undefined;
   }
 
   /**
@@ -604,7 +592,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private recreateEngine() {
-    this.engine.close();
+    this.engine?.close();
     /* @ts-ignore */
     this.engine = undefined;
 
@@ -625,11 +613,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // at that time, ICE connectivity has not been established so the track is not
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
-    if (this.connectFuture || this.reconnectFuture) {
-      Promise.allSettled([this.connectFuture?.promise, this.reconnectFuture?.promise]).then(() => {
+    if (this.state === ConnectionState.Connecting || this.state == ConnectionState.Reconnecting) {
+      const reconnectedHandler = () => {
         this.onTrackAdded(mediaTrack, stream, receiver);
-      });
-      return;
+        cleanup();
+      };
+      const cleanup = () => {
+        this.off(RoomEvent.Reconnected, reconnectedHandler);
+        this.off(RoomEvent.Connected, reconnectedHandler);
+        this.off(RoomEvent.Disconnected, cleanup);
+      };
+      this.once(RoomEvent.Reconnected, reconnectedHandler);
+      this.once(RoomEvent.Connected, reconnectedHandler);
+      this.once(RoomEvent.Disconnected, cleanup);
     }
     if (this.state === ConnectionState.Disconnected) {
       log.warn('skipping incoming track after Room disconnected');
@@ -664,11 +660,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleRestarting = () => {
-    if (!this.reconnectFuture) {
-      this.reconnectFuture = new Future(undefined, () => {
-        this.clearConnectionFutures();
-      });
-    }
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {
       this.handleParticipantDisconnected(p.sid, p);
@@ -685,8 +676,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
-    this.reconnectFuture?.resolve?.();
-    this.reconnectFuture = undefined;
 
     // rehydrate participants
     if (joinResponse.participant) {
@@ -730,12 +719,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
-    // reject potentially ongoing reconnection attempt
-    if (this.connectFuture === this.reconnectFuture) {
-      this.connectFuture?.reject?.(undefined);
-      this.connectFuture = undefined;
-    }
-    this.reconnectFuture = undefined;
+
+    this.connectFuture?.reject?.(new Error('connection rejected due to disconnect call'));
 
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
