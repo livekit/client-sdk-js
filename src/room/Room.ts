@@ -233,6 +233,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     if (this.state === ConnectionState.Reconnecting) {
       log.info('Reconnection attempt replaced by new connection attempt');
+      // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
       this.recreateEngine();
     }
     const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
