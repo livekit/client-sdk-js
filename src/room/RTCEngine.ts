@@ -182,7 +182,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   close() {
     this._isClosed = true;
     this.removeAllListeners();
-    this.unRegisterOnLineListener();
+    this.deregisterOnLineListener();
     this.clearPendingReconnect();
     if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
       this.publisher.pc.getSenders().forEach((sender) => {
