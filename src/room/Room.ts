@@ -615,7 +615,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
     if (this.state === ConnectionState.Connecting || this.state == ConnectionState.Reconnecting) {
-      log.info('defering on track added');
       const reconnectedHandler = () => {
         this.onTrackAdded(mediaTrack, stream, receiver);
         cleanup();
