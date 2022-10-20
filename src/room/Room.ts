@@ -140,12 +140,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ...options?.publishDefaults,
     };
 
-    this.createEngine();
+    this.maybeCreateEngine();
 
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
   }
 
-  private createEngine() {
+  private maybeCreateEngine() {
     if (this.engine) {
       return;
     }
@@ -190,7 +190,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.Restarted, this.handleRestarted);
 
     if (this.localParticipant) {
-      this.localParticipant.engine = this.engine;
+      this.localParticipant.setupEngine(this.engine);
     }
   }
 
@@ -231,17 +231,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.connectFuture) {
       return this.connectFuture.promise;
     }
-    if (this.state === ConnectionState.Reconnecting) {
-      log.info('Reconnection attempt replaced by new connection attempt');
-    }
+
+    this.setAndEmitConnectionState(ConnectionState.Connecting);
+
     const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
-      this.setAndEmitConnectionState(ConnectionState.Connecting);
       if (!this.abortController || this.abortController.signal.aborted) {
         this.abortController = new AbortController();
       }
 
-      // recreate engine if previously disconnected
-      this.recreateEngine();
+      if (this.state === ConnectionState.Reconnecting) {
+        log.info('Reconnection attempt replaced by new connection attempt');
+        // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
+        this.recreateEngine();
+      } else {
+        // create engine if previously disconnected
+        this.maybeCreateEngine();
+      }
 
       this.acquireAudioContext();
 
@@ -599,8 +604,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // clear out existing remote participants, since they may have attached
     // the old engine
     this.participants.clear();
-
-    this.createEngine();
+    this.maybeCreateEngine();
   }
 
   private onTrackAdded(
