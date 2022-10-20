@@ -232,8 +232,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return this.connectFuture.promise;
     }
 
+    this.setAndEmitConnectionState(ConnectionState.Connecting);
+
     const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
-      this.setAndEmitConnectionState(ConnectionState.Connecting);
       if (!this.abortController || this.abortController.signal.aborted) {
         this.abortController = new AbortController();
       }
