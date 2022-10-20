@@ -594,8 +594,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private recreateEngine() {
-    console.log('recreating engine', this.participants, this.engine);
-
     this.engine?.close();
     /* @ts-ignore */
     this.engine = undefined;
@@ -604,7 +602,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // the old engine
     this.participants.clear();
     this.createEngine();
-    this.localParticipant.engine = this.engine;
   }
 
   private onTrackAdded(
