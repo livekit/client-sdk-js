@@ -617,7 +617,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // at that time, ICE connectivity has not been established so the track is not
     // technically subscribed.
     // We'll defer these events until when the room is connected or eventually disconnected.
-    if (this.state === ConnectionState.Connecting || this.state == ConnectionState.Reconnecting) {
+    if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
       const reconnectedHandler = () => {
         this.onTrackAdded(mediaTrack, stream, receiver);
         cleanup();
@@ -630,6 +630,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.once(RoomEvent.Reconnected, reconnectedHandler);
       this.once(RoomEvent.Connected, reconnectedHandler);
       this.once(RoomEvent.Disconnected, cleanup);
+      return;
     }
     if (this.state === ConnectionState.Disconnected) {
       log.warn('skipping incoming track after Room disconnected');
