@@ -1,5 +1,27 @@
 # Change Log
 
+## 1.4.4
+
+### Patch Changes
+
+- [#475](https://github.com/livekit/client-sdk-js/pull/475) [`7af32ad`](https://github.com/livekit/client-sdk-js/commit/7af32ad3637f26b367411a0a18f1fa613f5b84ec) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix reconnection attempts potentially getting stuck
+
+- [#455](https://github.com/livekit/client-sdk-js/pull/455) [`104db9d`](https://github.com/livekit/client-sdk-js/commit/104db9d3f16564e69301254f9fe99b5c83aad96f) Thanks [@lukasIO](https://github.com/lukasIO)! - Add option for `maxJoinAttempts` to retry establishing initial signal connection if it failed
+
+- [#480](https://github.com/livekit/client-sdk-js/pull/480) [`1452210`](https://github.com/livekit/client-sdk-js/commit/1452210bb14d351d58e1f218b5d78c1bd0d6351f) Thanks [@lukasIO](https://github.com/lukasIO)! - Register engine events on localParticipant when updated
+
+- [#470](https://github.com/livekit/client-sdk-js/pull/470) [`0c0e5cc`](https://github.com/livekit/client-sdk-js/commit/0c0e5cc11b4d4dfa8acab9d9f82c087efcaeca5c) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Add stereo and red support for track level
+
+- [#478](https://github.com/livekit/client-sdk-js/pull/478) [`676ecd3`](https://github.com/livekit/client-sdk-js/commit/676ecd3f0ee30ba3b1a15d4296ff41084c1baf0a) Thanks [@davidliu](https://github.com/davidliu)! - Fixes for latest transceiver APIs in react-native-webrtc
+
+- [#472](https://github.com/livekit/client-sdk-js/pull/472) [`859e3bf`](https://github.com/livekit/client-sdk-js/commit/859e3bfe6543058207bbb5ca58b2e7f5b0b95d55) Thanks [@davidzhao](https://github.com/davidzhao)! - Fixes switchAudioDevice not respecting those preferences for future tracks
+
+- [#477](https://github.com/livekit/client-sdk-js/pull/477) [`4aa82a7`](https://github.com/livekit/client-sdk-js/commit/4aa82a7daaa5d53157b6bc55179ccf13effb815c) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Don't override client provide ice servers
+
+- [#472](https://github.com/livekit/client-sdk-js/pull/472) [`859e3bf`](https://github.com/livekit/client-sdk-js/commit/859e3bfe6543058207bbb5ca58b2e7f5b0b95d55) Thanks [@davidzhao](https://github.com/davidzhao)! - peer connnection timeout is now configurable
+
+- [#471](https://github.com/livekit/client-sdk-js/pull/471) [`022f4cb`](https://github.com/livekit/client-sdk-js/commit/022f4cb7d3939985cd79eee89b5725eea71576c3) Thanks [@davidzhao](https://github.com/davidzhao)! - Allow subscription settings before fully subscribed
+
 ## 1.4.3
 
 ### Patch Changes
