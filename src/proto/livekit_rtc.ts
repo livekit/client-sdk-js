@@ -267,6 +267,8 @@ export interface UpdateTrackSettings {
   width: number;
   /** for video, height to receive */
   height: number;
+  /** for video, frame rate to receive */
+  fps: number;
 }
 
 export interface LeaveRequest {
@@ -1843,7 +1845,7 @@ export const UpdateSubscription = {
 };
 
 function createBaseUpdateTrackSettings(): UpdateTrackSettings {
-  return { trackSids: [], disabled: false, quality: 0, width: 0, height: 0 };
+  return { trackSids: [], disabled: false, quality: 0, width: 0, height: 0, fps: 0 };
 }
 
 export const UpdateTrackSettings = {
@@ -1862,6 +1864,9 @@ export const UpdateTrackSettings = {
     }
     if (message.height !== 0) {
       writer.uint32(48).uint32(message.height);
+    }
+    if (message.fps !== 0) {
+      writer.uint32(56).uint32(message.fps);
     }
     return writer;
   },
@@ -1888,6 +1893,9 @@ export const UpdateTrackSettings = {
         case 6:
           message.height = reader.uint32();
           break;
+        case 7:
+          message.fps = reader.uint32();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1903,6 +1911,7 @@ export const UpdateTrackSettings = {
       quality: isSet(object.quality) ? videoQualityFromJSON(object.quality) : 0,
       width: isSet(object.width) ? Number(object.width) : 0,
       height: isSet(object.height) ? Number(object.height) : 0,
+      fps: isSet(object.fps) ? Number(object.fps) : 0,
     };
   },
 
@@ -1917,6 +1926,7 @@ export const UpdateTrackSettings = {
     message.quality !== undefined && (obj.quality = videoQualityToJSON(message.quality));
     message.width !== undefined && (obj.width = Math.round(message.width));
     message.height !== undefined && (obj.height = Math.round(message.height));
+    message.fps !== undefined && (obj.fps = Math.round(message.fps));
     return obj;
   },
 
@@ -1927,6 +1937,7 @@ export const UpdateTrackSettings = {
     message.quality = object.quality ?? 0;
     message.width = object.width ?? 0;
     message.height = object.height ?? 0;
+    message.fps = object.fps ?? 0;
     return message;
   },
 };

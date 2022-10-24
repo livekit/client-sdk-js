@@ -333,6 +333,17 @@ const appActions = {
       });
     }
   },
+
+  handlePreferredFPS: (e: Event) => {
+    const fps = +(<HTMLSelectElement>e.target).value;
+    if (currentRoom) {
+      currentRoom.participants.forEach((participant) => {
+        participant.tracks.forEach((track) => {
+          track.setVideoFPS(fps);
+        });
+      });
+    }
+  },
 };
 
 declare global {
