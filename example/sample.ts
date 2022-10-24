@@ -98,6 +98,11 @@ const appActions = {
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
+    startTime = Date.now();
+    await room.prepareConnection(url);
+    const prewarmTime = Date.now() - startTime;
+    appendLog(`prewarmed connection in ${prewarmTime}ms`);
+
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
       .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
@@ -149,6 +154,8 @@ const appActions = {
         renderScreenShare(room);
       })
       .on(RoomEvent.SignalConnected, async () => {
+        const signalConnectionTime = Date.now() - startTime;
+        appendLog(`signal connection established in ${signalConnectionTime}ms`);
         if (shouldPublish) {
           await Promise.all([
             room.localParticipant.setCameraEnabled(true),
@@ -159,7 +166,6 @@ const appActions = {
       });
 
     try {
-      startTime = Date.now();
       await room.connect(url, token, connectOptions);
       const elapsed = Date.now() - startTime;
       appendLog(
@@ -274,7 +280,15 @@ const appActions = {
 
   handleScenario: (e: Event) => {
     const scenario = (<HTMLSelectElement>e.target).value;
-    if (scenario !== '') {
+    if (scenario === 'subscribe-all') {
+      currentRoom?.participants.forEach((p) => {
+        p.tracks.forEach((rp) => rp.setSubscribed(true));
+      });
+    } else if (scenario === 'unsubscribe-all') {
+      currentRoom?.participants.forEach((p) => {
+        p.tracks.forEach((rp) => rp.setSubscribed(false));
+      });
+    } else if (scenario !== '') {
       currentRoom?.simulateScenario(scenario);
       (<HTMLSelectElement>e.target).value = '';
     }

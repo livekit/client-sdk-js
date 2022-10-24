@@ -50,6 +50,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
   protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
     super();
+    this.setMaxListeners(100);
     this.kind = kind;
     this._mediaStreamTrack = mediaTrack;
     this._mediaStreamID = mediaTrack.id;
