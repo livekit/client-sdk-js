@@ -173,7 +173,7 @@ export default abstract class LocalTrack extends Track {
     this._mediaStreamTrack = newTrack;
 
     // sync muted state with the enabled state of the newly provided track
-    this.setTrackMuted(!this._mediaStreamTrack.enabled);
+    this._mediaStreamTrack.enabled = this.isMuted;
 
     await this.resumeUpstream();
 
