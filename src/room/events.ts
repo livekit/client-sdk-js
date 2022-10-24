@@ -250,6 +250,11 @@ export enum RoomEvent {
    * Signal connected, can publish tracks.
    */
   SignalConnected = 'signalConnected',
+
+  /**
+   * Recording of a room has started/stopped.
+   */
+  RecordingStatusChanged = 'recordingStatusChanged',
 }
 
 export enum ParticipantEvent {

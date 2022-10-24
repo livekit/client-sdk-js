@@ -334,7 +334,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.name = joinResponse.room!.name;
         this.sid = joinResponse.room!.sid;
         this.metadata = joinResponse.room!.metadata;
-        this._isRecording = joinResponse.room!.activeRecording;
+        if (this._isRecording !== joinResponse.room!.activeRecording) {
+          this._isRecording = joinResponse.room!.activeRecording;
+          this.emit(RoomEvent.RecordingStatusChanged, joinResponse.room!.activeRecording);
+        }
         this.emit(RoomEvent.SignalConnected);
       } catch (err) {
         this.recreateEngine();
@@ -961,7 +964,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRoomUpdate = (r: RoomModel) => {
     this.metadata = r.metadata;
-    this._isRecording = r.activeRecording;
+    if (this._isRecording !== r.activeRecording) {
+      this._isRecording = r.activeRecording;
+      this.emit(RoomEvent.RecordingStatusChanged, r.activeRecording);
+    }
     this.emitWhenConnected(RoomEvent.RoomMetadataChanged, r.metadata);
   };
 
@@ -1284,4 +1290,5 @@ export type RoomEventCallbacks = {
   ) => void;
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
+  recordingStatusChanged: (recording: boolean) => void;
 };
