@@ -58,7 +58,6 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
     this.name = this.constructor.name;
     this.room = new Room(options.roomOptions);
     this.connectOptions = options.connectOptions;
-    console.log('test name', this.name);
     if (options.errorsAsWarnings) {
       this.errorsAsWarnings = options.errorsAsWarnings;
     }
@@ -73,6 +72,7 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
       return;
     }
     this.setStatus(CheckStatus.RUNNING);
+    this.appendMessage(`${this.name} started.`);
 
     try {
       await this.perform();
