@@ -3,83 +3,95 @@ import type TypedEmitter from 'typed-emitter';
 import Room, { ConnectionState } from '../../Room';
 import type RTCEngine from '../../RTCEngine';
 
-export enum CheckerStatus {
-  Waiting,
-  Started,
-  Finished,
-  Skipped,
+type LogMessage = {
+  level: 'info' | 'warning' | 'error';
+  message: string;
+};
+
+export enum CheckStatus {
+  IDLE,
+  RUNNING,
+  SKIPPED,
+  SUCCESS,
+  FAILED,
 }
+
+export type CheckInfo = {
+  name?: string;
+  logs?: Array<LogMessage>;
+  status?: CheckStatus;
+};
 
 export interface CheckerOptions {
   errorsAsWarnings?: boolean;
 }
 
-export abstract class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCallbacks>) {
+export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCallbacks>) {
   protected url: string;
 
   protected token: string;
 
   room?: Room;
 
-  status: CheckerStatus = CheckerStatus.Waiting;
+  status: CheckStatus = CheckStatus.IDLE;
 
-  messages: string[] = [];
-
-  warnings: string[] = [];
-
-  errors: string[] = [];
+  logs: Array<LogMessage> = [];
 
   errorsAsWarnings: boolean = false;
 
-  sharedData: any;
+  name: string;
 
-  constructor(url: string, token: string, sharedData: any = {}, options: CheckerOptions = {}) {
+  constructor(url: string, token: string, options: CheckerOptions = {}) {
     super();
     this.url = url;
     this.token = token;
-    this.sharedData = sharedData;
-
+    this.name = this.constructor.name;
+    console.log('test name', this.name);
     if (options.errorsAsWarnings) {
       this.errorsAsWarnings = options.errorsAsWarnings;
     }
   }
 
-  run(onComplete?: () => void) {
-    if (this.status !== CheckerStatus.Waiting) {
+  protected async perform() {
+    // do nothing here
+  }
+
+  async run(onComplete?: () => void) {
+    if (this.status !== CheckStatus.IDLE) {
       return;
     }
-    this.setStatus(CheckerStatus.Started);
+    this.setStatus(CheckStatus.RUNNING);
 
-    this.perform()
-      .catch((err) => {
+    try {
+      this.perform();
+    } catch (err) {
+      if (err instanceof Error) {
         if (this.errorsAsWarnings) {
           this.appendWarning(err.message);
         } else {
           this.appendError(err.message);
         }
-      })
-      .finally(async () => {
-        await this.disconnect();
+      }
+    }
 
-        // sleep for a bit to ensure disconnect
-        await new Promise((resolve) => setTimeout(resolve, 500));
+    await this.disconnect();
 
-        if (this.status !== CheckerStatus.Skipped) {
-          this.setStatus(CheckerStatus.Finished);
-        }
+    // sleep for a bit to ensure disconnect
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-        if (onComplete) {
-          onComplete();
-        }
-      });
+    // @ts-ignore
+    if (this.status !== CheckStatus.SKIPPED) {
+      this.setStatus(this.isSuccess() ? CheckStatus.SUCCESS : CheckStatus.FAILED);
+    }
+
+    if (onComplete) {
+      onComplete();
+    }
   }
 
-  isSuccess(): boolean {
-    return this.errors.length === 0;
+  protected isSuccess(): boolean {
+    return !this.logs.some((l) => l.level === 'error');
   }
-
-  abstract get description(): string;
-  protected abstract perform(): Promise<void>;
 
   protected async connect(): Promise<Room> {
     if (this.room) {
@@ -99,34 +111,42 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
   }
 
   protected skip() {
-    this.setStatus(CheckerStatus.Skipped);
+    this.setStatus(CheckStatus.SKIPPED);
   }
 
-  protected appendMessage(msg: string) {
-    this.messages.push(msg);
-    this.emit('update');
+  protected appendMessage(message: string) {
+    this.logs.push({ level: 'info', message });
+    this.emit('update', this.getInfo());
   }
 
-  protected appendWarning(msg: string) {
-    this.warnings.push(msg);
-    this.emit('update');
+  protected appendWarning(message: string) {
+    this.logs.push({ level: 'warning', message });
+    this.emit('update', this.getInfo());
   }
 
-  protected appendError(msg: string) {
-    this.errors.push(msg);
-    this.emit('update');
+  protected appendError(message: string) {
+    this.logs.push({ level: 'error', message });
+    this.emit('update', this.getInfo());
   }
 
-  protected setStatus(status: CheckerStatus) {
+  protected setStatus(status: CheckStatus) {
     this.status = status;
-    this.emit('update');
+    this.emit('update', this.getInfo());
   }
 
   protected get engine(): RTCEngine | undefined {
     return this.room?.engine;
   }
+
+  getInfo(): CheckInfo {
+    return {
+      logs: this.logs,
+      name: this.name,
+      status: this.status,
+    };
+  }
 }
 
 type CheckerCallbacks = {
-  update: () => void;
+  update: (info: CheckInfo) => void;
 };

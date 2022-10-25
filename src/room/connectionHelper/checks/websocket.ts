@@ -43,11 +43,11 @@ export class WebSocketCheck extends Checker {
       this.appendWarning('TURN is configured, but TURN/TLS is unavailable.');
     }
 
-    this.sharedData.socketInfo = {
-      hasSTUN,
-      hasTURN,
-      hasTLS,
-    };
+    // this.sharedData.socketInfo = {
+    //   hasSTUN,
+    //   hasTURN,
+    //   hasTLS,
+    // };
 
     signalClient.close();
   }
