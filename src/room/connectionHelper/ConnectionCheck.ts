@@ -40,7 +40,7 @@ export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<Con
 
   updateCheck(checkId: number, info: CheckInfo) {
     this.checkResults.set(checkId, info);
-    this.emit('checkUpdate', info);
+    this.emit('checkUpdate', checkId, info);
   }
 
   async createAndRunCheck(check: typeof Checker) {
@@ -81,5 +81,5 @@ export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<Con
 }
 
 type ConnectionCheckCallbacks = {
-  checkUpdate: (info: CheckInfo) => void;
+  checkUpdate: (id: number, info: CheckInfo) => void;
 };
