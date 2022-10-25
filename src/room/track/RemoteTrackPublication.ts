@@ -150,6 +150,10 @@ export default class RemoteTrackPublication extends TrackPublication {
       return;
     }
 
+    if (!(this.track instanceof RemoteVideoTrack)) {
+      return;
+    }
+
     if (this.fps === fps) {
       return;
     }
@@ -283,7 +287,6 @@ export default class RemoteTrackPublication extends TrackPublication {
       settings.quality = VideoQuality.HIGH;
     }
 
-    log.info('track update', settings);
     this.emit(TrackEvent.UpdateSettings, settings);
   }
 }
