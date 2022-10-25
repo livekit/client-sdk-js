@@ -29,6 +29,11 @@ export interface CheckerOptions {
   connectOptions?: RoomConnectOptions;
 }
 
+export interface IChecker {
+  description: string;
+  perform: () => void;
+}
+
 export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCallbacks>) {
   protected url: string;
 
@@ -60,7 +65,7 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
   }
 
   protected async perform() {
-    // do nothing here
+    throw new Error('needs implementation in child class');
   }
 
   async run(onComplete?: () => void) {

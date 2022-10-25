@@ -1,4 +1,3 @@
-import { setLogLevel } from '../../../logger';
 import { RoomEvent } from '../../events';
 import { ConnectionState } from '../../Room';
 import { Checker } from './Checker';
@@ -9,7 +8,6 @@ export class ReconnectCheck extends Checker {
   }
 
   async perform(): Promise<void> {
-    setLogLevel('debug');
     const room = await this.connect();
     let reconnectingTriggered = false;
     let reconnected = false;
