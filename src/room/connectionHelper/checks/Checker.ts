@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
+import type { RoomConnectOptions, RoomOptions } from '../../../options';
 import Room, { ConnectionState } from '../../Room';
 import type RTCEngine from '../../RTCEngine';
 
@@ -24,6 +25,8 @@ export type CheckInfo = {
 
 export interface CheckerOptions {
   errorsAsWarnings?: boolean;
+  roomOptions?: RoomOptions;
+  connectOptions?: RoomConnectOptions;
 }
 
 export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCallbacks>) {
@@ -31,7 +34,9 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
 
   protected token: string;
 
-  room?: Room;
+  room: Room;
+
+  connectOptions?: RoomConnectOptions;
 
   status: CheckStatus = CheckStatus.IDLE;
 
@@ -46,6 +51,8 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
     this.url = url;
     this.token = token;
     this.name = this.constructor.name;
+    this.room = new Room(options.roomOptions);
+    this.connectOptions = options.connectOptions;
     console.log('test name', this.name);
     if (options.errorsAsWarnings) {
       this.errorsAsWarnings = options.errorsAsWarnings;
@@ -63,7 +70,7 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
     this.setStatus(CheckStatus.RUNNING);
 
     try {
-      this.perform();
+      await this.perform();
     } catch (err) {
       if (err instanceof Error) {
         if (this.errorsAsWarnings) {
@@ -94,12 +101,11 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
   }
 
   protected async connect(): Promise<Room> {
-    if (this.room) {
+    if (this.room.state === ConnectionState.Connected) {
       return this.room;
     }
-    this.room = new Room();
     await this.room.connect(this.url, this.token);
-    return this.room!;
+    return this.room;
   }
 
   protected async disconnect() {
