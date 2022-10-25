@@ -38,8 +38,9 @@ export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<Con
     return nextId;
   }
 
-  updateCheck(checkId: number, data: CheckInfo) {
-    this.checkResults.set(checkId, data);
+  updateCheck(checkId: number, info: CheckInfo) {
+    this.checkResults.set(checkId, info);
+    this.emit('checkUpdate', info);
   }
 
   async createAndRunCheck(check: typeof Checker) {
@@ -47,7 +48,6 @@ export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<Con
     const test = new check(this.url, this.token);
     const handleUpdate = (info: CheckInfo) => {
       this.updateCheck(checkId, info);
-      this.emit('checkUpdate', info);
     };
     test.on('update', handleUpdate);
     await test.run();
