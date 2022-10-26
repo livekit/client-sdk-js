@@ -101,6 +101,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** options of room */
   options: InternalRoomOptions;
 
+  private _isRecording: boolean = false;
+
   private identityToSid: Map<string, string>;
 
   /** connect options of room */
@@ -332,6 +334,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.name = joinResponse.room!.name;
         this.sid = joinResponse.room!.sid;
         this.metadata = joinResponse.room!.metadata;
+        if (this._isRecording !== joinResponse.room!.activeRecording) {
+          this._isRecording = joinResponse.room!.activeRecording;
+          this.emit(RoomEvent.RecordingStatusChanged, joinResponse.room!.activeRecording);
+        }
         this.emit(RoomEvent.SignalConnected);
       } catch (err) {
         this.recreateEngine();
@@ -422,6 +428,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private clearConnectionFutures() {
     this.connectFuture = undefined;
+  }
+
+  /**
+   * if the current room has a participant with `recorder: true` in its JWT grant
+   **/
+  get isRecording() {
+    return this._isRecording;
   }
 
   /**
@@ -951,6 +964,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRoomUpdate = (r: RoomModel) => {
     this.metadata = r.metadata;
+    if (this._isRecording !== r.activeRecording) {
+      this._isRecording = r.activeRecording;
+      this.emit(RoomEvent.RecordingStatusChanged, r.activeRecording);
+    }
     this.emitWhenConnected(RoomEvent.RoomMetadataChanged, r.metadata);
   };
 
@@ -1273,4 +1290,5 @@ export type RoomEventCallbacks = {
   ) => void;
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
+  recordingStatusChanged: (recording: boolean) => void;
 };
