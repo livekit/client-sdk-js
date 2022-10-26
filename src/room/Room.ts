@@ -963,12 +963,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleRoomUpdate = (r: RoomModel) => {
-    this.metadata = r.metadata;
     if (this._isRecording !== r.activeRecording) {
       this._isRecording = r.activeRecording;
       this.emit(RoomEvent.RecordingStatusChanged, r.activeRecording);
     }
-    this.emitWhenConnected(RoomEvent.RoomMetadataChanged, r.metadata);
+    if (this.metadata !== r.metadata) {
+      this.metadata = r.metadata;
+      this.emitWhenConnected(RoomEvent.RoomMetadataChanged, r.metadata);
+    }
   };
 
   private handleConnectionQualityUpdate = (update: ConnectionQualityUpdate) => {
