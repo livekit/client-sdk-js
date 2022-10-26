@@ -50,9 +50,9 @@ export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<Con
       this.updateCheck(checkId, info);
     };
     test.on('update', handleUpdate);
-    await test.run();
+    const result = await test.run();
     test.off('update', handleUpdate);
-    return this;
+    return result;
   }
 
   async checkWebsocket() {

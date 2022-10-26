@@ -69,7 +69,7 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
 
   async run(onComplete?: () => void) {
     if (this.status !== CheckStatus.IDLE) {
-      return;
+      throw Error('check is running already');
     }
     this.setStatus(CheckStatus.RUNNING);
     this.appendMessage(`${this.name} started.`);
@@ -99,6 +99,7 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
     if (onComplete) {
       onComplete();
     }
+    return this.getInfo();
   }
 
   protected isSuccess(): boolean {
