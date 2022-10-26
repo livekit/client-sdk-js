@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 
-import { Checker, CheckInfo, CheckStatus } from './checks/Checker';
+import { Checker, CheckInfo, CheckStatus, InstantiableCheck } from './checks/Checker';
 import { PublishAudioCheck } from './checks/publishAudio';
 import { PublishVideoCheck } from './checks/publishVideo';
 import { ReconnectCheck } from './checks/reconnect';
@@ -43,7 +43,7 @@ export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<Con
     this.emit('checkUpdate', checkId, info);
   }
 
-  async createAndRunCheck(check: typeof Checker) {
+  async createAndRunCheck<T extends Checker>(check: InstantiableCheck<T>) {
     const checkId = this.getNextCheckId();
     const test = new check(this.url, this.token);
     const handleUpdate = (info: CheckInfo) => {

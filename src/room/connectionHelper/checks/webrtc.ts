@@ -1,6 +1,10 @@
 import { Checker } from './Checker';
 
 export class WebRTCCheck extends Checker {
+  get description(): string {
+    return 'Establishing WebRTC connection';
+  }
+
   protected async perform(): Promise<void> {
     try {
       console.log('initiating room connection');

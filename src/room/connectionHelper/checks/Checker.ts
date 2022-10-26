@@ -18,9 +18,10 @@ export enum CheckStatus {
 }
 
 export type CheckInfo = {
-  name?: string;
-  logs?: Array<LogMessage>;
-  status?: CheckStatus;
+  name: string;
+  logs: Array<LogMessage>;
+  status: CheckStatus;
+  description: string;
 };
 
 export interface CheckerOptions {
@@ -29,12 +30,7 @@ export interface CheckerOptions {
   connectOptions?: RoomConnectOptions;
 }
 
-export interface IChecker {
-  description: string;
-  perform: () => void;
-}
-
-export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCallbacks>) {
+export abstract class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCallbacks>) {
   protected url: string;
 
   protected token: string;
@@ -63,9 +59,9 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
     }
   }
 
-  protected async perform() {
-    throw new Error('needs implementation in child class');
-  }
+  abstract get description(): string;
+
+  protected abstract perform(): Promise<void>;
 
   async run(onComplete?: () => void) {
     if (this.status !== CheckStatus.IDLE) {
@@ -155,9 +151,13 @@ export class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCall
       logs: this.logs,
       name: this.name,
       status: this.status,
+      description: this.description,
     };
   }
 }
+export type InstantiableCheck<T extends Checker> = {
+  new (url: string, token: string, options?: CheckerOptions): T;
+};
 
 type CheckerCallbacks = {
   update: (info: CheckInfo) => void;

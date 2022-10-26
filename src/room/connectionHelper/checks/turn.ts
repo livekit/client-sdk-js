@@ -2,6 +2,10 @@ import { SignalClient } from '../../../api/SignalClient';
 import { Checker } from './Checker';
 
 export class TURNCheck extends Checker {
+  get description(): string {
+    return 'Can connect via TURN';
+  }
+
   async perform(): Promise<void> {
     const signalClient = new SignalClient();
     const joinRes = await signalClient.join(this.url, this.token, {
