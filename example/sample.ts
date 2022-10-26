@@ -723,28 +723,18 @@ async function handleDevicesChanged() {
       }
       const devices = await Room.getLocalDevices(kind);
       const element = <HTMLSelectElement>$(id);
-      populateSelect(kind, element, devices, state.defaultDevices.get(kind));
+      populateSelect(element, devices, state.defaultDevices.get(kind));
     }),
   );
 }
 
 function populateSelect(
-  kind: MediaDeviceKind,
   element: HTMLSelectElement,
   devices: MediaDeviceInfo[],
   selectedDeviceId?: string,
 ) {
   // clear all elements
   element.innerHTML = '';
-  const initialOption = document.createElement('option');
-  if (kind === 'audioinput') {
-    initialOption.text = 'Audio Input (default)';
-  } else if (kind === 'videoinput') {
-    initialOption.text = 'Video Input (default)';
-  } else if (kind === 'audiooutput') {
-    initialOption.text = 'Audio Output (default)';
-  }
-  element.appendChild(initialOption);
 
   for (const device of devices) {
     const option = document.createElement('option');
