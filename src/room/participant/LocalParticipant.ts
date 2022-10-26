@@ -34,7 +34,7 @@ import {
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
-import { isFireFox, isWeb, supportsAV1 } from '../utils';
+import { isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import {
@@ -243,6 +243,7 @@ export default class LocalParticipant extends Participant {
           }
           const publishPromises: Array<Promise<LocalTrackPublication>> = [];
           for (const localTrack of localTracks) {
+            log.info('publishing track', { localTrack });
             publishPromises.push(this.publishTrack(localTrack, publishOptions));
           }
           const publishedTracks = await Promise.all(publishPromises);
@@ -374,14 +375,20 @@ export default class LocalParticipant extends Participant {
 
     let videoConstraints: MediaTrackConstraints | boolean = true;
     if (options.resolution) {
-      videoConstraints = {
-        width: options.resolution.width,
-        height: options.resolution.height,
-        frameRate: options.resolution.frameRate,
-      };
+      if (isSafari()) {
+        videoConstraints = {
+          width: { max: options.resolution.width },
+          height: { max: options.resolution.height },
+          frameRate: options.resolution.frameRate,
+        };
+      } else {
+        videoConstraints = {
+          width: { ideal: options.resolution.width },
+          height: { ideal: options.resolution.height },
+          frameRate: options.resolution.frameRate,
+        };
+      }
     }
-    // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
-    // @ts-ignore
     const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
       audio: options.audio ?? false,
       video: videoConstraints,
