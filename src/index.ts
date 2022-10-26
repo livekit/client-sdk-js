@@ -13,7 +13,8 @@ import LocalVideoTrack from './room/track/LocalVideoTrack';
 import RemoteAudioTrack from './room/track/RemoteAudioTrack';
 import RemoteTrack from './room/track/RemoteTrack';
 import RemoteTrackPublication from './room/track/RemoteTrackPublication';
-import RemoteVideoTrack, { type ElementInfo } from './room/track/RemoteVideoTrack';
+import RemoteVideoTrack from './room/track/RemoteVideoTrack';
+import type { ElementInfo } from './room/track/RemoteVideoTrack';
 import { TrackPublication } from './room/track/TrackPublication';
 import {
   getEmptyAudioStreamTrack,
