@@ -441,8 +441,8 @@ export class SignalClient {
     if (this.signalLatency) {
       await sleep(this.signalLatency);
     }
-    if (!this.ws) {
-      log.error('cannot send signal request before connected');
+    if (!this.ws || this.ws.readyState < this.ws.OPEN) {
+      log.error(`cannot send signal request before connected, type: ${message?.$case}`);
       return;
     }
 
