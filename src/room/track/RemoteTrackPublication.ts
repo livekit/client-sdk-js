@@ -22,6 +22,8 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected videoDimensions?: Track.Dimensions;
 
+  protected fps?: number;
+
   constructor(kind: Track.Kind, id: string, name: string, autoSubscribe: boolean | undefined) {
     super(kind, id, name);
     this.subscribed = autoSubscribe;
@@ -143,6 +145,23 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.emitTrackUpdate();
   }
 
+  setVideoFPS(fps: number) {
+    if (!this.isManualOperationAllowed()) {
+      return;
+    }
+
+    if (!(this.track instanceof RemoteVideoTrack)) {
+      return;
+    }
+
+    if (this.fps === fps) {
+      return;
+    }
+
+    this.fps = fps;
+    this.emitTrackUpdate();
+  }
+
   get videoQuality(): VideoQuality | undefined {
     return this.currentVideoQuality;
   }
@@ -256,6 +275,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     const settings: UpdateTrackSettings = UpdateTrackSettings.fromPartial({
       trackSids: [this.trackSid],
       disabled: this.disabled,
+      fps: this.fps,
     });
     if (this.videoDimensions) {
       settings.width = this.videoDimensions.width;
