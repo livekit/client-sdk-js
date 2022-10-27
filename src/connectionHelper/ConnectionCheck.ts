@@ -18,29 +18,34 @@ export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<Con
 
   private checkResults: Map<number, CheckInfo> = new Map();
 
-  isSuccess() {
-    return Array.from(this.checkResults.values()).every((r) => r.status !== CheckStatus.FAILED);
-  }
-
-  getResults() {
-    return Array.from(this.checkResults.values());
-  }
-
   constructor(url: string, token: string) {
     super();
     this.url = url;
     this.token = token;
   }
 
-  getNextCheckId() {
+  private getNextCheckId() {
     const nextId = this.checkResults.size;
-    this.checkResults.set(nextId, {});
+    this.checkResults.set(nextId, {
+      logs: [],
+      status: CheckStatus.IDLE,
+      name: '',
+      description: '',
+    });
     return nextId;
   }
 
-  updateCheck(checkId: number, info: CheckInfo) {
+  private updateCheck(checkId: number, info: CheckInfo) {
     this.checkResults.set(checkId, info);
     this.emit('checkUpdate', checkId, info);
+  }
+
+  isSuccess() {
+    return Array.from(this.checkResults.values()).every((r) => r.status !== CheckStatus.FAILED);
+  }
+
+  getResults() {
+    return Array.from(this.checkResults.values());
   }
 
   async createAndRunCheck<T extends Checker>(check: InstantiableCheck<T>) {

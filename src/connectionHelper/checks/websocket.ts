@@ -1,4 +1,4 @@
-import { SignalClient } from '../../../api/SignalClient';
+import { SignalClient } from '../../api/SignalClient';
 import { Checker } from './Checker';
 
 export class WebSocketCheck extends Checker {

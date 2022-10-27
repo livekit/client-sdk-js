@@ -1,15 +1,15 @@
-import { createLocalAudioTrack } from '../../track/create';
+import { createLocalVideoTrack } from '../../room/track/create';
 import { Checker } from './Checker';
 
-export class PublishAudioCheck extends Checker {
+export class PublishVideoCheck extends Checker {
   get description(): string {
-    return 'Can publish audio';
+    return 'Can publish video';
   }
 
   async perform(): Promise<void> {
     const room = await this.connect();
 
-    const track = await createLocalAudioTrack();
+    const track = await createLocalVideoTrack();
     room.localParticipant.publishTrack(track);
     // wait for a few seconds to publish
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -21,13 +21,13 @@ export class PublishAudioCheck extends Checker {
     }
     let numPackets = 0;
     stats.forEach((stat) => {
-      if (stat.type === 'outbound-rtp' && stat.mediaType === 'audio') {
+      if (stat.type === 'outbound-rtp' && stat.mediaType === 'video') {
         numPackets = stat.packetsSent;
       }
     });
     if (numPackets === 0) {
       throw new Error('Could not determine packets are sent');
     }
-    this.appendMessage(`published ${numPackets} audio packets`);
+    this.appendMessage(`published ${numPackets} video packets`);
   }
 }
