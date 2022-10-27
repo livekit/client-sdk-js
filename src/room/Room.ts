@@ -50,7 +50,7 @@ import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
-import { Future, isWeb, supportsSetSinkId, unpackStreamId } from './utils';
+import { Future, isWeb, sleep, supportsSetSinkId, unpackStreamId } from './utils';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -400,7 +400,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     // send leave
     if (this.engine?.client.isConnected) {
-      await this.engine.client.sendLeave();
+      // 100ms grace period for disconnect signal being sent before closing the engine
+      await Promise.race([this.engine.client.sendLeave(), sleep(100)]);
     }
     // close engine (also closes client)
     if (this.engine) {
