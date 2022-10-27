@@ -1,5 +1,27 @@
 # Change Log
 
+## 1.5.0
+
+### Minor Changes
+
+- [#487](https://github.com/livekit/client-sdk-js/pull/487) [`e1a0a7e`](https://github.com/livekit/client-sdk-js/commit/e1a0a7ed5d7c198b819204258913926a89320473) Thanks [@lukasIO](https://github.com/lukasIO)! - Sync muted state with track.enabled when calling replaceTrack"
+
+- [#485](https://github.com/livekit/client-sdk-js/pull/485) [`1cc2cab`](https://github.com/livekit/client-sdk-js/commit/1cc2cab20a8dd4ea46449c1d8d8f255e65d75b47) Thanks [@lukasIO](https://github.com/lukasIO)! - Don't filter out default devices in order to detect OS Level default switches
+
+### Patch Changes
+
+- [#489](https://github.com/livekit/client-sdk-js/pull/489) [`efc2039`](https://github.com/livekit/client-sdk-js/commit/efc2039f2d6bbe6a5c11a1af1255f7a0bf8265b1) Thanks [@lukasIO](https://github.com/lukasIO)! - Add ConnnectionCheck helper class
+
+- [#493](https://github.com/livekit/client-sdk-js/pull/493) [`859a103`](https://github.com/livekit/client-sdk-js/commit/859a103dbeb003b333da9b7854e99e9ffbfe89a5) Thanks [@lukasIO](https://github.com/lukasIO)! - Check for ws readystate before attempting to send signal request
+
+- [#412](https://github.com/livekit/client-sdk-js/pull/412) [`ebbd669`](https://github.com/livekit/client-sdk-js/commit/ebbd669423d75c8f885ba41af4515d0860f2f9f9) Thanks [@davidzhao](https://github.com/davidzhao)! - Expose Room.isRecording to indicate if the Room is being recorded
+
+- [#484](https://github.com/livekit/client-sdk-js/pull/484) [`9a54cb4`](https://github.com/livekit/client-sdk-js/commit/9a54cb48877e302b7705acb025393082a78b9234) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Add fps field to SubscribeSetting
+
+- [#492](https://github.com/livekit/client-sdk-js/pull/492) [`b9dedaf`](https://github.com/livekit/client-sdk-js/commit/b9dedafbf07cd655e0c957daf41c0a8832ee2665) Thanks [@lukasIO](https://github.com/lukasIO)! - Only emit metadatachanged if the metadata actually changed
+
+- [#494](https://github.com/livekit/client-sdk-js/pull/494) [`00dbd21`](https://github.com/livekit/client-sdk-js/commit/00dbd218b165d9a3674f7fcc7ac3ee3b357ecab3) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix safari v16 screen share
+
 ## 1.4.4
 
 ### Patch Changes
