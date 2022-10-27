@@ -33,6 +33,7 @@ export * from './room/track/options';
 export * from './room/track/Track';
 export * from './room/track/types';
 export * from './version';
+export * from './connectionHelper/ConnectionCheck';
 export {
   setLogLevel,
   setLogExtension,
