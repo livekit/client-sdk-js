@@ -7,6 +7,10 @@ import type {
 } from './room/track/options';
 import type { AdaptiveStreamSettings } from './room/track/types';
 
+export interface WebAudioSettings {
+  audioContext: AudioContext;
+}
+
 /**
  * @internal
  */
@@ -72,7 +76,7 @@ export interface InternalRoomOptions {
    * experimental flag, mix all audio tracks in web audio
    */
 
-  expWebAudioMix: boolean;
+  expWebAudioMix: boolean | WebAudioSettings;
 }
 
 /**

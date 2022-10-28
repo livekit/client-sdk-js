@@ -520,7 +520,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * - `getUserMedia`
    */
   async startAudio() {
-    this.acquireAudioContext();
+    await this.acquireAudioContext();
 
     const elements: Array<HTMLMediaElement> = [];
     this.participants.forEach((p) => {
@@ -773,7 +773,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.participants.clear();
     this.activeSpeakers = [];
-    if (this.audioContext) {
+    if (this.audioContext && typeof this.options.expWebAudioMix === 'boolean') {
       this.audioContext.close();
       this.audioContext = undefined;
     }
@@ -986,18 +986,24 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
   };
 
-  private acquireAudioContext() {
+  private async acquireAudioContext() {
     if (this.audioContext) {
-      this.audioContext.close();
+      await this.audioContext.resume();
+    } else if (
+      typeof this.options.expWebAudioMix !== 'boolean' &&
+      this.options.expWebAudioMix.audioContext
+    ) {
+      // override audio context with custom audio context if supplied by user
+      this.audioContext = this.options.expWebAudioMix.audioContext;
+      await this.audioContext.resume();
+    } else {
+      // by using an AudioContext, it reduces lag on audio elements
+      // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
+      this.audioContext = getNewAudioContext() ?? undefined;
     }
-    // by using an AudioContext, it reduces lag on audio elements
-    // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
-    const ctx = getNewAudioContext();
-    if (ctx) {
-      this.audioContext = ctx;
-      if (this.options.expWebAudioMix) {
-        this.participants.forEach((participant) => participant.setAudioContext(this.audioContext));
-      }
+
+    if (this.options.expWebAudioMix) {
+      this.participants.forEach((participant) => participant.setAudioContext(this.audioContext));
     }
   }
 
