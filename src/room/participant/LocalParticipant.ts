@@ -964,7 +964,6 @@ export default class LocalParticipant extends Participant {
       });
       this.unpublishTrack(track);
     } else if (track.isUserProvided) {
-      await track.pauseUpstream();
       await track.mute();
     } else if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
       try {
@@ -995,7 +994,6 @@ export default class LocalParticipant extends Participant {
         await track.restartTrack();
       } catch (e) {
         log.warn(`could not restart track, muting instead`);
-        await track.pauseUpstream();
         await track.mute();
       }
     }
