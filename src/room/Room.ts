@@ -550,7 +550,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   /**
-   * Switches all active device used in this room to the given device.
+   * Returns the active audio output device used in this room.
+   *
+   * Note: to get the active `audioinput` or `videoinput` use [[LocalTrack.getDeviceId()]]
+   *
+   * @return the previously successfully set audio output device ID or `undefined` in any other case.
+   */
+  getActiveAudioOutputDevice(): string | undefined {
+      return this.options.audioOutput?.deviceId;
+  }
+
+  /**
+   * Switches all active devices used in this room to the given device.
    *
    * Note: setting AudioOutput is not supported on some browsers. See [setSinkId](https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/setSinkId#browser_compatibility)
    *
@@ -592,16 +603,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.options.audioOutput ??= {};
       const prevDeviceId = this.options.audioOutput.deviceId;
       this.options.audioOutput.deviceId = deviceId;
-      const promises: Promise<void>[] = [];
-      this.participants.forEach((p) => {
-        promises.push(
-          p.setAudioOutput({
-            deviceId,
-          }),
-        );
-      });
       try {
-        await Promise.all(promises);
+        await Promise.all(Array.from(this.participants.values()).map(p => p.setAudioOutput({deviceId})));
       } catch (e) {
         this.options.audioOutput.deviceId = prevDeviceId;
         throw e;
