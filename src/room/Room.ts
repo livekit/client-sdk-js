@@ -557,7 +557,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @return the previously successfully set audio output device ID or `undefined` in any other case.
    */
   getActiveAudioOutputDevice(): string | undefined {
-      return this.options.audioOutput?.deviceId;
+    return this.options.audioOutput?.deviceId;
   }
 
   /**
@@ -604,7 +604,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const prevDeviceId = this.options.audioOutput.deviceId;
       this.options.audioOutput.deviceId = deviceId;
       try {
-        await Promise.all(Array.from(this.participants.values()).map(p => p.setAudioOutput({deviceId})));
+        await Promise.all(
+          Array.from(this.participants.values()).map((p) => p.setAudioOutput({ deviceId })),
+        );
       } catch (e) {
         this.options.audioOutput.deviceId = prevDeviceId;
         throw e;
