@@ -554,10 +554,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    *
    * Note: to get the active `audioinput` or `videoinput` use [[LocalTrack.getDeviceId()]]
    *
-   * @return the previously successfully set audio output device ID or `undefined` in any other case.
+   * @return the previously successfully set audio output device ID or an empty string if the default device is used.
    */
-  getActiveAudioOutputDevice(): string | undefined {
-    return this.options.audioOutput?.deviceId;
+  getActiveAudioOutputDevice(): string {
+    return this.options.audioOutput?.deviceId ?? '';
   }
 
   /**
