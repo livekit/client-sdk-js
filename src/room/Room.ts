@@ -987,9 +987,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private async acquireAudioContext() {
-    if (this.audioContext) {
-      await this.audioContext.resume();
-    } else if (
+    if (
       typeof this.options.expWebAudioMix !== 'boolean' &&
       this.options.expWebAudioMix.audioContext
     ) {
