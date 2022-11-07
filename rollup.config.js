@@ -43,7 +43,8 @@ export default {
     json(),
     babel({
       babelHelpers: 'bundled',
-      presets: [['@babel/preset-env', { include: ['@babel/plugin-proposal-object-rest-spread'] }]],
+      plugins: ['@babel/plugin-proposal-object-rest-spread'],
+      presets: ['@babel/preset-env'],
       extensions: ['.js', '.ts', '.mjs'],
     }),
     replace({
