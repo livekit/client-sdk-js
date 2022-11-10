@@ -118,9 +118,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
    * @internal
    */
   stopObservingElementInfo(elementInfo: ElementInfo) {
-    if(!this.isAdaptiveStream) {
+    if (!this.isAdaptiveStream) {
       log.warn('stopObservingElementInfo ignored');
-      return
+      return;
     }
     const stopElementInfos = this.elementInfos.filter((info) => info === elementInfo);
     for (const info of stopElementInfos) {
