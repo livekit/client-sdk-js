@@ -183,6 +183,7 @@ export default abstract class LocalTrack extends Track {
 
     this.mediaStream = mediaStream;
     this.constraints = constraints;
+    this.emit(TrackEvent.Restarted, this);
     return this;
   }
 

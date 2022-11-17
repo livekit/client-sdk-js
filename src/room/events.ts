@@ -427,6 +427,10 @@ export enum TrackEvent {
   Message = 'message',
   Muted = 'muted',
   Unmuted = 'unmuted',
+  /**
+   * Only fires on LocalTracks
+   */
+  Restarted = 'restarted',
   Ended = 'ended',
   Subscribed = 'subscribed',
   Unsubscribed = 'unsubscribed',
