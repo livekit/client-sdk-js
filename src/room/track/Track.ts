@@ -398,6 +398,7 @@ export type TrackEventCallbacks = {
   message: () => void;
   muted: (track?: any) => void;
   unmuted: (track?: any) => void;
+  restarted: (track?: any) => void;
   ended: (track?: any) => void;
   updateSettings: () => void;
   updateSubscription: () => void;
