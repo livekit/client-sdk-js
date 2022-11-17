@@ -113,7 +113,7 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   async getSenderStats(): Promise<VideoSenderStats[]> {
-    if (!this.sender || !this.sender.getStats) {
+    if (!this.sender?.getStats) {
       return [];
     }
 
