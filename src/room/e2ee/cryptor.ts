@@ -93,11 +93,11 @@ export class Cryptor {
     const encryptionKey = this.cryptoKeyRing[keyIndex]?.encryptionKey;
 
     if (encryptionKey) {
-      console.log(
-        'iv meta',
-        encodedFrame.getMetadata().synchronizationSource,
-        encodedFrame.timestamp,
-      );
+      // console.log(
+      //   'iv meta',
+      //   encodedFrame.getMetadata().synchronizationSource,
+      //   encodedFrame.timestamp,
+      // );
       const iv = this.makeIV(
         encodedFrame.getMetadata().synchronizationSource ?? -1,
         encodedFrame.timestamp,
@@ -165,7 +165,7 @@ export class Cryptor {
      * This will send unencrypted data (only protected by DTLS transport encryption) when no key is configured.
      * This is ok for demo purposes but should not be done once this becomes more relied upon.
      */
-    controller.enqueue(encodedFrame);
+    // controller.enqueue(encodedFrame);
   }
 
   /**
