@@ -1,6 +1,7 @@
-import { debounce } from 'ts-debounce';
 import { MediaDescription, parse, write } from 'sdp-transform';
+import { debounce } from 'ts-debounce';
 import log from '../logger';
+import { NegotiationError } from './errors';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -21,6 +22,8 @@ export default class PCTransport {
 
   trackBitrates: TrackBitrateInfo[] = [];
 
+  remoteStereoMids: string[] = [];
+
   onOffer?: (offer: RTCSessionDescriptionInit) => void;
 
   constructor(config?: RTCConfiguration) {
@@ -39,6 +42,9 @@ export default class PCTransport {
   }
 
   async setRemoteDescription(sd: RTCSessionDescriptionInit): Promise<void> {
+    if (sd.type === 'offer') {
+      this.remoteStereoMids = extractStereoTracksFromOffer(sd);
+    }
     await this.pc.setRemoteDescription(sd);
 
     this.pendingCandidates.forEach((candidate) => {
@@ -54,8 +60,16 @@ export default class PCTransport {
   }
 
   // debounced negotiate interface
-  negotiate = debounce(() => {
-    this.createAndSendOffer();
+  negotiate = debounce((onError?: (e: Error) => void) => {
+    try {
+      this.createAndSendOffer();
+    } catch (e) {
+      if (onError) {
+        onError(e as Error);
+      } else {
+        throw e;
+      }
+    }
   }, 100);
 
   async createAndSendOffer(options?: RTCOfferOptions) {
@@ -92,7 +106,7 @@ export default class PCTransport {
     const sdpParsed = parse(offer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
       if (media.type === 'audio') {
-        ensureAudioNack(media);
+        ensureAudioNackAndStereo(media, []);
       } else if (media.type === 'video') {
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
@@ -135,17 +149,8 @@ export default class PCTransport {
     });
 
     this.trackBitrates = [];
-    const originalSdp = offer.sdp;
-    try {
-      offer.sdp = write(sdpParsed);
-      await this.pc.setLocalDescription(offer);
-    } catch (e: unknown) {
-      log.warn('not able to set desired local description, falling back to unmodified offer', {
-        error: e,
-      });
-      offer.sdp = originalSdp;
-      await this.pc.setLocalDescription(offer);
-    }
+
+    await this.setMungedLocalDescription(offer, write(sdpParsed));
     this.onOffer(offer);
   }
 
@@ -154,20 +159,10 @@ export default class PCTransport {
     const sdpParsed = parse(answer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
       if (media.type === 'audio') {
-        ensureAudioNack(media);
+        ensureAudioNackAndStereo(media, this.remoteStereoMids);
       }
     });
-    const originalSdp = answer.sdp;
-    try {
-      answer.sdp = write(sdpParsed);
-      await this.pc.setLocalDescription(answer);
-    } catch (e: unknown) {
-      log.warn('not able to set desired local description, falling back to unmodified answer', {
-        error: e,
-      });
-      answer.sdp = originalSdp;
-      await this.pc.setLocalDescription(answer);
-    }
+    await this.setMungedLocalDescription(answer, write(sdpParsed));
     return answer;
   }
 
@@ -182,15 +177,45 @@ export default class PCTransport {
   close() {
     this.pc.close();
   }
+
+  private async setMungedLocalDescription(sd: RTCSessionDescriptionInit, munged: string) {
+    const originalSdp = sd.sdp;
+    sd.sdp = munged;
+    try {
+      log.debug('setting munged local description');
+      await this.pc.setLocalDescription(sd);
+      return;
+    } catch (e) {
+      log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
+        error: e,
+      });
+      sd.sdp = originalSdp;
+    }
+
+    try {
+      await this.pc.setLocalDescription(sd);
+    } catch (e) {
+      // this error cannot always be caught.
+      // If the local description has a setCodecPreferences error, this error will be uncaught
+      let msg = 'unknown error';
+      if (e instanceof Error) {
+        msg = e.message;
+      } else if (typeof e === 'string') {
+        msg = e;
+      }
+      throw new NegotiationError(msg);
+    }
+  }
 }
 
-function ensureAudioNack(
+function ensureAudioNackAndStereo(
   media: {
     type: string;
     port: number;
     protocol: string;
     payloads?: string | undefined;
   } & MediaDescription,
+  stereoMids: string[],
 ) {
   // found opus codec to add nack fb
   let opusPayload = 0;
@@ -214,5 +239,45 @@ function ensureAudioNack(
         type: 'nack',
       });
     }
+
+    if (stereoMids.includes(media.mid!)) {
+      media.fmtp.some((fmtp): boolean => {
+        if (fmtp.payload === opusPayload) {
+          if (!fmtp.config.includes('stereo=1')) {
+            fmtp.config += ';stereo=1';
+          }
+          return true;
+        }
+        return false;
+      });
+    }
   }
+}
+
+function extractStereoTracksFromOffer(offer: RTCSessionDescriptionInit): string[] {
+  const stereoMids: string[] = [];
+  const sdpParsed = parse(offer.sdp ?? '');
+  let opusPayload = 0;
+  sdpParsed.media.forEach((media) => {
+    if (media.type === 'audio') {
+      media.rtp.some((rtp): boolean => {
+        if (rtp.codec === 'opus') {
+          opusPayload = rtp.payload;
+          return true;
+        }
+        return false;
+      });
+
+      media.fmtp.some((fmtp): boolean => {
+        if (fmtp.payload === opusPayload) {
+          if (fmtp.config.includes('sprop-stereo=1')) {
+            stereoMids.push(media.mid!);
+          }
+          return true;
+        }
+        return false;
+      });
+    }
+  });
+  return stereoMids;
 }

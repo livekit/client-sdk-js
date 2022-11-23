@@ -2,7 +2,7 @@ import { e2eeFlag, ENCRYPTION_ALGORITHM } from './constants';
 import log from '../../logger';
 import type { EncodeMessage, SetKeyMessage } from './types';
 // eslint-disable-next-line import/extensions
-import WebWorker from 'web-worker:./e2ee.worker.ts';
+import WebWorker from './e2ee.worker.js?worker';
 import { supportsScriptTransform } from './utils';
 import type Room from '../Room';
 import { ParticipantEvent, RoomEvent } from '../events';
@@ -11,7 +11,7 @@ import type RemoteParticipant from '../participant/RemoteParticipant';
 import type { Track } from '../track/Track';
 import LocalTrack from '../track/LocalTrack';
 
-export async function createE2EEKey(): Promise<JsonWebKey> {
+export async function createE2EEKey(): Promise<ArrayBuffer> {
   const key = (await crypto.subtle.generateKey(
     {
       name: ENCRYPTION_ALGORITHM,
@@ -20,8 +20,8 @@ export async function createE2EEKey(): Promise<JsonWebKey> {
     true,
     ['encrypt', 'decrypt'],
   )) as CryptoKey;
-  const jwk = await crypto.subtle.exportKey('jwk', key);
-  return jwk;
+  const exportedKey = await crypto.subtle.exportKey('raw', key);
+  return exportedKey;
 }
 
 export class E2EEManager {

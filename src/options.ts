@@ -1,15 +1,20 @@
+import type { ReconnectPolicy } from './room/ReconnectPolicy';
 import type {
   AudioCaptureOptions,
+  AudioOutputOptions,
   TrackPublishDefaults,
   VideoCaptureOptions,
 } from './room/track/options';
 import type { AdaptiveStreamSettings } from './room/track/types';
-import type { ReconnectPolicy } from './room/ReconnectPolicy';
+
+export interface WebAudioSettings {
+  audioContext: AudioContext;
+}
 
 /**
- * Options for when creating a new room
+ * @internal
  */
-export interface RoomOptions {
+export interface InternalRoomOptions {
   /**
    * AdaptiveStream lets LiveKit automatically manage quality of subscribed
    * video tracks to optimize for bandwidth and CPU.
@@ -19,14 +24,14 @@ export interface RoomOptions {
    * When none of the video elements are visible, it'll temporarily pause
    * the data flow until they are visible again.
    */
-  adaptiveStream?: AdaptiveStreamSettings | boolean;
+  adaptiveStream: AdaptiveStreamSettings | boolean;
 
   /**
    * enable Dynacast, off by default. With Dynacast dynamically pauses
    * video layers that are not being consumed by any subscribers, significantly
    * reducing publishing CPU and bandwidth usage.
    */
-  dynacast?: boolean;
+  dynacast: boolean;
 
   /**
    * default options to use when capturing user's audio
@@ -44,10 +49,20 @@ export interface RoomOptions {
   publishDefaults?: TrackPublishDefaults;
 
   /**
+   * audio output for the room
+   */
+  audioOutput?: AudioOutputOptions;
+
+  /**
    * should local tracks be stopped when they are unpublished. defaults to true
    * set this to false if you would prefer to clean up unpublished local tracks manually.
    */
-  stopLocalTrackOnUnpublish?: boolean;
+  stopLocalTrackOnUnpublish: boolean;
+
+  /**
+   * policy to use when attempting to reconnect
+   */
+  reconnectPolicy: ReconnectPolicy;
 
   /**
    * @internal
@@ -56,17 +71,28 @@ export interface RoomOptions {
   expSignalLatency?: number;
 
   /**
-   * policy to use when attempting to reconnect
+   * @internal
+   * @experimental
+   * experimental flag, mix all audio tracks in web audio
    */
-  reconnectPolicy?: ReconnectPolicy;
+
+  expWebAudioMix: boolean | WebAudioSettings;
 }
 
 /**
- * Options for Room.connect()
+ * Options for when creating a new room
  */
-export interface RoomConnectOptions {
+export interface RoomOptions extends Partial<InternalRoomOptions> {}
+
+/**
+ * @internal
+ */
+export interface InternalRoomConnectOptions {
   /** autosubscribe to room tracks after joining, defaults to true */
-  autoSubscribe?: boolean;
+  autoSubscribe: boolean;
+
+  /** amount of time for PeerConnection to be established, defaults to 15s */
+  peerConnectionTimeout: number;
 
   /**
    * use to override any RTCConfiguration options.
@@ -78,4 +104,12 @@ export interface RoomConnectOptions {
    * publish only mode
    */
   publishOnly?: string;
+
+  /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
+  maxRetries: number;
 }
+
+/**
+ * Options for Room.connect()
+ */
+export interface RoomConnectOptions extends Partial<InternalRoomConnectOptions> {}

@@ -7,7 +7,7 @@ import { isVideoFrame } from './utils';
  * Per-participant cipher holding the cryptographic keys and
  * encode/decode functions
  */
-export class Cipher {
+export class Cryptor {
   private currentKeyIndex: number;
 
   private cryptoKeyRing: Array<string>;

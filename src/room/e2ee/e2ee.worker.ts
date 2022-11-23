@@ -1,7 +1,7 @@
-import { Cipher } from './cipher';
+import { Cryptor } from './cryptor';
 import type { E2EEWorkerMessage } from './types';
 
-const participantCiphers = new Map<string, Cipher>();
+const participantCiphers = new Map<string, Cryptor>();
 
 onmessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
   const { kind, payload } = ev.data;
@@ -25,7 +25,7 @@ onmessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
 };
 
 function transform(
-  cipher: Cipher,
+  cipher: Cryptor,
   operation: 'encode' | 'decode',
   readableStream: ReadableStream,
   writableStream: WritableStream,
@@ -45,7 +45,7 @@ function transform(
 function getParticipantCipher(id: string) {
   let cipher = participantCiphers.get(id);
   if (!cipher) {
-    cipher = new Cipher();
+    cipher = new Cryptor();
     participantCiphers.set(id, cipher);
   }
   return cipher;

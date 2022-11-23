@@ -22,6 +22,13 @@ export default abstract class LocalTrack extends Track {
 
   protected muteQueue: Queue;
 
+  /**
+   *
+   * @param mediaTrack
+   * @param kind
+   * @param constraints MediaTrackConstraints that are being used when restarting or reacquiring tracks
+   * @param userProvidedTrack Signals to the SDK whether or not the mediaTrack should be managed (i.e. released and reacquired) internally by the SDK
+   */
   protected constructor(
     mediaTrack: MediaStreamTrack,
     kind: Track.Kind,
@@ -114,6 +121,9 @@ export default abstract class LocalTrack extends Track {
     }
     this._mediaStreamTrack = track;
 
+    // sync muted state with the enabled state of the newly provided track
+    this._mediaStreamTrack.enabled = !this.isMuted;
+
     await this.resumeUpstream();
 
     this.attachedElements.forEach((el) => {
@@ -173,6 +183,7 @@ export default abstract class LocalTrack extends Track {
 
     this.mediaStream = mediaStream;
     this.constraints = constraints;
+    this.emit(TrackEvent.Restarted, this);
     return this;
   }
 

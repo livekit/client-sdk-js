@@ -1,11 +1,11 @@
 import { LogLevel, setLogExtension, setLogLevel } from './logger';
-import { DataPacket_Kind, VideoQuality, DisconnectReason } from './proto/livekit_models';
+import { DataPacket_Kind, DisconnectReason, VideoQuality } from './proto/livekit_models';
+import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './room/participant/Participant';
 import type { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
 import RemoteParticipant from './room/participant/RemoteParticipant';
 import Room, { ConnectionState, RoomState } from './room/Room';
-import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import LocalAudioTrack from './room/track/LocalAudioTrack';
 import LocalTrack from './room/track/LocalTrack';
 import LocalTrackPublication from './room/track/LocalTrackPublication';
@@ -13,13 +13,15 @@ import LocalVideoTrack from './room/track/LocalVideoTrack';
 import RemoteAudioTrack from './room/track/RemoteAudioTrack';
 import RemoteTrack from './room/track/RemoteTrack';
 import RemoteTrackPublication from './room/track/RemoteTrackPublication';
-import RemoteVideoTrack, { ElementInfo } from './room/track/RemoteVideoTrack';
+import RemoteVideoTrack from './room/track/RemoteVideoTrack';
+import type { ElementInfo } from './room/track/RemoteVideoTrack';
 import { TrackPublication } from './room/track/TrackPublication';
 import {
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
   isBrowserSupported,
   supportsAdaptiveStream,
+  supportsAV1,
   supportsDynacast,
 } from './room/utils';
 
@@ -32,6 +34,7 @@ export * from './room/track/Track';
 export * from './room/track/types';
 export * from './version';
 export * from './room/e2ee';
+export * from './connectionHelper/ConnectionCheck';
 export {
   setLogLevel,
   setLogExtension,
@@ -40,6 +43,7 @@ export {
   isBrowserSupported,
   supportsAdaptiveStream,
   supportsDynacast,
+  supportsAV1,
   LogLevel,
   Room,
   ConnectionState,

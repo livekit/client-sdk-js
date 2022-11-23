@@ -33,6 +33,16 @@ export interface TrackPublishDefaults {
   dtx?: boolean;
 
   /**
+   * red (Redundant Audio Data), defaults to true
+   */
+  red?: boolean;
+
+  /**
+   * stereo audio track. defaults determined by capture channel count.
+   */
+  forceStereo?: boolean;
+
+  /**
    * use simulcast, defaults to true.
    * When using simulcast, LiveKit will publish up to three versions of the stream
    * at various resolutions.
@@ -168,6 +178,15 @@ export interface AudioCaptureOptions {
   sampleSize?: ConstrainULong;
 }
 
+export interface AudioOutputOptions {
+  /**
+   * deviceId to output audio
+   *
+   * Only supported on browsers where `setSinkId` is available
+   */
+  deviceId?: string;
+}
+
 export interface VideoResolution {
   width: number;
   height: number;
@@ -235,6 +254,15 @@ export namespace AudioPresets {
   };
   export const music: AudioPreset = {
     maxBitrate: 32_000,
+  };
+  export const musicStereo: AudioPreset = {
+    maxBitrate: 48_000,
+  };
+  export const musicHighQuality: AudioPreset = {
+    maxBitrate: 64_000,
+  };
+  export const musicHighQualityStereo: AudioPreset = {
+    maxBitrate: 96_000,
   };
 }
 

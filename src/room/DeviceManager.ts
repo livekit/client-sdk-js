@@ -65,23 +65,6 @@ export default class DeviceManager {
       devices = devices.filter((device) => device.kind === kind);
     }
 
-    // Chrome returns 'default' devices, we would filter them out, but put the default
-    // device at first
-    // we would only do this if there are more than 1 device though
-    if (devices.length > 1 && devices[0].deviceId === defaultId) {
-      // find another device with matching group id, and move that to 0
-      const defaultDevice = devices[0];
-      for (let i = 1; i < devices.length; i += 1) {
-        if (devices[i].groupId === defaultDevice.groupId) {
-          const temp = devices[0];
-          devices[0] = devices[i];
-          devices[i] = temp;
-          break;
-        }
-      }
-      return devices.filter((device) => device !== defaultDevice);
-    }
-
     return devices;
   }
 

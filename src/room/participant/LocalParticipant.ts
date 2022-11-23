@@ -1,5 +1,6 @@
+import 'webrtc-adapter';
 import log from '../../logger';
-import type { RoomOptions } from '../../options';
+import type { InternalRoomOptions } from '../../options';
 import {
   DataPacket,
   DataPacket_Kind,
@@ -33,7 +34,7 @@ import {
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
-import { isFireFox, isWeb } from '../utils';
+import { isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import {
@@ -42,7 +43,6 @@ import {
   mediaTrackToLocalTrack,
 } from './publishUtils';
 import RemoteParticipant from './RemoteParticipant';
-import 'webrtc-adapter';
 
 export default class LocalParticipant extends Participant {
   audioTracks: Map<string, LocalTrackPublication>;
@@ -66,37 +66,17 @@ export default class LocalParticipant extends Participant {
   private allParticipantsAllowedToSubscribe: boolean = true;
 
   // keep a pointer to room options
-  private roomOptions?: RoomOptions;
+  private roomOptions: InternalRoomOptions;
 
   /** @internal */
-  constructor(sid: string, identity: string, engine: RTCEngine, options: RoomOptions) {
+  constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
     super(sid, identity);
     this.audioTracks = new Map();
     this.videoTracks = new Map();
     this.tracks = new Map();
     this.engine = engine;
     this.roomOptions = options;
-
-    this.engine.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
-      const pub = this.tracks.get(trackSid);
-      if (!pub || !pub.track) {
-        return;
-      }
-      if (muted) {
-        pub.mute();
-      } else {
-        pub.unmute();
-      }
-    };
-
-    this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
-
-    this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
-
-    this.engine
-      .on(EngineEvent.Connected, this.updateTrackSubscriptionPermissions)
-      .on(EngineEvent.Restarted, this.updateTrackSubscriptionPermissions)
-      .on(EngineEvent.Resumed, this.updateTrackSubscriptionPermissions);
+    this.setupEngine(engine);
   }
 
   get lastCameraError(): Error | undefined {
@@ -119,6 +99,33 @@ export default class LocalParticipant extends Participant {
     if (track) {
       return track as LocalTrackPublication;
     }
+  }
+
+  /**
+   * @internal
+   */
+  setupEngine(engine: RTCEngine) {
+    this.engine = engine;
+    this.engine.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
+      const pub = this.tracks.get(trackSid);
+      if (!pub || !pub.track) {
+        return;
+      }
+      if (muted) {
+        pub.mute();
+      } else {
+        pub.unmute();
+      }
+    };
+
+    this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
+
+    this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
+
+    this.engine
+      .on(EngineEvent.Connected, this.updateTrackSubscriptionPermissions)
+      .on(EngineEvent.Restarted, this.updateTrackSubscriptionPermissions)
+      .on(EngineEvent.Resumed, this.updateTrackSubscriptionPermissions);
   }
 
   /**
@@ -236,6 +243,7 @@ export default class LocalParticipant extends Participant {
           }
           const publishPromises: Array<Promise<LocalTrackPublication>> = [];
           for (const localTrack of localTracks) {
+            log.info('publishing track', { localTrack });
             publishPromises.push(this.publishTrack(localTrack, publishOptions));
           }
           const publishedTracks = await Promise.all(publishPromises);
@@ -367,14 +375,20 @@ export default class LocalParticipant extends Participant {
 
     let videoConstraints: MediaTrackConstraints | boolean = true;
     if (options.resolution) {
-      videoConstraints = {
-        width: options.resolution.width,
-        height: options.resolution.height,
-        frameRate: options.resolution.frameRate,
-      };
+      if (isSafari()) {
+        videoConstraints = {
+          width: { max: options.resolution.width },
+          height: { max: options.resolution.height },
+          frameRate: options.resolution.frameRate,
+        };
+      } else {
+        videoConstraints = {
+          width: { ideal: options.resolution.width },
+          height: { ideal: options.resolution.height },
+          frameRate: options.resolution.frameRate,
+        };
+      }
     }
-    // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
-    // @ts-ignore
     const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
       audio: options.audio ?? false,
       video: videoConstraints,
@@ -404,11 +418,6 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
-    const opts: TrackPublishOptions = {
-      ...this.roomOptions?.publishDefaults,
-      ...options,
-    };
-
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
@@ -422,6 +431,30 @@ export default class LocalParticipant extends Participant {
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
       }
     }
+
+    const isStereo =
+      options?.forceStereo ||
+      ('channelCount' in track.mediaStreamTrack.getSettings() &&
+        // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
+        track.mediaStreamTrack.getSettings().channelCount === 2) ||
+      track.mediaStreamTrack.getConstraints().channelCount === 2;
+
+    // disable dtx for stereo track if not enabled explicitly
+    if (isStereo) {
+      if (!options) {
+        options = {};
+      }
+      if (options.dtx === undefined) {
+        log.info(
+          `Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
+        );
+      }
+      options.dtx ??= false;
+    }
+    const opts: TrackPublishOptions = {
+      ...this.roomOptions.publishDefaults,
+      ...options,
+    };
 
     // is it already published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
@@ -442,7 +475,7 @@ export default class LocalParticipant extends Participant {
     const existingTrackOfSource = Array.from(this.tracks.values()).find(
       (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
     );
-    if (existingTrackOfSource) {
+    if (existingTrackOfSource && track.source !== Track.Source.Unknown) {
       try {
         // throw an Error in order to capture the stack trace
         throw Error(`publishing a second track with the same source: ${track.source}`);
@@ -466,6 +499,11 @@ export default class LocalParticipant extends Participant {
       opts.simulcast = false;
     }
 
+    // require full AV1 SVC support prior to using it
+    if (opts.videoCodec === 'av1' && !supportsAV1()) {
+      opts.videoCodec = undefined;
+    }
+
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
@@ -481,7 +519,9 @@ export default class LocalParticipant extends Participant {
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
-      disableDtx: !(opts?.dtx ?? true),
+      disableDtx: !(opts.dtx ?? true),
+      // stereo: isStereo,
+      // disableRed: !(opts.red ?? true),
     });
 
     // compute encodings and layers for video
@@ -578,6 +618,10 @@ export default class LocalParticipant extends Participant {
     // send event for publication
     this.emit(ParticipantEvent.LocalTrackPublished, publication);
     return publication;
+  }
+
+  override get isLocal(): boolean {
+    return true;
   }
 
   /** @internal
@@ -921,7 +965,7 @@ export default class LocalParticipant extends Participant {
       });
       this.unpublishTrack(track);
     } else if (track.isUserProvided) {
-      await track.pauseUpstream();
+      await track.mute();
     } else if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
       try {
         if (isWeb()) {
@@ -950,8 +994,8 @@ export default class LocalParticipant extends Participant {
         log.debug('track ended, attempting to use a different device');
         await track.restartTrack();
       } catch (e) {
-        log.warn(`could not restart track, pausing upstream instead`);
-        await track.pauseUpstream();
+        log.warn(`could not restart track, muting instead`);
+        await track.mute();
       }
     }
   };

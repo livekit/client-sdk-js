@@ -118,6 +118,10 @@ export default class RemoteVideoTrack extends RemoteTrack {
    * @internal
    */
   stopObservingElementInfo(elementInfo: ElementInfo) {
+    if (!this.isAdaptiveStream) {
+      log.warn('stopObservingElementInfo ignored');
+      return;
+    }
     const stopElementInfos = this.elementInfos.filter((info) => info === elementInfo);
     for (const info of stopElementInfos) {
       info.stopObserving();
@@ -163,7 +167,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   };
 
   private async getReceiverStats(): Promise<VideoReceiverStats | undefined> {
-    if (!this.receiver) {
+    if (!this.receiver || !this.receiver.getStats) {
       return;
     }
 

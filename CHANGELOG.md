@@ -1,5 +1,129 @@
 # Change Log
 
+## 1.5.0
+
+### Minor Changes
+
+- [#487](https://github.com/livekit/client-sdk-js/pull/487) [`e1a0a7e`](https://github.com/livekit/client-sdk-js/commit/e1a0a7ed5d7c198b819204258913926a89320473) Thanks [@lukasIO](https://github.com/lukasIO)! - Sync muted state with track.enabled when calling replaceTrack"
+
+- [#485](https://github.com/livekit/client-sdk-js/pull/485) [`1cc2cab`](https://github.com/livekit/client-sdk-js/commit/1cc2cab20a8dd4ea46449c1d8d8f255e65d75b47) Thanks [@lukasIO](https://github.com/lukasIO)! - Don't filter out default devices in order to detect OS Level default switches
+
+### Patch Changes
+
+- [#489](https://github.com/livekit/client-sdk-js/pull/489) [`efc2039`](https://github.com/livekit/client-sdk-js/commit/efc2039f2d6bbe6a5c11a1af1255f7a0bf8265b1) Thanks [@lukasIO](https://github.com/lukasIO)! - Add ConnnectionCheck helper class
+
+- [#493](https://github.com/livekit/client-sdk-js/pull/493) [`859a103`](https://github.com/livekit/client-sdk-js/commit/859a103dbeb003b333da9b7854e99e9ffbfe89a5) Thanks [@lukasIO](https://github.com/lukasIO)! - Check for ws readystate before attempting to send signal request
+
+- [#412](https://github.com/livekit/client-sdk-js/pull/412) [`ebbd669`](https://github.com/livekit/client-sdk-js/commit/ebbd669423d75c8f885ba41af4515d0860f2f9f9) Thanks [@davidzhao](https://github.com/davidzhao)! - Expose Room.isRecording to indicate if the Room is being recorded
+
+- [#484](https://github.com/livekit/client-sdk-js/pull/484) [`9a54cb4`](https://github.com/livekit/client-sdk-js/commit/9a54cb48877e302b7705acb025393082a78b9234) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Add fps field to SubscribeSetting
+
+- [#492](https://github.com/livekit/client-sdk-js/pull/492) [`b9dedaf`](https://github.com/livekit/client-sdk-js/commit/b9dedafbf07cd655e0c957daf41c0a8832ee2665) Thanks [@lukasIO](https://github.com/lukasIO)! - Only emit metadatachanged if the metadata actually changed
+
+- [#494](https://github.com/livekit/client-sdk-js/pull/494) [`00dbd21`](https://github.com/livekit/client-sdk-js/commit/00dbd218b165d9a3674f7fcc7ac3ee3b357ecab3) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix safari v16 screen share
+
+## 1.4.4
+
+### Patch Changes
+
+- [#475](https://github.com/livekit/client-sdk-js/pull/475) [`7af32ad`](https://github.com/livekit/client-sdk-js/commit/7af32ad3637f26b367411a0a18f1fa613f5b84ec) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix reconnection attempts potentially getting stuck
+
+- [#455](https://github.com/livekit/client-sdk-js/pull/455) [`104db9d`](https://github.com/livekit/client-sdk-js/commit/104db9d3f16564e69301254f9fe99b5c83aad96f) Thanks [@lukasIO](https://github.com/lukasIO)! - Add option for `maxJoinAttempts` to retry establishing initial signal connection if it failed
+
+- [#480](https://github.com/livekit/client-sdk-js/pull/480) [`1452210`](https://github.com/livekit/client-sdk-js/commit/1452210bb14d351d58e1f218b5d78c1bd0d6351f) Thanks [@lukasIO](https://github.com/lukasIO)! - Register engine events on localParticipant when updated
+
+- [#470](https://github.com/livekit/client-sdk-js/pull/470) [`0c0e5cc`](https://github.com/livekit/client-sdk-js/commit/0c0e5cc11b4d4dfa8acab9d9f82c087efcaeca5c) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Add stereo and red support for track level
+
+- [#478](https://github.com/livekit/client-sdk-js/pull/478) [`676ecd3`](https://github.com/livekit/client-sdk-js/commit/676ecd3f0ee30ba3b1a15d4296ff41084c1baf0a) Thanks [@davidliu](https://github.com/davidliu)! - Fixes for latest transceiver APIs in react-native-webrtc
+
+- [#472](https://github.com/livekit/client-sdk-js/pull/472) [`859e3bf`](https://github.com/livekit/client-sdk-js/commit/859e3bfe6543058207bbb5ca58b2e7f5b0b95d55) Thanks [@davidzhao](https://github.com/davidzhao)! - Fixes switchAudioDevice not respecting those preferences for future tracks
+
+- [#477](https://github.com/livekit/client-sdk-js/pull/477) [`4aa82a7`](https://github.com/livekit/client-sdk-js/commit/4aa82a7daaa5d53157b6bc55179ccf13effb815c) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Don't override client provide ice servers
+
+- [#472](https://github.com/livekit/client-sdk-js/pull/472) [`859e3bf`](https://github.com/livekit/client-sdk-js/commit/859e3bfe6543058207bbb5ca58b2e7f5b0b95d55) Thanks [@davidzhao](https://github.com/davidzhao)! - peer connnection timeout is now configurable
+
+- [#471](https://github.com/livekit/client-sdk-js/pull/471) [`022f4cb`](https://github.com/livekit/client-sdk-js/commit/022f4cb7d3939985cd79eee89b5725eea71576c3) Thanks [@davidzhao](https://github.com/davidzhao)! - Allow subscription settings before fully subscribed
+
+## 1.4.3
+
+### Patch Changes
+
+- [#446](https://github.com/livekit/client-sdk-js/pull/446) [`88743d4`](https://github.com/livekit/client-sdk-js/commit/88743d4c4deb438140ce6cf520d2f92d975c4f56) Thanks [@lukasIO](https://github.com/lukasIO)! - Add experimental option to pipe attached audio tracks through webaudio API
+
+- [#466](https://github.com/livekit/client-sdk-js/pull/466) [`a34daba`](https://github.com/livekit/client-sdk-js/commit/a34dabacf2901e10efc9b5e2901b6eb6633af649) Thanks [@davidzhao](https://github.com/davidzhao)! - Fail subscription when reusing stopped MediaStreamTrack
+
+- [#467](https://github.com/livekit/client-sdk-js/pull/467) [`951a07c`](https://github.com/livekit/client-sdk-js/commit/951a07ceb3a19fb9ca0606c1cb33b29b9c415f09) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Update ice servers from join response
+
+- [#464](https://github.com/livekit/client-sdk-js/pull/464) [`af04dda`](https://github.com/livekit/client-sdk-js/commit/af04dda814a8400734f08ddd13b703323e4bc70c) Thanks [@davidzhao](https://github.com/davidzhao)! - Increase default audio bitrate; additional audio presets
+
+- [#469](https://github.com/livekit/client-sdk-js/pull/469) [`fcad243`](https://github.com/livekit/client-sdk-js/commit/fcad2432cc4a6800ce32ec7906c2bdcbd5c223c6) Thanks [@lukasIO](https://github.com/lukasIO)! - Add experimental method to prepare connection for speeding up subsequent first connection attempt
+
+- [#468](https://github.com/livekit/client-sdk-js/pull/468) [`91541ab`](https://github.com/livekit/client-sdk-js/commit/91541ab357125fb21d441d9f6669e0df9be31e17) Thanks [@lukasIO](https://github.com/lukasIO)! - Emit AudioPlaybackFailed event also in experimental web audio mix mode"
+
+## 1.4.2
+
+### Patch Changes
+
+- [#451](https://github.com/livekit/client-sdk-js/pull/451) [`627aa3e`](https://github.com/livekit/client-sdk-js/commit/627aa3e84df8a6c26a3488f053250ce2112d3050) Thanks [@lukasIO](https://github.com/lukasIO)! - Add isLocal getter to participant class
+
+- [#462](https://github.com/livekit/client-sdk-js/pull/462) [`5024e26`](https://github.com/livekit/client-sdk-js/commit/5024e26a1c839e17bb073d5316c6a91911474754) Thanks [@KallynGowdy](https://github.com/KallynGowdy)! - Fix local participant events being disabled before tracks unpublished
+
+- [#463](https://github.com/livekit/client-sdk-js/pull/463) [`90260b8`](https://github.com/livekit/client-sdk-js/commit/90260b87ab41813645a87a5c4cbbfd41d688b84a) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix: reset connect future to undefined when promise is rejected
+
+- [#456](https://github.com/livekit/client-sdk-js/pull/456) [`84f00b8`](https://github.com/livekit/client-sdk-js/commit/84f00b893d46bc7b1d0d6fa3785ace85f08f0584) Thanks [@davidzhao](https://github.com/davidzhao)! - Added supportsAV1 helper function
+
+- [#460](https://github.com/livekit/client-sdk-js/pull/460) [`ef3c38f`](https://github.com/livekit/client-sdk-js/commit/ef3c38f60ae77011ffc48b496d4baaff9ffa1214) Thanks [@scott-lc](https://github.com/scott-lc)! - Add missing ESM types subpath export condition to support TS Node16 and NodeNext module resolution
+
+## 1.4.1
+
+### Patch Changes
+
+- [#448](https://github.com/livekit/client-sdk-js/pull/448) [`14f71de`](https://github.com/livekit/client-sdk-js/commit/14f71de26fa06a1fe23a767d0584921a7a7de1a1) Thanks [@lukasIO](https://github.com/lukasIO)! - fix localTrackUnpublish true by default
+
+## 1.4.0
+
+### Minor Changes
+
+- [#443](https://github.com/livekit/client-sdk-js/pull/443) [`438d067`](https://github.com/livekit/client-sdk-js/commit/438d0679bf215b5c5edd20b900d1dca0362d651c) Thanks [@lukasIO](https://github.com/lukasIO)! - **Breaking** Decouple SubscriptionStatus and SubscriptionPermissionStatus
+
+### Patch Changes
+
+- [#440](https://github.com/livekit/client-sdk-js/pull/440) [`b74eae6`](https://github.com/livekit/client-sdk-js/commit/b74eae69adedeed814e1fad09073ac2c431de49c) Thanks [@davidzhao](https://github.com/davidzhao)! - Improve handling of connection resume failures
+
+- [#445](https://github.com/livekit/client-sdk-js/pull/445) [`dabebad`](https://github.com/livekit/client-sdk-js/commit/dabebad0574a874915366223783182338f84f02b) Thanks [@lukasIO](https://github.com/lukasIO)! - Increase event listener limit
+
+## 1.3.3
+
+### Patch Changes
+
+- [#423](https://github.com/livekit/client-sdk-js/pull/423) [`e4ead3d`](https://github.com/livekit/client-sdk-js/commit/e4ead3d0f62d935214b97f76c274da66991c34ea) Thanks [@lukasIO](https://github.com/lukasIO)! - Add subscriptionStatusChanged event and isDesired getter for RemoteTrack Publications
+
+- [#432](https://github.com/livekit/client-sdk-js/pull/432) [`3c80714`](https://github.com/livekit/client-sdk-js/commit/3c807143e69f94950f4969eb309d81200280c41a) Thanks [@cnderrauber](https://github.com/cnderrauber)! - send previous server offer when reconnecting
+
+- [#431](https://github.com/livekit/client-sdk-js/pull/431) [`4004426`](https://github.com/livekit/client-sdk-js/commit/40044262a3c30d039dbc8f66dac8dffb3ecdd8f3) Thanks [@lukasIO](https://github.com/lukasIO)! - Add RoomEvent.Connected, fix connectFuture rejection exception
+
+- [#436](https://github.com/livekit/client-sdk-js/pull/436) [`1715877`](https://github.com/livekit/client-sdk-js/commit/17158772667a221f2fc31d459473f9a049402fbe) Thanks [@lukasIO](https://github.com/lukasIO)! - Use explicit defaults for room and connect options
+
+## 1.3.2
+
+### Patch Changes
+
+- [#425](https://github.com/livekit/client-sdk-js/pull/425) [`6a77802`](https://github.com/livekit/client-sdk-js/commit/6a77802eb4d585b99a1152dbde9e6f70da064862) Thanks [@cnderrauber](https://github.com/cnderrauber)! - add participant id when reconnecting
+
+- [#427](https://github.com/livekit/client-sdk-js/pull/427) [`c477b77`](https://github.com/livekit/client-sdk-js/commit/c477b77e5dac3e2cf8c734193f9f94e529b45311) Thanks [@cnderrauber](https://github.com/cnderrauber)! - fix video attach to incorrect element when tranceiver reuse
+
+## 1.3.1
+
+### Patch Changes
+
+- [#414](https://github.com/livekit/client-sdk-js/pull/414) [`6b748da`](https://github.com/livekit/client-sdk-js/commit/6b748daaff89f3f6c903283af88440d35b0273d5) Thanks [@cnderrauber](https://github.com/cnderrauber)! - add force relay configuration
+
+* [#418](https://github.com/livekit/client-sdk-js/pull/418) [`82107cf`](https://github.com/livekit/client-sdk-js/commit/82107cf5861a5fe903cb3f91ab32900c9d116cf4) Thanks [@davidzhao](https://github.com/davidzhao)! - Fixed compatibility with older browsers with setCodecPreferences (Chrome 96)
+
+- [#419](https://github.com/livekit/client-sdk-js/pull/419) [`84a96b2`](https://github.com/livekit/client-sdk-js/commit/84a96b2bd8d354c68f94f8a3309bf13803aad8ab) Thanks [@cnderrauber](https://github.com/cnderrauber)! - fix video track lost for safari migration
+
+* [#420](https://github.com/livekit/client-sdk-js/pull/420) [`0c45c73`](https://github.com/livekit/client-sdk-js/commit/0c45c73095a46b876810d90306c3d350f4a5f857) Thanks [@lukasIO](https://github.com/lukasIO)! - Add permission track event to typed callbacks
+
 ## 1.3.0
 
 ### Minor Changes

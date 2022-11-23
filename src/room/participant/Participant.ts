@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
+import log from '../../logger';
 import {
   ConnectionQuality as ProtoQuality,
   DataPacket_Kind,
@@ -8,11 +9,10 @@ import {
 } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
+import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
-import type { RemoteTrack } from '../track/types';
-import log from '../../logger';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -71,6 +71,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   /** @internal */
   constructor(sid: string, identity: string, name?: string, metadata?: string) {
     super();
+    this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
     this.name = name;
@@ -97,36 +98,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     for (const [, pub] of this.tracks) {
       if (pub.source === source) {
         return pub;
-      }
-      if (pub.source === Track.Source.Unknown) {
-        if (
-          source === Track.Source.Microphone &&
-          pub.kind === Track.Kind.Audio &&
-          pub.trackName !== 'screen'
-        ) {
-          return pub;
-        }
-        if (
-          source === Track.Source.Camera &&
-          pub.kind === Track.Kind.Video &&
-          pub.trackName !== 'screen'
-        ) {
-          return pub;
-        }
-        if (
-          source === Track.Source.ScreenShare &&
-          pub.kind === Track.Kind.Video &&
-          pub.trackName === 'screen'
-        ) {
-          return pub;
-        }
-        if (
-          source === Track.Source.ScreenShareAudio &&
-          pub.kind === Track.Kind.Audio &&
-          pub.trackName === 'screen'
-        ) {
-          return pub;
-        }
       }
     }
   }
@@ -161,6 +132,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   get isScreenShareEnabled(): boolean {
     const track = this.getTrack(Track.Source.ScreenShare);
     return !!track;
+  }
+
+  get isLocal(): boolean {
+    return false;
   }
 
   /** when participant joined the room */
@@ -279,10 +254,14 @@ export type ParticipantEventCallbacks = {
   ) => void;
   trackSubscriptionPermissionChanged: (
     publication: RemoteTrackPublication,
-    status: TrackPublication.SubscriptionStatus,
+    status: TrackPublication.PermissionStatus,
   ) => void;
   mediaDevicesError: (error: Error) => void;
   participantPermissionsChanged: (prevPermissions: ParticipantPermission) => void;
   /** @internal */
   pcTrackAdded: (track: Track, pcChannel: RTCRtpSender | RTCRtpReceiver) => void;
+  trackSubscriptionStatusChanged: (
+    publication: RemoteTrackPublication,
+    status: TrackPublication.SubscriptionStatus,
+  ) => void;
 };

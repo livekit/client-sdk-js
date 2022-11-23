@@ -29,14 +29,17 @@ import {
   UpdateSubscription,
   UpdateTrackSettings,
 } from '../proto/livekit_rtc';
-import { ConnectionError } from '../room/errors';
+import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import { getClientInfo, sleep } from '../room/utils';
 
 // internal options
 interface ConnectOpts {
-  autoSubscribe?: boolean;
+  autoSubscribe: boolean;
   /** internal */
   reconnect?: boolean;
+
+  /** internal */
+  sid?: string;
 
   /** @deprecated */
   publishOnly?: string;
@@ -46,10 +49,11 @@ interface ConnectOpts {
 
 // public options
 export interface SignalOptions {
-  autoSubscribe?: boolean;
+  autoSubscribe: boolean;
   /** @deprecated */
   publishOnly?: string;
   adaptiveStream?: boolean;
+  maxRetries: number;
 }
 
 type SignalMessage = SignalRequest['message'];
@@ -121,7 +125,11 @@ export class SignalClient {
 
   onLeave?: (leave: LeaveRequest) => void;
 
+  connectOptions?: ConnectOpts;
+
   ws?: WebSocket;
+
+  private options?: SignalOptions;
 
   private pingTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -142,32 +150,27 @@ export class SignalClient {
   async join(
     url: string,
     token: string,
-    opts?: SignalOptions,
+    opts: SignalOptions,
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse> {
     // during a full reconnect, we'd want to start the sequence even if currently
     // connected
     this.isConnected = false;
-    const res = await this.connect(
-      url,
-      token,
-      {
-        autoSubscribe: opts?.autoSubscribe,
-        publishOnly: opts?.publishOnly,
-        adaptiveStream: opts?.adaptiveStream,
-      },
-      abortSignal,
-    );
+    this.options = opts;
+    const res = await this.connect(url, token, opts, abortSignal);
     return res as JoinResponse;
   }
 
-  async reconnect(url: string, token: string): Promise<void> {
+  async reconnect(url: string, token: string, sid?: string): Promise<void> {
+    if (!this.options) {
+      log.warn('attempted to reconnect without signal options being set, ignoring');
+      return;
+    }
     this.isReconnecting = true;
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
-    await this.connect(url, token, {
-      reconnect: true,
-    });
+
+    await this.connect(url, token, { ...this.options, reconnect: true, sid });
   }
 
   connect(
@@ -176,6 +179,7 @@ export class SignalClient {
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse | void> {
+    this.connectOptions = opts;
     if (url.startsWith('http')) {
       url = url.replace('http', 'ws');
     }
@@ -188,31 +192,44 @@ export class SignalClient {
 
     return new Promise<JoinResponse | void>((resolve, reject) => {
       const abortHandler = () => {
-        ws.close();
         this.close();
         reject(new ConnectionError('room connection has been cancelled'));
       };
+
       if (abortSignal?.aborted) {
         abortHandler();
       }
       abortSignal?.addEventListener('abort', abortHandler);
       log.debug(`connecting to ${url + params}`);
-      this.ws = undefined;
-      const ws = new WebSocket(url + params);
-      ws.binaryType = 'arraybuffer';
+      if (this.ws) {
+        this.close();
+      }
+      this.ws = new WebSocket(url + params);
+      this.ws.binaryType = 'arraybuffer';
 
-      ws.onerror = async (ev: Event) => {
-        if (!this.ws) {
+      this.ws.onerror = async (ev: Event) => {
+        if (!this.isConnected) {
           try {
             const resp = await fetch(`http${url.substring(2)}/validate${params}`);
             if (!resp.ok) {
               const msg = await resp.text();
-              reject(new ConnectionError(msg));
+              reject(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
             } else {
-              reject(new ConnectionError('Internal error'));
+              reject(
+                new ConnectionError(
+                  'Internal error',
+                  ConnectionErrorReason.InternalError,
+                  resp.status,
+                ),
+              );
             }
           } catch (e) {
-            reject(new ConnectionError('server was not reachable'));
+            reject(
+              new ConnectionError(
+                'server was not reachable',
+                ConnectionErrorReason.ServerUnreachable,
+              ),
+            );
           }
           return;
         }
@@ -220,8 +237,7 @@ export class SignalClient {
         this.handleWSError(ev);
       };
 
-      ws.onopen = () => {
-        this.ws = ws;
+      this.ws.onopen = () => {
         if (opts.reconnect) {
           // upon reconnection, there will not be additional handshake
           this.isConnected = true;
@@ -231,7 +247,7 @@ export class SignalClient {
         }
       };
 
-      ws.onmessage = async (ev: MessageEvent) => {
+      this.ws.onmessage = async (ev: MessageEvent) => {
         // not considered connected until JoinResponse is received
         let resp: SignalResponse;
         if (typeof ev.data === 'string') {
@@ -272,23 +288,27 @@ export class SignalClient {
         this.handleSignalResponse(resp);
       };
 
-      ws.onclose = (ev: CloseEvent) => {
-        if (!this.isConnected || this.ws !== ws) return;
+      this.ws.onclose = (ev: CloseEvent) => {
+        if (!this.isConnected) return;
 
         log.debug(`websocket connection closed: ${ev.reason}`);
         this.isConnected = false;
-        if (this.onClose) this.onClose(ev.reason);
-        if (this.ws === ws) {
-          this.ws = undefined;
+        if (this.onClose) {
+          this.onClose(ev.reason);
         }
+        this.ws = undefined;
       };
     });
   }
 
   close() {
     this.isConnected = false;
-    if (this.ws) this.ws.onclose = null;
-    this.ws?.close();
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.onmessage = null;
+      this.ws.onopen = null;
+      this.ws.close();
+    }
     this.ws = undefined;
     this.clearPingInterval();
   }
@@ -421,8 +441,8 @@ export class SignalClient {
     if (this.signalLatency) {
       await sleep(this.signalLatency);
     }
-    if (!this.ws) {
-      log.error('cannot send signal request before connected');
+    if (!this.ws || this.ws.readyState < this.ws.OPEN) {
+      log.error(`cannot send signal request before connected, type: ${message?.$case}`);
       return;
     }
 
@@ -600,17 +620,19 @@ export function toProtoSessionDescription(
   return sd;
 }
 
-function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectOpts): string {
+function createConnectionParams(token: string, info: ClientInfo, opts: ConnectOpts): string {
   const params = new URLSearchParams();
   params.set('access_token', token);
 
   // opts
-  if (opts?.reconnect) {
+  if (opts.reconnect) {
     params.set('reconnect', '1');
+    if (opts.sid) {
+      params.set('sid', opts.sid);
+    }
   }
-  if (opts?.autoSubscribe !== undefined) {
-    params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
-  }
+
+  params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
 
   // ClientInfo
   params.set('sdk', 'js');
@@ -632,15 +654,17 @@ function createConnectionParams(token: string, info: ClientInfo, opts?: ConnectO
     params.set('browser_version', info.browserVersion);
   }
 
-  if (opts?.publishOnly !== undefined) {
+  if (opts.publishOnly !== undefined) {
     params.set('publish', opts.publishOnly);
   }
 
-  if (opts?.adaptiveStream) {
+  if (opts.adaptiveStream) {
     params.set('adaptive_stream', '1');
   }
 
+  // @ts-ignore
   if (navigator.connection?.type) {
+    // @ts-ignore
     params.set('network', navigator.connection.type);
   }
 
