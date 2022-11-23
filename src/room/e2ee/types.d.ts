@@ -11,7 +11,7 @@ export interface SetKeyMessage extends BaseMessage {
   kind: 'setKey';
   payload: {
     participantId: string;
-    key: string;
+    key: CryptoKey | Uint8Array;
     keyIndex?: number;
   };
 }
@@ -26,3 +26,5 @@ export interface EncodeMessage extends BaseMessage {
 }
 
 export type E2EEWorkerMessage = InitMessage | SetKeyMessage | EncodeMessage;
+
+export type KeySet = { material: CryptoKey; cryptoKey: CryptoKey };

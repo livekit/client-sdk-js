@@ -26,5 +26,7 @@ export const UNENCRYPTED_BYTES = {
  packet. See https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams */
 export const IV_LENGTH = 12;
 
+export const RATCHET_WINDOW_SIZE = 8;
+
 // flag set to indicate that e2ee has been setup for sender/receiver;
 export const e2eeFlag = 'lk_e2ee';

@@ -4,6 +4,7 @@ import {
   DataPacket_Kind,
   DisconnectReason,
   E2EEManager,
+  createE2EEKey,
   LocalParticipant,
   LogLevel,
   MediaDeviceFailure,
@@ -43,8 +44,15 @@ const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
 const storedToken = searchParams.get('token') ?? '';
 (<HTMLInputElement>$('url')).value = storedUrl;
 (<HTMLInputElement>$('token')).value = storedToken;
-const storedKey = searchParams.get('key') ?? 'test-encrypt-key';
-(<HTMLSelectElement>$('crypto-key')).value = storedKey;
+let storedKey = searchParams.get('key');
+if (!storedKey) {
+  createE2EEKey().then((key) => {
+    console.log('created key', key);
+    (<HTMLSelectElement>$('crypto-key')).value = JSON.stringify(Array.from(key));
+  });
+} else {
+  (<HTMLSelectElement>$('crypto-key')).value = storedKey;
+}
 
 function updateSearchParams(url: string, token: string, key: string) {
   const params = new URLSearchParams({ url, token, key });
@@ -110,7 +118,7 @@ const appActions = {
     if (e2eeKey) {
       const e2ee = new E2EEManager(room);
       e2ee.setEnabled(true);
-      e2ee.setKey(e2eeKey, 'lk-local-id');
+      e2ee.setKey('lk-local-id', Uint8Array.from(JSON.parse(e2eeKey)));
     }
     startTime = Date.now();
     await room.prepareConnection(url);

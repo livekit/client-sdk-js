@@ -1,4 +1,4 @@
-import { e2eeFlag, ENCRYPTION_ALGORITHM } from './constants';
+import { e2eeFlag } from './constants';
 import log from '../../logger';
 import type { EncodeMessage, SetKeyMessage } from './types';
 // eslint-disable-next-line import/extensions
@@ -11,17 +11,8 @@ import type RemoteParticipant from '../participant/RemoteParticipant';
 import type { Track } from '../track/Track';
 import LocalTrack from '../track/LocalTrack';
 
-export async function createE2EEKey(): Promise<ArrayBuffer> {
-  const key = (await crypto.subtle.generateKey(
-    {
-      name: ENCRYPTION_ALGORITHM,
-      length: 256,
-    },
-    true,
-    ['encrypt', 'decrypt'],
-  )) as CryptoKey;
-  const exportedKey = await crypto.subtle.exportKey('raw', key);
-  return exportedKey;
+export async function createE2EEKey(): Promise<Uint8Array> {
+  return window.crypto.getRandomValues(new Uint8Array(32));
 }
 
 export class E2EEManager {
@@ -29,7 +20,7 @@ export class E2EEManager {
 
   private room: Room;
 
-  sharedKey?: string;
+  key?: CryptoKey | Uint8Array;
 
   constructor(room: Room) {
     this.room = room;
@@ -38,7 +29,6 @@ export class E2EEManager {
 
   private setupEventListeners() {
     this.room.on(RoomEvent.TrackSubscribed, (track, _, participant) => {
-      if (this.sharedKey) this.setKey(this.sharedKey, participant.identity);
       this.setupE2EEReceiver(track, participant);
     });
     this.room.localParticipant.on(ParticipantEvent.PCTrackAdded, (track, sender) =>
@@ -55,14 +45,14 @@ export class E2EEManager {
     }
   }
 
-  setKey(key: string, participantId: string) {
-    this.sharedKey = key;
+  setKey(participantId: string, key: CryptoKey | Uint8Array, keyIndex?: number) {
     if (this.worker) {
       const msg: SetKeyMessage = {
         kind: 'setKey',
         payload: {
           participantId,
           key,
+          keyIndex,
         },
       };
       this.worker.postMessage(msg);

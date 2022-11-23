@@ -1,10 +1,13 @@
 import { Cryptor } from './cryptor';
 import type { E2EEWorkerMessage } from './types';
 
-const participantCiphers = new Map<string, Cryptor>();
+const participantCryptors = new Map<string, Cryptor>();
 
-onmessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
-  const { kind, payload } = ev.data;
+/**
+ * @param ev{string}
+ */
+onmessage = (ev) => {
+  const { kind, payload }: E2EEWorkerMessage = ev.data;
 
   switch (kind) {
     case 'init':
@@ -12,12 +15,12 @@ onmessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
       break;
     case 'decode':
     case 'encode':
-      let cipher = getParticipantCipher(payload.participantId);
+      let cipher = getParticipantCryptor(payload.participantId);
       console.log('received encode message');
       transform(cipher, kind, payload.readableStream, payload.writableStream);
       break;
     case 'setKey':
-      getParticipantCipher(payload.participantId).setKey(payload.key, payload.keyIndex);
+      getParticipantCryptor(payload.participantId).setKey(payload.key, payload.keyIndex);
       break;
     default:
       break;
@@ -42,13 +45,13 @@ function transform(
   }
 }
 
-function getParticipantCipher(id: string) {
-  let cipher = participantCiphers.get(id);
-  if (!cipher) {
-    cipher = new Cryptor();
-    participantCiphers.set(id, cipher);
+function getParticipantCryptor(id: string) {
+  let cryptor = participantCryptors.get(id);
+  if (!cryptor) {
+    cryptor = new Cryptor();
+    participantCryptors.set(id, cryptor);
   }
-  return cipher;
+  return cryptor;
 }
 
 // Operations using RTCRtpScriptTransform.
@@ -59,7 +62,7 @@ if (self.RTCTransformEvent) {
   self.onrtctransform = (event) => {
     const transformer = event.transformer;
     const { kind, participantId } = transformer.options;
-    const cipher = getParticipantCipher(participantId);
+    const cipher = getParticipantCryptor(participantId);
 
     console.log('transform', kind, participantId, cipher);
 
