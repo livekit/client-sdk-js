@@ -2,6 +2,7 @@ import { Cryptor } from './cryptor';
 import type { E2EEWorkerMessage } from './types';
 
 const participantCryptors = new Map<string, Cryptor>();
+let sharedCryptor: Cryptor | undefined;
 
 /**
  * @param ev{string}
@@ -11,7 +12,10 @@ onmessage = (ev) => {
 
   switch (kind) {
     case 'init':
-      console.log(payload);
+      const { sharedKey } = payload;
+      if (sharedKey) {
+        sharedCryptor = new Cryptor({ sharedKey });
+      }
       break;
     case 'decode':
     case 'encode':
@@ -45,7 +49,10 @@ function transform(
   }
 }
 
-function getParticipantCryptor(id: string) {
+function getParticipantCryptor(id?: string) {
+  if (!id) {
+    return sharedCryptor!;
+  }
   let cryptor = participantCryptors.get(id);
   if (!cryptor) {
     cryptor = new Cryptor();

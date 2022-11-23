@@ -23,7 +23,7 @@ export function isVideoFrame(
   return 'type' in frame;
 }
 
-export async function importKey(keyBytes: Uint8Array) {
+export async function importKey(keyBytes: Uint8Array | ArrayBuffer) {
   // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey
   return crypto.subtle.importKey('raw', keyBytes, 'HKDF', false, ['deriveBits', 'deriveKey']);
 }
@@ -56,7 +56,7 @@ export async function deriveKeys(material: CryptoKey): Promise<KeySet> {
 
   return {
     material,
-    cryptoKey: encryptionKey,
+    encryptionKey: encryptionKey,
   };
 }
 

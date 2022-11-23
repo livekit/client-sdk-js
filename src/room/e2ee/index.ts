@@ -1,13 +1,13 @@
 import { e2eeFlag } from './constants';
 import log from '../../logger';
-import type { EncodeMessage, SetKeyMessage } from './types';
+import type { EncodeMessage, InitMessage, SetKeyMessage } from './types';
 // eslint-disable-next-line import/extensions
+// @ts-ignore
 import WebWorker from './e2ee.worker.js?worker';
 import { supportsScriptTransform } from './utils';
 import type Room from '../Room';
 import { ParticipantEvent, RoomEvent } from '../events';
 import type RemoteTrack from '../track/RemoteTrack';
-import type RemoteParticipant from '../participant/RemoteParticipant';
 import type { Track } from '../track/Track';
 import LocalTrack from '../track/LocalTrack';
 
@@ -28,11 +28,11 @@ export class E2EEManager {
   }
 
   private setupEventListeners() {
-    this.room.on(RoomEvent.TrackSubscribed, (track, _, participant) => {
-      this.setupE2EEReceiver(track, participant);
+    this.room.on(RoomEvent.TrackSubscribed, (track) => {
+      this.setupE2EEReceiver(track);
     });
     this.room.localParticipant.on(ParticipantEvent.PCTrackAdded, (track, sender) =>
-      this.setupE2EESender(track, sender as RTCRtpSender, 'lk-local-id'),
+      this.setupE2EESender(track, sender as RTCRtpSender),
     );
   }
 
@@ -40,12 +40,19 @@ export class E2EEManager {
     log.info(`set e2ee to ${enabled}`);
     if (enabled && !this.worker) {
       this.worker = new WebWorker();
+      const msg: InitMessage = {
+        kind: 'init',
+        payload: {
+          sharedKey: true,
+        },
+      };
+      this.worker?.postMessage(msg);
     } else if (!enabled && this.worker) {
       this.worker.terminate();
     }
   }
 
-  setKey(participantId: string, key: CryptoKey | Uint8Array, keyIndex?: number) {
+  setKey(participantId: string | undefined, key: CryptoKey | Uint8Array, keyIndex?: number) {
     if (this.worker) {
       const msg: SetKeyMessage = {
         kind: 'setKey',
@@ -59,14 +66,14 @@ export class E2EEManager {
     }
   }
 
-  setupE2EEReceiver(track: RemoteTrack, participant: RemoteParticipant) {
+  setupE2EEReceiver(track: RemoteTrack) {
     if (!track.receiver) {
       return;
     }
-    this.handleReceiver(track.receiver, participant.identity);
+    this.handleReceiver(track.receiver);
   }
 
-  setupE2EESender(track: Track, sender: RTCRtpSender, localId: string) {
+  setupE2EESender(track: Track, sender: RTCRtpSender, localId?: string) {
     if (!(track instanceof LocalTrack) || !sender) {
       return;
     }
@@ -78,7 +85,7 @@ export class E2EEManager {
    * a frame decoder.
    *
    */
-  handleReceiver(receiver: RTCRtpReceiver, participantId: string) {
+  handleReceiver(receiver: RTCRtpReceiver, participantId?: string) {
     if (e2eeFlag in receiver || !this.worker) {
       return;
     }
@@ -112,7 +119,7 @@ export class E2EEManager {
    * a frame encoder.
    *
    */
-  handleSender(sender: RTCRtpSender, participantId: string) {
+  handleSender(sender: RTCRtpSender, participantId?: string) {
     if (e2eeFlag in sender || !this.worker) {
       return;
     }

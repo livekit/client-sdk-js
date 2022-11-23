@@ -4,10 +4,10 @@
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
-  "module": "./dist/livekit-client.esm.mjs",
+  "module": "./dist/livekit-client.mjs",
   "exports": {
     "types": "./dist/src/index.d.ts",
-    "import": "./dist/livekit-client.esm.mjs",
+    "import": "./dist/livekit-client.mjs",
     "require": "./dist/livekit-client.umd.js"
   },
   "files": [
@@ -26,7 +26,7 @@
   "author": "David Zhao <david@davidzhao.com>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rollup --config && yarn downlevel-dts",
+    "build": "vite build && tsc --emitDeclarationOnly && yarn downlevel-dts",
     "build:watch": "rollup --watch --config rollup.config.js",
     "build-docs": "typedoc",
     "proto": "protoc --plugin=node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_opt=esModuleInterop=true --ts_proto_out=./src/proto --ts_proto_opt=outputClientImpl=false,useOptionals=messages,oneof=unions -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
@@ -80,6 +80,7 @@
     "rollup-plugin-terser": "7.0.2",
     "rollup-plugin-typescript2": "0.34.1",
     "rollup-plugin-web-worker-loader": "^1.6.1",
+    "terser": "^5.15.1",
     "ts-jest": "29.0.3",
     "ts-proto": "1.131.0",
     "typedoc": "0.23.20",

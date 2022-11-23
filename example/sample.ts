@@ -118,7 +118,7 @@ const appActions = {
     if (e2eeKey) {
       const e2ee = new E2EEManager(room);
       e2ee.setEnabled(true);
-      e2ee.setKey('lk-local-id', Uint8Array.from(JSON.parse(e2eeKey)));
+      e2ee.setKey(undefined, Uint8Array.from(JSON.parse(e2eeKey)), 0);
     }
     startTime = Date.now();
     await room.prepareConnection(url);

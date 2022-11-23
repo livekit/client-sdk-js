@@ -19,21 +19,15 @@ export class Cryptor {
 
   private cryptoKeyRing: Array<KeySet>;
 
-  private sharedKeyRing: Array<CryptoKey>;
-
   private sendCounts: Map<number, number>;
 
-  private sharedKey = false;
+  private sharedKey: boolean | undefined;
 
-  private get currentKey() {
-    return this.cryptoKeyRing[this.currentKeyIndex];
-  }
-
-  constructor() {
+  constructor(opts?: { sharedKey?: boolean }) {
     this.currentKeyIndex = 0;
     this.cryptoKeyRing = new Array(KEYRING_SIZE);
-    this.sharedKeyRing = new Array(KEYRING_SIZE);
     this.sendCounts = new Map();
+    this.sharedKey = opts?.sharedKey;
   }
 
   async setKey(key: CryptoKey | Uint8Array, keyIndex = -1) {
@@ -59,7 +53,8 @@ export class Cryptor {
       this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
     }
     if (keys instanceof CryptoKey) {
-      this.sharedKeyRing[this.currentKeyIndex] = keys;
+      // this is the path for sharedKey = true
+      this.cryptoKeyRing[this.currentKeyIndex] = { encryptionKey: keys };
     } else {
       this.cryptoKeyRing[this.currentKeyIndex] = keys;
     }
@@ -95,7 +90,9 @@ export class Cryptor {
   ) {
     const keyIndex = this.currentKeyIndex;
 
-    if (this.cryptoKeyRing[keyIndex]) {
+    const encryptionKey = this.cryptoKeyRing[keyIndex]?.encryptionKey;
+
+    if (encryptionKey) {
       console.log(
         'iv meta',
         encodedFrame.getMetadata().synchronizationSource,
@@ -130,7 +127,7 @@ export class Cryptor {
             iv,
             additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
           },
-          this.cryptoKeyRing[keyIndex].cryptoKey,
+          encryptionKey,
           new Uint8Array(encodedFrame.data, getHeaderBytes(encodedFrame)),
         )
         .then(
@@ -201,8 +198,7 @@ export class Cryptor {
     initialKey: KeySet | undefined = undefined,
     ratchetCount: number = 0,
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
-    const { cryptoKey: encryptionKey } = this.cryptoKeyRing[keyIndex];
-    let { material } = this.cryptoKeyRing[keyIndex];
+    const encryptionKey = this.cryptoKeyRing[keyIndex].encryptionKey;
 
     // Construct frame trailer. Similar to the frame header described in
     // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -248,7 +244,9 @@ export class Cryptor {
 
       return encodedFrame;
     } catch (error) {
-      if (this.sharedKey) {
+      let { material } = this.cryptoKeyRing[keyIndex];
+
+      if (this.sharedKey || !material) {
         return;
       }
 
