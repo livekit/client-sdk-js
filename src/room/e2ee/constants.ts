@@ -3,7 +3,7 @@ export const ENCRYPTION_ALGORITHM = 'AES-GCM';
 // We use a ringbuffer of keys so we can change them and still decode packets that were
 // encrypted with an old key. We use a size of 16 which corresponds to the four bits
 // in the frame trailer.
-export const KEYRING_SIZE = 1;
+export const KEYRING_SIZE = 16;
 
 // We copy the first bytes of the VP8 payload unencrypted.
 // For keyframes this is 10 bytes, for non-keyframes (delta) 3. See
@@ -28,5 +28,7 @@ export const IV_LENGTH = 12;
 
 export const RATCHET_WINDOW_SIZE = 8;
 
+export const RATCHET_SALT = 'LKFrameEncryptionKey';
+
 // flag set to indicate that e2ee has been setup for sender/receiver;
-export const e2eeFlag = 'lk_e2ee';
+export const E2EE_FLAG = 'lk_e2ee';

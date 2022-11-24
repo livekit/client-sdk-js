@@ -14,7 +14,7 @@ export interface SetKeyMessage extends BaseMessage {
   kind: 'setKey';
   payload: {
     participantId?: string;
-    key: CryptoKey | Uint8Array;
+    key: Uint8Array;
     keyIndex?: number;
   };
 }

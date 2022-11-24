@@ -1,3 +1,4 @@
+import { RATCHET_SALT } from './constants';
 import type { KeySet } from './types';
 
 export function supportsE2EE() {
@@ -41,7 +42,7 @@ export async function deriveKeys(material: CryptoKey): Promise<KeySet> {
   const encryptionKey = await crypto.subtle.deriveKey(
     {
       name: 'HKDF',
-      salt: textEncoder.encode('JFrameEncryptionKey'),
+      salt: textEncoder.encode(RATCHET_SALT),
       hash: 'SHA-256',
       info,
     },
@@ -71,7 +72,7 @@ export async function ratchet(material: CryptoKey): Promise<ArrayBuffer> {
   return crypto.subtle.deriveBits(
     {
       name: 'HKDF',
-      salt: textEncoder.encode('JFrameRatchetKey'),
+      salt: textEncoder.encode(RATCHET_SALT),
       hash: 'SHA-256',
       info: new ArrayBuffer(256),
     },

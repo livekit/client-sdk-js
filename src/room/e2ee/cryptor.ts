@@ -10,11 +10,23 @@ import {
 import type { KeySet } from './types';
 import { deriveKeys, importKey, isVideoFrame, ratchet } from './utils';
 
+export abstract class BaseCryptor {
+  abstract setKey(key: Uint8Array, keyIndex?: number): Promise<void>;
+  abstract encodeFunction(
+    encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+    controller: TransformStreamDefaultController,
+  ): Promise<any>;
+  abstract decodeFunction(
+    encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+    controller: TransformStreamDefaultController,
+  ): Promise<any>;
+}
+
 /**
  * Per-participant cipher holding the cryptographic keys and
  * encode/decode functions
  */
-export class Cryptor {
+export class Cryptor extends BaseCryptor {
   private currentKeyIndex: number;
 
   private cryptoKeyRing: Array<KeySet>;
@@ -24,17 +36,27 @@ export class Cryptor {
   private sharedKey: boolean | undefined;
 
   constructor(opts?: { sharedKey?: boolean }) {
+    super();
     this.currentKeyIndex = 0;
     this.cryptoKeyRing = new Array(KEYRING_SIZE);
     this.sendCounts = new Map();
     this.sharedKey = opts?.sharedKey;
   }
 
-  async setKey(key: CryptoKey | Uint8Array, keyIndex = -1) {
+  async setKey(key: Uint8Array, keyIndex = -1) {
     if (key) {
       let newKey: CryptoKey | KeySet;
-      if (key instanceof CryptoKey) {
-        newKey = key;
+      if (this.sharedKey) {
+        newKey = await crypto.subtle.importKey(
+          'raw',
+          key,
+          {
+            name: ENCRYPTION_ALGORITHM,
+            length: 256,
+          },
+          false,
+          ['encrypt', 'decrypt'],
+        );
       } else {
         const material = await importKey(key);
         newKey = await deriveKeys(material);
@@ -84,7 +106,7 @@ export class Cryptor {
    * 8) Append a single byte for the key identifier.
    * 9) Enqueue the encrypted frame for sending.
    */
-  encodeFunction(
+  async encodeFunction(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {

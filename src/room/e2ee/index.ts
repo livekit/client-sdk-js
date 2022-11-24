@@ -1,30 +1,39 @@
-import { e2eeFlag } from './constants';
+import { E2EE_FLAG } from './constants';
 import log from '../../logger';
 import type { EncodeMessage, InitMessage, SetKeyMessage } from './types';
 // eslint-disable-next-line import/extensions
 // @ts-ignore
-import WebWorker from './e2ee.worker.js?worker';
+import WebWorkerURL from './e2ee.worker.js?worker&url';
 import { supportsScriptTransform } from './utils';
 import type Room from '../Room';
 import { ParticipantEvent, RoomEvent } from '../events';
 import type RemoteTrack from '../track/RemoteTrack';
 import type { Track } from '../track/Track';
 import LocalTrack from '../track/LocalTrack';
+import type { KeyProvider } from './keyProvider';
 
 export async function createE2EEKey(): Promise<Uint8Array> {
   return window.crypto.getRandomValues(new Uint8Array(32));
 }
 
-export class E2EEManager {
+export class E2EEManager<T extends KeyProvider> {
   private worker?: Worker;
 
   private room: Room;
 
+  private webWorkerUrl = new URL(WebWorkerURL, import.meta.url);
+
+  private workerAsModule = true;
+
   key?: CryptoKey | Uint8Array;
 
-  constructor(room: Room) {
+  constructor(room: Room, webWorkerUrl?: URL, workerAsModule: boolean = true) {
     this.room = room;
     this.setupEventListeners();
+    if (webWorkerUrl) {
+      this.webWorkerUrl = webWorkerUrl;
+    }
+    this.workerAsModule = workerAsModule;
   }
 
   private setupEventListeners() {
@@ -39,7 +48,9 @@ export class E2EEManager {
   setEnabled(enabled: boolean) {
     log.info(`set e2ee to ${enabled}`);
     if (enabled && !this.worker) {
-      this.worker = new WebWorker();
+      this.worker = new Worker(this.webWorkerUrl, {
+        type: this.workerAsModule ? 'module' : 'classic',
+      });
       const msg: InitMessage = {
         kind: 'init',
         payload: {
@@ -52,7 +63,7 @@ export class E2EEManager {
     }
   }
 
-  setKey(participantId: string | undefined, key: CryptoKey | Uint8Array, keyIndex?: number) {
+  setKey(participantId: string | undefined, key: Uint8Array, keyIndex?: number) {
     if (this.worker) {
       const msg: SetKeyMessage = {
         kind: 'setKey',
@@ -86,11 +97,11 @@ export class E2EEManager {
    *
    */
   handleReceiver(receiver: RTCRtpReceiver, participantId?: string) {
-    if (e2eeFlag in receiver || !this.worker) {
+    if (E2EE_FLAG in receiver || !this.worker) {
       return;
     }
     // @ts-ignore
-    receiver[e2eeFlag] = true;
+    receiver[E2EE_FLAG] = true;
 
     if (supportsScriptTransform()) {
       const options = {
@@ -120,11 +131,11 @@ export class E2EEManager {
    *
    */
   handleSender(sender: RTCRtpSender, participantId?: string) {
-    if (e2eeFlag in sender || !this.worker) {
+    if (E2EE_FLAG in sender || !this.worker) {
       return;
     }
     // @ts-ignore
-    sender[e2eeFlag] = true;
+    sender[E2EE_FLAG] = true;
 
     if (supportsScriptTransform()) {
       console.warn('initialize script transform');
