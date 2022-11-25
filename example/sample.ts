@@ -3,6 +3,7 @@ import {
   ConnectionState,
   DataPacket_Kind,
   DisconnectReason,
+  LocalAudioTrack,
   LocalParticipant,
   LogLevel,
   MediaDeviceFailure,
@@ -112,7 +113,16 @@ const appActions = {
       .on(RoomEvent.Reconnected, () => {
         appendLog('Successfully reconnected. server', room.engine.connectedServerAddress);
       })
-      .on(RoomEvent.LocalTrackPublished, () => {
+      .on(RoomEvent.LocalTrackPublished, (pub) => {
+        const track = pub.track as LocalAudioTrack;
+
+        if (track instanceof LocalAudioTrack) {
+          const { calculateVolume } = track.createVolumeAnalyser();
+
+          setInterval(() => {
+            console.log(calculateVolume());
+          }, 200);
+        }
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
         renderScreenShare(room);

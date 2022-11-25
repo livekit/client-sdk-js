@@ -5,7 +5,7 @@ import { isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import type { AudioCaptureOptions } from './options';
 import { Track } from './Track';
-import { constraintsForOptions, detectSilence } from './utils';
+import { constraintsForOptions, detectSilence, getNewAudioContext } from './utils';
 
 export default class LocalAudioTrack extends LocalTrack {
   /** @internal */
@@ -146,5 +146,34 @@ export default class LocalAudioTrack extends LocalTrack {
       }
       this.emit(TrackEvent.AudioSilenceDetected);
     }
+  }
+
+  createVolumeAnalyser(bufferLength: number = 2048, smoothingTimeConstant: number = 0.8) {
+    const audioContext = getNewAudioContext();
+
+    if (!audioContext) {
+      throw new Error('Audio Context not supported on this browser');
+    }
+    const mediaStreamSource = audioContext.createMediaStreamSource(
+      new MediaStream([this._mediaStreamTrack]),
+    );
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = bufferLength;
+    analyser.smoothingTimeConstant = smoothingTimeConstant;
+
+    mediaStreamSource.connect(analyser);
+    const dataArray = new Uint8Array(bufferLength);
+
+    const calculateVolume = () => {
+      analyser.getByteFrequencyData(dataArray);
+      let sum = 0;
+      for (const amplitude of dataArray) {
+        sum += amplitude * amplitude;
+      }
+      const volume = Math.sqrt(sum / dataArray.length);
+      return volume;
+    };
+
+    return { calculateVolume, analyser };
   }
 }

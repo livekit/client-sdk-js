@@ -8,7 +8,7 @@ import type { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
 
 export default class LocalTrackPublication extends TrackPublication {
-  track?: LocalTrack = undefined;
+  track?: LocalAudioTrack | LocalVideoTrack = undefined;
 
   options?: TrackPublishOptions;
 
