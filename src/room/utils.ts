@@ -279,6 +279,9 @@ export function createAudioAnalyser(
   mediaStreamSource.connect(analyser);
   const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
+  /**
+   * Calculates the current volume of the track in the range from 0 to 1
+   */
   const calculateVolume = () => {
     analyser.getByteFrequencyData(dataArray);
     let sum = 0;
