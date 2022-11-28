@@ -24,7 +24,6 @@ import {
   VideoCodec,
   VideoPresets,
   VideoQuality,
-  RemoteAudioTrack,
 } from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
