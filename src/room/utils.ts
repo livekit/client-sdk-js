@@ -1,7 +1,7 @@
 import UAParser from 'ua-parser-js';
 import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models';
 import { protocolVersion, version } from '../version';
-import LocalAudioTrack from './track/LocalAudioTrack';
+import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
 import { getNewAudioContext } from './track/utils';
 
