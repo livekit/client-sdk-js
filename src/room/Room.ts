@@ -404,7 +404,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     // close engine (also closes client)
     if (this.engine) {
-      this.engine.close();
+      await this.engine.close();
     }
     this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
     /* @ts-ignore */
@@ -440,12 +440,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /**
    * @internal for testing
    */
-  simulateScenario(scenario: string) {
+  async simulateScenario(scenario: string) {
     let postAction = () => {};
     let req: SimulateScenario | undefined;
     switch (scenario) {
       case 'signal-reconnect':
-        this.engine.client.close();
+        await this.engine.client.close();
         if (this.engine.client.onClose) {
           this.engine.client.onClose('simulate disconnect');
         }
@@ -508,8 +508,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private onBeforeUnload = () => {
-    this.disconnect();
+  private onBeforeUnload = async () => {
+    await this.disconnect();
   };
 
   /**

@@ -179,7 +179,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  close() {
+  async close() {
     this._isClosed = true;
     this.removeAllListeners();
     this.deregisterOnLineListener();
@@ -202,7 +202,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.subscriber.close();
       this.subscriber = undefined;
     }
-    this.client.close();
+    await this.client.close();
   }
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {
@@ -784,9 +784,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (this.client.isConnected) {
-      this.client.sendLeave();
+      await this.client.sendLeave();
     }
-    this.client.close();
+    await this.client.close();
     this.primaryPC = undefined;
     this.publisher?.close();
     this.publisher = undefined;
