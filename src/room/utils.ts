@@ -247,6 +247,11 @@ type AudioAnalyserOptions = {
   maxDecibels?: number;
 };
 
+/**
+ * Creates and returns an analyser web audio node that is attached to the provided track.
+ * Additionally returns a convenience method `calculateVolume` to perform instant volume readings on that track.
+ * Call the returned `cleanup` function to close the audioContext that has been created for the instance of this helper
+ */
 export function createAudioAnalyser(
   track: LocalAudioTrack | RemoteAudioTrack,
   options?: AudioAnalyserOptions,
