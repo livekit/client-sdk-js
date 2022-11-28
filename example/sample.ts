@@ -1,6 +1,7 @@
 import {
   ConnectionQuality,
   ConnectionState,
+  createAudioAnalyser,
   DataPacket_Kind,
   DisconnectReason,
   LocalAudioTrack,
@@ -23,6 +24,7 @@ import {
   VideoCodec,
   VideoPresets,
   VideoQuality,
+  RemoteAudioTrack,
 } from '../src/index';
 
 const $ = (id: string) => document.getElementById(id);
@@ -117,7 +119,7 @@ const appActions = {
         const track = pub.track as LocalAudioTrack;
 
         if (track instanceof LocalAudioTrack) {
-          const { calculateVolume } = track.createVolumeAnalyser();
+          const { calculateVolume } = createAudioAnalyser(track);
 
           setInterval(() => {
             console.log(calculateVolume());
@@ -153,7 +155,7 @@ const appActions = {
           appendLog('connection quality changed', participant?.identity, quality);
         },
       )
-      .on(RoomEvent.TrackSubscribed, (_1, pub, participant) => {
+      .on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
         appendLog('subscribed to track', pub.trackSid, participant.identity);
         renderParticipant(participant);
         renderScreenShare(room);

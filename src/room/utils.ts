@@ -1,6 +1,9 @@
 import UAParser from 'ua-parser-js';
 import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models';
 import { protocolVersion, version } from '../version';
+import LocalAudioTrack from './track/LocalAudioTrack';
+import type RemoteAudioTrack from './track/RemoteAudioTrack';
+import { getNewAudioContext } from './track/utils';
 
 const separator = '|';
 
@@ -235,4 +238,55 @@ export class Future<T> {
       }
     }).finally(() => this.onFinally?.());
   }
+}
+
+type AudioAnalyserOptions = {
+  bufferLength?: number;
+  smoothingTimeConstant?: number;
+  minDecibels?: number;
+  maxDecibels?: number;
+};
+
+export function createAudioAnalyser(
+  track: LocalAudioTrack | RemoteAudioTrack,
+  options?: AudioAnalyserOptions,
+) {
+  const opts = {
+    bufferLength: 2048,
+    smoothingTimeConstant: 0.8,
+    minDecibels: -100,
+    maxDecibels: -80,
+    ...options,
+  };
+  const audioContext = getNewAudioContext();
+
+  if (!audioContext) {
+    throw new Error('Audio Context not supported on this browser');
+  }
+  const mediaStreamSource = audioContext.createMediaStreamSource(
+    new MediaStream([track.mediaStreamTrack]),
+  );
+  const analyser = audioContext.createAnalyser();
+  analyser.minDecibels = opts.minDecibels;
+  analyser.fftSize = opts.bufferLength;
+  analyser.smoothingTimeConstant = opts.smoothingTimeConstant;
+
+  mediaStreamSource.connect(analyser);
+  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+  const calculateVolume = () => {
+    analyser.getByteFrequencyData(dataArray);
+    let sum = 0;
+    for (const amplitude of dataArray) {
+      sum += Math.pow(amplitude / 255, 2);
+    }
+    const volume = Math.sqrt(sum / dataArray.length);
+    return volume;
+  };
+
+  const cleanup = () => {
+    audioContext.close();
+  };
+
+  return { calculateVolume, analyser, cleanup };
 }
