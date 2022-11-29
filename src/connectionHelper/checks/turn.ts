@@ -37,7 +37,7 @@ export class TURNCheck extends Checker {
     } else if (hasTURN && !hasTLS) {
       this.appendWarning('TURN is configured server side, but TURN/TLS is unavailable.');
     }
-    signalClient.close();
+    await signalClient.close();
     if (this.connectOptions?.rtcConfig?.iceServers || hasTURN) {
       await this.room!.connect(this.url, this.token, {
         rtcConfig: {

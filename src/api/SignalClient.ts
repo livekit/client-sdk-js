@@ -301,13 +301,33 @@ export class SignalClient {
     });
   }
 
-  close() {
+  async close() {
     this.isConnected = false;
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.onmessage = null;
       this.ws.onopen = null;
+
+      const emptyBufferPromise = new Promise(async (resolve) => {
+        while (this.ws && this.ws.bufferedAmount > 0) {
+          await sleep(50);
+        }
+        resolve(true);
+      });
+      // 250ms grace period for buffer to be cleared
+      await Promise.race([emptyBufferPromise, sleep(250)]);
+
+      let closeResolver: (args: any) => void;
+      const closePromise = new Promise((resolve) => {
+        closeResolver = resolve;
+      });
+
+      // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
+      this.ws.onclose = () => closeResolver(true);
+
       this.ws.close();
+      // 250ms grace period for ws to close gracefully
+      await Promise.race([closePromise, sleep(250)]);
     }
     this.ws = undefined;
     this.clearPingInterval();

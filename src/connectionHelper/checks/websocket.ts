@@ -17,6 +17,6 @@ export class WebSocketCheck extends Checker {
       maxRetries: 0,
     });
     this.appendMessage(`Connected to server, version ${joinRes.serverVersion}.`);
-    signalClient.close();
+    await signalClient.close();
   }
 }
