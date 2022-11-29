@@ -72,6 +72,7 @@ const appActions = {
         simulcast,
         videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
         videoCodec: preferredCodec || 'vp8',
+        stopMicTrackOnMute: false,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -121,7 +122,7 @@ const appActions = {
           const { calculateVolume } = createAudioAnalyser(track);
 
           setInterval(() => {
-            console.log(calculateVolume());
+            $('local-volume')?.setAttribute('value', calculateVolume().toFixed(4));
           }, 200);
         }
         renderParticipant(room.localParticipant);
@@ -475,10 +476,11 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         </div>
       </div>
       ${
-        participant instanceof RemoteParticipant &&
-        `<div class="volume-control">
+        participant instanceof RemoteParticipant
+          ? `<div class="volume-control">
         <input id="volume-${identity}" type="range" min="0" max="1" step="0.1" value="1" orient="vertical" />
       </div>`
+          : `<progress id="local-volume" max="1" value="0" />`
       }
 
     `;

@@ -240,10 +240,28 @@ export class Future<T> {
   }
 }
 
-type AudioAnalyserOptions = {
-  bufferLength?: number;
+export type AudioAnalyserOptions = {
+  /**
+   * If set to true, the analyser will use a cloned version of the underlying mediastreamtrack, which won't be impacted by muting the track.
+   * Useful for local tracks when implementing things like "seems like you're muted, but trying to speak".
+   * Defaults to false
+   */
+  cloneTrack?: boolean;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/fftSize
+   */
+  fftSize?: number;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/smoothingTimeConstant
+   */
   smoothingTimeConstant?: number;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/minDecibels
+   */
   minDecibels?: number;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/maxDecibels
+   */
   maxDecibels?: number;
 };
 
@@ -257,7 +275,8 @@ export function createAudioAnalyser(
   options?: AudioAnalyserOptions,
 ) {
   const opts = {
-    bufferLength: 2048,
+    cloneTrack: false,
+    fftSize: 2048,
     smoothingTimeConstant: 0.8,
     minDecibels: -100,
     maxDecibels: -80,
@@ -268,12 +287,11 @@ export function createAudioAnalyser(
   if (!audioContext) {
     throw new Error('Audio Context not supported on this browser');
   }
-  const mediaStreamSource = audioContext.createMediaStreamSource(
-    new MediaStream([track.mediaStreamTrack]),
-  );
+  const streamTrack = opts.cloneTrack ? track.mediaStreamTrack.clone() : track.mediaStreamTrack;
+  const mediaStreamSource = audioContext.createMediaStreamSource(new MediaStream([streamTrack]));
   const analyser = audioContext.createAnalyser();
   analyser.minDecibels = opts.minDecibels;
-  analyser.fftSize = opts.bufferLength;
+  analyser.fftSize = opts.fftSize;
   analyser.smoothingTimeConstant = opts.smoothingTimeConstant;
 
   mediaStreamSource.connect(analyser);
@@ -294,6 +312,9 @@ export function createAudioAnalyser(
 
   const cleanup = () => {
     audioContext.close();
+    if (opts.cloneTrack) {
+      streamTrack.stop();
+    }
   };
 
   return { calculateVolume, analyser, cleanup };

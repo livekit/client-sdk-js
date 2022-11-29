@@ -26,6 +26,8 @@ import {
   createAudioAnalyser,
 } from './room/utils';
 
+import type { AudioAnalyserOptions } from './room/utils';
+
 export * from './options';
 export * from './room/errors';
 export * from './room/events';
@@ -45,6 +47,7 @@ export {
   supportsDynacast,
   supportsAV1,
   createAudioAnalyser,
+  AudioAnalyserOptions,
   LogLevel,
   Room,
   ConnectionState,
