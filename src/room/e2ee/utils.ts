@@ -1,4 +1,4 @@
-import { RATCHET_SALT } from './constants';
+import { ENCRYPTION_ALGORITHM, RATCHET_SALT } from './constants';
 import type { KeySet } from './types';
 
 export function supportsE2EE() {
@@ -48,7 +48,7 @@ export async function deriveKeys(material: CryptoKey): Promise<KeySet> {
     },
     material,
     {
-      name: 'AES-GCM',
+      name: ENCRYPTION_ALGORITHM,
       length: 128,
     },
     false,

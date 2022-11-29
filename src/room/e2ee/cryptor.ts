@@ -248,7 +248,7 @@ export class Cryptor extends BaseCryptor {
 
       const plainText = await crypto.subtle.decrypt(
         {
-          name: 'AES-GCM',
+          name: ENCRYPTION_ALGORITHM,
           iv,
           additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
         },
