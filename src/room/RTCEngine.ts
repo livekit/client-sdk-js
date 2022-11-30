@@ -335,7 +335,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const shouldEmit = this.pcState === PCState.New;
         this.pcState = PCState.Connected;
         if (shouldEmit) {
-          this.emit(EngineEvent.Connected);
+          this.emit(EngineEvent.Connected, joinResponse);
         }
       } else if (primaryPC.connectionState === 'failed') {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
@@ -1040,7 +1040,7 @@ async function getConnectedAddress(pc: RTCPeerConnection): Promise<string | unde
 class SignalReconnectError extends Error {}
 
 export type EngineEventCallbacks = {
-  connected: () => void;
+  connected: (joinResp: JoinResponse) => void;
   disconnected: (reason?: DisconnectReason) => void;
   resuming: () => void;
   resumed: () => void;
