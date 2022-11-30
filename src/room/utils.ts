@@ -1,6 +1,9 @@
 import UAParser from 'ua-parser-js';
 import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models';
 import { protocolVersion, version } from '../version';
+import type LocalAudioTrack from './track/LocalAudioTrack';
+import type RemoteAudioTrack from './track/RemoteAudioTrack';
+import { getNewAudioContext } from './track/utils';
 
 const separator = '|';
 
@@ -235,4 +238,84 @@ export class Future<T> {
       }
     }).finally(() => this.onFinally?.());
   }
+}
+
+export type AudioAnalyserOptions = {
+  /**
+   * If set to true, the analyser will use a cloned version of the underlying mediastreamtrack, which won't be impacted by muting the track.
+   * Useful for local tracks when implementing things like "seems like you're muted, but trying to speak".
+   * Defaults to false
+   */
+  cloneTrack?: boolean;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/fftSize
+   */
+  fftSize?: number;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/smoothingTimeConstant
+   */
+  smoothingTimeConstant?: number;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/minDecibels
+   */
+  minDecibels?: number;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/maxDecibels
+   */
+  maxDecibels?: number;
+};
+
+/**
+ * Creates and returns an analyser web audio node that is attached to the provided track.
+ * Additionally returns a convenience method `calculateVolume` to perform instant volume readings on that track.
+ * Call the returned `cleanup` function to close the audioContext that has been created for the instance of this helper
+ */
+export function createAudioAnalyser(
+  track: LocalAudioTrack | RemoteAudioTrack,
+  options?: AudioAnalyserOptions,
+) {
+  const opts = {
+    cloneTrack: false,
+    fftSize: 2048,
+    smoothingTimeConstant: 0.8,
+    minDecibels: -100,
+    maxDecibels: -80,
+    ...options,
+  };
+  const audioContext = getNewAudioContext();
+
+  if (!audioContext) {
+    throw new Error('Audio Context not supported on this browser');
+  }
+  const streamTrack = opts.cloneTrack ? track.mediaStreamTrack.clone() : track.mediaStreamTrack;
+  const mediaStreamSource = audioContext.createMediaStreamSource(new MediaStream([streamTrack]));
+  const analyser = audioContext.createAnalyser();
+  analyser.minDecibels = opts.minDecibels;
+  analyser.fftSize = opts.fftSize;
+  analyser.smoothingTimeConstant = opts.smoothingTimeConstant;
+
+  mediaStreamSource.connect(analyser);
+  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+  /**
+   * Calculates the current volume of the track in the range from 0 to 1
+   */
+  const calculateVolume = () => {
+    analyser.getByteFrequencyData(dataArray);
+    let sum = 0;
+    for (const amplitude of dataArray) {
+      sum += Math.pow(amplitude / 255, 2);
+    }
+    const volume = Math.sqrt(sum / dataArray.length);
+    return volume;
+  };
+
+  const cleanup = () => {
+    audioContext.close();
+    if (opts.cloneTrack) {
+      streamTrack.stop();
+    }
+  };
+
+  return { calculateVolume, analyser, cleanup };
 }

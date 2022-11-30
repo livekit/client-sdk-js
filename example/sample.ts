@@ -1,8 +1,10 @@
 import {
   ConnectionQuality,
   ConnectionState,
+  createAudioAnalyser,
   DataPacket_Kind,
   DisconnectReason,
+  LocalAudioTrack,
   LocalParticipant,
   LogLevel,
   MediaDeviceFailure,
@@ -112,7 +114,16 @@ const appActions = {
       .on(RoomEvent.Reconnected, () => {
         appendLog('Successfully reconnected. server', room.engine.connectedServerAddress);
       })
-      .on(RoomEvent.LocalTrackPublished, () => {
+      .on(RoomEvent.LocalTrackPublished, (pub) => {
+        const track = pub.track as LocalAudioTrack;
+
+        if (track instanceof LocalAudioTrack) {
+          const { calculateVolume } = createAudioAnalyser(track);
+
+          setInterval(() => {
+            $('local-volume')?.setAttribute('value', calculateVolume().toFixed(4));
+          }, 200);
+        }
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
         renderScreenShare(room);
@@ -143,7 +154,7 @@ const appActions = {
           appendLog('connection quality changed', participant?.identity, quality);
         },
       )
-      .on(RoomEvent.TrackSubscribed, (_1, pub, participant) => {
+      .on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
         appendLog('subscribed to track', pub.trackSid, participant.identity);
         renderParticipant(participant);
         renderScreenShare(room);
@@ -464,10 +475,11 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         </div>
       </div>
       ${
-        participant instanceof RemoteParticipant &&
-        `<div class="volume-control">
+        participant instanceof RemoteParticipant
+          ? `<div class="volume-control">
         <input id="volume-${identity}" type="range" min="0" max="1" step="0.1" value="1" orient="vertical" />
       </div>`
+          : `<progress id="local-volume" max="1" value="0" />`
       }
 
     `;
