@@ -291,6 +291,7 @@ export function createAudioAnalyser(
   const mediaStreamSource = audioContext.createMediaStreamSource(new MediaStream([streamTrack]));
   const analyser = audioContext.createAnalyser();
   analyser.minDecibels = opts.minDecibels;
+  analyser.maxDecibels = opts.maxDecibels;
   analyser.fftSize = opts.fftSize;
   analyser.smoothingTimeConstant = opts.smoothingTimeConstant;
 
