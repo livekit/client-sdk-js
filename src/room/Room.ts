@@ -347,7 +347,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           errorMessage = err.message;
           log.debug(`error trying to establish signal connection`, { error: err });
         }
-        reject(new ConnectionError(`could not establish signal connection ${errorMessage}`));
+        reject(new ConnectionError(`could not establish signal connection: ${errorMessage}`));
         return;
       }
 
