@@ -329,7 +329,8 @@ export class SignalClient {
       log.info('adding ws close listener');
       // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
       this.ws.addEventListener('close', () => closeResolver(true));
-      log.info('starting to close ws');
+      log.info(`starting to close ws: ${this.ws.readyState}`);
+      await sleep(200);
       this.ws.close();
       log.info('waiting for promise ws to close');
 
