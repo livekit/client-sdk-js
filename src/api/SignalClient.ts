@@ -331,7 +331,7 @@ export class SignalClient {
         const closePromise = new Promise((resolve) => {
           closeResolver = resolve;
         });
-        this.ws.onclose = () => closeResolver(true);
+        this.ws.addEventListener('close', closeResolver!);
         this.ws.close();
         log.info('waiting for promise ws to close');
         // 250ms grace period for ws to close gracefully
