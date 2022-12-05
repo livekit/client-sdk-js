@@ -50,7 +50,7 @@ import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
-import { Future, isWeb, supportsSetSinkId, unpackStreamId } from './utils';
+import { Future, isWeb, Mutex, supportsSetSinkId, unpackStreamId } from './utils';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -118,6 +118,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** future holding client initiated connection attempt */
   private connectFuture?: Future<void>;
 
+  private disconnectLock: Mutex;
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -143,6 +145,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     };
 
     this.maybeCreateEngine();
+
+    this.disconnectLock = new Mutex();
 
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
   }
@@ -394,26 +398,42 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
   disconnect = async (stopTracks = true) => {
-    log.info('disconnect from room', { identity: this.localParticipant.identity });
-    if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
-      // try aborting pending connection attempt
-      log.warn('abort connection attempt');
-      this.abortController?.abort();
-      // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
-      this.connectFuture?.reject?.(new ConnectionError('Client initiated disconnect'));
-      this.connectFuture = undefined;
+    const unlock = await this.disconnectLock.lock();
+    try {
+      if (this.state === ConnectionState.Disconnected) {
+        log.debug('already disconnected');
+        return;
+      }
+      log.info('disconnect from room', { identity: this.localParticipant.identity });
+      if (
+        this.state === ConnectionState.Connecting ||
+        this.state === ConnectionState.Reconnecting
+      ) {
+        // try aborting pending connection attempt
+        log.warn('abort connection attempt');
+        this.abortController?.abort();
+        // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
+        this.connectFuture?.reject?.(new ConnectionError('Client initiated disconnect'));
+        this.connectFuture = undefined;
+      }
+      // send leave
+      if (this.engine?.client.isConnected) {
+        await this.engine.client.sendLeave();
+      }
+      // close engine (also closes client)
+      if (this.engine) {
+        log.info(`closing engine ${this.localParticipant.identity}: ${this.localParticipant.sid}`);
+        await this.engine.close();
+        log.info(
+          `successfully closed engine ${this.localParticipant.identity}: ${this.localParticipant.sid}`,
+        );
+      }
+      this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
+      /* @ts-ignore */
+      this.engine = undefined;
+    } finally {
+      unlock();
     }
-    // send leave
-    if (this.engine?.client.isConnected) {
-      await this.engine.client.sendLeave();
-    }
-    // close engine (also closes client)
-    if (this.engine) {
-      await this.engine.close();
-    }
-    this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
-    /* @ts-ignore */
-    this.engine = undefined;
   };
 
   /**
