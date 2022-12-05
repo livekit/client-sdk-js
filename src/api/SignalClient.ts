@@ -317,15 +317,16 @@ export class SignalClient {
         }
         resolve(true);
       });
-      log.info('waiting for buffer to get cleared');
       // 250ms grace period for buffer to be cleared
       await Promise.race([emptyBufferPromise, sleep(250)]);
       log.info('buffer cleared');
+
       let closeResolver: (args: any) => void;
+      log.info('set up close resolver');
       const closePromise = new Promise((resolve) => {
         closeResolver = resolve;
       });
-
+      log.info('adding ws close listener');
       // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
       this.ws.addEventListener('close', () => closeResolver(true));
       log.info('starting to close ws');

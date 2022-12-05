@@ -415,9 +415,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         `successfully closed engine ${this.localParticipant.identity}: ${this.localParticipant.sid}`,
       );
     }
-    log.info(`handling disconnect ${this.localParticipant.identity}: ${this.localParticipant.sid}`);
     this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
-    log.info(`finished disconnect ${this.localParticipant.identity}: ${this.localParticipant.sid}`);
     /* @ts-ignore */
     this.engine = undefined;
   };
