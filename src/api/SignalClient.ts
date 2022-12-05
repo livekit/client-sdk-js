@@ -317,13 +317,14 @@ export class SignalClient {
         this.ws.onmessage = null;
         this.ws.onopen = null;
 
-        let closeResolver: (args: any) => void;
-        const closePromise = new Promise((resolve) => {
-          closeResolver = resolve;
-        });
-
         // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-        this.ws.onclose = () => closeResolver(true);
+        const closePromise = new Promise((resolve) => {
+          if (this.ws) {
+            this.ws.onclose = resolve;
+          } else {
+            resolve(true);
+          }
+        });
 
         this.ws.close();
         // 250ms grace period for ws to close gracefully
