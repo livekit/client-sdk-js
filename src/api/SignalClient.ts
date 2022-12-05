@@ -311,7 +311,6 @@ export class SignalClient {
       this.ws.onclose = null;
       this.ws.onmessage = null;
       this.ws.onopen = null;
-
       const emptyBufferPromise = new Promise(async (resolve) => {
         while (this.ws && this.ws.bufferedAmount > 0) {
           await sleep(50);
@@ -322,15 +321,14 @@ export class SignalClient {
       // 250ms grace period for buffer to be cleared
       await Promise.race([emptyBufferPromise, sleep(250)]);
       log.info('buffer cleared');
-
       let closeResolver: (args: any) => void;
       const closePromise = new Promise((resolve) => {
         closeResolver = resolve;
       });
 
       // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-      this.ws.onclose = () => closeResolver(true);
-
+      this.ws.addEventListener('close', () => closeResolver(true));
+      log.info('starting to close ws');
       this.ws.close();
       log.info('waiting for promise ws to close');
 
@@ -470,7 +468,7 @@ export class SignalClient {
     if (this.signalLatency) {
       await sleep(this.signalLatency);
     }
-    if (!this.ws || this.ws.readyState < this.ws.OPEN) {
+    if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
       log.error(`cannot send signal request before connected, type: ${message?.$case}`);
       return;
     }

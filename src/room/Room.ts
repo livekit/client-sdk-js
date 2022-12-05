@@ -405,11 +405,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     // send leave
     if (this.engine?.client.isConnected) {
-      log.info(`sending leave ${this.localParticipant.identity}: ${this.localParticipant.sid}`);
       await this.engine.client.sendLeave();
-      log.info(
-        `successfully sent leave ${this.localParticipant.identity}: ${this.localParticipant.sid}`,
-      );
     }
     // close engine (also closes client)
     if (this.engine) {
