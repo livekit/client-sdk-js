@@ -38,6 +38,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { Track } from './track/Track';
 import {
   isWeb,
+  Mutex,
   sleep,
   supportsAddTrack,
   supportsSetCodecPreferences,
@@ -130,12 +131,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** specifies how often an initial join connection is allowed to retry */
   private maxJoinAttempts: number = 1;
 
+  private closingLock: Mutex;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.client = new SignalClient();
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
     this.registerOnLineListener();
+    this.closingLock = new Mutex();
   }
 
   async join(
@@ -180,29 +184,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async close() {
-    this._isClosed = true;
-    this.removeAllListeners();
-    this.deregisterOnLineListener();
-    this.clearPendingReconnect();
-    if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
-      this.publisher.pc.getSenders().forEach((sender) => {
-        try {
-          // TODO: react-native-webrtc doesn't have removeTrack yet.
-          if (this.publisher?.pc.removeTrack) {
-            this.publisher?.pc.removeTrack(sender);
+    const unlock = await this.closingLock.lock();
+    try {
+      this._isClosed = true;
+      this.removeAllListeners();
+      this.deregisterOnLineListener();
+      this.clearPendingReconnect();
+      if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
+        this.publisher.pc.getSenders().forEach((sender) => {
+          try {
+            // TODO: react-native-webrtc doesn't have removeTrack yet.
+            if (this.publisher?.pc.removeTrack) {
+              this.publisher?.pc.removeTrack(sender);
+            }
+          } catch (e) {
+            log.warn('could not removeTrack', { error: e });
           }
-        } catch (e) {
-          log.warn('could not removeTrack', { error: e });
-        }
-      });
-      this.publisher.close();
-      this.publisher = undefined;
+        });
+        this.publisher.close();
+        this.publisher = undefined;
+      }
+      if (this.subscriber) {
+        this.subscriber.close();
+        this.subscriber = undefined;
+      }
+      await this.client.close();
+    } finally {
+      unlock();
     }
-    if (this.subscriber) {
-      this.subscriber.close();
-      this.subscriber = undefined;
-    }
-    await this.client.close();
   }
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {

@@ -30,7 +30,7 @@ import {
   UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
-import { getClientInfo, sleep } from '../room/utils';
+import { getClientInfo, Mutex, sleep } from '../room/utils';
 
 // internal options
 interface ConnectOpts {
@@ -139,12 +139,15 @@ export class SignalClient {
 
   private pingInterval: ReturnType<typeof setInterval> | undefined;
 
+  private closingLock: Mutex;
+
   constructor(useJSON: boolean = false) {
     this.isConnected = false;
     this.isReconnecting = false;
     this.useJSON = useJSON;
     this.requestQueue = new Queue();
     this.queuedRequests = [];
+    this.closingLock = new Mutex();
   }
 
   async join(
@@ -306,41 +309,46 @@ export class SignalClient {
   }
 
   async close() {
-    this.isConnected = false;
-    if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
-      this.ws.onmessage = null;
-      this.ws.onopen = null;
-      this.ws.onclose = null;
-
-      const emptyBufferPromise = new Promise(async (resolve) => {
-        while (this.ws && this.ws.bufferedAmount > 0) {
-          await sleep(50);
-        }
-        resolve(true);
-      });
-      // 250ms grace period for buffer to be cleared
-      await Promise.race([emptyBufferPromise, sleep(250)]);
-      log.info('buffer cleared');
-
-      // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-      log.info(`starting to close ws: ${this.ws.readyState}`);
-      // while waiting for the buffer to get cleared, ws could have entered closed state already, skip closing in this case
+    const unlock = await this.closingLock.lock();
+    try {
+      this.isConnected = false;
       if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
-        let closeResolver: (args: any) => void;
-        log.info('set up close resolver');
-        const closePromise = new Promise((resolve) => {
-          closeResolver = resolve;
+        this.ws.onmessage = null;
+        this.ws.onopen = null;
+        this.ws.onclose = null;
+
+        const emptyBufferPromise = new Promise(async (resolve) => {
+          while (this.ws && this.ws.bufferedAmount > 0) {
+            await sleep(50);
+          }
+          resolve(true);
         });
-        this.ws.addEventListener('close', closeResolver!);
-        this.ws.close();
-        log.info('waiting for promise ws to close');
-        // 250ms grace period for ws to close gracefully
-        await Promise.race([closePromise, sleep(250)]);
+        // 250ms grace period for buffer to be cleared
+        await Promise.race([emptyBufferPromise, sleep(250)]);
+        log.info('buffer cleared');
+
+        // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
+        log.info(`starting to close ws: ${this.ws.readyState}`);
+        // while waiting for the buffer to get cleared, ws could have entered closed state already, skip closing in this case
+        if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+          let closeResolver: (args: any) => void;
+          log.info('set up close resolver');
+          const closePromise = new Promise((resolve) => {
+            closeResolver = resolve;
+          });
+          this.ws.addEventListener('close', closeResolver!);
+          this.ws.close();
+          log.info('waiting for promise ws to close');
+          // 250ms grace period for ws to close gracefully
+          await Promise.race([closePromise, sleep(250)]);
+        }
+        log.info('ws closed');
       }
-      log.info('ws closed');
+      this.ws = undefined;
+      this.clearPingInterval();
+    } finally {
+      unlock();
     }
-    this.ws = undefined;
-    this.clearPingInterval();
   }
 
   // initial offer after joining
