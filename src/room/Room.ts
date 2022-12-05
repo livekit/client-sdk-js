@@ -417,7 +417,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
     /* @ts-ignore */
-    this.engine = undefined;
+    // this.engine = undefined;
   };
 
   /**
