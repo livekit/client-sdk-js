@@ -317,15 +317,6 @@ export class SignalClient {
         this.ws.onmessage = null;
         this.ws.onopen = null;
 
-        const emptyBufferPromise = new Promise(async (resolve) => {
-          while (this.ws && this.ws.bufferedAmount > 0) {
-            await sleep(50);
-          }
-          resolve(true);
-        });
-        // 250ms grace period for buffer to be cleared
-        await Promise.race([emptyBufferPromise, sleep(250)]);
-
         let closeResolver: (args: any) => void;
         const closePromise = new Promise((resolve) => {
           closeResolver = resolve;
