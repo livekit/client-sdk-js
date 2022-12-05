@@ -405,13 +405,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     // send leave
     if (this.engine?.client.isConnected) {
+      log.info(`sending leave ${this.localParticipant.identity}: ${this.localParticipant.sid}`);
       await this.engine.client.sendLeave();
+      log.info(
+        `successfully sent leave ${this.localParticipant.identity}: ${this.localParticipant.sid}`,
+      );
     }
     // close engine (also closes client)
     if (this.engine) {
+      log.info(`closing engine ${this.localParticipant.identity}: ${this.localParticipant.sid}`);
       await this.engine.close();
+      log.info(
+        `successfully closed engine ${this.localParticipant.identity}: ${this.localParticipant.sid}`,
+      );
     }
+    log.info(`handling disconnect ${this.localParticipant.identity}: ${this.localParticipant.sid}`);
     this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
+    log.info(`finished disconnect ${this.localParticipant.identity}: ${this.localParticipant.sid}`);
     /* @ts-ignore */
     this.engine = undefined;
   };
