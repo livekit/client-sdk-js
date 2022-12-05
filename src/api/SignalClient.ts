@@ -310,13 +310,7 @@ export class SignalClient {
     if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
       this.ws.onmessage = null;
       this.ws.onopen = null;
-
-      let closeResolver: (args: any) => void;
-      log.info('set up close resolver');
-      const closePromise = new Promise((resolve) => {
-        closeResolver = resolve;
-      });
-      this.ws.onclose = () => closeResolver(true);
+      this.ws.onclose = null;
 
       const emptyBufferPromise = new Promise(async (resolve) => {
         while (this.ws && this.ws.bufferedAmount > 0) {
@@ -330,11 +324,19 @@ export class SignalClient {
 
       // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
       log.info(`starting to close ws: ${this.ws.readyState}`);
-      this.ws.close();
-      log.info('waiting for promise ws to close');
-
-      // 250ms grace period for ws to close gracefully
-      await Promise.race([closePromise, sleep(250)]);
+      // while waiting for the buffer to get cleared, ws could have entered closed state already, skip closing in this case
+      if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+        let closeResolver: (args: any) => void;
+        log.info('set up close resolver');
+        const closePromise = new Promise((resolve) => {
+          closeResolver = resolve;
+        });
+        this.ws.onclose = () => closeResolver(true);
+        this.ws.close();
+        log.info('waiting for promise ws to close');
+        // 250ms grace period for ws to close gracefully
+        await Promise.race([closePromise, sleep(250)]);
+      }
       log.info('ws closed');
     }
     this.ws = undefined;
