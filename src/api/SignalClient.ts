@@ -318,8 +318,10 @@ export class SignalClient {
         }
         resolve(true);
       });
+      log.info('waiting for buffer to get cleared');
       // 250ms grace period for buffer to be cleared
       await Promise.race([emptyBufferPromise, sleep(250)]);
+      log.info('buffer cleared');
 
       let closeResolver: (args: any) => void;
       const closePromise = new Promise((resolve) => {
@@ -330,8 +332,11 @@ export class SignalClient {
       this.ws.onclose = () => closeResolver(true);
 
       this.ws.close();
+      log.info('waiting for promise ws to close');
+
       // 250ms grace period for ws to close gracefully
       await Promise.race([closePromise, sleep(250)]);
+      log.info('ws closed');
     }
     this.ws = undefined;
     this.clearPingInterval();
