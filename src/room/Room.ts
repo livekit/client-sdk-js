@@ -402,7 +402,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     try {
       if (this.state === ConnectionState.Disconnected) {
         log.debug('already disconnected');
-        unlock();
         return;
       }
       log.info('disconnect from room', { identity: this.localParticipant.identity });
