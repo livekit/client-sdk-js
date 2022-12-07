@@ -1260,6 +1260,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     count: number,
     options: { audio?: boolean; video?: boolean; aspectRatios: Array<number> },
   ) {
+    this.name = 'sim-room';
+    this.localParticipant.identity = 'simulated-local';
     this.localParticipant
       .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
       .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
@@ -1289,7 +1291,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
     // @ts-ignore
     this.localParticipant.addTrackPublication(pub);
-    this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, pub);
+    const audioPub = new LocalTrackPublication(
+      Track.Kind.Audio,
+      TrackInfo.fromPartial({
+        source: TrackSource.MICROPHONE,
+        sid: Math.floor(Math.random() * 10_000).toString(),
+        type: TrackType.AUDIO,
+        name: 'video-dummy',
+      }),
+      new LocalAudioTrack(getEmptyAudioStreamTrack()),
+    );
+    // @ts-ignore
+    this.localParticipant.addTrackPublication(audioPub);
+    this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, audioPub);
 
     for (let i = 0; i < count - 1; i += 1) {
       let info: ParticipantInfo = ParticipantInfo.fromPartial({
