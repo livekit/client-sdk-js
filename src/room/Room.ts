@@ -57,7 +57,6 @@ import {
   Future,
   getDummyVideoStreamTrack,
   getEmptyAudioStreamTrack,
-  getEmptyVideoStreamTrack,
   isWeb,
   Mutex,
   supportsSetSinkId,
