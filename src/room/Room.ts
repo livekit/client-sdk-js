@@ -1261,6 +1261,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     count: number,
     options: { audio?: boolean; video?: boolean; aspectRatios: Array<number> },
   ) {
+    this.localParticipant
+      .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
+      .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
+      .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
+      .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
+      .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
+      .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
+      .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
+      .on(
+        ParticipantEvent.ParticipantPermissionsChanged,
+        this.onLocalParticipantPermissionsChanged,
+      );
     this.emit(RoomEvent.SignalConnected);
     this.emit(RoomEvent.Connected);
     this.setAndEmitConnectionState(ConnectionState.Connected);
@@ -1279,7 +1291,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // @ts-ignore
     this.localParticipant.addTrackPublication(pub);
     this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, pub);
-    this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
+
     for (let i = 0; i < count - 1; i += 1) {
       let info: ParticipantInfo = ParticipantInfo.fromPartial({
         sid: Math.floor(Math.random() * 10_000).toString(),
