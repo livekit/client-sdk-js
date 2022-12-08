@@ -53,6 +53,7 @@ import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
+import type { SimulationOptions } from './types';
 import {
   Future,
   getDummyVideoStreamTrack,
@@ -318,18 +319,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
         this.localParticipant.updateInfo(pi);
         // forward metadata changed for the local participant
-        this.localParticipant
-          .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
-          .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
-          .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
-          .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
-          .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
-          .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
-          .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
-          .on(
-            ParticipantEvent.ParticipantPermissionsChanged,
-            this.onLocalParticipantPermissionsChanged,
-          );
+        this.setupLocalParticipantEvents();
 
         // populate remote participants, these should not trigger new events
         joinResponse.otherParticipants.forEach((info) => {
@@ -644,6 +634,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     }
+  }
+
+  private setupLocalParticipantEvents() {
+    this.localParticipant
+      .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
+      .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
+      .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
+      .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
+      .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
+      .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
+      .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
+      .on(
+        ParticipantEvent.ParticipantPermissionsChanged,
+        this.onLocalParticipantPermissionsChanged,
+      );
   }
 
   private recreateEngine() {
@@ -1254,74 +1259,76 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   /**
+   * Allows to populate a room with simulated participants.
+   * No actual connection to a server will be established, all state is local.
    * @experimental
    */
-  simulateParticipants(
-    count: number,
-    options: { audio?: boolean; video?: boolean; aspectRatios: Array<number> },
-  ) {
+  simulateParticipants(options: SimulationOptions) {
+    const publishOptions = {
+      audio: true,
+      video: true,
+      ...options.publish,
+    };
+    const participantOptions = {
+      count: 9,
+      audio: false,
+      video: true,
+      aspectRatios: [1.66, 1.7, 1.3],
+      ...options.participants,
+    };
     this.handleDisconnect();
-    this.name = 'sim-room';
+    this.name = 'simulated-room';
     this.localParticipant.identity = 'simulated-local';
     this.localParticipant.name = 'simulated-local';
-    this.localParticipant
-      .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
-      .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
-      .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
-      .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
-      .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
-      .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
-      .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
-      .on(
-        ParticipantEvent.ParticipantPermissionsChanged,
-        this.onLocalParticipantPermissionsChanged,
-      );
+    this.setupLocalParticipantEvents();
     this.emit(RoomEvent.SignalConnected);
     this.emit(RoomEvent.Connected);
     this.setAndEmitConnectionState(ConnectionState.Connected);
-    const pub = new LocalTrackPublication(
-      Track.Kind.Video,
-      TrackInfo.fromPartial({
-        source: TrackSource.CAMERA,
-        sid: Math.floor(Math.random() * 10_000).toString(),
-        type: TrackType.AUDIO,
-        name: 'video-dummy',
-      }),
-      new LocalVideoTrack(
-        getDummyVideoStreamTrack(160 * options.aspectRatios[0] ?? 1, 160, true, true),
-      ),
-    );
-    // @ts-ignore
-    this.localParticipant.addTrackPublication(pub);
-    const audioPub = new LocalTrackPublication(
-      Track.Kind.Audio,
-      TrackInfo.fromPartial({
-        source: TrackSource.MICROPHONE,
-        sid: Math.floor(Math.random() * 10_000).toString(),
-        type: TrackType.AUDIO,
-        name: 'video-dummy',
-      }),
-      new LocalAudioTrack(getEmptyAudioStreamTrack()),
-    );
-    // @ts-ignore
-    this.localParticipant.addTrackPublication(audioPub);
-    this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, audioPub);
+    if (publishOptions.video) {
+      const camPub = new LocalTrackPublication(
+        Track.Kind.Video,
+        TrackInfo.fromPartial({
+          source: TrackSource.CAMERA,
+          sid: Math.floor(Math.random() * 10_000).toString(),
+          type: TrackType.AUDIO,
+          name: 'video-dummy',
+        }),
+        new LocalVideoTrack(
+          getDummyVideoStreamTrack(160 * participantOptions.aspectRatios[0] ?? 1, 160, true, true),
+        ),
+      );
+      // @ts-ignore
+      this.localParticipant.addTrackPublication(camPub);
+      this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, camPub);
+    }
+    if (publishOptions.audio) {
+      const audioPub = new LocalTrackPublication(
+        Track.Kind.Audio,
+        TrackInfo.fromPartial({
+          source: TrackSource.MICROPHONE,
+          sid: Math.floor(Math.random() * 10_000).toString(),
+          type: TrackType.AUDIO,
+        }),
+        new LocalAudioTrack(getEmptyAudioStreamTrack()),
+      );
+      // @ts-ignore
+      this.localParticipant.addTrackPublication(audioPub);
+      this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, audioPub);
+    }
 
-    for (let i = 0; i < count - 1; i += 1) {
+    for (let i = 0; i < participantOptions.count - 1; i += 1) {
       let info: ParticipantInfo = ParticipantInfo.fromPartial({
         sid: Math.floor(Math.random() * 10_000).toString(),
         identity: `simulated-${i}`,
         state: ParticipantInfo_State.ACTIVE,
         tracks: [],
-        metadata: '',
         joinedAt: Date.now(),
-        region: 'cyberspace',
       });
       const p = this.getOrCreateParticipant(info.identity, info);
-      if (options.video) {
-        console.log('aspect index for ', i, i % options.aspectRatios.length);
+      if (participantOptions.video) {
+        console.log('aspect index for ', i, i % participantOptions.aspectRatios.length);
         const dummyVideo = getDummyVideoStreamTrack(
-          160 * options.aspectRatios[i % options.aspectRatios.length] ?? 1,
+          160 * participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1,
           160,
           false,
           true,
@@ -1330,18 +1337,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           source: TrackSource.CAMERA,
           sid: Math.floor(Math.random() * 10_000).toString(),
           type: TrackType.AUDIO,
-          name: 'video-dummy',
         });
         p.addSubscribedMediaTrack(dummyVideo, videoTrack.sid, new MediaStream([dummyVideo]));
         info.tracks = [...info.tracks, videoTrack];
       }
-      if (options.audio) {
+      if (participantOptions.audio) {
         const dummyTrack = getEmptyAudioStreamTrack();
         const audioTrack = TrackInfo.fromPartial({
           source: TrackSource.MICROPHONE,
           sid: Math.floor(Math.random() * 10_000).toString(),
           type: TrackType.AUDIO,
-          name: 'audio-dummy',
         });
         p.addSubscribedMediaTrack(dummyTrack, audioTrack.sid, new MediaStream([dummyTrack]));
         info.tracks = [...info.tracks, audioTrack];
