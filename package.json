@@ -86,6 +86,9 @@
     "typescript": "4.9.4",
     "vite": "3.2.5"
   },
+  "engines": {
+    "node": ">=16.14.0"
+  },
   "browserslist": [
     "safari >= 11",
     "ios_saf >= 11",
