@@ -1260,8 +1260,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     count: number,
     options: { audio?: boolean; video?: boolean; aspectRatios: Array<number> },
   ) {
+    this.handleDisconnect();
     this.name = 'sim-room';
     this.localParticipant.identity = 'simulated-local';
+    this.localParticipant.name = 'simulated-local';
     this.localParticipant
       .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
       .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
