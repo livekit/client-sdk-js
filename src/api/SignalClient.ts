@@ -193,9 +193,9 @@ export class SignalClient {
     const clientInfo = getClientInfo();
     const params = createConnectionParams(token, clientInfo, opts);
 
-    return new Promise<JoinResponse | void>((resolve, reject) => {
-      const abortHandler = () => {
-        this.close();
+    return new Promise<JoinResponse | void>(async (resolve, reject) => {
+      const abortHandler = async () => {
+        await this.close();
         reject(new ConnectionError('room connection has been cancelled'));
       };
 
@@ -205,7 +205,7 @@ export class SignalClient {
       abortSignal?.addEventListener('abort', abortHandler);
       log.debug(`connecting to ${url + params}`);
       if (this.ws) {
-        this.close();
+        await this.close();
       }
       this.ws = new WebSocket(url + params);
       this.ws.binaryType = 'arraybuffer';
@@ -465,7 +465,7 @@ export class SignalClient {
     if (this.signalLatency) {
       await sleep(this.signalLatency);
     }
-    if (!this.ws || this.ws.readyState < this.ws.OPEN) {
+    if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
       log.error(`cannot send signal request before connected, type: ${message?.$case}`);
       return;
     }
