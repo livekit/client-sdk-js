@@ -1260,7 +1260,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /**
    * Allows to populate a room with simulated participants.
-   * No actual connection to a server will be established, all state is local.
+   * No actual connection to a server will be established, all state is
    * @experimental
    */
   simulateParticipants(options: SimulationOptions) {
@@ -1326,7 +1326,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
       const p = this.getOrCreateParticipant(info.identity, info);
       if (participantOptions.video) {
-        console.log('aspect index for ', i, i % participantOptions.aspectRatios.length);
         const dummyVideo = getDummyVideoStreamTrack(
           160 * participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1,
           160,
