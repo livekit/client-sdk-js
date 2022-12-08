@@ -26,7 +26,7 @@
   "author": "David Zhao <david@davidzhao.com>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rollup --config && yarn downlevel-dts",
+    "build": "rollup --config --bundleConfigAsCjs && yarn downlevel-dts",
     "build:watch": "rollup --watch --config rollup.config.js",
     "build-docs": "typedoc",
     "proto": "protoc --plugin=node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_opt=esModuleInterop=true --ts_proto_out=./src/proto --ts_proto_opt=outputClientImpl=false,useOptionals=messages,oneof=unions -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
@@ -85,9 +85,6 @@
     "typedoc-plugin-no-inherit": "1.4.0",
     "typescript": "4.9.4",
     "vite": "3.2.5"
-  },
-  "engines": {
-    "node": ">=16.14.0"
   },
   "browserslist": [
     "safari >= 11",

@@ -9,7 +9,7 @@ import replace from 'rollup-plugin-re';
 import filesize from 'rollup-plugin-filesize';
 import del from 'rollup-plugin-delete';
 
-import packageJson from './package.json' assert { type: 'json' };
+import packageJson from './package.json';
 
 function kebabCaseToPascalCase(string = '') {
   return string.replace(/(^\w|-\w)/g, (replaceString) =>
