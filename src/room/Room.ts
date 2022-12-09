@@ -56,7 +56,7 @@ import { getNewAudioContext } from './track/utils';
 import type { SimulationOptions } from './types';
 import {
   Future,
-  getDummyVideoStreamTrack,
+  createDummyVideoStreamTrack,
   getEmptyAudioStreamTrack,
   isWeb,
   Mutex,
@@ -1294,7 +1294,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           name: 'video-dummy',
         }),
         new LocalVideoTrack(
-          getDummyVideoStreamTrack(160 * participantOptions.aspectRatios[0] ?? 1, 160, true, true),
+          createDummyVideoStreamTrack(
+            160 * participantOptions.aspectRatios[0] ?? 1,
+            160,
+            true,
+            true,
+          ),
         ),
       );
       // @ts-ignore
@@ -1326,7 +1331,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
       const p = this.getOrCreateParticipant(info.identity, info);
       if (participantOptions.video) {
-        const dummyVideo = getDummyVideoStreamTrack(
+        const dummyVideo = createDummyVideoStreamTrack(
           160 * participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1,
           160,
           false,

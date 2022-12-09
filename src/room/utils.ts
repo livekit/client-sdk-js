@@ -181,12 +181,12 @@ let emptyVideoStreamTrack: MediaStreamTrack | undefined;
 
 export function getEmptyVideoStreamTrack() {
   if (!emptyVideoStreamTrack) {
-    emptyVideoStreamTrack = getDummyVideoStreamTrack();
+    emptyVideoStreamTrack = createDummyVideoStreamTrack();
   }
   return emptyVideoStreamTrack;
 }
 
-export function getDummyVideoStreamTrack(
+export function createDummyVideoStreamTrack(
   width: number = 16,
   height: number = 16,
   enabled: boolean = false,
