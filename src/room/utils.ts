@@ -181,20 +181,39 @@ let emptyVideoStreamTrack: MediaStreamTrack | undefined;
 
 export function getEmptyVideoStreamTrack() {
   if (!emptyVideoStreamTrack) {
-    const canvas = document.createElement('canvas');
-    // the canvas size is set to 16, because electron apps seem to fail with smaller values
-    canvas.width = 16;
-    canvas.height = 16;
-    canvas.getContext('2d')?.fillRect(0, 0, canvas.width, canvas.height);
-    // @ts-ignore
-    const emptyStream = canvas.captureStream();
-    [emptyVideoStreamTrack] = emptyStream.getTracks();
-    if (!emptyVideoStreamTrack) {
-      throw Error('Could not get empty media stream video track');
-    }
-    emptyVideoStreamTrack.enabled = false;
+    emptyVideoStreamTrack = createDummyVideoStreamTrack();
   }
   return emptyVideoStreamTrack;
+}
+
+export function createDummyVideoStreamTrack(
+  width: number = 16,
+  height: number = 16,
+  enabled: boolean = false,
+  paintContent: boolean = false,
+) {
+  const canvas = document.createElement('canvas');
+  // the canvas size is set to 16 by default, because electron apps seem to fail with smaller values
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx?.fillRect(0, 0, canvas.width, canvas.height);
+  if (paintContent && ctx) {
+    ctx.beginPath();
+    ctx.arc(width / 2, height / 2, 50, 0, Math.PI * 2, true);
+    ctx.closePath();
+    ctx.fillStyle = 'grey';
+    ctx.fill();
+  }
+  // @ts-ignore
+  const dummyStream = canvas.captureStream();
+  const [dummyTrack] = dummyStream.getTracks();
+  if (!dummyTrack) {
+    throw Error('Could not get empty media stream video track');
+  }
+  dummyTrack.enabled = enabled;
+
+  return dummyTrack;
 }
 
 let emptyAudioStreamTrack: MediaStreamTrack | undefined;

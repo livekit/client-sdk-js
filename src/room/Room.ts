@@ -17,6 +17,9 @@ import {
   Room as RoomModel,
   ServerInfo,
   SpeakerInfo,
+  TrackInfo,
+  TrackSource,
+  TrackType,
   UserPacket,
 } from '../proto/livekit_models';
 import {
@@ -42,7 +45,7 @@ import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine from './RTCEngine';
 import LocalAudioTrack from './track/LocalAudioTrack';
-import type LocalTrackPublication from './track/LocalTrackPublication';
+import LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
@@ -50,7 +53,16 @@ import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
-import { Future, isWeb, Mutex, supportsSetSinkId, unpackStreamId } from './utils';
+import type { SimulationOptions } from './types';
+import {
+  Future,
+  createDummyVideoStreamTrack,
+  getEmptyAudioStreamTrack,
+  isWeb,
+  Mutex,
+  supportsSetSinkId,
+  unpackStreamId,
+} from './utils';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -307,18 +319,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
         this.localParticipant.updateInfo(pi);
         // forward metadata changed for the local participant
-        this.localParticipant
-          .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
-          .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
-          .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
-          .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
-          .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
-          .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
-          .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
-          .on(
-            ParticipantEvent.ParticipantPermissionsChanged,
-            this.onLocalParticipantPermissionsChanged,
-          );
+        this.setupLocalParticipantEvents();
 
         // populate remote participants, these should not trigger new events
         joinResponse.otherParticipants.forEach((info) => {
@@ -633,6 +634,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     }
+  }
+
+  private setupLocalParticipantEvents() {
+    this.localParticipant
+      .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
+      .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
+      .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
+      .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
+      .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
+      .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
+      .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
+      .on(
+        ParticipantEvent.ParticipantPermissionsChanged,
+        this.onLocalParticipantPermissionsChanged,
+      );
   }
 
   private recreateEngine() {
@@ -1241,6 +1257,108 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private onLocalParticipantPermissionsChanged = (prevPermissions: ParticipantPermission) => {
     this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, this.localParticipant);
   };
+
+  /**
+   * Allows to populate a room with simulated participants.
+   * No actual connection to a server will be established, all state is
+   * @experimental
+   */
+  simulateParticipants(options: SimulationOptions) {
+    const publishOptions = {
+      audio: true,
+      video: true,
+      ...options.publish,
+    };
+    const participantOptions = {
+      count: 9,
+      audio: false,
+      video: true,
+      aspectRatios: [1.66, 1.7, 1.3],
+      ...options.participants,
+    };
+    this.handleDisconnect();
+    this.name = 'simulated-room';
+    this.localParticipant.identity = 'simulated-local';
+    this.localParticipant.name = 'simulated-local';
+    this.setupLocalParticipantEvents();
+    this.emit(RoomEvent.SignalConnected);
+    this.emit(RoomEvent.Connected);
+    this.setAndEmitConnectionState(ConnectionState.Connected);
+    if (publishOptions.video) {
+      const camPub = new LocalTrackPublication(
+        Track.Kind.Video,
+        TrackInfo.fromPartial({
+          source: TrackSource.CAMERA,
+          sid: Math.floor(Math.random() * 10_000).toString(),
+          type: TrackType.AUDIO,
+          name: 'video-dummy',
+        }),
+        new LocalVideoTrack(
+          createDummyVideoStreamTrack(
+            160 * participantOptions.aspectRatios[0] ?? 1,
+            160,
+            true,
+            true,
+          ),
+        ),
+      );
+      // @ts-ignore
+      this.localParticipant.addTrackPublication(camPub);
+      this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, camPub);
+    }
+    if (publishOptions.audio) {
+      const audioPub = new LocalTrackPublication(
+        Track.Kind.Audio,
+        TrackInfo.fromPartial({
+          source: TrackSource.MICROPHONE,
+          sid: Math.floor(Math.random() * 10_000).toString(),
+          type: TrackType.AUDIO,
+        }),
+        new LocalAudioTrack(getEmptyAudioStreamTrack()),
+      );
+      // @ts-ignore
+      this.localParticipant.addTrackPublication(audioPub);
+      this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, audioPub);
+    }
+
+    for (let i = 0; i < participantOptions.count - 1; i += 1) {
+      let info: ParticipantInfo = ParticipantInfo.fromPartial({
+        sid: Math.floor(Math.random() * 10_000).toString(),
+        identity: `simulated-${i}`,
+        state: ParticipantInfo_State.ACTIVE,
+        tracks: [],
+        joinedAt: Date.now(),
+      });
+      const p = this.getOrCreateParticipant(info.identity, info);
+      if (participantOptions.video) {
+        const dummyVideo = createDummyVideoStreamTrack(
+          160 * participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1,
+          160,
+          false,
+          true,
+        );
+        const videoTrack = TrackInfo.fromPartial({
+          source: TrackSource.CAMERA,
+          sid: Math.floor(Math.random() * 10_000).toString(),
+          type: TrackType.AUDIO,
+        });
+        p.addSubscribedMediaTrack(dummyVideo, videoTrack.sid, new MediaStream([dummyVideo]));
+        info.tracks = [...info.tracks, videoTrack];
+      }
+      if (participantOptions.audio) {
+        const dummyTrack = getEmptyAudioStreamTrack();
+        const audioTrack = TrackInfo.fromPartial({
+          source: TrackSource.MICROPHONE,
+          sid: Math.floor(Math.random() * 10_000).toString(),
+          type: TrackType.AUDIO,
+        });
+        p.addSubscribedMediaTrack(dummyTrack, audioTrack.sid, new MediaStream([dummyTrack]));
+        info.tracks = [...info.tracks, audioTrack];
+      }
+
+      p.updateInfo(info);
+    }
+  }
 
   // /** @internal */
   emit<E extends keyof RoomEventCallbacks>(
