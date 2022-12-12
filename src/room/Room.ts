@@ -1045,6 +1045,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.options.expWebAudioMix) {
       this.participants.forEach((participant) => participant.setAudioContext(this.audioContext));
     }
+
+    const newContextIsRunning = this.audioContext?.state === 'running';
+    if (newContextIsRunning !== this.canPlaybackAudio) {
+      this.audioEnabled = newContextIsRunning;
+      this.emit(RoomEvent.AudioPlaybackStatusChanged, newContextIsRunning);
+    }
   }
 
   private createParticipant(id: string, info?: ParticipantInfo): RemoteParticipant {
