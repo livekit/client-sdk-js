@@ -121,7 +121,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     // we'll want to re-attach it in that case
     attachToElement(this._mediaStreamTrack, element);
 
-    if (element instanceof HTMLAudioElement) {
+    if ((element.srcObject as MediaStream).getAudioTracks().length > 0) {
       // manually play audio to detect audio playback status
       element
         .play()
@@ -260,7 +260,7 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
   }
 
   element.autoplay = true;
-  // In case there are no audio tracks present on the mediastream, we set the element as muted to ensure autoplay
+  // In case there are no audio tracks present on the mediastream, we set the element as muted to ensure autoplay works
   element.muted = mediaStream.getAudioTracks().length === 0;
   if (element instanceof HTMLVideoElement) {
     element.playsInline = true;
