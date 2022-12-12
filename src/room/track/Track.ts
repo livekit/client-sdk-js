@@ -259,6 +259,13 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
     mediaStream.addTrack(track);
   }
 
+  element.autoplay = true;
+  // In case there are no audio tracks present on the mediastream, we set the element as muted to ensure autoplay
+  element.muted = mediaStream.getAudioTracks().length === 0;
+  if (element instanceof HTMLVideoElement) {
+    element.playsInline = true;
+  }
+
   // avoid flicker
   if (element.srcObject !== mediaStream) {
     element.srcObject = mediaStream;
@@ -279,10 +286,6 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
         });
       }, 0);
     }
-  }
-  element.autoplay = true;
-  if (element instanceof HTMLVideoElement) {
-    element.playsInline = true;
   }
 }
 
