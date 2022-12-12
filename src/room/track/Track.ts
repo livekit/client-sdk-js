@@ -121,7 +121,9 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     // we'll want to re-attach it in that case
     attachToElement(this._mediaStreamTrack, element);
 
-    if ((element.srcObject as MediaStream).getAudioTracks().length > 0) {
+    // handle auto playback failures
+    const allMediaStreamTracks = (element.srcObject as MediaStream).getTracks();
+    if (allMediaStreamTracks.some((tr) => tr.kind === 'audio')) {
       // manually play audio to detect audio playback status
       element
         .play()
@@ -130,6 +132,17 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
         })
         .catch((e) => {
           this.emit(TrackEvent.AudioPlaybackFailed, e);
+          // If audio playback isn't allowed make sure we still play back the video
+          if (
+            element &&
+            allMediaStreamTracks.some((tr) => tr.kind === 'video') &&
+            e.name === 'NotAllowedError'
+          ) {
+            element.muted = true;
+            element.play().catch(() => {
+              // catch for Safari, exceeded options at this point to automatically play the media element
+            });
+          }
         });
     }
 

@@ -556,7 +556,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
 
     try {
-      await Promise.all(elements.map((e) => e.play()));
+      await Promise.all(
+        elements.map((e) => {
+          e.muted = false;
+          return e.play();
+        }),
+      );
       this.handleAudioPlaybackStarted();
     } catch (err) {
       this.handleAudioPlaybackFailed(err);
