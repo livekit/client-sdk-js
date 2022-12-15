@@ -187,7 +187,7 @@ export class Cryptor extends BaseCryptor {
      * This will send unencrypted data (only protected by DTLS transport encryption) when no key is configured.
      * This is ok for demo purposes but should not be done once this becomes more relied upon.
      */
-    // controller.enqueue(encodedFrame);
+    return controller.enqueue(encodedFrame);
   }
 
   /**
@@ -208,6 +208,8 @@ export class Cryptor extends BaseCryptor {
 
       return controller.enqueue(decodedFrame);
     }
+
+    return controller.enqueue(encodedFrame);
   }
 
   /**

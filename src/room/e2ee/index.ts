@@ -10,13 +10,13 @@ import { ParticipantEvent, RoomEvent } from '../events';
 import type RemoteTrack from '../track/RemoteTrack';
 import type { Track } from '../track/Track';
 import LocalTrack from '../track/LocalTrack';
-import type { KeyProvider } from './keyProvider';
+import { isSafari } from '../utils';
 
 export async function createE2EEKey(): Promise<Uint8Array> {
   return window.crypto.getRandomValues(new Uint8Array(32));
 }
 
-export class E2EEManager<T extends KeyProvider> {
+export class E2EEManager {
   private worker?: Worker;
 
   private room: Room;
@@ -40,9 +40,16 @@ export class E2EEManager<T extends KeyProvider> {
     this.room.on(RoomEvent.TrackSubscribed, (track) => {
       this.setupE2EEReceiver(track);
     });
-    this.room.localParticipant.on(ParticipantEvent.PCTrackAdded, (track, sender) =>
-      this.setupE2EESender(track, sender as RTCRtpSender),
-    );
+    this.room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
+      // if (isSafari()) {
+      //   setTimeout(
+      //     () => this.setupE2EESender(publication.track!, publication.track!.sender!),
+      //     4_000,
+      //   );
+      // } else {
+      this.setupE2EESender(publication.track!, publication.track!.sender!);
+      // }
+    });
   }
 
   setEnabled(enabled: boolean) {
@@ -86,6 +93,7 @@ export class E2EEManager<T extends KeyProvider> {
 
   setupE2EESender(track: Track, sender: RTCRtpSender, localId?: string) {
     if (!(track instanceof LocalTrack) || !sender) {
+      if (!sender) log.warn('early return because sender is not ready');
       return;
     }
     this.handleSender(sender, localId);

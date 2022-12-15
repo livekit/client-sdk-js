@@ -27,6 +27,7 @@ import {
   VideoPresets,
   VideoQuality,
 } from '../src/index';
+import { isSafari } from '../src/room/utils';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -190,7 +191,10 @@ const appActions = {
         const signalConnectionTime = Date.now() - startTime;
         appendLog(`signal connection established in ${signalConnectionTime}ms`);
         if (shouldPublish) {
-          await Promise.all([room.localParticipant.setCameraEnabled(true)]);
+          await Promise.all([
+            room.localParticipant.setCameraEnabled(true),
+            room.localParticipant.setMicrophoneEnabled(isSafari()),
+          ]);
           updateButtonsForPublishState();
         }
       });
@@ -399,6 +403,7 @@ function handleData(msg: Uint8Array, participant?: RemoteParticipant) {
 
 function participantConnected(participant: Participant) {
   appendLog('participant', participant.identity, 'connected', participant.metadata);
+  console.log('tracks', participant.tracks);
   participant
     .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
       appendLog('track was muted', pub.trackSid, participant.identity);

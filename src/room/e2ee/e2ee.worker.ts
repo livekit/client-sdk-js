@@ -13,6 +13,7 @@ onmessage = (ev) => {
   switch (kind) {
     case 'init':
       const { sharedKey } = payload;
+      console.log('worker initialized', sharedKey);
       if (sharedKey) {
         sharedCryptor = new Cryptor({ sharedKey });
       }
@@ -31,7 +32,7 @@ onmessage = (ev) => {
   }
 };
 
-function transform(
+async function transform(
   cipher: Cryptor,
   operation: 'encode' | 'decode',
   readableStream: ReadableStream,
@@ -42,8 +43,7 @@ function transform(
     const transformStream = new TransformStream({
       transform: transformFn.bind(cipher),
     });
-
-    readableStream.pipeThrough(transformStream).pipeTo(writableStream);
+    await readableStream.pipeThrough(transformStream).pipeTo(writableStream);
   } else {
     console.error(`Invalid operation: ${operation}`);
   }
@@ -66,13 +66,13 @@ function getParticipantCryptor(id?: string) {
 if (self.RTCTransformEvent) {
   console.warn('setup transform event');
   // @ts-ignore
-  self.onrtctransform = (event) => {
+  self.onrtctransform = async (event) => {
     const transformer = event.transformer;
     const { kind, participantId } = transformer.options;
     const cipher = getParticipantCryptor(participantId);
 
-    console.log('transform', kind, participantId, cipher);
+    console.log('transform', transformer, kind, participantId, cipher);
 
-    transform(cipher, kind, transformer.readable, transformer.writable);
+    await transform(cipher, kind, transformer.readable, transformer.writable);
   };
 }

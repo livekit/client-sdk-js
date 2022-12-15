@@ -596,7 +596,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     encodings?: RTCRtpEncodingParameters[],
   ) {
     // store RTCRtpSender
-    // @ts-ignore
     if (supportsTransceiver()) {
       return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
     }
