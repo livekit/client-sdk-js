@@ -177,8 +177,6 @@ export class Cryptor extends BaseCryptor {
           (e) => {
             // TODO: surface this to the app.
             console.error(e);
-
-            // We are not enqueuing the frame here on purpose.
           },
         );
     }
@@ -204,9 +202,12 @@ export class Cryptor extends BaseCryptor {
     const keyIndex = data[encodedFrame.data.byteLength - 1];
 
     if (this.cryptoKeyRing[keyIndex]) {
-      const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
-
-      return controller.enqueue(decodedFrame);
+      try {
+        const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
+        return controller.enqueue(decodedFrame);
+      } catch (error) {
+        console.warn('decoding frame failed, enqueuing frame as is');
+      }
     }
 
     return controller.enqueue(encodedFrame);
@@ -221,7 +222,7 @@ export class Cryptor extends BaseCryptor {
     keyIndex: number,
     initialKey: KeySet | undefined = undefined,
     ratchetCount: number = 0,
-  ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
+  ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame> {
     const encryptionKey = this.cryptoKeyRing[keyIndex].encryptionKey;
 
     // Construct frame trailer. Similar to the frame header described in
@@ -271,7 +272,7 @@ export class Cryptor extends BaseCryptor {
       let { material } = this.cryptoKeyRing[keyIndex];
 
       if (this.sharedKey || !material) {
-        return;
+        throw error;
       }
 
       if (ratchetCount < RATCHET_WINDOW_SIZE) {
@@ -300,6 +301,8 @@ export class Cryptor extends BaseCryptor {
       if (initialKey) {
         this.setKeys(initialKey);
       }
+
+      throw error;
       // TODO: notify the application about error status.
     }
   }

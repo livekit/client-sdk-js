@@ -35,8 +35,8 @@ onmessage = (ev) => {
 async function transform(
   cipher: Cryptor,
   operation: 'encode' | 'decode',
-  readableStream: ReadableStream,
-  writableStream: WritableStream,
+  readableStream: ReadableStream<RTCEncodedAudioFrame | RTCEncodedVideoFrame>,
+  writableStream: WritableStream<RTCEncodedAudioFrame | RTCEncodedVideoFrame>,
 ) {
   if (operation === 'encode' || operation === 'decode') {
     const transformFn = operation === 'encode' ? cipher.encodeFunction : cipher.decodeFunction;
