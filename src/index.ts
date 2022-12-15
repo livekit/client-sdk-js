@@ -23,7 +23,10 @@ import {
   supportsAdaptiveStream,
   supportsAV1,
   supportsDynacast,
+  createAudioAnalyser,
 } from './room/utils';
+
+import type { AudioAnalyserOptions } from './room/utils';
 
 export * from './options';
 export * from './room/errors';
@@ -44,6 +47,8 @@ export {
   supportsAdaptiveStream,
   supportsDynacast,
   supportsAV1,
+  createAudioAnalyser,
+  AudioAnalyserOptions,
   LogLevel,
   Room,
   ConnectionState,

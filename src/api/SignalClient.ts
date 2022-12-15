@@ -30,7 +30,7 @@ import {
   UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
-import { getClientInfo, sleep } from '../room/utils';
+import { getClientInfo, Mutex, sleep } from '../room/utils';
 
 // internal options
 interface ConnectOpts {
@@ -139,12 +139,15 @@ export class SignalClient {
 
   private pingInterval: ReturnType<typeof setInterval> | undefined;
 
+  private closingLock: Mutex;
+
   constructor(useJSON: boolean = false) {
     this.isConnected = false;
     this.isReconnecting = false;
     this.useJSON = useJSON;
     this.requestQueue = new Queue();
     this.queuedRequests = [];
+    this.closingLock = new Mutex();
   }
 
   async join(
@@ -190,9 +193,9 @@ export class SignalClient {
     const clientInfo = getClientInfo();
     const params = createConnectionParams(token, clientInfo, opts);
 
-    return new Promise<JoinResponse | void>((resolve, reject) => {
-      const abortHandler = () => {
-        this.close();
+    return new Promise<JoinResponse | void>(async (resolve, reject) => {
+      const abortHandler = async () => {
+        await this.close();
         reject(new ConnectionError('room connection has been cancelled'));
       };
 
@@ -202,7 +205,7 @@ export class SignalClient {
       abortSignal?.addEventListener('abort', abortHandler);
       log.debug(`connecting to ${url + params}`);
       if (this.ws) {
-        this.close();
+        await this.close();
       }
       this.ws = new WebSocket(url + params);
       this.ws.binaryType = 'arraybuffer';
@@ -277,7 +280,11 @@ export class SignalClient {
             }
             resolve(resp.message.join);
           } else {
-            reject(new ConnectionError('did not receive join response'));
+            reject(
+              new ConnectionError(
+                `did not receive join response, got ${resp.message?.$case} instead`,
+              ),
+            );
           }
           return;
         }
@@ -301,16 +308,33 @@ export class SignalClient {
     });
   }
 
-  close() {
-    this.isConnected = false;
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.onmessage = null;
-      this.ws.onopen = null;
-      this.ws.close();
+  async close() {
+    const unlock = await this.closingLock.lock();
+    try {
+      this.isConnected = false;
+      if (this.ws) {
+        this.ws.onclose = null;
+        this.ws.onmessage = null;
+        this.ws.onopen = null;
+
+        // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
+        const closePromise = new Promise((resolve) => {
+          if (this.ws) {
+            this.ws.onclose = resolve;
+          } else {
+            resolve(true);
+          }
+        });
+
+        this.ws.close();
+        // 250ms grace period for ws to close gracefully
+        await Promise.race([closePromise, sleep(250)]);
+      }
+      this.ws = undefined;
+      this.clearPingInterval();
+    } finally {
+      unlock();
     }
-    this.ws = undefined;
-    this.clearPingInterval();
   }
 
   // initial offer after joining
@@ -441,7 +465,7 @@ export class SignalClient {
     if (this.signalLatency) {
       await sleep(this.signalLatency);
     }
-    if (!this.ws || this.ws.readyState < this.ws.OPEN) {
+    if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
       log.error(`cannot send signal request before connected, type: ${message?.$case}`);
       return;
     }

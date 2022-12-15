@@ -1,6 +1,9 @@
 import UAParser from 'ua-parser-js';
 import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models';
 import { protocolVersion, version } from '../version';
+import type LocalAudioTrack from './track/LocalAudioTrack';
+import type RemoteAudioTrack from './track/RemoteAudioTrack';
+import { getNewAudioContext } from './track/utils';
 
 const separator = '|';
 
@@ -178,20 +181,39 @@ let emptyVideoStreamTrack: MediaStreamTrack | undefined;
 
 export function getEmptyVideoStreamTrack() {
   if (!emptyVideoStreamTrack) {
-    const canvas = document.createElement('canvas');
-    // the canvas size is set to 16, because electron apps seem to fail with smaller values
-    canvas.width = 16;
-    canvas.height = 16;
-    canvas.getContext('2d')?.fillRect(0, 0, canvas.width, canvas.height);
-    // @ts-ignore
-    const emptyStream = canvas.captureStream();
-    [emptyVideoStreamTrack] = emptyStream.getTracks();
-    if (!emptyVideoStreamTrack) {
-      throw Error('Could not get empty media stream video track');
-    }
-    emptyVideoStreamTrack.enabled = false;
+    emptyVideoStreamTrack = createDummyVideoStreamTrack();
   }
   return emptyVideoStreamTrack;
+}
+
+export function createDummyVideoStreamTrack(
+  width: number = 16,
+  height: number = 16,
+  enabled: boolean = false,
+  paintContent: boolean = false,
+) {
+  const canvas = document.createElement('canvas');
+  // the canvas size is set to 16 by default, because electron apps seem to fail with smaller values
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx?.fillRect(0, 0, canvas.width, canvas.height);
+  if (paintContent && ctx) {
+    ctx.beginPath();
+    ctx.arc(width / 2, height / 2, 50, 0, Math.PI * 2, true);
+    ctx.closePath();
+    ctx.fillStyle = 'grey';
+    ctx.fill();
+  }
+  // @ts-ignore
+  const dummyStream = canvas.captureStream();
+  const [dummyTrack] = dummyStream.getTracks();
+  if (!dummyTrack) {
+    throw Error('Could not get empty media stream video track');
+  }
+  dummyTrack.enabled = enabled;
+
+  return dummyTrack;
 }
 
 let emptyAudioStreamTrack: MediaStreamTrack | undefined;
@@ -234,5 +256,121 @@ export class Future<T> {
         await futureBase(resolve, reject);
       }
     }).finally(() => this.onFinally?.());
+  }
+}
+
+export type AudioAnalyserOptions = {
+  /**
+   * If set to true, the analyser will use a cloned version of the underlying mediastreamtrack, which won't be impacted by muting the track.
+   * Useful for local tracks when implementing things like "seems like you're muted, but trying to speak".
+   * Defaults to false
+   */
+  cloneTrack?: boolean;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/fftSize
+   */
+  fftSize?: number;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/smoothingTimeConstant
+   */
+  smoothingTimeConstant?: number;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/minDecibels
+   */
+  minDecibels?: number;
+  /**
+   * see https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/maxDecibels
+   */
+  maxDecibels?: number;
+};
+
+/**
+ * Creates and returns an analyser web audio node that is attached to the provided track.
+ * Additionally returns a convenience method `calculateVolume` to perform instant volume readings on that track.
+ * Call the returned `cleanup` function to close the audioContext that has been created for the instance of this helper
+ */
+export function createAudioAnalyser(
+  track: LocalAudioTrack | RemoteAudioTrack,
+  options?: AudioAnalyserOptions,
+) {
+  const opts = {
+    cloneTrack: false,
+    fftSize: 2048,
+    smoothingTimeConstant: 0.8,
+    minDecibels: -100,
+    maxDecibels: -80,
+    ...options,
+  };
+  const audioContext = getNewAudioContext();
+
+  if (!audioContext) {
+    throw new Error('Audio Context not supported on this browser');
+  }
+  const streamTrack = opts.cloneTrack ? track.mediaStreamTrack.clone() : track.mediaStreamTrack;
+  const mediaStreamSource = audioContext.createMediaStreamSource(new MediaStream([streamTrack]));
+  const analyser = audioContext.createAnalyser();
+  analyser.minDecibels = opts.minDecibels;
+  analyser.maxDecibels = opts.maxDecibels;
+  analyser.fftSize = opts.fftSize;
+  analyser.smoothingTimeConstant = opts.smoothingTimeConstant;
+
+  mediaStreamSource.connect(analyser);
+  const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+  /**
+   * Calculates the current volume of the track in the range from 0 to 1
+   */
+  const calculateVolume = () => {
+    analyser.getByteFrequencyData(dataArray);
+    let sum = 0;
+    for (const amplitude of dataArray) {
+      sum += Math.pow(amplitude / 255, 2);
+    }
+    const volume = Math.sqrt(sum / dataArray.length);
+    return volume;
+  };
+
+  const cleanup = () => {
+    audioContext.close();
+    if (opts.cloneTrack) {
+      streamTrack.stop();
+    }
+  };
+
+  return { calculateVolume, analyser, cleanup };
+}
+
+export class Mutex {
+  private _locking: Promise<void>;
+
+  private _locks: number;
+
+  constructor() {
+    this._locking = Promise.resolve();
+    this._locks = 0;
+  }
+
+  isLocked() {
+    return this._locks > 0;
+  }
+
+  lock() {
+    this._locks += 1;
+
+    let unlockNext: () => void;
+
+    const willLock = new Promise<void>(
+      (resolve) =>
+        (unlockNext = () => {
+          this._locks -= 1;
+          resolve();
+        }),
+    );
+
+    const willUnlock = this._locking.then(() => unlockNext);
+
+    this._locking = this._locking.then(() => willLock);
+
+    return willUnlock;
   }
 }

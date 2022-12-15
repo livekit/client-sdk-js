@@ -38,6 +38,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { Track } from './track/Track';
 import {
   isWeb,
+  Mutex,
   sleep,
   supportsAddTrack,
   supportsSetCodecPreferences,
@@ -130,12 +131,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /** specifies how often an initial join connection is allowed to retry */
   private maxJoinAttempts: number = 1;
 
+  private closingLock: Mutex;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.client = new SignalClient();
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
     this.registerOnLineListener();
+    this.closingLock = new Mutex();
   }
 
   async join(
@@ -179,30 +183,35 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  close() {
-    this._isClosed = true;
-    this.removeAllListeners();
-    this.deregisterOnLineListener();
-    this.clearPendingReconnect();
-    if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
-      this.publisher.pc.getSenders().forEach((sender) => {
-        try {
-          // TODO: react-native-webrtc doesn't have removeTrack yet.
-          if (this.publisher?.pc.removeTrack) {
-            this.publisher?.pc.removeTrack(sender);
+  async close() {
+    const unlock = await this.closingLock.lock();
+    try {
+      this._isClosed = true;
+      this.removeAllListeners();
+      this.deregisterOnLineListener();
+      this.clearPendingReconnect();
+      if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
+        this.publisher.pc.getSenders().forEach((sender) => {
+          try {
+            // TODO: react-native-webrtc doesn't have removeTrack yet.
+            if (this.publisher?.pc.removeTrack) {
+              this.publisher?.pc.removeTrack(sender);
+            }
+          } catch (e) {
+            log.warn('could not removeTrack', { error: e });
           }
-        } catch (e) {
-          log.warn('could not removeTrack', { error: e });
-        }
-      });
-      this.publisher.close();
-      this.publisher = undefined;
+        });
+        this.publisher.close();
+        this.publisher = undefined;
+      }
+      if (this.subscriber) {
+        this.subscriber.close();
+        this.subscriber = undefined;
+      }
+      await this.client.close();
+    } finally {
+      unlock();
     }
-    if (this.subscriber) {
-      this.subscriber.close();
-      this.subscriber = undefined;
-    }
-    this.client.close();
   }
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {
@@ -339,7 +348,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const shouldEmit = this.pcState === PCState.New;
         this.pcState = PCState.Connected;
         if (shouldEmit) {
-          this.emit(EngineEvent.Connected);
+          this.emit(EngineEvent.Connected, joinResponse);
         }
       } else if (primaryPC.connectionState === 'failed') {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
@@ -797,9 +806,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (this.client.isConnected) {
-      this.client.sendLeave();
+      await this.client.sendLeave();
     }
-    this.client.close();
+    await this.client.close();
     this.primaryPC = undefined;
     this.publisher?.close();
     this.publisher = undefined;
@@ -1053,7 +1062,7 @@ async function getConnectedAddress(pc: RTCPeerConnection): Promise<string | unde
 class SignalReconnectError extends Error {}
 
 export type EngineEventCallbacks = {
-  connected: () => void;
+  connected: (joinResp: JoinResponse) => void;
   disconnected: (reason?: DisconnectReason) => void;
   resuming: () => void;
   resumed: () => void;

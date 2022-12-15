@@ -1,5 +1,33 @@
 # Change Log
 
+## 1.6.0
+
+### Minor Changes
+
+- [#500](https://github.com/livekit/client-sdk-js/pull/500) [`9a57074`](https://github.com/livekit/client-sdk-js/commit/9a57074a75352a5155448cae0e6c5237704927ea) Thanks [@davideberlein](https://github.com/davideberlein)! - add getActiveAudioOutputDevice method to Room
+
+### Patch Changes
+
+- [#531](https://github.com/livekit/client-sdk-js/pull/531) [`b6cb814`](https://github.com/livekit/client-sdk-js/commit/b6cb8140c0912a4739af5e1c319a06285820c959) Thanks [@lukasIO](https://github.com/lukasIO)! - Add util function to simulate participants within a room
+
+- [#498](https://github.com/livekit/client-sdk-js/pull/498) [`9ce03bc`](https://github.com/livekit/client-sdk-js/commit/9ce03bced8f835d278774387cbd842219b679f70) Thanks [@lukasIO](https://github.com/lukasIO)! - mute track if ended event has been fired on underlying mediastreamtrack
+
+- [#525](https://github.com/livekit/client-sdk-js/pull/525) [`5e824b7`](https://github.com/livekit/client-sdk-js/commit/5e824b7edb1c39f4013ec48cef9226a7d6958555) Thanks [@lukasIO](https://github.com/lukasIO)! - use mutex to prevent simultaneous calls to disconnect
+
+- [#511](https://github.com/livekit/client-sdk-js/pull/511) [`c8e8438`](https://github.com/livekit/client-sdk-js/commit/c8e84382438965509018e4776bad3d634331e176) Thanks [@davidliu](https://github.com/davidliu)! - Track event for track restart
+
+- [#506](https://github.com/livekit/client-sdk-js/pull/506) [`d448805`](https://github.com/livekit/client-sdk-js/commit/d448805b7ae0b018bd86a6edb7a13add1ff754e0) Thanks [@davidliu](https://github.com/davidliu)! - Ignore stopObservingElementInfo calls on RemoteVideoTracks when not adaptive stream
+
+- [#510](https://github.com/livekit/client-sdk-js/pull/510) [`cb67610`](https://github.com/livekit/client-sdk-js/commit/cb6761014b6295f8feb97ecbbd1ca5a98a7bb89d) Thanks [@davidliu](https://github.com/davidliu)! - Fix error in getStats for local tracks on react-native
+
+- [#515](https://github.com/livekit/client-sdk-js/pull/515) [`28febc0`](https://github.com/livekit/client-sdk-js/commit/28febc00b36ca909be779c7072f3ee61a44ee421) Thanks [@lukasIO](https://github.com/lukasIO)! - Add createAudioAnalyser util function
+
+- [#513](https://github.com/livekit/client-sdk-js/pull/513) [`dade768`](https://github.com/livekit/client-sdk-js/commit/dade76860d2fc5745c3d7044848f359947abd08d) Thanks [@lukasIO](https://github.com/lukasIO)! - Set minimum of 1 for scaleResolutionDownBy
+
+- [#514](https://github.com/livekit/client-sdk-js/pull/514) [`6a748fc`](https://github.com/livekit/client-sdk-js/commit/6a748fc5344176c6d49d99e5c9d58eec654cf434) Thanks [@lukasIO](https://github.com/lukasIO)! - grace period for WS to close gracefully
+
+- [#505](https://github.com/livekit/client-sdk-js/pull/505) [`1f264cc`](https://github.com/livekit/client-sdk-js/commit/1f264cc73411f9e3eb3bc70c78121d30fc9d77fe) Thanks [@lukasIO](https://github.com/lukasIO)! - Exp: Add option for passing AudioContext as WebAudioOptions
+
 ## 1.5.0
 
 ### Minor Changes
