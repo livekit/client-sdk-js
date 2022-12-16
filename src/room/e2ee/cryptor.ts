@@ -1,5 +1,6 @@
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 
+import { workerLogger } from '../../logger';
 import {
   ENCRYPTION_ALGORITHM,
   IV_LENGTH,
@@ -61,7 +62,7 @@ export class Cryptor extends BaseCryptor {
         const material = await importKey(key);
         newKey = await deriveKeys(material);
       }
-
+      workerLogger.debug('setting new key');
       this.setKeys(newKey, keyIndex);
     }
   }
@@ -115,11 +116,6 @@ export class Cryptor extends BaseCryptor {
     const encryptionKey = this.cryptoKeyRing[keyIndex]?.encryptionKey;
 
     if (encryptionKey) {
-      // console.log(
-      //   'iv meta',
-      //   encodedFrame.getMetadata().synchronizationSource,
-      //   encodedFrame.timestamp,
-      // );
       const iv = this.makeIV(
         encodedFrame.getMetadata().synchronizationSource ?? -1,
         encodedFrame.timestamp,
@@ -176,7 +172,7 @@ export class Cryptor extends BaseCryptor {
           },
           (e) => {
             // TODO: surface this to the app.
-            console.error(e);
+            workerLogger.error(e);
           },
         );
     }
@@ -206,7 +202,7 @@ export class Cryptor extends BaseCryptor {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
         return controller.enqueue(decodedFrame);
       } catch (error) {
-        console.warn('decoding frame failed, enqueuing frame as is');
+        workerLogger.warn('decoding frame failed, enqueuing frame as is');
       }
     }
 

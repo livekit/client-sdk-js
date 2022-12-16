@@ -1,5 +1,6 @@
 import { Cryptor } from './cryptor';
 import type { E2EEWorkerMessage } from './types';
+import { workerLogger } from '../../logger';
 
 const participantCryptors = new Map<string, Cryptor>();
 let sharedCryptor: Cryptor | undefined;
@@ -13,7 +14,7 @@ onmessage = (ev) => {
   switch (kind) {
     case 'init':
       const { sharedKey } = payload;
-      console.log('worker initialized', sharedKey);
+      workerLogger.info('worker initialized');
       if (sharedKey) {
         sharedCryptor = new Cryptor({ sharedKey });
       }
@@ -21,7 +22,6 @@ onmessage = (ev) => {
     case 'decode':
     case 'encode':
       let cipher = getParticipantCryptor(payload.participantId);
-      console.log('received encode message');
       transform(cipher, kind, payload.readableStream, payload.writableStream);
       break;
     case 'setKey':
@@ -64,14 +64,14 @@ function getParticipantCryptor(id?: string) {
 // Operations using RTCRtpScriptTransform.
 // @ts-ignore
 if (self.RTCTransformEvent) {
-  console.warn('setup transform event');
+  workerLogger.warn('setup transform event');
   // @ts-ignore
   self.onrtctransform = async (event) => {
     const transformer = event.transformer;
     const { kind, participantId } = transformer.options;
     const cipher = getParticipantCryptor(participantId);
 
-    console.log('transform', transformer, kind, participantId, cipher);
+    workerLogger.debug('transform');
 
     await transform(cipher, kind, transformer.readable, transformer.writable);
   };

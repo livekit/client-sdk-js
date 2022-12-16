@@ -10,7 +10,6 @@ import { ParticipantEvent, RoomEvent } from '../events';
 import type RemoteTrack from '../track/RemoteTrack';
 import type { Track } from '../track/Track';
 import LocalTrack from '../track/LocalTrack';
-import { isSafari } from '../utils';
 
 export async function createE2EEKey(): Promise<Uint8Array> {
   return window.crypto.getRandomValues(new Uint8Array(32));
@@ -146,7 +145,7 @@ export class E2EEManager {
     sender[E2EE_FLAG] = true;
 
     if (supportsScriptTransform()) {
-      console.warn('initialize script transform');
+      log.warn('initialize script transform');
 
       const options = {
         kind: 'encode',
@@ -155,7 +154,7 @@ export class E2EEManager {
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
-      console.warn('initialize encoder');
+      log.warn('initialize encoder');
       // @ts-ignore
       const senderStreams = sender.createEncodedStreams();
       const msg: EncodeMessage = {

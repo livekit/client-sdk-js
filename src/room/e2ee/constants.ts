@@ -22,9 +22,9 @@ export const UNENCRYPTED_BYTES = {
   empty: 0,
 } as const;
 
-/* We use a 16 byte bit IV. This is signalled in plain together with the
+/* We use a 12 byte bit IV. This is signalled in plain together with the
  packet. See https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt#parameters */
-export const IV_LENGTH = 16;
+export const IV_LENGTH = 12;
 
 export const RATCHET_WINDOW_SIZE = 8;
 
