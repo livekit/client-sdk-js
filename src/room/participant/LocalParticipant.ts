@@ -616,7 +616,6 @@ export default class LocalParticipant extends Participant {
 
     // send event for publication
     this.emit(ParticipantEvent.LocalTrackPublished, publication);
-    this.emit(ParticipantEvent.PCTrackAdded, track, track.sender);
     return publication;
   }
 

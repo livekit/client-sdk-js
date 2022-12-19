@@ -258,8 +258,6 @@ export type ParticipantEventCallbacks = {
   ) => void;
   mediaDevicesError: (error: Error) => void;
   participantPermissionsChanged: (prevPermissions: ParticipantPermission) => void;
-  /** @internal */
-  pcTrackAdded: (track: Track, pcChannel: RTCRtpSender | RTCRtpReceiver) => void;
   trackSubscriptionStatusChanged: (
     publication: RemoteTrackPublication,
     status: TrackPublication.SubscriptionStatus,

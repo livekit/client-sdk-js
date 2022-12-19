@@ -37,6 +37,7 @@ import {
   videoDefaults,
 } from './defaults';
 import DeviceManager from './DeviceManager';
+import type { E2EEManager } from './e2ee';
 import { ConnectionError, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
@@ -132,6 +133,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private disconnectLock: Mutex;
 
+  private _e2eeManager: E2EEManager | undefined;
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -156,11 +159,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ...options?.publishDefaults,
     };
 
+    if (this.options.e2ee) {
+      this._e2eeManager = this.options.e2ee;
+    }
+
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
 
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
+  }
+
+  setE2EEEnabled(enabled: boolean) {
+    if (this._e2eeManager) {
+      this._e2eeManager.registerOnRoom(this);
+      this._e2eeManager.setEnabled(enabled);
+    }
   }
 
   private maybeCreateEngine() {

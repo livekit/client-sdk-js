@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 
 import { workerLogger } from '../../logger';
@@ -11,16 +12,28 @@ import {
 import type { KeySet } from './types';
 import { deriveKeys, importKey, isVideoFrame, ratchet } from './utils';
 
-export abstract class BaseCryptor {
-  abstract setKey(key: Uint8Array, keyIndex?: number): Promise<void>;
-  abstract encodeFunction(
+export interface CryptorConstructor {
+  new (opts?: unknown): BaseCryptor;
+}
+
+export class BaseCryptor {
+  setKey(key: Uint8Array, keyIndex?: number): Promise<void> {
+    throw Error('not implemented for subclass');
+  }
+
+  encodeFunction(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
-  ): Promise<any>;
-  abstract decodeFunction(
+  ): Promise<any> {
+    throw Error('not implemented for subclass');
+  }
+
+  decodeFunction(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
-  ): Promise<any>;
+  ): Promise<any> {
+    throw Error('not implemented for subclass');
+  }
 }
 
 /**

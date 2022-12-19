@@ -4,7 +4,6 @@ import {
   createAudioAnalyser,
   DataPacket_Kind,
   DisconnectReason,
-  E2EEManager,
   createE2EEKey,
   LocalAudioTrack,
   LocalParticipant,
@@ -26,6 +25,8 @@ import {
   VideoCodec,
   VideoPresets,
   VideoQuality,
+  ExternallyManagedE2EE,
+  // ExternallyManagedE2EE,
 } from '../src/index';
 import { isSafari } from '../src/room/utils';
 
@@ -37,6 +38,7 @@ const state = {
   decoder: new TextDecoder(),
   defaultDevices: new Map<MediaDeviceKind, string>(),
   bitrateInterval: undefined as any,
+  e2eeManager: new ExternallyManagedE2EE(),
 };
 let currentRoom: Room | undefined;
 
@@ -49,10 +51,9 @@ const storedToken = searchParams.get('token') ?? '';
 (<HTMLInputElement>$('token')).value = storedToken;
 let storedKey = searchParams.get('key');
 if (!storedKey) {
-  createE2EEKey().then((key) => {
-    console.log('created key', key);
-    (<HTMLSelectElement>$('crypto-key')).value = JSON.stringify(Array.from(key));
-  });
+  const key = createE2EEKey();
+  console.log('created key', key);
+  (<HTMLSelectElement>$('crypto-key')).value = JSON.stringify(Array.from(key));
 } else {
   (<HTMLSelectElement>$('crypto-key')).value = storedKey;
 }
@@ -93,6 +94,7 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
+      e2ee: state.e2eeManager,
     };
 
     const connectOpts: RoomConnectOptions = {
@@ -118,10 +120,9 @@ const appActions = {
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
-    if (e2eeKey) {
-      const e2ee = new E2EEManager(room);
-      e2ee.setEnabled(true);
-      e2ee.setKey(undefined, Uint8Array.from(JSON.parse(e2eeKey)), 0);
+    if (state.e2eeManager && e2eeKey) {
+      room.setE2EEEnabled(true);
+      state.e2eeManager.setKey(Uint8Array.from(JSON.parse(e2eeKey)));
     }
     startTime = Date.now();
     await room.prepareConnection(url);

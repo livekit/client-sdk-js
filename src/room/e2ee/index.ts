@@ -1,6 +1,6 @@
 import { E2EE_FLAG } from './constants';
 import log from '../../logger';
-import type { EncodeMessage, InitMessage, SetKeyMessage } from './types';
+import type { E2EEWorkerOptions, EncodeMessage, InitMessage, SetKeyMessage } from './types';
 // eslint-disable-next-line import/extensions
 // @ts-ignore
 import WebWorkerURL from './e2ee.worker.js?worker&url';
@@ -11,47 +11,49 @@ import type RemoteTrack from '../track/RemoteTrack';
 import type { Track } from '../track/Track';
 import LocalTrack from '../track/LocalTrack';
 
-export async function createE2EEKey(): Promise<Uint8Array> {
+export function createE2EEKey(): Uint8Array {
   return window.crypto.getRandomValues(new Uint8Array(32));
 }
 
 export class E2EEManager {
-  private worker?: Worker;
+  protected worker?: Worker;
 
-  private room: Room;
+  protected room?: Room;
 
-  private webWorkerUrl = new URL(WebWorkerURL, import.meta.url);
+  protected webWorkerUrl = new URL(WebWorkerURL, import.meta.url);
 
-  private workerAsModule = true;
+  protected workerAsModule = true;
 
-  key?: CryptoKey | Uint8Array;
+  protected key?: CryptoKey | Uint8Array;
 
-  constructor(room: Room, webWorkerUrl?: URL, workerAsModule: boolean = true) {
-    this.room = room;
-    this.setupEventListeners();
-    if (webWorkerUrl) {
-      this.webWorkerUrl = webWorkerUrl;
+  private enabled: boolean;
+
+  get isEnabled() {
+    return this.enabled;
+  }
+
+  constructor(workerOptions?: E2EEWorkerOptions) {
+    if (workerOptions) {
+      this.webWorkerUrl = workerOptions.url;
+      this.workerAsModule = workerOptions.loadAsModule;
     }
-    this.workerAsModule = workerAsModule;
+    this.enabled = false;
   }
 
-  private setupEventListeners() {
-    this.room.on(RoomEvent.TrackSubscribed, (track) => {
-      this.setupE2EEReceiver(track);
-    });
-    this.room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
-      // if (isSafari()) {
-      //   setTimeout(
-      //     () => this.setupE2EESender(publication.track!, publication.track!.sender!),
-      //     4_000,
-      //   );
-      // } else {
-      this.setupE2EESender(publication.track!, publication.track!.sender!);
-      // }
-    });
+  /**
+   * @internal
+   */
+  registerOnRoom(room: Room) {
+    if (room !== this.room) {
+      this.room = room;
+      this.setupEventListeners(room);
+    }
   }
 
-  setEnabled(enabled: boolean) {
+  /**
+   * @internal
+   */
+  async setEnabled(enabled: boolean) {
     log.info(`set e2ee to ${enabled}`);
     if (enabled && !this.worker) {
       this.worker = new Worker(this.webWorkerUrl, {
@@ -67,30 +69,26 @@ export class E2EEManager {
     } else if (!enabled && this.worker) {
       this.worker.terminate();
     }
+    this.enabled = enabled;
   }
 
-  setKey(participantId: string | undefined, key: Uint8Array, keyIndex?: number) {
-    if (this.worker) {
-      const msg: SetKeyMessage = {
-        kind: 'setKey',
-        payload: {
-          participantId,
-          key,
-          keyIndex,
-        },
-      };
-      this.worker.postMessage(msg);
-    }
+  private setupEventListeners(room: Room) {
+    room.on(RoomEvent.TrackSubscribed, (track) => {
+      this.setupE2EEReceiver(track);
+    });
+    room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
+      this.setupE2EESender(publication.track!, publication.track!.sender!);
+    });
   }
 
-  setupE2EEReceiver(track: RemoteTrack) {
+  private setupE2EEReceiver(track: RemoteTrack) {
     if (!track.receiver) {
       return;
     }
     this.handleReceiver(track.receiver);
   }
 
-  setupE2EESender(track: Track, sender: RTCRtpSender, localId?: string) {
+  private setupE2EESender(track: Track, sender: RTCRtpSender, localId?: string) {
     if (!(track instanceof LocalTrack) || !sender) {
       if (!sender) log.warn('early return because sender is not ready');
       return;
@@ -103,7 +101,7 @@ export class E2EEManager {
    * a frame decoder.
    *
    */
-  handleReceiver(receiver: RTCRtpReceiver, participantId?: string) {
+  private handleReceiver(receiver: RTCRtpReceiver, participantId?: string) {
     if (E2EE_FLAG in receiver || !this.worker) {
       return;
     }
@@ -137,7 +135,7 @@ export class E2EEManager {
    * a frame encoder.
    *
    */
-  handleSender(sender: RTCRtpSender, participantId?: string) {
+  private handleSender(sender: RTCRtpSender, participantId?: string) {
     if (E2EE_FLAG in sender || !this.worker) {
       return;
     }
@@ -167,5 +165,39 @@ export class E2EEManager {
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);
     }
+  }
+}
+
+export class ExternallyManagedE2EE extends E2EEManager {
+  keyMap: Map<string, SetKeyMessage>;
+
+  constructor(workerOptions?: E2EEWorkerOptions) {
+    super(workerOptions);
+    this.keyMap = new Map();
+  }
+
+  async setEnabled(enabled: boolean): Promise<void> {
+    await super.setEnabled(enabled);
+    if (this.worker) {
+      // set keys on the worker that had been previously set before enabling
+      for (const [, msg] of this.keyMap) {
+        this.worker.postMessage(msg);
+      }
+    }
+  }
+
+  setKey(key: Uint8Array, participantId?: string, keyIndex?: number) {
+    const msg: SetKeyMessage = {
+      kind: 'setKey',
+      payload: {
+        participantId,
+        key,
+        keyIndex,
+      },
+    };
+    if (this.worker) {
+      this.worker.postMessage(msg);
+    }
+    this.keyMap.set(participantId ?? 'shared', msg);
   }
 }

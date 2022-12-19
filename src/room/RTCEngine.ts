@@ -304,9 +304,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // @ts-ignore
     rtcConfig.continualGatheringPolicy = 'gather_continually';
 
-    log.debug('E2EE - setting insertable streams constraints');
-    // @ts-ignore
-    rtcConfig.encodedInsertableStreams = true;
+    if (this.options.e2ee?.isEnabled) {
+      log.debug('E2EE - setting insertable streams constraints');
+      //  this makes sure that no data is sent before the transforms are ready
+      // @ts-ignore
+      rtcConfig.encodedInsertableStreams = true;
+    }
 
     this.publisher = new PCTransport(rtcConfig);
     this.subscriber = new PCTransport(rtcConfig);

@@ -31,3 +31,12 @@ export interface EncodeMessage extends BaseMessage {
 export type E2EEWorkerMessage = InitMessage | SetKeyMessage | EncodeMessage;
 
 export type KeySet = { material?: CryptoKey; encryptionKey: CryptoKey };
+
+export type KeyProviderOptions = {
+  sharedKey: boolean;
+};
+
+export type E2EEWorkerOptions = {
+  url: URL;
+  loadAsModule: boolean;
+};

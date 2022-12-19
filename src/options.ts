@@ -1,3 +1,4 @@
+import type { E2EEManager } from './room/e2ee';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
 import type {
   AudioCaptureOptions,
@@ -77,6 +78,11 @@ export interface InternalRoomOptions {
    */
 
   expWebAudioMix: boolean | WebAudioSettings;
+
+  /**
+   * @experimental
+   */
+  e2ee?: E2EEManager;
 }
 
 /**
