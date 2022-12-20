@@ -5,8 +5,6 @@ import { setLogLevel, workerLogger } from '../logger';
 const participantCryptors = new Map<string, Cryptor>();
 let sharedCryptor: Cryptor | undefined;
 
-setLogLevel('debug', 'lk-e2ee-worker');
-
 /**
  * @param ev{string}
  */

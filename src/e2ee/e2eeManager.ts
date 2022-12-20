@@ -11,7 +11,7 @@ import { ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import LocalTrack from '../room/track/LocalTrack';
-import type { KeyProvider } from './keyProvider';
+import type { BaseKeyProvider } from './keyProvider';
 
 export class E2EEManager {
   protected worker?: Worker;
@@ -26,7 +26,7 @@ export class E2EEManager {
 
   private enabled: boolean;
 
-  private keyProvider: KeyProvider;
+  private keyProvider: BaseKeyProvider;
 
   get isEnabled() {
     return this.enabled;
@@ -78,7 +78,7 @@ export class E2EEManager {
     this.enabled = enabled;
   }
 
-  private setupEventListeners(room: Room, keyProvider: KeyProvider) {
+  private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
     room.on(RoomEvent.TrackSubscribed, (track) => {
       this.setupE2EEReceiver(track);
     });

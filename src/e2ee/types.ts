@@ -1,4 +1,4 @@
-import type { KeyProvider } from './keyProvider';
+import type { BaseKeyProvider } from './keyProvider';
 
 export interface BaseMessage {
   kind: string;
@@ -49,5 +49,5 @@ export type KeyInfo = {
 };
 
 export type E2EEOptions = {
-  keyProvider: KeyProvider;
+  keyProvider: BaseKeyProvider;
 };

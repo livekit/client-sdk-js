@@ -2,7 +2,7 @@ import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import type { KeyProviderCallbacks, KeyInfo } from './types';
 
-export class KeyProvider extends (EventEmitter as new () => TypedEmitter<KeyProviderCallbacks>) {
+export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<KeyProviderCallbacks>) {
   private keyInfoMap: Map<string, KeyInfo>;
 
   constructor() {
@@ -21,7 +21,7 @@ export class KeyProvider extends (EventEmitter as new () => TypedEmitter<KeyProv
   }
 }
 
-export class ExternalE2EEKeyProvider extends KeyProvider {
+export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   setKey(key: Uint8Array) {
     this.onSetEncryptionKey(key);
   }
