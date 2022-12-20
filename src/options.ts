@@ -1,4 +1,4 @@
-import type { E2EEManager } from './room/e2ee';
+import type { E2EEOptions } from './e2ee/types';
 import type { ReconnectPolicy } from './room/ReconnectPolicy';
 import type {
   AudioCaptureOptions,
@@ -82,7 +82,7 @@ export interface InternalRoomOptions {
   /**
    * @experimental
    */
-  e2ee?: E2EEManager;
+  e2ee?: E2EEOptions;
 }
 
 /**

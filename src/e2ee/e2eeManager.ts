@@ -1,19 +1,17 @@
 import { E2EE_FLAG } from './constants';
-import log from '../../logger';
-import type { E2EEWorkerOptions, EncodeMessage, InitMessage, SetKeyMessage } from './types';
+
+import log from '../logger';
+import type { E2EEOptions, EncodeMessage, InitMessage, KeyInfo, SetKeyMessage } from './types';
 // eslint-disable-next-line import/extensions
 // @ts-ignore
 import WebWorkerURL from './e2ee.worker.js?worker&url';
 import { supportsScriptTransform } from './utils';
-import type Room from '../Room';
-import { ParticipantEvent, RoomEvent } from '../events';
-import type RemoteTrack from '../track/RemoteTrack';
-import type { Track } from '../track/Track';
-import LocalTrack from '../track/LocalTrack';
-
-export function createE2EEKey(): Uint8Array {
-  return window.crypto.getRandomValues(new Uint8Array(32));
-}
+import type Room from '../room/Room';
+import { ParticipantEvent, RoomEvent } from '../room/events';
+import type RemoteTrack from '../room/track/RemoteTrack';
+import type { Track } from '../room/track/Track';
+import LocalTrack from '../room/track/LocalTrack';
+import type { KeyProvider } from './keyProvider';
 
 export class E2EEManager {
   protected worker?: Worker;
@@ -28,15 +26,14 @@ export class E2EEManager {
 
   private enabled: boolean;
 
+  private keyProvider: KeyProvider;
+
   get isEnabled() {
     return this.enabled;
   }
 
-  constructor(workerOptions?: E2EEWorkerOptions) {
-    if (workerOptions) {
-      this.webWorkerUrl = workerOptions.url;
-      this.workerAsModule = workerOptions.loadAsModule;
-    }
+  constructor(options: E2EEOptions) {
+    this.keyProvider = options.keyProvider;
     this.enabled = false;
   }
 
@@ -46,7 +43,7 @@ export class E2EEManager {
   registerOnRoom(room: Room) {
     if (room !== this.room) {
       this.room = room;
-      this.setupEventListeners(room);
+      this.setupEventListeners(room, this.keyProvider);
     }
   }
 
@@ -65,20 +62,42 @@ export class E2EEManager {
           sharedKey: true,
         },
       };
-      this.worker?.postMessage(msg);
+      log.info(`initializing worker`, { worker: this.worker });
+      this.worker.postMessage(msg);
+      this.worker.onmessage = (ev: MessageEvent<InitMessage>) => {
+        const { kind } = ev.data;
+        if (kind === 'init') {
+          this.keyProvider.getKeys().forEach((keyInfo) => {
+            this.postKey(keyInfo);
+          });
+        }
+      };
     } else if (!enabled && this.worker) {
       this.worker.terminate();
     }
     this.enabled = enabled;
   }
 
-  private setupEventListeners(room: Room) {
+  private setupEventListeners(room: Room, keyProvider: KeyProvider) {
     room.on(RoomEvent.TrackSubscribed, (track) => {
       this.setupE2EEReceiver(track);
     });
     room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
       this.setupE2EESender(publication.track!, publication.track!.sender!);
     });
+    keyProvider.on('setKey', this.postKey);
+  }
+
+  private postKey({ key, participantId, keyIndex }: KeyInfo) {
+    const msg: SetKeyMessage = {
+      kind: 'setKey',
+      payload: {
+        participantId,
+        key,
+        keyIndex,
+      },
+    };
+    this.worker?.postMessage(msg);
   }
 
   private setupE2EEReceiver(track: RemoteTrack) {
@@ -165,39 +184,5 @@ export class E2EEManager {
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);
     }
-  }
-}
-
-export class ExternallyManagedE2EE extends E2EEManager {
-  keyMap: Map<string, SetKeyMessage>;
-
-  constructor(workerOptions?: E2EEWorkerOptions) {
-    super(workerOptions);
-    this.keyMap = new Map();
-  }
-
-  async setEnabled(enabled: boolean): Promise<void> {
-    await super.setEnabled(enabled);
-    if (this.worker) {
-      // set keys on the worker that had been previously set before enabling
-      for (const [, msg] of this.keyMap) {
-        this.worker.postMessage(msg);
-      }
-    }
-  }
-
-  setKey(key: Uint8Array, participantId?: string, keyIndex?: number) {
-    const msg: SetKeyMessage = {
-      kind: 'setKey',
-      payload: {
-        participantId,
-        key,
-        keyIndex,
-      },
-    };
-    if (this.worker) {
-      this.worker.postMessage(msg);
-    }
-    this.keyMap.set(participantId ?? 'shared', msg);
   }
 }

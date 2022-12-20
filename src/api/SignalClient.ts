@@ -54,6 +54,7 @@ export interface SignalOptions {
   publishOnly?: string;
   adaptiveStream?: boolean;
   maxRetries: number;
+  e2eeEnabled: boolean;
 }
 
 type SignalMessage = SignalRequest['message'];

@@ -1,3 +1,5 @@
+import type { KeyProvider } from './keyProvider';
+
 export interface BaseMessage {
   kind: string;
   payload: unknown;
@@ -36,7 +38,16 @@ export type KeyProviderOptions = {
   sharedKey: boolean;
 };
 
-export type E2EEWorkerOptions = {
-  url: URL;
-  loadAsModule: boolean;
+export type KeyProviderCallbacks = {
+  setKey: (keyInfo: KeyInfo) => void;
+};
+
+export type KeyInfo = {
+  key: Uint8Array;
+  participantId?: string;
+  keyIndex?: number;
+};
+
+export type E2EEOptions = {
+  keyProvider: KeyProvider;
 };

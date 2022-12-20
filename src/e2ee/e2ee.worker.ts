@@ -1,9 +1,11 @@
 import { Cryptor } from './cryptor';
 import type { E2EEWorkerMessage } from './types';
-import { workerLogger } from '../../logger';
+import { setLogLevel, workerLogger } from '../logger';
 
 const participantCryptors = new Map<string, Cryptor>();
 let sharedCryptor: Cryptor | undefined;
+
+setLogLevel('debug', 'lk-e2ee-worker');
 
 /**
  * @param ev{string}
@@ -18,6 +20,8 @@ onmessage = (ev) => {
       if (sharedKey) {
         sharedCryptor = new Cryptor({ sharedKey });
       }
+      // acknowledge init successful
+      postMessage(ev.data);
       break;
     case 'decode':
     case 'encode':

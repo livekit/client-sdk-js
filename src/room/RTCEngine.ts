@@ -304,7 +304,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // @ts-ignore
     rtcConfig.continualGatheringPolicy = 'gather_continually';
 
-    if (this.options.e2ee?.isEnabled) {
+    if (this.signalOpts?.e2eeEnabled) {
       log.debug('E2EE - setting insertable streams constraints');
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore

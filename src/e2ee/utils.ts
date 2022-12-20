@@ -80,3 +80,6 @@ export async function ratchet(material: CryptoKey): Promise<ArrayBuffer> {
     256,
   );
 }
+export function createE2EEKey(): Uint8Array {
+  return window.crypto.getRandomValues(new Uint8Array(32));
+}

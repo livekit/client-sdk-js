@@ -25,8 +25,7 @@ import {
   VideoCodec,
   VideoPresets,
   VideoQuality,
-  ExternallyManagedE2EE,
-  // ExternallyManagedE2EE,
+  ExternalE2EEKeyProvider,
 } from '../src/index';
 import { isSafari } from '../src/room/utils';
 
@@ -38,7 +37,7 @@ const state = {
   decoder: new TextDecoder(),
   defaultDevices: new Map<MediaDeviceKind, string>(),
   bitrateInterval: undefined as any,
-  e2eeManager: new ExternallyManagedE2EE(),
+  e2eeKeyProvider: new ExternalE2EEKeyProvider(),
 };
 let currentRoom: Room | undefined;
 
@@ -94,7 +93,7 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
-      e2ee: state.e2eeManager,
+      e2ee: { keyProvider: state.e2eeKeyProvider },
     };
 
     const connectOpts: RoomConnectOptions = {
@@ -120,9 +119,9 @@ const appActions = {
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
-    if (state.e2eeManager && e2eeKey) {
-      room.setE2EEEnabled(true);
-      state.e2eeManager.setKey(Uint8Array.from(JSON.parse(e2eeKey)));
+    if (state.e2eeKeyProvider && e2eeKey) {
+      await room.setE2EEEnabled(true);
+      state.e2eeKeyProvider.setKey(Uint8Array.from(JSON.parse(e2eeKey)));
     }
     startTime = Date.now();
     await room.prepareConnection(url);

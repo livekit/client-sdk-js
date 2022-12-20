@@ -37,7 +37,7 @@ import {
   videoDefaults,
 } from './defaults';
 import DeviceManager from './DeviceManager';
-import type { E2EEManager } from './e2ee';
+import { E2EEManager } from '../e2ee/e2eeManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
@@ -133,7 +133,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private disconnectLock: Mutex;
 
-  private _e2eeManager: E2EEManager | undefined;
+  private e2eeManager: E2EEManager | undefined;
 
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
@@ -160,7 +160,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     };
 
     if (this.options.e2ee) {
-      this._e2eeManager = this.options.e2ee;
+      this.e2eeManager = new E2EEManager(this.options.e2ee);
     }
 
     this.maybeCreateEngine();
@@ -170,10 +170,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
   }
 
-  setE2EEEnabled(enabled: boolean) {
-    if (this._e2eeManager) {
-      this._e2eeManager.registerOnRoom(this);
-      this._e2eeManager.setEnabled(enabled);
+  async setE2EEEnabled(enabled: boolean) {
+    if (this.e2eeManager) {
+      this.e2eeManager.registerOnRoom(this);
+      await this.e2eeManager.setEnabled(enabled);
+    } else {
+      throw Error('e2ee not configured');
     }
   }
 
@@ -301,6 +303,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             adaptiveStream:
               typeof this.options.adaptiveStream === 'object' ? true : this.options.adaptiveStream,
             maxRetries: this.connOptions.maxRetries,
+            e2eeEnabled: this.e2eeManager?.isEnabled || false,
           },
           this.abortController.signal,
         );
