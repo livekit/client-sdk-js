@@ -40,7 +40,7 @@ export class E2EEManager {
   /**
    * @internal
    */
-  registerOnRoom(room: Room) {
+  setup(room: Room) {
     if (room !== this.room) {
       this.room = room;
       this.setupEventListeners(room, this.keyProvider);
