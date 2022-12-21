@@ -918,7 +918,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /**
    * @internal
    */
-  async ensureDataTransportReady(
+  async ensureDataChannelReady(
     kind: DataPacket_Kind,
     subscriber: boolean = this.subscriberPrimary,
   ) {
@@ -926,11 +926,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const transportName = subscriber ? 'Subscriber' : 'Publisher';
     if (!primaryTransport) {
       throw new ConnectionError(`${transportName} connection not set`);
-    }
-
-    if (!primaryTransport.isICEConnected && primaryTransport.pc.iceConnectionState !== 'checking') {
-      // start negotiation
-      this.negotiate();
     }
 
     const targetChannel = this.dataChannelForKind(kind, subscriber);
@@ -956,11 +951,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private async ensurePublisherConnected(kind: DataPacket_Kind) {
-    if (!this.subscriberPrimary) {
-      return;
+    if (
+      this.subscriberPrimary &&
+      !this.publisher?.isICEConnected &&
+      this.publisher?.pc.iceConnectionState !== 'checking'
+    ) {
+      // start negotiation
+      this.negotiate();
     }
-
-    await this.ensureDataTransportReady(kind, false);
+    await this.ensureDataChannelReady(kind, false);
   }
 
   /** @internal */
