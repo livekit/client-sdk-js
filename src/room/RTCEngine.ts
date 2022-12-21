@@ -915,21 +915,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  private async ensurePublisherConnected(kind: DataPacket_Kind) {
-    if (!this.subscriberPrimary) {
-      return;
+  /**
+   * @internal
+   */
+  async ensureTransportReady(kind: DataPacket_Kind, subscriber: boolean = this.subscriberPrimary) {
+    const primaryTransport = subscriber ? this.subscriber : this.publisher;
+    if (!primaryTransport) {
+      throw new ConnectionError(`${subscriber ? 'Subscriber' : 'Publisher'} connection not set`);
     }
 
-    if (!this.publisher) {
-      throw new ConnectionError('publisher connection not set');
-    }
-
-    if (!this.publisher.isICEConnected && this.publisher.pc.iceConnectionState !== 'checking') {
+    if (!primaryTransport.isICEConnected && primaryTransport.pc.iceConnectionState !== 'checking') {
       // start negotiation
       this.negotiate();
     }
 
-    const targetChannel = this.dataChannelForKind(kind);
+    const targetChannel = this.dataChannelForKind(kind, subscriber);
     if (targetChannel?.readyState === 'open') {
       return;
     }
@@ -937,15 +937,26 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // wait until publisher ICE connected
     const endTime = new Date().getTime() + this.peerConnectionTimeout;
     while (new Date().getTime() < endTime) {
-      if (this.publisher.isICEConnected && this.dataChannelForKind(kind)?.readyState === 'open') {
+      if (
+        primaryTransport.isICEConnected &&
+        this.dataChannelForKind(kind, subscriber)?.readyState === 'open'
+      ) {
         return;
       }
       await sleep(50);
     }
 
     throw new ConnectionError(
-      `could not establish publisher connection, state ${this.publisher?.pc.iceConnectionState}`,
+      `could not establish publisher connection, state ${primaryTransport.pc.iceConnectionState}`,
     );
+  }
+
+  private async ensurePublisherConnected(kind: DataPacket_Kind) {
+    if (!this.subscriberPrimary) {
+      return;
+    }
+
+    await this.ensureTransportReady(kind, false);
   }
 
   /** @internal */
