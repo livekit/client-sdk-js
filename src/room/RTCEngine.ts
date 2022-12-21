@@ -918,39 +918,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /**
    * @internal
    */
-  async ensureDataChannelReady(
+  async ensureDataTransportConnected(
     kind: DataPacket_Kind,
     subscriber: boolean = this.subscriberPrimary,
   ) {
-    const primaryTransport = subscriber ? this.subscriber : this.publisher;
+    const transport = subscriber ? this.subscriber : this.publisher;
     const transportName = subscriber ? 'Subscriber' : 'Publisher';
-    if (!primaryTransport) {
+    if (!transport) {
       throw new ConnectionError(`${transportName} connection not set`);
     }
 
-    const targetChannel = this.dataChannelForKind(kind, subscriber);
-    if (targetChannel?.readyState === 'open') {
-      return;
-    }
-
-    // wait until publisher ICE connected
-    const endTime = new Date().getTime() + this.peerConnectionTimeout;
-    while (new Date().getTime() < endTime) {
-      if (
-        primaryTransport.isICEConnected &&
-        this.dataChannelForKind(kind, subscriber)?.readyState === 'open'
-      ) {
-        return;
-      }
-      await sleep(50);
-    }
-
-    throw new ConnectionError(
-      `could not establish ${transportName} connection, state ${primaryTransport.pc.iceConnectionState}`,
-    );
-  }
-
-  private async ensurePublisherConnected(kind: DataPacket_Kind) {
     if (
       this.subscriberPrimary &&
       !this.publisher?.isICEConnected &&
@@ -959,7 +936,31 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // start negotiation
       this.negotiate();
     }
-    await this.ensureDataChannelReady(kind, false);
+
+    const targetChannel = this.dataChannelForKind(kind, subscriber);
+    if (targetChannel?.readyState === 'open') {
+      return;
+    }
+
+    // wait until ICE connected
+    const endTime = new Date().getTime() + this.peerConnectionTimeout;
+    while (new Date().getTime() < endTime) {
+      if (
+        transport.isICEConnected &&
+        this.dataChannelForKind(kind, subscriber)?.readyState === 'open'
+      ) {
+        return;
+      }
+      await sleep(50);
+    }
+
+    throw new ConnectionError(
+      `could not establish ${transportName} connection, state ${transport.pc.iceConnectionState}`,
+    );
+  }
+
+  private async ensurePublisherConnected(kind: DataPacket_Kind) {
+    await this.ensureDataTransportConnected(kind, false);
   }
 
   /** @internal */
