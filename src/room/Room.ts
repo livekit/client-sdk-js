@@ -1296,8 +1296,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     };
     this.handleDisconnect();
     this.name = 'simulated-room';
-    this.localParticipant.identity = 'simulated-local';
-    this.localParticipant.name = 'simulated-local';
+
+    this.localParticipant.updateInfo(
+      ParticipantInfo.fromPartial({
+        identity: 'simulated-local',
+        name: 'local-name',
+      }),
+    );
     this.setupLocalParticipantEvents();
     this.emit(RoomEvent.SignalConnected);
     this.emit(RoomEvent.Connected);
