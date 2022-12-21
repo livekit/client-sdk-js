@@ -918,7 +918,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   /**
    * @internal
    */
-  async ensureTransportReady(kind: DataPacket_Kind, subscriber: boolean = this.subscriberPrimary) {
+  async ensureDataTransportReady(
+    kind: DataPacket_Kind,
+    subscriber: boolean = this.subscriberPrimary,
+  ) {
     const primaryTransport = subscriber ? this.subscriber : this.publisher;
     const transportName = subscriber ? 'Subscriber' : 'Publisher';
     if (!primaryTransport) {
@@ -957,7 +960,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
-    await this.ensureTransportReady(kind, false);
+    await this.ensureDataTransportReady(kind, false);
   }
 
   /** @internal */
