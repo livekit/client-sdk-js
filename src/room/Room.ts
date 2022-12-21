@@ -239,14 +239,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     await fetch(`http${url.substring(2)}`, { method: 'HEAD' });
   }
 
-  connect = (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+    // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
+    const unlockDisconnect = await this.disconnectLock.lock();
+
     if (this.state === ConnectionState.Connected) {
       // when the state is reconnecting or connected, this function returns immediately
       log.info(`already connected to room ${this.name}`);
+      unlockDisconnect();
       return Promise.resolve();
     }
 
     if (this.connectFuture) {
+      unlockDisconnect();
       return this.connectFuture.promise;
     }
 
@@ -256,6 +261,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (!this.abortController || this.abortController.signal.aborted) {
         this.abortController = new AbortController();
       }
+      // at this point the intention to connect has been signalled so we can allow cancelling of the connection via disconnect() again
+      unlockDisconnect();
 
       if (this.state === ConnectionState.Reconnecting) {
         log.info('Reconnection attempt replaced by new connection attempt');
