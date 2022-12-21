@@ -920,8 +920,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    */
   async ensureTransportReady(kind: DataPacket_Kind, subscriber: boolean = this.subscriberPrimary) {
     const primaryTransport = subscriber ? this.subscriber : this.publisher;
+    const transportName = subscriber ? 'Subscriber' : 'Publisher';
     if (!primaryTransport) {
-      throw new ConnectionError(`${subscriber ? 'Subscriber' : 'Publisher'} connection not set`);
+      throw new ConnectionError(`${transportName} connection not set`);
     }
 
     if (!primaryTransport.isICEConnected && primaryTransport.pc.iceConnectionState !== 'checking') {
@@ -947,7 +948,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     throw new ConnectionError(
-      `could not establish publisher connection, state ${primaryTransport.pc.iceConnectionState}`,
+      `could not establish ${transportName} connection, state ${primaryTransport.pc.iceConnectionState}`,
     );
   }
 
