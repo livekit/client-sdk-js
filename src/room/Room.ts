@@ -172,10 +172,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   async setE2EEEnabled(enabled: boolean) {
     if (this.e2eeManager) {
-      this.e2eeManager.setup(this);
+      if (enabled && !this.e2eeManager.isEnabled) {
+        this.e2eeManager.setup(this);
+      }
       await this.e2eeManager.setEnabled(enabled);
     } else {
-      throw Error('e2ee not configured');
+      throw Error('e2ee not configured, please set e2ee settings within the room options');
     }
   }
 

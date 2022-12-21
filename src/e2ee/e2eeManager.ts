@@ -63,19 +63,30 @@ export class E2EEManager {
         },
       };
       log.info(`initializing worker`, { worker: this.worker });
+      this.worker.onmessage = this.onWorkerMessage;
+      this.worker.onerror = this.onWorkerError;
       this.worker.postMessage(msg);
-      this.worker.onmessage = (ev: MessageEvent<InitMessage>) => {
-        const { kind } = ev.data;
-        if (kind === 'init') {
-          this.keyProvider.getKeys().forEach((keyInfo) => {
-            this.postKey(keyInfo);
-          });
-        }
-      };
     } else if (!enabled && this.worker) {
       this.worker.terminate();
     }
     this.enabled = enabled;
+  }
+
+  private onWorkerMessage(ev: MessageEvent) {
+    const { kind } = ev.data;
+    switch (kind) {
+      case 'init':
+        this.keyProvider.getKeys().forEach((keyInfo) => {
+          this.postKey(keyInfo);
+        });
+        break;
+      default:
+        break;
+    }
+  }
+
+  private onWorkerError(ev: ErrorEvent) {
+    log.error('e2ee worker encountered error:', { error: ev.error });
   }
 
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {

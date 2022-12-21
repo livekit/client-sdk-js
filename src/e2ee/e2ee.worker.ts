@@ -1,6 +1,6 @@
 import { Cryptor } from './cryptor';
 import type { E2EEWorkerMessage } from './types';
-import { setLogLevel, workerLogger } from '../logger';
+import { workerLogger } from '../logger';
 
 const participantCryptors = new Map<string, Cryptor>();
 let sharedCryptor: Cryptor | undefined;
@@ -66,15 +66,13 @@ function getParticipantCryptor(id?: string) {
 // Operations using RTCRtpScriptTransform.
 // @ts-ignore
 if (self.RTCTransformEvent) {
-  workerLogger.warn('setup transform event');
+  workerLogger.info('setup transform event');
   // @ts-ignore
   self.onrtctransform = async (event) => {
     const transformer = event.transformer;
     const { kind, participantId } = transformer.options;
     const cipher = getParticipantCryptor(participantId);
-
     workerLogger.debug('transform');
-
     await transform(cipher, kind, transformer.readable, transformer.writable);
   };
 }
