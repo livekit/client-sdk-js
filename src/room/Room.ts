@@ -114,6 +114,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** options of room */
   options: InternalRoomOptions;
 
+  isE2EEEnabled: boolean = false;
+
   private _isRecording: boolean = false;
 
   private identityToSid: Map<string, string>;
@@ -159,22 +161,25 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ...options?.publishDefaults,
     };
 
-    if (this.options.e2ee) {
-      this.e2eeManager = new E2EEManager(this.options.e2ee);
-    }
-
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
 
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
+
+    if (this.options.e2ee) {
+      this.e2eeManager = new E2EEManager(this.options.e2ee);
+      this.e2eeManager.on('encryptionStatusChanged', (enabled) => {
+        console.log('encryption status changed: ' + enabled);
+        this.isE2EEEnabled = enabled;
+        this.emit('encryptionStatusChanged', enabled);
+      });
+      this.e2eeManager?.setup(this);
+    }
   }
 
   async setE2EEEnabled(enabled: boolean) {
     if (this.e2eeManager) {
-      if (enabled && !this.e2eeManager.isEnabled) {
-        this.e2eeManager.setup(this);
-      }
       await this.e2eeManager.setEnabled(enabled);
     } else {
       throw Error('e2ee not configured, please set e2ee settings within the room options');
@@ -305,7 +310,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             adaptiveStream:
               typeof this.options.adaptiveStream === 'object' ? true : this.options.adaptiveStream,
             maxRetries: this.connOptions.maxRetries,
-            e2eeEnabled: this.e2eeManager?.isEnabled || false,
+            e2eeEnabled: !!this.e2eeManager,
           },
           this.abortController.signal,
         );
@@ -1471,4 +1476,5 @@ export type RoomEventCallbacks = {
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
+  encryptionStatusChanged: (encrypted: boolean) => void;
 };

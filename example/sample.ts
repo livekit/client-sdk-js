@@ -75,9 +75,6 @@ const appActions = {
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
 
-    // const encryptionKey = JSON.parse(storedKey);
-    console.log('key', { key: cryptoKey });
-
     setLogLevel(LogLevel.debug);
     updateSearchParams(url, token, cryptoKey);
 
@@ -104,7 +101,7 @@ const appActions = {
         iceTransportPolicy: 'relay',
       };
     }
-    await appActions.connectToRoom(url, token, roomOpts, connectOpts, shouldPublish, cryptoKey);
+    await appActions.connectToRoom(url, token, roomOpts, connectOpts, shouldPublish);
 
     state.bitrateInterval = setInterval(renderBitrate, 1000);
   },
@@ -115,14 +112,9 @@ const appActions = {
     roomOptions?: RoomOptions,
     connectOptions?: RoomConnectOptions,
     shouldPublish?: boolean,
-    e2eeKey?: string,
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
-    if (state.e2eeKeyProvider && e2eeKey) {
-      await room.setE2EEEnabled(true);
-      state.e2eeKeyProvider.setKey(Uint8Array.from(JSON.parse(e2eeKey)));
-    }
     startTime = Date.now();
     await room.prepareConnection(url);
     const prewarmTime = Date.now() - startTime;
@@ -197,6 +189,9 @@ const appActions = {
           ]);
           updateButtonsForPublishState();
         }
+      })
+      .on('encryptionStatusChanged', () => {
+        updateButtonsForPublishState();
       });
 
     try {
@@ -224,6 +219,16 @@ const appActions = {
     participantConnected(room.localParticipant);
 
     return room;
+  },
+
+  toggleE2EE: async () => {
+    if (!currentRoom) return;
+
+    // read and set current key from input
+    const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
+    state.e2eeKeyProvider.setKey(Uint8Array.from(JSON.parse(cryptoKey)));
+
+    await currentRoom.setE2EEEnabled(!currentRoom.isE2EEEnabled);
   },
 
   toggleAudio: async () => {
@@ -735,6 +740,7 @@ function setButtonsForState(connected: boolean) {
     'disconnect-room-button',
     'flip-video-button',
     'send-button',
+    'toggle-e2ee-button',
   ];
   const disconnectedSet = ['connect-button'];
 
@@ -808,6 +814,13 @@ function updateButtonsForPublishState() {
     'share-screen-button',
     lp.isScreenShareEnabled ? 'Stop Screen Share' : 'Share Screen',
     lp.isScreenShareEnabled,
+  );
+
+  // e2ee
+  setButtonState(
+    'toggle-e2ee-button',
+    `${currentRoom.isE2EEEnabled ? 'Disable' : 'Enable'} E2EE`,
+    currentRoom.isE2EEEnabled,
   );
 }
 

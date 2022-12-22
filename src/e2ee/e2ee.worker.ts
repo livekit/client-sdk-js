@@ -1,34 +1,48 @@
 import { Cryptor } from './cryptor';
-import type { E2EEWorkerMessage, ErrorMessage } from './types';
-import { workerLogger } from '../logger';
+import type { E2EEWorkerMessage, EnableMessage, ErrorMessage } from './types';
+import { setLogLevel, workerLogger } from '../logger';
 import { E2EEError, E2EEErrorReason } from './errors';
 
 const participantCryptors = new Map<string, Cryptor>();
 let sharedCryptor: Cryptor | undefined;
 
+let isEncryptionEnabled: boolean = false;
+
+setLogLevel('debug', 'lk-e2ee-worker');
+
 /**
  * @param ev{string}
  */
 onmessage = (ev) => {
-  const { kind, data: payload }: E2EEWorkerMessage = ev.data;
+  const { kind, data }: E2EEWorkerMessage = ev.data;
 
   switch (kind) {
     case 'init':
-      const { sharedKey } = payload;
+      const { sharedKey } = data;
       workerLogger.info('worker initialized');
       if (sharedKey) {
-        sharedCryptor = new Cryptor({ sharedKey });
+        sharedCryptor = new Cryptor({ sharedKey, enabled: isEncryptionEnabled });
       }
       // acknowledge init successful
+      const enableMsg: EnableMessage = {
+        kind: 'enable',
+        data: { enabled: isEncryptionEnabled },
+      };
+      postMessage(enableMsg);
+      break;
+    case 'enable':
+      setCryptorsEnabled(data.enabled);
+      workerLogger.info('updated e2ee enabled status');
+      // acknowledge enable call successful
       postMessage(ev.data);
       break;
     case 'decode':
     case 'encode':
-      let cipher = getParticipantCryptor(payload.participantId);
-      transform(cipher, kind, payload.readableStream, payload.writableStream);
+      let cipher = getParticipantCryptor(data.participantId);
+      transform(cipher, kind, data.readableStream, data.writableStream);
       break;
     case 'setKey':
-      getParticipantCryptor(payload.participantId).setKey(payload.key, payload.keyIndex);
+      getParticipantCryptor(data.participantId).setKey(data.key, data.keyIndex);
       break;
     default:
       break;
@@ -68,10 +82,18 @@ function getParticipantCryptor(id?: string) {
   }
   let cryptor = participantCryptors.get(id);
   if (!cryptor) {
-    cryptor = new Cryptor();
+    cryptor = new Cryptor({ enabled: isEncryptionEnabled });
     participantCryptors.set(id, cryptor);
   }
   return cryptor;
+}
+
+function setCryptorsEnabled(enable: boolean) {
+  isEncryptionEnabled = enable;
+  sharedCryptor?.setEnabled(enable);
+  for (const [, cryptor] of participantCryptors) {
+    cryptor.setEnabled(enable);
+  }
 }
 
 // Operations using RTCRtpScriptTransform.

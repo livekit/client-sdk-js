@@ -5,6 +5,7 @@ import type {
   E2EEManagerCallbacks,
   E2EEOptions,
   E2EEWorkerMessage,
+  EnableMessage,
   EncodeMessage,
   InitMessage,
   KeyInfo,
@@ -33,8 +34,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
 
   protected workerAsModule = true;
 
-  protected key?: CryptoKey | Uint8Array;
-
   private enabled: boolean;
 
   private keyProvider: BaseKeyProvider;
@@ -59,18 +58,10 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         E2EEErrorReason.BrowserUnsupported,
       );
     }
+    log.info('setting up e2ee');
     if (room !== this.room) {
       this.room = room;
       this.setupEventListeners(room, this.keyProvider);
-    }
-  }
-
-  /**
-   * @internal
-   */
-  async setEnabled(enabled: boolean) {
-    log.info(`set e2ee to ${enabled}`);
-    if (enabled && !this.worker) {
       this.worker = new Worker(this.webWorkerUrl, {
         type: this.workerAsModule ? 'module' : 'classic',
       });
@@ -84,33 +75,51 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       this.worker.onmessage = this.onWorkerMessage;
       this.worker.onerror = this.onWorkerError;
       this.worker.postMessage(msg);
-    } else if (!enabled && this.worker) {
-      this.worker.terminate();
-      this.worker = undefined;
     }
-    this.enabled = enabled;
   }
 
-  private onWorkerMessage(ev: MessageEvent<E2EEWorkerMessage>) {
+  /**
+   * @internal
+   */
+  async setEnabled(enabled: boolean) {
+    log.info(`set e2ee to ${enabled}`);
+
+    if (this.worker) {
+      const enableMsg: EnableMessage = {
+        kind: 'enable',
+        data: { enabled },
+      };
+      this.worker.postMessage(enableMsg);
+    }
+  }
+
+  private onWorkerMessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
     const { kind, data } = ev.data;
     switch (kind) {
-      case 'init':
-        this.keyProvider.getKeys().forEach((keyInfo) => {
-          this.postKey(keyInfo);
-        });
-        break;
-      case 'error': {
+      case 'error':
         this.emit('error', data.error);
-      }
+        break;
+      case 'enable':
+        if (this.enabled !== data.enabled) {
+          this.emit('encryptionStatusChanged', data.enabled);
+          this.enabled = data.enabled;
+          if (this.enabled) {
+            console.log('updating keys from keyprovider', this.keyProvider.getKeys());
+            this.keyProvider.getKeys().forEach((keyInfo) => {
+              this.postKey(keyInfo);
+            });
+          }
+        }
+        break;
       default:
         break;
     }
-  }
+  };
 
-  private onWorkerError(ev: ErrorEvent) {
+  private onWorkerError = (ev: ErrorEvent) => {
     log.error('e2ee worker encountered an error:', { error: ev.error });
     this.emit('error', new E2EEError(ev.error.message, E2EEErrorReason.WorkerError));
-  }
+  };
 
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
     room.on(RoomEvent.TrackSubscribed, (track) => {
@@ -119,10 +128,13 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
       this.setupE2EESender(publication.track!, publication.track!.sender!);
     });
-    keyProvider.on('setKey', this.postKey);
+    keyProvider.on('setKey', (keyInfo) => this.postKey(keyInfo));
   }
 
   private postKey({ key, participantId, keyIndex }: KeyInfo) {
+    if (!this.worker) {
+      throw Error('could not set key, worker is missing');
+    }
     const msg: SetKeyMessage = {
       kind: 'setKey',
       data: {
@@ -131,7 +143,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         keyIndex,
       },
     };
-    this.worker?.postMessage(msg);
+    this.worker.postMessage(msg);
   }
 
   private setupE2EEReceiver(track: RemoteTrack) {
@@ -158,8 +170,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     if (E2EE_FLAG in receiver || !this.worker) {
       return;
     }
-    // @ts-ignore
-    receiver[E2EE_FLAG] = true;
 
     if (isScriptTransformSupported()) {
       const options = {
@@ -181,6 +191,9 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       };
       this.worker.postMessage(msg, [receiverStreams.readable, receiverStreams.writable]);
     }
+
+    // @ts-ignore
+    receiver[E2EE_FLAG] = true;
   }
 
   /**
@@ -192,8 +205,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     if (E2EE_FLAG in sender || !this.worker) {
       return;
     }
-    // @ts-ignore
-    sender[E2EE_FLAG] = true;
 
     if (isScriptTransformSupported()) {
       log.warn('initialize script transform');
@@ -218,5 +229,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);
     }
+
+    // @ts-ignore
+    sender[E2EE_FLAG] = true;
   }
 }

@@ -38,7 +38,19 @@ export interface ErrorMessage extends BaseMessage {
   };
 }
 
-export type E2EEWorkerMessage = InitMessage | SetKeyMessage | EncodeMessage | ErrorMessage;
+export interface EnableMessage extends BaseMessage {
+  kind: 'enable';
+  data: {
+    enabled: boolean;
+  };
+}
+
+export type E2EEWorkerMessage =
+  | InitMessage
+  | SetKeyMessage
+  | EncodeMessage
+  | ErrorMessage
+  | EnableMessage;
 
 export type KeySet = { material?: CryptoKey; encryptionKey: CryptoKey };
 
@@ -51,7 +63,7 @@ export type KeyProviderCallbacks = {
 };
 
 export type E2EEManagerCallbacks = {
-  workerStatusChanged: () => void;
+  encryptionStatusChanged: (enabled: boolean) => void;
   error: (error: E2EEError) => void;
 };
 

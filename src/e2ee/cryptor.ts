@@ -49,12 +49,20 @@ export class Cryptor extends BaseCryptor {
 
   private sharedKey: boolean | undefined;
 
-  constructor(opts?: { sharedKey?: boolean }) {
+  private enabled: boolean;
+
+  constructor(opts?: { sharedKey?: boolean; enabled?: boolean }) {
     super();
     this.currentKeyIndex = 0;
     this.cryptoKeyRing = new Array(KEYRING_SIZE);
     this.sendCounts = new Map();
     this.sharedKey = opts?.sharedKey;
+    this.enabled = opts?.enabled ?? true;
+  }
+
+  setEnabled(enable: boolean) {
+    workerLogger.info(`set enable cryptor: ${enable}`);
+    this.enabled = enable;
   }
 
   async setKey(key: Uint8Array, keyIndex = -1) {
@@ -124,6 +132,9 @@ export class Cryptor extends BaseCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
+    if (!this.enabled) {
+      return controller.enqueue(encodedFrame);
+    }
     const keyIndex = this.currentKeyIndex;
 
     const encryptionKey = this.cryptoKeyRing[keyIndex]?.encryptionKey;
@@ -207,6 +218,9 @@ export class Cryptor extends BaseCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
+    if (!this.enabled) {
+      return controller.enqueue(encodedFrame);
+    }
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
 
