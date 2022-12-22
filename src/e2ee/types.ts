@@ -1,20 +1,21 @@
+import type { E2EEError } from './errors';
 import type { BaseKeyProvider } from './keyProvider';
 
 export interface BaseMessage {
   kind: string;
-  payload: unknown;
+  data: unknown;
 }
 
 export interface InitMessage extends BaseMessage {
   kind: 'init';
-  payload: {
+  data: {
     sharedKey?: boolean;
   };
 }
 
 export interface SetKeyMessage extends BaseMessage {
   kind: 'setKey';
-  payload: {
+  data: {
     participantId?: string;
     key: Uint8Array;
     keyIndex?: number;
@@ -23,14 +24,21 @@ export interface SetKeyMessage extends BaseMessage {
 
 export interface EncodeMessage extends BaseMessage {
   kind: 'decode' | 'encode';
-  payload: {
+  data: {
     participantId?: string;
     readableStream: ReadableStream;
     writableStream: WritableStream;
   };
 }
 
-export type E2EEWorkerMessage = InitMessage | SetKeyMessage | EncodeMessage;
+export interface ErrorMessage extends BaseMessage {
+  kind: 'error';
+  data: {
+    error: E2EEError;
+  };
+}
+
+export type E2EEWorkerMessage = InitMessage | SetKeyMessage | EncodeMessage | ErrorMessage;
 
 export type KeySet = { material?: CryptoKey; encryptionKey: CryptoKey };
 
@@ -40,6 +48,11 @@ export type KeyProviderOptions = {
 
 export type KeyProviderCallbacks = {
   setKey: (keyInfo: KeyInfo) => void;
+};
+
+export type E2EEManagerCallbacks = {
+  workerStatusChanged: () => void;
+  error: (error: E2EEError) => void;
 };
 
 export type KeyInfo = {

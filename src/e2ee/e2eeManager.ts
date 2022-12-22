@@ -1,19 +1,30 @@
 import { E2EE_FLAG } from './constants';
 
 import log from '../logger';
-import type { E2EEOptions, EncodeMessage, InitMessage, KeyInfo, SetKeyMessage } from './types';
+import type {
+  E2EEManagerCallbacks,
+  E2EEOptions,
+  E2EEWorkerMessage,
+  EncodeMessage,
+  InitMessage,
+  KeyInfo,
+  SetKeyMessage,
+} from './types';
 // eslint-disable-next-line import/extensions
 // @ts-ignore
 import WebWorkerURL from './e2ee.worker.js?worker&url';
-import { supportsScriptTransform } from './utils';
+import { isE2EESupported, isScriptTransformSupported } from './utils';
 import type Room from '../room/Room';
 import { ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import LocalTrack from '../room/track/LocalTrack';
 import type { BaseKeyProvider } from './keyProvider';
+import EventEmitter from 'events';
+import type TypedEmitter from 'typed-emitter';
+import { E2EEError, E2EEErrorReason } from './errors';
 
-export class E2EEManager {
+export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
   protected worker?: Worker;
 
   protected room?: Room;
@@ -33,6 +44,7 @@ export class E2EEManager {
   }
 
   constructor(options: E2EEOptions) {
+    super();
     this.keyProvider = options.keyProvider;
     this.enabled = false;
   }
@@ -41,6 +53,12 @@ export class E2EEManager {
    * @internal
    */
   setup(room: Room) {
+    if (!isE2EESupported()) {
+      throw new E2EEError(
+        'tried to setup end-to-end encryption on an unsupported browser',
+        E2EEErrorReason.BrowserUnsupported,
+      );
+    }
     if (room !== this.room) {
       this.room = room;
       this.setupEventListeners(room, this.keyProvider);
@@ -58,7 +76,7 @@ export class E2EEManager {
       });
       const msg: InitMessage = {
         kind: 'init',
-        payload: {
+        data: {
           sharedKey: true,
         },
       };
@@ -68,25 +86,30 @@ export class E2EEManager {
       this.worker.postMessage(msg);
     } else if (!enabled && this.worker) {
       this.worker.terminate();
+      this.worker = undefined;
     }
     this.enabled = enabled;
   }
 
-  private onWorkerMessage(ev: MessageEvent) {
-    const { kind } = ev.data;
+  private onWorkerMessage(ev: MessageEvent<E2EEWorkerMessage>) {
+    const { kind, data } = ev.data;
     switch (kind) {
       case 'init':
         this.keyProvider.getKeys().forEach((keyInfo) => {
           this.postKey(keyInfo);
         });
         break;
+      case 'error': {
+        this.emit('error', data.error);
+      }
       default:
         break;
     }
   }
 
   private onWorkerError(ev: ErrorEvent) {
-    log.error('e2ee worker encountered error:', { error: ev.error });
+    log.error('e2ee worker encountered an error:', { error: ev.error });
+    this.emit('error', new E2EEError(ev.error.message, E2EEErrorReason.WorkerError));
   }
 
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
@@ -102,7 +125,7 @@ export class E2EEManager {
   private postKey({ key, participantId, keyIndex }: KeyInfo) {
     const msg: SetKeyMessage = {
       kind: 'setKey',
-      payload: {
+      data: {
         participantId,
         key,
         keyIndex,
@@ -138,7 +161,7 @@ export class E2EEManager {
     // @ts-ignore
     receiver[E2EE_FLAG] = true;
 
-    if (supportsScriptTransform()) {
+    if (isScriptTransformSupported()) {
       const options = {
         kind: 'decode',
         participantId,
@@ -150,7 +173,7 @@ export class E2EEManager {
       const receiverStreams = receiver.createEncodedStreams();
       const msg: EncodeMessage = {
         kind: 'decode',
-        payload: {
+        data: {
           readableStream: receiverStreams.readable,
           writableStream: receiverStreams.writable,
           participantId,
@@ -172,7 +195,7 @@ export class E2EEManager {
     // @ts-ignore
     sender[E2EE_FLAG] = true;
 
-    if (supportsScriptTransform()) {
+    if (isScriptTransformSupported()) {
       log.warn('initialize script transform');
 
       const options = {
@@ -187,7 +210,7 @@ export class E2EEManager {
       const senderStreams = sender.createEncodedStreams();
       const msg: EncodeMessage = {
         kind: 'encode',
-        payload: {
+        data: {
           readableStream: senderStreams.readable,
           writableStream: senderStreams.writable,
           participantId,

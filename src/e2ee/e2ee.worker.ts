@@ -1,6 +1,7 @@
 import { Cryptor } from './cryptor';
-import type { E2EEWorkerMessage } from './types';
+import type { E2EEWorkerMessage, ErrorMessage } from './types';
 import { workerLogger } from '../logger';
+import { E2EEError, E2EEErrorReason } from './errors';
 
 const participantCryptors = new Map<string, Cryptor>();
 let sharedCryptor: Cryptor | undefined;
@@ -9,7 +10,7 @@ let sharedCryptor: Cryptor | undefined;
  * @param ev{string}
  */
 onmessage = (ev) => {
-  const { kind, payload }: E2EEWorkerMessage = ev.data;
+  const { kind, data: payload }: E2EEWorkerMessage = ev.data;
 
   switch (kind) {
     case 'init':
@@ -45,7 +46,17 @@ async function transform(
     const transformStream = new TransformStream({
       transform: transformFn.bind(cipher),
     });
-    await readableStream.pipeThrough(transformStream).pipeTo(writableStream);
+    try {
+      await readableStream.pipeThrough(transformStream).pipeTo(writableStream);
+    } catch (e: any) {
+      const errorMsg: ErrorMessage = {
+        kind: 'error',
+        data: {
+          error: new E2EEError(e.message, E2EEErrorReason.InternalError),
+        },
+      };
+      postMessage(errorMsg);
+    }
   } else {
     console.error(`Invalid operation: ${operation}`);
   }

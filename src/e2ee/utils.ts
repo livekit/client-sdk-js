@@ -1,16 +1,16 @@
 import { ENCRYPTION_ALGORITHM, RATCHET_SALT } from './constants';
 import type { KeySet } from './types';
 
-export function supportsE2EE() {
-  return supportsInsertableStreams() || supportsScriptTransform();
+export function isE2EESupported() {
+  return isInsertableStreamSupported() || isScriptTransformSupported();
 }
 
-export function supportsScriptTransform() {
+export function isScriptTransformSupported() {
   // @ts-ignore
   return typeof window.RTCRtpScriptTransform !== 'undefined';
 }
 
-export function supportsInsertableStreams() {
+export function isInsertableStreamSupported() {
   return (
     typeof window.RTCRtpSender !== 'undefined' &&
     // @ts-ignore
