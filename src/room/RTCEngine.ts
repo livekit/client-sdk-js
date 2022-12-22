@@ -929,7 +929,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (
-      this.subscriberPrimary &&
+      !subscriber &&
       !this.publisher?.isICEConnected &&
       this.publisher?.pc.iceConnectionState !== 'checking'
     ) {
@@ -955,7 +955,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     throw new ConnectionError(
-      `could not establish ${transportName} connection, state ${transport.pc.iceConnectionState}`,
+      `could not establish ${transportName} connection, state: ${transport.pc.iceConnectionState}`,
     );
   }
 
