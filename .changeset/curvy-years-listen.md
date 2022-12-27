@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Emit TrackUnpublished before TrackUnpublished within the same update
+Emit TrackUnpublished before TrackPublished within the same update
