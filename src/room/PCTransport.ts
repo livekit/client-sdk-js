@@ -1,3 +1,4 @@
+import EventEmitter from 'events';
 import { MediaDescription, parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
@@ -10,8 +11,10 @@ interface TrackBitrateInfo {
   maxbr: number;
 }
 
+export const eventNegotiationComplete = 'negotiationComplete';
+
 /** @internal */
-export default class PCTransport {
+export default class PCTransport extends EventEmitter {
   pc: RTCPeerConnection;
 
   pendingCandidates: RTCIceCandidateInit[] = [];
@@ -27,6 +30,7 @@ export default class PCTransport {
   onOffer?: (offer: RTCSessionDescriptionInit) => void;
 
   constructor(config?: RTCConfiguration) {
+    super();
     this.pc = new RTCPeerConnection(config);
   }
 
@@ -56,6 +60,8 @@ export default class PCTransport {
     if (this.renegotiate) {
       this.renegotiate = false;
       this.createAndSendOffer();
+    } else if (sd.type === 'answer') {
+      this.emit(eventNegotiationComplete);
     }
   }
 

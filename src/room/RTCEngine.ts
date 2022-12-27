@@ -29,7 +29,7 @@ import {
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
-import PCTransport from './PCTransport';
+import PCTransport, { eventNegotiationComplete } from './PCTransport';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import type LocalTrack from './track/LocalTrack';
 import type LocalVideoTrack from './track/LocalVideoTrack';
@@ -949,18 +949,25 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /** @internal */
-  negotiate() {
-    if (!this.publisher) {
-      return;
-    }
-
-    this.hasPublished = true;
-
-    this.publisher.negotiate((e) => {
-      if (e instanceof NegotiationError) {
-        this.fullReconnectOnNext = true;
+  negotiate(): Promise<void> {
+    // observe signal state
+    return new Promise<void>((resolve, reject) => {
+      if (!this.publisher) {
+        reject(new NegotiationError('publisher is not defined'));
+        return;
       }
-      this.handleDisconnect('negotiation');
+
+      this.hasPublished = true;
+
+      this.publisher.negotiate((e) => {
+        reject(e);
+        if (e instanceof NegotiationError) {
+          this.fullReconnectOnNext = true;
+        }
+        this.handleDisconnect('negotiation');
+      });
+
+      this.publisher.once(eventNegotiationComplete, resolve);
     });
   }
 
