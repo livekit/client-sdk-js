@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 
-import { workerLogger } from '../logger';
+import logger, { workerLogger } from '../logger';
 import {
   ENCRYPTION_ALGORITHM,
   IV_LENGTH,
@@ -65,7 +65,7 @@ export class Cryptor extends BaseCryptor {
     this.enabled = enable;
   }
 
-  async setKey(key: Uint8Array, keyIndex = -1) {
+  async setKey(key: Uint8Array, keyIndex = 0) {
     if (key) {
       let newKey: CryptoKey | KeySet;
       if (this.sharedKey) {
@@ -92,7 +92,7 @@ export class Cryptor extends BaseCryptor {
    * Sets a set of keys and resets the sendCount.
    * decryption.
    */
-  private setKeys(keys: KeySet | CryptoKey, keyIndex = -1) {
+  private setKeys(keys: KeySet | CryptoKey, keyIndex = 0) {
     if (keyIndex >= 0) {
       this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
     }
@@ -135,6 +135,7 @@ export class Cryptor extends BaseCryptor {
     if (!this.enabled) {
       return controller.enqueue(encodedFrame);
     }
+
     const keyIndex = this.currentKeyIndex;
 
     const encryptionKey = this.cryptoKeyRing[keyIndex]?.encryptionKey;
@@ -199,6 +200,8 @@ export class Cryptor extends BaseCryptor {
             workerLogger.error(e);
           },
         );
+    } else {
+      workerLogger.warn('skipping frame encryption');
     }
 
     /* NOTE WELL:

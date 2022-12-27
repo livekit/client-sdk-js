@@ -90,6 +90,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         data: { enabled },
       };
       this.worker.postMessage(enableMsg);
+    } else {
+      log.error('failed to enable e2ee, worker is not ready');
     }
   }
 
@@ -103,12 +105,12 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         if (this.enabled !== data.enabled) {
           this.emit('encryptionStatusChanged', data.enabled);
           this.enabled = data.enabled;
-          if (this.enabled) {
-            console.log('updating keys from keyprovider', this.keyProvider.getKeys());
-            this.keyProvider.getKeys().forEach((keyInfo) => {
-              this.postKey(keyInfo);
-            });
-          }
+        }
+        if (this.enabled) {
+          console.log('updating keys from keyprovider', this.keyProvider.getKeys());
+          this.keyProvider.getKeys().forEach((keyInfo) => {
+            this.postKey(keyInfo);
+          });
         }
         break;
       default:

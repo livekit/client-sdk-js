@@ -456,6 +456,14 @@ export default class LocalParticipant extends Participant {
       ...options,
     };
 
+    // disable simulcast if e2ee is set on safari
+    if (isSafari() && this.roomOptions.e2ee) {
+      log.info(
+        `End-to-end encryption is set up for this room, simulcast publishing will be disabled on Safari`,
+      );
+      opts.simulcast = false;
+    }
+
     // is it already published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
     this.tracks.forEach((publication) => {

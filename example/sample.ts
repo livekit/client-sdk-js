@@ -195,6 +195,11 @@ const appActions = {
       });
 
     try {
+      // read and set current key from input
+      const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
+      state.e2eeKeyProvider.setKey(Uint8Array.from(JSON.parse(cryptoKey)));
+      await room.setE2EEEnabled(true);
+
       await room.connect(url, token, connectOptions);
       const elapsed = Date.now() - startTime;
       appendLog(
