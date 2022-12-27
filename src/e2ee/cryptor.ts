@@ -201,14 +201,8 @@ export class Cryptor extends BaseCryptor {
           },
         );
     } else {
-      workerLogger.warn('skipping frame encryption');
+      workerLogger.debug('skipping frame encryption');
     }
-
-    /* NOTE WELL:
-     * This will send unencrypted data (only protected by DTLS transport encryption) when no key is configured.
-     * This is ok for demo purposes but should not be done once this becomes more relied upon.
-     */
-    return controller.enqueue(encodedFrame);
   }
 
   /**
@@ -230,13 +224,15 @@ export class Cryptor extends BaseCryptor {
     if (this.cryptoKeyRing[keyIndex]) {
       try {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
-        return controller.enqueue(decodedFrame);
+        if (decodedFrame) {
+          return controller.enqueue(decodedFrame);
+        }
       } catch (error) {
         workerLogger.warn('decoding frame failed, enqueuing frame as is');
       }
     }
 
-    return controller.enqueue(encodedFrame);
+    // return controller.enqueue(encodedFrame);
   }
 
   /**
@@ -248,7 +244,7 @@ export class Cryptor extends BaseCryptor {
     keyIndex: number,
     initialKey: KeySet | undefined = undefined,
     ratchetCount: number = 0,
-  ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame> {
+  ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
     const encryptionKey = this.cryptoKeyRing[keyIndex].encryptionKey;
 
     // Construct frame trailer. Similar to the frame header described in
@@ -298,7 +294,8 @@ export class Cryptor extends BaseCryptor {
       let { material } = this.cryptoKeyRing[keyIndex];
 
       if (this.sharedKey || !material) {
-        throw error;
+        workerLogger.error('invalid key');
+        return undefined;
       }
 
       if (ratchetCount < RATCHET_WINDOW_SIZE) {
@@ -328,7 +325,7 @@ export class Cryptor extends BaseCryptor {
         this.setKeys(initialKey);
       }
 
-      throw error;
+      workerLogger.error('error decoding', { error });
       // TODO: notify the application about error status.
     }
   }
