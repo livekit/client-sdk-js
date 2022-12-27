@@ -180,7 +180,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   async setE2EEEnabled(enabled: boolean) {
     if (this.e2eeManager) {
-      await this.e2eeManager.setEnabled(enabled);
+      await Promise.all([
+        this.localParticipant.setE2EEEnabled(enabled),
+        this.e2eeManager.setEnabled(enabled),
+      ]);
     } else {
       throw Error('e2ee not configured, please set e2ee settings within the room options');
     }
@@ -775,33 +778,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.handleParticipantUpdates(joinResponse.otherParticipants);
 
     // unpublish & republish tracks
-    const localPubs: LocalTrackPublication[] = [];
-    this.localParticipant.tracks.forEach((pub) => {
-      if (pub.track) {
-        localPubs.push(pub);
-      }
-    });
-
-    await Promise.all(
-      localPubs.map(async (pub) => {
-        const track = pub.track!;
-        this.localParticipant.unpublishTrack(track, false);
-        if (!track.isMuted) {
-          if (
-            (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
-            !track.isUserProvided
-          ) {
-            // we need to restart the track before publishing, often a full reconnect
-            // is necessary because computer had gone to sleep.
-            log.debug('restarting existing track', {
-              track: pub.trackSid,
-            });
-            await track.restartTrack();
-          }
-          await this.localParticipant.publishTrack(track, pub.options);
-        }
-      }),
-    );
+    await this.localParticipant.republishAllTracks();
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {

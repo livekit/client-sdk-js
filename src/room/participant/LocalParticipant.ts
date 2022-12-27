@@ -4,6 +4,7 @@ import type { InternalRoomOptions } from '../../options';
 import {
   DataPacket,
   DataPacket_Kind,
+  E2EEType,
   ParticipantInfo,
   ParticipantPermission,
 } from '../../proto/livekit_models';
@@ -67,6 +68,8 @@ export default class LocalParticipant extends Participant {
 
   // keep a pointer to room options
   private roomOptions: InternalRoomOptions;
+
+  private e2eeType: E2EEType = E2EEType.NONE;
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
@@ -176,6 +179,12 @@ export default class LocalParticipant extends Participant {
       this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
     }
     return changed;
+  }
+
+  /** @internal */
+  async setE2EEEnabled(enabled: boolean) {
+    this.e2eeType = enabled ? E2EEType.GCM : E2EEType.NONE;
+    await this.republishAllTracks();
   }
 
   /**
@@ -457,10 +466,8 @@ export default class LocalParticipant extends Participant {
     };
 
     // disable simulcast if e2ee is set on safari
-    if (isSafari() && this.roomOptions.e2ee) {
-      log.info(
-        `End-to-end encryption is set up for this room, simulcast publishing will be disabled on Safari`,
-      );
+    if (isSafari() && this.e2eeType !== E2EEType.NONE) {
+      log.info(`End-to-end encryption is enabled, simulcast publishing will be disabled on Safari`);
       opts.simulcast = false;
     }
 
@@ -528,6 +535,7 @@ export default class LocalParticipant extends Participant {
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
       disableDtx: !(opts.dtx ?? true),
+      e2ee: this.e2eeType,
       // stereo: isStereo,
       // disableRed: !(opts.red ?? true),
     });
@@ -856,6 +864,39 @@ export default class LocalParticipant extends Participant {
     if (this.engine.client.isConnected) {
       this.updateTrackSubscriptionPermissions();
     }
+  }
+
+  async republishAllTracks(options?: TrackPublishOptions) {
+    const localPubs: LocalTrackPublication[] = [];
+    this.tracks.forEach((pub) => {
+      if (pub.track) {
+        if (options) {
+          pub.options = { ...pub.options, ...options };
+        }
+        localPubs.push(pub);
+      }
+    });
+
+    await Promise.all(
+      localPubs.map(async (pub) => {
+        const track = pub.track!;
+        this.unpublishTrack(track, false);
+        if (!track.isMuted) {
+          if (
+            (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
+            !track.isUserProvided
+          ) {
+            // we need to restart the track before publishing, often a full reconnect
+            // is necessary because computer had gone to sleep.
+            log.debug('restarting existing track', {
+              track: pub.trackSid,
+            });
+            await track.restartTrack();
+          }
+          await this.publishTrack(track, pub.options);
+        }
+      }),
+    );
   }
 
   /** @internal */

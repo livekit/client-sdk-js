@@ -95,6 +95,45 @@ export function trackSourceToJSON(object: TrackSource): string {
   }
 }
 
+export enum E2EEType {
+  NONE = 0,
+  GCM = 1,
+  CUSTOM = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function e2EETypeFromJSON(object: any): E2EEType {
+  switch (object) {
+    case 0:
+    case "NONE":
+      return E2EEType.NONE;
+    case 1:
+    case "GCM":
+      return E2EEType.GCM;
+    case 2:
+    case "CUSTOM":
+      return E2EEType.CUSTOM;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return E2EEType.UNRECOGNIZED;
+  }
+}
+
+export function e2EETypeToJSON(object: E2EEType): string {
+  switch (object) {
+    case E2EEType.NONE:
+      return "NONE";
+    case E2EEType.GCM:
+      return "GCM";
+    case E2EEType.CUSTOM:
+      return "CUSTOM";
+    case E2EEType.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 export enum VideoQuality {
   LOW = 0,
   MEDIUM = 1,
@@ -419,6 +458,7 @@ export interface TrackInfo {
   stereo: boolean;
   /** true if RED (Redundant Encoding) is disabled for audio */
   disableRed: boolean;
+  e2ee: E2EEType;
 }
 
 /** provide information about available spatial layers */
@@ -1236,6 +1276,7 @@ function createBaseTrackInfo(): TrackInfo {
     codecs: [],
     stereo: false,
     disableRed: false,
+    e2ee: 0,
   };
 }
 
@@ -1285,6 +1326,9 @@ export const TrackInfo = {
     }
     if (message.disableRed === true) {
       writer.uint32(120).bool(message.disableRed);
+    }
+    if (message.e2ee !== 0) {
+      writer.uint32(128).int32(message.e2ee);
     }
     return writer;
   },
@@ -1341,6 +1385,9 @@ export const TrackInfo = {
         case 15:
           message.disableRed = reader.bool();
           break;
+        case 16:
+          message.e2ee = reader.int32() as any;
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1366,6 +1413,7 @@ export const TrackInfo = {
       codecs: Array.isArray(object?.codecs) ? object.codecs.map((e: any) => SimulcastCodecInfo.fromJSON(e)) : [],
       stereo: isSet(object.stereo) ? Boolean(object.stereo) : false,
       disableRed: isSet(object.disableRed) ? Boolean(object.disableRed) : false,
+      e2ee: isSet(object.e2ee) ? e2EETypeFromJSON(object.e2ee) : 0,
     };
   },
 
@@ -1394,6 +1442,7 @@ export const TrackInfo = {
     }
     message.stereo !== undefined && (obj.stereo = message.stereo);
     message.disableRed !== undefined && (obj.disableRed = message.disableRed);
+    message.e2ee !== undefined && (obj.e2ee = e2EETypeToJSON(message.e2ee));
     return obj;
   },
 
@@ -1414,6 +1463,7 @@ export const TrackInfo = {
     message.codecs = object.codecs?.map((e) => SimulcastCodecInfo.fromPartial(e)) || [];
     message.stereo = object.stereo ?? false;
     message.disableRed = object.disableRed ?? false;
+    message.e2ee = object.e2ee ?? 0;
     return message;
   },
 };

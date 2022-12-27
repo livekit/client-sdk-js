@@ -91,7 +91,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       };
       this.worker.postMessage(enableMsg);
     } else {
-      log.error('failed to enable e2ee, worker is not ready');
+      throw new E2EEError('failed to enable e2ee, worker is not ready');
     }
   }
 
