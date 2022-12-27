@@ -380,7 +380,7 @@ export class SignalClient {
   sendAddTrack(req: AddTrackRequest): void {
     this.sendRequest({
       $case: 'addTrack',
-      addTrack: AddTrackRequest.fromPartial(req),
+      addTrack: req,
     });
   }
 

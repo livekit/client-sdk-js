@@ -25,7 +25,7 @@ export interface SetKeyMessage extends BaseMessage {
 export interface EncodeMessage extends BaseMessage {
   kind: 'decode' | 'encode';
   data: {
-    participantId?: string;
+    participantId: string;
     readableStream: ReadableStream;
     writableStream: WritableStream;
   };

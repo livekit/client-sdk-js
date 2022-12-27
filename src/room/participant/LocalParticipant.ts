@@ -466,8 +466,8 @@ export default class LocalParticipant extends Participant {
     };
 
     // disable simulcast if e2ee is set on safari
-    if (isSafari() && this.e2eeType !== E2EEType.NONE) {
-      log.info(`End-to-end encryption is enabled, simulcast publishing will be disabled on Safari`);
+    if (isSafari() && this.roomOptions.e2ee) {
+      log.info(`End-to-end encryption is set up, simulcast publishing will be disabled on Safari`);
       opts.simulcast = false;
     }
 

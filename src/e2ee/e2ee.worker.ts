@@ -4,9 +4,12 @@ import { setLogLevel, workerLogger } from '../logger';
 import { E2EEError, E2EEErrorReason } from './errors';
 
 const participantCryptors = new Map<string, Cryptor>();
-let sharedCryptor: Cryptor | undefined;
+let publishCryptor: Cryptor | undefined;
 
 let isEncryptionEnabled: boolean = false;
+
+let sharedKey: Uint8Array | undefined;
+let useSharedKey: boolean = false;
 
 setLogLevel('debug', 'lk-e2ee-worker');
 
@@ -18,11 +21,8 @@ onmessage = (ev) => {
 
   switch (kind) {
     case 'init':
-      const { sharedKey } = data;
       workerLogger.info('worker initialized');
-      if (sharedKey) {
-        sharedCryptor = new Cryptor({ sharedKey, enabled: isEncryptionEnabled });
-      }
+      useSharedKey = !!data.sharedKey;
       // acknowledge init successful
       const enableMsg: EnableMessage = {
         kind: 'enable',
@@ -42,7 +42,13 @@ onmessage = (ev) => {
       transform(cipher, kind, data.readableStream, data.writableStream);
       break;
     case 'setKey':
-      getParticipantCryptor(data.participantId).setKey(data.key, data.keyIndex);
+      if (useSharedKey) {
+        setSharedKey(data.key, data.keyIndex);
+      } else if (data.participantId) {
+        getParticipantCryptor(data.participantId).setKey(data.key, data.keyIndex);
+      } else {
+        workerLogger.error('no participant Id was provided and shared key usage is disabled');
+      }
       break;
     default:
       break;
@@ -76,13 +82,13 @@ async function transform(
   }
 }
 
-function getParticipantCryptor(id?: string) {
-  if (!id) {
-    return sharedCryptor!;
-  }
+function getParticipantCryptor(id: string) {
   let cryptor = participantCryptors.get(id);
   if (!cryptor) {
-    cryptor = new Cryptor({ enabled: isEncryptionEnabled });
+    cryptor = new Cryptor({ enabled: isEncryptionEnabled, sharedKey: useSharedKey });
+    if (useSharedKey && sharedKey) {
+      cryptor.setKey(sharedKey);
+    }
     participantCryptors.set(id, cryptor);
   }
   return cryptor;
@@ -90,9 +96,17 @@ function getParticipantCryptor(id?: string) {
 
 function setCryptorsEnabled(enable: boolean) {
   isEncryptionEnabled = enable;
-  sharedCryptor?.setEnabled(enable);
+  publishCryptor?.setEnabled(enable);
   for (const [, cryptor] of participantCryptors) {
     cryptor.setEnabled(enable);
+  }
+}
+
+function setSharedKey(key: Uint8Array, index?: number) {
+  workerLogger.debug('setting shared key');
+  sharedKey = key;
+  for (const [, cryptor] of participantCryptors) {
+    cryptor.setKey(key, index);
   }
 }
 

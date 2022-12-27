@@ -47,16 +47,16 @@ export class Cryptor extends BaseCryptor {
 
   private sendCounts: Map<number, number>;
 
-  private sharedKey: boolean | undefined;
-
   private enabled: boolean;
+
+  private useSharedKey: boolean | undefined;
 
   constructor(opts?: { sharedKey?: boolean; enabled?: boolean }) {
     super();
     this.currentKeyIndex = 0;
     this.cryptoKeyRing = new Array(KEYRING_SIZE);
     this.sendCounts = new Map();
-    this.sharedKey = opts?.sharedKey;
+    this.useSharedKey = opts?.sharedKey;
     this.enabled = opts?.enabled ?? true;
   }
 
@@ -68,7 +68,7 @@ export class Cryptor extends BaseCryptor {
   async setKey(key: Uint8Array, keyIndex = 0) {
     if (key) {
       let newKey: CryptoKey | KeySet;
-      if (this.sharedKey) {
+      if (this.useSharedKey) {
         newKey = await crypto.subtle.importKey(
           'raw',
           key,
@@ -293,7 +293,7 @@ export class Cryptor extends BaseCryptor {
     } catch (error) {
       let { material } = this.cryptoKeyRing[keyIndex];
 
-      if (this.sharedKey || !material) {
+      if (this.useSharedKey || !material) {
         workerLogger.error('invalid key');
         return undefined;
       }

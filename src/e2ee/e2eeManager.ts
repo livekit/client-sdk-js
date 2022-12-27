@@ -24,6 +24,7 @@ import type { BaseKeyProvider } from './keyProvider';
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
+// import type RemoteTrackPublication from '../room/track/RemoteTrackPublication';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
   protected worker?: Worker;
@@ -124,14 +125,23 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
   };
 
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
-    room.on(RoomEvent.TrackSubscribed, (track) => {
-      this.setupE2EEReceiver(track);
+    // room.on(RoomEvent.TrackPublished, (pub) => this.setCryptorForPub(pub));
+    room.on(RoomEvent.TrackSubscribed, (track, _, participant) => {
+      this.setupE2EEReceiver(track, participant.identity);
     });
     room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
-      this.setupE2EESender(publication.track!, publication.track!.sender!);
+      this.setupE2EESender(
+        publication.track!,
+        publication.track!.sender!,
+        room.localParticipant.identity,
+      );
     });
     keyProvider.on('setKey', (keyInfo) => this.postKey(keyInfo));
   }
+
+  // private setCryptorForPub(publication: RemoteTrackPublication) {
+  //   // publication.trackInfo?.e2ee
+  // }
 
   private postKey({ key, participantId, keyIndex }: KeyInfo) {
     if (!this.worker) {
@@ -148,14 +158,14 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     this.worker.postMessage(msg);
   }
 
-  private setupE2EEReceiver(track: RemoteTrack) {
+  private setupE2EEReceiver(track: RemoteTrack, remoteId: string) {
     if (!track.receiver) {
       return;
     }
-    this.handleReceiver(track.receiver);
+    this.handleReceiver(track.receiver, remoteId);
   }
 
-  private setupE2EESender(track: Track, sender: RTCRtpSender, localId?: string) {
+  private setupE2EESender(track: Track, sender: RTCRtpSender, localId: string) {
     if (!(track instanceof LocalTrack) || !sender) {
       if (!sender) log.warn('early return because sender is not ready');
       return;
@@ -168,7 +178,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
    * a frame decoder.
    *
    */
-  private handleReceiver(receiver: RTCRtpReceiver, participantId?: string) {
+  private handleReceiver(receiver: RTCRtpReceiver, participantId: string) {
     if (E2EE_FLAG in receiver || !this.worker) {
       return;
     }
@@ -203,7 +213,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
    * a frame encoder.
    *
    */
-  private handleSender(sender: RTCRtpSender, participantId?: string) {
+  private handleSender(sender: RTCRtpSender, participantId: string) {
     if (E2EE_FLAG in sender || !this.worker) {
       return;
     }
