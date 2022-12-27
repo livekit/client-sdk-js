@@ -915,37 +915,52 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  private async ensurePublisherConnected(kind: DataPacket_Kind) {
-    if (!this.subscriberPrimary) {
-      return;
+  /**
+   * @internal
+   */
+  async ensureDataTransportConnected(
+    kind: DataPacket_Kind,
+    subscriber: boolean = this.subscriberPrimary,
+  ) {
+    const transport = subscriber ? this.subscriber : this.publisher;
+    const transportName = subscriber ? 'Subscriber' : 'Publisher';
+    if (!transport) {
+      throw new ConnectionError(`${transportName} connection not set`);
     }
 
-    if (!this.publisher) {
-      throw new ConnectionError('publisher connection not set');
-    }
-
-    if (!this.publisher.isICEConnected && this.publisher.pc.iceConnectionState !== 'checking') {
+    if (
+      !subscriber &&
+      !this.publisher?.isICEConnected &&
+      this.publisher?.pc.iceConnectionState !== 'checking'
+    ) {
       // start negotiation
       this.negotiate();
     }
 
-    const targetChannel = this.dataChannelForKind(kind);
+    const targetChannel = this.dataChannelForKind(kind, subscriber);
     if (targetChannel?.readyState === 'open') {
       return;
     }
 
-    // wait until publisher ICE connected
+    // wait until ICE connected
     const endTime = new Date().getTime() + this.peerConnectionTimeout;
     while (new Date().getTime() < endTime) {
-      if (this.publisher.isICEConnected && this.dataChannelForKind(kind)?.readyState === 'open') {
+      if (
+        transport.isICEConnected &&
+        this.dataChannelForKind(kind, subscriber)?.readyState === 'open'
+      ) {
         return;
       }
       await sleep(50);
     }
 
     throw new ConnectionError(
-      `could not establish publisher connection, state ${this.publisher?.pc.iceConnectionState}`,
+      `could not establish ${transportName} connection, state: ${transport.pc.iceConnectionState}`,
     );
+  }
+
+  private async ensurePublisherConnected(kind: DataPacket_Kind) {
+    await this.ensureDataTransportConnected(kind, false);
   }
 
   /** @internal */
