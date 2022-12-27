@@ -1,3 +1,4 @@
+import type RemoteParticipant from '../room/participant/RemoteParticipant';
 import type { E2EEError } from './errors';
 import type { BaseKeyProvider } from './keyProvider';
 
@@ -41,6 +42,8 @@ export interface ErrorMessage extends BaseMessage {
 export interface EnableMessage extends BaseMessage {
   kind: 'enable';
   data: {
+    // if no participant id is set it indicates publisher encryption enable/disable
+    participantId?: string;
     enabled: boolean;
   };
 }
@@ -63,7 +66,8 @@ export type KeyProviderCallbacks = {
 };
 
 export type E2EEManagerCallbacks = {
-  encryptionStatusChanged: (enabled: boolean) => void;
+  localEncryptionStatusChanged: (enabled: boolean) => void;
+  remoteEncryptionStatusChanged: (enabled: boolean, participant?: RemoteParticipant) => void;
   error: (error: E2EEError) => void;
 };
 

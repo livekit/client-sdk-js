@@ -24,7 +24,8 @@ import type { BaseKeyProvider } from './keyProvider';
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
-// import type RemoteTrackPublication from '../room/track/RemoteTrackPublication';
+import { E2EEType } from '../proto/livekit_models';
+import type RemoteParticipant from '../room/participant/RemoteParticipant';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
   protected worker?: Worker;
@@ -35,18 +36,18 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
 
   protected workerAsModule = true;
 
-  private enabled: boolean;
+  private encryptionEnabled: boolean;
 
   private keyProvider: BaseKeyProvider;
 
   get isEnabled() {
-    return this.enabled;
+    return this.encryptionEnabled;
   }
 
   constructor(options: E2EEOptions) {
     super();
     this.keyProvider = options.keyProvider;
-    this.enabled = false;
+    this.encryptionEnabled = false;
   }
 
   /**
@@ -82,13 +83,13 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
   /**
    * @internal
    */
-  async setEnabled(enabled: boolean) {
+  async setParticipantCryptorEnabled(enabled: boolean, participantId?: string) {
     log.info(`set e2ee to ${enabled}`);
 
     if (this.worker) {
       const enableMsg: EnableMessage = {
         kind: 'enable',
-        data: { enabled },
+        data: { enabled, participantId },
       };
       this.worker.postMessage(enableMsg);
     } else {
@@ -103,11 +104,19 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         this.emit('error', data.error);
         break;
       case 'enable':
-        if (this.enabled !== data.enabled) {
-          this.emit('encryptionStatusChanged', data.enabled);
-          this.enabled = data.enabled;
+        if (this.encryptionEnabled !== data.enabled && !data.participantId) {
+          this.emit('localEncryptionStatusChanged', data.enabled);
+          this.encryptionEnabled = data.enabled;
+        } else if (data.participantId) {
+          this.emit(
+            'remoteEncryptionStatusChanged',
+            data.enabled,
+            this.room?.getParticipantByIdentity(data.participantId) as
+              | RemoteParticipant
+              | undefined,
+          );
         }
-        if (this.enabled) {
+        if (this.encryptionEnabled) {
           console.log('updating keys from keyprovider', this.keyProvider.getKeys());
           this.keyProvider.getKeys().forEach((keyInfo) => {
             this.postKey(keyInfo);
@@ -125,7 +134,12 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
   };
 
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
-    // room.on(RoomEvent.TrackPublished, (pub) => this.setCryptorForPub(pub));
+    room.on(RoomEvent.TrackPublished, (pub, participant) =>
+      this.setParticipantCryptorEnabled(
+        pub.trackInfo!.e2ee !== E2EEType.NONE,
+        participant.identity,
+      ),
+    );
     room.on(RoomEvent.TrackSubscribed, (track, _, participant) => {
       this.setupE2EEReceiver(track, participant.identity);
     });
@@ -138,10 +152,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     });
     keyProvider.on('setKey', (keyInfo) => this.postKey(keyInfo));
   }
-
-  // private setCryptorForPub(publication: RemoteTrackPublication) {
-  //   // publication.trackInfo?.e2ee
-  // }
 
   private postKey({ key, participantId, keyIndex }: KeyInfo) {
     if (!this.worker) {

@@ -68,6 +68,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
+  get isEncrypted() {
+    return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
+  }
+
   /** @internal */
   constructor(sid: string, identity: string, name?: string, metadata?: string) {
     super();

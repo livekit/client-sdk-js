@@ -190,7 +190,7 @@ const appActions = {
           updateButtonsForPublishState();
         }
       })
-      .on('encryptionStatusChanged', () => {
+      .on('localEncryptionStatusChanged', () => {
         updateButtonsForPublishState();
       });
 
@@ -506,6 +506,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         <div class="right">
           <span id="signal-${identity}"></span>
           <span id="mic-${identity}" class="mic-on"></span>
+          <span id="e2ee-${identity}" class="e2ee-on"></span>
         </div>
       </div>
       ${
@@ -612,6 +613,15 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
   } else {
     micElm.className = 'mic-off';
     micElm.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+  }
+
+  const e2eeElm = $(`e2ee-${identity}`)!;
+  if (participant.isEncrypted) {
+    e2eeElm.className = 'e2ee-on';
+    e2eeElm.innerHTML = '<i class="fas fa-lock"></i>';
+  } else {
+    e2eeElm.className = 'e2ee-off';
+    e2eeElm.innerHTML = '<i class="fas fa-unlock"></i>';
   }
 
   switch (participant.connectionQuality) {

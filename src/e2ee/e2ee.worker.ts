@@ -31,15 +31,18 @@ onmessage = (ev) => {
       postMessage(enableMsg);
       break;
     case 'enable':
-      setCryptorsEnabled(data.enabled);
+      setParticipantCryptorEnabled(data.enabled, data.participantId);
       workerLogger.info('updated e2ee enabled status');
       // acknowledge enable call successful
       postMessage(ev.data);
       break;
     case 'decode':
+      let cryptor = getParticipantCryptor(data.participantId);
+      transform(cryptor, kind, data.readableStream, data.writableStream);
+      break;
     case 'encode':
-      let cipher = getParticipantCryptor(data.participantId);
-      transform(cipher, kind, data.readableStream, data.writableStream);
+      let pubCryptor = getPublisherCryptor();
+      transform(pubCryptor, kind, data.readableStream, data.writableStream);
       break;
     case 'setKey':
       if (useSharedKey) {
@@ -94,11 +97,22 @@ function getParticipantCryptor(id: string) {
   return cryptor;
 }
 
-function setCryptorsEnabled(enable: boolean) {
-  isEncryptionEnabled = enable;
-  publishCryptor?.setEnabled(enable);
-  for (const [, cryptor] of participantCryptors) {
-    cryptor.setEnabled(enable);
+function getPublisherCryptor() {
+  if (!publishCryptor) {
+    publishCryptor = new Cryptor({ enabled: isEncryptionEnabled, sharedKey: useSharedKey });
+    if (useSharedKey && sharedKey) {
+      publishCryptor.setKey(sharedKey);
+    }
+  }
+  return publishCryptor;
+}
+
+function setParticipantCryptorEnabled(enable: boolean, participantId?: string) {
+  if (!participantId) {
+    isEncryptionEnabled = enable;
+    publishCryptor?.setEnabled(enable);
+  } else {
+    participantCryptors.get(participantId)?.setEnabled(enable);
   }
 }
 

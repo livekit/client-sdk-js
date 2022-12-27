@@ -169,10 +169,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (this.options.e2ee) {
       this.e2eeManager = new E2EEManager(this.options.e2ee);
-      this.e2eeManager.on('encryptionStatusChanged', (enabled) => {
+      this.e2eeManager.on('localEncryptionStatusChanged', (enabled) => {
         console.log('encryption status changed: ' + enabled);
         this.isE2EEEnabled = enabled;
-        this.emit('encryptionStatusChanged', enabled);
+        this.emit('localEncryptionStatusChanged', enabled);
+      });
+      this.e2eeManager.on('remoteEncryptionStatusChanged', (enabled, participant) => {
+        this.emit('remoteEncryptionStatusChanged', enabled, participant);
       });
       this.e2eeManager?.setup(this);
     }
@@ -182,7 +185,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.e2eeManager) {
       await Promise.all([
         this.localParticipant.setE2EEEnabled(enabled),
-        this.e2eeManager.setEnabled(enabled),
+        this.e2eeManager.setParticipantCryptorEnabled(enabled),
       ]);
     } else {
       throw Error('e2ee not configured, please set e2ee settings within the room options');
@@ -1453,5 +1456,6 @@ export type RoomEventCallbacks = {
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
-  encryptionStatusChanged: (encrypted: boolean) => void;
+  localEncryptionStatusChanged: (encrypted: boolean) => void;
+  remoteEncryptionStatusChanged: (encrypted: boolean, participant?: RemoteParticipant) => void;
 };
