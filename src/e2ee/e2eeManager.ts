@@ -1,7 +1,8 @@
 import { E2EE_FLAG } from './constants';
 
 import log from '../logger';
-import type {
+import {
+  EncryptionEvent,
   E2EEManagerCallbacks,
   E2EEOptions,
   E2EEWorkerMessage,
@@ -24,7 +25,7 @@ import type { BaseKeyProvider } from './keyProvider';
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
-import { E2EEType } from '../proto/livekit_models';
+import { Encryption_Type } from '../proto/livekit_models';
 import type RemoteParticipant from '../room/participant/RemoteParticipant';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
@@ -101,15 +102,15 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     const { kind, data } = ev.data;
     switch (kind) {
       case 'error':
-        this.emit('error', data.error);
+        this.emit(EncryptionEvent.Error, data.error);
         break;
       case 'enable':
         if (this.encryptionEnabled !== data.enabled && !data.participantId) {
-          this.emit('localEncryptionStatusChanged', data.enabled);
+          this.emit(EncryptionEvent.LocalEncryptionStatusChanged, data.enabled);
           this.encryptionEnabled = data.enabled;
         } else if (data.participantId) {
           this.emit(
-            'remoteEncryptionStatusChanged',
+            EncryptionEvent.RemoteEncryptionStatusChanged,
             data.enabled,
             this.room?.getParticipantByIdentity(data.participantId) as
               | RemoteParticipant
@@ -130,13 +131,13 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
 
   private onWorkerError = (ev: ErrorEvent) => {
     log.error('e2ee worker encountered an error:', { error: ev.error });
-    this.emit('error', new E2EEError(ev.error.message, E2EEErrorReason.WorkerError));
+    this.emit(EncryptionEvent.Error, new E2EEError(ev.error.message, E2EEErrorReason.WorkerError));
   };
 
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
     room.on(RoomEvent.TrackPublished, (pub, participant) =>
       this.setParticipantCryptorEnabled(
-        pub.trackInfo!.e2ee !== E2EEType.NONE,
+        pub.trackInfo!.encryption !== Encryption_Type.NONE,
         participant.identity,
       ),
     );

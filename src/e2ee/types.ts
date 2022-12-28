@@ -71,6 +71,12 @@ export type E2EEManagerCallbacks = {
   error: (error: E2EEError) => void;
 };
 
+export const EncryptionEvent = {
+  LocalEncryptionStatusChanged: 'localEncryptionStatusChanged',
+  RemoteEncryptionStatusChanged: 'remoteEncryptionStatusChanged',
+  Error: 'error',
+} as const;
+
 export type KeyInfo = {
   key: Uint8Array;
   participantId?: string;

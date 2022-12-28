@@ -64,6 +64,7 @@ import {
   supportsSetSinkId,
   unpackStreamId,
 } from './utils';
+import { EncryptionEvent } from '../e2ee';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -169,7 +170,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (this.options.e2ee) {
       this.e2eeManager = new E2EEManager(this.options.e2ee);
-      this.e2eeManager.on('localEncryptionStatusChanged', (enabled) => {
+      this.e2eeManager.on(EncryptionEvent.LocalEncryptionStatusChanged, (enabled) => {
         console.log('encryption status changed: ' + enabled);
         this.isE2EEEnabled = enabled;
         this.emit('localEncryptionStatusChanged', enabled);

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 
-import logger, { workerLogger } from '../logger';
+import { workerLogger } from '../logger';
 import {
   ENCRYPTION_ALGORITHM,
   IV_LENGTH,

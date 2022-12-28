@@ -4,7 +4,7 @@ import type { InternalRoomOptions } from '../../options';
 import {
   DataPacket,
   DataPacket_Kind,
-  E2EEType,
+  Encryption_Type,
   ParticipantInfo,
   ParticipantPermission,
 } from '../../proto/livekit_models';
@@ -69,7 +69,7 @@ export default class LocalParticipant extends Participant {
   // keep a pointer to room options
   private roomOptions: InternalRoomOptions;
 
-  private e2eeType: E2EEType = E2EEType.NONE;
+  private encryptionType: Encryption_Type = Encryption_Type.NONE;
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
@@ -183,7 +183,7 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   async setE2EEEnabled(enabled: boolean) {
-    this.e2eeType = enabled ? E2EEType.GCM : E2EEType.NONE;
+    this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
     await this.republishAllTracks();
   }
 
@@ -535,7 +535,7 @@ export default class LocalParticipant extends Participant {
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
       disableDtx: !(opts.dtx ?? true),
-      e2ee: this.e2eeType,
+      encryption: this.encryptionType,
       // stereo: isStereo,
       // disableRed: !(opts.red ?? true),
     });

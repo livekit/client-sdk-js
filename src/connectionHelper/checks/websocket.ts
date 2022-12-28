@@ -15,6 +15,7 @@ export class WebSocketCheck extends Checker {
     const joinRes = await signalClient.join(this.url, this.token, {
       autoSubscribe: true,
       maxRetries: 0,
+      e2eeEnabled: false,
     });
     this.appendMessage(`Connected to server, version ${joinRes.serverVersion}.`);
     await signalClient.close();

@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import log from '../../logger';
 import type { TrackInfo } from '../../proto/livekit_models';
-import { E2EEType } from '../../proto/livekit_models';
+import { Encryption_Type } from '../../proto/livekit_models';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
@@ -37,7 +37,7 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
 
   protected metadataMuted: boolean = false;
 
-  protected e2ee: E2EEType = E2EEType.NONE;
+  protected encryption: Encryption_Type = Encryption_Type.NONE;
 
   constructor(kind: Track.Kind, id: string, name: string) {
     super();
@@ -77,7 +77,7 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
   }
 
   get isEncrypted(): boolean {
-    return this.e2ee !== E2EEType.NONE;
+    return this.encryption !== Encryption_Type.NONE;
   }
 
   /**
@@ -119,7 +119,7 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
       };
       this.simulcasted = info.simulcast;
     }
-    this.e2ee = info.e2ee;
+    this.encryption = info.encryption;
     this.trackInfo = info;
     log.debug('update publication info', { info });
   }

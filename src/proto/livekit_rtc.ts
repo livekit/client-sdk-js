@@ -9,9 +9,9 @@ import {
   DisconnectReason,
   disconnectReasonFromJSON,
   disconnectReasonToJSON,
-  E2EEType,
-  e2EETypeFromJSON,
-  e2EETypeToJSON,
+  Encryption_Type,
+  encryption_TypeFromJSON,
+  encryption_TypeToJSON,
   ParticipantInfo,
   ParticipantTracks,
   Room,
@@ -201,7 +201,7 @@ export interface AddTrackRequest {
   stereo: boolean;
   /** true if RED (Redundant Encoding) is disabled for audio */
   disableRed: boolean;
-  e2ee: E2EEType;
+  encryption: Encryption_Type;
 }
 
 export interface TrickleRequest {
@@ -1088,7 +1088,7 @@ function createBaseAddTrackRequest(): AddTrackRequest {
     sid: "",
     stereo: false,
     disableRed: false,
-    e2ee: 0,
+    encryption: 0,
   };
 }
 
@@ -1133,8 +1133,8 @@ export const AddTrackRequest = {
     if (message.disableRed === true) {
       writer.uint32(104).bool(message.disableRed);
     }
-    if (message.e2ee !== 0) {
-      writer.uint32(112).int32(message.e2ee);
+    if (message.encryption !== 0) {
+      writer.uint32(112).int32(message.encryption);
     }
     return writer;
   },
@@ -1186,7 +1186,7 @@ export const AddTrackRequest = {
           message.disableRed = reader.bool();
           break;
         case 14:
-          message.e2ee = reader.int32() as any;
+          message.encryption = reader.int32() as any;
           break;
         default:
           reader.skipType(tag & 7);
@@ -1213,7 +1213,7 @@ export const AddTrackRequest = {
       sid: isSet(object.sid) ? String(object.sid) : "",
       stereo: isSet(object.stereo) ? Boolean(object.stereo) : false,
       disableRed: isSet(object.disableRed) ? Boolean(object.disableRed) : false,
-      e2ee: isSet(object.e2ee) ? e2EETypeFromJSON(object.e2ee) : 0,
+      encryption: isSet(object.encryption) ? encryption_TypeFromJSON(object.encryption) : 0,
     };
   },
 
@@ -1240,7 +1240,7 @@ export const AddTrackRequest = {
     message.sid !== undefined && (obj.sid = message.sid);
     message.stereo !== undefined && (obj.stereo = message.stereo);
     message.disableRed !== undefined && (obj.disableRed = message.disableRed);
-    message.e2ee !== undefined && (obj.e2ee = e2EETypeToJSON(message.e2ee));
+    message.encryption !== undefined && (obj.encryption = encryption_TypeToJSON(message.encryption));
     return obj;
   },
 
@@ -1259,7 +1259,7 @@ export const AddTrackRequest = {
     message.sid = object.sid ?? "";
     message.stereo = object.stereo ?? false;
     message.disableRed = object.disableRed ?? false;
-    message.e2ee = object.e2ee ?? 0;
+    message.encryption = object.encryption ?? 0;
     return message;
   },
 };
