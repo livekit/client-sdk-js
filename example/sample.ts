@@ -259,7 +259,7 @@ const appActions = {
     const enabled = currentRoom.localParticipant.isScreenShareEnabled;
     appendLog(`${enabled ? 'stopping' : 'starting'} screen share`);
     setButtonDisabled('share-screen-button', true);
-    await currentRoom.localParticipant.setScreenShareEnabled(!enabled, { audio: { channelCount: 2 } });
+    await currentRoom.localParticipant.setScreenShareEnabled(!enabled, { audio: true });
     setButtonDisabled('share-screen-button', false);
     updateButtonsForPublishState();
   },
