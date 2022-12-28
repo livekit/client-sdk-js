@@ -29,7 +29,7 @@ import {
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
-import PCTransport, { eventNegotiationComplete } from './PCTransport';
+import PCTransport, { PCEvents } from './PCTransport';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import type LocalTrack from './track/LocalTrack';
 import type LocalVideoTrack from './track/LocalVideoTrack';
@@ -959,7 +959,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       this.hasPublished = true;
 
+      const negotiationTimeout = setTimeout(() => {
+        reject('negotiation timed out');
+        this.handleDisconnect('negotiation');
+      }, this.peerConnectionTimeout);
+
       this.publisher.negotiate((e) => {
+        clearTimeout(negotiationTimeout);
         reject(e);
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
@@ -967,7 +973,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.handleDisconnect('negotiation');
       });
 
-      this.publisher.once(eventNegotiationComplete, resolve);
+      this.publisher.once(PCEvents.NegotiationComplete, () => {
+        clearTimeout(negotiationTimeout);
+        resolve();
+      });
     });
   }
 

@@ -11,7 +11,9 @@ interface TrackBitrateInfo {
   maxbr: number;
 }
 
-export const eventNegotiationComplete = 'negotiationComplete';
+export const PCEvents = {
+  NegotiationComplete: 'negotiationComplete',
+} as const;
 
 /** @internal */
 export default class PCTransport extends EventEmitter {
@@ -61,7 +63,7 @@ export default class PCTransport extends EventEmitter {
       this.renegotiate = false;
       this.createAndSendOffer();
     } else if (sd.type === 'answer') {
-      this.emit(eventNegotiationComplete);
+      this.emit(PCEvents.NegotiationComplete);
     }
   }
 
