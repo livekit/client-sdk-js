@@ -88,6 +88,7 @@ async function transform(
 function getParticipantCryptor(id: string) {
   let cryptor = participantCryptors.get(id);
   if (!cryptor) {
+    workerLogger.info('creating new cryptor for', { id });
     cryptor = new Cryptor({ enabled: isEncryptionEnabled, sharedKey: useSharedKey });
     if (useSharedKey && sharedKey) {
       cryptor.setKey(sharedKey);
@@ -127,12 +128,14 @@ function setSharedKey(key: Uint8Array, index?: number) {
 // Operations using RTCRtpScriptTransform.
 // @ts-ignore
 if (self.RTCTransformEvent) {
-  workerLogger.info('setup transform event');
+  workerLogger.debug('setup transform event');
   // @ts-ignore
   self.onrtctransform = async (event) => {
     const transformer = event.transformer;
+    console.log('transformer', event);
+    transformer.handled = true;
     const { kind, participantId } = transformer.options;
-    const cipher = getParticipantCryptor(participantId);
+    const cipher = kind === 'encode' ? getPublisherCryptor() : getParticipantCryptor(participantId);
     workerLogger.debug('transform');
     await transform(cipher, kind, transformer.readable, transformer.writable);
   };

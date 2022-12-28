@@ -3,7 +3,10 @@ import { defineConfig } from 'vite';
 import { babel } from '@rollup/plugin-babel';
 import replace from 'rollup-plugin-re';
 
+import basicSsl from '@vitejs/plugin-basic-ssl';
+
 export default defineConfig({
+  plugins: [basicSsl()],
   build: {
     minify: 'esbuild',
     lib: {
