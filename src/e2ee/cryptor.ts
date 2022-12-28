@@ -132,7 +132,11 @@ export class Cryptor extends BaseCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
-    if (!this.enabled) {
+    if (
+      !this.enabled ||
+      // skip for encryption for empty dtx frames
+      encodedFrame.data.byteLength === 0
+    ) {
       return controller.enqueue(encodedFrame);
     }
 
@@ -215,7 +219,11 @@ export class Cryptor extends BaseCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
-    if (!this.enabled) {
+    if (
+      !this.enabled ||
+      // skip for decryption for empty dtx frames
+      encodedFrame.data.byteLength === 0
+    ) {
       return controller.enqueue(encodedFrame);
     }
     const data = new Uint8Array(encodedFrame.data);
