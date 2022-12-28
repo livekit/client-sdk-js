@@ -46,6 +46,7 @@ onmessage = (ev) => {
       break;
     case 'setKey':
       if (useSharedKey) {
+        workerLogger.debug('set shared key');
         setSharedKey(data.key, data.keyIndex);
       } else if (data.participantId) {
         getParticipantCryptor(data.participantId).setKey(data.key, data.keyIndex);
@@ -120,6 +121,7 @@ function setParticipantCryptorEnabled(enable: boolean, participantId?: string) {
 function setSharedKey(key: Uint8Array, index?: number) {
   workerLogger.debug('setting shared key');
   sharedKey = key;
+  publishCryptor?.setKey(key, index);
   for (const [, cryptor] of participantCryptors) {
     cryptor.setKey(key, index);
   }

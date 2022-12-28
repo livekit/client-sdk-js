@@ -1,5 +1,5 @@
 import type Participant from '../room/participant/Participant';
-import type { E2EEError } from './errors';
+import type { E2EEError, E2EEErrorReason } from './errors';
 import type { BaseKeyProvider } from './keyProvider';
 
 export interface BaseMessage {
@@ -67,16 +67,16 @@ export type KeyProviderCallbacks = {
 
 export type E2EEManagerCallbacks = {
   participantEncryptionStatusChanged: (enabled: boolean, participant?: Participant) => void;
-  error: (error: E2EEError) => void;
+  e2eeError: (error: E2EEErrorReason) => void;
 };
 
 export const EncryptionEvent = {
   ParticipantEncryptionStatusChanged: 'participantEncryptionStatusChanged',
-  Error: 'error',
+  Error: 'e2eeError',
 } as const;
 
 export type CryptorCallbacks = {
-  error: (error: E2EEError) => void;
+  cryptorError: (error: E2EEErrorReason) => void;
 };
 
 export type KeyInfo = {

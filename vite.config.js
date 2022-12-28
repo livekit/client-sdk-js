@@ -1,12 +1,18 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 import { babel } from '@rollup/plugin-babel';
 import replace from 'rollup-plugin-re';
+import dns from 'dns';
 
-import basicSsl from '@vitejs/plugin-basic-ssl';
+dns.setDefaultResultOrder('verbatim');
 
 export default defineConfig({
-  plugins: [basicSsl()],
+  // plugins: [basicSsl()],
+  server: {
+    port: 8080,
+    open: true,
+  },
   build: {
     minify: 'esbuild',
     lib: {

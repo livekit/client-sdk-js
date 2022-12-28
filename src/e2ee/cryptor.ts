@@ -108,9 +108,6 @@ export class Cryptor extends BaseCryptor {
       this.cryptoKeyRing[this.currentKeyIndex] = keys;
     }
 
-    // reset isKeyInvalid
-    this.isKeyInvalid = false;
-
     // this._sendCount = BigInt(0); // eslint-disable-line new-cap
   }
 
@@ -233,12 +230,21 @@ export class Cryptor extends BaseCryptor {
         if (decodedFrame) {
           return controller.enqueue(decodedFrame);
         }
+        this.isKeyInvalid = false;
       } catch (error) {
-        workerLogger.warn('decoding frame failed, enqueuing frame as is');
+        if (error instanceof E2EEError && error.reason === E2EEErrorReason.InvalidKey) {
+          if (!this.isKeyInvalid) {
+            workerLogger.warn('invalid key');
+            this.emit('cryptorError', E2EEErrorReason.InvalidKey);
+            this.isKeyInvalid = true;
+          }
+        } else {
+          workerLogger.warn('decoding frame failed', { error });
+        }
       }
     }
 
-    // return controller.enqueue(encodedFrame);
+    return controller.enqueue(encodedFrame);
   }
 
   /**
@@ -251,10 +257,6 @@ export class Cryptor extends BaseCryptor {
     initialKey: KeySet | undefined = undefined,
     ratchetCount: number = 0,
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
-    if (this.isKeyInvalid) {
-      return undefined;
-    }
-
     const encryptionKey = this.cryptoKeyRing[keyIndex].encryptionKey;
 
     // Construct frame trailer. Similar to the frame header described in
@@ -304,12 +306,7 @@ export class Cryptor extends BaseCryptor {
       let { material } = this.cryptoKeyRing[keyIndex];
 
       if (this.useSharedKey || !material) {
-        this.emit(
-          'error',
-          new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey),
-        );
-        this.isKeyInvalid = true;
-        return undefined;
+        throw new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey);
       }
 
       if (ratchetCount < RATCHET_WINDOW_SIZE) {

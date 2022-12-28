@@ -101,7 +101,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     const { kind, data } = ev.data;
     switch (kind) {
       case 'error':
-        this.emit(EncryptionEvent.Error, data.error);
+        console.log('error in worker', { data });
+        // this.emit(EncryptionEvent.Error, data.error.reason);
         break;
       case 'enable':
         if (this.encryptionEnabled !== data.enabled && !data.participantId) {
@@ -129,7 +130,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
 
   private onWorkerError = (ev: ErrorEvent) => {
     log.error('e2ee worker encountered an error:', { error: ev.error });
-    this.emit(EncryptionEvent.Error, new E2EEError(ev.error.message, E2EEErrorReason.WorkerError));
+    this.emit(EncryptionEvent.Error, E2EEErrorReason.WorkerError);
   };
 
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
