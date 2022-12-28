@@ -255,6 +255,8 @@ export enum RoomEvent {
    * Recording of a room has started/stopped.
    */
   RecordingStatusChanged = 'recordingStatusChanged',
+
+  ParticipantEncryptionStatusChanged = 'participantEncryptionStatusChanged',
 }
 
 export enum ParticipantEvent {

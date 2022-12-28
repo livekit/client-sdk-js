@@ -1,4 +1,4 @@
-import type RemoteParticipant from '../room/participant/RemoteParticipant';
+import type Participant from '../room/participant/Participant';
 import type { E2EEError } from './errors';
 import type { BaseKeyProvider } from './keyProvider';
 
@@ -66,14 +66,12 @@ export type KeyProviderCallbacks = {
 };
 
 export type E2EEManagerCallbacks = {
-  localEncryptionStatusChanged: (enabled: boolean) => void;
-  remoteEncryptionStatusChanged: (enabled: boolean, participant?: RemoteParticipant) => void;
+  participantEncryptionStatusChanged: (enabled: boolean, participant?: Participant) => void;
   error: (error: E2EEError) => void;
 };
 
 export const EncryptionEvent = {
-  LocalEncryptionStatusChanged: 'localEncryptionStatusChanged',
-  RemoteEncryptionStatusChanged: 'remoteEncryptionStatusChanged',
+  ParticipantEncryptionStatusChanged: 'participantEncryptionStatusChanged',
   Error: 'error',
 } as const;
 

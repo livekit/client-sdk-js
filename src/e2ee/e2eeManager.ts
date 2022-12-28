@@ -26,7 +26,6 @@ import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
 import { Encryption_Type } from '../proto/livekit_models';
-import type RemoteParticipant from '../room/participant/RemoteParticipant';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
   protected worker?: Worker;
@@ -106,16 +105,15 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         break;
       case 'enable':
         if (this.encryptionEnabled !== data.enabled && !data.participantId) {
-          this.emit(EncryptionEvent.LocalEncryptionStatusChanged, data.enabled);
+          this.emit(
+            EncryptionEvent.ParticipantEncryptionStatusChanged,
+            data.enabled,
+            this.room?.localParticipant,
+          );
           this.encryptionEnabled = data.enabled;
         } else if (data.participantId) {
-          this.emit(
-            EncryptionEvent.RemoteEncryptionStatusChanged,
-            data.enabled,
-            this.room?.getParticipantByIdentity(data.participantId) as
-              | RemoteParticipant
-              | undefined,
-          );
+          const participant = this.room?.getParticipantByIdentity(data.participantId);
+          this.emit(EncryptionEvent.ParticipantEncryptionStatusChanged, data.enabled, participant);
         }
         if (this.encryptionEnabled) {
           console.log('updating keys from keyprovider', this.keyProvider.getKeys());

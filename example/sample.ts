@@ -26,7 +26,6 @@ import {
   VideoPresets,
   VideoQuality,
   ExternalE2EEKeyProvider,
-  EncryptionEvent,
 } from '../src/index';
 import { isSafari } from '../src/room/utils';
 
@@ -192,7 +191,7 @@ const appActions = {
           updateButtonsForPublishState();
         }
       })
-      .on(EncryptionEvent.LocalEncryptionStatusChanged, () => {
+      .on(RoomEvent.ParticipantEncryptionStatusChanged, () => {
         updateButtonsForPublishState();
       });
 

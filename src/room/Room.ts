@@ -170,14 +170,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (this.options.e2ee) {
       this.e2eeManager = new E2EEManager(this.options.e2ee);
-      this.e2eeManager.on(EncryptionEvent.LocalEncryptionStatusChanged, (enabled) => {
-        console.log('encryption status changed: ' + enabled);
-        this.isE2EEEnabled = enabled;
-        this.emit('localEncryptionStatusChanged', enabled);
-      });
-      this.e2eeManager.on('remoteEncryptionStatusChanged', (enabled, participant) => {
-        this.emit('remoteEncryptionStatusChanged', enabled, participant);
-      });
+      this.e2eeManager.on(
+        EncryptionEvent.ParticipantEncryptionStatusChanged,
+        (enabled, participant) => {
+          console.log('encryption status changed: ' + enabled);
+          this.isE2EEEnabled = enabled;
+          this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
+        },
+      );
       this.e2eeManager?.setup(this);
     }
   }
@@ -1457,6 +1457,5 @@ export type RoomEventCallbacks = {
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
-  localEncryptionStatusChanged: (encrypted: boolean) => void;
-  remoteEncryptionStatusChanged: (encrypted: boolean, participant?: RemoteParticipant) => void;
+  participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;
 };
