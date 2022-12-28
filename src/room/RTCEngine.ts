@@ -964,6 +964,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.handleDisconnect('negotiation');
       }, this.peerConnectionTimeout);
 
+      this.publisher.once(PCEvents.NegotiationStarted, () => {
+        this.publisher?.once(PCEvents.NegotiationComplete, () => {
+          clearTimeout(negotiationTimeout);
+          resolve();
+        });
+      });
+
       this.publisher.negotiate((e) => {
         clearTimeout(negotiationTimeout);
         reject(e);
@@ -971,11 +978,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           this.fullReconnectOnNext = true;
         }
         this.handleDisconnect('negotiation');
-      });
-
-      this.publisher.once(PCEvents.NegotiationComplete, () => {
-        clearTimeout(negotiationTimeout);
-        resolve();
       });
     });
   }

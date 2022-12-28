@@ -12,6 +12,7 @@ interface TrackBitrateInfo {
 }
 
 export const PCEvents = {
+  NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
 } as const;
 
@@ -69,6 +70,7 @@ export default class PCTransport extends EventEmitter {
 
   // debounced negotiate interface
   negotiate = debounce((onError?: (e: Error) => void) => {
+    this.emit(PCEvents.NegotiationStarted);
     try {
       this.createAndSendOffer();
     } catch (e) {
