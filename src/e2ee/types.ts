@@ -75,6 +75,10 @@ export const EncryptionEvent = {
   Error: 'error',
 } as const;
 
+export type CryptorCallbacks = {
+  error: (error: E2EEError) => void;
+};
+
 export type KeyInfo = {
   key: Uint8Array;
   participantId?: string;

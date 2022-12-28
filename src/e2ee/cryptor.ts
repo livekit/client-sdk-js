@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import { workerLogger } from '../logger';
 import {
   ENCRYPTION_ALGORITHM,
@@ -9,14 +11,15 @@ import {
   RATCHET_WINDOW_SIZE,
   UNENCRYPTED_BYTES,
 } from './constants';
-import type { KeySet } from './types';
+import { E2EEError, E2EEErrorReason } from './errors';
+import type { CryptorCallbacks, KeySet } from './types';
 import { deriveKeys, importKey, isVideoFrame, ratchet } from './utils';
 
 export interface CryptorConstructor {
   new (opts?: unknown): BaseCryptor;
 }
 
-export class BaseCryptor {
+export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<CryptorCallbacks>) {
   setKey(key: Uint8Array, keyIndex?: number): Promise<void> {
     throw Error('not implemented for subclass');
   }
@@ -50,6 +53,8 @@ export class Cryptor extends BaseCryptor {
   private enabled: boolean;
 
   private useSharedKey: boolean | undefined;
+
+  private isKeyInvalid = false;
 
   constructor(opts?: { sharedKey?: boolean; enabled?: boolean }) {
     super();
@@ -102,6 +107,9 @@ export class Cryptor extends BaseCryptor {
     } else {
       this.cryptoKeyRing[this.currentKeyIndex] = keys;
     }
+
+    // reset isKeyInvalid
+    this.isKeyInvalid = false;
 
     // this._sendCount = BigInt(0); // eslint-disable-line new-cap
   }
@@ -166,9 +174,8 @@ export class Cryptor extends BaseCryptor {
       // ---------+-------------------------+-+---------+----
       // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
       // ---------+-------------------------+-+---------+----
-
-      return crypto.subtle
-        .encrypt(
+      try {
+        const cipherText = await crypto.subtle.encrypt(
           {
             name: ENCRYPTION_ALGORITHM,
             iv,
@@ -176,34 +183,25 @@ export class Cryptor extends BaseCryptor {
           },
           encryptionKey,
           new Uint8Array(encodedFrame.data, getHeaderBytes(encodedFrame)),
-        )
-        .then(
-          (cipherText) => {
-            const newData = new ArrayBuffer(
-              frameHeader.byteLength +
-                cipherText.byteLength +
-                iv.byteLength +
-                frameTrailer.byteLength,
-            );
-            const newUint8 = new Uint8Array(newData);
-
-            newUint8.set(frameHeader); // copy first bytes.
-            newUint8.set(new Uint8Array(cipherText), frameHeader.byteLength); // add ciphertext.
-            newUint8.set(new Uint8Array(iv), frameHeader.byteLength + cipherText.byteLength); // append IV.
-            newUint8.set(
-              frameTrailer,
-              frameHeader.byteLength + cipherText.byteLength + iv.byteLength,
-            ); // append frame trailer.
-
-            encodedFrame.data = newData;
-
-            return controller.enqueue(encodedFrame);
-          },
-          (e) => {
-            // TODO: surface this to the app.
-            workerLogger.error(e);
-          },
         );
+
+        const newData = new ArrayBuffer(
+          frameHeader.byteLength + cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
+        );
+        const newUint8 = new Uint8Array(newData);
+
+        newUint8.set(frameHeader); // copy first bytes.
+        newUint8.set(new Uint8Array(cipherText), frameHeader.byteLength); // add ciphertext.
+        newUint8.set(new Uint8Array(iv), frameHeader.byteLength + cipherText.byteLength); // append IV.
+        newUint8.set(frameTrailer, frameHeader.byteLength + cipherText.byteLength + iv.byteLength); // append frame trailer.
+
+        encodedFrame.data = newData;
+
+        return controller.enqueue(encodedFrame);
+      } catch (e) {
+        // TODO: surface this to the app.
+        workerLogger.error(e);
+      }
     } else {
       workerLogger.debug('skipping frame encryption');
     }
@@ -253,6 +251,10 @@ export class Cryptor extends BaseCryptor {
     initialKey: KeySet | undefined = undefined,
     ratchetCount: number = 0,
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
+    if (this.isKeyInvalid) {
+      return undefined;
+    }
+
     const encryptionKey = this.cryptoKeyRing[keyIndex].encryptionKey;
 
     // Construct frame trailer. Similar to the frame header described in
@@ -302,7 +304,11 @@ export class Cryptor extends BaseCryptor {
       let { material } = this.cryptoKeyRing[keyIndex];
 
       if (this.useSharedKey || !material) {
-        workerLogger.error('invalid key');
+        this.emit(
+          'error',
+          new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey),
+        );
+        this.isKeyInvalid = true;
         return undefined;
       }
 
