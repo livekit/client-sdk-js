@@ -61,6 +61,7 @@ const appActions = {
     const adaptiveStream = (<HTMLInputElement>$('adaptive-stream')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
+    const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
 
     setLogLevel(LogLevel.debug);
     updateSearchParams(url, token);
@@ -79,7 +80,7 @@ const appActions = {
     };
 
     const connectOpts: RoomConnectOptions = {
-      autoSubscribe: true,
+      autoSubscribe: autoSubscribe,
     };
     if (forceTURN) {
       connectOpts.rtcConfig = {
