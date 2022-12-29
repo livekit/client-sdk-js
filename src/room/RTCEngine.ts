@@ -29,7 +29,7 @@ import {
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
-import PCTransport from './PCTransport';
+import PCTransport, { PCEvents } from './PCTransport';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import type LocalTrack from './track/LocalTrack';
 import type LocalVideoTrack from './track/LocalVideoTrack';
@@ -964,18 +964,36 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /** @internal */
-  negotiate() {
-    if (!this.publisher) {
-      return;
-    }
-
-    this.hasPublished = true;
-
-    this.publisher.negotiate((e) => {
-      if (e instanceof NegotiationError) {
-        this.fullReconnectOnNext = true;
+  negotiate(): Promise<void> {
+    // observe signal state
+    return new Promise<void>((resolve, reject) => {
+      if (!this.publisher) {
+        reject(new NegotiationError('publisher is not defined'));
+        return;
       }
-      this.handleDisconnect('negotiation');
+
+      this.hasPublished = true;
+
+      const negotiationTimeout = setTimeout(() => {
+        reject('negotiation timed out');
+        this.handleDisconnect('negotiation');
+      }, this.peerConnectionTimeout);
+
+      this.publisher.once(PCEvents.NegotiationStarted, () => {
+        this.publisher?.once(PCEvents.NegotiationComplete, () => {
+          clearTimeout(negotiationTimeout);
+          resolve();
+        });
+      });
+
+      this.publisher.negotiate((e) => {
+        clearTimeout(negotiationTimeout);
+        reject(e);
+        if (e instanceof NegotiationError) {
+          this.fullReconnectOnNext = true;
+        }
+        this.handleDisconnect('negotiation');
+      });
     });
   }
 

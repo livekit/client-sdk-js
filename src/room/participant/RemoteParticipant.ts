@@ -263,11 +263,6 @@ export default class RemoteParticipant extends Participant {
       validTracks.set(ti.sid, publication);
     });
 
-    // always emit events for new publications, Room will not forward them unless it's ready
-    newTracks.forEach((publication) => {
-      this.emit(ParticipantEvent.TrackPublished, publication);
-    });
-
     // detect removed tracks
     this.tracks.forEach((publication) => {
       if (!validTracks.has(publication.trackSid)) {
@@ -277,6 +272,11 @@ export default class RemoteParticipant extends Participant {
         });
         this.unpublishTrack(publication.trackSid, true);
       }
+    });
+
+    // always emit events for new publications, Room will not forward them unless it's ready
+    newTracks.forEach((publication) => {
+      this.emit(ParticipantEvent.TrackPublished, publication);
     });
   }
 
