@@ -26,6 +26,7 @@ import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
 import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
+import type { VideoCodec } from '../room/track/options';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
   protected worker?: Worker;
@@ -148,7 +149,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         publication.track!,
         publication.track!.sender!,
         room.localParticipant.identity,
-        publication.trackInfo,
       );
     });
     keyProvider.on('setKey', (keyInfo) => this.postKey(keyInfo));
@@ -173,20 +173,20 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     if (!track.receiver) {
       return;
     }
-    this.handleReceiver(track.receiver, remoteId, trackInfo);
+    console.log('handle receiver');
+    this.handleReceiver(
+      track.receiver,
+      remoteId,
+      trackInfo?.mimeType.split('/')[1].toLowerCase() as VideoCodec,
+    );
   }
 
-  private setupE2EESender(
-    track: Track,
-    sender: RTCRtpSender,
-    localId: string,
-    trackInfo?: TrackInfo,
-  ) {
+  private setupE2EESender(track: Track, sender: RTCRtpSender, localId: string) {
     if (!(track instanceof LocalTrack) || !sender) {
       if (!sender) log.warn('early return because sender is not ready');
       return;
     }
-    this.handleSender(sender, localId, trackInfo);
+    this.handleSender(sender, localId, track.codec);
   }
 
   /**
@@ -194,11 +194,12 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
    * a frame decoder.
    *
    */
-  private handleReceiver(receiver: RTCRtpReceiver, participantId: string, trackInfo?: TrackInfo) {
+  private handleReceiver(receiver: RTCRtpReceiver, participantId: string, codec?: VideoCodec) {
+    console.log('track codec receiver', codec);
+
     if (E2EE_FLAG in receiver || !this.worker) {
       return;
     }
-    console.log('track info', trackInfo?.mimeType);
 
     // setTimeout(
     //   () =>
@@ -209,7 +210,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     //     }),
     //   100,
     // );
-
     if (isScriptTransformSupported()) {
       const options = {
         kind: 'decode',
@@ -225,6 +225,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         data: {
           readableStream: receiverStreams.readable,
           writableStream: receiverStreams.writable,
+          codec,
           participantId,
         },
       };
@@ -240,21 +241,15 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
    * a frame encoder.
    *
    */
-  private handleSender(sender: RTCRtpSender, participantId: string, trackInfo?: TrackInfo) {
-    if (E2EE_FLAG in sender || !this.worker) {
-      return;
-    }
+  private handleSender(sender: RTCRtpSender, participantId: string, codec?: VideoCodec) {
+    console.log('track codec', codec);
 
-    console.log('track info', trackInfo?.mimeType);
-    // setTimeout(
-    //   () =>
-    //     sender.getStats().then((stats) => {
-    //       stats.forEach((stat) => {
-    //         console.log(stat);
-    //       });
-    //     }),
-    //   500,
-    // );
+    // if (E2EE_FLAG in sender || !this.worker) {
+    //   return;
+    // }
+    if (!this.worker) {
+      throw new E2EEError('Worker not ready');
+    }
 
     if (isScriptTransformSupported()) {
       log.warn('initialize script transform');
@@ -266,7 +261,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
-      log.warn('initialize encoder');
+      log.warn('initialize encoded streams');
       // @ts-ignore
       const senderStreams = sender.createEncodedStreams();
       const msg: EncodeMessage = {
@@ -274,13 +269,14 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         data: {
           readableStream: senderStreams.readable,
           writableStream: senderStreams.writable,
+          codec,
           participantId,
         },
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);
     }
 
-    // @ts-ignore
-    sender[E2EE_FLAG] = true;
+    // // @ts-ignore
+    // sender[E2EE_FLAG] = true;
   }
 }

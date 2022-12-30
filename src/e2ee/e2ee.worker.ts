@@ -2,6 +2,7 @@ import { Cryptor } from './cryptor';
 import type { E2EEWorkerMessage, EnableMessage, ErrorMessage } from './types';
 import { setLogLevel, workerLogger } from '../logger';
 import { E2EEError, E2EEErrorReason } from './errors';
+import type { VideoCodec } from '../room/track/options';
 
 const participantCryptors = new Map<string, Cryptor>();
 let publishCryptor: Cryptor | undefined;
@@ -64,11 +65,12 @@ async function transform(
   operation: 'encode' | 'decode',
   readableStream: ReadableStream<RTCEncodedAudioFrame | RTCEncodedVideoFrame>,
   writableStream: WritableStream<RTCEncodedAudioFrame | RTCEncodedVideoFrame>,
+  codec?: VideoCodec,
 ) {
   if (operation === 'encode' || operation === 'decode') {
     const transformFn = operation === 'encode' ? cipher.encodeFunction : cipher.decodeFunction;
     const transformStream = new TransformStream({
-      transform: transformFn.bind(cipher),
+      transform: transformFn.bind(cipher, codec),
     });
     try {
       await readableStream.pipeThrough(transformStream).pipeTo(writableStream);

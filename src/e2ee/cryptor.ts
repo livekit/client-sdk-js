@@ -4,6 +4,7 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { workerLogger } from '../logger';
+import type { VideoCodec } from '../room/track/options';
 import {
   ENCRYPTION_ALGORITHM,
   IV_LENGTH,
@@ -25,6 +26,7 @@ export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<Cryptor
   }
 
   encodeFunction(
+    codec: VideoCodec | undefined,
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ): Promise<any> {
@@ -32,6 +34,7 @@ export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<Cryptor
   }
 
   decodeFunction(
+    codec: VideoCodec | undefined,
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ): Promise<any> {
@@ -134,6 +137,7 @@ export class Cryptor extends BaseCryptor {
    * 9) Enqueue the encrypted frame for sending.
    */
   async encodeFunction(
+    codec: VideoCodec | undefined,
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
@@ -211,6 +215,8 @@ export class Cryptor extends BaseCryptor {
    * @param {TransformStreamDefaultController} controller - TransportStreamController.
    */
   async decodeFunction(
+    codec: VideoCodec | undefined,
+
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
@@ -382,14 +388,15 @@ export class Cryptor extends BaseCryptor {
   }
 }
 
-function getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): number {
+function getUnencryptedBytes(
+  frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+  codec?: VideoCodec,
+): number {
   if (isVideoFrame(frame)) {
     // workerLogger.debug(`meta`, { meta: frame.getMetadata() });
-    // @ts-ignore
-    const payloadType: number = frame.getMetadata().payloadType;
 
-    switch (payloadType) {
-      case 125: // h264
+    switch (codec) {
+      case 'h264':
         let data = new Uint8Array(frame.data);
         let naluIndices = findNALUIndices(data);
         for (const index of naluIndices) {

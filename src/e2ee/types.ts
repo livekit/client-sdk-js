@@ -1,4 +1,5 @@
 import type Participant from '../room/participant/Participant';
+import type { VideoCodec } from '../room/track/options';
 import type { E2EEError, E2EEErrorReason } from './errors';
 import type { BaseKeyProvider } from './keyProvider';
 
@@ -29,6 +30,7 @@ export interface EncodeMessage extends BaseMessage {
     participantId: string;
     readableStream: ReadableStream;
     writableStream: WritableStream;
+    codec?: VideoCodec;
   };
 }
 
