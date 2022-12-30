@@ -25,7 +25,7 @@ import type { BaseKeyProvider } from './keyProvider';
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
-import { Encryption_Type } from '../proto/livekit_models';
+import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
   protected worker?: Worker;
@@ -140,14 +140,15 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         participant.identity,
       ),
     );
-    room.on(RoomEvent.TrackSubscribed, (track, _, participant) => {
-      this.setupE2EEReceiver(track, participant.identity);
+    room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+      this.setupE2EEReceiver(track, participant.identity, pub.trackInfo);
     });
     room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
       this.setupE2EESender(
         publication.track!,
         publication.track!.sender!,
         room.localParticipant.identity,
+        publication.trackInfo,
       );
     });
     keyProvider.on('setKey', (keyInfo) => this.postKey(keyInfo));
@@ -168,19 +169,24 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     this.worker.postMessage(msg);
   }
 
-  private setupE2EEReceiver(track: RemoteTrack, remoteId: string) {
+  private setupE2EEReceiver(track: RemoteTrack, remoteId: string, trackInfo?: TrackInfo) {
     if (!track.receiver) {
       return;
     }
-    this.handleReceiver(track.receiver, remoteId);
+    this.handleReceiver(track.receiver, remoteId, trackInfo);
   }
 
-  private setupE2EESender(track: Track, sender: RTCRtpSender, localId: string) {
+  private setupE2EESender(
+    track: Track,
+    sender: RTCRtpSender,
+    localId: string,
+    trackInfo?: TrackInfo,
+  ) {
     if (!(track instanceof LocalTrack) || !sender) {
       if (!sender) log.warn('early return because sender is not ready');
       return;
     }
-    this.handleSender(sender, localId);
+    this.handleSender(sender, localId, trackInfo);
   }
 
   /**
@@ -188,10 +194,21 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
    * a frame decoder.
    *
    */
-  private handleReceiver(receiver: RTCRtpReceiver, participantId: string) {
+  private handleReceiver(receiver: RTCRtpReceiver, participantId: string, trackInfo?: TrackInfo) {
     if (E2EE_FLAG in receiver || !this.worker) {
       return;
     }
+    console.log('track info', trackInfo?.mimeType);
+
+    // setTimeout(
+    //   () =>
+    //     receiver.getStats().then((stats) => {
+    //       stats.forEach((stat) => {
+    //         console.log(stat);
+    //       });
+    //     }),
+    //   100,
+    // );
 
     if (isScriptTransformSupported()) {
       const options = {
@@ -223,10 +240,21 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
    * a frame encoder.
    *
    */
-  private handleSender(sender: RTCRtpSender, participantId: string) {
+  private handleSender(sender: RTCRtpSender, participantId: string, trackInfo?: TrackInfo) {
     if (E2EE_FLAG in sender || !this.worker) {
       return;
     }
+
+    console.log('track info', trackInfo?.mimeType);
+    // setTimeout(
+    //   () =>
+    //     sender.getStats().then((stats) => {
+    //       stats.forEach((stat) => {
+    //         console.log(stat);
+    //       });
+    //     }),
+    //   500,
+    // );
 
     if (isScriptTransformSupported()) {
       log.warn('initialize script transform');

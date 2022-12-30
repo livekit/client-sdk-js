@@ -156,7 +156,7 @@ export class Cryptor extends BaseCryptor {
       );
 
       // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
-      const frameHeader = new Uint8Array(encodedFrame.data, 0, getHeaderBytes(encodedFrame));
+      const frameHeader = new Uint8Array(encodedFrame.data, 0, getUnencryptedBytes(encodedFrame));
 
       // Frame trailer contains the R|IV_LENGTH and key index
       const frameTrailer = new Uint8Array(2);
@@ -179,7 +179,7 @@ export class Cryptor extends BaseCryptor {
             additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
           },
           encryptionKey,
-          new Uint8Array(encodedFrame.data, getHeaderBytes(encodedFrame)),
+          new Uint8Array(encodedFrame.data, getUnencryptedBytes(encodedFrame)),
         );
 
         const newData = new ArrayBuffer(
@@ -268,7 +268,7 @@ export class Cryptor extends BaseCryptor {
     // ---------+-------------------------+-+---------+----
 
     try {
-      const frameHeader = new Uint8Array(encodedFrame.data, 0, getHeaderBytes(encodedFrame));
+      const frameHeader = new Uint8Array(encodedFrame.data, 0, getUnencryptedBytes(encodedFrame));
       const frameTrailer = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - 2, 2);
 
       const ivLength = frameTrailer[0];
@@ -382,6 +382,122 @@ export class Cryptor extends BaseCryptor {
   }
 }
 
-function getHeaderBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame) {
-  return UNENCRYPTED_BYTES[isVideoFrame(frame) ? frame.type : 'audio'];
+function getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): number {
+  if (isVideoFrame(frame)) {
+    // workerLogger.debug(`meta`, { meta: frame.getMetadata() });
+    // @ts-ignore
+    const payloadType: number = frame.getMetadata().payloadType;
+
+    switch (payloadType) {
+      case 125: // h264
+        let data = new Uint8Array(frame.data);
+        let naluIndices = findNALUIndices(data);
+        for (const index of naluIndices) {
+          let type = parseNALUType(data[index]);
+          switch (type) {
+            case NALUType.SPS:
+            case NALUType.PPS:
+            case NALUType.AUD:
+            case NALUType.SEI:
+            case NALUType.PREFIX_NALU:
+              workerLogger.debug(`skipping NALU of type ${NALUType[type]}`);
+              break;
+            default:
+              return index + 1;
+              break;
+          }
+        }
+        throw new E2EEError('Could not find NALU');
+        break;
+      default:
+        return UNENCRYPTED_BYTES[frame.type];
+        break;
+    }
+  } else {
+    return UNENCRYPTED_BYTES.audio;
+  }
+}
+
+/**
+ * Slice the NALUs present in the supplied buffer, assuming it is already byte-aligned
+ * code adapted from https://github.com/medooze/h264-frame-parser/blob/main/lib/NalUnits.ts to return indices only
+ */
+export function findNALUIndices(stream: Uint8Array): number[] {
+  const result: number[] = [];
+  let start = 0,
+    pos = 0,
+    searchLength = stream.length - 2;
+  while (pos < searchLength) {
+    // skip until end of current NALU
+    while (
+      pos < searchLength &&
+      !(stream[pos] === 0 && stream[pos + 1] === 0 && stream[pos + 2] === 1)
+    )
+      pos++;
+    if (pos >= searchLength) pos = stream.length;
+    // remove trailing zeros from current NALU
+    let end = pos;
+    while (end > start && stream[end - 1] === 0) end--;
+    // save current NALU
+    if (start === 0) {
+      if (end !== start) throw TypeError('byte stream contains leading data');
+    } else {
+      result.push(start);
+    }
+    // begin new NALU
+    start = pos = pos + 3;
+  }
+  return result;
+}
+
+export function parseNALUType(startByte: number): NALUType {
+  return startByte & kNaluTypeMask;
+}
+
+const kNaluTypeMask = 0x1f;
+
+export enum NALUType {
+  /** Coded slice of a non-IDR picture */
+  SLICE_NON_IDR = 1,
+  /** Coded slice data partition A */
+  SLICE_PARTITION_A = 2,
+  /** Coded slice data partition B */
+  SLICE_PARTITION_B = 3,
+  /** Coded slice data partition C */
+  SLICE_PARTITION_C = 4,
+  /** Coded slice of an IDR picture */
+  SLICE_IDR = 5,
+  /** Supplemental enhancement information */
+  SEI = 6,
+  /** Sequence parameter set */
+  SPS = 7,
+  /** Picture parameter set */
+  PPS = 8,
+  /** Access unit delimiter */
+  AUD = 9,
+  /** End of sequence */
+  END_SEQ = 10,
+  /** End of stream */
+  END_STREAM = 11,
+  /** Filler data */
+  FILLER_DATA = 12,
+  /** Sequence parameter set extension */
+  SPS_EXT = 13,
+  /** Prefix NAL unit */
+  PREFIX_NALU = 14,
+  /** Subset sequence parameter set */
+  SUBSET_SPS = 15,
+  /** Depth parameter set */
+  DPS = 16,
+
+  // 17, 18 reserved
+
+  /** Coded slice of an auxiliary coded picture without partitioning */
+  SLICE_AUX = 19,
+  /** Coded slice extension */
+  SLICE_EXT = 20,
+  /** Coded slice extension for a depth view component or a 3D-AVC texture view component */
+  SLICE_LAYER_EXT = 21,
+
+  // 22, 23 reserved
 }
