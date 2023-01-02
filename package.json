@@ -84,7 +84,7 @@
     "typedoc": "0.23.23",
     "typedoc-plugin-no-inherit": "1.4.0",
     "typescript": "4.9.4",
-    "vite": "3.2.5"
+    "vite": "4.0.3"
   },
   "browserslist": [
     "safari >= 11",
