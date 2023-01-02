@@ -168,11 +168,11 @@ const appActions = {
       .on(RoomEvent.SignalConnected, async () => {
         const signalConnectionTime = Date.now() - startTime;
         appendLog(`signal connection established in ${signalConnectionTime}ms`);
+        // speed up publishing by starting to publish before it's fully connected
+        // publishing is accepted as soon as signal connection has established
         if (shouldPublish) {
-          await Promise.all([
-            room.localParticipant.setCameraEnabled(true),
-            room.localParticipant.setMicrophoneEnabled(true),
-          ]);
+          await room.localParticipant.enableCameraAndMicrophone();
+          appendLog(`tracks published in ${Date.now() - startTime}ms`);
           updateButtonsForPublishState();
         }
       });
