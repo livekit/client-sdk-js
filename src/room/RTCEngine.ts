@@ -980,6 +980,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       const handleClosed = () => {
         log.debug('engine disconnected while negotiation was ongoing');
+        cleanup();
         resolve();
         return;
       };
