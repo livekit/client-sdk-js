@@ -528,13 +528,19 @@ export default class LocalParticipant extends Participant {
     let encodings: RTCRtpEncodingParameters[] | undefined;
     let simEncodings: RTCRtpEncodingParameters[] | undefined;
     if (track.kind === Track.Kind.Video) {
-      // TODO: support react native, which doesn't expose getSettings
-      const settings = track.mediaStreamTrack.getSettings();
-      const width = settings.width ?? track.dimensions?.width;
-      const height = settings.height ?? track.dimensions?.height;
+      let dims: Track.Dimensions = {
+        width: 0,
+        height: 0,
+      };
+      try {
+        dims = await track.waitForDimensions();
+      } catch (e) {
+        // log failure
+        log.error('could not determine track dimensions');
+      }
       // width and height should be defined for video
-      req.width = width ?? 0;
-      req.height = height ?? 0;
+      req.width = dims.width;
+      req.height = dims.height;
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
         if (opts?.videoCodec === 'av1') {
@@ -565,8 +571,8 @@ export default class LocalParticipant extends Participant {
 
       encodings = computeVideoEncodings(
         track.source === Track.Source.ScreenShare,
-        width,
-        height,
+        dims.width,
+        dims.height,
         opts,
       );
       req.layers = videoLayersFromEncodings(req.width, req.height, simEncodings ?? encodings);
