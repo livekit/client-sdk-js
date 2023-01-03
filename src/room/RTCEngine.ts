@@ -186,6 +186,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async close() {
     const unlock = await this.closingLock.lock();
     if (this.isClosed) {
+      unlock();
       return;
     }
     try {
