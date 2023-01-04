@@ -337,10 +337,11 @@ export class Cryptor extends BaseCryptor {
       encodedFrame.data = newData;
 
       return encodedFrame;
-    } catch (error) {
+    } catch (error: any) {
       let material = this.keys.getMaterial(keyIndex);
 
       if (this.useSharedKey || !material) {
+        workerLogger.error(error);
         throw new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey);
       }
 
@@ -427,6 +428,7 @@ function getUnencryptedBytes(
 
     switch (codec) {
       case 'h264':
+        console.log('h264');
         // TODO avoid creating a new array each time, the array is already being created in the encode/decode functions
         let data = new Uint8Array(frame.data);
         let naluIndices = findNALUIndices(data);

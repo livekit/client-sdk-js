@@ -223,20 +223,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       return;
     }
 
-    if (E2EE_FLAG in receiver) {
-      // only update codec
-      const msg: UpdateCodecMessage = {
-        kind: 'updateCodec',
-        data: {
-          trackId,
-          codec,
-          participantId,
-        },
-      };
-      this.worker.postMessage(msg);
-      return;
-    }
-
     if (isScriptTransformSupported()) {
       const options = {
         kind: 'decode',
@@ -247,6 +233,19 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       // @ts-ignore
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
+      if (E2EE_FLAG in receiver) {
+        // only update codec
+        const msg: UpdateCodecMessage = {
+          kind: 'updateCodec',
+          data: {
+            trackId,
+            codec,
+            participantId,
+          },
+        };
+        this.worker.postMessage(msg);
+        return;
+      }
       // @ts-ignore
       let writable: WritableStream = receiver.writableStream;
       // @ts-ignore

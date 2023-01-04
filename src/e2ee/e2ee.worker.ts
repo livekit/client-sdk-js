@@ -162,7 +162,7 @@ if (self.RTCTransformEvent) {
     const { kind, participantId, trackId, codec } = transformer.options;
     const cryptor =
       kind === 'encode' ? getPublisherCryptor(trackId) : getTrackCryptor(participantId, trackId);
-    workerLogger.debug('transform');
+    workerLogger.debug('transform', { codec });
     cryptor.setupTransform(kind, transformer.readable, transformer.writable, codec);
   };
 }
