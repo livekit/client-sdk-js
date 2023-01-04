@@ -73,6 +73,9 @@ onmessage = (ev) => {
     case 'removeTransform':
       unsetCryptorParticipant(data.trackId);
       break;
+    case 'updateCodec':
+      getTrackCryptor(data.participantId, data.trackId).setCodec(data.codec);
+      break;
     default:
       break;
   }
