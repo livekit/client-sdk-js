@@ -3,13 +3,16 @@ import type { E2EEWorkerMessage, EnableMessage } from './types';
 import { setLogLevel, workerLogger } from '../logger';
 
 const participantCryptors: Cryptor[] = [];
-const participantKeys: ParticipantKeys[] = [];
-let publishCryptor: Cryptor | undefined;
+const participantKeys: Map<string, ParticipantKeys> = new Map();
+
+let publishCryptors: Cryptor[] = [];
+let publisherKeys: ParticipantKeys;
 
 let isEncryptionEnabled: boolean = false;
 
-let sharedKey: Uint8Array | undefined;
 let useSharedKey: boolean = false;
+
+let sharedKey: Uint8Array | undefined;
 
 setLogLevel('debug', 'lk-e2ee-worker');
 
@@ -28,16 +31,17 @@ onmessage = (ev) => {
         kind: 'enable',
         data: { enabled: isEncryptionEnabled },
       };
+      publisherKeys = new ParticipantKeys(useSharedKey, isEncryptionEnabled);
       postMessage(enableMsg);
       break;
     case 'enable':
-      setParticipantCryptorEnabled(data.enabled, data.participantId);
+      setEncryptionEnabled(data.enabled, data.participantId);
       workerLogger.info('updated e2ee enabled status');
       // acknowledge enable call successful
       postMessage(ev.data);
       break;
     case 'decode':
-      let cryptor = getTrackCryptor(data.participantId);
+      let cryptor = getTrackCryptor(data.participantId, data.trackId);
       cryptor.setupTransform(
         kind,
         data.readableStream,
@@ -47,7 +51,7 @@ onmessage = (ev) => {
       );
       break;
     case 'encode':
-      let pubCryptor = getPublisherCryptor();
+      let pubCryptor = getPublisherCryptor(data.trackId);
       pubCryptor.setupTransform(
         kind,
         data.readableStream,
@@ -61,7 +65,7 @@ onmessage = (ev) => {
         workerLogger.debug('set shared key');
         setSharedKey(data.key, data.keyIndex);
       } else if (data.participantId) {
-        getTrackCryptor(data.participantId).setKey(data.key, data.keyIndex);
+        getParticipantKeyHandler(data.participantId).setKey(data.key, data.keyIndex);
       } else {
         workerLogger.error('no participant Id was provided and shared key usage is disabled');
       }
@@ -78,51 +82,68 @@ function getTrackCryptor(participantId: string, trackId: string) {
   let cryptor = participantCryptors.find((c) => c.getTrackId() === trackId);
   if (!cryptor) {
     workerLogger.info('creating new cryptor for', { participantId });
-    cryptor = new Cryptor({ enabled: isEncryptionEnabled, sharedKey: useSharedKey });
-    if (useSharedKey && sharedKey) {
-      cryptor.setKey(sharedKey);
-    }
-    cryptor.setParticipant(participantId);
+    cryptor = new Cryptor({
+      sharedKey: useSharedKey,
+      participantId,
+      keys: getParticipantKeyHandler(participantId),
+    });
     participantCryptors.push(cryptor);
-  } else if (participantId === cryptor.getParticipantId()) {
-    // all good
-  } else {
+  } else if (participantId !== cryptor.getParticipantId()) {
     // assign new participant id to track cryptor, probably needs to update keys as well
+    cryptor.setParticipant(participantId, getParticipantKeyHandler(participantId));
+  }
+  if (sharedKey) {
   }
   return cryptor;
 }
 
-function getParticipantCryptors();
-
-function unsetCryptorParticipant(trackId: string) {
-  participantCryptors.find((c) => c.getTrackId() === trackId)?.setParticipant(undefined);
+function getParticipantKeyHandler(participantId?: string) {
+  if (!participantId) {
+    return publisherKeys!;
+  }
+  let keys = participantKeys.get(participantId);
+  if (!keys) {
+    keys = new ParticipantKeys();
+    if (sharedKey) {
+      keys.setKey(sharedKey);
+    }
+    participantKeys.set(participantId, keys);
+  }
+  return keys;
 }
 
-function getPublisherCryptor() {
+function unsetCryptorParticipant(trackId: string) {
+  participantCryptors.find((c) => c.getTrackId() === trackId)?.unsetParticipant();
+}
+
+function getPublisherCryptor(trackId: string) {
+  let publishCryptor = publishCryptors.find((cryptor) => cryptor.getTrackId() === trackId);
   if (!publishCryptor) {
-    publishCryptor = new Cryptor({ enabled: isEncryptionEnabled, sharedKey: useSharedKey });
-    if (useSharedKey && sharedKey) {
-      publishCryptor.setKey(sharedKey);
-    }
+    publishCryptor = new Cryptor({
+      sharedKey: useSharedKey,
+      keys: publisherKeys!,
+      participantId: 'publisher',
+    });
+    publishCryptors.push(publishCryptor);
   }
   return publishCryptor;
 }
 
-function setParticipantCryptorEnabled(enable: boolean, participantId?: string) {
+function setEncryptionEnabled(enable: boolean, participantId?: string) {
   if (!participantId) {
     isEncryptionEnabled = enable;
-    publishCryptor?.setEnabled(enable);
+    publisherKeys.setEnabled(enable);
   } else {
-    participantCryptors.get(participantId)?.setEnabled(enable);
+    getParticipantKeyHandler(participantId).setEnabled(enable);
   }
 }
 
 function setSharedKey(key: Uint8Array, index?: number) {
   workerLogger.debug('setting shared key');
   sharedKey = key;
-  publishCryptor?.setKey(key, index);
-  for (const [, cryptor] of participantCryptors) {
-    cryptor.setKey(key, index);
+  publisherKeys?.setKey(key, index);
+  for (const [, keyHandler] of participantKeys) {
+    keyHandler.setKey(key, index);
   }
 }
 
@@ -135,8 +156,9 @@ if (self.RTCTransformEvent) {
     const transformer = event.transformer;
     console.log('transformer', event);
     transformer.handled = true;
-    const { kind, participantId, codec } = transformer.options;
-    const cryptor = kind === 'encode' ? getPublisherCryptor() : getTrackCryptor(participantId);
+    const { kind, participantId, trackId, codec } = transformer.options;
+    const cryptor =
+      kind === 'encode' ? getPublisherCryptor(trackId) : getTrackCryptor(participantId, trackId);
     workerLogger.debug('transform');
     cryptor.setupTransform(kind, transformer.readable, transformer.writable, codec);
   };

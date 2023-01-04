@@ -218,7 +218,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
   ) {
     console.log('track codec receiver', codec);
 
-    if (!this.worker) {
+    if (E2EE_FLAG in receiver || !this.worker) {
       return;
     }
 
@@ -226,6 +226,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       const options = {
         kind: 'decode',
         participantId,
+        trackId,
+        codec,
       };
       // @ts-ignore
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
@@ -275,11 +277,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
   ) {
     console.log('track codec', codec);
 
-    // if (E2EE_FLAG in sender || !this.worker) {
-    //   return;
-    // }
-    if (!this.worker) {
-      throw new E2EEError('Worker not ready');
+    if (E2EE_FLAG in sender || !this.worker) {
+      return;
     }
 
     if (isScriptTransformSupported()) {
@@ -288,6 +287,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       const options = {
         kind: 'encode',
         participantId,
+        trackId,
+        codec,
       };
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);

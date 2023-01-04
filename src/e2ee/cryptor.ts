@@ -27,10 +27,6 @@ export interface TransformerInfo {
 }
 
 export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<CryptorCallbacks>) {
-  setKey(key: Uint8Array, keyIndex?: number): Promise<void> {
-    throw Error('not implemented for subclass');
-  }
-
   encodeFunction(
     codec: string | undefined,
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
@@ -49,17 +45,15 @@ export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<Cryptor
 }
 
 /**
- * Per-track cryptor holding the cryptographic keys and
+ * Per-track cryptor holding
  * encode/decode functions
  */
 export class Cryptor extends BaseCryptor {
-  private currentKeyIndex: number;
-
-  private cryptoKeyRing: Array<KeySet>;
+  // private currentKeyIndex: number;
 
   private sendCounts: Map<number, number>;
 
-  private enabled: boolean;
+  // private enabled: boolean;
 
   private useSharedKey: boolean | undefined;
 
@@ -71,63 +65,34 @@ export class Cryptor extends BaseCryptor {
 
   private keys: ParticipantKeys;
 
-  constructor(opts?: { sharedKey?: boolean; enabled?: boolean }) {
+  constructor(opts: {
+    sharedKey?: boolean;
+    // enabled?: boolean;
+    keys: ParticipantKeys;
+    participantId: string;
+  }) {
     super();
-    this.currentKeyIndex = 0;
-    this.cryptoKeyRing = new Array(KEYRING_SIZE);
+    // this.currentKeyIndex = 0;
+    // this.cryptoKeyRing = new Array(KEYRING_SIZE);
     this.sendCounts = new Map();
-    this.useSharedKey = opts?.sharedKey;
-    this.enabled = opts?.enabled ?? true;
+    this.useSharedKey = opts.sharedKey;
+    // this.enabled = opts.enabled ?? true;
+    this.keys = opts.keys;
+    this.participantId = opts.participantId;
   }
 
-  setEnabled(enable: boolean) {
-    workerLogger.info(`set enable cryptor: ${enable}`);
-    this.enabled = enable;
-  }
+  // setEnabled(enable: boolean) {
+  //   workerLogger.info(`set enable cryptor: ${enable}`);
+  //   this.enabled = enable;
+  // }
 
-  async setKey(key: Uint8Array, keyIndex = 0) {
-    if (key) {
-      let newKey: CryptoKey | KeySet;
-      if (this.useSharedKey) {
-        newKey = await crypto.subtle.importKey(
-          'raw',
-          key,
-          {
-            name: ENCRYPTION_ALGORITHM,
-            length: 256,
-          },
-          false,
-          ['encrypt', 'decrypt'],
-        );
-      } else {
-        const material = await importKey(key);
-        newKey = await deriveKeys(material);
-      }
-      workerLogger.debug('setting new key');
-      this.setKeys(newKey, keyIndex);
-    }
-  }
-
-  /**
-   * Sets a set of keys and resets the sendCount.
-   * decryption.
-   */
-  private setKeys(keys: KeySet | CryptoKey, keyIndex = 0) {
-    if (keyIndex >= 0) {
-      this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
-    }
-    if (keys instanceof CryptoKey) {
-      // this is the path for sharedKey = true
-      this.cryptoKeyRing[this.currentKeyIndex] = { encryptionKey: keys };
-    } else {
-      this.cryptoKeyRing[this.currentKeyIndex] = keys;
-    }
-
-    // this._sendCount = BigInt(0); // eslint-disable-line new-cap
-  }
-
-  setParticipant(id: string | undefined, keys: ParticipantKeys) {
+  setParticipant(id: string, keys: ParticipantKeys) {
     this.participantId = id;
+    this.keys = keys;
+  }
+
+  unsetParticipant() {
+    this.participantId = undefined;
   }
 
   getParticipantId() {
@@ -194,16 +159,15 @@ export class Cryptor extends BaseCryptor {
     controller: TransformStreamDefaultController,
   ) {
     if (
-      !this.enabled ||
+      !this.keys.isEnabled() ||
       // skip for encryption for empty dtx frames
       encodedFrame.data.byteLength === 0
     ) {
       return controller.enqueue(encodedFrame);
     }
 
-    const keyIndex = this.currentKeyIndex;
-
-    const encryptionKey = this.cryptoKeyRing[keyIndex]?.encryptionKey;
+    const encryptionKey = this.keys.getKey();
+    const keyIndex = this.keys.getCurrentKeyIndex();
 
     if (encryptionKey) {
       const iv = this.makeIV(
@@ -255,7 +219,7 @@ export class Cryptor extends BaseCryptor {
         encodedFrame.data = newData;
 
         return controller.enqueue(encodedFrame);
-      } catch (e) {
+      } catch (e: any) {
         // TODO: surface this to the app.
         workerLogger.error(e);
       }
@@ -276,7 +240,7 @@ export class Cryptor extends BaseCryptor {
     controller: TransformStreamDefaultController,
   ) {
     if (
-      !this.enabled ||
+      !this.keys.isEnabled() ||
       // skip for decryption for empty dtx frames
       encodedFrame.data.byteLength === 0
     ) {
@@ -285,7 +249,7 @@ export class Cryptor extends BaseCryptor {
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
 
-    if (this.cryptoKeyRing[keyIndex]) {
+    if (this.keys.getKey(keyIndex)) {
       try {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex, codec);
         if (decodedFrame) {
@@ -319,7 +283,7 @@ export class Cryptor extends BaseCryptor {
     initialKey: KeySet | undefined = undefined,
     ratchetCount: number = 0,
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
-    const encryptionKey = this.cryptoKeyRing[keyIndex].encryptionKey;
+    const encryptionKey = this.keys.getKey(keyIndex);
 
     // Construct frame trailer. Similar to the frame header described in
     // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -369,26 +333,26 @@ export class Cryptor extends BaseCryptor {
 
       return encodedFrame;
     } catch (error) {
-      let { material } = this.cryptoKeyRing[keyIndex];
+      let material = this.keys.getMaterial(keyIndex);
 
       if (this.useSharedKey || !material) {
         throw new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey);
       }
 
       if (ratchetCount < RATCHET_WINDOW_SIZE) {
-        const currentKey = this.cryptoKeyRing[this.currentKeyIndex];
+        const currentKeySet = this.keys.getKeySet();
 
         material = await importKey(await ratchet(material));
 
         const newKey = await deriveKeys(material);
 
-        this.setKeys(newKey);
+        this.keys.setKeys(newKey);
 
         return await this.decryptFrame(
           encodedFrame,
           keyIndex,
           codec,
-          initialKey || currentKey,
+          initialKey || currentKeySet,
           ratchetCount + 1,
         );
       }
@@ -400,7 +364,7 @@ export class Cryptor extends BaseCryptor {
        * we come back to the initial key.
        */
       if (initialKey) {
-        this.setKeys(initialKey);
+        this.keys.setKeys(initialKey);
       }
 
       workerLogger.error('error decoding', { error });
@@ -576,11 +540,79 @@ export class ParticipantKeys {
 
   private cryptoKeyRing: Array<KeySet>;
 
-  private participantId: string;
+  private isSharedKey: boolean;
 
-  constructor(participantId: string) {
-    this.participantId = participantId;
+  private enabled: boolean;
+
+  constructor(isSharedKey = true, isEnabled = true) {
     this.currentKeyIndex = 0;
-    this.cryptoKeyRing = [];
+    this.cryptoKeyRing = new Array(KEYRING_SIZE);
+    this.isSharedKey = isSharedKey;
+    this.enabled = isEnabled;
+  }
+
+  setEnabled(enabled: boolean) {
+    this.enabled = enabled;
+  }
+
+  async setKey(key: Uint8Array, keyIndex = 0) {
+    if (key) {
+      let newKey: CryptoKey | KeySet;
+      if (this.isSharedKey) {
+        newKey = await crypto.subtle.importKey(
+          'raw',
+          key,
+          {
+            name: ENCRYPTION_ALGORITHM,
+            length: 256,
+          },
+          false,
+          ['encrypt', 'decrypt'],
+        );
+      } else {
+        const material = await importKey(key);
+        newKey = await deriveKeys(material);
+      }
+      workerLogger.debug('setting new key');
+      this.setKeys(newKey, keyIndex);
+    }
+  }
+
+  /**
+   * Sets a set of keys and resets the sendCount.
+   * decryption.
+   */
+  setKeys(keys: KeySet | CryptoKey, keyIndex = 0) {
+    if (keyIndex >= 0) {
+      this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
+    }
+    if (keys instanceof CryptoKey) {
+      // this is the path for sharedKey = true
+      this.cryptoKeyRing[this.currentKeyIndex] = { encryptionKey: keys };
+    } else {
+      this.cryptoKeyRing[this.currentKeyIndex] = keys;
+    }
+
+    // this._sendCount = BigInt(0); // eslint-disable-line new-cap
+  }
+
+  isEnabled() {
+    return this.enabled;
+  }
+
+  getCurrentKeyIndex() {
+    return this.currentKeyIndex;
+  }
+
+  getKeySet(keyIndex?: number) {
+    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex];
+  }
+
+  getKey(keyIndex?: number) {
+    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex]?.encryptionKey;
+  }
+
+  getMaterial(keyIndex?: number) {
+    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex]?.material;
   }
 }
