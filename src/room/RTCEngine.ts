@@ -185,8 +185,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   async close() {
     const unlock = await this.closingLock.lock();
+    if (this.isClosed) {
+      unlock();
+      return;
+    }
     try {
       this._isClosed = true;
+      this.emit(EngineEvent.Closing);
       this.removeAllListeners();
       this.deregisterOnLineListener();
       this.clearPendingReconnect();
@@ -974,20 +979,34 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       this.hasPublished = true;
 
+      const handleClosed = () => {
+        log.debug('engine disconnected while negotiation was ongoing');
+        cleanup();
+        resolve();
+        return;
+      };
+
+      this.on(EngineEvent.Closing, handleClosed);
+
       const negotiationTimeout = setTimeout(() => {
         reject('negotiation timed out');
         this.handleDisconnect('negotiation');
       }, this.peerConnectionTimeout);
 
+      const cleanup = () => {
+        clearTimeout(negotiationTimeout);
+        this.off(EngineEvent.Closing, handleClosed);
+      };
+
       this.publisher.once(PCEvents.NegotiationStarted, () => {
         this.publisher?.once(PCEvents.NegotiationComplete, () => {
-          clearTimeout(negotiationTimeout);
+          cleanup();
           resolve();
         });
       });
 
       this.publisher.negotiate((e) => {
-        clearTimeout(negotiationTimeout);
+        cleanup();
         reject(e);
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
@@ -1089,6 +1108,7 @@ export type EngineEventCallbacks = {
   restarting: () => void;
   restarted: (joinResp: JoinResponse) => void;
   signalResumed: () => void;
+  closing: () => void;
   mediaTrackAdded: (
     track: MediaStreamTrack,
     streams: MediaStream,
