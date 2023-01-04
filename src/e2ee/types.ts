@@ -42,6 +42,15 @@ export interface RemoveTransformMessage extends BaseMessage {
   };
 }
 
+export interface UpdateCodecMessage extends BaseMessage {
+  kind: 'updateCodec';
+  data: {
+    participantId: string;
+    trackId: string;
+    codec: string;
+  };
+}
+
 export interface ErrorMessage extends BaseMessage {
   kind: 'error';
   data: {
@@ -64,7 +73,8 @@ export type E2EEWorkerMessage =
   | EncodeMessage
   | ErrorMessage
   | EnableMessage
-  | RemoveTransformMessage;
+  | RemoveTransformMessage
+  | UpdateCodecMessage;
 
 export type KeySet = { material?: CryptoKey; encryptionKey: CryptoKey };
 

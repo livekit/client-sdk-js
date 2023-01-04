@@ -75,7 +75,7 @@ const appActions = {
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
 
-    setLogLevel(LogLevel.debug);
+    setLogLevel(LogLevel.info);
     updateSearchParams(url, token, cryptoKey);
 
     const roomOpts: RoomOptions = {

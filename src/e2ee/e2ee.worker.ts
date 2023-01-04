@@ -14,7 +14,7 @@ let useSharedKey: boolean = false;
 
 let sharedKey: Uint8Array | undefined;
 
-setLogLevel('debug', 'lk-e2ee-worker');
+setLogLevel('debug', 'lk-e2ee');
 
 /**
  * @param ev{string}
@@ -89,7 +89,7 @@ function getTrackCryptor(participantId: string, trackId: string) {
     });
     participantCryptors.push(cryptor);
   } else if (participantId !== cryptor.getParticipantId()) {
-    // assign new participant id to track cryptor, probably needs to update keys as well
+    // assign new participant id to track cryptor and pass in correct key handler
     cryptor.setParticipant(participantId, getParticipantKeyHandler(participantId));
   }
   if (sharedKey) {

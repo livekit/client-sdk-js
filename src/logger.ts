@@ -25,10 +25,7 @@ livekitLogger.setLevel(LogLevel.info);
 
 export default livekitLogger as StructuredLogger;
 
-export function setLogLevel(
-  level: LogLevel | LogLevelString,
-  loggerName?: 'livekit' | 'lk-e2ee-worker',
-) {
+export function setLogLevel(level: LogLevel | LogLevelString, loggerName?: 'livekit' | 'lk-e2ee') {
   if (loggerName) {
     log.getLogger(loggerName).setLevel(level);
   }
@@ -63,4 +60,4 @@ export function setLogExtension(extension: LogExtension) {
   livekitLogger.setLevel(livekitLogger.getLevel()); // Be sure to call setLevel method in order to apply plugin
 }
 
-export const workerLogger = log.getLogger('lk-e2ee-worker') as StructuredLogger;
+export const workerLogger = log.getLogger('lk-e2ee') as StructuredLogger;

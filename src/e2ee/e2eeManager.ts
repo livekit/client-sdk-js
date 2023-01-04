@@ -12,6 +12,7 @@ import {
   KeyInfo,
   SetKeyMessage,
   RemoveTransformMessage,
+  UpdateCodecMessage,
 } from './types';
 // eslint-disable-next-line import/extensions
 // @ts-ignore
@@ -214,11 +215,25 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     receiver: RTCRtpReceiver,
     trackId: string,
     participantId: string,
-    codec?: string,
+    codec: string,
   ) {
     console.log('track codec receiver', codec);
 
-    if (E2EE_FLAG in receiver || !this.worker) {
+    if (!this.worker) {
+      return;
+    }
+
+    if (E2EE_FLAG in receiver) {
+      // only update codec
+      const msg: UpdateCodecMessage = {
+        kind: 'updateCodec',
+        data: {
+          trackId,
+          codec,
+          participantId,
+        },
+      };
+      this.worker.postMessage(msg);
       return;
     }
 

@@ -28,7 +28,6 @@ export interface TransformerInfo {
 
 export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<CryptorCallbacks>) {
   encodeFunction(
-    codec: string | undefined,
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ): Promise<any> {
@@ -36,7 +35,6 @@ export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<Cryptor
   }
 
   decodeFunction(
-    codec: string | undefined,
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ): Promise<any> {
@@ -64,6 +62,8 @@ export class Cryptor extends BaseCryptor {
   private trackId: string | undefined;
 
   private keys: ParticipantKeys;
+
+  private codec: string = 'vp8';
 
   constructor(opts: {
     sharedKey?: boolean;
@@ -103,6 +103,10 @@ export class Cryptor extends BaseCryptor {
     return this.trackId;
   }
 
+  setCodec(codec: string) {
+    this.codec = codec;
+  }
+
   setupTransform(
     operation: 'encode' | 'decode',
     readable: ReadableStream,
@@ -110,9 +114,12 @@ export class Cryptor extends BaseCryptor {
     trackId: string,
     codec?: string,
   ) {
+    if (codec) {
+      this.codec = codec;
+    }
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
-      transform: transformFn.bind(this, codec),
+      transform: transformFn.bind(this),
     });
 
     readable
@@ -154,7 +161,6 @@ export class Cryptor extends BaseCryptor {
    * 9) Enqueue the encrypted frame for sending.
    */
   async encodeFunction(
-    codec: string | undefined,
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
@@ -179,7 +185,7 @@ export class Cryptor extends BaseCryptor {
       const frameHeader = new Uint8Array(
         encodedFrame.data,
         0,
-        getUnencryptedBytes(encodedFrame, codec),
+        getUnencryptedBytes(encodedFrame, this.codec),
       );
 
       // Frame trailer contains the R|IV_LENGTH and key index
@@ -203,7 +209,7 @@ export class Cryptor extends BaseCryptor {
             additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
           },
           encryptionKey,
-          new Uint8Array(encodedFrame.data, getUnencryptedBytes(encodedFrame, codec)),
+          new Uint8Array(encodedFrame.data, getUnencryptedBytes(encodedFrame, this.codec)),
         );
 
         const newData = new ArrayBuffer(
@@ -235,7 +241,6 @@ export class Cryptor extends BaseCryptor {
    * @param {TransformStreamDefaultController} controller - TransportStreamController.
    */
   async decodeFunction(
-    codec: string | undefined,
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
@@ -251,7 +256,7 @@ export class Cryptor extends BaseCryptor {
 
     if (this.keys.getKey(keyIndex)) {
       try {
-        const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex, codec);
+        const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex, this.codec);
         if (decodedFrame) {
           return controller.enqueue(decodedFrame);
         }
