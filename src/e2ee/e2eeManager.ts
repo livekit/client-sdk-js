@@ -11,11 +11,12 @@ import {
   InitMessage,
   KeyInfo,
   SetKeyMessage,
+  RemoveTransformMessage,
 } from './types';
 // eslint-disable-next-line import/extensions
 // @ts-ignore
 import WebWorkerURL from './e2ee.worker.js?worker&url';
-import { isE2EESupported, isScriptTransformSupported } from './utils';
+import { isE2EESupported, isScriptTransformSupported, mimeTypeToCodecString } from './utils';
 import type Room from '../room/Room';
 import { ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
@@ -141,6 +142,17 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         participant.identity,
       ),
     );
+    room.on(RoomEvent.TrackUnsubscribed, (track, _, participant) => {
+      console.log('mediastream id being removed', track.mediaStreamID);
+      const msg: RemoveTransformMessage = {
+        kind: 'removeTransform',
+        data: {
+          participantId: participant.identity,
+          trackId: track.mediaStreamID,
+        },
+      };
+      this.worker?.postMessage(msg);
+    });
     room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
       this.setupE2EEReceiver(track, participant.identity, pub.trackInfo);
     });
@@ -174,10 +186,14 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       return;
     }
     console.log('handle receiver');
+    if (!trackInfo?.mimeType) {
+      throw new E2EEError('MimeType missing from trackInfo, cannot set up E2EE cryptor');
+    }
     this.handleReceiver(
       track.receiver,
+      track.mediaStreamID,
       remoteId,
-      trackInfo?.mimeType.split('/')[1].toLowerCase() as VideoCodec,
+      mimeTypeToCodecString(trackInfo.mimeType),
     );
   }
 
@@ -186,7 +202,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       if (!sender) log.warn('early return because sender is not ready');
       return;
     }
-    this.handleSender(sender, localId, track.codec);
+    this.handleSender(sender, track.mediaStreamID, localId, track.codec);
   }
 
   /**
@@ -194,22 +210,18 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
    * a frame decoder.
    *
    */
-  private handleReceiver(receiver: RTCRtpReceiver, participantId: string, codec?: VideoCodec) {
+  private async handleReceiver(
+    receiver: RTCRtpReceiver,
+    trackId: string,
+    participantId: string,
+    codec?: string,
+  ) {
     console.log('track codec receiver', codec);
 
-    if (E2EE_FLAG in receiver || !this.worker) {
+    if (!this.worker) {
       return;
     }
 
-    // setTimeout(
-    //   () =>
-    //     receiver.getStats().then((stats) => {
-    //       stats.forEach((stat) => {
-    //         console.log(stat);
-    //       });
-    //     }),
-    //   100,
-    // );
     if (isScriptTransformSupported()) {
       const options = {
         kind: 'decode',
@@ -219,17 +231,31 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
       // @ts-ignore
-      const receiverStreams = receiver.createEncodedStreams();
+      let writable: WritableStream = receiver.writableStream;
+      // @ts-ignore
+      let readable: ReadableStream = receiver.readableStream;
+      if (!writable || !readable) {
+        // @ts-ignore
+        const receiverStreams = receiver.createEncodedStreams();
+        // @ts-ignore
+        receiver.writableStream = receiverStreams.writable;
+        writable = receiverStreams.writable;
+        // @ts-ignore
+        receiver.readableStream = receiverStreams.readable;
+        readable = receiverStreams.readable;
+      }
+
       const msg: EncodeMessage = {
         kind: 'decode',
         data: {
-          readableStream: receiverStreams.readable,
-          writableStream: receiverStreams.writable,
+          readableStream: readable,
+          writableStream: writable,
+          trackId: trackId,
           codec,
           participantId,
         },
       };
-      this.worker.postMessage(msg, [receiverStreams.readable, receiverStreams.writable]);
+      this.worker.postMessage(msg, [readable, writable]);
     }
 
     // @ts-ignore
@@ -241,7 +267,12 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
    * a frame encoder.
    *
    */
-  private handleSender(sender: RTCRtpSender, participantId: string, codec?: VideoCodec) {
+  private handleSender(
+    sender: RTCRtpSender,
+    trackId: string,
+    participantId: string,
+    codec?: VideoCodec,
+  ) {
     console.log('track codec', codec);
 
     // if (E2EE_FLAG in sender || !this.worker) {
@@ -270,6 +301,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
           readableStream: senderStreams.readable,
           writableStream: senderStreams.writable,
           codec,
+          trackId,
           participantId,
         },
       };

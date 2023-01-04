@@ -83,3 +83,8 @@ export async function ratchet(material: CryptoKey): Promise<ArrayBuffer> {
 export function createE2EEKey(): Uint8Array {
   return window.crypto.getRandomValues(new Uint8Array(32));
 }
+
+export function mimeTypeToCodecString(mimeType: string) {
+  const codec = mimeType.split('/')[1].toLowerCase();
+  return codec;
+}

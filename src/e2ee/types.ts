@@ -1,5 +1,4 @@
 import type Participant from '../room/participant/Participant';
-import type { VideoCodec } from '../room/track/options';
 import type { E2EEError, E2EEErrorReason } from './errors';
 import type { BaseKeyProvider } from './keyProvider';
 
@@ -30,7 +29,16 @@ export interface EncodeMessage extends BaseMessage {
     participantId: string;
     readableStream: ReadableStream;
     writableStream: WritableStream;
-    codec?: VideoCodec;
+    trackId: string;
+    codec?: string;
+  };
+}
+
+export interface RemoveTransformMessage extends BaseMessage {
+  kind: 'removeTransform';
+  data: {
+    participantId: string;
+    trackId: string;
   };
 }
 
@@ -55,7 +63,8 @@ export type E2EEWorkerMessage =
   | SetKeyMessage
   | EncodeMessage
   | ErrorMessage
-  | EnableMessage;
+  | EnableMessage
+  | RemoveTransformMessage;
 
 export type KeySet = { material?: CryptoKey; encryptionKey: CryptoKey };
 
