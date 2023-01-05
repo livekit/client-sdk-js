@@ -425,40 +425,31 @@ function getUnencryptedBytes(
   codec?: string,
 ): number {
   if (isVideoFrame(frame)) {
-    workerLogger.debug(`codec`, { codec });
-
     switch (codec) {
       case 'h264':
-        console.log('h264');
         // TODO avoid creating a new array each time, the array is already being created in the encode/decode functions
         let data = new Uint8Array(frame.data);
         let naluIndices = findNALUIndices(data);
-        workerLogger.info('indices', { naluIndices });
 
         for (const index of naluIndices) {
           let type = parseNALUType(data[index]);
-          workerLogger.debug(`found NALU of type ${NALUType[type]}`);
-
           switch (type) {
             case NALUType.SPS:
             case NALUType.PPS:
             case NALUType.AUD:
             case NALUType.SEI:
             case NALUType.PREFIX_NALU:
-              workerLogger.debug(`skipping NALU of type ${NALUType[type]}`);
+              // skipping
+              // workerLogger.debug(`skipping NALU of type ${NALUType[type]}`);
               break;
             default:
               return index + 1;
               break;
           }
         }
-        // throw new E2EEError('Could not find NALU');
-        workerLogger.error('Could not find video NALU, skipping encryption');
-        return data.length;
-        break;
+        throw new E2EEError('Could not find NALU');
       default:
         return UNENCRYPTED_BYTES[frame.type];
-        break;
     }
   } else {
     return UNENCRYPTED_BYTES.audio;

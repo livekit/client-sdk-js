@@ -581,7 +581,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     encodings?: RTCRtpEncodingParameters[],
   ) {
     if (supportsTransceiver()) {
-      console.log('sender options', opts);
       const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
       return sender;
     }
@@ -620,7 +619,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('publisher is closed');
     }
 
-    const streams = [];
+    const streams: MediaStream[] = [];
 
     if (track.mediaStream) {
       streams.push(track.mediaStream);
