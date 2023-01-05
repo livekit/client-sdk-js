@@ -29,6 +29,7 @@ import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
 import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
 import type { VideoCodec } from '../room/track/options';
+import { sleep } from '../room/utils';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
   protected worker?: Worker;
@@ -157,7 +158,13 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
       this.setupE2EEReceiver(track, participant.identity, pub.trackInfo);
     });
-    room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
+    room.localParticipant.on(ParticipantEvent.LocalTrackPublished, async (publication) => {
+      while (publication.track === undefined) {
+        console.log('waiting for track');
+        await sleep(100);
+      }
+      console.log('publication', publication, publication.track);
+
       this.setupE2EESender(
         publication.track!,
         publication.track!.sender!,

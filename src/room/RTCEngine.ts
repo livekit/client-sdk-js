@@ -581,11 +581,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     encodings?: RTCRtpEncodingParameters[],
   ) {
     if (supportsTransceiver()) {
+      console.log('sender options', opts);
       const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
       return sender;
     }
     if (supportsAddTrack()) {
-      log.debug('using add-track fallback');
+      log.warn('using add-track fallback');
       const sender = await this.createRTCRtpSender(track.mediaStreamTrack);
       return sender;
     }

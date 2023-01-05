@@ -155,14 +155,14 @@ function setSharedKey(key: Uint8Array, index?: number) {
 if (self.RTCTransformEvent) {
   workerLogger.debug('setup transform event');
   // @ts-ignore
-  self.onrtctransform = async (event) => {
+  self.onrtctransform = (event) => {
     const transformer = event.transformer;
     console.log('transformer', event);
     transformer.handled = true;
     const { kind, participantId, trackId, codec } = transformer.options;
     const cryptor =
       kind === 'encode' ? getPublisherCryptor(trackId) : getTrackCryptor(participantId, trackId);
-    workerLogger.debug('transform', { codec });
-    cryptor.setupTransform(kind, transformer.readable, transformer.writable, codec);
+    workerLogger.debug('transform', { codec, cryptor });
+    cryptor.setupTransform(kind, transformer.readable, transformer.writable, trackId, codec);
   };
 }

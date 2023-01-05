@@ -115,6 +115,7 @@ export class Cryptor extends BaseCryptor {
     codec?: string,
   ) {
     if (codec) {
+      console.info('setting codec on cryptor to', codec);
       this.codec = codec;
     }
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
@@ -424,7 +425,7 @@ function getUnencryptedBytes(
   codec?: string,
 ): number {
   if (isVideoFrame(frame)) {
-    // workerLogger.debug(`meta`, { meta: frame.getMetadata() });
+    workerLogger.debug(`codec`, { codec });
 
     switch (codec) {
       case 'h264':
@@ -432,8 +433,12 @@ function getUnencryptedBytes(
         // TODO avoid creating a new array each time, the array is already being created in the encode/decode functions
         let data = new Uint8Array(frame.data);
         let naluIndices = findNALUIndices(data);
+        workerLogger.info('indices', { naluIndices });
+
         for (const index of naluIndices) {
           let type = parseNALUType(data[index]);
+          workerLogger.debug(`found NALU of type ${NALUType[type]}`);
+
           switch (type) {
             case NALUType.SPS:
             case NALUType.PPS:
@@ -447,7 +452,9 @@ function getUnencryptedBytes(
               break;
           }
         }
-        throw new E2EEError('Could not find NALU');
+        // throw new E2EEError('Could not find NALU');
+        workerLogger.error('Could not find video NALU, skipping encryption');
+        return data.length;
         break;
       default:
         return UNENCRYPTED_BYTES[frame.type];
