@@ -1319,7 +1319,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }),
         new LocalVideoTrack(
           publishOptions.useRealTracks
-            ? (await navigator.mediaDevices.getUserMedia({ video: true })).getAudioTracks()[0]
+            ? (await navigator.mediaDevices.getUserMedia({ video: true })).getVideoTracks()[0]
             : createDummyVideoStreamTrack(
                 160 * participantOptions.aspectRatios[0] ?? 1,
                 160,
