@@ -1281,10 +1281,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * No actual connection to a server will be established, all state is
    * @experimental
    */
-  simulateParticipants(options: SimulationOptions) {
+  async simulateParticipants(options: SimulationOptions) {
     const publishOptions = {
       audio: true,
       video: true,
+      useRealTracks: false,
       ...options.publish,
     };
     const participantOptions = {
@@ -1317,12 +1318,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           name: 'video-dummy',
         }),
         new LocalVideoTrack(
-          createDummyVideoStreamTrack(
-            160 * participantOptions.aspectRatios[0] ?? 1,
-            160,
-            true,
-            true,
-          ),
+          publishOptions.useRealTracks
+            ? (await navigator.mediaDevices.getUserMedia({ video: true })).getVideoTracks()[0]
+            : createDummyVideoStreamTrack(
+                160 * participantOptions.aspectRatios[0] ?? 1,
+                160,
+                true,
+                true,
+              ),
         ),
       );
       // @ts-ignore
@@ -1337,7 +1340,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           sid: Math.floor(Math.random() * 10_000).toString(),
           type: TrackType.AUDIO,
         }),
-        new LocalAudioTrack(getEmptyAudioStreamTrack()),
+        new LocalAudioTrack(
+          publishOptions.useRealTracks
+            ? (await navigator.mediaDevices.getUserMedia({ audio: true })).getAudioTracks()[0]
+            : getEmptyAudioStreamTrack(),
+        ),
       );
       // @ts-ignore
       this.localParticipant.addTrackPublication(audioPub);

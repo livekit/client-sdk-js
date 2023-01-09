@@ -2,6 +2,7 @@ export type SimulationOptions = {
   publish?: {
     audio?: boolean;
     video?: boolean;
+    useRealTracks?: boolean;
   };
   participants?: {
     count?: number;
