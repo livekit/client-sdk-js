@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.6.2
+
+### Patch Changes
+
+- [#551](https://github.com/livekit/client-sdk-js/pull/551) [`a1b34d2`](https://github.com/livekit/client-sdk-js/commit/a1b34d2af7b7e101041b37a9154663a0210c8cfe) Thanks [@lukasIO](https://github.com/lukasIO)! - Enable usage of real local tracks for simulated participants
+
 ## 1.6.1
 
 ### Patch Changes
