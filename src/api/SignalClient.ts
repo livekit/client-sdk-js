@@ -14,6 +14,7 @@ import {
   ConnectionQualityUpdate,
   JoinResponse,
   LeaveRequest,
+  ReconnectResponse,
   SessionDescription,
   SignalRequest,
   SignalResponse,
@@ -164,7 +165,7 @@ export class SignalClient {
     return res as JoinResponse;
   }
 
-  async reconnect(url: string, token: string, sid?: string): Promise<void> {
+  async reconnect(url: string, token: string, sid?: string): Promise<ReconnectResponse | void> {
     if (!this.options) {
       log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
@@ -173,7 +174,8 @@ export class SignalClient {
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    await this.connect(url, token, { ...this.options, reconnect: true, sid });
+    const res = await this.connect(url, token, { ...this.options, reconnect: true, sid });
+    return res;
   }
 
   connect(
@@ -181,7 +183,7 @@ export class SignalClient {
     token: string,
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
-  ): Promise<JoinResponse | void> {
+  ): Promise<JoinResponse | ReconnectResponse | void> {
     this.connectOptions = opts;
     if (url.startsWith('http')) {
       url = url.replace('http', 'ws');
@@ -193,7 +195,7 @@ export class SignalClient {
     const clientInfo = getClientInfo();
     const params = createConnectionParams(token, clientInfo, opts);
 
-    return new Promise<JoinResponse | void>(async (resolve, reject) => {
+    return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
       const abortHandler = async () => {
         await this.close();
         reject(new ConnectionError('room connection has been cancelled'));
@@ -240,16 +242,6 @@ export class SignalClient {
         this.handleWSError(ev);
       };
 
-      this.ws.onopen = () => {
-        if (opts.reconnect) {
-          // upon reconnection, there will not be additional handshake
-          this.isConnected = true;
-          // restart ping interval as it's cleared for reconnection
-          this.startPingInterval();
-          resolve();
-        }
-      };
-
       this.ws.onmessage = async (ev: MessageEvent) => {
         // not considered connected until JoinResponse is received
         let resp: SignalResponse;
@@ -264,6 +256,7 @@ export class SignalClient {
         }
 
         if (!this.isConnected) {
+          let continueProcess = false;
           // handle join message only
           if (resp.message?.$case === 'join') {
             this.isConnected = true;
@@ -279,14 +272,28 @@ export class SignalClient {
               this.startPingInterval();
             }
             resolve(resp.message.join);
-          } else {
+          } else if (opts.reconnect) {
+            // in reconneting, any message received means signal reconnected
+            this.isConnected = true;
+            abortSignal?.removeEventListener('abort', abortHandler);
+            this.startPingInterval();
+            if (resp.message?.$case === 'reconnect') {
+              resolve(resp.message?.reconnect);
+            } else {
+              resolve();
+              continueProcess = true;
+            }
+          } else if (!opts.reconnect) {
+            // non-reconnect case, should receive join response first
             reject(
               new ConnectionError(
                 `did not receive join response, got ${resp.message?.$case} instead`,
               ),
             );
           }
-          return;
+          if (!continueProcess) {
+            return;
+          }
         }
 
         if (this.signalLatency) {

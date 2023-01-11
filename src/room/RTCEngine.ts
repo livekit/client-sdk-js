@@ -17,6 +17,7 @@ import {
   AddTrackRequest,
   JoinResponse,
   LeaveRequest,
+  ReconnectResponse,
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
@@ -279,35 +280,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.participantSid = joinResponse.participant?.sid;
 
-    const rtcConfig = { ...this.rtcConfig };
-
-    // update ICE servers before creating PeerConnection
-    if (joinResponse.iceServers && !rtcConfig.iceServers) {
-      const rtcIceServers: RTCIceServer[] = [];
-      joinResponse.iceServers.forEach((iceServer) => {
-        const rtcIceServer: RTCIceServer = {
-          urls: iceServer.urls,
-        };
-        if (iceServer.username) rtcIceServer.username = iceServer.username;
-        if (iceServer.credential) {
-          rtcIceServer.credential = iceServer.credential;
-        }
-        rtcIceServers.push(rtcIceServer);
-      });
-      rtcConfig.iceServers = rtcIceServers;
-    }
-
-    if (
-      joinResponse.clientConfiguration &&
-      joinResponse.clientConfiguration.forceRelay === ClientConfigSetting.ENABLED
-    ) {
-      rtcConfig.iceTransportPolicy = 'relay';
-    }
-
-    // @ts-ignore
-    rtcConfig.sdpSemantics = 'unified-plan';
-    // @ts-ignore
-    rtcConfig.continualGatheringPolicy = 'gather_continually';
+    const rtcConfig = this.makeRTCConfiguration(joinResponse);
 
     this.publisher = new PCTransport(rtcConfig);
     this.subscriber = new PCTransport(rtcConfig);
@@ -446,6 +419,40 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       log.trace('leave request', { leave });
     };
+  }
+
+  private makeRTCConfiguration(serverResponse: JoinResponse | ReconnectResponse): RTCConfiguration {
+    const rtcConfig = { ...this.rtcConfig };
+
+    // update ICE servers before creating PeerConnection
+    if (serverResponse.iceServers && !rtcConfig.iceServers) {
+      const rtcIceServers: RTCIceServer[] = [];
+      serverResponse.iceServers.forEach((iceServer) => {
+        const rtcIceServer: RTCIceServer = {
+          urls: iceServer.urls,
+        };
+        if (iceServer.username) rtcIceServer.username = iceServer.username;
+        if (iceServer.credential) {
+          rtcIceServer.credential = iceServer.credential;
+        }
+        rtcIceServers.push(rtcIceServer);
+      });
+      rtcConfig.iceServers = rtcIceServers;
+    }
+
+    if (
+      serverResponse.clientConfiguration &&
+      serverResponse.clientConfiguration.forceRelay === ClientConfigSetting.ENABLED
+    ) {
+      rtcConfig.iceTransportPolicy = 'relay';
+    }
+
+    // @ts-ignore
+    rtcConfig.sdpSemantics = 'unified-plan';
+    // @ts-ignore
+    rtcConfig.continualGatheringPolicy = 'gather_continually';
+
+    return rtcConfig;
   }
 
   private createDataChannels() {
@@ -841,7 +848,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     try {
-      await this.client.reconnect(this.url, this.token, this.participantSid);
+      const res = await this.client.reconnect(this.url, this.token, this.participantSid);
+      if (res) {
+        const rtcConfig = this.makeRTCConfiguration(res);
+        this.publisher.pc.setConfiguration(rtcConfig);
+        this.subscriber.pc.setConfiguration(rtcConfig);
+      }
     } catch (e) {
       let message = '';
       if (e instanceof Error) {
