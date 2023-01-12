@@ -256,7 +256,7 @@ export class SignalClient {
         }
 
         if (!this.isConnected) {
-          let continueProcess = false;
+          let shouldProcessMessage = false;
           // handle join message only
           if (resp.message?.$case === 'join') {
             this.isConnected = true;
@@ -273,7 +273,7 @@ export class SignalClient {
             }
             resolve(resp.message.join);
           } else if (opts.reconnect) {
-            // in reconneting, any message received means signal reconnected
+            // in reconnecting, any message received means signal reconnected
             this.isConnected = true;
             abortSignal?.removeEventListener('abort', abortHandler);
             this.startPingInterval();
@@ -281,7 +281,7 @@ export class SignalClient {
               resolve(resp.message?.reconnect);
             } else {
               resolve();
-              continueProcess = true;
+              shouldProcessMessage = true;
             }
           } else if (!opts.reconnect) {
             // non-reconnect case, should receive join response first
@@ -291,7 +291,7 @@ export class SignalClient {
               ),
             );
           }
-          if (!continueProcess) {
+          if (!shouldProcessMessage) {
             return;
           }
         }
