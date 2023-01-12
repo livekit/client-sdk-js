@@ -159,7 +159,6 @@
   -webkit-appearance: slider-vertical; /* Chromium */
 }
 
-
 .participant .volume-meter {
   position: absolute;
   z-index: 4;

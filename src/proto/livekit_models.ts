@@ -386,6 +386,48 @@ export function participantInfo_StateToJSON(object: ParticipantInfo_State): stri
   }
 }
 
+export interface Encryption {
+}
+
+export enum Encryption_Type {
+  NONE = 0,
+  GCM = 1,
+  CUSTOM = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function encryption_TypeFromJSON(object: any): Encryption_Type {
+  switch (object) {
+    case 0:
+    case "NONE":
+      return Encryption_Type.NONE;
+    case 1:
+    case "GCM":
+      return Encryption_Type.GCM;
+    case 2:
+    case "CUSTOM":
+      return Encryption_Type.CUSTOM;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return Encryption_Type.UNRECOGNIZED;
+  }
+}
+
+export function encryption_TypeToJSON(object: Encryption_Type): string {
+  switch (object) {
+    case Encryption_Type.NONE:
+      return "NONE";
+    case Encryption_Type.GCM:
+      return "GCM";
+    case Encryption_Type.CUSTOM:
+      return "CUSTOM";
+    case Encryption_Type.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 export interface SimulcastCodecInfo {
   mimeType: string;
   mid: string;
@@ -416,6 +458,10 @@ export interface TrackInfo {
   mimeType: string;
   mid: string;
   codecs: SimulcastCodecInfo[];
+  stereo: boolean;
+  /** true if RED (Redundant Encoding) is disabled for audio */
+  disableRed: boolean;
+  encryption: Encryption_Type;
 }
 
 /** provide information about available spatial layers */
@@ -424,7 +470,7 @@ export interface VideoLayer {
   quality: VideoQuality;
   width: number;
   height: number;
-  /** target bitrate, server will measure actual */
+  /** target bitrate in bit per second (bps), server will measure actual */
   bitrate: number;
   ssrc: number;
 }
@@ -1136,6 +1182,45 @@ export const ParticipantInfo = {
   },
 };
 
+function createBaseEncryption(): Encryption {
+  return {};
+}
+
+export const Encryption = {
+  encode(_: Encryption, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): Encryption {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEncryption();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(_: any): Encryption {
+    return {};
+  },
+
+  toJSON(_: Encryption): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<Encryption>, I>>(_: I): Encryption {
+    const message = createBaseEncryption();
+    return message;
+  },
+};
+
 function createBaseSimulcastCodecInfo(): SimulcastCodecInfo {
   return { mimeType: "", mid: "", cid: "", layers: [] };
 }
@@ -1231,6 +1316,9 @@ function createBaseTrackInfo(): TrackInfo {
     mimeType: "",
     mid: "",
     codecs: [],
+    stereo: false,
+    disableRed: false,
+    encryption: 0,
   };
 }
 
@@ -1274,6 +1362,15 @@ export const TrackInfo = {
     }
     for (const v of message.codecs) {
       SimulcastCodecInfo.encode(v!, writer.uint32(106).fork()).ldelim();
+    }
+    if (message.stereo === true) {
+      writer.uint32(112).bool(message.stereo);
+    }
+    if (message.disableRed === true) {
+      writer.uint32(120).bool(message.disableRed);
+    }
+    if (message.encryption !== 0) {
+      writer.uint32(128).int32(message.encryption);
     }
     return writer;
   },
@@ -1324,6 +1421,15 @@ export const TrackInfo = {
         case 13:
           message.codecs.push(SimulcastCodecInfo.decode(reader, reader.uint32()));
           break;
+        case 14:
+          message.stereo = reader.bool();
+          break;
+        case 15:
+          message.disableRed = reader.bool();
+          break;
+        case 16:
+          message.encryption = reader.int32() as any;
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1347,6 +1453,9 @@ export const TrackInfo = {
       mimeType: isSet(object.mimeType) ? String(object.mimeType) : "",
       mid: isSet(object.mid) ? String(object.mid) : "",
       codecs: Array.isArray(object?.codecs) ? object.codecs.map((e: any) => SimulcastCodecInfo.fromJSON(e)) : [],
+      stereo: isSet(object.stereo) ? Boolean(object.stereo) : false,
+      disableRed: isSet(object.disableRed) ? Boolean(object.disableRed) : false,
+      encryption: isSet(object.encryption) ? encryption_TypeFromJSON(object.encryption) : 0,
     };
   },
 
@@ -1373,6 +1482,9 @@ export const TrackInfo = {
     } else {
       obj.codecs = [];
     }
+    message.stereo !== undefined && (obj.stereo = message.stereo);
+    message.disableRed !== undefined && (obj.disableRed = message.disableRed);
+    message.encryption !== undefined && (obj.encryption = encryption_TypeToJSON(message.encryption));
     return obj;
   },
 
@@ -1391,6 +1503,9 @@ export const TrackInfo = {
     message.mimeType = object.mimeType ?? "";
     message.mid = object.mid ?? "";
     message.codecs = object.codecs?.map((e) => SimulcastCodecInfo.fromPartial(e)) || [];
+    message.stereo = object.stereo ?? false;
+    message.disableRed = object.disableRed ?? false;
+    message.encryption = object.encryption ?? 0;
     return message;
   },
 };

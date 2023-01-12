@@ -9,6 +9,9 @@ import {
   DisconnectReason,
   disconnectReasonFromJSON,
   disconnectReasonToJSON,
+  Encryption_Type,
+  encryption_TypeFromJSON,
+  encryption_TypeToJSON,
   ParticipantInfo,
   ParticipantTracks,
   Room,
@@ -169,7 +172,8 @@ export interface SignalResponse {
     | { $case: "subscriptionPermissionUpdate"; subscriptionPermissionUpdate: SubscriptionPermissionUpdate }
     | { $case: "refreshToken"; refreshToken: string }
     | { $case: "trackUnpublished"; trackUnpublished: TrackUnpublishedResponse }
-    | { $case: "pong"; pong: number };
+    | { $case: "pong"; pong: number }
+    | { $case: "reconnect"; reconnect: ReconnectResponse };
 }
 
 export interface SimulcastCodec {
@@ -198,6 +202,7 @@ export interface AddTrackRequest {
   stereo: boolean;
   /** true if RED (Redundant Encoding) is disabled for audio */
   disableRed: boolean;
+  encryption: Encryption_Type;
 }
 
 export interface TrickleRequest {
@@ -230,6 +235,11 @@ export interface JoinResponse {
   pingTimeout: number;
   pingInterval: number;
   serverInfo?: ServerInfo;
+}
+
+export interface ReconnectResponse {
+  iceServers: ICEServer[];
+  clientConfiguration?: ClientConfiguration;
 }
 
 export interface TrackPublishedResponse {
@@ -267,7 +277,6 @@ export interface UpdateTrackSettings {
   width: number;
   /** for video, height to receive */
   height: number;
-  /** for video, frame rate to receive */
   fps: number;
 }
 
@@ -703,6 +712,9 @@ export const SignalResponse = {
     if (message.message?.$case === "pong") {
       writer.uint32(144).int64(message.message.pong);
     }
+    if (message.message?.$case === "reconnect") {
+      ReconnectResponse.encode(message.message.reconnect, writer.uint32(154).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -785,6 +797,9 @@ export const SignalResponse = {
         case 18:
           message.message = { $case: "pong", pong: longToNumber(reader.int64() as Long) };
           break;
+        case 19:
+          message.message = { $case: "reconnect", reconnect: ReconnectResponse.decode(reader, reader.uint32()) };
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -835,6 +850,8 @@ export const SignalResponse = {
         ? { $case: "trackUnpublished", trackUnpublished: TrackUnpublishedResponse.fromJSON(object.trackUnpublished) }
         : isSet(object.pong)
         ? { $case: "pong", pong: Number(object.pong) }
+        : isSet(object.reconnect)
+        ? { $case: "reconnect", reconnect: ReconnectResponse.fromJSON(object.reconnect) }
         : undefined,
     };
   },
@@ -882,6 +899,8 @@ export const SignalResponse = {
       ? TrackUnpublishedResponse.toJSON(message.message?.trackUnpublished)
       : undefined);
     message.message?.$case === "pong" && (obj.pong = Math.round(message.message?.pong));
+    message.message?.$case === "reconnect" &&
+      (obj.reconnect = message.message?.reconnect ? ReconnectResponse.toJSON(message.message?.reconnect) : undefined);
     return obj;
   },
 
@@ -999,6 +1018,13 @@ export const SignalResponse = {
     if (object.message?.$case === "pong" && object.message?.pong !== undefined && object.message?.pong !== null) {
       message.message = { $case: "pong", pong: object.message.pong };
     }
+    if (
+      object.message?.$case === "reconnect" &&
+      object.message?.reconnect !== undefined &&
+      object.message?.reconnect !== null
+    ) {
+      message.message = { $case: "reconnect", reconnect: ReconnectResponse.fromPartial(object.message.reconnect) };
+    }
     return message;
   },
 };
@@ -1085,6 +1111,7 @@ function createBaseAddTrackRequest(): AddTrackRequest {
     sid: "",
     stereo: false,
     disableRed: false,
+    encryption: 0,
   };
 }
 
@@ -1128,6 +1155,9 @@ export const AddTrackRequest = {
     }
     if (message.disableRed === true) {
       writer.uint32(104).bool(message.disableRed);
+    }
+    if (message.encryption !== 0) {
+      writer.uint32(112).int32(message.encryption);
     }
     return writer;
   },
@@ -1178,6 +1208,9 @@ export const AddTrackRequest = {
         case 13:
           message.disableRed = reader.bool();
           break;
+        case 14:
+          message.encryption = reader.int32() as any;
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1203,6 +1236,7 @@ export const AddTrackRequest = {
       sid: isSet(object.sid) ? String(object.sid) : "",
       stereo: isSet(object.stereo) ? Boolean(object.stereo) : false,
       disableRed: isSet(object.disableRed) ? Boolean(object.disableRed) : false,
+      encryption: isSet(object.encryption) ? encryption_TypeFromJSON(object.encryption) : 0,
     };
   },
 
@@ -1229,6 +1263,7 @@ export const AddTrackRequest = {
     message.sid !== undefined && (obj.sid = message.sid);
     message.stereo !== undefined && (obj.stereo = message.stereo);
     message.disableRed !== undefined && (obj.disableRed = message.disableRed);
+    message.encryption !== undefined && (obj.encryption = encryption_TypeToJSON(message.encryption));
     return obj;
   },
 
@@ -1247,6 +1282,7 @@ export const AddTrackRequest = {
     message.sid = object.sid ?? "";
     message.stereo = object.stereo ?? false;
     message.disableRed = object.disableRed ?? false;
+    message.encryption = object.encryption ?? 0;
     return message;
   },
 };
@@ -1545,6 +1581,74 @@ export const JoinResponse = {
     message.pingInterval = object.pingInterval ?? 0;
     message.serverInfo = (object.serverInfo !== undefined && object.serverInfo !== null)
       ? ServerInfo.fromPartial(object.serverInfo)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseReconnectResponse(): ReconnectResponse {
+  return { iceServers: [], clientConfiguration: undefined };
+}
+
+export const ReconnectResponse = {
+  encode(message: ReconnectResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    for (const v of message.iceServers) {
+      ICEServer.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    if (message.clientConfiguration !== undefined) {
+      ClientConfiguration.encode(message.clientConfiguration, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ReconnectResponse {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseReconnectResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.iceServers.push(ICEServer.decode(reader, reader.uint32()));
+          break;
+        case 2:
+          message.clientConfiguration = ClientConfiguration.decode(reader, reader.uint32());
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ReconnectResponse {
+    return {
+      iceServers: Array.isArray(object?.iceServers) ? object.iceServers.map((e: any) => ICEServer.fromJSON(e)) : [],
+      clientConfiguration: isSet(object.clientConfiguration)
+        ? ClientConfiguration.fromJSON(object.clientConfiguration)
+        : undefined,
+    };
+  },
+
+  toJSON(message: ReconnectResponse): unknown {
+    const obj: any = {};
+    if (message.iceServers) {
+      obj.iceServers = message.iceServers.map((e) => e ? ICEServer.toJSON(e) : undefined);
+    } else {
+      obj.iceServers = [];
+    }
+    message.clientConfiguration !== undefined && (obj.clientConfiguration = message.clientConfiguration
+      ? ClientConfiguration.toJSON(message.clientConfiguration)
+      : undefined);
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<ReconnectResponse>, I>>(object: I): ReconnectResponse {
+    const message = createBaseReconnectResponse();
+    message.iceServers = object.iceServers?.map((e) => ICEServer.fromPartial(e)) || [];
+    message.clientConfiguration = (object.clientConfiguration !== undefined && object.clientConfiguration !== null)
+      ? ClientConfiguration.fromPartial(object.clientConfiguration)
       : undefined;
     return message;
   },
