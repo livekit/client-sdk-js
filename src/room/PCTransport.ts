@@ -52,7 +52,7 @@ export default class PCTransport extends EventEmitter {
 
   async setRemoteDescription(sd: RTCSessionDescriptionInit): Promise<void> {
     if (sd.type === 'offer') {
-      let {stereoMids, nackMids} = extractStereoAndNackAudioFromOffer(sd);
+      let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
       this.remoteStereoMids = stereoMids;
       this.remoteNackMids = nackMids;
     }
@@ -248,7 +248,10 @@ function ensureAudioNackAndStereo(
       media.rtcpFb = [];
     }
 
-    if (nackMids.includes(media.mid!) && !media.rtcpFb.some((fb) => fb.payload === opusPayload && fb.type === 'nack')) {
+    if (
+      nackMids.includes(media.mid!) &&
+      !media.rtcpFb.some((fb) => fb.payload === opusPayload && fb.type === 'nack')
+    ) {
       media.rtcpFb.push({
         payload: opusPayload,
         type: 'nack',
@@ -269,7 +272,10 @@ function ensureAudioNackAndStereo(
   }
 }
 
-function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {stereoMids: string[], nackMids: string[]} {
+function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
+  stereoMids: string[];
+  nackMids: string[];
+} {
   const stereoMids: string[] = [];
   const nackMids: string[] = [];
   const sdpParsed = parse(offer.sdp ?? '');
@@ -284,7 +290,7 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
         return false;
       });
 
-      if (media.rtcpFb?.some(fb => fb.payload === opusPayload && fb.type === 'nack')) {
+      if (media.rtcpFb?.some((fb) => fb.payload === opusPayload && fb.type === 'nack')) {
         nackMids.push(media.mid!);
       }
 
@@ -299,5 +305,5 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
       });
     }
   });
-  return {stereoMids, nackMids};
+  return { stereoMids, nackMids };
 }
