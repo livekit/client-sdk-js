@@ -8,5 +8,5 @@ export default class Timers {
 
   static clearTimeout = clearTimeout;
 
-  static clearInterval = clearInterval
+  static clearInterval = clearInterval;
 }
