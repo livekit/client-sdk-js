@@ -32,6 +32,7 @@ import {
 import { EngineEvent } from './events';
 import PCTransport, { PCEvents } from './PCTransport';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
+import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
@@ -710,10 +711,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     log.debug(`reconnecting in ${delay}ms`);
 
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
-    }
-    this.reconnectTimeout = setTimeout(() => this.attemptReconnect(signalEvents), delay);
+    this.clearReconnectTimeout();
+    this.reconnectTimeout = CriticalTimers.setTimeout(
+      () => this.attemptReconnect(signalEvents),
+      delay,
+    );
   };
 
   private async attemptReconnect(signalEvents: boolean = false) {
@@ -740,11 +742,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       } else {
         await this.resumeConnection(signalEvents);
       }
-      this.reconnectAttempts = 0;
+      this.clearPendingReconnect();
       this.fullReconnectOnNext = false;
-      if (this.reconnectTimeout) {
-        clearTimeout(this.reconnectTimeout);
-      }
     } catch (e) {
       this.reconnectAttempts += 1;
       let reconnectRequired = false;
@@ -1046,19 +1045,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
-  private clearPendingReconnect() {
+  private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout);
+      CriticalTimers.clearTimeout(this.reconnectTimeout);
     }
+  }
+
+  private clearPendingReconnect() {
+    this.clearReconnectTimeout();
     this.reconnectAttempts = 0;
   }
 
   private handleBrowserOnLine = () => {
     // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
     if (this.client.isReconnecting) {
-      if (this.reconnectTimeout) {
-        clearTimeout(this.reconnectTimeout);
-      }
+      this.clearReconnectTimeout();
       this.attemptReconnect(true);
     }
   };

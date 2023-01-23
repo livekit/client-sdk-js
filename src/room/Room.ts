@@ -44,6 +44,7 @@ import type Participant from './participant/Participant';
 import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import RTCEngine from './RTCEngine';
+import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
@@ -364,7 +365,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
 
       // don't return until ICE connected
-      const connectTimeout = setTimeout(() => {
+      const connectTimeout = CriticalTimers.setTimeout(() => {
         // timeout
         this.recreateEngine();
         this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
@@ -372,7 +373,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }, this.connOptions.peerConnectionTimeout);
       const abortHandler = () => {
         log.warn('closing engine');
-        clearTimeout(connectTimeout);
+        CriticalTimers.clearTimeout(connectTimeout);
         this.recreateEngine();
         this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
         reject(new ConnectionError('room connection has been cancelled'));
@@ -383,7 +384,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.abortController?.signal.addEventListener('abort', abortHandler);
 
       this.engine.once(EngineEvent.Connected, () => {
-        clearTimeout(connectTimeout);
+        CriticalTimers.clearTimeout(connectTimeout);
         this.abortController?.signal.removeEventListener('abort', abortHandler);
         // also hook unload event
         if (isWeb()) {

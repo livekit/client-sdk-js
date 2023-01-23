@@ -2,6 +2,7 @@ import { debounce } from 'ts-debounce';
 import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate, VideoReceiverStats } from '../stats';
+import CriticalTimers from '../timers';
 import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
@@ -233,7 +234,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
     if (!isVisible && Date.now() - lastVisibilityChange < REACTION_DELAY) {
       // delay hidden events
-      setTimeout(() => {
+      CriticalTimers.setTimeout(() => {
         this.updateVisibility();
       }, REACTION_DELAY);
       return;
