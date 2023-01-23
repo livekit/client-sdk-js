@@ -184,7 +184,7 @@ export default class LocalParticipant extends Participant {
   /** @internal */
   async setE2EEEnabled(enabled: boolean) {
     this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
-    await this.republishAllTracks();
+    await this.republishAllTracks(undefined, false);
   }
 
   /**
@@ -800,7 +800,7 @@ export default class LocalParticipant extends Participant {
     ) as LocalTrackPublication[];
   }
 
-  async republishAllTracks(options?: TrackPublishOptions) {
+  async republishAllTracks(options?: TrackPublishOptions, restartTracks: boolean = true) {
     const localPubs: LocalTrackPublication[] = [];
     this.tracks.forEach((pub) => {
       if (pub.track) {
@@ -815,6 +815,19 @@ export default class LocalParticipant extends Participant {
       localPubs.map(async (pub) => {
         const track = pub.track!;
         await this.unpublishTrack(track, false);
+        if (
+          restartTracks &&
+          !track.isMuted &&
+          (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
+          !track.isUserProvided
+        ) {
+          // generally we need to restart the track before publishing, often a full reconnect
+          // is necessary because computer had gone to sleep.
+          log.debug('restarting existing track', {
+            track: pub.trackSid,
+          });
+          await track.restartTrack();
+        }
         await this.publishTrack(track, pub.options);
       }),
     );
@@ -888,39 +901,6 @@ export default class LocalParticipant extends Participant {
     if (this.engine.client.isConnected) {
       this.updateTrackSubscriptionPermissions();
     }
-  }
-
-  async republishAllTracks(options?: TrackPublishOptions) {
-    const localPubs: LocalTrackPublication[] = [];
-    this.tracks.forEach((pub) => {
-      if (pub.track) {
-        if (options) {
-          pub.options = { ...pub.options, ...options };
-        }
-        localPubs.push(pub);
-      }
-    });
-
-    await Promise.all(
-      localPubs.map(async (pub) => {
-        const track = pub.track!;
-        this.unpublishTrack(track, false);
-        if (!track.isMuted) {
-          if (
-            (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
-            !track.isUserProvided
-          ) {
-            // we need to restart the track before publishing, often a full reconnect
-            // is necessary because computer had gone to sleep.
-            log.debug('restarting existing track', {
-              track: pub.trackSid,
-            });
-            await track.restartTrack();
-          }
-          await this.publishTrack(track, pub.options);
-        }
-      }),
-    );
   }
 
   /** @internal */
