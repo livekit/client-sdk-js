@@ -10,7 +10,7 @@ export default class CriticalTimers {
   // eslint-disable-next-line @typescript-eslint/no-implied-eval
   static setInterval = (...args: Parameters<typeof setInterval>) => setInterval(...args);
 
-  static clearTimeout = (...args: Parameters<typeof clearTimeout>) => clearInterval(...args);
+  static clearTimeout = (...args: Parameters<typeof clearTimeout>) => clearTimeout(...args);
 
   static clearInterval = (...args: Parameters<typeof clearInterval>) => clearInterval(...args);
 }
