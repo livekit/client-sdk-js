@@ -257,6 +257,8 @@ export enum RoomEvent {
   RecordingStatusChanged = 'recordingStatusChanged',
 
   ParticipantEncryptionStatusChanged = 'participantEncryptionStatusChanged',
+
+  EncryptionError = 'encryptionError',
 }
 
 export enum ParticipantEvent {

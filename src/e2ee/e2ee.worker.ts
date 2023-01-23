@@ -1,5 +1,5 @@
 import { Cryptor, ParticipantKeys } from './cryptor';
-import type { E2EEWorkerMessage, EnableMessage } from './types';
+import type { E2EEWorkerMessage, EnableMessage, ErrorMessage } from './types';
 import { setLogLevel, workerLogger } from '../logger';
 
 const participantCryptors: Cryptor[] = [];
@@ -90,6 +90,8 @@ function getTrackCryptor(participantId: string, trackId: string) {
       participantId,
       keys: getParticipantKeyHandler(participantId),
     });
+
+    setupCryptorErrorEvents(cryptor);
     participantCryptors.push(cryptor);
   } else if (participantId !== cryptor.getParticipantId()) {
     // assign new participant id to track cryptor and pass in correct key handler
@@ -127,6 +129,7 @@ function getPublisherCryptor(trackId: string) {
       keys: publisherKeys!,
       participantId: 'publisher',
     });
+    setupCryptorErrorEvents(publishCryptor);
     publishCryptors.push(publishCryptor);
   }
   return publishCryptor;
@@ -165,4 +168,14 @@ if (self.RTCTransformEvent) {
     workerLogger.debug('transform', { codec });
     cryptor.setupTransform(kind, transformer.readable, transformer.writable, trackId, codec);
   };
+}
+
+function setupCryptorErrorEvents(cryptor: Cryptor) {
+  cryptor.on('cryptorError', (error) => {
+    const msg: ErrorMessage = {
+      kind: 'error',
+      data: { error },
+    };
+    postMessage(msg);
+  });
 }

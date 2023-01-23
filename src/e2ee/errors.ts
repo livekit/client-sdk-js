@@ -3,6 +3,7 @@ import { LivekitError } from '../room/errors';
 export const enum E2EEErrorReason {
   BrowserUnsupported,
   InvalidKey,
+  MissingKey,
   InternalError,
   WorkerError,
 }

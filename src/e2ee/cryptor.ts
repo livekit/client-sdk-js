@@ -231,7 +231,11 @@ export class Cryptor extends BaseCryptor {
         workerLogger.error(e);
       }
     } else {
-      workerLogger.debug('skipping frame encryption');
+      this.emit(
+        'cryptorError',
+        new E2EEError(`encryption key missing for encoding`, E2EEErrorReason.MissingKey),
+      );
+      // workerLogger.debug('skipping frame encryption');
     }
   }
 
@@ -266,13 +270,27 @@ export class Cryptor extends BaseCryptor {
         if (error instanceof E2EEError && error.reason === E2EEErrorReason.InvalidKey) {
           if (!this.isKeyInvalid) {
             workerLogger.warn('invalid key');
-            this.emit('cryptorError', E2EEErrorReason.InvalidKey);
+            this.emit(
+              'cryptorError',
+              new E2EEError(
+                `invalid key for participant ${this.participantId}`,
+                E2EEErrorReason.InvalidKey,
+              ),
+            );
             this.isKeyInvalid = true;
           }
         } else {
           workerLogger.warn('decoding frame failed', { error });
         }
       }
+    } else {
+      this.emit(
+        'cryptorError',
+        new E2EEError(
+          `key missing for participant ${this.participantId}`,
+          E2EEErrorReason.MissingKey,
+        ),
+      );
     }
 
     return controller.enqueue(encodedFrame);

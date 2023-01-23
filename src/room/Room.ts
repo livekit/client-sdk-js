@@ -65,6 +65,7 @@ import {
   unpackStreamId,
 } from './utils';
 import { EncryptionEvent } from '../e2ee';
+import type { E2EEError } from '../e2ee/errors';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -169,15 +170,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
 
     if (this.options.e2ee) {
-      this.e2eeManager = new E2EEManager(this.options.e2ee);
-      this.e2eeManager.on(
-        EncryptionEvent.ParticipantEncryptionStatusChanged,
-        (enabled, participant) => {
-          this.isE2EEEnabled = enabled;
-          this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
-        },
-      );
-      this.e2eeManager?.setup(this);
+      this.setupE2EE();
     }
   }
 
@@ -189,6 +182,30 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ]);
     } else {
       throw Error('e2ee not configured, please set e2ee settings within the room options');
+    }
+  }
+
+  private setupE2EE() {
+    if (this.options.e2ee) {
+      this.e2eeManager = new E2EEManager(this.options.e2ee);
+      this.e2eeManager.on(
+        EncryptionEvent.ParticipantEncryptionStatusChanged,
+        (enabled, participant) => {
+          this.isE2EEEnabled = enabled;
+          this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
+        },
+      );
+      this.e2eeManager.on(
+        EncryptionEvent.ParticipantEncryptionStatusChanged,
+        (enabled, participant) => {
+          this.isE2EEEnabled = enabled;
+          this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
+        },
+      );
+      this.e2eeManager.on(EncryptionEvent.Error, (error) =>
+        this.emit(RoomEvent.EncryptionError, error),
+      );
+      this.e2eeManager?.setup(this);
     }
   }
 
@@ -1476,4 +1493,5 @@ export type RoomEventCallbacks = {
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
   participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;
+  encryptionError: (error: E2EEError) => void;
 };
