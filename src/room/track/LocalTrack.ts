@@ -3,9 +3,11 @@ import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import { getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, isMobile } from '../utils';
+import { getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, isMobile, sleep } from '../utils';
 import type { VideoCodec } from './options';
 import { attachToElement, detachTrack, Track } from './Track';
+
+const defaultDimensionsTimeout = 2 * 1000;
 
 export default abstract class LocalTrack extends Track {
   /** @internal */
@@ -70,6 +72,22 @@ export default abstract class LocalTrack extends Track {
 
   get isUserProvided() {
     return this.providedByUser;
+  }
+
+  async waitForDimensions(timeout = defaultDimensionsTimeout): Promise<Track.Dimensions> {
+    if (this.kind === Track.Kind.Audio) {
+      throw new Error('cannot get dimensions for audio tracks');
+    }
+
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const dims = this.dimensions;
+      if (dims) {
+        return dims;
+      }
+      await sleep(50);
+    }
+    throw new TrackInvalidError('unable to get track dimensions after timeout');
   }
 
   /**

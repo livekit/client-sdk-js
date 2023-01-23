@@ -1,3 +1,4 @@
+import EventEmitter from 'events';
 import { MediaDescription, parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
@@ -10,8 +11,13 @@ interface TrackBitrateInfo {
   maxbr: number;
 }
 
+export const PCEvents = {
+  NegotiationStarted: 'negotiationStarted',
+  NegotiationComplete: 'negotiationComplete',
+} as const;
+
 /** @internal */
-export default class PCTransport {
+export default class PCTransport extends EventEmitter {
   pc: RTCPeerConnection;
 
   pendingCandidates: RTCIceCandidateInit[] = [];
@@ -24,9 +30,12 @@ export default class PCTransport {
 
   remoteStereoMids: string[] = [];
 
+  remoteNackMids: string[] = [];
+
   onOffer?: (offer: RTCSessionDescriptionInit) => void;
 
   constructor(config?: RTCConfiguration) {
+    super();
     this.pc = new RTCPeerConnection(config);
   }
 
@@ -43,7 +52,9 @@ export default class PCTransport {
 
   async setRemoteDescription(sd: RTCSessionDescriptionInit): Promise<void> {
     if (sd.type === 'offer') {
-      this.remoteStereoMids = extractStereoTracksFromOffer(sd);
+      let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
+      this.remoteStereoMids = stereoMids;
+      this.remoteNackMids = nackMids;
     }
     await this.pc.setRemoteDescription(sd);
 
@@ -56,11 +67,14 @@ export default class PCTransport {
     if (this.renegotiate) {
       this.renegotiate = false;
       this.createAndSendOffer();
+    } else if (sd.type === 'answer') {
+      this.emit(PCEvents.NegotiationComplete);
     }
   }
 
   // debounced negotiate interface
   negotiate = debounce((onError?: (e: Error) => void) => {
+    this.emit(PCEvents.NegotiationStarted);
     try {
       this.createAndSendOffer();
     } catch (e) {
@@ -106,7 +120,7 @@ export default class PCTransport {
     const sdpParsed = parse(offer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
       if (media.type === 'audio') {
-        ensureAudioNackAndStereo(media, []);
+        ensureAudioNackAndStereo(media, [], []);
       } else if (media.type === 'video') {
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
@@ -159,7 +173,7 @@ export default class PCTransport {
     const sdpParsed = parse(answer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
       if (media.type === 'audio') {
-        ensureAudioNackAndStereo(media, this.remoteStereoMids);
+        ensureAudioNackAndStereo(media, this.remoteStereoMids, this.remoteNackMids);
       }
     });
     await this.setMungedLocalDescription(answer, write(sdpParsed));
@@ -216,6 +230,7 @@ function ensureAudioNackAndStereo(
     payloads?: string | undefined;
   } & MediaDescription,
   stereoMids: string[],
+  nackMids: string[],
 ) {
   // found opus codec to add nack fb
   let opusPayload = 0;
@@ -233,7 +248,10 @@ function ensureAudioNackAndStereo(
       media.rtcpFb = [];
     }
 
-    if (!media.rtcpFb.some((fb) => fb.payload === opusPayload && fb.type === 'nack')) {
+    if (
+      nackMids.includes(media.mid!) &&
+      !media.rtcpFb.some((fb) => fb.payload === opusPayload && fb.type === 'nack')
+    ) {
       media.rtcpFb.push({
         payload: opusPayload,
         type: 'nack',
@@ -254,8 +272,12 @@ function ensureAudioNackAndStereo(
   }
 }
 
-function extractStereoTracksFromOffer(offer: RTCSessionDescriptionInit): string[] {
+function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
+  stereoMids: string[];
+  nackMids: string[];
+} {
   const stereoMids: string[] = [];
+  const nackMids: string[] = [];
   const sdpParsed = parse(offer.sdp ?? '');
   let opusPayload = 0;
   sdpParsed.media.forEach((media) => {
@@ -268,6 +290,10 @@ function extractStereoTracksFromOffer(offer: RTCSessionDescriptionInit): string[
         return false;
       });
 
+      if (media.rtcpFb?.some((fb) => fb.payload === opusPayload && fb.type === 'nack')) {
+        nackMids.push(media.mid!);
+      }
+
       media.fmtp.some((fmtp): boolean => {
         if (fmtp.payload === opusPayload) {
           if (fmtp.config.includes('sprop-stereo=1')) {
@@ -279,5 +305,5 @@ function extractStereoTracksFromOffer(offer: RTCSessionDescriptionInit): string[
       });
     }
   });
-  return stereoMids;
+  return { stereoMids, nackMids };
 }

@@ -271,7 +271,7 @@ export default class LocalParticipant extends Participant {
     } else if (track && track.track) {
       // screenshare cannot be muted, unpublish instead
       if (source === Track.Source.ScreenShare) {
-        track = this.unpublishTrack(track.track);
+        track = await this.unpublishTrack(track.track);
         const screenAudioTrack = this.getTrack(Track.Source.ScreenShareAudio);
         if (screenAudioTrack && screenAudioTrack.track) {
           this.unpublishTrack(screenAudioTrack.track);
@@ -544,13 +544,19 @@ export default class LocalParticipant extends Participant {
     let encodings: RTCRtpEncodingParameters[] | undefined;
     let simEncodings: RTCRtpEncodingParameters[] | undefined;
     if (track.kind === Track.Kind.Video) {
-      // TODO: support react native, which doesn't expose getSettings
-      const settings = track.mediaStreamTrack.getSettings();
-      const width = settings.width ?? track.dimensions?.width;
-      const height = settings.height ?? track.dimensions?.height;
+      let dims: Track.Dimensions = {
+        width: 0,
+        height: 0,
+      };
+      try {
+        dims = await track.waitForDimensions();
+      } catch (e) {
+        // log failure
+        log.error('could not determine track dimensions');
+      }
       // width and height should be defined for video
-      req.width = width ?? 0;
-      req.height = height ?? 0;
+      req.width = dims.width;
+      req.height = dims.height;
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
         if (opts?.videoCodec === 'av1') {
@@ -581,8 +587,8 @@ export default class LocalParticipant extends Participant {
 
       encodings = computeVideoEncodings(
         track.source === Track.Source.ScreenShare,
-        width,
-        height,
+        dims.width,
+        dims.height,
         opts,
       );
       req.layers = videoLayersFromEncodings(req.width, req.height, simEncodings ?? encodings);
@@ -710,10 +716,10 @@ export default class LocalParticipant extends Participant {
     log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
   }
 
-  unpublishTrack(
+  async unpublishTrack(
     track: LocalTrack | MediaStreamTrack,
     stopOnUnpublish?: boolean,
-  ): LocalTrackPublication | undefined {
+  ): Promise<LocalTrackPublication | undefined> {
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
 
@@ -760,7 +766,7 @@ export default class LocalParticipant extends Participant {
       } catch (e) {
         log.warn('failed to unpublish track', { error: e, method: 'unpublishTrack' });
       } finally {
-        this.engine.negotiate();
+        await this.engine.negotiate();
       }
     }
 
@@ -785,15 +791,33 @@ export default class LocalParticipant extends Participant {
     return publication;
   }
 
-  unpublishTracks(tracks: LocalTrack[] | MediaStreamTrack[]): LocalTrackPublication[] {
-    const publications: LocalTrackPublication[] = [];
-    tracks.forEach((track: LocalTrack | MediaStreamTrack) => {
-      const pub = this.unpublishTrack(track);
-      if (pub) {
-        publications.push(pub);
+  async unpublishTracks(
+    tracks: LocalTrack[] | MediaStreamTrack[],
+  ): Promise<LocalTrackPublication[]> {
+    const results = await Promise.all(tracks.map((track) => this.unpublishTrack(track)));
+    return results.filter(
+      (track) => track instanceof LocalTrackPublication,
+    ) as LocalTrackPublication[];
+  }
+
+  async republishAllTracks(options?: TrackPublishOptions) {
+    const localPubs: LocalTrackPublication[] = [];
+    this.tracks.forEach((pub) => {
+      if (pub.track) {
+        if (options) {
+          pub.options = { ...pub.options, ...options };
+        }
+        localPubs.push(pub);
       }
     });
-    return publications;
+
+    await Promise.all(
+      localPubs.map(async (pub) => {
+        const track = pub.track!;
+        await this.unpublishTrack(track, false);
+        await this.publishTrack(track, pub.options);
+      }),
+    );
   }
 
   /**

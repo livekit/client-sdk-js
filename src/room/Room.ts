@@ -268,14 +268,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     await fetch(`http${url.substring(2)}`, { method: 'HEAD' });
   }
 
-  connect = (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+    // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
+    const unlockDisconnect = await this.disconnectLock.lock();
+
     if (this.state === ConnectionState.Connected) {
       // when the state is reconnecting or connected, this function returns immediately
       log.info(`already connected to room ${this.name}`);
+      unlockDisconnect();
       return Promise.resolve();
     }
 
     if (this.connectFuture) {
+      unlockDisconnect();
       return this.connectFuture.promise;
     }
 
@@ -285,6 +290,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (!this.abortController || this.abortController.signal.aborted) {
         this.abortController = new AbortController();
       }
+      // at this point the intention to connect has been signalled so we can allow cancelling of the connection via disconnect() again
+      unlockDisconnect();
 
       if (this.state === ConnectionState.Reconnecting) {
         log.info('Reconnection attempt replaced by new connection attempt');
@@ -1278,10 +1285,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * No actual connection to a server will be established, all state is
    * @experimental
    */
-  simulateParticipants(options: SimulationOptions) {
+  async simulateParticipants(options: SimulationOptions) {
     const publishOptions = {
       audio: true,
       video: true,
+      useRealTracks: false,
       ...options.publish,
     };
     const participantOptions = {
@@ -1293,8 +1301,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     };
     this.handleDisconnect();
     this.name = 'simulated-room';
-    this.localParticipant.identity = 'simulated-local';
-    this.localParticipant.name = 'simulated-local';
+
+    this.localParticipant.updateInfo(
+      ParticipantInfo.fromPartial({
+        identity: 'simulated-local',
+        name: 'local-name',
+      }),
+    );
     this.setupLocalParticipantEvents();
     this.emit(RoomEvent.SignalConnected);
     this.emit(RoomEvent.Connected);
@@ -1309,12 +1322,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           name: 'video-dummy',
         }),
         new LocalVideoTrack(
-          createDummyVideoStreamTrack(
-            160 * participantOptions.aspectRatios[0] ?? 1,
-            160,
-            true,
-            true,
-          ),
+          publishOptions.useRealTracks
+            ? (await navigator.mediaDevices.getUserMedia({ video: true })).getVideoTracks()[0]
+            : createDummyVideoStreamTrack(
+                160 * participantOptions.aspectRatios[0] ?? 1,
+                160,
+                true,
+                true,
+              ),
         ),
       );
       // @ts-ignore
@@ -1329,7 +1344,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           sid: Math.floor(Math.random() * 10_000).toString(),
           type: TrackType.AUDIO,
         }),
-        new LocalAudioTrack(getEmptyAudioStreamTrack()),
+        new LocalAudioTrack(
+          publishOptions.useRealTracks
+            ? (await navigator.mediaDevices.getUserMedia({ audio: true })).getAudioTracks()[0]
+            : getEmptyAudioStreamTrack(),
+        ),
       );
       // @ts-ignore
       this.localParticipant.addTrackPublication(audioPub);

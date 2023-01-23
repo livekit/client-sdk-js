@@ -1,5 +1,27 @@
 # Change Log
 
+## 1.6.2
+
+### Patch Changes
+
+- [#551](https://github.com/livekit/client-sdk-js/pull/551) [`a1b34d2`](https://github.com/livekit/client-sdk-js/commit/a1b34d2af7b7e101041b37a9154663a0210c8cfe) Thanks [@lukasIO](https://github.com/lukasIO)! - Enable usage of real local tracks for simulated participants
+
+## 1.6.1
+
+### Patch Changes
+
+- [#543](https://github.com/livekit/client-sdk-js/pull/543) [`fc6a015`](https://github.com/livekit/client-sdk-js/commit/fc6a015e21d2e4bfe850f8199bc8ce4872d1aecd) Thanks [@davidzhao](https://github.com/davidzhao)! - Wait for dimensions to become available prior to publishing
+
+- [#541](https://github.com/livekit/client-sdk-js/pull/541) [`af223f4`](https://github.com/livekit/client-sdk-js/commit/af223f4bf97e46c8e5045af2d4ed67a7459619df) Thanks [@lukasIO](https://github.com/lukasIO)! - Make `unpublishTrack` async, emit TrackUnpublished before TrackPublished within the same update
+
+- [#535](https://github.com/livekit/client-sdk-js/pull/535) [`f1ba2ab`](https://github.com/livekit/client-sdk-js/commit/f1ba2ab986b4712836c1714c4e090f20d0acfc66) Thanks [@lukasIO](https://github.com/lukasIO)! - Improve autoplay when multiple streams are attached to the same media element #534
+
+- [#540](https://github.com/livekit/client-sdk-js/pull/540) [`03711ee`](https://github.com/livekit/client-sdk-js/commit/03711ee3e4bfe6fa428058d7173e4e802c24919d) Thanks [@lukasIO](https://github.com/lukasIO)! - Set local name for simulated participants via updateInfo
+
+- [#542](https://github.com/livekit/client-sdk-js/pull/542) [`260ad8b`](https://github.com/livekit/client-sdk-js/commit/260ad8bf04d348f043e9a29841e7a0e3c1caed69) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Add autosubscribe option for sample
+
+- [#538](https://github.com/livekit/client-sdk-js/pull/538) [`c4786ee`](https://github.com/livekit/client-sdk-js/commit/c4786ee3b478f3ec62852ff8f1307e28a187dc90) Thanks [@lukasIO](https://github.com/lukasIO)! - Fix race edgecase between subsequent disconnect and connect calls
+
 ## 1.6.0
 
 ### Minor Changes

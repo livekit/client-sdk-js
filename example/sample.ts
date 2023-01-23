@@ -27,7 +27,6 @@ import {
   VideoQuality,
   ExternalE2EEKeyProvider,
 } from '../src/index';
-import { isSafari } from '../src/room/utils';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -74,6 +73,7 @@ const appActions = {
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
+    const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
 
     setLogLevel(LogLevel.info);
     updateSearchParams(url, token, cryptoKey);
@@ -95,7 +95,7 @@ const appActions = {
     };
 
     const connectOpts: RoomConnectOptions = {
-      autoSubscribe: true,
+      autoSubscribe: autoSubscribe,
     };
     if (forceTURN) {
       connectOpts.rtcConfig = {
@@ -183,11 +183,11 @@ const appActions = {
       .on(RoomEvent.SignalConnected, async () => {
         const signalConnectionTime = Date.now() - startTime;
         appendLog(`signal connection established in ${signalConnectionTime}ms`);
+        // speed up publishing by starting to publish before it's fully connected
+        // publishing is accepted as soon as signal connection has established
         if (shouldPublish) {
-          await Promise.all([
-            room.localParticipant.setCameraEnabled(true),
-            room.localParticipant.setMicrophoneEnabled(isSafari()),
-          ]);
+          await room.localParticipant.enableCameraAndMicrophone();
+          appendLog(`tracks published in ${Date.now() - startTime}ms`);
           updateButtonsForPublishState();
         }
       })
