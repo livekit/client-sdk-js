@@ -1,6 +1,5 @@
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
-import basicSsl from '@vitejs/plugin-basic-ssl';
 import { babel } from '@rollup/plugin-babel';
 import replace from 'rollup-plugin-re';
 import dns from 'dns';
@@ -8,13 +7,13 @@ import dns from 'dns';
 dns.setDefaultResultOrder('verbatim');
 
 export default defineConfig({
-  // plugins: [basicSsl()],
   server: {
     port: 8080,
     open: true,
   },
   build: {
     minify: 'esbuild',
+    target: 'es2019',
     lib: {
       // Could also be a dictionary or array of multiple entry points
       entry: resolve(__dirname, 'src/index.ts'),
