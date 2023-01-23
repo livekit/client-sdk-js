@@ -12,7 +12,7 @@ import {
   UNENCRYPTED_BYTES,
 } from './constants';
 import { E2EEError, E2EEErrorReason } from './errors';
-import type { CryptorCallbacks, ErrorMessage, KeySet } from './types';
+import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeySet } from './types';
 import { deriveKeys, importKey, isVideoFrame, ratchet } from './utils';
 
 export interface CryptorConstructor {
@@ -232,7 +232,7 @@ export class Cryptor extends BaseCryptor {
       }
     } else {
       this.emit(
-        'cryptorError',
+        CryptorEvent.Error,
         new E2EEError(`encryption key missing for encoding`, E2EEErrorReason.MissingKey),
       );
       // workerLogger.debug('skipping frame encryption');
@@ -271,7 +271,7 @@ export class Cryptor extends BaseCryptor {
           if (!this.isKeyInvalid) {
             workerLogger.warn('invalid key');
             this.emit(
-              'cryptorError',
+              CryptorEvent.Error,
               new E2EEError(
                 `invalid key for participant ${this.participantId}`,
                 E2EEErrorReason.InvalidKey,
@@ -285,7 +285,7 @@ export class Cryptor extends BaseCryptor {
       }
     } else {
       this.emit(
-        'cryptorError',
+        CryptorEvent.Error,
         new E2EEError(
           `key missing for participant ${this.participantId}`,
           E2EEErrorReason.MissingKey,
