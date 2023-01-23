@@ -16,7 +16,7 @@ import RemoteTrackPublication from './room/track/RemoteTrackPublication';
 import RemoteVideoTrack from './room/track/RemoteVideoTrack';
 import type { ElementInfo } from './room/track/RemoteVideoTrack';
 import { TrackPublication } from './room/track/TrackPublication';
-import Timers from './room/timers';
+import CriticalTimers from './room/timers';
 import {
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
@@ -72,5 +72,5 @@ export {
   ConnectionQuality,
   ElementInfo,
   DefaultReconnectPolicy,
-  Timers,
+  CriticalTimers,
 };

@@ -31,7 +31,7 @@ import {
   UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
-import Timers from '../room/timers';
+import CriticalTimers from '../room/timers';
 import { getClientInfo, Mutex, sleep } from '../room/utils';
 
 // internal options
@@ -584,7 +584,7 @@ export class SignalClient {
       log.warn('ping timeout duration not set');
       return;
     }
-    this.pingTimeout = Timers.setTimeout(() => {
+    this.pingTimeout = CriticalTimers.setTimeout(() => {
       log.warn(
         `ping timeout triggered. last pong received at: ${new Date(
           Date.now() - this.pingTimeoutDuration! * 1000,
@@ -598,7 +598,7 @@ export class SignalClient {
 
   private clearPingTimeout() {
     if (this.pingTimeout) {
-      Timers.clearTimeout(this.pingTimeout);
+      CriticalTimers.clearTimeout(this.pingTimeout);
     }
   }
 
@@ -610,7 +610,7 @@ export class SignalClient {
       return;
     }
     log.debug('start ping interval');
-    this.pingInterval = Timers.setInterval(() => {
+    this.pingInterval = CriticalTimers.setInterval(() => {
       this.sendPing();
     }, this.pingIntervalDuration * 1000);
   }
@@ -619,7 +619,7 @@ export class SignalClient {
     log.debug('clearing ping interval');
     this.clearPingTimeout();
     if (this.pingInterval) {
-      Timers.clearInterval(this.pingInterval);
+      CriticalTimers.clearInterval(this.pingInterval);
     }
   }
 }
