@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.6.3
+
+### Patch Changes
+
+- [#553](https://github.com/livekit/client-sdk-js/pull/553) [`fe08625`](https://github.com/livekit/client-sdk-js/commit/fe0862538804b7bc6f0b4f97909890cd57703d5e) Thanks [@cnderrauber](https://github.com/cnderrauber)! - add reconnect response to update configuration while reconnecting
+
+- [#555](https://github.com/livekit/client-sdk-js/pull/555) [`0bc67ba`](https://github.com/livekit/client-sdk-js/commit/0bc67badf5c49a51b316bd201503543cbb5e96ca) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Enable nack for audio track only if offer wants it
+
+- [#559](https://github.com/livekit/client-sdk-js/pull/559) [`d88ca0a`](https://github.com/livekit/client-sdk-js/commit/d88ca0ac0d41b7d3a1e0d3da7c7c648df51b4beb) Thanks [@renovate](https://github.com/apps/renovate)! - Update dependency ua-parser-js to v1.0.33
+
+- [#556](https://github.com/livekit/client-sdk-js/pull/556) [`100ac49`](https://github.com/livekit/client-sdk-js/commit/100ac492d7f8e2ddd0c7af5ab7fb8f43cc6683fd) Thanks [@davidliu](https://github.com/davidliu)! - Allow for internal background timer implementation to be overridden
+
 ## 1.6.2
 
 ### Patch Changes
