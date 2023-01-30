@@ -25,6 +25,12 @@ export class ConnectionError extends LivekitError {
   }
 }
 
+export class DeviceUnsupportedError extends LivekitError {
+  constructor(message?: string) {
+    super(21, message ?? 'device is unsupported');
+  }
+}
+
 export class TrackInvalidError extends LivekitError {
   constructor(message?: string) {
     super(20, message ?? 'track is invalid');
