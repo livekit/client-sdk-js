@@ -493,7 +493,13 @@ export class SignalClient {
   }
 
   private handleSignalResponse(res: SignalResponse) {
-    const msg = res.message!;
+    const msg = res.message;
+    if (msg == undefined) {
+      log.error('received unexpected message', {
+        message: msg,
+      });
+      return;
+    }
     if (msg.$case === 'answer') {
       const sd = fromProtoSessionDescription(msg.answer);
       if (this.onAnswer) {
