@@ -2864,10 +2864,10 @@ assert-plus@1.0.0, assert-plus@^1.0.0:
   resolved "https://registry.yarnpkg.com/assert-plus/-/assert-plus-1.0.0.tgz#f12e0f3c5d77b0b1cdd9146942e4e96c1e4dd525"
   integrity sha512-NfJ4UzBCcQGLDlQq7nHxH+tv3kyZ0hHQqF5BO6J7tNJeP5do1llPr8dZ8zHonfhAu0PHAdMkSo+8o0wxg9lZWw==
 
-async-await-queue@^1.2.1:
-  version "1.2.1"
-  resolved "https://registry.yarnpkg.com/async-await-queue/-/async-await-queue-1.2.1.tgz#baf459f5fbac902b060a88fee4da853fd86f2128"
-  integrity sha512-v2j+/EMzAnuJZ8I4570KJMFhi6G9g3WZyFh6cPnmQSJh3nLao77XpRt01kyFegQazPSKvue1yaIYDp/NfV/b0g==
+async-await-queue@^2.0.0:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/async-await-queue/-/async-await-queue-2.1.1.tgz#4dd7061018837d58a7ac05230d9b1303b3fee8f9"
+  integrity sha512-pwdmJ5KqhkjxJ0mm2VTqV5cfHldnaLlbSsOPrZDQJPHuoY4E90N7Cm4rlxDzHjyEg6V9kGsrrhGeM4o5uW4BnA==
 
 async@^2.6.1:
   version "2.6.4"

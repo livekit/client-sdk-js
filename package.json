@@ -40,7 +40,7 @@
     "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2"
   },
   "dependencies": {
-    "async-await-queue": "^1.2.1",
+    "async-await-queue": "^2.0.0",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
     "protobufjs": "^7.0.0",
