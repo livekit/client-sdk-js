@@ -15,7 +15,7 @@ import {
   TrackPublishedResponse,
   TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc';
-import { TrackInvalidError, UnexpectedConnectionState } from '../errors';
+import { DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import type RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
@@ -389,6 +389,11 @@ export default class LocalParticipant extends Participant {
         };
       }
     }
+
+    if (navigator.mediaDevices.getDisplayMedia === undefined) {
+      throw new DeviceUnsupportedError('getDisplayMedia not supported');
+    }
+
     const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
       audio: options.audio ?? false,
       video: videoConstraints,
