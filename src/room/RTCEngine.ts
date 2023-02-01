@@ -681,14 +681,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
 
-    log.debug(`${connection} disconnected`);
+    log.warn(`${connection} disconnected`);
     if (this.reconnectAttempts === 0) {
       // only reset start time on the first try
       this.reconnectStart = Date.now();
     }
 
     const disconnect = (duration: number) => {
-      log.info(
+      log.warn(
         `could not recover connection after ${this.reconnectAttempts} attempts, ${duration}ms. giving up`,
       );
       this.emit(EngineEvent.Disconnected);
