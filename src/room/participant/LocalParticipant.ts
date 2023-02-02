@@ -1,12 +1,7 @@
 import 'webrtc-adapter';
 import log from '../../logger';
 import type { InternalRoomOptions } from '../../options';
-import {
-  DataPacket,
-  DataPacket_Kind,
-  ParticipantInfo,
-  ParticipantPermission,
-} from '../../proto/livekit_models';
+import { DataPacket, DataPacket_Kind, ParticipantInfo } from '../../proto/livekit_models';
 import {
   AddTrackRequest,
   DataChannelInfo,
