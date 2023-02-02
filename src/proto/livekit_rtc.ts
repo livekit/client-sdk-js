@@ -151,7 +151,8 @@ export interface SignalRequest {
     | { $case: "subscriptionPermission"; subscriptionPermission: SubscriptionPermission }
     | { $case: "syncState"; syncState: SyncState }
     | { $case: "simulate"; simulate: SimulateScenario }
-    | { $case: "ping"; ping: number };
+    | { $case: "ping"; ping: number }
+    | { $case: "updateMetadata"; updateMetadata: UpdateParticipantMetadata };
 }
 
 export interface SignalResponse {
@@ -278,6 +279,16 @@ export interface UpdateTrackSettings {
   /** for video, height to receive */
   height: number;
   fps: number;
+  /**
+   * subscription priority. 1 being the highest (0 is unset)
+   * when unset, server sill assign priority based on the order of subscription
+   * server will use priority in the following ways:
+   * 1. when subscribed tracks exceed per-participant subscription limit, server will
+   *    pause the lowest priority tracks
+   * 2. when the network is congested, server will assign available bandwidth to
+   *    higher priority tracks first. lowest priority tracks can be paused
+   */
+  priority: number;
 }
 
 export interface LeaveRequest {
@@ -293,6 +304,10 @@ export interface LeaveRequest {
 export interface UpdateVideoLayers {
   trackSid: string;
   layers: VideoLayer[];
+}
+
+export interface UpdateParticipantMetadata {
+  metadata: string;
 }
 
 export interface ICEServer {
@@ -434,6 +449,9 @@ export const SignalRequest = {
     if (message.message?.$case === "ping") {
       writer.uint32(112).int64(message.message.ping);
     }
+    if (message.message?.$case === "updateMetadata") {
+      UpdateParticipantMetadata.encode(message.message.updateMetadata, writer.uint32(122).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -489,6 +507,12 @@ export const SignalRequest = {
         case 14:
           message.message = { $case: "ping", ping: longToNumber(reader.int64() as Long) };
           break;
+        case 15:
+          message.message = {
+            $case: "updateMetadata",
+            updateMetadata: UpdateParticipantMetadata.decode(reader, reader.uint32()),
+          };
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -528,6 +552,8 @@ export const SignalRequest = {
         ? { $case: "simulate", simulate: SimulateScenario.fromJSON(object.simulate) }
         : isSet(object.ping)
         ? { $case: "ping", ping: Number(object.ping) }
+        : isSet(object.updateMetadata)
+        ? { $case: "updateMetadata", updateMetadata: UpdateParticipantMetadata.fromJSON(object.updateMetadata) }
         : undefined,
     };
   },
@@ -564,6 +590,9 @@ export const SignalRequest = {
     message.message?.$case === "simulate" &&
       (obj.simulate = message.message?.simulate ? SimulateScenario.toJSON(message.message?.simulate) : undefined);
     message.message?.$case === "ping" && (obj.ping = Math.round(message.message?.ping));
+    message.message?.$case === "updateMetadata" && (obj.updateMetadata = message.message?.updateMetadata
+      ? UpdateParticipantMetadata.toJSON(message.message?.updateMetadata)
+      : undefined);
     return obj;
   },
 
@@ -649,6 +678,16 @@ export const SignalRequest = {
     }
     if (object.message?.$case === "ping" && object.message?.ping !== undefined && object.message?.ping !== null) {
       message.message = { $case: "ping", ping: object.message.ping };
+    }
+    if (
+      object.message?.$case === "updateMetadata" &&
+      object.message?.updateMetadata !== undefined &&
+      object.message?.updateMetadata !== null
+    ) {
+      message.message = {
+        $case: "updateMetadata",
+        updateMetadata: UpdateParticipantMetadata.fromPartial(object.message.updateMetadata),
+      };
     }
     return message;
   },
@@ -1949,7 +1988,7 @@ export const UpdateSubscription = {
 };
 
 function createBaseUpdateTrackSettings(): UpdateTrackSettings {
-  return { trackSids: [], disabled: false, quality: 0, width: 0, height: 0, fps: 0 };
+  return { trackSids: [], disabled: false, quality: 0, width: 0, height: 0, fps: 0, priority: 0 };
 }
 
 export const UpdateTrackSettings = {
@@ -1971,6 +2010,9 @@ export const UpdateTrackSettings = {
     }
     if (message.fps !== 0) {
       writer.uint32(56).uint32(message.fps);
+    }
+    if (message.priority !== 0) {
+      writer.uint32(64).uint32(message.priority);
     }
     return writer;
   },
@@ -2000,6 +2042,9 @@ export const UpdateTrackSettings = {
         case 7:
           message.fps = reader.uint32();
           break;
+        case 8:
+          message.priority = reader.uint32();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -2016,6 +2061,7 @@ export const UpdateTrackSettings = {
       width: isSet(object.width) ? Number(object.width) : 0,
       height: isSet(object.height) ? Number(object.height) : 0,
       fps: isSet(object.fps) ? Number(object.fps) : 0,
+      priority: isSet(object.priority) ? Number(object.priority) : 0,
     };
   },
 
@@ -2031,6 +2077,7 @@ export const UpdateTrackSettings = {
     message.width !== undefined && (obj.width = Math.round(message.width));
     message.height !== undefined && (obj.height = Math.round(message.height));
     message.fps !== undefined && (obj.fps = Math.round(message.fps));
+    message.priority !== undefined && (obj.priority = Math.round(message.priority));
     return obj;
   },
 
@@ -2042,6 +2089,7 @@ export const UpdateTrackSettings = {
     message.width = object.width ?? 0;
     message.height = object.height ?? 0;
     message.fps = object.fps ?? 0;
+    message.priority = object.priority ?? 0;
     return message;
   },
 };
@@ -2162,6 +2210,53 @@ export const UpdateVideoLayers = {
     const message = createBaseUpdateVideoLayers();
     message.trackSid = object.trackSid ?? "";
     message.layers = object.layers?.map((e) => VideoLayer.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseUpdateParticipantMetadata(): UpdateParticipantMetadata {
+  return { metadata: "" };
+}
+
+export const UpdateParticipantMetadata = {
+  encode(message: UpdateParticipantMetadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.metadata !== "") {
+      writer.uint32(10).string(message.metadata);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): UpdateParticipantMetadata {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUpdateParticipantMetadata();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.metadata = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UpdateParticipantMetadata {
+    return { metadata: isSet(object.metadata) ? String(object.metadata) : "" };
+  },
+
+  toJSON(message: UpdateParticipantMetadata): unknown {
+    const obj: any = {};
+    message.metadata !== undefined && (obj.metadata = message.metadata);
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<UpdateParticipantMetadata>, I>>(object: I): UpdateParticipantMetadata {
+    const message = createBaseUpdateParticipantMetadata();
+    message.metadata = object.metadata ?? "";
     return message;
   },
 };
@@ -3296,7 +3391,7 @@ export const SimulateScenario = {
 declare var self: any | undefined;
 declare var window: any | undefined;
 declare var global: any | undefined;
-var globalThis: any = (() => {
+var tsProtoGlobalThis: any = (() => {
   if (typeof globalThis !== "undefined") {
     return globalThis;
   }
@@ -3326,7 +3421,7 @@ export type Exact<P, I extends P> = P extends Builtin ? P
 
 function longToNumber(long: Long): number {
   if (long.gt(Number.MAX_SAFE_INTEGER)) {
-    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+    throw new tsProtoGlobalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
   }
   return long.toNumber();
 }

@@ -1,5 +1,5 @@
 import DeviceManager from '../DeviceManager';
-import { TrackInvalidError } from '../errors';
+import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
 import { audioDefaults, videoDefaults } from '../defaults';
 import LocalAudioTrack from './LocalAudioTrack';
@@ -114,6 +114,11 @@ export async function createLocalScreenTracks(
       height: options.resolution.height,
     };
   }
+
+  if (navigator.mediaDevices.getDisplayMedia === undefined) {
+    throw new DeviceUnsupportedError('getDisplayMedia not supported');
+  }
+
   // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
   // @ts-ignore
   const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({

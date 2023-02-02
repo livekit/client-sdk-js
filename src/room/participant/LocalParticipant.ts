@@ -10,7 +10,7 @@ import {
   TrackPublishedResponse,
   TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc';
-import { TrackInvalidError, UnexpectedConnectionState } from '../errors';
+import { DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import type RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
@@ -374,6 +374,11 @@ export default class LocalParticipant extends Participant {
         };
       }
     }
+
+    if (navigator.mediaDevices.getDisplayMedia === undefined) {
+      throw new DeviceUnsupportedError('getDisplayMedia not supported');
+    }
+
     const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
       audio: options.audio ?? false,
       video: videoConstraints,
@@ -861,6 +866,11 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   updateInfo(info: ParticipantInfo) {
+    if (info.sid !== this.sid) {
+      // drop updates that specify a wrong sid.
+      // the sid for local participant is only explicitly set on join and full reconnect
+      return;
+    }
     super.updateInfo(info);
 
     // reconcile track mute status.
