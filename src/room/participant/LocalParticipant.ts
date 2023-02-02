@@ -881,6 +881,11 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   updateInfo(info: ParticipantInfo) {
+    if (info.sid !== this.sid) {
+      // drop updates that specify a wrong sid.
+      // the sid for local participant is only explicitly set on join and full reconnect
+      return;
+    }
     super.updateInfo(info);
 
     // reconcile track mute status.
