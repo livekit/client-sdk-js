@@ -186,8 +186,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
     }
     return changed;
-
-    return changed;
   }
 
   /** @internal */
