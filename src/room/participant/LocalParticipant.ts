@@ -168,16 +168,6 @@ export default class LocalParticipant extends Participant {
     return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options, publishOptions);
   }
 
-  /** @internal */
-  setPermissions(permissions: ParticipantPermission): boolean {
-    const prevPermissions = this.permissions;
-    const changed = super.setPermissions(permissions);
-    if (changed && prevPermissions) {
-      this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
-    }
-    return changed;
-  }
-
   /**
    * Enable or disable publishing for a track by source. This serves as a simple
    * way to manage the common tracks (camera, mic, or screen share).

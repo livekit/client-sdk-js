@@ -1138,7 +1138,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(
         ParticipantEvent.ParticipantPermissionsChanged,
-        (prevPermissions: ParticipantPermission) => {
+        (prevPermissions?: ParticipantPermission) => {
           this.emitWhenConnected(
             RoomEvent.ParticipantPermissionsChanged,
             prevPermissions,
@@ -1273,7 +1273,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.MediaDevicesError, e);
   };
 
-  private onLocalParticipantPermissionsChanged = (prevPermissions: ParticipantPermission) => {
+  private onLocalParticipantPermissionsChanged = (prevPermissions?: ParticipantPermission) => {
     this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, this.localParticipant);
   };
 
@@ -1442,7 +1442,7 @@ export type RoomEventCallbacks = {
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
   participantPermissionsChanged: (
-    prevPermissions: ParticipantPermission,
+    prevPermissions: ParticipantPermission | undefined,
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
   activeSpeakersChanged: (speakers: Array<Participant>) => void;
