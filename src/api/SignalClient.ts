@@ -495,9 +495,7 @@ export class SignalClient {
   private handleSignalResponse(res: SignalResponse) {
     const msg = res.message;
     if (msg == undefined) {
-      log.error('received unexpected message', {
-        message: msg,
-      });
+      log.debug('received unsupported message');
       return;
     }
     if (msg.$case === 'answer') {
