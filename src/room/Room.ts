@@ -843,10 +843,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
-      if (
-        info.sid === this.localParticipant.sid ||
-        info.identity === this.localParticipant.identity
-      ) {
+      if (info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
         return;
       }
