@@ -151,7 +151,9 @@ export interface SignalRequest {
     | { $case: "subscriptionPermission"; subscriptionPermission: SubscriptionPermission }
     | { $case: "syncState"; syncState: SyncState }
     | { $case: "simulate"; simulate: SimulateScenario }
-    | { $case: "ping"; ping: number };
+    | { $case: "ping"; ping: number }
+    | { $case: "updateMetadata"; updateMetadata: UpdateParticipantMetadata }
+    | { $case: "pingReq"; pingReq: Ping };
 }
 
 export interface SignalResponse {
@@ -173,7 +175,8 @@ export interface SignalResponse {
     | { $case: "refreshToken"; refreshToken: string }
     | { $case: "trackUnpublished"; trackUnpublished: TrackUnpublishedResponse }
     | { $case: "pong"; pong: number }
-    | { $case: "reconnect"; reconnect: ReconnectResponse };
+    | { $case: "reconnect"; reconnect: ReconnectResponse }
+    | { $case: "pongResp"; pongResp: Pong };
 }
 
 export interface SimulcastCodec {
@@ -240,6 +243,9 @@ export interface JoinResponse {
 export interface ReconnectResponse {
   iceServers: ICEServer[];
   clientConfiguration?: ClientConfiguration;
+  room?: Room;
+  participant?: ParticipantInfo;
+  otherParticipants: ParticipantInfo[];
 }
 
 export interface TrackPublishedResponse {
@@ -278,6 +284,16 @@ export interface UpdateTrackSettings {
   /** for video, height to receive */
   height: number;
   fps: number;
+  /**
+   * subscription priority. 1 being the highest (0 is unset)
+   * when unset, server sill assign priority based on the order of subscription
+   * server will use priority in the following ways:
+   * 1. when subscribed tracks exceed per-participant subscription limit, server will
+   *    pause the lowest priority tracks
+   * 2. when the network is congested, server will assign available bandwidth to
+   *    higher priority tracks first. lowest priority tracks can be paused
+   */
+  priority: number;
 }
 
 export interface LeaveRequest {
@@ -293,6 +309,10 @@ export interface LeaveRequest {
 export interface UpdateVideoLayers {
   trackSid: string;
   layers: VideoLayer[];
+}
+
+export interface UpdateParticipantMetadata {
+  metadata: string;
 }
 
 export interface ICEServer {
@@ -389,6 +409,18 @@ export interface SimulateScenario {
     | { $case: "switchCandidateProtocol"; switchCandidateProtocol: CandidateProtocol };
 }
 
+export interface Ping {
+  timestamp: number;
+  /** rtt in milliseconds calculated by client */
+  rtt: number;
+}
+
+export interface Pong {
+  /** timestamp field of last received ping request */
+  lastPingTimestamp: number;
+  timestamp: number;
+}
+
 function createBaseSignalRequest(): SignalRequest {
   return { message: undefined };
 }
@@ -433,6 +465,12 @@ export const SignalRequest = {
     }
     if (message.message?.$case === "ping") {
       writer.uint32(112).int64(message.message.ping);
+    }
+    if (message.message?.$case === "updateMetadata") {
+      UpdateParticipantMetadata.encode(message.message.updateMetadata, writer.uint32(122).fork()).ldelim();
+    }
+    if (message.message?.$case === "pingReq") {
+      Ping.encode(message.message.pingReq, writer.uint32(130).fork()).ldelim();
     }
     return writer;
   },
@@ -489,6 +527,15 @@ export const SignalRequest = {
         case 14:
           message.message = { $case: "ping", ping: longToNumber(reader.int64() as Long) };
           break;
+        case 15:
+          message.message = {
+            $case: "updateMetadata",
+            updateMetadata: UpdateParticipantMetadata.decode(reader, reader.uint32()),
+          };
+          break;
+        case 16:
+          message.message = { $case: "pingReq", pingReq: Ping.decode(reader, reader.uint32()) };
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -528,6 +575,10 @@ export const SignalRequest = {
         ? { $case: "simulate", simulate: SimulateScenario.fromJSON(object.simulate) }
         : isSet(object.ping)
         ? { $case: "ping", ping: Number(object.ping) }
+        : isSet(object.updateMetadata)
+        ? { $case: "updateMetadata", updateMetadata: UpdateParticipantMetadata.fromJSON(object.updateMetadata) }
+        : isSet(object.pingReq)
+        ? { $case: "pingReq", pingReq: Ping.fromJSON(object.pingReq) }
         : undefined,
     };
   },
@@ -564,6 +615,11 @@ export const SignalRequest = {
     message.message?.$case === "simulate" &&
       (obj.simulate = message.message?.simulate ? SimulateScenario.toJSON(message.message?.simulate) : undefined);
     message.message?.$case === "ping" && (obj.ping = Math.round(message.message?.ping));
+    message.message?.$case === "updateMetadata" && (obj.updateMetadata = message.message?.updateMetadata
+      ? UpdateParticipantMetadata.toJSON(message.message?.updateMetadata)
+      : undefined);
+    message.message?.$case === "pingReq" &&
+      (obj.pingReq = message.message?.pingReq ? Ping.toJSON(message.message?.pingReq) : undefined);
     return obj;
   },
 
@@ -650,6 +706,21 @@ export const SignalRequest = {
     if (object.message?.$case === "ping" && object.message?.ping !== undefined && object.message?.ping !== null) {
       message.message = { $case: "ping", ping: object.message.ping };
     }
+    if (
+      object.message?.$case === "updateMetadata" &&
+      object.message?.updateMetadata !== undefined &&
+      object.message?.updateMetadata !== null
+    ) {
+      message.message = {
+        $case: "updateMetadata",
+        updateMetadata: UpdateParticipantMetadata.fromPartial(object.message.updateMetadata),
+      };
+    }
+    if (
+      object.message?.$case === "pingReq" && object.message?.pingReq !== undefined && object.message?.pingReq !== null
+    ) {
+      message.message = { $case: "pingReq", pingReq: Ping.fromPartial(object.message.pingReq) };
+    }
     return message;
   },
 };
@@ -714,6 +785,9 @@ export const SignalResponse = {
     }
     if (message.message?.$case === "reconnect") {
       ReconnectResponse.encode(message.message.reconnect, writer.uint32(154).fork()).ldelim();
+    }
+    if (message.message?.$case === "pongResp") {
+      Pong.encode(message.message.pongResp, writer.uint32(162).fork()).ldelim();
     }
     return writer;
   },
@@ -800,6 +874,9 @@ export const SignalResponse = {
         case 19:
           message.message = { $case: "reconnect", reconnect: ReconnectResponse.decode(reader, reader.uint32()) };
           break;
+        case 20:
+          message.message = { $case: "pongResp", pongResp: Pong.decode(reader, reader.uint32()) };
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -852,6 +929,8 @@ export const SignalResponse = {
         ? { $case: "pong", pong: Number(object.pong) }
         : isSet(object.reconnect)
         ? { $case: "reconnect", reconnect: ReconnectResponse.fromJSON(object.reconnect) }
+        : isSet(object.pongResp)
+        ? { $case: "pongResp", pongResp: Pong.fromJSON(object.pongResp) }
         : undefined,
     };
   },
@@ -901,6 +980,8 @@ export const SignalResponse = {
     message.message?.$case === "pong" && (obj.pong = Math.round(message.message?.pong));
     message.message?.$case === "reconnect" &&
       (obj.reconnect = message.message?.reconnect ? ReconnectResponse.toJSON(message.message?.reconnect) : undefined);
+    message.message?.$case === "pongResp" &&
+      (obj.pongResp = message.message?.pongResp ? Pong.toJSON(message.message?.pongResp) : undefined);
     return obj;
   },
 
@@ -1024,6 +1105,13 @@ export const SignalResponse = {
       object.message?.reconnect !== null
     ) {
       message.message = { $case: "reconnect", reconnect: ReconnectResponse.fromPartial(object.message.reconnect) };
+    }
+    if (
+      object.message?.$case === "pongResp" &&
+      object.message?.pongResp !== undefined &&
+      object.message?.pongResp !== null
+    ) {
+      message.message = { $case: "pongResp", pongResp: Pong.fromPartial(object.message.pongResp) };
     }
     return message;
   },
@@ -1587,7 +1675,13 @@ export const JoinResponse = {
 };
 
 function createBaseReconnectResponse(): ReconnectResponse {
-  return { iceServers: [], clientConfiguration: undefined };
+  return {
+    iceServers: [],
+    clientConfiguration: undefined,
+    room: undefined,
+    participant: undefined,
+    otherParticipants: [],
+  };
 }
 
 export const ReconnectResponse = {
@@ -1597,6 +1691,15 @@ export const ReconnectResponse = {
     }
     if (message.clientConfiguration !== undefined) {
       ClientConfiguration.encode(message.clientConfiguration, writer.uint32(18).fork()).ldelim();
+    }
+    if (message.room !== undefined) {
+      Room.encode(message.room, writer.uint32(26).fork()).ldelim();
+    }
+    if (message.participant !== undefined) {
+      ParticipantInfo.encode(message.participant, writer.uint32(34).fork()).ldelim();
+    }
+    for (const v of message.otherParticipants) {
+      ParticipantInfo.encode(v!, writer.uint32(42).fork()).ldelim();
     }
     return writer;
   },
@@ -1614,6 +1717,15 @@ export const ReconnectResponse = {
         case 2:
           message.clientConfiguration = ClientConfiguration.decode(reader, reader.uint32());
           break;
+        case 3:
+          message.room = Room.decode(reader, reader.uint32());
+          break;
+        case 4:
+          message.participant = ParticipantInfo.decode(reader, reader.uint32());
+          break;
+        case 5:
+          message.otherParticipants.push(ParticipantInfo.decode(reader, reader.uint32()));
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1628,6 +1740,11 @@ export const ReconnectResponse = {
       clientConfiguration: isSet(object.clientConfiguration)
         ? ClientConfiguration.fromJSON(object.clientConfiguration)
         : undefined,
+      room: isSet(object.room) ? Room.fromJSON(object.room) : undefined,
+      participant: isSet(object.participant) ? ParticipantInfo.fromJSON(object.participant) : undefined,
+      otherParticipants: Array.isArray(object?.otherParticipants)
+        ? object.otherParticipants.map((e: any) => ParticipantInfo.fromJSON(e))
+        : [],
     };
   },
 
@@ -1641,6 +1758,14 @@ export const ReconnectResponse = {
     message.clientConfiguration !== undefined && (obj.clientConfiguration = message.clientConfiguration
       ? ClientConfiguration.toJSON(message.clientConfiguration)
       : undefined);
+    message.room !== undefined && (obj.room = message.room ? Room.toJSON(message.room) : undefined);
+    message.participant !== undefined &&
+      (obj.participant = message.participant ? ParticipantInfo.toJSON(message.participant) : undefined);
+    if (message.otherParticipants) {
+      obj.otherParticipants = message.otherParticipants.map((e) => e ? ParticipantInfo.toJSON(e) : undefined);
+    } else {
+      obj.otherParticipants = [];
+    }
     return obj;
   },
 
@@ -1650,6 +1775,11 @@ export const ReconnectResponse = {
     message.clientConfiguration = (object.clientConfiguration !== undefined && object.clientConfiguration !== null)
       ? ClientConfiguration.fromPartial(object.clientConfiguration)
       : undefined;
+    message.room = (object.room !== undefined && object.room !== null) ? Room.fromPartial(object.room) : undefined;
+    message.participant = (object.participant !== undefined && object.participant !== null)
+      ? ParticipantInfo.fromPartial(object.participant)
+      : undefined;
+    message.otherParticipants = object.otherParticipants?.map((e) => ParticipantInfo.fromPartial(e)) || [];
     return message;
   },
 };
@@ -1949,7 +2079,7 @@ export const UpdateSubscription = {
 };
 
 function createBaseUpdateTrackSettings(): UpdateTrackSettings {
-  return { trackSids: [], disabled: false, quality: 0, width: 0, height: 0, fps: 0 };
+  return { trackSids: [], disabled: false, quality: 0, width: 0, height: 0, fps: 0, priority: 0 };
 }
 
 export const UpdateTrackSettings = {
@@ -1971,6 +2101,9 @@ export const UpdateTrackSettings = {
     }
     if (message.fps !== 0) {
       writer.uint32(56).uint32(message.fps);
+    }
+    if (message.priority !== 0) {
+      writer.uint32(64).uint32(message.priority);
     }
     return writer;
   },
@@ -2000,6 +2133,9 @@ export const UpdateTrackSettings = {
         case 7:
           message.fps = reader.uint32();
           break;
+        case 8:
+          message.priority = reader.uint32();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -2016,6 +2152,7 @@ export const UpdateTrackSettings = {
       width: isSet(object.width) ? Number(object.width) : 0,
       height: isSet(object.height) ? Number(object.height) : 0,
       fps: isSet(object.fps) ? Number(object.fps) : 0,
+      priority: isSet(object.priority) ? Number(object.priority) : 0,
     };
   },
 
@@ -2031,6 +2168,7 @@ export const UpdateTrackSettings = {
     message.width !== undefined && (obj.width = Math.round(message.width));
     message.height !== undefined && (obj.height = Math.round(message.height));
     message.fps !== undefined && (obj.fps = Math.round(message.fps));
+    message.priority !== undefined && (obj.priority = Math.round(message.priority));
     return obj;
   },
 
@@ -2042,6 +2180,7 @@ export const UpdateTrackSettings = {
     message.width = object.width ?? 0;
     message.height = object.height ?? 0;
     message.fps = object.fps ?? 0;
+    message.priority = object.priority ?? 0;
     return message;
   },
 };
@@ -2162,6 +2301,53 @@ export const UpdateVideoLayers = {
     const message = createBaseUpdateVideoLayers();
     message.trackSid = object.trackSid ?? "";
     message.layers = object.layers?.map((e) => VideoLayer.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseUpdateParticipantMetadata(): UpdateParticipantMetadata {
+  return { metadata: "" };
+}
+
+export const UpdateParticipantMetadata = {
+  encode(message: UpdateParticipantMetadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.metadata !== "") {
+      writer.uint32(10).string(message.metadata);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): UpdateParticipantMetadata {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUpdateParticipantMetadata();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.metadata = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UpdateParticipantMetadata {
+    return { metadata: isSet(object.metadata) ? String(object.metadata) : "" };
+  },
+
+  toJSON(message: UpdateParticipantMetadata): unknown {
+    const obj: any = {};
+    message.metadata !== undefined && (obj.metadata = message.metadata);
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<UpdateParticipantMetadata>, I>>(object: I): UpdateParticipantMetadata {
+    const message = createBaseUpdateParticipantMetadata();
+    message.metadata = object.metadata ?? "";
     return message;
   },
 };
@@ -3293,10 +3479,126 @@ export const SimulateScenario = {
   },
 };
 
+function createBasePing(): Ping {
+  return { timestamp: 0, rtt: 0 };
+}
+
+export const Ping = {
+  encode(message: Ping, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.timestamp !== 0) {
+      writer.uint32(8).int64(message.timestamp);
+    }
+    if (message.rtt !== 0) {
+      writer.uint32(16).int64(message.rtt);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): Ping {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePing();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.timestamp = longToNumber(reader.int64() as Long);
+          break;
+        case 2:
+          message.rtt = longToNumber(reader.int64() as Long);
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Ping {
+    return {
+      timestamp: isSet(object.timestamp) ? Number(object.timestamp) : 0,
+      rtt: isSet(object.rtt) ? Number(object.rtt) : 0,
+    };
+  },
+
+  toJSON(message: Ping): unknown {
+    const obj: any = {};
+    message.timestamp !== undefined && (obj.timestamp = Math.round(message.timestamp));
+    message.rtt !== undefined && (obj.rtt = Math.round(message.rtt));
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<Ping>, I>>(object: I): Ping {
+    const message = createBasePing();
+    message.timestamp = object.timestamp ?? 0;
+    message.rtt = object.rtt ?? 0;
+    return message;
+  },
+};
+
+function createBasePong(): Pong {
+  return { lastPingTimestamp: 0, timestamp: 0 };
+}
+
+export const Pong = {
+  encode(message: Pong, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.lastPingTimestamp !== 0) {
+      writer.uint32(8).int64(message.lastPingTimestamp);
+    }
+    if (message.timestamp !== 0) {
+      writer.uint32(16).int64(message.timestamp);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): Pong {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePong();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.lastPingTimestamp = longToNumber(reader.int64() as Long);
+          break;
+        case 2:
+          message.timestamp = longToNumber(reader.int64() as Long);
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Pong {
+    return {
+      lastPingTimestamp: isSet(object.lastPingTimestamp) ? Number(object.lastPingTimestamp) : 0,
+      timestamp: isSet(object.timestamp) ? Number(object.timestamp) : 0,
+    };
+  },
+
+  toJSON(message: Pong): unknown {
+    const obj: any = {};
+    message.lastPingTimestamp !== undefined && (obj.lastPingTimestamp = Math.round(message.lastPingTimestamp));
+    message.timestamp !== undefined && (obj.timestamp = Math.round(message.timestamp));
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<Pong>, I>>(object: I): Pong {
+    const message = createBasePong();
+    message.lastPingTimestamp = object.lastPingTimestamp ?? 0;
+    message.timestamp = object.timestamp ?? 0;
+    return message;
+  },
+};
+
 declare var self: any | undefined;
 declare var window: any | undefined;
 declare var global: any | undefined;
-var globalThis: any = (() => {
+var tsProtoGlobalThis: any = (() => {
   if (typeof globalThis !== "undefined") {
     return globalThis;
   }
@@ -3326,7 +3628,7 @@ export type Exact<P, I extends P> = P extends Builtin ? P
 
 function longToNumber(long: Long): number {
   if (long.gt(Number.MAX_SAFE_INTEGER)) {
-    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+    throw new tsProtoGlobalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
   }
   return long.toNumber();
 }

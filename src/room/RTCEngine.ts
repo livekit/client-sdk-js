@@ -9,6 +9,7 @@ import {
   DataPacket,
   DataPacket_Kind,
   DisconnectReason,
+  ReconnectReason,
   SpeakerInfo,
   TrackInfo,
   UserPacket,
@@ -305,7 +306,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     let primaryPC = this.publisher.pc;
     let secondaryPC = this.subscriber.pc;
-    if (joinResponse.subscriberPrimary) {
+    let subscriberPrimary = joinResponse.subscriberPrimary;
+    if (subscriberPrimary) {
       primaryPC = this.subscriber.pc;
       secondaryPC = this.publisher.pc;
       // in subscriber primary mode, server side opens sub data channels.
@@ -330,7 +332,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         if (this.pcState === PCState.Connected) {
           this.pcState = PCState.Disconnected;
 
-          this.handleDisconnect('primary peerconnection');
+          this.handleDisconnect(
+            'primary peerconnection',
+            false,
+            subscriberPrimary
+              ? ReconnectReason.REASON_SUBSCRIBER_FAILED
+              : ReconnectReason.REASON_PUBLISHER_FAILED,
+          );
         }
       }
     };
@@ -338,7 +346,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       log.debug(`secondary PC state changed ${secondaryPC.connectionState}`);
       // also reconnect if secondary peerconnection fails
       if (secondaryPC.connectionState === 'failed') {
-        this.handleDisconnect('secondary peerconnection');
+        this.handleDisconnect(
+          'secondary peerconnection',
+          false,
+          subscriberPrimary
+            ? ReconnectReason.REASON_PUBLISHER_FAILED
+            : ReconnectReason.REASON_SUBSCRIBER_FAILED,
+        );
       }
     };
 
@@ -405,7 +419,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onClose = () => {
-      this.handleDisconnect('signal');
+      this.handleDisconnect('signal', false, ReconnectReason.REASON_SIGNAL_DISCONNECTED);
     };
 
     this.client.onLeave = (leave?: LeaveRequest) => {
@@ -676,7 +690,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
   // continues to work, we can reconnect to websocket to continue the session
   // after a number of retries, we'll close and give up permanently
-  private handleDisconnect = (connection: string, signalEvents: boolean = false) => {
+  private handleDisconnect = (
+    connection: string,
+    signalEvents: boolean = false,
+    disconnectReason?: ReconnectReason,
+  ) => {
     if (this._isClosed) {
       return;
     }
@@ -713,12 +731,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.clearReconnectTimeout();
     this.reconnectTimeout = CriticalTimers.setTimeout(
-      () => this.attemptReconnect(signalEvents),
+      () => this.attemptReconnect(signalEvents, disconnectReason),
       delay,
     );
   };
 
-  private async attemptReconnect(signalEvents: boolean = false) {
+  private async attemptReconnect(signalEvents: boolean = false, reason?: ReconnectReason) {
     if (this._isClosed) {
       return;
     }
@@ -740,7 +758,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (this.fullReconnectOnNext) {
         await this.restartConnection(signalEvents);
       } else {
-        await this.resumeConnection(signalEvents);
+        await this.resumeConnection(signalEvents, reason);
       }
       this.clearPendingReconnect();
       this.fullReconnectOnNext = false;
@@ -766,7 +784,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       if (recoverable) {
-        this.handleDisconnect('reconnect', requireSignalEvents);
+        this.handleDisconnect('reconnect', requireSignalEvents, ReconnectReason.REASON_UNKOWN);
       } else {
         log.info(
           `could not recover connection after ${this.reconnectAttempts} attempts, ${
@@ -831,7 +849,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.emit(EngineEvent.Restarted, joinResponse);
   }
 
-  private async resumeConnection(emitResuming: boolean = false): Promise<void> {
+  private async resumeConnection(
+    emitResuming: boolean = false,
+    reason?: ReconnectReason,
+  ): Promise<void> {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
       throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
@@ -847,7 +868,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     try {
-      const res = await this.client.reconnect(this.url, this.token, this.participantSid);
+      const res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
       if (res) {
         const rtcConfig = this.makeRTCConfiguration(res);
         this.publisher.pc.setConfiguration(rtcConfig);
@@ -1001,7 +1022,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       const negotiationTimeout = setTimeout(() => {
         reject('negotiation timed out');
-        this.handleDisconnect('negotiation');
+        this.handleDisconnect('negotiation', false, ReconnectReason.REASON_SIGNAL_DISCONNECTED);
       }, this.peerConnectionTimeout);
 
       const cleanup = () => {
@@ -1022,7 +1043,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
-        this.handleDisconnect('negotiation');
+        this.handleDisconnect('negotiation', false, ReconnectReason.REASON_UNKOWN);
       });
     });
   }
@@ -1060,7 +1081,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
     if (this.client.isReconnecting) {
       this.clearReconnectTimeout();
-      this.attemptReconnect(true);
+      this.attemptReconnect(true, ReconnectReason.REASON_SIGNAL_DISCONNECTED);
     }
   };
 

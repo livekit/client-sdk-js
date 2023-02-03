@@ -5,6 +5,7 @@ import {
   ClientInfo,
   DisconnectReason,
   ParticipantInfo,
+  ReconnectReason,
   Room,
   SpeakerInfo,
   VideoLayer,
@@ -39,6 +40,9 @@ interface ConnectOpts {
   autoSubscribe: boolean;
   /** internal */
   reconnect?: boolean;
+
+  /** internal */
+  reconnectReason?: number;
 
   /** internal */
   sid?: string;
@@ -88,6 +92,9 @@ export class SignalClient {
   queuedRequests: Array<() => Promise<void>>;
 
   useJSON: boolean;
+
+  /** signal rtt in milliseconds */
+  rtt: number = 0;
 
   /** simulate signaling latency by delaying messages */
   signalLatency?: number;
@@ -166,7 +173,12 @@ export class SignalClient {
     return res as JoinResponse;
   }
 
-  async reconnect(url: string, token: string, sid?: string): Promise<ReconnectResponse | void> {
+  async reconnect(
+    url: string,
+    token: string,
+    sid?: string,
+    reason?: ReconnectReason,
+  ): Promise<ReconnectResponse | void> {
     if (!this.options) {
       log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
@@ -175,7 +187,12 @@ export class SignalClient {
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    const res = await this.connect(url, token, { ...this.options, reconnect: true, sid });
+    const res = await this.connect(url, token, {
+      ...this.options,
+      reconnect: true,
+      sid,
+      reconnectReason: reason,
+    });
     return res;
   }
 
@@ -440,9 +457,17 @@ export class SignalClient {
   }
 
   sendPing() {
+    /** send both of ping and pingReq for compatibility to old and new server */
     this.sendRequest({
       $case: 'ping',
       ping: Date.now(),
+    });
+    this.sendRequest({
+      $case: 'pingReq',
+      pingReq: {
+        timestamp: Date.now(),
+        rtt: this.rtt,
+      },
     });
   }
 
@@ -563,6 +588,9 @@ export class SignalClient {
       }
     } else if (msg.$case === 'pong') {
       this.resetPingTimeout();
+    } else if (msg.$case === 'pongResp') {
+      this.rtt = Date.now() - msg.pongResp.lastPingTimestamp;
+      this.clearPingTimeout();
     } else {
       log.debug('unsupported message', msg);
     }
@@ -696,6 +724,10 @@ function createConnectionParams(token: string, info: ClientInfo, opts: ConnectOp
 
   if (opts.adaptiveStream) {
     params.set('adaptive_stream', '1');
+  }
+
+  if (opts.reconnectReason) {
+    params.set('reconnect_reason', opts.reconnectReason.toString());
   }
 
   // @ts-ignore
