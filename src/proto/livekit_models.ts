@@ -867,6 +867,10 @@ export const Room = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<Room>, I>>(base?: I): Room {
+    return Room.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<Room>, I>>(object: I): Room {
     const message = createBaseRoom();
     message.sid = object.sid ?? "";
@@ -931,6 +935,10 @@ export const Codec = {
     message.mime !== undefined && (obj.mime = message.mime);
     message.fmtpLine !== undefined && (obj.fmtpLine = message.fmtpLine);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Codec>, I>>(base?: I): Codec {
+    return Codec.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<Codec>, I>>(object: I): Codec {
@@ -1043,6 +1051,10 @@ export const ParticipantPermission = {
     message.hidden !== undefined && (obj.hidden = message.hidden);
     message.recorder !== undefined && (obj.recorder = message.recorder);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ParticipantPermission>, I>>(base?: I): ParticipantPermission {
+    return ParticipantPermission.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<ParticipantPermission>, I>>(object: I): ParticipantPermission {
@@ -1196,6 +1208,10 @@ export const ParticipantInfo = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<ParticipantInfo>, I>>(base?: I): ParticipantInfo {
+    return ParticipantInfo.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<ParticipantInfo>, I>>(object: I): ParticipantInfo {
     const message = createBaseParticipantInfo();
     message.sid = object.sid ?? "";
@@ -1246,6 +1262,10 @@ export const Encryption = {
   toJSON(_: Encryption): unknown {
     const obj: any = {};
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Encryption>, I>>(base?: I): Encryption {
+    return Encryption.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<Encryption>, I>>(_: I): Encryption {
@@ -1322,6 +1342,10 @@ export const SimulcastCodecInfo = {
       obj.layers = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SimulcastCodecInfo>, I>>(base?: I): SimulcastCodecInfo {
+    return SimulcastCodecInfo.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SimulcastCodecInfo>, I>>(object: I): SimulcastCodecInfo {
@@ -1521,6 +1545,10 @@ export const TrackInfo = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<TrackInfo>, I>>(base?: I): TrackInfo {
+    return TrackInfo.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<TrackInfo>, I>>(object: I): TrackInfo {
     const message = createBaseTrackInfo();
     message.sid = object.sid ?? "";
@@ -1617,6 +1645,10 @@ export const VideoLayer = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<VideoLayer>, I>>(base?: I): VideoLayer {
+    return VideoLayer.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<VideoLayer>, I>>(object: I): VideoLayer {
     const message = createBaseVideoLayer();
     message.quality = object.quality ?? 0;
@@ -1637,11 +1669,13 @@ export const DataPacket = {
     if (message.kind !== 0) {
       writer.uint32(8).int32(message.kind);
     }
-    if (message.value?.$case === "user") {
-      UserPacket.encode(message.value.user, writer.uint32(18).fork()).ldelim();
-    }
-    if (message.value?.$case === "speaker") {
-      ActiveSpeakerUpdate.encode(message.value.speaker, writer.uint32(26).fork()).ldelim();
+    switch (message.value?.$case) {
+      case "user":
+        UserPacket.encode(message.value.user, writer.uint32(18).fork()).ldelim();
+        break;
+      case "speaker":
+        ActiveSpeakerUpdate.encode(message.value.speaker, writer.uint32(26).fork()).ldelim();
+        break;
     }
     return writer;
   },
@@ -1689,6 +1723,10 @@ export const DataPacket = {
     message.value?.$case === "speaker" &&
       (obj.speaker = message.value?.speaker ? ActiveSpeakerUpdate.toJSON(message.value?.speaker) : undefined);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DataPacket>, I>>(base?: I): DataPacket {
+    return DataPacket.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<DataPacket>, I>>(object: I): DataPacket {
@@ -1748,6 +1786,10 @@ export const ActiveSpeakerUpdate = {
       obj.speakers = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ActiveSpeakerUpdate>, I>>(base?: I): ActiveSpeakerUpdate {
+    return ActiveSpeakerUpdate.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<ActiveSpeakerUpdate>, I>>(object: I): ActiveSpeakerUpdate {
@@ -1813,6 +1855,10 @@ export const SpeakerInfo = {
     message.level !== undefined && (obj.level = message.level);
     message.active !== undefined && (obj.active = message.active);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SpeakerInfo>, I>>(base?: I): SpeakerInfo {
+    return SpeakerInfo.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SpeakerInfo>, I>>(object: I): SpeakerInfo {
@@ -1887,6 +1933,10 @@ export const UserPacket = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<UserPacket>, I>>(base?: I): UserPacket {
+    return UserPacket.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<UserPacket>, I>>(object: I): UserPacket {
     const message = createBaseUserPacket();
     message.participantSid = object.participantSid ?? "";
@@ -1948,6 +1998,10 @@ export const ParticipantTracks = {
       obj.trackSids = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ParticipantTracks>, I>>(base?: I): ParticipantTracks {
+    return ParticipantTracks.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<ParticipantTracks>, I>>(object: I): ParticipantTracks {
@@ -2038,6 +2092,10 @@ export const ServerInfo = {
     message.nodeId !== undefined && (obj.nodeId = message.nodeId);
     message.debugInfo !== undefined && (obj.debugInfo = message.debugInfo);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ServerInfo>, I>>(base?: I): ServerInfo {
+    return ServerInfo.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<ServerInfo>, I>>(object: I): ServerInfo {
@@ -2177,6 +2235,10 @@ export const ClientInfo = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<ClientInfo>, I>>(base?: I): ClientInfo {
+    return ClientInfo.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<ClientInfo>, I>>(object: I): ClientInfo {
     const message = createBaseClientInfo();
     message.sdk = object.sdk ?? 0;
@@ -2270,6 +2332,10 @@ export const ClientConfiguration = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<ClientConfiguration>, I>>(base?: I): ClientConfiguration {
+    return ClientConfiguration.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<ClientConfiguration>, I>>(object: I): ClientConfiguration {
     const message = createBaseClientConfiguration();
     message.video = (object.video !== undefined && object.video !== null)
@@ -2327,6 +2393,10 @@ export const VideoConfiguration = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<VideoConfiguration>, I>>(base?: I): VideoConfiguration {
+    return VideoConfiguration.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<VideoConfiguration>, I>>(object: I): VideoConfiguration {
     const message = createBaseVideoConfiguration();
     message.hardwareEncoder = object.hardwareEncoder ?? 0;
@@ -2376,6 +2446,10 @@ export const DisabledCodecs = {
       obj.codecs = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DisabledCodecs>, I>>(base?: I): DisabledCodecs {
+    return DisabledCodecs.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<DisabledCodecs>, I>>(object: I): DisabledCodecs {
@@ -2802,6 +2876,10 @@ export const RTPStats = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<RTPStats>, I>>(base?: I): RTPStats {
+    return RTPStats.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<RTPStats>, I>>(object: I): RTPStats {
     const message = createBaseRTPStats();
     message.startTime = object.startTime ?? undefined;
@@ -2904,6 +2982,10 @@ export const RTPStats_GapHistogramEntry = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<RTPStats_GapHistogramEntry>, I>>(base?: I): RTPStats_GapHistogramEntry {
+    return RTPStats_GapHistogramEntry.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<RTPStats_GapHistogramEntry>, I>>(object: I): RTPStats_GapHistogramEntry {
     const message = createBaseRTPStats_GapHistogramEntry();
     message.key = object.key ?? 0;
@@ -2960,6 +3042,10 @@ export const TimedVersion = {
     message.unixMicro !== undefined && (obj.unixMicro = Math.round(message.unixMicro));
     message.ticks !== undefined && (obj.ticks = Math.round(message.ticks));
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<TimedVersion>, I>>(base?: I): TimedVersion {
+    return TimedVersion.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<TimedVersion>, I>>(object: I): TimedVersion {

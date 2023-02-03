@@ -685,6 +685,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.reconnectAttempts === 0) {
       // only reset start time on the first try
       this.reconnectStart = Date.now();
+      this.emit(EngineEvent.Resuming);
     }
 
     const disconnect = (duration: number) => {
@@ -842,7 +843,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
-    if (emitResuming || this.reconnectAttempts === 0) {
+    if (emitResuming) {
       this.emit(EngineEvent.Resuming);
     }
 
@@ -853,6 +854,27 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.publisher.pc.setConfiguration(rtcConfig);
         this.subscriber.pc.setConfiguration(rtcConfig);
       }
+
+      this.emit(EngineEvent.SignalResumed, res ?? undefined);
+
+      this.subscriber.restartingIce = true;
+
+      // only restart publisher if it's needed
+      if (this.hasPublished) {
+        await this.publisher.createAndSendOffer({ iceRestart: true });
+      }
+
+      await this.waitForPCConnected();
+      this.client.setReconnected();
+
+      // recreate publish datachannel if it's id is null
+      // (for safari https://bugs.webkit.org/show_bug.cgi?id=184688)
+      if (this.reliableDC?.readyState === 'open' && this.reliableDC.id === null) {
+        this.createDataChannels();
+      }
+
+      // resume success
+      this.emit(EngineEvent.Resumed);
     } catch (e) {
       let message = '';
       if (e instanceof Error) {
@@ -860,26 +882,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       throw new SignalReconnectError(message);
     }
-    this.emit(EngineEvent.SignalResumed);
-
-    this.subscriber.restartingIce = true;
-
-    // only restart publisher if it's needed
-    if (this.hasPublished) {
-      await this.publisher.createAndSendOffer({ iceRestart: true });
-    }
-
-    await this.waitForPCConnected();
-    this.client.setReconnected();
-
-    // recreate publish datachannel if it's id is null
-    // (for safari https://bugs.webkit.org/show_bug.cgi?id=184688)
-    if (this.reliableDC?.readyState === 'open' && this.reliableDC.id === null) {
-      this.createDataChannels();
-    }
-
-    // resume success
-    this.emit(EngineEvent.Resumed);
   }
 
   async waitForPCConnected() {
@@ -1120,7 +1122,7 @@ export type EngineEventCallbacks = {
   resumed: () => void;
   restarting: () => void;
   restarted: (joinResp: JoinResponse) => void;
-  signalResumed: () => void;
+  signalResumed: (reconnectResp?: ReconnectResponse) => void;
   closing: () => void;
   mediaTrackAdded: (
     track: MediaStreamTrack,

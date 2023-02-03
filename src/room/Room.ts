@@ -25,6 +25,7 @@ import {
 import {
   ConnectionQualityUpdate,
   JoinResponse,
+  ReconnectResponse,
   SimulateScenario,
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
@@ -200,9 +201,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.Reconnected);
         this.updateSubscriptions();
       })
-      .on(EngineEvent.SignalResumed, () => {
+      .on(EngineEvent.SignalResumed, (reconnectResp) => {
         if (this.state === ConnectionState.Reconnecting) {
           this.sendSyncState();
+        }
+        if (reconnectResp) {
+          this.rehydrateStateAfterReconnect(reconnectResp);
         }
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
@@ -743,6 +747,27 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
+  private rehydrateStateAfterReconnect(resp: JoinResponse | ReconnectResponse) {
+    // rehydrate room state
+    if (resp.room) {
+      this.handleRoomUpdate(resp.room);
+    }
+    // rehydrate participants
+    if (resp.participant) {
+      // with a restart, the sid could have changed, we'll map our understanding to it
+      this.localParticipant.sid = resp.participant.sid;
+      this.handleParticipantUpdates([resp.participant]);
+    }
+    this.handleParticipantUpdates(resp.otherParticipants);
+
+    // remove participants that are not within the joinResp/reconnectResp as they might have disconnected during a reconnect
+    Array.from(this.participants.values()).map((participant) => {
+      if (!resp.otherParticipants.find((pi) => pi.identity === participant.identity)) {
+        this.handleParticipantDisconnected(participant.sid, participant);
+      }
+    });
+  }
+
   private handleRestarted = async (joinResponse: JoinResponse) => {
     log.debug(`reconnected to server`, {
       region: joinResponse.serverRegion,
@@ -750,13 +775,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
 
-    // rehydrate participants
-    if (joinResponse.participant) {
-      // with a restart, the sid will have changed, we'll map our understanding to it
-      this.localParticipant.sid = joinResponse.participant.sid;
-      this.handleParticipantUpdates([joinResponse.participant]);
-    }
-    this.handleParticipantUpdates(joinResponse.otherParticipants);
+    this.rehydrateStateAfterReconnect(joinResponse);
 
     // unpublish & republish tracks
     const localPubs: LocalTrackPublication[] = [];
@@ -1236,7 +1255,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     event: E,
     ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
-    if (this.state === ConnectionState.Connected) {
+    if (
+      this.state === ConnectionState.Connected ||
+      // also allow for room events to be emitted during reconnection
+      this.state === ConnectionState.Reconnecting
+    ) {
       return this.emit(event, ...args);
     }
     return false;
