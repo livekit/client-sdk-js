@@ -1,12 +1,7 @@
 import 'webrtc-adapter';
 import log from '../../logger';
 import type { InternalRoomOptions } from '../../options';
-import {
-  DataPacket,
-  DataPacket_Kind,
-  ParticipantInfo,
-  ParticipantPermission,
-} from '../../proto/livekit_models';
+import { DataPacket, DataPacket_Kind, ParticipantInfo } from '../../proto/livekit_models';
 import {
   AddTrackRequest,
   DataChannelInfo,
@@ -166,16 +161,6 @@ export default class LocalParticipant extends Participant {
     publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options, publishOptions);
-  }
-
-  /** @internal */
-  setPermissions(permissions: ParticipantPermission): boolean {
-    const prevPermissions = this.permissions;
-    const changed = super.setPermissions(permissions);
-    if (changed && prevPermissions) {
-      this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
-    }
-    return changed;
   }
 
   /**

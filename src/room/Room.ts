@@ -843,10 +843,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
-      if (
-        info.sid === this.localParticipant.sid ||
-        info.identity === this.localParticipant.identity
-      ) {
+      if (info.identity === this.localParticipant.identity) {
         this.localParticipant.updateInfo(info);
         return;
       }
@@ -1138,7 +1135,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(
         ParticipantEvent.ParticipantPermissionsChanged,
-        (prevPermissions: ParticipantPermission) => {
+        (prevPermissions?: ParticipantPermission) => {
           this.emitWhenConnected(
             RoomEvent.ParticipantPermissionsChanged,
             prevPermissions,
@@ -1273,7 +1270,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.MediaDevicesError, e);
   };
 
-  private onLocalParticipantPermissionsChanged = (prevPermissions: ParticipantPermission) => {
+  private onLocalParticipantPermissionsChanged = (prevPermissions?: ParticipantPermission) => {
     this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, this.localParticipant);
   };
 
@@ -1442,7 +1439,7 @@ export type RoomEventCallbacks = {
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
   participantPermissionsChanged: (
-    prevPermissions: ParticipantPermission,
+    prevPermissions: ParticipantPermission | undefined,
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
   activeSpeakersChanged: (speakers: Array<Participant>) => void;
