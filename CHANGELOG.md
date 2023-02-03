@@ -1,5 +1,19 @@
 # Change Log
 
+## 1.6.4
+
+### Patch Changes
+
+- [#566](https://github.com/livekit/client-sdk-js/pull/566) [`f06ee24`](https://github.com/livekit/client-sdk-js/commit/f06ee2439132ba4e71444d6685036df455e0d5cd) Thanks [@otakueadwine](https://github.com/otakueadwine)! - Export CheckStatus type
+
+- [#569](https://github.com/livekit/client-sdk-js/pull/569) [`b53f5c5`](https://github.com/livekit/client-sdk-js/commit/b53f5c56751cc2bc76092af53a85ccde6ae92023) Thanks [@lukasIO](https://github.com/lukasIO)! - Emit `Participant.PermissionChanged` event also for remote participants
+
+- [#562](https://github.com/livekit/client-sdk-js/pull/562) [`b9cd661`](https://github.com/livekit/client-sdk-js/commit/b9cd661c3adb2f8be07cc69855243b9b2dfb8098) Thanks [@kilimnik](https://github.com/kilimnik)! - Emit DeviceUnsupportedError when getDisplayMedia is not supported on a device
+
+- [#568](https://github.com/livekit/client-sdk-js/pull/568) [`6e35f39`](https://github.com/livekit/client-sdk-js/commit/6e35f39870bf4571289ff023f69786aa7ea78d36) Thanks [@davidzhao](https://github.com/davidzhao)! - Fixed handling of unknown signal messages
+
+- [#570](https://github.com/livekit/client-sdk-js/pull/570) [`4ee0f5a`](https://github.com/livekit/client-sdk-js/commit/4ee0f5a3bdc1c50a0f861b4dd25522af5764ff56) Thanks [@lukasIO](https://github.com/lukasIO)! - Drop local participant updates with wrong sid
+
 ## 1.6.3
 
 ### Patch Changes
