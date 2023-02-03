@@ -685,7 +685,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (this.reconnectAttempts === 0) {
       // only reset start time on the first try
       this.reconnectStart = Date.now();
-      this.emit(EngineEvent.Resuming);
     }
 
     const disconnect = (duration: number) => {
@@ -711,6 +710,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     log.debug(`reconnecting in ${delay}ms`);
+    if (this.reconnectAttempts === 0) {
+      this.emit(EngineEvent.Resuming);
+    }
 
     this.clearReconnectTimeout();
     this.reconnectTimeout = CriticalTimers.setTimeout(
@@ -843,7 +845,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
-    if (emitResuming) {
+    if (
+      emitResuming &&
+      // for the first reconnect attempt the event is being emitted in handleDisconnect
+      this.reconnectAttempts !== 0
+    ) {
       this.emit(EngineEvent.Resuming);
     }
 
@@ -855,7 +861,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.subscriber.pc.setConfiguration(rtcConfig);
       }
 
-      this.emit(EngineEvent.SignalResumed, res ?? undefined);
+      this.emit(EngineEvent.SignalResumed, res);
     } catch (e) {
       let message = '';
       if (e instanceof Error) {

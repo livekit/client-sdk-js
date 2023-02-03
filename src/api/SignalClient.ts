@@ -166,7 +166,11 @@ export class SignalClient {
     return res as JoinResponse;
   }
 
-  async reconnect(url: string, token: string, sid?: string): Promise<ReconnectResponse | void> {
+  async reconnect(
+    url: string,
+    token: string,
+    sid?: string,
+  ): Promise<ReconnectResponse | undefined> {
     if (!this.options) {
       log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
@@ -184,7 +188,7 @@ export class SignalClient {
     token: string,
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
-  ): Promise<JoinResponse | ReconnectResponse | void> {
+  ): Promise<JoinResponse | ReconnectResponse | undefined> {
     this.connectOptions = opts;
     if (url.startsWith('http')) {
       url = url.replace('http', 'ws');
@@ -196,7 +200,7 @@ export class SignalClient {
     const clientInfo = getClientInfo();
     const params = createConnectionParams(token, clientInfo, opts);
 
-    return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
+    return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       const abortHandler = async () => {
         await this.close();
         reject(new ConnectionError('room connection has been cancelled'));
@@ -281,7 +285,7 @@ export class SignalClient {
             if (resp.message?.$case === 'reconnect') {
               resolve(resp.message?.reconnect);
             } else {
-              resolve();
+              resolve(undefined);
               shouldProcessMessage = true;
             }
           } else if (!opts.reconnect) {

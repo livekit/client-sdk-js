@@ -202,11 +202,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.updateSubscriptions();
       })
       .on(EngineEvent.SignalResumed, (reconnectResp) => {
-        if (this.state === ConnectionState.Reconnecting) {
-          this.sendSyncState();
-        }
         if (reconnectResp) {
           this.rehydrateStateAfterReconnect(reconnectResp);
+        }
+        if (this.state === ConnectionState.Reconnecting) {
+          this.sendSyncState();
         }
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
