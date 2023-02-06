@@ -355,12 +355,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       } catch (err) {
         this.recreateEngine();
         this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
-        let errorMessage = '';
+        const resultingError = new ConnectionError(`could not establish signal connection`)
         if (err instanceof Error) {
-          errorMessage = err.message;
-          log.debug(`error trying to establish signal connection`, { error: err });
+          resultingError.message = `${resultingError.message}: ${err.message}`;
         }
-        reject(new ConnectionError(`could not establish signal connection: ${errorMessage}`));
+        if (err instanceof ConnectionError) {
+          resultingError.reason = err.reason;
+          resultingError.status = err.status;
+        }
+        log.debug(`error trying to establish signal connection`, { error: err });
+        reject(resultingError);
         return;
       }
 
