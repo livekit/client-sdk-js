@@ -287,6 +287,57 @@ export function disconnectReasonToJSON(object: DisconnectReason): string {
   }
 }
 
+export enum ReconnectReason {
+  REASON_UNKOWN = 0,
+  REASON_SIGNAL_DISCONNECTED = 1,
+  REASON_PUBLISHER_FAILED = 2,
+  REASON_SUBSCRIBER_FAILED = 3,
+  REASON_SWITCH_CANDIDATE = 4,
+  UNRECOGNIZED = -1,
+}
+
+export function reconnectReasonFromJSON(object: any): ReconnectReason {
+  switch (object) {
+    case 0:
+    case "REASON_UNKOWN":
+      return ReconnectReason.REASON_UNKOWN;
+    case 1:
+    case "REASON_SIGNAL_DISCONNECTED":
+      return ReconnectReason.REASON_SIGNAL_DISCONNECTED;
+    case 2:
+    case "REASON_PUBLISHER_FAILED":
+      return ReconnectReason.REASON_PUBLISHER_FAILED;
+    case 3:
+    case "REASON_SUBSCRIBER_FAILED":
+      return ReconnectReason.REASON_SUBSCRIBER_FAILED;
+    case 4:
+    case "REASON_SWITCH_CANDIDATE":
+      return ReconnectReason.REASON_SWITCH_CANDIDATE;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return ReconnectReason.UNRECOGNIZED;
+  }
+}
+
+export function reconnectReasonToJSON(object: ReconnectReason): string {
+  switch (object) {
+    case ReconnectReason.REASON_UNKOWN:
+      return "REASON_UNKOWN";
+    case ReconnectReason.REASON_SIGNAL_DISCONNECTED:
+      return "REASON_SIGNAL_DISCONNECTED";
+    case ReconnectReason.REASON_PUBLISHER_FAILED:
+      return "REASON_PUBLISHER_FAILED";
+    case ReconnectReason.REASON_SUBSCRIBER_FAILED:
+      return "REASON_SUBSCRIBER_FAILED";
+    case ReconnectReason.REASON_SWITCH_CANDIDATE:
+      return "REASON_SWITCH_CANDIDATE";
+    case ReconnectReason.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 export interface Room {
   sid: string;
   name: string;
