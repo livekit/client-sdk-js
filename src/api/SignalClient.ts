@@ -590,7 +590,7 @@ export class SignalClient {
       this.resetPingTimeout();
     } else if (msg.$case === 'pongResp') {
       this.rtt = Date.now() - msg.pongResp.lastPingTimestamp;
-      this.clearPingTimeout();
+      this.resetPingTimeout();
     } else {
       log.debug('unsupported message', msg);
     }
@@ -610,6 +610,10 @@ export class SignalClient {
     log.error('websocket error', ev);
   }
 
+  /**
+   * Resets the ping timeout and starts a new timeout.
+   * Call this after receiving a pong message
+   */
   private resetPingTimeout() {
     this.clearPingTimeout();
     if (!this.pingTimeoutDuration) {
@@ -628,6 +632,9 @@ export class SignalClient {
     }, this.pingTimeoutDuration * 1000);
   }
 
+  /**
+   * Clears ping timeout (does not start a new timeout)
+   */
   private clearPingTimeout() {
     if (this.pingTimeout) {
       CriticalTimers.clearTimeout(this.pingTimeout);
