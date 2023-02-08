@@ -392,7 +392,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.abortController?.signal.removeEventListener('abort', abortHandler);
         // also hook unload event
         if (isWeb()) {
-          window.addEventListener('beforeunload', this.onBeforeUnload);
+          window.addEventListener('unload', this.onUnload);
           navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
         }
         this.setAndEmitConnectionState(ConnectionState.Connected);
@@ -542,7 +542,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private onBeforeUnload = async () => {
+  private onUnload = async () => {
     await this.disconnect();
   };
 
@@ -837,7 +837,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.audioContext = undefined;
     }
     if (isWeb()) {
-      window.removeEventListener('beforeunload', this.onBeforeUnload);
+      window.removeEventListener('unload', this.onUnload);
       navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
     }
     this.setAndEmitConnectionState(ConnectionState.Disconnected);
