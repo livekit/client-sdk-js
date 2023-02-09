@@ -999,7 +999,9 @@ export default class LocalParticipant extends Participant {
               // detect granted change after permissions were denied to try and resume then
               currentPermissions.onchange = () => {
                 if (currentPermissions.state !== 'denied') {
-                  track.restartTrack();
+                  if (!track.isMuted) {
+                    track.restartTrack();
+                  }
                   currentPermissions.onchange = null;
                 }
               };
