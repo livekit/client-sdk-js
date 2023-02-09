@@ -14,9 +14,7 @@ import {
   RemoveTransformMessage,
   UpdateCodecMessage,
 } from './types';
-// eslint-disable-next-line import/extensions
-// @ts-ignore
-import WebWorkerURL from './e2ee.worker.js?worker&url';
+
 import { isE2EESupported, isScriptTransformSupported, mimeTypeToCodecString } from './utils';
 import type Room from '../room/Room';
 import { ParticipantEvent, RoomEvent } from '../room/events';
@@ -29,13 +27,13 @@ import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
 import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
 import type { VideoCodec } from '../room/track/options';
+// @ts-ignore
+import E2EEWorker from './e2ee.worker?worker';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
   protected worker?: Worker;
 
   protected room?: Room;
-
-  protected webWorkerUrl = new URL(WebWorkerURL, import.meta.url);
 
   protected workerAsModule = true;
 
@@ -67,19 +65,19 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     if (room !== this.room) {
       this.room = room;
       this.setupEventListeners(room, this.keyProvider);
-      this.worker = new Worker(this.webWorkerUrl, {
-        type: this.workerAsModule ? 'module' : 'classic',
-      });
+      this.worker = new E2EEWorker();
       const msg: InitMessage = {
         kind: 'init',
         data: {
           sharedKey: true,
         },
       };
-      log.info(`initializing worker`, { worker: this.worker });
-      this.worker.onmessage = this.onWorkerMessage;
-      this.worker.onerror = this.onWorkerError;
-      this.worker.postMessage(msg);
+      if (this.worker) {
+        log.info(`initializing worker`, { worker: this.worker });
+        this.worker.onmessage = this.onWorkerMessage;
+        this.worker.onerror = this.onWorkerError;
+        this.worker.postMessage(msg);
+      }
     }
   }
 
