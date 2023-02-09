@@ -1011,8 +1011,10 @@ export default class LocalParticipant extends Participant {
             // permissions query fails for firefox, we continue and try to restart the track
           }
         }
-        log.debug('track ended, attempting to use a different device');
-        await track.restartTrack();
+        if (!track.isMuted) {
+          log.debug('track ended, attempting to use a different device');
+          await track.restartTrack();
+        }
       } catch (e) {
         log.warn(`could not restart track, muting instead`);
         await track.mute();
