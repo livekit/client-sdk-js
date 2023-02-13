@@ -116,6 +116,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** options of room */
   options: InternalRoomOptions;
 
+  /** reflects the sender encryption status of the local participant */
   isE2EEEnabled: boolean = false;
 
   private _isRecording: boolean = false;
@@ -191,7 +192,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.e2eeManager.on(
         EncryptionEvent.ParticipantEncryptionStatusChanged,
         (enabled, participant) => {
-          this.isE2EEEnabled = enabled;
+          if (participant instanceof LocalParticipant) {
+            this.isE2EEEnabled = enabled;
+          }
           this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
         },
       );
