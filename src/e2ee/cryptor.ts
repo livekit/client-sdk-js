@@ -430,7 +430,7 @@ export class Cryptor extends BaseCryptor {
 
     ivView.setUint32(0, synchronizationSource);
     ivView.setUint32(4, timestamp);
-    ivView.setUint32(8, sendCount % 0xffff);
+    ivView.setUint32(8, timestamp - (sendCount % 0xffff));
 
     this.sendCounts.set(synchronizationSource, sendCount + 1);
 
@@ -461,7 +461,7 @@ function getUnencryptedBytes(
               // workerLogger.debug(`skipping NALU of type ${NALUType[type]}`);
               break;
             default:
-              return index + 1;
+              return index + 2;
               break;
           }
         }
