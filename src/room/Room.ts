@@ -195,13 +195,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
         },
       );
-      this.e2eeManager.on(
-        EncryptionEvent.ParticipantEncryptionStatusChanged,
-        (enabled, participant) => {
-          this.isE2EEEnabled = enabled;
-          this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
-        },
-      );
       this.e2eeManager.on(EncryptionEvent.Error, (error) =>
         this.emit(RoomEvent.EncryptionError, error),
       );
