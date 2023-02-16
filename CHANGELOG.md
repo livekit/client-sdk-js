@@ -1,5 +1,15 @@
 # Change Log
 
+## 1.6.5
+
+### Patch Changes
+
+- [#575](https://github.com/livekit/client-sdk-js/pull/575) [`b8fd583`](https://github.com/livekit/client-sdk-js/commit/b8fd583610c13d23aa9a8f3778d765e2691807dd) Thanks [@HermanBilous](https://github.com/HermanBilous)! - Provide more context to ConnectionError when connecting to a room
+
+- [#573](https://github.com/livekit/client-sdk-js/pull/573) [`b71ec61`](https://github.com/livekit/client-sdk-js/commit/b71ec6112fd1c6ac79c8be66fd0327824ee6044a) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Add reconnect reason and signal rtt calculation
+
+- [#581](https://github.com/livekit/client-sdk-js/pull/581) [`6b35e07`](https://github.com/livekit/client-sdk-js/commit/6b35e07482249f103ca2cf186a00ca9c6ff26032) Thanks [@lukasIO](https://github.com/lukasIO)! - Only restart track after permission change if not muted
+
 ## 1.6.4
 
 ### Patch Changes
