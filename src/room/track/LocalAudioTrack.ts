@@ -53,7 +53,11 @@ export default class LocalAudioTrack extends LocalTrack {
 
   async unmute(): Promise<LocalAudioTrack> {
     await this.muteQueue.run(async () => {
-      if (this.source === Track.Source.Microphone && this.stopOnMute && !this.isUserProvided) {
+      if (
+        this.source === Track.Source.Microphone &&
+        (this.stopOnMute || this._mediaStreamTrack.readyState === 'ended') &&
+        !this.isUserProvided
+      ) {
         log.debug('reacquiring mic track');
         await this.restartTrack();
       }
