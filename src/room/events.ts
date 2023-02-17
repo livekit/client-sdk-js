@@ -252,7 +252,8 @@ export enum RoomEvent {
   SignalConnected = 'signalConnected',
 
   /**
-   * Recording of a room has started/stopped.
+   * Recording of a room has started/stopped. Room.isRecording will be updated too.
+   * args: (isRecording: boolean)
    */
   RecordingStatusChanged = 'recordingStatusChanged',
 }
