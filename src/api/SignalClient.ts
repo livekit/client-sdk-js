@@ -12,6 +12,7 @@ import {
 } from '../proto/livekit_models';
 import {
   AddTrackRequest,
+  AudioTrackMuxUpdate,
   ConnectionQualityUpdate,
   JoinResponse,
   LeaveRequest,
@@ -133,6 +134,8 @@ export class SignalClient {
   onTokenRefresh?: (token: string) => void;
 
   onLeave?: (leave: LeaveRequest) => void;
+
+  onAudioMuxUpdate?: (update: AudioTrackMuxUpdate) => void;
 
   connectOptions?: ConnectOpts;
 
@@ -588,6 +591,10 @@ export class SignalClient {
       }
     } else if (msg.$case === 'pong') {
       this.resetPingTimeout();
+    } else if (msg.$case === 'audioMuxUpdate') {
+      if (this.onAudioMuxUpdate) {
+        this.onAudioMuxUpdate(msg.audioMuxUpdate);
+      }
     } else if (msg.$case === 'pongResp') {
       this.rtt = Date.now() - msg.pongResp.lastPingTimestamp;
       this.resetPingTimeout();

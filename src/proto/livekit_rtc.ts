@@ -176,7 +176,8 @@ export interface SignalResponse {
     | { $case: "trackUnpublished"; trackUnpublished: TrackUnpublishedResponse }
     | { $case: "pong"; pong: number }
     | { $case: "reconnect"; reconnect: ReconnectResponse }
-    | { $case: "pongResp"; pongResp: Pong };
+    | { $case: "pongResp"; pongResp: Pong }
+    | { $case: "audioMuxUpdate"; audioMuxUpdate: AudioTrackMuxUpdate };
 }
 
 export interface SimulcastCodec {
@@ -243,9 +244,6 @@ export interface JoinResponse {
 export interface ReconnectResponse {
   iceServers: ICEServer[];
   clientConfiguration?: ClientConfiguration;
-  room?: Room;
-  participant?: ParticipantInfo;
-  otherParticipants: ParticipantInfo[];
 }
 
 export interface TrackPublishedResponse {
@@ -407,6 +405,16 @@ export interface SimulateScenario {
     | { $case: "migration"; migration: boolean }
     | { $case: "serverLeave"; serverLeave: boolean }
     | { $case: "switchCandidateProtocol"; switchCandidateProtocol: CandidateProtocol };
+}
+
+export interface AudioTrackMuxUpdate {
+  audioTrackMuxes: AudioTrackMuxInfo[];
+}
+
+export interface AudioTrackMuxInfo {
+  sdpTrackId: string;
+  trackSid: string;
+  participantSid: string;
 }
 
 export interface Ping {
@@ -789,6 +797,9 @@ export const SignalResponse = {
     if (message.message?.$case === "pongResp") {
       Pong.encode(message.message.pongResp, writer.uint32(162).fork()).ldelim();
     }
+    if (message.message?.$case === "audioMuxUpdate") {
+      AudioTrackMuxUpdate.encode(message.message.audioMuxUpdate, writer.uint32(170).fork()).ldelim();
+    }
     return writer;
   },
 
@@ -877,6 +888,12 @@ export const SignalResponse = {
         case 20:
           message.message = { $case: "pongResp", pongResp: Pong.decode(reader, reader.uint32()) };
           break;
+        case 21:
+          message.message = {
+            $case: "audioMuxUpdate",
+            audioMuxUpdate: AudioTrackMuxUpdate.decode(reader, reader.uint32()),
+          };
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -931,6 +948,8 @@ export const SignalResponse = {
         ? { $case: "reconnect", reconnect: ReconnectResponse.fromJSON(object.reconnect) }
         : isSet(object.pongResp)
         ? { $case: "pongResp", pongResp: Pong.fromJSON(object.pongResp) }
+        : isSet(object.audioMuxUpdate)
+        ? { $case: "audioMuxUpdate", audioMuxUpdate: AudioTrackMuxUpdate.fromJSON(object.audioMuxUpdate) }
         : undefined,
     };
   },
@@ -982,6 +1001,9 @@ export const SignalResponse = {
       (obj.reconnect = message.message?.reconnect ? ReconnectResponse.toJSON(message.message?.reconnect) : undefined);
     message.message?.$case === "pongResp" &&
       (obj.pongResp = message.message?.pongResp ? Pong.toJSON(message.message?.pongResp) : undefined);
+    message.message?.$case === "audioMuxUpdate" && (obj.audioMuxUpdate = message.message?.audioMuxUpdate
+      ? AudioTrackMuxUpdate.toJSON(message.message?.audioMuxUpdate)
+      : undefined);
     return obj;
   },
 
@@ -1112,6 +1134,16 @@ export const SignalResponse = {
       object.message?.pongResp !== null
     ) {
       message.message = { $case: "pongResp", pongResp: Pong.fromPartial(object.message.pongResp) };
+    }
+    if (
+      object.message?.$case === "audioMuxUpdate" &&
+      object.message?.audioMuxUpdate !== undefined &&
+      object.message?.audioMuxUpdate !== null
+    ) {
+      message.message = {
+        $case: "audioMuxUpdate",
+        audioMuxUpdate: AudioTrackMuxUpdate.fromPartial(object.message.audioMuxUpdate),
+      };
     }
     return message;
   },
@@ -1675,13 +1707,7 @@ export const JoinResponse = {
 };
 
 function createBaseReconnectResponse(): ReconnectResponse {
-  return {
-    iceServers: [],
-    clientConfiguration: undefined,
-    room: undefined,
-    participant: undefined,
-    otherParticipants: [],
-  };
+  return { iceServers: [], clientConfiguration: undefined };
 }
 
 export const ReconnectResponse = {
@@ -1691,15 +1717,6 @@ export const ReconnectResponse = {
     }
     if (message.clientConfiguration !== undefined) {
       ClientConfiguration.encode(message.clientConfiguration, writer.uint32(18).fork()).ldelim();
-    }
-    if (message.room !== undefined) {
-      Room.encode(message.room, writer.uint32(26).fork()).ldelim();
-    }
-    if (message.participant !== undefined) {
-      ParticipantInfo.encode(message.participant, writer.uint32(34).fork()).ldelim();
-    }
-    for (const v of message.otherParticipants) {
-      ParticipantInfo.encode(v!, writer.uint32(42).fork()).ldelim();
     }
     return writer;
   },
@@ -1717,15 +1734,6 @@ export const ReconnectResponse = {
         case 2:
           message.clientConfiguration = ClientConfiguration.decode(reader, reader.uint32());
           break;
-        case 3:
-          message.room = Room.decode(reader, reader.uint32());
-          break;
-        case 4:
-          message.participant = ParticipantInfo.decode(reader, reader.uint32());
-          break;
-        case 5:
-          message.otherParticipants.push(ParticipantInfo.decode(reader, reader.uint32()));
-          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1740,11 +1748,6 @@ export const ReconnectResponse = {
       clientConfiguration: isSet(object.clientConfiguration)
         ? ClientConfiguration.fromJSON(object.clientConfiguration)
         : undefined,
-      room: isSet(object.room) ? Room.fromJSON(object.room) : undefined,
-      participant: isSet(object.participant) ? ParticipantInfo.fromJSON(object.participant) : undefined,
-      otherParticipants: Array.isArray(object?.otherParticipants)
-        ? object.otherParticipants.map((e: any) => ParticipantInfo.fromJSON(e))
-        : [],
     };
   },
 
@@ -1758,14 +1761,6 @@ export const ReconnectResponse = {
     message.clientConfiguration !== undefined && (obj.clientConfiguration = message.clientConfiguration
       ? ClientConfiguration.toJSON(message.clientConfiguration)
       : undefined);
-    message.room !== undefined && (obj.room = message.room ? Room.toJSON(message.room) : undefined);
-    message.participant !== undefined &&
-      (obj.participant = message.participant ? ParticipantInfo.toJSON(message.participant) : undefined);
-    if (message.otherParticipants) {
-      obj.otherParticipants = message.otherParticipants.map((e) => e ? ParticipantInfo.toJSON(e) : undefined);
-    } else {
-      obj.otherParticipants = [];
-    }
     return obj;
   },
 
@@ -1775,11 +1770,6 @@ export const ReconnectResponse = {
     message.clientConfiguration = (object.clientConfiguration !== undefined && object.clientConfiguration !== null)
       ? ClientConfiguration.fromPartial(object.clientConfiguration)
       : undefined;
-    message.room = (object.room !== undefined && object.room !== null) ? Room.fromPartial(object.room) : undefined;
-    message.participant = (object.participant !== undefined && object.participant !== null)
-      ? ParticipantInfo.fromPartial(object.participant)
-      : undefined;
-    message.otherParticipants = object.otherParticipants?.map((e) => ParticipantInfo.fromPartial(e)) || [];
     return message;
   },
 };
@@ -3475,6 +3465,128 @@ export const SimulateScenario = {
         switchCandidateProtocol: object.scenario.switchCandidateProtocol,
       };
     }
+    return message;
+  },
+};
+
+function createBaseAudioTrackMuxUpdate(): AudioTrackMuxUpdate {
+  return { audioTrackMuxes: [] };
+}
+
+export const AudioTrackMuxUpdate = {
+  encode(message: AudioTrackMuxUpdate, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    for (const v of message.audioTrackMuxes) {
+      AudioTrackMuxInfo.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): AudioTrackMuxUpdate {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAudioTrackMuxUpdate();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.audioTrackMuxes.push(AudioTrackMuxInfo.decode(reader, reader.uint32()));
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AudioTrackMuxUpdate {
+    return {
+      audioTrackMuxes: Array.isArray(object?.audioTrackMuxes)
+        ? object.audioTrackMuxes.map((e: any) => AudioTrackMuxInfo.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: AudioTrackMuxUpdate): unknown {
+    const obj: any = {};
+    if (message.audioTrackMuxes) {
+      obj.audioTrackMuxes = message.audioTrackMuxes.map((e) => e ? AudioTrackMuxInfo.toJSON(e) : undefined);
+    } else {
+      obj.audioTrackMuxes = [];
+    }
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<AudioTrackMuxUpdate>, I>>(object: I): AudioTrackMuxUpdate {
+    const message = createBaseAudioTrackMuxUpdate();
+    message.audioTrackMuxes = object.audioTrackMuxes?.map((e) => AudioTrackMuxInfo.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseAudioTrackMuxInfo(): AudioTrackMuxInfo {
+  return { sdpTrackId: "", trackSid: "", participantSid: "" };
+}
+
+export const AudioTrackMuxInfo = {
+  encode(message: AudioTrackMuxInfo, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.sdpTrackId !== "") {
+      writer.uint32(10).string(message.sdpTrackId);
+    }
+    if (message.trackSid !== "") {
+      writer.uint32(18).string(message.trackSid);
+    }
+    if (message.participantSid !== "") {
+      writer.uint32(26).string(message.participantSid);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): AudioTrackMuxInfo {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseAudioTrackMuxInfo();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.sdpTrackId = reader.string();
+          break;
+        case 2:
+          message.trackSid = reader.string();
+          break;
+        case 3:
+          message.participantSid = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): AudioTrackMuxInfo {
+    return {
+      sdpTrackId: isSet(object.sdpTrackId) ? String(object.sdpTrackId) : "",
+      trackSid: isSet(object.trackSid) ? String(object.trackSid) : "",
+      participantSid: isSet(object.participantSid) ? String(object.participantSid) : "",
+    };
+  },
+
+  toJSON(message: AudioTrackMuxInfo): unknown {
+    const obj: any = {};
+    message.sdpTrackId !== undefined && (obj.sdpTrackId = message.sdpTrackId);
+    message.trackSid !== undefined && (obj.trackSid = message.trackSid);
+    message.participantSid !== undefined && (obj.participantSid = message.participantSid);
+    return obj;
+  },
+
+  fromPartial<I extends Exact<DeepPartial<AudioTrackMuxInfo>, I>>(object: I): AudioTrackMuxInfo {
+    const message = createBaseAudioTrackMuxInfo();
+    message.sdpTrackId = object.sdpTrackId ?? "";
+    message.trackSid = object.trackSid ?? "";
+    message.participantSid = object.participantSid ?? "";
     return message;
   },
 };

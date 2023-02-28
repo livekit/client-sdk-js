@@ -61,6 +61,12 @@ enum PCState {
   Closed,
 }
 
+interface AudioMuxTrack {
+  track: MediaStreamTrack;
+  stream: MediaStream;
+  receiver: RTCRtpReceiver;
+}
+
 /** @internal */
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
   publisher?: PCTransport;
@@ -72,6 +78,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   rtcConfig: RTCConfiguration = {};
 
   peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
+
+  audioMuxTracks: Map<string, AudioMuxTrack> = new Map();
 
   get isClosed() {
     return this._isClosed;
@@ -357,6 +365,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
+      if (ev.track.kind === 'audio' && ev.track.id.includes('TR_AX')) {
+        this.audioMuxTracks.set(ev.track.id, {track: ev.track, stream: ev.streams[0], receiver: ev.receiver})
+      }
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
 

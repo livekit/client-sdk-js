@@ -288,31 +288,31 @@ export function disconnectReasonToJSON(object: DisconnectReason): string {
 }
 
 export enum ReconnectReason {
-  REASON_UNKOWN = 0,
-  REASON_SIGNAL_DISCONNECTED = 1,
-  REASON_PUBLISHER_FAILED = 2,
-  REASON_SUBSCRIBER_FAILED = 3,
-  REASON_SWITCH_CANDIDATE = 4,
+  RR_UNKOWN = 0,
+  RR_SIGNAL_DISCONNECTED = 1,
+  RR_PUBLISHER_FAILED = 2,
+  RR_SUBSCRIBER_FAILED = 3,
+  RR_SWITCH_CANDIDATE = 4,
   UNRECOGNIZED = -1,
 }
 
 export function reconnectReasonFromJSON(object: any): ReconnectReason {
   switch (object) {
     case 0:
-    case "REASON_UNKOWN":
-      return ReconnectReason.REASON_UNKOWN;
+    case "RR_UNKOWN":
+      return ReconnectReason.RR_UNKOWN;
     case 1:
-    case "REASON_SIGNAL_DISCONNECTED":
-      return ReconnectReason.REASON_SIGNAL_DISCONNECTED;
+    case "RR_SIGNAL_DISCONNECTED":
+      return ReconnectReason.RR_SIGNAL_DISCONNECTED;
     case 2:
-    case "REASON_PUBLISHER_FAILED":
-      return ReconnectReason.REASON_PUBLISHER_FAILED;
+    case "RR_PUBLISHER_FAILED":
+      return ReconnectReason.RR_PUBLISHER_FAILED;
     case 3:
-    case "REASON_SUBSCRIBER_FAILED":
-      return ReconnectReason.REASON_SUBSCRIBER_FAILED;
+    case "RR_SUBSCRIBER_FAILED":
+      return ReconnectReason.RR_SUBSCRIBER_FAILED;
     case 4:
-    case "REASON_SWITCH_CANDIDATE":
-      return ReconnectReason.REASON_SWITCH_CANDIDATE;
+    case "RR_SWITCH_CANDIDATE":
+      return ReconnectReason.RR_SWITCH_CANDIDATE;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -322,16 +322,16 @@ export function reconnectReasonFromJSON(object: any): ReconnectReason {
 
 export function reconnectReasonToJSON(object: ReconnectReason): string {
   switch (object) {
-    case ReconnectReason.REASON_UNKOWN:
-      return "REASON_UNKOWN";
-    case ReconnectReason.REASON_SIGNAL_DISCONNECTED:
-      return "REASON_SIGNAL_DISCONNECTED";
-    case ReconnectReason.REASON_PUBLISHER_FAILED:
-      return "REASON_PUBLISHER_FAILED";
-    case ReconnectReason.REASON_SUBSCRIBER_FAILED:
-      return "REASON_SUBSCRIBER_FAILED";
-    case ReconnectReason.REASON_SWITCH_CANDIDATE:
-      return "REASON_SWITCH_CANDIDATE";
+    case ReconnectReason.RR_UNKOWN:
+      return "RR_UNKOWN";
+    case ReconnectReason.RR_SIGNAL_DISCONNECTED:
+      return "RR_SIGNAL_DISCONNECTED";
+    case ReconnectReason.RR_PUBLISHER_FAILED:
+      return "RR_PUBLISHER_FAILED";
+    case ReconnectReason.RR_SUBSCRIBER_FAILED:
+      return "RR_SUBSCRIBER_FAILED";
+    case ReconnectReason.RR_SWITCH_CANDIDATE:
+      return "RR_SWITCH_CANDIDATE";
     case ReconnectReason.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";

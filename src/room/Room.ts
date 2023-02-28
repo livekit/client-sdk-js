@@ -23,6 +23,7 @@ import {
   UserPacket,
 } from '../proto/livekit_models';
 import {
+  AudioTrackMuxUpdate,
   ConnectionQualityUpdate,
   JoinResponse,
   SimulateScenario,
@@ -64,6 +65,7 @@ import {
   supportsSetSinkId,
   unpackStreamId,
 } from './utils';
+import RemoteAudioTrack from './track/RemoteAudioTrack';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -133,6 +135,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private disconnectLock: Mutex;
 
+  /** mapping of sdp track id -> RemoteTrackPublication */
+  private audioTrackMux: Map<string, RemoteTrackPublication> = new Map();
+
+  /** mapping of sdp track id -> RemoteAudioTrack */
+  private roomAudioTracks: Map<string, RemoteAudioTrack> = new Map();
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -177,6 +185,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.engine.client.onStreamStateUpdate = this.handleStreamStateUpdate;
     this.engine.client.onSubscriptionPermissionUpdate = this.handleSubscriptionPermissionUpdate;
     this.engine.client.onConnectionQuality = this.handleConnectionQualityUpdate;
+    this.engine.client.onAudioMuxUpdate = this.handleAudioMuxUpdate;
 
     this.engine
       .on(
@@ -650,6 +659,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.options.audioOutput.deviceId = prevDeviceId;
         throw e;
       }
+
+      // TODO: set audio output for room audio tracks
     }
   }
 
@@ -1041,6 +1052,41 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
     });
   };
+
+  private handleAudioMuxUpdate = (update: AudioTrackMuxUpdate) => {
+    // if track is not playing, detach from audio element
+    this.audioTrackMux.forEach((pub: RemoteTrackPublication) => {
+      if (!update.audioTrackMuxes.some((newPub) => newPub.trackSid === pub.trackSid)) {
+        pub.setTrack(undefined);
+      }
+    })
+
+    this.audioTrackMux.clear();
+    update.audioTrackMuxes.forEach(info => {
+      const muxTrack = this.engine.audioMuxTracks.get(info.sdpTrackId);
+      if (!muxTrack) {
+        log.error(`can't find mux track for sdp track id ${info.sdpTrackId}`);
+        return;
+      }
+
+      let remoteTrack = this.roomAudioTracks.get(info.sdpTrackId);
+      if (!remoteTrack) {
+        remoteTrack = new RemoteAudioTrack(muxTrack.track, info.trackSid,  muxTrack.receiver, this.audioContext, this.options.audioOutput);
+        this.roomAudioTracks.set(info.sdpTrackId, remoteTrack);
+      }
+
+      const participant = this.participants.get(info.participantSid);
+      if (!participant) {
+        log.error(`can't find participant for ${info.sdpTrackId}`);
+        return;
+      }
+
+      const p = participant.addMuxAudioTrack(remoteTrack, muxTrack.track, info.trackSid, muxTrack.stream);
+      if (p) {
+        this.audioTrackMux.set(info.sdpTrackId, p)
+      }
+    })
+  }
 
   private async acquireAudioContext() {
     if (
