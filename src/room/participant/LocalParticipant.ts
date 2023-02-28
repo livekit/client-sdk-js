@@ -957,7 +957,7 @@ export default class LocalParticipant extends Participant {
         }
       }
     } else if (update.subscribedQualities.length > 0) {
-      pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
+      await pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
     }
   };
 
