@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.6.6
+
+### Patch Changes
+
+- [#585](https://github.com/livekit/client-sdk-js/pull/585) [`0a33b1a`](https://github.com/livekit/client-sdk-js/commit/0a33b1a7fcb4cefc4e23c12bc5d9ecfe3b41b583) Thanks [@davidzhao](https://github.com/davidzhao)! - Prevent concurrent RTCRtpSender.setParameter call to avoid exception
+
 ## 1.6.5
 
 ### Patch Changes
