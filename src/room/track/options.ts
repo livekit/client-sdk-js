@@ -28,12 +28,12 @@ export interface TrackPublishDefaults {
   audioBitrate?: number;
 
   /**
-   * dtx (Discontinuous Transmission of audio), defaults to true
+   * dtx (Discontinuous Transmission of audio), enabled by default for mono tracks.
    */
   dtx?: boolean;
 
   /**
-   * red (Redundant Audio Data), defaults to true
+   * red (Redundant Audio Data), enabled by default for mono tracks.
    */
   red?: boolean;
 
