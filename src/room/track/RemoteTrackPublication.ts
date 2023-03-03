@@ -24,9 +24,12 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected fps?: number;
 
+  protected priority: number;
+
   constructor(kind: Track.Kind, id: string, name: string, autoSubscribe: boolean | undefined) {
     super(kind, id, name);
     this.subscribed = autoSubscribe;
+    this.priority = 0; // TODO factor in priority that might have been set on the server
   }
 
   /**
@@ -58,6 +61,14 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.emit(TrackEvent.UpdateSubscription, sub);
     this.emitSubscriptionUpdateIfChanged(prevStatus);
     this.emitPermissionUpdateIfChanged(prevPermission);
+  }
+
+  setSubscriptionPriority(priority: number) {
+    this.priority = priority;
+  }
+
+  get subscriptionPriority() {
+    return this.priority;
   }
 
   get subscriptionStatus(): TrackPublication.SubscriptionStatus {
@@ -276,6 +287,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       trackSids: [this.trackSid],
       disabled: this.disabled,
       fps: this.fps,
+      priority: this.priority,
     });
     if (this.videoDimensions) {
       settings.width = this.videoDimensions.width;
