@@ -33,8 +33,7 @@ export interface TrackPublishDefaults {
   dtx?: boolean;
 
   /**
-   * red (Redundant Audio Data), defaults to true
-   * If the audio track is stereo, need enable it explicitly.
+   * red (Redundant Audio Data), enabled by default for mono tracks.
    */
   red?: boolean;
 
