@@ -136,6 +136,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private closingLock: Mutex;
 
+  private shouldFailNext: boolean = false;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.client = new SignalClient();
@@ -247,7 +249,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     });
   }
 
-  removeTrack(sender: RTCRtpSender) {
+  /**
+   * Removes sender from PeerConnection, returning true if it was removed successfully
+   * and a negotiation is necessary
+   * @param sender
+   * @returns
+   */
+  removeTrack(sender: RTCRtpSender): boolean {
     if (sender.track && this.pendingTrackResolvers[sender.track.id]) {
       const { reject } = this.pendingTrackResolvers[sender.track.id];
       if (reject) {
@@ -257,9 +265,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     try {
       this.publisher?.pc.removeTrack(sender);
+      return true;
     } catch (e: unknown) {
       log.warn('failed to remove track', { error: e, method: 'removeTrack' });
     }
+    return false;
   }
 
   updateMuteStatus(trackSid: string, muted: boolean) {
@@ -334,7 +344,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
           this.handleDisconnect(
             'primary peerconnection',
-            false,
             subscriberPrimary
               ? ReconnectReason.REASON_SUBSCRIBER_FAILED
               : ReconnectReason.REASON_PUBLISHER_FAILED,
@@ -348,7 +357,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (secondaryPC.connectionState === 'failed') {
         this.handleDisconnect(
           'secondary peerconnection',
-          false,
           subscriberPrimary
             ? ReconnectReason.REASON_PUBLISHER_FAILED
             : ReconnectReason.REASON_SUBSCRIBER_FAILED,
@@ -419,7 +427,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onClose = () => {
-      this.handleDisconnect('signal', false, ReconnectReason.REASON_SIGNAL_DISCONNECTED);
+      this.handleDisconnect('signal', ReconnectReason.REASON_SIGNAL_DISCONNECTED);
     };
 
     this.client.onLeave = (leave?: LeaveRequest) => {
@@ -690,11 +698,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
   // continues to work, we can reconnect to websocket to continue the session
   // after a number of retries, we'll close and give up permanently
-  private handleDisconnect = (
-    connection: string,
-    signalEvents: boolean = false,
-    disconnectReason?: ReconnectReason,
-  ) => {
+  private handleDisconnect = (connection: string, disconnectReason?: ReconnectReason) => {
     if (this._isClosed) {
       return;
     }
@@ -731,12 +735,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.clearReconnectTimeout();
     this.reconnectTimeout = CriticalTimers.setTimeout(
-      () => this.attemptReconnect(signalEvents, disconnectReason),
+      () => this.attemptReconnect(disconnectReason),
       delay,
     );
   };
 
-  private async attemptReconnect(signalEvents: boolean = false, reason?: ReconnectReason) {
+  private async attemptReconnect(reason?: ReconnectReason) {
     if (this._isClosed) {
       return;
     }
@@ -756,35 +760,26 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     try {
       this.attemptingReconnect = true;
       if (this.fullReconnectOnNext) {
-        await this.restartConnection(signalEvents);
+        await this.restartConnection();
       } else {
-        await this.resumeConnection(signalEvents, reason);
+        await this.resumeConnection(reason);
       }
       this.clearPendingReconnect();
       this.fullReconnectOnNext = false;
     } catch (e) {
       this.reconnectAttempts += 1;
-      let reconnectRequired = false;
       let recoverable = true;
-      let requireSignalEvents = false;
       if (e instanceof UnexpectedConnectionState) {
         log.debug('received unrecoverable error', { error: e });
         // unrecoverable
         recoverable = false;
       } else if (!(e instanceof SignalReconnectError)) {
         // cannot resume
-        reconnectRequired = true;
-      }
-
-      // when we flip from resume to reconnect
-      // we need to fire the right reconnecting events
-      if (reconnectRequired && !this.fullReconnectOnNext) {
         this.fullReconnectOnNext = true;
-        requireSignalEvents = true;
       }
 
       if (recoverable) {
-        this.handleDisconnect('reconnect', requireSignalEvents, ReconnectReason.REASON_UNKOWN);
+        this.handleDisconnect('reconnect', ReconnectReason.REASON_UNKOWN);
       } else {
         log.info(
           `could not recover connection after ${this.reconnectAttempts} attempts, ${
@@ -810,16 +805,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return null;
   }
 
-  private async restartConnection(emitRestarting: boolean = false) {
+  private async restartConnection() {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
       throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
     }
 
     log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
-    if (emitRestarting || this.reconnectAttempts === 0) {
-      this.emit(EngineEvent.Restarting);
-    }
+    this.emit(EngineEvent.Restarting);
 
     if (this.client.isConnected) {
       await this.client.sendLeave();
@@ -842,6 +835,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new SignalReconnectError();
     }
 
+    if (this.shouldFailNext) {
+      this.shouldFailNext = false;
+      throw new Error('simulated failure');
+    }
+
     await this.waitForPCConnected();
     this.client.setReconnected();
 
@@ -849,10 +847,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.emit(EngineEvent.Restarted, joinResponse);
   }
 
-  private async resumeConnection(
-    emitResuming: boolean = false,
-    reason?: ReconnectReason,
-  ): Promise<void> {
+  private async resumeConnection(reason?: ReconnectReason): Promise<void> {
     if (!this.url || !this.token) {
       // permanent failure, don't attempt reconnection
       throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
@@ -863,7 +858,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
-    if (emitResuming || this.reconnectAttempts === 0) {
+    // do not emit for the first attempt, since ICE restart could happen frequently
+    if (this.reconnectAttempts !== 0) {
       this.emit(EngineEvent.Resuming);
     }
 
@@ -882,6 +878,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new SignalReconnectError(message);
     }
     this.emit(EngineEvent.SignalResumed);
+
+    if (this.shouldFailNext) {
+      this.shouldFailNext = false;
+      throw new Error('simulated failure');
+    }
 
     this.subscriber.restartingIce = true;
 
@@ -1022,7 +1023,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       const negotiationTimeout = setTimeout(() => {
         reject('negotiation timed out');
-        this.handleDisconnect('negotiation', false, ReconnectReason.REASON_SIGNAL_DISCONNECTED);
+        this.handleDisconnect('negotiation', ReconnectReason.REASON_SIGNAL_DISCONNECTED);
       }, this.peerConnectionTimeout);
 
       const cleanup = () => {
@@ -1043,7 +1044,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
-        this.handleDisconnect('negotiation', false, ReconnectReason.REASON_UNKOWN);
+        this.handleDisconnect('negotiation', ReconnectReason.REASON_UNKOWN);
       });
     });
   }
@@ -1066,6 +1067,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
+  /* @internal */
+  failNext() {
+    // debugging method to fail the next reconnect/resume attempt
+    this.shouldFailNext = true;
+  }
+
   private clearReconnectTimeout() {
     if (this.reconnectTimeout) {
       CriticalTimers.clearTimeout(this.reconnectTimeout);
@@ -1081,7 +1088,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
     if (this.client.isReconnecting) {
       this.clearReconnectTimeout();
-      this.attemptReconnect(true, ReconnectReason.REASON_SIGNAL_DISCONNECTED);
+      this.attemptReconnect(ReconnectReason.REASON_SIGNAL_DISCONNECTED);
     }
   };
 

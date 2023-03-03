@@ -727,17 +727,24 @@ export default class LocalParticipant extends Participant {
       track.stop();
     }
 
+    let negotiationNeeded = false;
+    const trackSender = track.sender;
+    track.sender = undefined;
     if (
       this.engine.publisher &&
       this.engine.publisher.pc.connectionState !== 'closed' &&
-      track.sender
+      trackSender
     ) {
       try {
-        this.engine.removeTrack(track.sender);
+        if (this.engine.removeTrack(trackSender)) {
+          negotiationNeeded = true;
+        }
         if (track instanceof LocalVideoTrack) {
           for (const [, trackInfo] of track.simulcastCodecs) {
             if (trackInfo.sender) {
-              this.engine.removeTrack(trackInfo.sender);
+              if (this.engine.removeTrack(trackInfo.sender)) {
+                negotiationNeeded = true;
+              }
               trackInfo.sender = undefined;
             }
           }
@@ -745,12 +752,8 @@ export default class LocalParticipant extends Participant {
         }
       } catch (e) {
         log.warn('failed to unpublish track', { error: e, method: 'unpublishTrack' });
-      } finally {
-        await this.engine.negotiate();
       }
     }
-
-    track.sender = undefined;
 
     // remove from our maps
     this.tracks.delete(publication.trackSid);
@@ -768,6 +771,9 @@ export default class LocalParticipant extends Participant {
     this.emit(ParticipantEvent.LocalTrackUnpublished, publication);
     publication.setTrack(undefined);
 
+    if (negotiationNeeded) {
+      await this.engine.negotiate();
+    }
     return publication;
   }
 
