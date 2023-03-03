@@ -28,8 +28,7 @@ export interface TrackPublishDefaults {
   audioBitrate?: number;
 
   /**
-   * dtx (Discontinuous Transmission of audio), defaults to true.
-   * If the audio track is stereo, need enable it explicitly.
+   * dtx (Discontinuous Transmission of audio), enabled by default for mono tracks.
    */
   dtx?: boolean;
 
