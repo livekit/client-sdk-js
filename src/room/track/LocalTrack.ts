@@ -187,6 +187,7 @@ export default abstract class LocalTrack extends Track {
     log.debug('re-acquired MediaStreamTrack');
 
     if (this.sender) {
+      log.debug('replacing track');
       // Track can be restarted after it's unpublished
       await this.sender.replaceTrack(newTrack);
     }
@@ -202,6 +203,7 @@ export default abstract class LocalTrack extends Track {
     this.mediaStream = mediaStream;
     this.constraints = constraints;
     this.emit(TrackEvent.Restarted, this);
+    log.debug('restarted track');
     return this;
   }
 

@@ -56,8 +56,8 @@ import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
 import type { SimulationOptions } from './types';
 import {
-  Future,
   createDummyVideoStreamTrack,
+  Future,
   getEmptyAudioStreamTrack,
   isWeb,
   Mutex,
@@ -516,6 +516,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         });
         break;
+      case 'resume-reconnect':
+        this.engine.failNext();
+        await this.engine.client.close();
+        if (this.engine.client.onClose) {
+          this.engine.client.onClose('simulate disconnect');
+        }
+        break;
       case 'force-tcp':
       case 'force-tls':
         req = SimulateScenario.fromPartial({
@@ -786,6 +793,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             });
             await track.restartTrack();
           }
+          log.debug('publishing new track', {
+            track: pub.trackSid,
+          });
           await this.localParticipant.publishTrack(track, pub.options);
         }
       }),
