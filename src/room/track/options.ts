@@ -28,12 +28,14 @@ export interface TrackPublishDefaults {
   audioBitrate?: number;
 
   /**
-   * dtx (Discontinuous Transmission of audio), defaults to true
+   * dtx (Discontinuous Transmission of audio), defaults to true.
+   * If the audio track is stereo, need enable it explicitly.
    */
   dtx?: boolean;
 
   /**
    * red (Redundant Audio Data), defaults to true
+   * If the audio track is stereo, need enable it explicitly.
    */
   red?: boolean;
 
