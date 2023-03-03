@@ -520,7 +520,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.engine.failNext();
         await this.engine.client.close();
         if (this.engine.client.onClose) {
-          this.engine.client.onClose('simulate disconnect');
+          this.engine.client.onClose('simulate resume-reconnect');
         }
         break;
       case 'force-tcp':
