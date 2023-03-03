@@ -896,7 +896,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant.tracks.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
     });
-    this.emitWhenConnected(RoomEvent.ParticipantDisconnected, participant);
+    this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
 
   // updates are sent only when there's a change to speaker ordering
@@ -1124,7 +1124,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       )
       .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
-        this.emitWhenConnected(RoomEvent.TrackUnpublished, publication, participant);
+        this.emit(RoomEvent.TrackUnpublished, publication, participant);
       })
       .on(
         ParticipantEvent.TrackUnsubscribed,

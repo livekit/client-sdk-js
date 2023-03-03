@@ -118,8 +118,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private clientConfiguration?: ClientConfiguration;
 
-  private connectedServerAddr?: string;
-
   private attemptingReconnect: boolean = false;
 
   private reconnectPolicy: ReconnectPolicy;
@@ -280,8 +278,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return this.reliableDCSub?.readyState;
   }
 
-  get connectedServerAddress(): string | undefined {
-    return this.connectedServerAddr;
+  async getConnectedServerAddress(): Promise<string | undefined> {
+    if (this.primaryPC === undefined) {
+      return undefined;
+    }
+    return getConnectedAddress(this.primaryPC);
   }
 
   private configure(joinResponse: JoinResponse) {
@@ -327,11 +328,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     primaryPC.onconnectionstatechange = async () => {
       log.debug(`primary PC state changed ${primaryPC.connectionState}`);
       if (primaryPC.connectionState === 'connected') {
-        try {
-          this.connectedServerAddr = await getConnectedAddress(primaryPC);
-        } catch (e) {
-          log.warn('could not get connected server address', { error: e });
-        }
         const shouldEmit = this.pcState === PCState.New;
         this.pcState = PCState.Connected;
         if (shouldEmit) {
@@ -858,10 +854,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
-    // do not emit for the first attempt, since ICE restart could happen frequently
-    if (this.reconnectAttempts !== 0) {
-      this.emit(EngineEvent.Resuming);
-    }
+    this.emit(EngineEvent.Resuming);
 
     try {
       const res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
@@ -922,11 +915,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.primaryPC?.connectionState === 'connected'
       ) {
         this.pcState = PCState.Connected;
-        try {
-          this.connectedServerAddr = await getConnectedAddress(this.primaryPC);
-        } catch (e) {
-          log.warn('could not get connected server address', { error: e });
-        }
       }
       if (this.pcState === PCState.Connected) {
         return;
