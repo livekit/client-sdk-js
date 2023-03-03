@@ -858,10 +858,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`);
-    // do not emit for the first attempt, since ICE restart could happen frequently
-    if (this.reconnectAttempts !== 0) {
-      this.emit(EngineEvent.Resuming);
-    }
+    this.emit(EngineEvent.Resuming);
 
     try {
       const res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
