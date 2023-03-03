@@ -15,7 +15,7 @@ export type SimulationOptions = {
 };
 
 export type DataPublishOptions = {
-  /** the participants who will receive the message */
+  /** the participants who will receive the message, will be sent to every one if empty */
   destination?: RemoteParticipant[] | string[];
   /** the topic under which the message gets published */
   topic?: string;
