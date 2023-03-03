@@ -1,3 +1,5 @@
+import type RemoteParticipant from './participant/RemoteParticipant';
+
 export type SimulationOptions = {
   publish?: {
     audio?: boolean;
@@ -10,4 +12,11 @@ export type SimulationOptions = {
     audio?: boolean;
     video?: boolean;
   };
+};
+
+export type DataPublishOptions = {
+  /** the participants who will receive the message */
+  destination?: RemoteParticipant[] | string[];
+  /** the topic under which the message gets published */
+  topic?: string;
 };
