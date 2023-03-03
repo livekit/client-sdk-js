@@ -234,9 +234,9 @@ export interface AudioPreset {
 const codecs = ['vp8', 'h264', 'av1'] as const;
 const backupCodecs = ['vp8', 'h264'] as const;
 
-export type VideoCodec = (typeof codecs)[number];
+export type VideoCodec = typeof codecs[number];
 
-export type BackupVideoCodec = (typeof backupCodecs)[number];
+export type BackupVideoCodec = typeof backupCodecs[number];
 
 export function isBackupCodec(codec: string): codec is BackupVideoCodec {
   return !!backupCodecs.find((backup) => backup === codec);
