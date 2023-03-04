@@ -133,6 +133,18 @@ export interface ScreenShareCaptureOptions {
 
   /** capture resolution, defaults to full HD */
   resolution?: VideoResolution;
+
+  /** a CaptureController object instance containing methods that can be used to further manipulate the capture session if included. */
+  controller?: unknown; // TODO replace type with CaptureController once it lands in TypeScript
+
+  /** specifies whether the browser should allow the user to select the current tab for capture */
+  selfBrowserSurface?: 'include' | 'exclude';
+
+  /** specifies whether the browser should display a control to allow the user to dynamically switch the shared tab during screen-sharing. */
+  surfaceSwitching?: 'include' | 'exclude';
+
+  /** specifies whether the browser should include the system audio among the possible audio sources offered to the user */
+  systemAudio?: 'include' | 'exclude';
 }
 
 export interface AudioCaptureOptions {

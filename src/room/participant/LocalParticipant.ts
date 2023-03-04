@@ -382,6 +382,11 @@ export default class LocalParticipant extends Participant {
     const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
       audio: options.audio ?? false,
       video: videoConstraints,
+      // @ts-expect-error support for experimental display media features
+      controller: options.controller,
+      selfBrowserSurface: options.selfBrowserSurface,
+      surfaceSwitching: options.surfaceSwitching,
+      systemAudio: options.systemAudio,
     });
 
     const tracks = stream.getVideoTracks();
