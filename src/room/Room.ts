@@ -56,8 +56,8 @@ import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
 import type { SimulationOptions } from './types';
 import {
-  Future,
   createDummyVideoStreamTrack,
+  Future,
   getEmptyAudioStreamTrack,
   isWeb,
   Mutex,
@@ -516,6 +516,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         });
         break;
+      case 'resume-reconnect':
+        this.engine.failNext();
+        await this.engine.client.close();
+        if (this.engine.client.onClose) {
+          this.engine.client.onClose('simulate resume-reconnect');
+        }
+        break;
       case 'force-tcp':
       case 'force-tls':
         req = SimulateScenario.fromPartial({
@@ -786,6 +793,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             });
             await track.restartTrack();
           }
+          log.debug('publishing new track', {
+            track: pub.trackSid,
+          });
           await this.localParticipant.publishTrack(track, pub.options);
         }
       }),
@@ -886,7 +896,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant.tracks.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
     });
-    this.emitWhenConnected(RoomEvent.ParticipantDisconnected, participant);
+    this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
 
   // updates are sent only when there's a change to speaker ordering
@@ -1114,7 +1124,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       )
       .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
-        this.emitWhenConnected(RoomEvent.TrackUnpublished, publication, participant);
+        this.emit(RoomEvent.TrackUnpublished, publication, participant);
       })
       .on(
         ParticipantEvent.TrackUnsubscribed,
