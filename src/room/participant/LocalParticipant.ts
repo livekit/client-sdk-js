@@ -498,9 +498,14 @@ export default class LocalParticipant extends Participant {
     }
     const publishPromise = this.publish(track, opts, options, isStereo);
     this.pendingPublishPromises.set(track, publishPromise);
-    const publication = await publishPromise;
-    this.pendingPublishPromises.delete(track);
-    return publication;
+    try {
+      const publication = await publishPromise;
+      return publication;
+    } catch (e) {
+      throw e;
+    } finally {
+      this.pendingPublishPromises.delete(track);
+    }
   }
 
   private async publish(
