@@ -65,6 +65,7 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   setSubscriptionPriority(priority: number) {
     this.priority = priority;
+    this.emitTrackUpdate();
   }
 
   get subscriptionPriority() {
