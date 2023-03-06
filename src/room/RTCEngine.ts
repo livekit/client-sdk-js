@@ -341,8 +341,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           this.handleDisconnect(
             'primary peerconnection',
             subscriberPrimary
-              ? ReconnectReason.REASON_SUBSCRIBER_FAILED
-              : ReconnectReason.REASON_PUBLISHER_FAILED,
+              ? ReconnectReason.RR_SUBSCRIBER_FAILED
+              : ReconnectReason.RR_PUBLISHER_FAILED,
           );
         }
       }
@@ -354,8 +354,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.handleDisconnect(
           'secondary peerconnection',
           subscriberPrimary
-            ? ReconnectReason.REASON_PUBLISHER_FAILED
-            : ReconnectReason.REASON_SUBSCRIBER_FAILED,
+            ? ReconnectReason.RR_PUBLISHER_FAILED
+            : ReconnectReason.RR_SUBSCRIBER_FAILED,
         );
       }
     };
@@ -423,7 +423,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onClose = () => {
-      this.handleDisconnect('signal', ReconnectReason.REASON_SIGNAL_DISCONNECTED);
+      this.handleDisconnect('signal', ReconnectReason.RR_SIGNAL_DISCONNECTED);
     };
 
     this.client.onLeave = (leave?: LeaveRequest) => {
@@ -775,7 +775,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       if (recoverable) {
-        this.handleDisconnect('reconnect', ReconnectReason.REASON_UNKOWN);
+        this.handleDisconnect('reconnect', ReconnectReason.RR_UNKOWN);
       } else {
         log.info(
           `could not recover connection after ${this.reconnectAttempts} attempts, ${
@@ -1011,7 +1011,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       const negotiationTimeout = setTimeout(() => {
         reject('negotiation timed out');
-        this.handleDisconnect('negotiation', ReconnectReason.REASON_SIGNAL_DISCONNECTED);
+        this.handleDisconnect('negotiation', ReconnectReason.RR_SIGNAL_DISCONNECTED);
       }, this.peerConnectionTimeout);
 
       const cleanup = () => {
@@ -1032,7 +1032,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
-        this.handleDisconnect('negotiation', ReconnectReason.REASON_UNKOWN);
+        this.handleDisconnect('negotiation', ReconnectReason.RR_UNKOWN);
       });
     });
   }
@@ -1076,7 +1076,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
     if (this.client.isReconnecting) {
       this.clearReconnectTimeout();
-      this.attemptReconnect(ReconnectReason.REASON_SIGNAL_DISCONNECTED);
+      this.attemptReconnect(ReconnectReason.RR_SIGNAL_DISCONNECTED);
     }
   };
 
