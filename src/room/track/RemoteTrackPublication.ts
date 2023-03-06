@@ -26,10 +26,11 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected priority: number;
 
-  constructor(kind: Track.Kind, id: string, name: string, autoSubscribe: boolean | undefined) {
-    super(kind, id, name);
+  constructor(kind: Track.Kind, ti: TrackInfo, autoSubscribe: boolean | undefined) {
+    super(kind, ti.sid, ti.name);
     this.subscribed = autoSubscribe;
     this.priority = 0;
+    this.updateInfo(ti);
   }
 
   /**

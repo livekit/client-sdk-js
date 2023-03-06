@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.6.7
+
+### Patch Changes
+
+- [#593](https://github.com/livekit/client-sdk-js/pull/593) [`f218236`](https://github.com/livekit/client-sdk-js/commit/f21823659bfe7a5e0036be705c1751e30a3611c8) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Disable red by default for stereo track
+
+- [#600](https://github.com/livekit/client-sdk-js/pull/600) [`75d7556`](https://github.com/livekit/client-sdk-js/commit/75d75562ece4b1e57c81a879440b6101599ef7ea) Thanks [@davidzhao](https://github.com/davidzhao)! - internal getter connectedServerAddress is has been changed to an async function getConnectedServerAddress
+
+- [#595](https://github.com/livekit/client-sdk-js/pull/595) [`75776b8`](https://github.com/livekit/client-sdk-js/commit/75776b81885109ac8e2a369c2a4e7583db2406b3) Thanks [@davidzhao](https://github.com/davidzhao)! - Fixed incorrect state with resume then reconnect
+
+- [#596](https://github.com/livekit/client-sdk-js/pull/596) [`a9aa74f`](https://github.com/livekit/client-sdk-js/commit/a9aa74f327efbbb2595f12d121e8ee4dde283d1c) Thanks [@davidzhao](https://github.com/davidzhao)! - Track.streamState defaults to active
+
 ## 1.6.6
 
 ### Patch Changes
