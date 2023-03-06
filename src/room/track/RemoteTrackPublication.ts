@@ -24,9 +24,10 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected fps?: number;
 
-  constructor(kind: Track.Kind, id: string, name: string, autoSubscribe: boolean | undefined) {
-    super(kind, id, name);
+  constructor(kind: Track.Kind, ti: TrackInfo, autoSubscribe: boolean | undefined) {
+    super(kind, ti.sid, ti.name);
     this.subscribed = autoSubscribe;
+    this.updateInfo(ti);
   }
 
   /**

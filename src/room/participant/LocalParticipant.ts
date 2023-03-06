@@ -401,6 +401,11 @@ export default class LocalParticipant extends Participant {
     const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
       audio: options.audio ?? false,
       video: videoConstraints,
+      // @ts-expect-error support for experimental display media features
+      controller: options.controller,
+      selfBrowserSurface: options.selfBrowserSurface,
+      surfaceSwitching: options.surfaceSwitching,
+      systemAudio: options.systemAudio,
     });
 
     const tracks = stream.getVideoTracks();
@@ -746,17 +751,24 @@ export default class LocalParticipant extends Participant {
       track.stop();
     }
 
+    let negotiationNeeded = false;
+    const trackSender = track.sender;
+    track.sender = undefined;
     if (
       this.engine.publisher &&
       this.engine.publisher.pc.connectionState !== 'closed' &&
-      track.sender
+      trackSender
     ) {
       try {
-        this.engine.removeTrack(track.sender);
+        if (this.engine.removeTrack(trackSender)) {
+          negotiationNeeded = true;
+        }
         if (track instanceof LocalVideoTrack) {
           for (const [, trackInfo] of track.simulcastCodecs) {
             if (trackInfo.sender) {
-              this.engine.removeTrack(trackInfo.sender);
+              if (this.engine.removeTrack(trackInfo.sender)) {
+                negotiationNeeded = true;
+              }
               trackInfo.sender = undefined;
             }
           }
@@ -764,12 +776,8 @@ export default class LocalParticipant extends Participant {
         }
       } catch (e) {
         log.warn('failed to unpublish track', { error: e, method: 'unpublishTrack' });
-      } finally {
-        await this.engine.negotiate();
       }
     }
-
-    track.sender = undefined;
 
     // remove from our maps
     this.tracks.delete(publication.trackSid);
@@ -787,6 +795,9 @@ export default class LocalParticipant extends Participant {
     this.emit(ParticipantEvent.LocalTrackUnpublished, publication);
     publication.setTrack(undefined);
 
+    if (negotiationNeeded) {
+      await this.engine.negotiate();
+    }
     return publication;
   }
 
