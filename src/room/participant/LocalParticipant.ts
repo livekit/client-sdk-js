@@ -129,7 +129,17 @@ export default class LocalParticipant extends Participant {
    * @param metadata
    */
   setMetadata(metadata: string): void {
-    this.engine.client.sendUpdateLocalMetadata(metadata);
+    this.engine.client.sendUpdateLocalMetadata(metadata, this.name ?? '');
+  }
+
+  /**
+   * Sets and updates the name of the local participant.
+   * Note: this requires `CanUpdateOwnMetadata` permission encoded in the token.
+   * @param metadata
+   */
+  setName(name: string): void {
+    super.setName(name);
+    this.engine.client.sendUpdateLocalMetadata(this.metadata ?? '', name);
   }
 
   /**

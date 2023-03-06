@@ -408,11 +408,12 @@ export class SignalClient {
     });
   }
 
-  sendUpdateLocalMetadata(metadata: string) {
+  sendUpdateLocalMetadata(metadata: string, name: string) {
     return this.sendRequest({
       $case: 'updateMetadata',
       updateMetadata: {
         metadata,
+        name,
       },
     });
   }

@@ -288,31 +288,31 @@ export function disconnectReasonToJSON(object: DisconnectReason): string {
 }
 
 export enum ReconnectReason {
-  REASON_UNKOWN = 0,
-  REASON_SIGNAL_DISCONNECTED = 1,
-  REASON_PUBLISHER_FAILED = 2,
-  REASON_SUBSCRIBER_FAILED = 3,
-  REASON_SWITCH_CANDIDATE = 4,
+  RR_UNKOWN = 0,
+  RR_SIGNAL_DISCONNECTED = 1,
+  RR_PUBLISHER_FAILED = 2,
+  RR_SUBSCRIBER_FAILED = 3,
+  RR_SWITCH_CANDIDATE = 4,
   UNRECOGNIZED = -1,
 }
 
 export function reconnectReasonFromJSON(object: any): ReconnectReason {
   switch (object) {
     case 0:
-    case "REASON_UNKOWN":
-      return ReconnectReason.REASON_UNKOWN;
+    case "RR_UNKOWN":
+      return ReconnectReason.RR_UNKOWN;
     case 1:
-    case "REASON_SIGNAL_DISCONNECTED":
-      return ReconnectReason.REASON_SIGNAL_DISCONNECTED;
+    case "RR_SIGNAL_DISCONNECTED":
+      return ReconnectReason.RR_SIGNAL_DISCONNECTED;
     case 2:
-    case "REASON_PUBLISHER_FAILED":
-      return ReconnectReason.REASON_PUBLISHER_FAILED;
+    case "RR_PUBLISHER_FAILED":
+      return ReconnectReason.RR_PUBLISHER_FAILED;
     case 3:
-    case "REASON_SUBSCRIBER_FAILED":
-      return ReconnectReason.REASON_SUBSCRIBER_FAILED;
+    case "RR_SUBSCRIBER_FAILED":
+      return ReconnectReason.RR_SUBSCRIBER_FAILED;
     case 4:
-    case "REASON_SWITCH_CANDIDATE":
-      return ReconnectReason.REASON_SWITCH_CANDIDATE;
+    case "RR_SWITCH_CANDIDATE":
+      return ReconnectReason.RR_SWITCH_CANDIDATE;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -322,16 +322,16 @@ export function reconnectReasonFromJSON(object: any): ReconnectReason {
 
 export function reconnectReasonToJSON(object: ReconnectReason): string {
   switch (object) {
-    case ReconnectReason.REASON_UNKOWN:
-      return "REASON_UNKOWN";
-    case ReconnectReason.REASON_SIGNAL_DISCONNECTED:
-      return "REASON_SIGNAL_DISCONNECTED";
-    case ReconnectReason.REASON_PUBLISHER_FAILED:
-      return "REASON_PUBLISHER_FAILED";
-    case ReconnectReason.REASON_SUBSCRIBER_FAILED:
-      return "REASON_SUBSCRIBER_FAILED";
-    case ReconnectReason.REASON_SWITCH_CANDIDATE:
-      return "REASON_SWITCH_CANDIDATE";
+    case ReconnectReason.RR_UNKOWN:
+      return "RR_UNKOWN";
+    case ReconnectReason.RR_SIGNAL_DISCONNECTED:
+      return "RR_SIGNAL_DISCONNECTED";
+    case ReconnectReason.RR_PUBLISHER_FAILED:
+      return "RR_PUBLISHER_FAILED";
+    case ReconnectReason.RR_SUBSCRIBER_FAILED:
+      return "RR_SUBSCRIBER_FAILED";
+    case ReconnectReason.RR_SWITCH_CANDIDATE:
+      return "RR_SWITCH_CANDIDATE";
     case ReconnectReason.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
@@ -369,6 +369,8 @@ export interface ParticipantPermission {
   hidden: boolean;
   /** indicates it's a recorder instance */
   recorder: boolean;
+  /** indicates that participant can update own metadata */
+  canUpdateMetadata: boolean;
 }
 
 export interface ParticipantInfo {
@@ -918,6 +920,10 @@ export const Room = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<Room>, I>>(base?: I): Room {
+    return Room.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<Room>, I>>(object: I): Room {
     const message = createBaseRoom();
     message.sid = object.sid ?? "";
@@ -984,6 +990,10 @@ export const Codec = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<Codec>, I>>(base?: I): Codec {
+    return Codec.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<Codec>, I>>(object: I): Codec {
     const message = createBaseCodec();
     message.mime = object.mime ?? "";
@@ -1000,6 +1010,7 @@ function createBaseParticipantPermission(): ParticipantPermission {
     canPublishSources: [],
     hidden: false,
     recorder: false,
+    canUpdateMetadata: false,
   };
 }
 
@@ -1024,6 +1035,9 @@ export const ParticipantPermission = {
     }
     if (message.recorder === true) {
       writer.uint32(64).bool(message.recorder);
+    }
+    if (message.canUpdateMetadata === true) {
+      writer.uint32(80).bool(message.canUpdateMetadata);
     }
     return writer;
   },
@@ -1060,6 +1074,9 @@ export const ParticipantPermission = {
         case 8:
           message.recorder = reader.bool();
           break;
+        case 10:
+          message.canUpdateMetadata = reader.bool();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1078,6 +1095,7 @@ export const ParticipantPermission = {
         : [],
       hidden: isSet(object.hidden) ? Boolean(object.hidden) : false,
       recorder: isSet(object.recorder) ? Boolean(object.recorder) : false,
+      canUpdateMetadata: isSet(object.canUpdateMetadata) ? Boolean(object.canUpdateMetadata) : false,
     };
   },
 
@@ -1093,7 +1111,12 @@ export const ParticipantPermission = {
     }
     message.hidden !== undefined && (obj.hidden = message.hidden);
     message.recorder !== undefined && (obj.recorder = message.recorder);
+    message.canUpdateMetadata !== undefined && (obj.canUpdateMetadata = message.canUpdateMetadata);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ParticipantPermission>, I>>(base?: I): ParticipantPermission {
+    return ParticipantPermission.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<ParticipantPermission>, I>>(object: I): ParticipantPermission {
@@ -1104,6 +1127,7 @@ export const ParticipantPermission = {
     message.canPublishSources = object.canPublishSources?.map((e) => e) || [];
     message.hidden = object.hidden ?? false;
     message.recorder = object.recorder ?? false;
+    message.canUpdateMetadata = object.canUpdateMetadata ?? false;
     return message;
   },
 };
@@ -1247,6 +1271,10 @@ export const ParticipantInfo = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<ParticipantInfo>, I>>(base?: I): ParticipantInfo {
+    return ParticipantInfo.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<ParticipantInfo>, I>>(object: I): ParticipantInfo {
     const message = createBaseParticipantInfo();
     message.sid = object.sid ?? "";
@@ -1297,6 +1325,10 @@ export const Encryption = {
   toJSON(_: Encryption): unknown {
     const obj: any = {};
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Encryption>, I>>(base?: I): Encryption {
+    return Encryption.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<Encryption>, I>>(_: I): Encryption {
@@ -1373,6 +1405,10 @@ export const SimulcastCodecInfo = {
       obj.layers = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SimulcastCodecInfo>, I>>(base?: I): SimulcastCodecInfo {
+    return SimulcastCodecInfo.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SimulcastCodecInfo>, I>>(object: I): SimulcastCodecInfo {
@@ -1572,6 +1608,10 @@ export const TrackInfo = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<TrackInfo>, I>>(base?: I): TrackInfo {
+    return TrackInfo.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<TrackInfo>, I>>(object: I): TrackInfo {
     const message = createBaseTrackInfo();
     message.sid = object.sid ?? "";
@@ -1668,6 +1708,10 @@ export const VideoLayer = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<VideoLayer>, I>>(base?: I): VideoLayer {
+    return VideoLayer.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<VideoLayer>, I>>(object: I): VideoLayer {
     const message = createBaseVideoLayer();
     message.quality = object.quality ?? 0;
@@ -1688,11 +1732,13 @@ export const DataPacket = {
     if (message.kind !== 0) {
       writer.uint32(8).int32(message.kind);
     }
-    if (message.value?.$case === "user") {
-      UserPacket.encode(message.value.user, writer.uint32(18).fork()).ldelim();
-    }
-    if (message.value?.$case === "speaker") {
-      ActiveSpeakerUpdate.encode(message.value.speaker, writer.uint32(26).fork()).ldelim();
+    switch (message.value?.$case) {
+      case "user":
+        UserPacket.encode(message.value.user, writer.uint32(18).fork()).ldelim();
+        break;
+      case "speaker":
+        ActiveSpeakerUpdate.encode(message.value.speaker, writer.uint32(26).fork()).ldelim();
+        break;
     }
     return writer;
   },
@@ -1740,6 +1786,10 @@ export const DataPacket = {
     message.value?.$case === "speaker" &&
       (obj.speaker = message.value?.speaker ? ActiveSpeakerUpdate.toJSON(message.value?.speaker) : undefined);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DataPacket>, I>>(base?: I): DataPacket {
+    return DataPacket.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<DataPacket>, I>>(object: I): DataPacket {
@@ -1799,6 +1849,10 @@ export const ActiveSpeakerUpdate = {
       obj.speakers = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ActiveSpeakerUpdate>, I>>(base?: I): ActiveSpeakerUpdate {
+    return ActiveSpeakerUpdate.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<ActiveSpeakerUpdate>, I>>(object: I): ActiveSpeakerUpdate {
@@ -1864,6 +1918,10 @@ export const SpeakerInfo = {
     message.level !== undefined && (obj.level = message.level);
     message.active !== undefined && (obj.active = message.active);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SpeakerInfo>, I>>(base?: I): SpeakerInfo {
+    return SpeakerInfo.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SpeakerInfo>, I>>(object: I): SpeakerInfo {
@@ -1938,6 +1996,10 @@ export const UserPacket = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<UserPacket>, I>>(base?: I): UserPacket {
+    return UserPacket.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<UserPacket>, I>>(object: I): UserPacket {
     const message = createBaseUserPacket();
     message.participantSid = object.participantSid ?? "";
@@ -1999,6 +2061,10 @@ export const ParticipantTracks = {
       obj.trackSids = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ParticipantTracks>, I>>(base?: I): ParticipantTracks {
+    return ParticipantTracks.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<ParticipantTracks>, I>>(object: I): ParticipantTracks {
@@ -2089,6 +2155,10 @@ export const ServerInfo = {
     message.nodeId !== undefined && (obj.nodeId = message.nodeId);
     message.debugInfo !== undefined && (obj.debugInfo = message.debugInfo);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ServerInfo>, I>>(base?: I): ServerInfo {
+    return ServerInfo.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<ServerInfo>, I>>(object: I): ServerInfo {
@@ -2228,6 +2298,10 @@ export const ClientInfo = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<ClientInfo>, I>>(base?: I): ClientInfo {
+    return ClientInfo.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<ClientInfo>, I>>(object: I): ClientInfo {
     const message = createBaseClientInfo();
     message.sdk = object.sdk ?? 0;
@@ -2321,6 +2395,10 @@ export const ClientConfiguration = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<ClientConfiguration>, I>>(base?: I): ClientConfiguration {
+    return ClientConfiguration.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<ClientConfiguration>, I>>(object: I): ClientConfiguration {
     const message = createBaseClientConfiguration();
     message.video = (object.video !== undefined && object.video !== null)
@@ -2378,6 +2456,10 @@ export const VideoConfiguration = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<VideoConfiguration>, I>>(base?: I): VideoConfiguration {
+    return VideoConfiguration.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<VideoConfiguration>, I>>(object: I): VideoConfiguration {
     const message = createBaseVideoConfiguration();
     message.hardwareEncoder = object.hardwareEncoder ?? 0;
@@ -2427,6 +2509,10 @@ export const DisabledCodecs = {
       obj.codecs = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DisabledCodecs>, I>>(base?: I): DisabledCodecs {
+    return DisabledCodecs.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<DisabledCodecs>, I>>(object: I): DisabledCodecs {
@@ -2853,6 +2939,10 @@ export const RTPStats = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<RTPStats>, I>>(base?: I): RTPStats {
+    return RTPStats.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<RTPStats>, I>>(object: I): RTPStats {
     const message = createBaseRTPStats();
     message.startTime = object.startTime ?? undefined;
@@ -2955,6 +3045,10 @@ export const RTPStats_GapHistogramEntry = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<RTPStats_GapHistogramEntry>, I>>(base?: I): RTPStats_GapHistogramEntry {
+    return RTPStats_GapHistogramEntry.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<RTPStats_GapHistogramEntry>, I>>(object: I): RTPStats_GapHistogramEntry {
     const message = createBaseRTPStats_GapHistogramEntry();
     message.key = object.key ?? 0;
@@ -3011,6 +3105,10 @@ export const TimedVersion = {
     message.unixMicro !== undefined && (obj.unixMicro = Math.round(message.unixMicro));
     message.ticks !== undefined && (obj.ticks = Math.round(message.ticks));
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<TimedVersion>, I>>(base?: I): TimedVersion {
+    return TimedVersion.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<TimedVersion>, I>>(object: I): TimedVersion {
