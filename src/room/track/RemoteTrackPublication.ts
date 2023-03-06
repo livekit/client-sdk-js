@@ -29,7 +29,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   constructor(kind: Track.Kind, id: string, name: string, autoSubscribe: boolean | undefined) {
     super(kind, id, name);
     this.subscribed = autoSubscribe;
-    this.priority = 0; // TODO factor in priority that might have been set on the server
+    this.priority = 0;
   }
 
   /**
