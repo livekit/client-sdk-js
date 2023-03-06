@@ -588,6 +588,8 @@ export interface UserPacket {
   payload: Uint8Array;
   /** the ID of the participants who will receive the message (the message will be sent to all the people in the room if this variable is empty) */
   destinationSids: string[];
+  /** topic under which the message was published */
+  topic?: string | undefined;
 }
 
 export interface ParticipantTracks {
@@ -1934,7 +1936,7 @@ export const SpeakerInfo = {
 };
 
 function createBaseUserPacket(): UserPacket {
-  return { participantSid: "", payload: new Uint8Array(), destinationSids: [] };
+  return { participantSid: "", payload: new Uint8Array(), destinationSids: [], topic: undefined };
 }
 
 export const UserPacket = {
@@ -1947,6 +1949,9 @@ export const UserPacket = {
     }
     for (const v of message.destinationSids) {
       writer.uint32(26).string(v!);
+    }
+    if (message.topic !== undefined) {
+      writer.uint32(34).string(message.topic);
     }
     return writer;
   },
@@ -1967,6 +1972,9 @@ export const UserPacket = {
         case 3:
           message.destinationSids.push(reader.string());
           break;
+        case 4:
+          message.topic = reader.string();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -1980,6 +1988,7 @@ export const UserPacket = {
       participantSid: isSet(object.participantSid) ? String(object.participantSid) : "",
       payload: isSet(object.payload) ? bytesFromBase64(object.payload) : new Uint8Array(),
       destinationSids: Array.isArray(object?.destinationSids) ? object.destinationSids.map((e: any) => String(e)) : [],
+      topic: isSet(object.topic) ? String(object.topic) : undefined,
     };
   },
 
@@ -1993,6 +2002,7 @@ export const UserPacket = {
     } else {
       obj.destinationSids = [];
     }
+    message.topic !== undefined && (obj.topic = message.topic);
     return obj;
   },
 
@@ -2005,6 +2015,7 @@ export const UserPacket = {
     message.participantSid = object.participantSid ?? "";
     message.payload = object.payload ?? new Uint8Array();
     message.destinationSids = object.destinationSids?.map((e) => e) || [];
+    message.topic = object.topic ?? undefined;
     return message;
   },
 };
