@@ -63,6 +63,10 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.emitPermissionUpdateIfChanged(prevPermission);
   }
 
+  /**
+   * In cases where downstream bandwidth is constrained, setting a priority on a RemoteTrackPublication allows to (de-)prioritize specific tracks
+   * @param priority
+   */
   setSubscriptionPriority(priority: number) {
     this.priority = priority;
     this.emitTrackUpdate();
