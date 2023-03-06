@@ -759,47 +759,52 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       region: joinResponse.serverRegion,
     });
 
-    // rehydrate participants
-    if (joinResponse.participant) {
-      // with a restart, the sid will have changed, we'll map our understanding to it
-      this.localParticipant.sid = joinResponse.participant.sid;
-      this.handleParticipantUpdates([joinResponse.participant]);
-    }
-    this.handleParticipantUpdates(joinResponse.otherParticipants);
-
-    // unpublish & republish tracks
-    const localPubs: LocalTrackPublication[] = [];
-    this.localParticipant.tracks.forEach((pub) => {
-      if (pub.track) {
-        localPubs.push(pub);
+    try {
+      // rehydrate participants
+      if (joinResponse.participant) {
+        // with a restart, the sid will have changed, we'll map our understanding to it
+        this.localParticipant.sid = joinResponse.participant.sid;
+        this.handleParticipantUpdates([joinResponse.participant]);
       }
-    });
+      this.handleParticipantUpdates(joinResponse.otherParticipants);
 
-    await Promise.all(
-      localPubs.map(async (pub) => {
-        const track = pub.track!;
-        this.localParticipant.unpublishTrack(track, false);
-        if (!track.isMuted) {
-          if (
-            (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
-            !track.isUserProvided
-          ) {
-            // we need to restart the track before publishing, often a full reconnect
-            // is necessary because computer had gone to sleep.
-            log.debug('restarting existing track', {
+      // unpublish & republish tracks
+      const localPubs: LocalTrackPublication[] = [];
+      this.localParticipant.tracks.forEach((pub) => {
+        if (pub.track) {
+          localPubs.push(pub);
+        }
+      });
+
+      await Promise.all(
+        localPubs.map(async (pub) => {
+          const track = pub.track!;
+          this.localParticipant.unpublishTrack(track, false);
+          if (!track.isMuted) {
+            if (
+              (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
+              !track.isUserProvided
+            ) {
+              // we need to restart the track before publishing, often a full reconnect
+              // is necessary because computer had gone to sleep.
+              log.debug('restarting existing track', {
+                track: pub.trackSid,
+              });
+              await track.restartTrack();
+            }
+            log.debug('publishing new track', {
               track: pub.trackSid,
             });
-            await track.restartTrack();
+            await this.localParticipant.publishTrack(track, pub.options);
           }
-          log.debug('publishing new track', {
-            track: pub.trackSid,
-          });
-          await this.localParticipant.publishTrack(track, pub.options);
-        }
-      }),
-    );
-    this.setAndEmitConnectionState(ConnectionState.Connected);
-    this.emit(RoomEvent.Reconnected);
+        }),
+      );
+    } catch (error) {
+      log.error('error trying to re-publish tracks after reconnection', { error });
+    } finally {
+      this.setAndEmitConnectionState(ConnectionState.Connected);
+      this.emit(RoomEvent.Reconnected);
+    }
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {

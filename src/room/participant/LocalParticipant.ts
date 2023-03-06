@@ -52,6 +52,8 @@ export default class LocalParticipant extends Participant {
 
   private pendingPublishing = new Set<Track.Source>();
 
+  private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
+
   private cameraError: Error | undefined;
 
   private microphoneError: Error | undefined;
@@ -127,15 +129,15 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.Resuming, this.handleReconnecting);
   }
 
-  private async handleReconnecting() {
+  private handleReconnecting = () => {
     this.reconnectFuture = new Future<void>();
-  }
+  };
 
-  private async handleReconnected() {
-    this.updateTrackSubscriptionPermissions();
+  private handleReconnected = () => {
     this.reconnectFuture?.resolve?.();
     this.reconnectFuture = undefined;
-  }
+    this.updateTrackSubscriptionPermissions();
+  };
 
   /**
    * Enable or disable a participant's camera track.
@@ -428,6 +430,9 @@ export default class LocalParticipant extends Participant {
     options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
     await this.reconnectFuture?.promise;
+    if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
+      await this.pendingPublishPromises.get(track);
+    }
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
@@ -440,6 +445,22 @@ export default class LocalParticipant extends Participant {
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
       }
+    }
+
+    // is it already published? if so skip
+    let existingPublication: LocalTrackPublication | undefined;
+    this.tracks.forEach((publication) => {
+      if (!publication.track) {
+        return;
+      }
+      if (publication.track === track) {
+        existingPublication = <LocalTrackPublication>publication;
+      }
+    });
+
+    if (existingPublication) {
+      log.warn('track has already been published, skipping');
+      return existingPublication;
     }
 
     const isStereo =
@@ -472,22 +493,22 @@ export default class LocalParticipant extends Participant {
       ...options,
     };
 
-    // is it already published? if so skip
-    let existingPublication: LocalTrackPublication | undefined;
-    this.tracks.forEach((publication) => {
-      if (!publication.track) {
-        return;
-      }
-      if (publication.track === track) {
-        existingPublication = <LocalTrackPublication>publication;
-      }
-    });
-
-    if (existingPublication) return existingPublication;
-
     if (opts.source) {
       track.source = opts.source;
     }
+    const publishPromise = this.publish(track, opts, options, isStereo);
+    this.pendingPublishPromises.set(track, publishPromise);
+    const publication = await publishPromise;
+    this.pendingPublishPromises.delete(track);
+    return publication;
+  }
+
+  private async publish(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    options: TrackPublishOptions | undefined,
+    isStereo: boolean,
+  ) {
     const existingTrackOfSource = Array.from(this.tracks.values()).find(
       (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
     );
