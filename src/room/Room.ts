@@ -872,15 +872,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       let remoteParticipant = this.participants.get(info.sid);
       const isNewParticipant = !remoteParticipant;
 
-      // create participant if doesn't exist
-      remoteParticipant = this.getOrCreateParticipant(info.sid, info);
-
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
         this.handleParticipantDisconnected(info.sid, remoteParticipant);
-      } else if (!isNewParticipant) {
-        // just update, no events
-        remoteParticipant.updateInfo(info);
+      } else {
+        // create participant if doesn't exist
+        remoteParticipant = this.getOrCreateParticipant(info.sid, info);
+        if (!isNewParticipant) {
+          // just update, no events
+          remoteParticipant.updateInfo(info);
+        }
       }
     });
   };
