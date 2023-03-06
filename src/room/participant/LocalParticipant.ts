@@ -29,7 +29,7 @@ import {
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
-import { isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
+import { Future, isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import {
@@ -62,6 +62,8 @@ export default class LocalParticipant extends Participant {
 
   // keep a pointer to room options
   private roomOptions: InternalRoomOptions;
+
+  private reconnectFuture?: Future<void>;
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
@@ -118,9 +120,21 @@ export default class LocalParticipant extends Participant {
     this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
 
     this.engine
-      .on(EngineEvent.Connected, this.updateTrackSubscriptionPermissions)
-      .on(EngineEvent.Restarted, this.updateTrackSubscriptionPermissions)
-      .on(EngineEvent.Resumed, this.updateTrackSubscriptionPermissions);
+      .on(EngineEvent.Connected, this.handleReconnected)
+      .on(EngineEvent.Restarted, this.handleReconnected)
+      .on(EngineEvent.Resumed, this.handleReconnected)
+      .on(EngineEvent.Restarting, this.handleReconnecting)
+      .on(EngineEvent.Resuming, this.handleReconnecting);
+  }
+
+  private async handleReconnecting() {
+    this.reconnectFuture = new Future<void>();
+  }
+
+  private async handleReconnected() {
+    this.updateTrackSubscriptionPermissions();
+    this.reconnectFuture?.resolve?.();
+    this.reconnectFuture = undefined;
   }
 
   /**
@@ -413,6 +427,7 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
+    await this.reconnectFuture?.promise;
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {

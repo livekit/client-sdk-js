@@ -758,8 +758,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     log.debug(`reconnected to server`, {
       region: joinResponse.serverRegion,
     });
-    this.setAndEmitConnectionState(ConnectionState.Connected);
-    this.emit(RoomEvent.Reconnected);
 
     // rehydrate participants
     if (joinResponse.participant) {
@@ -800,6 +798,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       }),
     );
+    this.setAndEmitConnectionState(ConnectionState.Connected);
+    this.emit(RoomEvent.Reconnected);
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
