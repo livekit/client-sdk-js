@@ -131,7 +131,9 @@ export default class LocalParticipant extends Participant {
   }
 
   private handleReconnecting = () => {
-    this.reconnectFuture = new Future<void>();
+    if (!this.reconnectFuture) {
+      this.reconnectFuture = new Future<void>();
+    }
   };
 
   private handleReconnected = () => {
