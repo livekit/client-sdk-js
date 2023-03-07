@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.6.8
+
+### Patch Changes
+
+- [#605](https://github.com/livekit/client-sdk-js/pull/605) [`4bc4183`](https://github.com/livekit/client-sdk-js/commit/4bc41831c0da8c3c17f9afd06f9787e6004a644a) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Receive remote participant disconnected updates while reconnecting
+
+- [#592](https://github.com/livekit/client-sdk-js/pull/592) [`fea43e4`](https://github.com/livekit/client-sdk-js/commit/fea43e4de8b79176c6485a1d181467a284242b4b) Thanks [@lukasIO](https://github.com/lukasIO)! - Add support for some experimental getDisplayMedia options in ScreenShareCaptureOptions
+
+- [#608](https://github.com/livekit/client-sdk-js/pull/608) [`5efa607`](https://github.com/livekit/client-sdk-js/commit/5efa60710096bf050ea7438312843e694a0db5fa) Thanks [@lukasIO](https://github.com/lukasIO)! - Defer publishing of tracks during reconnection
+
+- [#597](https://github.com/livekit/client-sdk-js/pull/597) [`27dbd6a`](https://github.com/livekit/client-sdk-js/commit/27dbd6a6d8d2950d7a90bd928bd0229c4a956008) Thanks [@lukasIO](https://github.com/lukasIO)! - Add support for topics on data messages
+
 ## 1.6.7
 
 ### Patch Changes
