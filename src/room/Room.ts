@@ -877,15 +877,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       let remoteParticipant = this.participants.get(info.sid);
       const isNewParticipant = !remoteParticipant;
 
-      // create participant if doesn't exist
-      remoteParticipant = this.getOrCreateParticipant(info.sid, info);
-
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
         this.handleParticipantDisconnected(info.sid, remoteParticipant);
-      } else if (!isNewParticipant) {
-        // just update, no events
-        remoteParticipant.updateInfo(info);
+      } else {
+        // create participant if doesn't exist
+        remoteParticipant = this.getOrCreateParticipant(info.sid, info);
+        if (!isNewParticipant) {
+          // just update, no events
+          remoteParticipant.updateInfo(info);
+        }
       }
     });
   };
@@ -1006,7 +1007,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // find the participant
     const participant = this.participants.get(userPacket.participantSid);
 
-    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind);
+    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
 
     // also emit on the participant
     participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
@@ -1467,6 +1468,7 @@ export type RoomEventCallbacks = {
     payload: Uint8Array,
     participant?: RemoteParticipant,
     kind?: DataPacket_Kind,
+    topic?: string,
   ) => void;
   connectionQualityChanged: (quality: ConnectionQuality, participant: Participant) => void;
   mediaDevicesError: (error: Error) => void;
