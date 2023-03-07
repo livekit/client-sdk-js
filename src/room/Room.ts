@@ -1002,7 +1002,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // find the participant
     const participant = this.participants.get(userPacket.participantSid);
 
-    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind);
+    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
 
     // also emit on the participant
     participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
@@ -1463,6 +1463,7 @@ export type RoomEventCallbacks = {
     payload: Uint8Array,
     participant?: RemoteParticipant,
     kind?: DataPacket_Kind,
+    topic?: string,
   ) => void;
   connectionQualityChanged: (quality: ConnectionQuality, participant: Participant) => void;
   mediaDevicesError: (error: Error) => void;

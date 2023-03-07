@@ -29,6 +29,7 @@ import {
 } from '../track/options';
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
+import type { DataPublishOptions } from '../types';
 import { isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
@@ -813,6 +814,22 @@ export default class LocalParticipant extends Participant {
 
   /**
    * Publish a new data payload to the room. Data will be forwarded to each
+   * participant in the room if the destination field in publishOptions is empty
+   *
+   * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
+   * @param kind whether to send this as reliable or lossy.
+   * For data that you need delivery guarantee (such as chat messages), use Reliable.
+   * For data that should arrive as quickly as possible, but you are ok with dropped
+   * packets, use Lossy.
+   * @param publishOptions optionally specify a `topic` and `destination`
+   */
+  async publishData(
+    data: Uint8Array,
+    kind: DataPacket_Kind,
+    publishOptions?: DataPublishOptions,
+  ): Promise<void>;
+  /**
+   * Publish a new data payload to the room. Data will be forwarded to each
    * participant in the room if the destination argument is empty
    *
    * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
@@ -826,14 +843,26 @@ export default class LocalParticipant extends Participant {
     data: Uint8Array,
     kind: DataPacket_Kind,
     destination?: RemoteParticipant[] | string[],
+  ): Promise<void>;
+
+  async publishData(
+    data: Uint8Array,
+    kind: DataPacket_Kind,
+    publishOptions: DataPublishOptions | RemoteParticipant[] | string[] = {},
   ) {
-    const dest: string[] = [];
+    const destination = Array.isArray(publishOptions)
+      ? publishOptions
+      : publishOptions?.destination;
+    const destinationSids: string[] = [];
+
+    const topic = !Array.isArray(publishOptions) ? publishOptions.topic : undefined;
+
     if (destination !== undefined) {
       destination.forEach((val: any) => {
         if (val instanceof RemoteParticipant) {
-          dest.push(val.sid);
+          destinationSids.push(val.sid);
         } else {
-          dest.push(val);
+          destinationSids.push(val);
         }
       });
     }
@@ -845,7 +874,8 @@ export default class LocalParticipant extends Participant {
         user: {
           participantSid: this.sid,
           payload: data,
-          destinationSids: dest,
+          destinationSids: destinationSids,
+          topic,
         },
       },
     };
