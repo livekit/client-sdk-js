@@ -30,7 +30,7 @@ import {
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
 import type { DataPublishOptions } from '../types';
-import { isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
+import { Future, isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import {
@@ -53,6 +53,8 @@ export default class LocalParticipant extends Participant {
 
   private pendingPublishing = new Set<Track.Source>();
 
+  private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
+
   private cameraError: Error | undefined;
 
   private microphoneError: Error | undefined;
@@ -63,6 +65,8 @@ export default class LocalParticipant extends Participant {
 
   // keep a pointer to room options
   private roomOptions: InternalRoomOptions;
+
+  private reconnectFuture?: Future<void>;
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
@@ -119,10 +123,24 @@ export default class LocalParticipant extends Participant {
     this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
 
     this.engine
-      .on(EngineEvent.Connected, this.updateTrackSubscriptionPermissions)
-      .on(EngineEvent.Restarted, this.updateTrackSubscriptionPermissions)
-      .on(EngineEvent.Resumed, this.updateTrackSubscriptionPermissions);
+      .on(EngineEvent.Connected, this.handleReconnected)
+      .on(EngineEvent.Restarted, this.handleReconnected)
+      .on(EngineEvent.Resumed, this.handleReconnected)
+      .on(EngineEvent.Restarting, this.handleReconnecting)
+      .on(EngineEvent.Resuming, this.handleReconnecting);
   }
+
+  private handleReconnecting = () => {
+    if (!this.reconnectFuture) {
+      this.reconnectFuture = new Future<void>();
+    }
+  };
+
+  private handleReconnected = () => {
+    this.reconnectFuture?.resolve?.();
+    this.reconnectFuture = undefined;
+    this.updateTrackSubscriptionPermissions();
+  };
 
   /**
    * Enable or disable a participant's camera track.
@@ -414,6 +432,10 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
+    await this.reconnectFuture?.promise;
+    if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
+      await this.pendingPublishPromises.get(track);
+    }
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
@@ -426,6 +448,22 @@ export default class LocalParticipant extends Participant {
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
       }
+    }
+
+    // is it already published? if so skip
+    let existingPublication: LocalTrackPublication | undefined;
+    this.tracks.forEach((publication) => {
+      if (!publication.track) {
+        return;
+      }
+      if (publication.track === track) {
+        existingPublication = <LocalTrackPublication>publication;
+      }
+    });
+
+    if (existingPublication) {
+      log.warn('track has already been published, skipping');
+      return existingPublication;
     }
 
     const isStereo =
@@ -458,22 +496,27 @@ export default class LocalParticipant extends Participant {
       ...options,
     };
 
-    // is it already published? if so skip
-    let existingPublication: LocalTrackPublication | undefined;
-    this.tracks.forEach((publication) => {
-      if (!publication.track) {
-        return;
-      }
-      if (publication.track === track) {
-        existingPublication = <LocalTrackPublication>publication;
-      }
-    });
-
-    if (existingPublication) return existingPublication;
-
     if (opts.source) {
       track.source = opts.source;
     }
+    const publishPromise = this.publish(track, opts, options, isStereo);
+    this.pendingPublishPromises.set(track, publishPromise);
+    try {
+      const publication = await publishPromise;
+      return publication;
+    } catch (e) {
+      throw e;
+    } finally {
+      this.pendingPublishPromises.delete(track);
+    }
+  }
+
+  private async publish(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    options: TrackPublishOptions | undefined,
+    isStereo: boolean,
+  ) {
     const existingTrackOfSource = Array.from(this.tracks.values()).find(
       (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
     );
