@@ -127,7 +127,8 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.Restarted, this.handleReconnected)
       .on(EngineEvent.Resumed, this.handleReconnected)
       .on(EngineEvent.Restarting, this.handleReconnecting)
-      .on(EngineEvent.Resuming, this.handleReconnecting);
+      .on(EngineEvent.Resuming, this.handleReconnecting)
+      .on(EngineEvent.Disconnected, this.handleDisconnected);
   }
 
   private handleReconnecting = () => {
@@ -140,6 +141,11 @@ export default class LocalParticipant extends Participant {
     this.reconnectFuture?.resolve?.();
     this.reconnectFuture = undefined;
     this.updateTrackSubscriptionPermissions();
+  };
+
+  private handleDisconnected = () => {
+    this.reconnectFuture?.reject?.('Got disconnected during publishing attempt');
+    this.reconnectFuture = undefined;
   };
 
   /**
