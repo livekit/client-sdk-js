@@ -56,7 +56,7 @@ export interface TrackPublishDefaults {
   scalabilityMode?: ScalabilityMode;
 
   /**
-   * custom video simulcast layers for camera tracks, defaults to h180, h360, h540
+   * custom video simulcast layers for camera tracks, defaults to h180, h360
    * You can specify up to two custom layers that will be used instead of
    * the LiveKit default layers.
    * Note: the layers need to be ordered from lowest to highest quality
