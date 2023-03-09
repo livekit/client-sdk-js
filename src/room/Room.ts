@@ -616,27 +616,28 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    *  `audiooutput` to set speaker for all incoming audio tracks
    * @param deviceId
    */
-  async switchActiveDevice(kind: MediaDeviceKind, deviceId: string) {
+  async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = false) {
+    const deviceConstraint = exact ? { exact: deviceId } : deviceId;
     if (kind === 'audioinput') {
       const prevDeviceId = this.options.audioCaptureDefaults!.deviceId;
-      this.options.audioCaptureDefaults!.deviceId = deviceId;
+      this.options.audioCaptureDefaults!.deviceId = deviceConstraint;
       const tracks = Array.from(this.localParticipant.audioTracks.values()).filter(
         (track) => track.source === Track.Source.Microphone,
       );
       try {
-        await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceId)));
+        await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceConstraint)));
       } catch (e) {
         this.options.audioCaptureDefaults!.deviceId = prevDeviceId;
         throw e;
       }
     } else if (kind === 'videoinput') {
       const prevDeviceId = this.options.videoCaptureDefaults!.deviceId;
-      this.options.videoCaptureDefaults!.deviceId = deviceId;
+      this.options.videoCaptureDefaults!.deviceId = deviceConstraint;
       const tracks = Array.from(this.localParticipant.videoTracks.values()).filter(
         (track) => track.source === Track.Source.Camera,
       );
       try {
-        await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceId)));
+        await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceConstraint)));
       } catch (e) {
         this.options.videoCaptureDefaults!.deviceId = prevDeviceId;
         throw e;
