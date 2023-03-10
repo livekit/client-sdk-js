@@ -23,9 +23,19 @@ export function isVideoFrame(
   return 'type' in frame;
 }
 
-export async function importKey(keyBytes: Uint8Array | ArrayBuffer) {
+export async function importKey(
+  keyBytes: Uint8Array | ArrayBuffer,
+  algorithm: string | { name: string } = { name: ENCRYPTION_ALGORITHM },
+  usage: 'derive' | 'encrypt' = 'encrypt',
+) {
   // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey
-  return crypto.subtle.importKey('raw', keyBytes, 'HKDF', false, ['deriveBits', 'deriveKey']);
+  return crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    algorithm,
+    false,
+    usage === 'derive' ? ['deriveBits', 'deriveKey'] : ['encrypt', 'decrypt'],
+  );
 }
 
 export async function deriveKeyFromString(password: string) {
