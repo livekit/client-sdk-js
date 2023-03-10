@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
+import log from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
@@ -132,7 +133,11 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
           this.emit(TrackEvent.AudioPlaybackStarted);
         })
         .catch((e) => {
-          this.emit(TrackEvent.AudioPlaybackFailed, e);
+          if (e.name === 'NotAllowedError') {
+            this.emit(TrackEvent.AudioPlaybackFailed, e);
+          } else {
+            log.warn('could not playback audio', e);
+          }
           // If audio playback isn't allowed make sure we still play back the video
           if (
             element &&
