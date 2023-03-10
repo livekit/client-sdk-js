@@ -174,7 +174,7 @@ export default class LocalVideoTrack extends LocalTrack {
     this.setPublishingLayers(qualities);
   }
 
-  async setDeviceId(deviceId: string) {
+  async setDeviceId(deviceId: ConstrainDOMString) {
     if (this.constraints.deviceId === deviceId) {
       return;
     }

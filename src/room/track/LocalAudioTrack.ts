@@ -28,7 +28,7 @@ export default class LocalAudioTrack extends LocalTrack {
     this.checkForSilence();
   }
 
-  async setDeviceId(deviceId: string) {
+  async setDeviceId(deviceId: ConstrainDOMString) {
     if (this.constraints.deviceId === deviceId) {
       return;
     }
