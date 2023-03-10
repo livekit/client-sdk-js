@@ -1,5 +1,15 @@
 # Change Log
 
+## 1.6.9
+
+### Patch Changes
+
+- [#612](https://github.com/livekit/client-sdk-js/pull/612) [`347c497`](https://github.com/livekit/client-sdk-js/commit/347c4971fcf3d4cd549134a1341f68a3f215abc2) Thanks [@lukasIO](https://github.com/lukasIO)! - Allow to specify exact constraint for room.switchActiveDevice
+
+- [#609](https://github.com/livekit/client-sdk-js/pull/609) [`068c05e`](https://github.com/livekit/client-sdk-js/commit/068c05e757e7218e12da971e3803834e439e139e) Thanks [@lukasIO](https://github.com/lukasIO)! - Reject publish future if engine disconnects
+
+- [#615](https://github.com/livekit/client-sdk-js/pull/615) [`505a78e`](https://github.com/livekit/client-sdk-js/commit/505a78e459808b0e73ea6737bf333de93a84e390) Thanks [@davidzhao](https://github.com/davidzhao)! - Only trigger AudioPlaybackFailed when error is NotAllowed
+
 ## 1.6.8
 
 ### Patch Changes
