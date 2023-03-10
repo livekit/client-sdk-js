@@ -344,8 +344,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             'primary peerconnection',
             false,
             subscriberPrimary
-              ? ReconnectReason.REASON_SUBSCRIBER_FAILED
-              : ReconnectReason.REASON_PUBLISHER_FAILED,
+              ? ReconnectReason.RR_SUBSCRIBER_FAILED
+              : ReconnectReason.RR_PUBLISHER_FAILED,
           );
         }
       }
@@ -358,13 +358,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           'secondary peerconnection',
           false,
           subscriberPrimary
-            ? ReconnectReason.REASON_PUBLISHER_FAILED
-            : ReconnectReason.REASON_SUBSCRIBER_FAILED,
+            ? ReconnectReason.RR_PUBLISHER_FAILED
+            : ReconnectReason.RR_SUBSCRIBER_FAILED,
         );
       }
     };
 
     this.subscriber.pc.ontrack = (ev: RTCTrackEvent) => {
+      // todo-mux: firefox can't get TR_AX... track id
       if (ev.track.kind === 'audio' && ev.track.id.includes('TR_AX')) {
         this.audioMuxTracks.set(ev.track.id, {track: ev.track, stream: ev.streams[0], receiver: ev.receiver})
       }
@@ -430,7 +431,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onClose = () => {
-      this.handleDisconnect('signal', false, ReconnectReason.REASON_SIGNAL_DISCONNECTED);
+      this.handleDisconnect('signal', false, ReconnectReason.RR_SIGNAL_DISCONNECTED);
     };
 
     this.client.onLeave = (leave?: LeaveRequest) => {
@@ -795,7 +796,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       if (recoverable) {
-        this.handleDisconnect('reconnect', requireSignalEvents, ReconnectReason.REASON_UNKOWN);
+        this.handleDisconnect('reconnect', requireSignalEvents, ReconnectReason.RR_UNKOWN);
       } else {
         log.info(
           `could not recover connection after ${this.reconnectAttempts} attempts, ${
@@ -1033,7 +1034,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       const negotiationTimeout = setTimeout(() => {
         reject('negotiation timed out');
-        this.handleDisconnect('negotiation', false, ReconnectReason.REASON_SIGNAL_DISCONNECTED);
+        this.handleDisconnect('negotiation', false, ReconnectReason.RR_SIGNAL_DISCONNECTED);
       }, this.peerConnectionTimeout);
 
       const cleanup = () => {
@@ -1054,7 +1055,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
-        this.handleDisconnect('negotiation', false, ReconnectReason.REASON_UNKOWN);
+        this.handleDisconnect('negotiation', false, ReconnectReason.RR_UNKOWN);
       });
     });
   }
@@ -1092,7 +1093,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
     if (this.client.isReconnecting) {
       this.clearReconnectTimeout();
-      this.attemptReconnect(true, ReconnectReason.REASON_SIGNAL_DISCONNECTED);
+      this.attemptReconnect(true, ReconnectReason.RR_SIGNAL_DISCONNECTED);
     }
   };
 

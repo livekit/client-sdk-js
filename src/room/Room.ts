@@ -51,6 +51,7 @@ import LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
+import MuxedRemoteAudioTrack from './track/MuxedRemoteAudioTrack';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
@@ -65,7 +66,6 @@ import {
   supportsSetSinkId,
   unpackStreamId,
 } from './utils';
-import RemoteAudioTrack from './track/RemoteAudioTrack';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -135,11 +135,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private disconnectLock: Mutex;
 
-  /** mapping of sdp track id -> RemoteTrackPublication */
-  private audioTrackMux: Map<string, RemoteTrackPublication> = new Map();
+  private lastMuxUpdate?: AudioTrackMuxUpdate;
 
-  /** mapping of sdp track id -> RemoteAudioTrack */
-  private roomAudioTracks: Map<string, RemoteAudioTrack> = new Map();
+  /** mapping of track id -> MuxedRemoteAudioTrack */
+  private muxedTracks: Map<string, MuxedRemoteAudioTrack> = new Map();
 
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
@@ -1054,38 +1053,58 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleAudioMuxUpdate = (update: AudioTrackMuxUpdate) => {
-    // if track is not playing, detach from audio element
-    this.audioTrackMux.forEach((pub: RemoteTrackPublication) => {
-      if (!update.audioTrackMuxes.some((newPub) => newPub.trackSid === pub.trackSid)) {
-        pub.setTrack(undefined);
-      }
-    })
 
-    this.audioTrackMux.clear();
-    update.audioTrackMuxes.forEach(info => {
-      const muxTrack = this.engine.audioMuxTracks.get(info.sdpTrackId);
-      if (!muxTrack) {
-        log.error(`can't find mux track for sdp track id ${info.sdpTrackId}`);
-        return;
+    const newlySubTracks = update.audioTrackMuxes.filter(val => !(this.lastMuxUpdate?.audioTrackMuxes.some(lval => lval.trackSid === val.trackSid)));
+    const newlyUnsubTracks = this.lastMuxUpdate?.audioTrackMuxes.filter(lval => !(update.audioTrackMuxes.some(val => val.trackSid === lval.trackSid)));
+    this.lastMuxUpdate = update;
+
+    newlySubTracks.forEach(track => {
+      const muxTrack = this.engine.audioMuxTracks.get(track.sdpTrackId);
+      if (track.sdpTrackId !== '' && !muxTrack) {
+        log.error(`can't find mux track for sdp track id ${track.sdpTrackId}`);
       }
 
-      let remoteTrack = this.roomAudioTracks.get(info.sdpTrackId);
-      if (!remoteTrack) {
-        remoteTrack = new RemoteAudioTrack(muxTrack.track, info.trackSid,  muxTrack.receiver, this.audioContext, this.options.audioOutput);
-        this.roomAudioTracks.set(info.sdpTrackId, remoteTrack);
-      }
+      const remoteTrack = new MuxedRemoteAudioTrack(track.trackSid, muxTrack?.track,muxTrack?.stream, muxTrack?.receiver, this.audioContext, this.options.audioOutput);
 
-      const participant = this.participants.get(info.participantSid);
+      const participant = this.participants.get(track.participantSid);
       if (!participant) {
-        log.error(`can't find participant for ${info.sdpTrackId}`);
+        log.error(`can't find participant for ${track.participantSid}`);
         return;
       }
 
-      const p = participant.addMuxAudioTrack(remoteTrack, muxTrack.track, info.trackSid, muxTrack.stream);
-      if (p) {
-        this.audioTrackMux.set(info.sdpTrackId, p)
+      participant.addMuxAudioTrack(remoteTrack, track.trackSid);
+      this.muxedTracks.set(track.trackSid, remoteTrack);
+    });
+
+    newlyUnsubTracks?.forEach(track => {
+      log.info(`unsub track ${track.trackSid}`);
+      const muxedTrack = this.muxedTracks.get(track.trackSid);
+      if (!muxedTrack) {
+        log.error(`can't find muxed track for participant ${track.participantSid}, track ${track.trackSid}`);
+        return
       }
-    })
+      muxedTrack.close();
+      this.muxedTracks.delete(track.trackSid);
+    });
+
+    update.audioTrackMuxes.forEach(track => {
+      const muxedTrack = this.muxedTracks.get(track.trackSid);
+      if(!muxedTrack) {
+        log.error(`can't find muxed track for participant ${track.participantSid}, track ${track.trackSid}`);
+        return
+      }
+      if (track.sdpTrackId === '') {
+        muxedTrack.unbind();
+      } else {
+        const muxTrack = this.engine.audioMuxTracks.get(track.sdpTrackId)
+        if (!muxTrack) {
+          log.error(`can't find mux track for sdp track id ${track.sdpTrackId}`);
+          return 
+        }
+        log.info(`track ${track.trackSid} muxed to ${track.sdpTrackId}`);
+        muxedTrack.bind(muxTrack.track, muxTrack.stream,muxTrack.receiver);
+      }
+    });
   }
 
   private async acquireAudioContext() {

@@ -122,9 +122,7 @@ export default class RemoteParticipant extends Participant {
   /** @internal */
   addMuxAudioTrack(
     track: RemoteAudioTrack,
-    mediaTrack: MediaStreamTrack,
     sid: Track.SID,
-    mediaStream: MediaStream,
   ) {
     let publication = this.getTrackPublication(sid);
     if (!publication) {
@@ -135,7 +133,6 @@ export default class RemoteParticipant extends Participant {
     track.source = publication.source;
     // keep publication's muted status
     track.isMuted = publication.isMuted;
-    track.setMediaStream(mediaStream);
     track.start();
 
     publication.setTrack(track);
