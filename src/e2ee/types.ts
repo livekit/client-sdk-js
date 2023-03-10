@@ -18,7 +18,7 @@ export interface SetKeyMessage extends BaseMessage {
   kind: 'setKey';
   data: {
     participantId?: string;
-    key: Uint8Array;
+    key: CryptoKey;
     keyIndex?: number;
   };
 }
@@ -105,7 +105,7 @@ export const CryptorEvent = {
 } as const;
 
 export type KeyInfo = {
-  key: Uint8Array;
+  key: CryptoKey;
   participantId?: string;
   keyIndex?: number;
 };

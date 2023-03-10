@@ -4,16 +4,10 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { workerLogger } from '../logger';
-import {
-  ENCRYPTION_ALGORITHM,
-  IV_LENGTH,
-  KEYRING_SIZE,
-  RATCHET_WINDOW_SIZE,
-  UNENCRYPTED_BYTES,
-} from './constants';
+import { ENCRYPTION_ALGORITHM, IV_LENGTH, KEYRING_SIZE, UNENCRYPTED_BYTES } from './constants';
 import { E2EEError, E2EEErrorReason } from './errors';
-import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeySet } from './types';
-import { deriveKeys, importKey, isVideoFrame, ratchet } from './utils';
+import { CryptorCallbacks, CryptorEvent, ErrorMessage } from './types';
+import { isVideoFrame } from './utils';
 
 export interface CryptorConstructor {
   new (opts?: unknown): BaseCryptor;
@@ -47,11 +41,7 @@ export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<Cryptor
  * encode/decode functions
  */
 export class Cryptor extends BaseCryptor {
-  // private currentKeyIndex: number;
-
   private sendCounts: Map<number, number>;
-
-  // private enabled: boolean;
 
   private useSharedKey: boolean | undefined;
 
@@ -72,19 +62,11 @@ export class Cryptor extends BaseCryptor {
     participantId: string;
   }) {
     super();
-    // this.currentKeyIndex = 0;
-    // this.cryptoKeyRing = new Array(KEYRING_SIZE);
     this.sendCounts = new Map();
     this.useSharedKey = opts.sharedKey;
-    // this.enabled = opts.enabled ?? true;
     this.keys = opts.keys;
     this.participantId = opts.participantId;
   }
-
-  // setEnabled(enable: boolean) {
-  //   workerLogger.info(`set enable cryptor: ${enable}`);
-  //   this.enabled = enable;
-  // }
 
   setParticipant(id: string, keys: ParticipantKeys) {
     this.participantId = id;
@@ -304,8 +286,7 @@ export class Cryptor extends BaseCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     keyIndex: number,
     codec?: string,
-    initialKey: KeySet | undefined = undefined,
-    ratchetCount: number = 0,
+    initialKey: CryptoKey | undefined = undefined,
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
     const encryptionKey = this.keys.getKey(keyIndex);
 
@@ -357,43 +338,8 @@ export class Cryptor extends BaseCryptor {
 
       return encodedFrame;
     } catch (error: any) {
-      let material = this.keys.getMaterial(keyIndex);
-
-      if (this.useSharedKey || !material) {
-        workerLogger.error(error);
-        throw new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey);
-      }
-
-      if (ratchetCount < RATCHET_WINDOW_SIZE) {
-        const currentKeySet = this.keys.getKeySet();
-
-        material = await importKey(await ratchet(material));
-
-        const newKey = await deriveKeys(material);
-
-        this.keys.setKeys(newKey);
-
-        return await this.decryptFrame(
-          encodedFrame,
-          keyIndex,
-          codec,
-          initialKey || currentKeySet,
-          ratchetCount + 1,
-        );
-      }
-
-      /**
-       * Since the key it is first send and only afterwards actually used for encrypting, there were
-       * situations when the decrypting failed due to the fact that the received frame was not encrypted
-       * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
-       * we come back to the initial key.
-       */
-      if (initialKey) {
-        this.keys.setKeys(initialKey);
-      }
-
-      workerLogger.error('error decoding', { error });
-      // TODO: notify the application about error status.
+      workerLogger.error(error);
+      throw new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey);
     }
   }
 
@@ -561,16 +507,13 @@ export enum NALUType {
 export class ParticipantKeys {
   private currentKeyIndex: number;
 
-  private cryptoKeyRing: Array<KeySet>;
-
-  private isSharedKey: boolean;
+  private cryptoKeyRing: Array<CryptoKey>;
 
   private enabled: boolean;
 
-  constructor(isSharedKey = true, isEnabled = true) {
+  constructor(isEnabled = true) {
     this.currentKeyIndex = 0;
     this.cryptoKeyRing = new Array(KEYRING_SIZE);
-    this.isSharedKey = isSharedKey;
     this.enabled = isEnabled;
   }
 
@@ -578,45 +521,30 @@ export class ParticipantKeys {
     this.enabled = enabled;
   }
 
-  async setKey(key: Uint8Array, keyIndex = 0) {
-    if (key) {
-      let newKey: CryptoKey | KeySet;
-      if (this.isSharedKey) {
-        newKey = await crypto.subtle.importKey(
-          'raw',
-          key,
-          {
-            name: ENCRYPTION_ALGORITHM,
-            length: 256,
-          },
-          false,
-          ['encrypt', 'decrypt'],
-        );
-      } else {
-        const material = await importKey(key);
-        newKey = await deriveKeys(material);
-      }
-      workerLogger.debug('setting new key');
-      this.setKeys(newKey, keyIndex);
-    }
-  }
-
-  /**
-   * Sets a set of keys and resets the sendCount.
-   * decryption.
-   */
-  setKeys(keys: KeySet | CryptoKey, keyIndex = 0) {
+  async setKey(key: CryptoKey, keyIndex = 0) {
+    // if (key) {
+    //   let newKey: CryptoKey;
+    //   if (this.isSharedKey) {
+    //     newKey = await crypto.subtle.importKey(
+    //       'raw',
+    //       key,
+    //       {
+    //         name: ENCRYPTION_ALGORITHM,
+    //         length: 256,
+    //       },
+    //       false,
+    //       ['encrypt', 'decrypt'],
+    //     );
+    //   } else {
+    //     const material = await importKey(key);
+    //     newKey = await deriveKeys(material);
+    //   }
+    workerLogger.debug('setting new key');
     if (keyIndex >= 0) {
       this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
     }
-    if (keys instanceof CryptoKey) {
-      // this is the path for sharedKey = true
-      this.cryptoKeyRing[this.currentKeyIndex] = { encryptionKey: keys };
-    } else {
-      this.cryptoKeyRing[this.currentKeyIndex] = keys;
-    }
-
-    // this._sendCount = BigInt(0); // eslint-disable-line new-cap
+    this.cryptoKeyRing[this.currentKeyIndex] = key;
+    // }
   }
 
   isEnabled() {
@@ -627,15 +555,7 @@ export class ParticipantKeys {
     return this.currentKeyIndex;
   }
 
-  getKeySet(keyIndex?: number) {
-    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex];
-  }
-
   getKey(keyIndex?: number) {
-    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex]?.encryptionKey;
-  }
-
-  getMaterial(keyIndex?: number) {
-    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex]?.material;
+    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex];
   }
 }

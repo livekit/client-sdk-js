@@ -1,6 +1,7 @@
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import type { KeyProviderCallbacks, KeyInfo } from './types';
+import { importKey } from './utils';
 
 export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<KeyProviderCallbacks>) {
   private keyInfoMap: Map<string, KeyInfo>;
@@ -10,7 +11,7 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
     this.keyInfoMap = new Map();
   }
 
-  onSetEncryptionKey(key: Uint8Array, participantId?: string, keyIndex?: number) {
+  onSetEncryptionKey(key: CryptoKey, participantId?: string, keyIndex?: number) {
     const keyInfo: KeyInfo = { key, participantId, keyIndex };
     this.keyInfoMap.set(`${participantId ?? 'shared'}-${keyIndex ?? 0}`, keyInfo);
     this.emit('setKey', keyInfo);
@@ -22,7 +23,8 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
 }
 
 export class ExternalE2EEKeyProvider extends BaseKeyProvider {
-  setKey(key: Uint8Array) {
-    this.onSetEncryptionKey(key);
+  async setKey(key: Uint8Array) {
+    const importedKey = await importKey(key);
+    this.onSetEncryptionKey(importedKey);
   }
 }

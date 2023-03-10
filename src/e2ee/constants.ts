@@ -26,9 +26,5 @@ export const UNENCRYPTED_BYTES = {
  packet. See https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt#parameters */
 export const IV_LENGTH = 12;
 
-export const RATCHET_WINDOW_SIZE = 8;
-
-export const RATCHET_SALT = 'LKFrameEncryptionKey';
-
 // flag set to indicate that e2ee has been setup for sender/receiver;
 export const E2EE_FLAG = 'lk_e2ee';

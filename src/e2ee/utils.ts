@@ -1,5 +1,4 @@
-import { ENCRYPTION_ALGORITHM, RATCHET_SALT } from './constants';
-import type { KeySet } from './types';
+import { ENCRYPTION_ALGORITHM } from './constants';
 
 export function isE2EESupported() {
   return isInsertableStreamSupported() || isScriptTransformSupported();
@@ -29,11 +28,41 @@ export async function importKey(keyBytes: Uint8Array | ArrayBuffer) {
   return crypto.subtle.importKey('raw', keyBytes, 'HKDF', false, ['deriveBits', 'deriveKey']);
 }
 
+export async function deriveKeyFromString(password: string) {
+  let enc = new TextEncoder();
+  const salt = enc.encode('LKFrameEncryptionKey');
+
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(password),
+    {
+      name: 'PBKDF2',
+    },
+    false,
+    ['deriveBits', 'deriveKey'],
+  );
+
+  const encryptionKey = await crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt,
+      iterations: 100000,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    { name: ENCRYPTION_ALGORITHM, length: 128 },
+    true,
+    ['encrypt', 'decrypt'],
+  );
+
+  return encryptionKey;
+}
+
 /**
  * Derives a set of keys from the master key.
  * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.1
  */
-export async function deriveKeys(material: CryptoKey): Promise<KeySet> {
+export async function deriveKeys(material: CryptoKey, salt: string) {
   const info = new ArrayBuffer(128);
   const textEncoder = new TextEncoder();
 
@@ -42,7 +71,7 @@ export async function deriveKeys(material: CryptoKey): Promise<KeySet> {
   const encryptionKey = await crypto.subtle.deriveKey(
     {
       name: 'HKDF',
-      salt: textEncoder.encode(RATCHET_SALT),
+      salt: textEncoder.encode(salt),
       hash: 'SHA-256',
       info,
     },
@@ -55,31 +84,9 @@ export async function deriveKeys(material: CryptoKey): Promise<KeySet> {
     ['encrypt', 'decrypt'],
   );
 
-  return {
-    material,
-    encryptionKey: encryptionKey,
-  };
+  return encryptionKey;
 }
 
-/**
- * Ratchets a key. See
- * https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.5.1
- */
-export async function ratchet(material: CryptoKey): Promise<ArrayBuffer> {
-  const textEncoder = new TextEncoder();
-
-  // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveBits
-  return crypto.subtle.deriveBits(
-    {
-      name: 'HKDF',
-      salt: textEncoder.encode(RATCHET_SALT),
-      hash: 'SHA-256',
-      info: new ArrayBuffer(256),
-    },
-    material,
-    256,
-  );
-}
 export function createE2EEKey(): Uint8Array {
   return window.crypto.getRandomValues(new Uint8Array(32));
 }

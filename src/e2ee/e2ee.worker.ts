@@ -12,7 +12,7 @@ let isEncryptionEnabled: boolean = false;
 
 let useSharedKey: boolean = false;
 
-let sharedKey: Uint8Array | undefined;
+let sharedKey: CryptoKey | undefined;
 
 setLogLevel('debug', 'lk-e2ee');
 
@@ -31,7 +31,7 @@ onmessage = (ev) => {
         kind: 'enable',
         data: { enabled: isEncryptionEnabled },
       };
-      publisherKeys = new ParticipantKeys(useSharedKey, isEncryptionEnabled);
+      publisherKeys = new ParticipantKeys(isEncryptionEnabled);
       postMessage(enableMsg);
       break;
     case 'enable':
@@ -144,7 +144,7 @@ function setEncryptionEnabled(enable: boolean, participantId?: string) {
   }
 }
 
-function setSharedKey(key: Uint8Array, index?: number) {
+function setSharedKey(key: CryptoKey, index?: number) {
   workerLogger.debug('setting shared key');
   sharedKey = key;
   publisherKeys?.setKey(key, index);
