@@ -1,4 +1,4 @@
-import { ENCRYPTION_ALGORITHM } from './constants';
+import { ENCRYPTION_ALGORITHM, SALT } from './constants';
 
 export function isE2EESupported() {
   return isInsertableStreamSupported() || isScriptTransformSupported();
@@ -40,7 +40,7 @@ export async function importKey(
 
 export async function deriveKeyFromString(password: string) {
   let enc = new TextEncoder();
-  const salt = enc.encode('LKFrameEncryptionKey');
+  const salt = enc.encode(SALT);
 
   const keyMaterial = await crypto.subtle.importKey(
     'raw',

@@ -28,3 +28,5 @@ export const IV_LENGTH = 12;
 
 // flag set to indicate that e2ee has been setup for sender/receiver;
 export const E2EE_FLAG = 'lk_e2ee';
+
+export const SALT = 'LKFrameEncryptionKey';
