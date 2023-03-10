@@ -32,7 +32,8 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
   mediaStream?: MediaStream;
 
   /**
-   * indicates current state of stream
+   * indicates current state of stream, it'll indicate `paused` if the track
+   * has been paused by congestion controller
    */
   streamState: Track.StreamState = Track.StreamState.Active;
 

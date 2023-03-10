@@ -1,5 +1,35 @@
 # Change Log
 
+## 1.6.8
+
+### Patch Changes
+
+- [#605](https://github.com/livekit/client-sdk-js/pull/605) [`4bc4183`](https://github.com/livekit/client-sdk-js/commit/4bc41831c0da8c3c17f9afd06f9787e6004a644a) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Receive remote participant disconnected updates while reconnecting
+
+- [#592](https://github.com/livekit/client-sdk-js/pull/592) [`fea43e4`](https://github.com/livekit/client-sdk-js/commit/fea43e4de8b79176c6485a1d181467a284242b4b) Thanks [@lukasIO](https://github.com/lukasIO)! - Add support for some experimental getDisplayMedia options in ScreenShareCaptureOptions
+
+- [#608](https://github.com/livekit/client-sdk-js/pull/608) [`5efa607`](https://github.com/livekit/client-sdk-js/commit/5efa60710096bf050ea7438312843e694a0db5fa) Thanks [@lukasIO](https://github.com/lukasIO)! - Defer publishing of tracks during reconnection
+
+- [#597](https://github.com/livekit/client-sdk-js/pull/597) [`27dbd6a`](https://github.com/livekit/client-sdk-js/commit/27dbd6a6d8d2950d7a90bd928bd0229c4a956008) Thanks [@lukasIO](https://github.com/lukasIO)! - Add support for topics on data messages
+
+## 1.6.7
+
+### Patch Changes
+
+- [#593](https://github.com/livekit/client-sdk-js/pull/593) [`f218236`](https://github.com/livekit/client-sdk-js/commit/f21823659bfe7a5e0036be705c1751e30a3611c8) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Disable red by default for stereo track
+
+- [#600](https://github.com/livekit/client-sdk-js/pull/600) [`75d7556`](https://github.com/livekit/client-sdk-js/commit/75d75562ece4b1e57c81a879440b6101599ef7ea) Thanks [@davidzhao](https://github.com/davidzhao)! - internal getter connectedServerAddress is has been changed to an async function getConnectedServerAddress
+
+- [#595](https://github.com/livekit/client-sdk-js/pull/595) [`75776b8`](https://github.com/livekit/client-sdk-js/commit/75776b81885109ac8e2a369c2a4e7583db2406b3) Thanks [@davidzhao](https://github.com/davidzhao)! - Fixed incorrect state with resume then reconnect
+
+- [#596](https://github.com/livekit/client-sdk-js/pull/596) [`a9aa74f`](https://github.com/livekit/client-sdk-js/commit/a9aa74f327efbbb2595f12d121e8ee4dde283d1c) Thanks [@davidzhao](https://github.com/davidzhao)! - Track.streamState defaults to active
+
+## 1.6.6
+
+### Patch Changes
+
+- [#585](https://github.com/livekit/client-sdk-js/pull/585) [`0a33b1a`](https://github.com/livekit/client-sdk-js/commit/0a33b1a7fcb4cefc4e23c12bc5d9ecfe3b41b583) Thanks [@davidzhao](https://github.com/davidzhao)! - Prevent concurrent RTCRtpSender.setParameter call to avoid exception
+
 ## 1.6.5
 
 ### Patch Changes

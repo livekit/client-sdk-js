@@ -3,7 +3,7 @@ import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import type { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc';
 import { computeBitrate, monitorFrequency, VideoSenderStats } from '../stats';
-import { isFireFox, isMobile, isWeb } from '../utils';
+import { isFireFox, isMobile, isWeb, Mutex } from '../utils';
 import LocalTrack from './LocalTrack';
 import type { VideoCaptureOptions, VideoCodec } from './options';
 import { Track } from './Track';
@@ -39,6 +39,12 @@ export default class LocalVideoTrack extends LocalTrack {
 
   private subscribedCodecs?: SubscribedCodec[];
 
+  // prevents concurrent manipulations to track sender
+  // if multiple get/setParameter are called concurrently, certain timing of events
+  // could lead to the browser throwing an exception in `setParameter`, due to
+  // a missing `getParameter` call.
+  private senderLock: Mutex;
+
   /**
    *
    * @param mediaTrack
@@ -51,6 +57,7 @@ export default class LocalVideoTrack extends LocalTrack {
     userProvidedTrack = true,
   ) {
     super(mediaTrack, Track.Kind.Video, constraints, userProvidedTrack);
+    this.senderLock = new Mutex();
   }
 
   get isSimulcast(): boolean {
@@ -257,6 +264,7 @@ export default class LocalVideoTrack extends LocalTrack {
             simulcastCodecInfo.sender,
             simulcastCodecInfo.encodings!,
             codec.qualities,
+            this.senderLock,
           );
         }
       }
@@ -274,7 +282,7 @@ export default class LocalVideoTrack extends LocalTrack {
       return;
     }
 
-    await setPublishingLayersForSender(this.sender, this.encodings, qualities);
+    await setPublishingLayersForSender(this.sender, this.encodings, qualities, this.senderLock);
   }
 
   protected monitorSender = async () => {
@@ -317,58 +325,66 @@ async function setPublishingLayersForSender(
   sender: RTCRtpSender,
   senderEncodings: RTCRtpEncodingParameters[],
   qualities: SubscribedQuality[],
+  senderLock: Mutex,
 ) {
+  const unlock = await senderLock.lock();
   log.debug('setPublishingLayersForSender', { sender, qualities, senderEncodings });
-  const params = sender.getParameters();
-  const { encodings } = params;
-  if (!encodings) {
-    return;
-  }
-
-  if (encodings.length !== senderEncodings.length) {
-    log.warn('cannot set publishing layers, encodings mismatch');
-    return;
-  }
-
-  let hasChanged = false;
-  encodings.forEach((encoding, idx) => {
-    let rid = encoding.rid ?? '';
-    if (rid === '') {
-      rid = 'q';
-    }
-    const quality = videoQualityForRid(rid);
-    const subscribedQuality = qualities.find((q) => q.quality === quality);
-    if (!subscribedQuality) {
+  try {
+    const params = sender.getParameters();
+    const { encodings } = params;
+    if (!encodings) {
       return;
     }
-    if (encoding.active !== subscribedQuality.enabled) {
-      hasChanged = true;
-      encoding.active = subscribedQuality.enabled;
-      log.debug(
-        `setting layer ${subscribedQuality.quality} to ${encoding.active ? 'enabled' : 'disabled'}`,
-      );
 
-      // FireFox does not support setting encoding.active to false, so we
-      // have a workaround of lowering its bitrate and resolution to the min.
-      if (isFireFox()) {
-        if (subscribedQuality.enabled) {
-          encoding.scaleResolutionDownBy = senderEncodings[idx].scaleResolutionDownBy;
-          encoding.maxBitrate = senderEncodings[idx].maxBitrate;
-          /* @ts-ignore */
-          encoding.maxFrameRate = senderEncodings[idx].maxFrameRate;
-        } else {
-          encoding.scaleResolutionDownBy = 4;
-          encoding.maxBitrate = 10;
-          /* @ts-ignore */
-          encoding.maxFrameRate = 2;
+    if (encodings.length !== senderEncodings.length) {
+      log.warn('cannot set publishing layers, encodings mismatch');
+      return;
+    }
+
+    let hasChanged = false;
+    encodings.forEach((encoding, idx) => {
+      let rid = encoding.rid ?? '';
+      if (rid === '') {
+        rid = 'q';
+      }
+      const quality = videoQualityForRid(rid);
+      const subscribedQuality = qualities.find((q) => q.quality === quality);
+      if (!subscribedQuality) {
+        return;
+      }
+      if (encoding.active !== subscribedQuality.enabled) {
+        hasChanged = true;
+        encoding.active = subscribedQuality.enabled;
+        log.debug(
+          `setting layer ${subscribedQuality.quality} to ${
+            encoding.active ? 'enabled' : 'disabled'
+          }`,
+        );
+
+        // FireFox does not support setting encoding.active to false, so we
+        // have a workaround of lowering its bitrate and resolution to the min.
+        if (isFireFox()) {
+          if (subscribedQuality.enabled) {
+            encoding.scaleResolutionDownBy = senderEncodings[idx].scaleResolutionDownBy;
+            encoding.maxBitrate = senderEncodings[idx].maxBitrate;
+            /* @ts-ignore */
+            encoding.maxFrameRate = senderEncodings[idx].maxFrameRate;
+          } else {
+            encoding.scaleResolutionDownBy = 4;
+            encoding.maxBitrate = 10;
+            /* @ts-ignore */
+            encoding.maxFrameRate = 2;
+          }
         }
       }
-    }
-  });
+    });
 
-  if (hasChanged) {
-    params.encodings = encodings;
-    await sender.setParameters(params);
+    if (hasChanged) {
+      params.encodings = encodings;
+      await sender.setParameters(params);
+    }
+  } finally {
+    unlock();
   }
 }
 

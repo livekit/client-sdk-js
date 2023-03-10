@@ -58,8 +58,8 @@ import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
 import type { SimulationOptions } from './types';
 import {
-  Future,
   createDummyVideoStreamTrack,
+  Future,
   getEmptyAudioStreamTrack,
   isWeb,
   Mutex,
@@ -524,6 +524,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         });
         break;
+      case 'resume-reconnect':
+        this.engine.failNext();
+        await this.engine.client.close();
+        if (this.engine.client.onClose) {
+          this.engine.client.onClose('simulate resume-reconnect');
+        }
+        break;
       case 'force-tcp':
       case 'force-tls':
         req = SimulateScenario.fromPartial({
@@ -761,45 +768,53 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     log.debug(`reconnected to server`, {
       region: joinResponse.serverRegion,
     });
-    this.setAndEmitConnectionState(ConnectionState.Connected);
-    this.emit(RoomEvent.Reconnected);
 
-    // rehydrate participants
-    if (joinResponse.participant) {
-      // with a restart, the sid will have changed, we'll map our understanding to it
-      this.localParticipant.sid = joinResponse.participant.sid;
-      this.handleParticipantUpdates([joinResponse.participant]);
-    }
-    this.handleParticipantUpdates(joinResponse.otherParticipants);
-
-    // unpublish & republish tracks
-    const localPubs: LocalTrackPublication[] = [];
-    this.localParticipant.tracks.forEach((pub) => {
-      if (pub.track) {
-        localPubs.push(pub);
+    try {
+      // rehydrate participants
+      if (joinResponse.participant) {
+        // with a restart, the sid will have changed, we'll map our understanding to it
+        this.localParticipant.sid = joinResponse.participant.sid;
+        this.handleParticipantUpdates([joinResponse.participant]);
       }
-    });
+      this.handleParticipantUpdates(joinResponse.otherParticipants);
 
-    await Promise.all(
-      localPubs.map(async (pub) => {
-        const track = pub.track!;
-        this.localParticipant.unpublishTrack(track, false);
-        if (!track.isMuted) {
-          if (
-            (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
-            !track.isUserProvided
-          ) {
-            // we need to restart the track before publishing, often a full reconnect
-            // is necessary because computer had gone to sleep.
-            log.debug('restarting existing track', {
+      // unpublish & republish tracks
+      const localPubs: LocalTrackPublication[] = [];
+      this.localParticipant.tracks.forEach((pub) => {
+        if (pub.track) {
+          localPubs.push(pub);
+        }
+      });
+
+      await Promise.all(
+        localPubs.map(async (pub) => {
+          const track = pub.track!;
+          this.localParticipant.unpublishTrack(track, false);
+          if (!track.isMuted) {
+            if (
+              (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
+              !track.isUserProvided
+            ) {
+              // we need to restart the track before publishing, often a full reconnect
+              // is necessary because computer had gone to sleep.
+              log.debug('restarting existing track', {
+                track: pub.trackSid,
+              });
+              await track.restartTrack();
+            }
+            log.debug('publishing new track', {
               track: pub.trackSid,
             });
-            await track.restartTrack();
+            await this.localParticipant.publishTrack(track, pub.options);
           }
-          await this.localParticipant.publishTrack(track, pub.options);
-        }
-      }),
-    );
+        }),
+      );
+    } catch (error) {
+      log.error('error trying to re-publish tracks after reconnection', { error });
+    } finally {
+      this.setAndEmitConnectionState(ConnectionState.Connected);
+      this.emit(RoomEvent.Reconnected);
+    }
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
@@ -872,15 +887,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       let remoteParticipant = this.participants.get(info.sid);
       const isNewParticipant = !remoteParticipant;
 
-      // create participant if doesn't exist
-      remoteParticipant = this.getOrCreateParticipant(info.sid, info);
-
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
         this.handleParticipantDisconnected(info.sid, remoteParticipant);
-      } else if (!isNewParticipant) {
-        // just update, no events
-        remoteParticipant.updateInfo(info);
+      } else {
+        // create participant if doesn't exist
+        remoteParticipant = this.getOrCreateParticipant(info.sid, info);
+        if (!isNewParticipant) {
+          // just update, no events
+          remoteParticipant.updateInfo(info);
+        }
       }
     });
   };
@@ -896,7 +912,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant.tracks.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
     });
-    this.emitWhenConnected(RoomEvent.ParticipantDisconnected, participant);
+    this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
 
   // updates are sent only when there's a change to speaker ordering
@@ -1001,7 +1017,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // find the participant
     const participant = this.participants.get(userPacket.participantSid);
 
-    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind);
+    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
 
     // also emit on the participant
     participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
@@ -1179,7 +1195,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       )
       .on(ParticipantEvent.TrackUnpublished, (publication: RemoteTrackPublication) => {
-        this.emitWhenConnected(RoomEvent.TrackUnpublished, publication, participant);
+        this.emit(RoomEvent.TrackUnpublished, publication, participant);
       })
       .on(
         ParticipantEvent.TrackUnsubscribed,
@@ -1517,6 +1533,7 @@ export type RoomEventCallbacks = {
     payload: Uint8Array,
     participant?: RemoteParticipant,
     kind?: DataPacket_Kind,
+    topic?: string,
   ) => void;
   connectionQualityChanged: (quality: ConnectionQuality, participant: Participant) => void;
   mediaDevicesError: (error: Error) => void;

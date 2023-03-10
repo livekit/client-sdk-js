@@ -265,8 +265,7 @@ export default class RemoteParticipant extends Participant {
         }
         publication = new RemoteTrackPublication(
           kind,
-          ti.sid,
-          ti.name,
+          ti,
           this.signalClient.connectOptions?.autoSubscribe,
         );
         publication.updateInfo(ti);
@@ -275,7 +274,7 @@ export default class RemoteParticipant extends Participant {
           (publishedTrack) => publishedTrack.source === publication?.source,
         );
         if (existingTrackOfSource && publication.source !== Track.Source.Unknown) {
-          log.warn(
+          log.debug(
             `received a second track publication for ${this.identity} with the same source: ${publication.source}`,
             {
               oldTrack: existingTrackOfSource,

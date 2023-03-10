@@ -31,9 +31,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
   ) {
     super(mediaTrack, sid, Track.Kind.Video, receiver);
     this.adaptiveStreamSettings = adaptiveStreamSettings;
-    if (this.isAdaptiveStream) {
-      this.streamState = Track.StreamState.Paused;
-    }
   }
 
   get isAdaptiveStream(): boolean {
