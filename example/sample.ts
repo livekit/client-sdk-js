@@ -4,7 +4,6 @@ import {
   createAudioAnalyser,
   DataPacket_Kind,
   DisconnectReason,
-  createE2EEKey,
   LocalAudioTrack,
   LocalParticipant,
   LogLevel,
@@ -49,9 +48,7 @@ const storedToken = searchParams.get('token') ?? '';
 (<HTMLInputElement>$('token')).value = storedToken;
 let storedKey = searchParams.get('key');
 if (!storedKey) {
-  const key = createE2EEKey();
-  console.log('created key', key);
-  (<HTMLSelectElement>$('crypto-key')).value = JSON.stringify(Array.from(key));
+  (<HTMLSelectElement>$('crypto-key')).value = 'password';
 } else {
   (<HTMLSelectElement>$('crypto-key')).value = storedKey;
 }
@@ -198,7 +195,7 @@ const appActions = {
     try {
       // read and set current key from input
       const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
-      state.e2eeKeyProvider.setKey(Uint8Array.from(JSON.parse(cryptoKey)));
+      state.e2eeKeyProvider.setKey(cryptoKey);
       await room.setE2EEEnabled(true);
 
       await room.connect(url, token, connectOptions);
@@ -232,7 +229,7 @@ const appActions = {
 
     // read and set current key from input
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
-    state.e2eeKeyProvider.setKey(Uint8Array.from(JSON.parse(cryptoKey)));
+    state.e2eeKeyProvider.setKey(cryptoKey);
 
     await currentRoom.setE2EEEnabled(!currentRoom.isE2EEEnabled);
   },

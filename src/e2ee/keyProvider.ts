@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import type { KeyProviderCallbacks, KeyInfo } from './types';
-import { importKey } from './utils';
+import { deriveKeyFromString } from './utils';
 
 export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<KeyProviderCallbacks>) {
   private keyInfoMap: Map<string, KeyInfo>;
@@ -23,8 +23,8 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
 }
 
 export class ExternalE2EEKeyProvider extends BaseKeyProvider {
-  async setKey(key: Uint8Array) {
-    const importedKey = await importKey(key);
-    this.onSetEncryptionKey(importedKey);
+  async setKey(key: string) {
+    const derivedKey = await deriveKeyFromString(key);
+    this.onSetEncryptionKey(derivedKey);
   }
 }

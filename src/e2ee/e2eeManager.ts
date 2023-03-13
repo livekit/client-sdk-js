@@ -184,8 +184,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     if (!track.receiver) {
       return;
     }
-    console.log('handle receiver');
-    if (!trackInfo?.mimeType) {
+    console.log('handle receiver', trackInfo?.mimeType);
+    if (!trackInfo?.mimeType || trackInfo.mimeType === '') {
       throw new E2EEError('MimeType missing from trackInfo, cannot set up E2EE cryptor');
     }
     this.handleReceiver(

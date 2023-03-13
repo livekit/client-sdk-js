@@ -3,7 +3,7 @@
 
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import { workerLogger } from '../logger';
+import { setLogLevel, workerLogger } from '../logger';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, KEYRING_SIZE, UNENCRYPTED_BYTES } from './constants';
 import { E2EEError, E2EEErrorReason } from './errors';
 import { CryptorCallbacks, CryptorEvent, ErrorMessage } from './types';
@@ -394,20 +394,19 @@ function getUnencryptedBytes(
         // TODO avoid creating a new array each time, the array is already being created in the encode/decode functions
         let data = new Uint8Array(frame.data);
         let naluIndices = findNALUIndices(data);
-
+        console.log(
+          'nalus',
+          naluIndices.map((i) => parseNALUType(data[i])),
+        );
         for (const index of naluIndices) {
           let type = parseNALUType(data[index]);
           switch (type) {
-            case NALUType.SPS:
-            case NALUType.PPS:
-            case NALUType.AUD:
-            case NALUType.SEI:
-            case NALUType.PREFIX_NALU:
-              // skipping
-              // workerLogger.debug(`skipping NALU of type ${NALUType[type]}`);
-              break;
-            default:
+            case NALUType.SLICE_IDR:
+            case NALUType.SLICE_NON_IDR:
+            case NALUType.SLICE_PARTITION_B:
               return index + 2;
+            default:
+              console.log('found nalu', type);
               break;
           }
         }
