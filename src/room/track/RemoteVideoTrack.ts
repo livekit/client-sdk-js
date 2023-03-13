@@ -195,7 +195,25 @@ export default class RemoteVideoTrack extends RemoteTrack {
     return receiverStats;
   }
 
-  private stopObservingElement(element: HTMLMediaElement) {
+  /**
+   * Start observing an Element for changes.
+   * @param element
+   */
+  public startObservingElement(element: HTMLMediaElement) {
+    if (
+      this.adaptiveStreamSettings &&
+      this.elementInfos.find((info) => info.element === element) === undefined
+    ) {
+      const elementInfo = new HTMLElementInfo(element);
+      this.observeElementInfo(elementInfo);
+    }
+  }
+
+  /**
+   * Stop observing an Element for changes.
+   * @param element
+   */
+  public stopObservingElement(element: HTMLMediaElement) {
     const stopElementInfos = this.elementInfos.filter((info) => info.element === element);
     for (const info of stopElementInfos) {
       info.stopObserving();
