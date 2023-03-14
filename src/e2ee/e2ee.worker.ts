@@ -74,8 +74,12 @@ onmessage = (ev) => {
       unsetCryptorParticipant(data.trackId);
       break;
     case 'updateCodec':
-      getTrackCryptor(data.participantId, data.trackId).setCodec(data.codec);
+      getTrackCryptor(data.participantId, data.trackId).setVideoCodec(data.codec);
       break;
+    case 'setRTPMap':
+      publishCryptors.forEach((cr) => {
+        cr.setRtpMap(data.map);
+      });
     default:
       break;
   }
@@ -153,6 +157,16 @@ function setSharedKey(key: CryptoKey, index?: number) {
   }
 }
 
+function setupCryptorErrorEvents(cryptor: Cryptor) {
+  cryptor.on('cryptorError', (error) => {
+    const msg: ErrorMessage = {
+      kind: 'error',
+      data: { error },
+    };
+    postMessage(msg);
+  });
+}
+
 // Operations using RTCRtpScriptTransform.
 // @ts-ignore
 if (self.RTCTransformEvent) {
@@ -168,14 +182,4 @@ if (self.RTCTransformEvent) {
     workerLogger.debug('transform', { codec });
     cryptor.setupTransform(kind, transformer.readable, transformer.writable, trackId, codec);
   };
-}
-
-function setupCryptorErrorEvents(cryptor: Cryptor) {
-  cryptor.on('cryptorError', (error) => {
-    const msg: ErrorMessage = {
-      kind: 'error',
-      data: { error },
-    };
-    postMessage(msg);
-  });
 }

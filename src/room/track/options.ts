@@ -229,12 +229,12 @@ export interface AudioPreset {
   maxBitrate: number;
 }
 
-const codecs = ['vp8', 'h264', 'av1'] as const;
+export const videoCodecs = ['vp8', 'h264', 'av1'] as const;
 const backupCodecs = ['vp8', 'h264'] as const;
 
-export type VideoCodec = typeof codecs[number];
+export type VideoCodec = (typeof videoCodecs)[number];
 
-export type BackupVideoCodec = typeof backupCodecs[number];
+export type BackupVideoCodec = (typeof backupCodecs)[number];
 
 export function isBackupCodec(codec: string): codec is BackupVideoCodec {
   return !!backupCodecs.find((backup) => backup === codec);

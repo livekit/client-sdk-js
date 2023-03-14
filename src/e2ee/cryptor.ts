@@ -3,7 +3,8 @@
 
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import { setLogLevel, workerLogger } from '../logger';
+import { workerLogger } from '../logger';
+import type { VideoCodec } from '../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, KEYRING_SIZE, UNENCRYPTED_BYTES } from './constants';
 import { E2EEError, E2EEErrorReason } from './errors';
 import { CryptorCallbacks, CryptorEvent, ErrorMessage } from './types';
@@ -53,7 +54,9 @@ export class Cryptor extends BaseCryptor {
 
   private keys: ParticipantKeys;
 
-  private codec: string = 'vp8';
+  private videoCodec: VideoCodec = 'vp8';
+
+  private rtpMap: Map<number, VideoCodec>;
 
   constructor(opts: {
     sharedKey?: boolean;
@@ -66,6 +69,7 @@ export class Cryptor extends BaseCryptor {
     this.useSharedKey = opts.sharedKey;
     this.keys = opts.keys;
     this.participantId = opts.participantId;
+    this.rtpMap = new Map();
   }
 
   setParticipant(id: string, keys: ParticipantKeys) {
@@ -85,8 +89,16 @@ export class Cryptor extends BaseCryptor {
     return this.trackId;
   }
 
-  setCodec(codec: string) {
-    this.codec = codec;
+  setVideoCodec(codec: VideoCodec) {
+    this.videoCodec = codec;
+  }
+
+  /**
+   * rtp payload type map used for figuring out codec of payload type when encoding
+   * @param map
+   */
+  setRtpMap(map: Map<number, VideoCodec>) {
+    this.rtpMap = map;
   }
 
   setupTransform(
@@ -94,11 +106,11 @@ export class Cryptor extends BaseCryptor {
     readable: ReadableStream,
     writable: WritableStream,
     trackId: string,
-    codec?: string,
+    codec?: VideoCodec,
   ) {
     if (codec) {
       console.info('setting codec on cryptor to', codec);
-      this.codec = codec;
+      this.videoCodec = codec;
     }
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
@@ -155,6 +167,10 @@ export class Cryptor extends BaseCryptor {
       return controller.enqueue(encodedFrame);
     }
 
+    if (encodedFrame instanceof RTCEncodedVideoFrame) {
+      workerLogger.info('frame meta data', encodedFrame.getMetadata());
+    }
+
     const encryptionKey = this.keys.getKey();
     const keyIndex = this.keys.getCurrentKeyIndex();
 
@@ -168,7 +184,7 @@ export class Cryptor extends BaseCryptor {
       const frameHeader = new Uint8Array(
         encodedFrame.data,
         0,
-        getUnencryptedBytes(encodedFrame, this.codec),
+        this.getUnencryptedBytes(encodedFrame, this.videoCodec),
       );
 
       // Frame trailer contains the R|IV_LENGTH and key index
@@ -192,7 +208,10 @@ export class Cryptor extends BaseCryptor {
             additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
           },
           encryptionKey,
-          new Uint8Array(encodedFrame.data, getUnencryptedBytes(encodedFrame, this.codec)),
+          new Uint8Array(
+            encodedFrame.data,
+            this.getUnencryptedBytes(encodedFrame, this.videoCodec),
+          ),
         );
 
         const newData = new ArrayBuffer(
@@ -243,7 +262,7 @@ export class Cryptor extends BaseCryptor {
 
     if (this.keys.getKey(keyIndex)) {
       try {
-        const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex, this.codec);
+        const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex, this.videoCodec);
         if (decodedFrame) {
           return controller.enqueue(decodedFrame);
         }
@@ -285,8 +304,7 @@ export class Cryptor extends BaseCryptor {
   async decryptFrame(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     keyIndex: number,
-    codec?: string,
-    initialKey: CryptoKey | undefined = undefined,
+    codec?: VideoCodec,
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
     const encryptionKey = this.keys.getKey(keyIndex);
 
@@ -302,7 +320,7 @@ export class Cryptor extends BaseCryptor {
       const frameHeader = new Uint8Array(
         encodedFrame.data,
         0,
-        getUnencryptedBytes(encodedFrame, codec),
+        this.getUnencryptedBytes(encodedFrame, codec),
       );
       const frameTrailer = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - 2, 2);
 
@@ -382,40 +400,44 @@ export class Cryptor extends BaseCryptor {
 
     return iv;
   }
-}
 
-function getUnencryptedBytes(
-  frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
-  codec?: string,
-): number {
-  if (isVideoFrame(frame)) {
-    switch (codec) {
-      case 'h264':
-        // TODO avoid creating a new array each time, the array is already being created in the encode/decode functions
-        let data = new Uint8Array(frame.data);
-        let naluIndices = findNALUIndices(data);
-        console.log(
-          'nalus',
-          naluIndices.map((i) => parseNALUType(data[i])),
-        );
-        for (const index of naluIndices) {
-          let type = parseNALUType(data[index]);
-          switch (type) {
-            case NALUType.SLICE_IDR:
-            case NALUType.SLICE_NON_IDR:
-            case NALUType.SLICE_PARTITION_B:
-              return index + 2;
-            default:
-              console.log('found nalu', type);
-              break;
+  getUnencryptedBytes(
+    frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+    codec?: VideoCodec,
+  ): number {
+    if (isVideoFrame(frame)) {
+      let detectedCodec = this.getVideoCodec(frame) ?? codec;
+      switch (detectedCodec) {
+        case 'h264':
+          // TODO avoid creating a new array each time, the array is already being created in the encode/decode functions
+          let data = new Uint8Array(frame.data);
+          let naluIndices = findNALUIndices(data);
+
+          for (const index of naluIndices) {
+            let type = parseNALUType(data[index]);
+            switch (type) {
+              case NALUType.SLICE_IDR:
+              case NALUType.SLICE_NON_IDR:
+              case NALUType.SLICE_PARTITION_B:
+                return index + 2;
+              default:
+                console.log('found nalu', type);
+                break;
+            }
           }
-        }
-        throw new E2EEError('Could not find NALU');
-      default:
-        return UNENCRYPTED_BYTES[frame.type];
+          throw new E2EEError('Could not find NALU');
+        default:
+          return UNENCRYPTED_BYTES[frame.type];
+      }
+    } else {
+      return UNENCRYPTED_BYTES.audio;
     }
-  } else {
-    return UNENCRYPTED_BYTES.audio;
+  }
+
+  getVideoCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
+    // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
+    const payloadType = frame.getMetadata().payloadType;
+    return payloadType ? this.rtpMap.get(payloadType) : undefined;
   }
 }
 

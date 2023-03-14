@@ -1,4 +1,5 @@
 import type Participant from '../room/participant/Participant';
+import type { VideoCodec } from '../room/track/options';
 import type { E2EEError } from './errors';
 import type { BaseKeyProvider } from './keyProvider';
 
@@ -23,6 +24,13 @@ export interface SetKeyMessage extends BaseMessage {
   };
 }
 
+export interface RTPVideoMapMessage extends BaseMessage {
+  kind: 'setRTPMap';
+  data: {
+    map: Map<number, VideoCodec>;
+  };
+}
+
 export interface EncodeMessage extends BaseMessage {
   kind: 'decode' | 'encode';
   data: {
@@ -30,7 +38,7 @@ export interface EncodeMessage extends BaseMessage {
     readableStream: ReadableStream;
     writableStream: WritableStream;
     trackId: string;
-    codec?: string;
+    codec?: VideoCodec;
   };
 }
 
@@ -47,7 +55,7 @@ export interface UpdateCodecMessage extends BaseMessage {
   data: {
     participantId: string;
     trackId: string;
-    codec: string;
+    codec: VideoCodec;
   };
 }
 
@@ -74,6 +82,7 @@ export type E2EEWorkerMessage =
   | ErrorMessage
   | EnableMessage
   | RemoveTransformMessage
+  | RTPVideoMapMessage
   | UpdateCodecMessage;
 
 export type KeySet = { material?: CryptoKey; encryptionKey: CryptoKey };

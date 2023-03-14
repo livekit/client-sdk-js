@@ -14,6 +14,7 @@ interface TrackBitrateInfo {
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
+  RTPVideoPayloadTypes: 'rtpVideoPayloadTypes',
 } as const;
 
 /** @internal */
@@ -119,6 +120,7 @@ export default class PCTransport extends EventEmitter {
 
     const sdpParsed = parse(offer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
+      console.log('media sdp', media);
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, [], []);
       } else if (media.type === 'video') {
@@ -159,6 +161,7 @@ export default class PCTransport extends EventEmitter {
 
           return true;
         });
+        this.emit(PCEvents.RTPVideoPayloadTypes, media.rtp);
       }
     });
 
