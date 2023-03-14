@@ -54,7 +54,7 @@ export class Cryptor extends BaseCryptor {
 
   private keys: ParticipantKeys;
 
-  private videoCodec: VideoCodec = 'vp8';
+  private videoCodec?: VideoCodec;
 
   private rtpMap: Map<number, VideoCodec>;
 
@@ -165,10 +165,6 @@ export class Cryptor extends BaseCryptor {
       encodedFrame.data.byteLength === 0
     ) {
       return controller.enqueue(encodedFrame);
-    }
-
-    if (encodedFrame instanceof RTCEncodedVideoFrame) {
-      workerLogger.info('frame meta data', encodedFrame.getMetadata());
     }
 
     const encryptionKey = this.keys.getKey();
@@ -407,27 +403,36 @@ export class Cryptor extends BaseCryptor {
   ): number {
     if (isVideoFrame(frame)) {
       let detectedCodec = this.getVideoCodec(frame) ?? codec;
-      switch (detectedCodec) {
-        case 'h264':
-          // TODO avoid creating a new array each time, the array is already being created in the encode/decode functions
-          let data = new Uint8Array(frame.data);
-          let naluIndices = findNALUIndices(data);
 
-          for (const index of naluIndices) {
-            let type = parseNALUType(data[index]);
-            switch (type) {
-              case NALUType.SLICE_IDR:
-              case NALUType.SLICE_NON_IDR:
-              case NALUType.SLICE_PARTITION_B:
-                return index + 2;
-              default:
-                console.log('found nalu', type);
-                break;
-            }
+      if (detectedCodec === 'vp8') {
+        return UNENCRYPTED_BYTES[frame.type];
+      }
+
+      const data = new Uint8Array(frame.data);
+      const naluIndices = findNALUIndices(data);
+
+      // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
+      const isH264 =
+        detectedCodec === 'h264' ||
+        naluIndices.some((naluIndex) =>
+          [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
+        );
+
+      if (isH264) {
+        for (const index of naluIndices) {
+          let type = parseNALUType(data[index]);
+          switch (type) {
+            case NALUType.SLICE_IDR:
+            case NALUType.SLICE_NON_IDR:
+              return index + 2;
+            default:
+              break;
           }
-          throw new E2EEError('Could not find NALU');
-        default:
-          return UNENCRYPTED_BYTES[frame.type];
+        }
+        throw new E2EEError('Could not find NALU');
+      } else {
+        // we could not detect the video codec, so default back to treat it as vp8
+        return UNENCRYPTED_BYTES[frame.type];
       }
     } else {
       return UNENCRYPTED_BYTES.audio;
@@ -437,7 +442,9 @@ export class Cryptor extends BaseCryptor {
   getVideoCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
     // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
     const payloadType = frame.getMetadata().payloadType;
-    return payloadType ? this.rtpMap.get(payloadType) : undefined;
+    const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
+    console.log('detected codec', codec);
+    return codec;
   }
 }
 
