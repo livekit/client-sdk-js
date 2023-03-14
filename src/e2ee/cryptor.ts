@@ -404,6 +404,10 @@ export class Cryptor extends BaseCryptor {
     if (isVideoFrame(frame)) {
       let detectedCodec = this.getVideoCodec(frame) ?? codec;
 
+      if (detectedCodec === 'av1') {
+        throw new Error('AV1 is not yet supported for end to end encryption');
+      }
+
       if (detectedCodec === 'vp8') {
         return UNENCRYPTED_BYTES[frame.type];
       }
@@ -440,10 +444,12 @@ export class Cryptor extends BaseCryptor {
   }
 
   getVideoCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
+    if (this.rtpMap.size === 0) {
+      return undefined;
+    }
     // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
     const payloadType = frame.getMetadata().payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
-    console.log('detected codec', codec);
     return codec;
   }
 }
