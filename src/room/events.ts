@@ -175,7 +175,7 @@ export enum RoomEvent {
    * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
    * All participants in the room will receive the messages sent to the room.
    *
-   * args: (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]])
+   * args: (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]], topic?: string)
    */
   DataReceived = 'dataReceived',
 
@@ -252,7 +252,8 @@ export enum RoomEvent {
   SignalConnected = 'signalConnected',
 
   /**
-   * Recording of a room has started/stopped.
+   * Recording of a room has started/stopped. Room.isRecording will be updated too.
+   * args: (isRecording: boolean)
    */
   RecordingStatusChanged = 'recordingStatusChanged',
 

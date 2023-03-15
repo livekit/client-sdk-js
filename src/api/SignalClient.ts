@@ -5,6 +5,7 @@ import {
   ClientInfo,
   DisconnectReason,
   ParticipantInfo,
+  ReconnectReason,
   Room,
   SpeakerInfo,
   VideoLayer,
@@ -31,6 +32,7 @@ import {
   UpdateTrackSettings,
 } from '../proto/livekit_rtc';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
+import CriticalTimers from '../room/timers';
 import { getClientInfo, Mutex, sleep } from '../room/utils';
 
 // internal options
@@ -38,6 +40,9 @@ interface ConnectOpts {
   autoSubscribe: boolean;
   /** internal */
   reconnect?: boolean;
+
+  /** internal */
+  reconnectReason?: number;
 
   /** internal */
   sid?: string;
@@ -88,6 +93,9 @@ export class SignalClient {
   queuedRequests: Array<() => Promise<void>>;
 
   useJSON: boolean;
+
+  /** signal rtt in milliseconds */
+  rtt: number = 0;
 
   /** simulate signaling latency by delaying messages */
   signalLatency?: number;
@@ -166,7 +174,12 @@ export class SignalClient {
     return res as JoinResponse;
   }
 
-  async reconnect(url: string, token: string, sid?: string): Promise<ReconnectResponse | void> {
+  async reconnect(
+    url: string,
+    token: string,
+    sid?: string,
+    reason?: ReconnectReason,
+  ): Promise<ReconnectResponse | void> {
     if (!this.options) {
       log.warn('attempted to reconnect without signal options being set, ignoring');
       return;
@@ -175,7 +188,12 @@ export class SignalClient {
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    const res = await this.connect(url, token, { ...this.options, reconnect: true, sid });
+    const res = await this.connect(url, token, {
+      ...this.options,
+      reconnect: true,
+      sid,
+      reconnectReason: reason,
+    });
     return res;
   }
 
@@ -440,9 +458,17 @@ export class SignalClient {
   }
 
   sendPing() {
+    /** send both of ping and pingReq for compatibility to old and new server */
     this.sendRequest({
       $case: 'ping',
       ping: Date.now(),
+    });
+    this.sendRequest({
+      $case: 'pingReq',
+      pingReq: {
+        timestamp: Date.now(),
+        rtt: this.rtt,
+      },
     });
   }
 
@@ -493,7 +519,11 @@ export class SignalClient {
   }
 
   private handleSignalResponse(res: SignalResponse) {
-    const msg = res.message!;
+    const msg = res.message;
+    if (msg == undefined) {
+      log.debug('received unsupported message');
+      return;
+    }
     if (msg.$case === 'answer') {
       const sd = fromProtoSessionDescription(msg.answer);
       if (this.onAnswer) {
@@ -559,6 +589,9 @@ export class SignalClient {
       }
     } else if (msg.$case === 'pong') {
       this.resetPingTimeout();
+    } else if (msg.$case === 'pongResp') {
+      this.rtt = Date.now() - msg.pongResp.lastPingTimestamp;
+      this.resetPingTimeout();
     } else {
       log.debug('unsupported message', msg);
     }
@@ -578,13 +611,17 @@ export class SignalClient {
     log.error('websocket error', ev);
   }
 
+  /**
+   * Resets the ping timeout and starts a new timeout.
+   * Call this after receiving a pong message
+   */
   private resetPingTimeout() {
     this.clearPingTimeout();
     if (!this.pingTimeoutDuration) {
       log.warn('ping timeout duration not set');
       return;
     }
-    this.pingTimeout = setTimeout(() => {
+    this.pingTimeout = CriticalTimers.setTimeout(() => {
       log.warn(
         `ping timeout triggered. last pong received at: ${new Date(
           Date.now() - this.pingTimeoutDuration! * 1000,
@@ -596,9 +633,12 @@ export class SignalClient {
     }, this.pingTimeoutDuration * 1000);
   }
 
+  /**
+   * Clears ping timeout (does not start a new timeout)
+   */
   private clearPingTimeout() {
     if (this.pingTimeout) {
-      clearTimeout(this.pingTimeout);
+      CriticalTimers.clearTimeout(this.pingTimeout);
     }
   }
 
@@ -610,7 +650,7 @@ export class SignalClient {
       return;
     }
     log.debug('start ping interval');
-    this.pingInterval = setInterval(() => {
+    this.pingInterval = CriticalTimers.setInterval(() => {
       this.sendPing();
     }, this.pingIntervalDuration * 1000);
   }
@@ -619,7 +659,7 @@ export class SignalClient {
     log.debug('clearing ping interval');
     this.clearPingTimeout();
     if (this.pingInterval) {
-      clearInterval(this.pingInterval);
+      CriticalTimers.clearInterval(this.pingInterval);
     }
   }
 }
@@ -692,6 +732,10 @@ function createConnectionParams(token: string, info: ClientInfo, opts: ConnectOp
 
   if (opts.adaptiveStream) {
     params.set('adaptive_stream', '1');
+  }
+
+  if (opts.reconnectReason) {
+    params.set('reconnect_reason', opts.reconnectReason.toString());
   }
 
   // @ts-ignore

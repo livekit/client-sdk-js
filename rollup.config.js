@@ -3,7 +3,7 @@ import commonjs from '@rollup/plugin-commonjs';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import { babel } from '@rollup/plugin-babel';
 import json from '@rollup/plugin-json';
-import { terser } from 'rollup-plugin-terser';
+import terser from '@rollup/plugin-terser';
 import replace from 'rollup-plugin-re';
 import filesize from 'rollup-plugin-filesize';
 import webWorkerLoader from 'rollup-plugin-web-worker-loader';

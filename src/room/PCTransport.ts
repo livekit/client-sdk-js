@@ -201,6 +201,8 @@ export default class PCTransport extends EventEmitter {
   }
 
   close() {
+    this.pc.onconnectionstatechange = null;
+    this.pc.oniceconnectionstatechange = null;
     this.pc.close();
   }
 

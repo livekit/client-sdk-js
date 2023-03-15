@@ -28,12 +28,12 @@ export interface TrackPublishDefaults {
   audioBitrate?: number;
 
   /**
-   * dtx (Discontinuous Transmission of audio), defaults to true
+   * dtx (Discontinuous Transmission of audio), enabled by default for mono tracks.
    */
   dtx?: boolean;
 
   /**
-   * red (Redundant Audio Data), defaults to true
+   * red (Redundant Audio Data), enabled by default for mono tracks.
    */
   red?: boolean;
 
@@ -56,7 +56,7 @@ export interface TrackPublishDefaults {
   scalabilityMode?: ScalabilityMode;
 
   /**
-   * custom video simulcast layers for camera tracks, defaults to h180, h360, h540
+   * custom video simulcast layers for camera tracks, defaults to h180, h360
    * You can specify up to two custom layers that will be used instead of
    * the LiveKit default layers.
    * Note: the layers need to be ordered from lowest to highest quality
@@ -133,6 +133,18 @@ export interface ScreenShareCaptureOptions {
 
   /** capture resolution, defaults to full HD */
   resolution?: VideoResolution;
+
+  /** a CaptureController object instance containing methods that can be used to further manipulate the capture session if included. */
+  controller?: unknown; // TODO replace type with CaptureController once it lands in TypeScript
+
+  /** specifies whether the browser should allow the user to select the current tab for capture */
+  selfBrowserSurface?: 'include' | 'exclude';
+
+  /** specifies whether the browser should display a control to allow the user to dynamically switch the shared tab during screen-sharing. */
+  surfaceSwitching?: 'include' | 'exclude';
+
+  /** specifies whether the browser should include the system audio among the possible audio sources offered to the user */
+  systemAudio?: 'include' | 'exclude';
 }
 
 export interface AudioCaptureOptions {
@@ -232,7 +244,11 @@ export interface AudioPreset {
 export const videoCodecs = ['vp8', 'h264', 'av1'] as const;
 const backupCodecs = ['vp8', 'h264'] as const;
 
+<<<<<<< HEAD
 export type VideoCodec = (typeof videoCodecs)[number];
+=======
+export type VideoCodec = (typeof codecs)[number];
+>>>>>>> main
 
 export type BackupVideoCodec = (typeof backupCodecs)[number];
 

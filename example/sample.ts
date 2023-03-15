@@ -124,8 +124,11 @@ const appActions = {
       .on(RoomEvent.DataReceived, handleData)
       .on(RoomEvent.Disconnected, handleRoomDisconnect)
       .on(RoomEvent.Reconnecting, () => appendLog('Reconnecting to room'))
-      .on(RoomEvent.Reconnected, () => {
-        appendLog('Successfully reconnected. server', room.engine.connectedServerAddress);
+      .on(RoomEvent.Reconnected, async () => {
+        appendLog(
+          'Successfully reconnected. server',
+          await room.engine.getConnectedServerAddress(),
+        );
       })
       .on(RoomEvent.LocalTrackPublished, (pub) => {
         const track = pub.track as LocalAudioTrack;
@@ -202,7 +205,7 @@ const appActions = {
       const elapsed = Date.now() - startTime;
       appendLog(
         `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
-        room.engine.connectedServerAddress,
+        await room.engine.getConnectedServerAddress(),
       );
     } catch (error: any) {
       let message: any = error;

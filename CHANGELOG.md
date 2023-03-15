@@ -1,5 +1,81 @@
 # Change Log
 
+## 1.6.9
+
+### Patch Changes
+
+- [#612](https://github.com/livekit/client-sdk-js/pull/612) [`347c497`](https://github.com/livekit/client-sdk-js/commit/347c4971fcf3d4cd549134a1341f68a3f215abc2) Thanks [@lukasIO](https://github.com/lukasIO)! - Allow to specify exact constraint for room.switchActiveDevice
+
+- [#609](https://github.com/livekit/client-sdk-js/pull/609) [`068c05e`](https://github.com/livekit/client-sdk-js/commit/068c05e757e7218e12da971e3803834e439e139e) Thanks [@lukasIO](https://github.com/lukasIO)! - Reject publish future if engine disconnects
+
+- [#615](https://github.com/livekit/client-sdk-js/pull/615) [`505a78e`](https://github.com/livekit/client-sdk-js/commit/505a78e459808b0e73ea6737bf333de93a84e390) Thanks [@davidzhao](https://github.com/davidzhao)! - Only trigger AudioPlaybackFailed when error is NotAllowed
+
+## 1.6.8
+
+### Patch Changes
+
+- [#605](https://github.com/livekit/client-sdk-js/pull/605) [`4bc4183`](https://github.com/livekit/client-sdk-js/commit/4bc41831c0da8c3c17f9afd06f9787e6004a644a) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Receive remote participant disconnected updates while reconnecting
+
+- [#592](https://github.com/livekit/client-sdk-js/pull/592) [`fea43e4`](https://github.com/livekit/client-sdk-js/commit/fea43e4de8b79176c6485a1d181467a284242b4b) Thanks [@lukasIO](https://github.com/lukasIO)! - Add support for some experimental getDisplayMedia options in ScreenShareCaptureOptions
+
+- [#608](https://github.com/livekit/client-sdk-js/pull/608) [`5efa607`](https://github.com/livekit/client-sdk-js/commit/5efa60710096bf050ea7438312843e694a0db5fa) Thanks [@lukasIO](https://github.com/lukasIO)! - Defer publishing of tracks during reconnection
+
+- [#597](https://github.com/livekit/client-sdk-js/pull/597) [`27dbd6a`](https://github.com/livekit/client-sdk-js/commit/27dbd6a6d8d2950d7a90bd928bd0229c4a956008) Thanks [@lukasIO](https://github.com/lukasIO)! - Add support for topics on data messages
+
+## 1.6.7
+
+### Patch Changes
+
+- [#593](https://github.com/livekit/client-sdk-js/pull/593) [`f218236`](https://github.com/livekit/client-sdk-js/commit/f21823659bfe7a5e0036be705c1751e30a3611c8) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Disable red by default for stereo track
+
+- [#600](https://github.com/livekit/client-sdk-js/pull/600) [`75d7556`](https://github.com/livekit/client-sdk-js/commit/75d75562ece4b1e57c81a879440b6101599ef7ea) Thanks [@davidzhao](https://github.com/davidzhao)! - internal getter connectedServerAddress is has been changed to an async function getConnectedServerAddress
+
+- [#595](https://github.com/livekit/client-sdk-js/pull/595) [`75776b8`](https://github.com/livekit/client-sdk-js/commit/75776b81885109ac8e2a369c2a4e7583db2406b3) Thanks [@davidzhao](https://github.com/davidzhao)! - Fixed incorrect state with resume then reconnect
+
+- [#596](https://github.com/livekit/client-sdk-js/pull/596) [`a9aa74f`](https://github.com/livekit/client-sdk-js/commit/a9aa74f327efbbb2595f12d121e8ee4dde283d1c) Thanks [@davidzhao](https://github.com/davidzhao)! - Track.streamState defaults to active
+
+## 1.6.6
+
+### Patch Changes
+
+- [#585](https://github.com/livekit/client-sdk-js/pull/585) [`0a33b1a`](https://github.com/livekit/client-sdk-js/commit/0a33b1a7fcb4cefc4e23c12bc5d9ecfe3b41b583) Thanks [@davidzhao](https://github.com/davidzhao)! - Prevent concurrent RTCRtpSender.setParameter call to avoid exception
+
+## 1.6.5
+
+### Patch Changes
+
+- [#575](https://github.com/livekit/client-sdk-js/pull/575) [`b8fd583`](https://github.com/livekit/client-sdk-js/commit/b8fd583610c13d23aa9a8f3778d765e2691807dd) Thanks [@HermanBilous](https://github.com/HermanBilous)! - Provide more context to ConnectionError when connecting to a room
+
+- [#573](https://github.com/livekit/client-sdk-js/pull/573) [`b71ec61`](https://github.com/livekit/client-sdk-js/commit/b71ec6112fd1c6ac79c8be66fd0327824ee6044a) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Add reconnect reason and signal rtt calculation
+
+- [#581](https://github.com/livekit/client-sdk-js/pull/581) [`6b35e07`](https://github.com/livekit/client-sdk-js/commit/6b35e07482249f103ca2cf186a00ca9c6ff26032) Thanks [@lukasIO](https://github.com/lukasIO)! - Only restart track after permission change if not muted
+
+## 1.6.4
+
+### Patch Changes
+
+- [#566](https://github.com/livekit/client-sdk-js/pull/566) [`f06ee24`](https://github.com/livekit/client-sdk-js/commit/f06ee2439132ba4e71444d6685036df455e0d5cd) Thanks [@otakueadwine](https://github.com/otakueadwine)! - Export CheckStatus type
+
+- [#569](https://github.com/livekit/client-sdk-js/pull/569) [`b53f5c5`](https://github.com/livekit/client-sdk-js/commit/b53f5c56751cc2bc76092af53a85ccde6ae92023) Thanks [@lukasIO](https://github.com/lukasIO)! - Emit `Participant.PermissionChanged` event also for remote participants
+
+- [#562](https://github.com/livekit/client-sdk-js/pull/562) [`b9cd661`](https://github.com/livekit/client-sdk-js/commit/b9cd661c3adb2f8be07cc69855243b9b2dfb8098) Thanks [@kilimnik](https://github.com/kilimnik)! - Emit DeviceUnsupportedError when getDisplayMedia is not supported on a device
+
+- [#568](https://github.com/livekit/client-sdk-js/pull/568) [`6e35f39`](https://github.com/livekit/client-sdk-js/commit/6e35f39870bf4571289ff023f69786aa7ea78d36) Thanks [@davidzhao](https://github.com/davidzhao)! - Fixed handling of unknown signal messages
+
+- [#570](https://github.com/livekit/client-sdk-js/pull/570) [`4ee0f5a`](https://github.com/livekit/client-sdk-js/commit/4ee0f5a3bdc1c50a0f861b4dd25522af5764ff56) Thanks [@lukasIO](https://github.com/lukasIO)! - Drop local participant updates with wrong sid
+
+## 1.6.3
+
+### Patch Changes
+
+- [#553](https://github.com/livekit/client-sdk-js/pull/553) [`fe08625`](https://github.com/livekit/client-sdk-js/commit/fe0862538804b7bc6f0b4f97909890cd57703d5e) Thanks [@cnderrauber](https://github.com/cnderrauber)! - add reconnect response to update configuration while reconnecting
+
+- [#555](https://github.com/livekit/client-sdk-js/pull/555) [`0bc67ba`](https://github.com/livekit/client-sdk-js/commit/0bc67badf5c49a51b316bd201503543cbb5e96ca) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Enable nack for audio track only if offer wants it
+
+- [#559](https://github.com/livekit/client-sdk-js/pull/559) [`d88ca0a`](https://github.com/livekit/client-sdk-js/commit/d88ca0ac0d41b7d3a1e0d3da7c7c648df51b4beb) Thanks [@renovate](https://github.com/apps/renovate)! - Update dependency ua-parser-js to v1.0.33
+
+- [#556](https://github.com/livekit/client-sdk-js/pull/556) [`100ac49`](https://github.com/livekit/client-sdk-js/commit/100ac492d7f8e2ddd0c7af5ab7fb8f43cc6683fd) Thanks [@davidliu](https://github.com/davidliu)! - Allow for internal background timer implementation to be overridden
+
 ## 1.6.2
 
 ### Patch Changes
