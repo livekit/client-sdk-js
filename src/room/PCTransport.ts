@@ -70,6 +70,14 @@ export default class PCTransport extends EventEmitter {
       this.createAndSendOffer();
     } else if (sd.type === 'answer') {
       this.emit(PCEvents.NegotiationComplete);
+      if (sd.sdp) {
+        const sdpParsed = parse(sd.sdp);
+        sdpParsed.media.forEach((media) => {
+          if (media.type === 'video') {
+            console.log('negotiated video tracks', media);
+          }
+        });
+      }
     }
   }
 
@@ -180,6 +188,7 @@ export default class PCTransport extends EventEmitter {
       }
     });
     await this.setMungedLocalDescription(answer, write(sdpParsed));
+
     return answer;
   }
 
@@ -195,13 +204,16 @@ export default class PCTransport extends EventEmitter {
     this.pc.close();
   }
 
-  private async setMungedLocalDescription(sd: RTCSessionDescriptionInit, munged: string) {
+  private async setMungedLocalDescription(
+    sd: RTCSessionDescriptionInit,
+    munged: string,
+  ): Promise<boolean> {
     const originalSdp = sd.sdp;
     sd.sdp = munged;
     try {
       log.debug('setting munged local description');
       await this.pc.setLocalDescription(sd);
-      return;
+      return true;
     } catch (e) {
       log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
         error: e,
@@ -211,6 +223,7 @@ export default class PCTransport extends EventEmitter {
 
     try {
       await this.pc.setLocalDescription(sd);
+      return false;
     } catch (e) {
       // this error cannot always be caught.
       // If the local description has a setCodecPreferences error, this error will be uncaught
