@@ -3,17 +3,13 @@
 
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import { workerLogger } from '../logger';
-import {
-  ENCRYPTION_ALGORITHM,
-  IV_LENGTH,
-  KEYRING_SIZE,
-  RATCHET_WINDOW_SIZE,
-  UNENCRYPTED_BYTES,
-} from './constants';
-import { E2EEError, E2EEErrorReason } from './errors';
-import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeySet } from './types';
-import { deriveKeys, importKey, isVideoFrame, ratchet } from './utils';
+import { workerLogger } from '../../logger';
+import type { VideoCodec } from '../../room/track/options';
+import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
+import { E2EEError, E2EEErrorReason } from '../errors';
+import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeyProviderOptions } from '../types';
+import { importKey, isVideoFrame, ratchet } from '../utils';
+import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 export interface CryptorConstructor {
   new (opts?: unknown): BaseCryptor;
@@ -47,13 +43,7 @@ export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<Cryptor
  * encode/decode functions
  */
 export class Cryptor extends BaseCryptor {
-  // private currentKeyIndex: number;
-
   private sendCounts: Map<number, number>;
-
-  // private enabled: boolean;
-
-  private useSharedKey: boolean | undefined;
 
   private isKeyInvalid = false;
 
@@ -61,32 +51,29 @@ export class Cryptor extends BaseCryptor {
 
   private trackId: string | undefined;
 
-  private keys: ParticipantKeys;
+  private keys: ParticipantKeyHandler;
 
-  private codec: string = 'vp8';
+  private videoCodec?: VideoCodec;
+
+  private rtpMap: Map<number, VideoCodec>;
+
+  private keyProviderOptions: KeyProviderOptions;
 
   constructor(opts: {
-    sharedKey?: boolean;
     // enabled?: boolean;
-    keys: ParticipantKeys;
+    keys: ParticipantKeyHandler;
     participantId: string;
+    keyProviderOptions: KeyProviderOptions;
   }) {
     super();
-    // this.currentKeyIndex = 0;
-    // this.cryptoKeyRing = new Array(KEYRING_SIZE);
     this.sendCounts = new Map();
-    this.useSharedKey = opts.sharedKey;
-    // this.enabled = opts.enabled ?? true;
     this.keys = opts.keys;
     this.participantId = opts.participantId;
+    this.rtpMap = new Map();
+    this.keyProviderOptions = opts.keyProviderOptions;
   }
 
-  // setEnabled(enable: boolean) {
-  //   workerLogger.info(`set enable cryptor: ${enable}`);
-  //   this.enabled = enable;
-  // }
-
-  setParticipant(id: string, keys: ParticipantKeys) {
+  setParticipant(id: string, keys: ParticipantKeyHandler) {
     this.participantId = id;
     this.keys = keys;
   }
@@ -103,8 +90,16 @@ export class Cryptor extends BaseCryptor {
     return this.trackId;
   }
 
-  setCodec(codec: string) {
-    this.codec = codec;
+  setVideoCodec(codec: VideoCodec) {
+    this.videoCodec = codec;
+  }
+
+  /**
+   * rtp payload type map used for figuring out codec of payload type when encoding
+   * @param map
+   */
+  setRtpMap(map: Map<number, VideoCodec>) {
+    this.rtpMap = map;
   }
 
   setupTransform(
@@ -112,11 +107,11 @@ export class Cryptor extends BaseCryptor {
     readable: ReadableStream,
     writable: WritableStream,
     trackId: string,
-    codec?: string,
+    codec?: VideoCodec,
   ) {
     if (codec) {
       console.info('setting codec on cryptor to', codec);
-      this.codec = codec;
+      this.videoCodec = codec;
     }
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
@@ -173,7 +168,7 @@ export class Cryptor extends BaseCryptor {
       return controller.enqueue(encodedFrame);
     }
 
-    const encryptionKey = this.keys.getKey();
+    const { encryptionKey } = this.keys.getKey();
     const keyIndex = this.keys.getCurrentKeyIndex();
 
     if (encryptionKey) {
@@ -186,7 +181,7 @@ export class Cryptor extends BaseCryptor {
       const frameHeader = new Uint8Array(
         encodedFrame.data,
         0,
-        getUnencryptedBytes(encodedFrame, this.codec),
+        this.getUnencryptedBytes(encodedFrame),
       );
 
       // Frame trailer contains the R|IV_LENGTH and key index
@@ -210,7 +205,7 @@ export class Cryptor extends BaseCryptor {
             additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
           },
           encryptionKey,
-          new Uint8Array(encodedFrame.data, getUnencryptedBytes(encodedFrame, this.codec)),
+          new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)),
         );
 
         const newData = new ArrayBuffer(
@@ -224,6 +219,24 @@ export class Cryptor extends BaseCryptor {
         newUint8.set(frameTrailer, frameHeader.byteLength + cipherText.byteLength + iv.byteLength); // append frame trailer.
 
         encodedFrame.data = newData;
+
+        // // DEBUG test to ratchet key after every 100th frame
+        // if (
+        //   encodedFrame instanceof RTCEncodedVideoFrame &&
+        //   encodedFrame.getMetadata().frameId! % 100 === 0
+        // ) {
+        //   const newMaterial = await importKey(
+        //     await ratchet(material, this.keyProviderOptions.ratchetSalt),
+        //     material.algorithm.name,
+        //     'derive',
+        //   );
+
+        //   this.keys.setKeyFromMaterial(
+        //     newMaterial,
+        //     this.keys.getCurrentKeyIndex(),
+        //   );
+        // }
+        // // DEBUG END
 
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
@@ -261,7 +274,7 @@ export class Cryptor extends BaseCryptor {
 
     if (this.keys.getKey(keyIndex)) {
       try {
-        const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex, this.codec);
+        const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
         if (decodedFrame) {
           return controller.enqueue(decodedFrame);
         }
@@ -303,11 +316,10 @@ export class Cryptor extends BaseCryptor {
   async decryptFrame(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     keyIndex: number,
-    codec?: string,
-    initialKey: KeySet | undefined = undefined,
+    initialKey: CryptoKey | undefined = undefined,
     ratchetCount: number = 0,
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
-    const encryptionKey = this.keys.getKey(keyIndex);
+    const { encryptionKey, material } = this.keys.getKey(keyIndex);
 
     // Construct frame trailer. Similar to the frame header described in
     // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -321,7 +333,7 @@ export class Cryptor extends BaseCryptor {
       const frameHeader = new Uint8Array(
         encodedFrame.data,
         0,
-        getUnencryptedBytes(encodedFrame, codec),
+        this.getUnencryptedBytes(encodedFrame),
       );
       const frameTrailer = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - 2, 2);
 
@@ -357,43 +369,44 @@ export class Cryptor extends BaseCryptor {
 
       return encodedFrame;
     } catch (error: any) {
-      let material = this.keys.getMaterial(keyIndex);
+      workerLogger.error(error);
+      if (this.keyProviderOptions.ratchetWindowSize > 0) {
+        if (ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
+          workerLogger.info(
+            `ratcheting key attempt ${ratchetCount} of ${this.keyProviderOptions.ratchetWindowSize}`,
+          );
+          workerLogger.debug('current key algo', encryptionKey.algorithm);
+          workerLogger.debug('current material algo', material.algorithm);
 
-      if (this.useSharedKey || !material) {
-        workerLogger.error(error);
+          const newMaterial = await importKey(
+            await ratchet(material, this.keyProviderOptions.ratchetSalt),
+            'PBKDF2',
+            'derive',
+          );
+
+          this.keys.setKeyFromMaterial(newMaterial, this.keys.getCurrentKeyIndex());
+
+          return await this.decryptFrame(
+            encodedFrame,
+            keyIndex,
+            initialKey || encryptionKey,
+            ratchetCount + 1,
+          );
+        }
+
+        /**
+         * Since the key it is first send and only afterwards actually used for encrypting, there were
+         * situations when the decrypting failed due to the fact that the received frame was not encrypted
+         * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
+         * we come back to the initial key.
+         */
+        if (initialKey) {
+          this.keys.setKeyFromMaterial(initialKey);
+        }
+        workerLogger.error('maximum ratchet attempts exceeded, resetting key');
+      } else {
         throw new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey);
       }
-
-      if (ratchetCount < RATCHET_WINDOW_SIZE) {
-        const currentKeySet = this.keys.getKeySet();
-
-        material = await importKey(await ratchet(material));
-
-        const newKey = await deriveKeys(material);
-
-        this.keys.setKeys(newKey);
-
-        return await this.decryptFrame(
-          encodedFrame,
-          keyIndex,
-          codec,
-          initialKey || currentKeySet,
-          ratchetCount + 1,
-        );
-      }
-
-      /**
-       * Since the key it is first send and only afterwards actually used for encrypting, there were
-       * situations when the decrypting failed due to the fact that the received frame was not encrypted
-       * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
-       * we come back to the initial key.
-       */
-      if (initialKey) {
-        this.keys.setKeys(initialKey);
-      }
-
-      workerLogger.error('error decoding', { error });
-      // TODO: notify the application about error status.
     }
   }
 
@@ -436,41 +449,58 @@ export class Cryptor extends BaseCryptor {
 
     return iv;
   }
-}
 
-function getUnencryptedBytes(
-  frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
-  codec?: string,
-): number {
-  if (isVideoFrame(frame)) {
-    switch (codec) {
-      case 'h264':
-        // TODO avoid creating a new array each time, the array is already being created in the encode/decode functions
-        let data = new Uint8Array(frame.data);
-        let naluIndices = findNALUIndices(data);
+  getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): number {
+    if (isVideoFrame(frame)) {
+      let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
 
+      if (detectedCodec === 'av1') {
+        throw new Error('AV1 is not yet supported for end to end encryption');
+      }
+
+      if (detectedCodec === 'vp8') {
+        return UNENCRYPTED_BYTES[frame.type];
+      }
+
+      const data = new Uint8Array(frame.data);
+      const naluIndices = findNALUIndices(data);
+
+      // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
+      const isH264 =
+        detectedCodec === 'h264' ||
+        naluIndices.some((naluIndex) =>
+          [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
+        );
+
+      if (isH264) {
         for (const index of naluIndices) {
           let type = parseNALUType(data[index]);
           switch (type) {
-            case NALUType.SPS:
-            case NALUType.PPS:
-            case NALUType.AUD:
-            case NALUType.SEI:
-            case NALUType.PREFIX_NALU:
-              // skipping
-              // workerLogger.debug(`skipping NALU of type ${NALUType[type]}`);
-              break;
-            default:
+            case NALUType.SLICE_IDR:
+            case NALUType.SLICE_NON_IDR:
               return index + 2;
+            default:
               break;
           }
         }
         throw new E2EEError('Could not find NALU');
-      default:
+      } else {
+        // we could not detect the video codec, so default back to treat it as vp8
         return UNENCRYPTED_BYTES[frame.type];
+      }
+    } else {
+      return UNENCRYPTED_BYTES.audio;
     }
-  } else {
-    return UNENCRYPTED_BYTES.audio;
+  }
+
+  getVideoCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
+    if (this.rtpMap.size === 0) {
+      return undefined;
+    }
+    // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
+    const payloadType = frame.getMetadata().payloadType;
+    const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
+    return codec;
   }
 }
 
@@ -556,86 +586,4 @@ export enum NALUType {
   SLICE_LAYER_EXT = 21,
 
   // 22, 23 reserved
-}
-
-export class ParticipantKeys {
-  private currentKeyIndex: number;
-
-  private cryptoKeyRing: Array<KeySet>;
-
-  private isSharedKey: boolean;
-
-  private enabled: boolean;
-
-  constructor(isSharedKey = true, isEnabled = true) {
-    this.currentKeyIndex = 0;
-    this.cryptoKeyRing = new Array(KEYRING_SIZE);
-    this.isSharedKey = isSharedKey;
-    this.enabled = isEnabled;
-  }
-
-  setEnabled(enabled: boolean) {
-    this.enabled = enabled;
-  }
-
-  async setKey(key: Uint8Array, keyIndex = 0) {
-    if (key) {
-      let newKey: CryptoKey | KeySet;
-      if (this.isSharedKey) {
-        newKey = await crypto.subtle.importKey(
-          'raw',
-          key,
-          {
-            name: ENCRYPTION_ALGORITHM,
-            length: 256,
-          },
-          false,
-          ['encrypt', 'decrypt'],
-        );
-      } else {
-        const material = await importKey(key);
-        newKey = await deriveKeys(material);
-      }
-      workerLogger.debug('setting new key');
-      this.setKeys(newKey, keyIndex);
-    }
-  }
-
-  /**
-   * Sets a set of keys and resets the sendCount.
-   * decryption.
-   */
-  setKeys(keys: KeySet | CryptoKey, keyIndex = 0) {
-    if (keyIndex >= 0) {
-      this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
-    }
-    if (keys instanceof CryptoKey) {
-      // this is the path for sharedKey = true
-      this.cryptoKeyRing[this.currentKeyIndex] = { encryptionKey: keys };
-    } else {
-      this.cryptoKeyRing[this.currentKeyIndex] = keys;
-    }
-
-    // this._sendCount = BigInt(0); // eslint-disable-line new-cap
-  }
-
-  isEnabled() {
-    return this.enabled;
-  }
-
-  getCurrentKeyIndex() {
-    return this.currentKeyIndex;
-  }
-
-  getKeySet(keyIndex?: number) {
-    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex];
-  }
-
-  getKey(keyIndex?: number) {
-    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex]?.encryptionKey;
-  }
-
-  getMaterial(keyIndex?: number) {
-    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex]?.material;
-  }
 }

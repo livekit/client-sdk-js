@@ -1,16 +1,17 @@
 import type Participant from '../room/participant/Participant';
+import type { VideoCodec } from '../room/track/options';
 import type { E2EEError } from './errors';
-import type { BaseKeyProvider } from './keyProvider';
+import type { BaseKeyProvider } from './KeyProvider';
 
 export interface BaseMessage {
   kind: string;
-  data: unknown;
+  data?: unknown;
 }
 
 export interface InitMessage extends BaseMessage {
   kind: 'init';
   data: {
-    sharedKey?: boolean;
+    keyProviderOptions: KeyProviderOptions;
   };
 }
 
@@ -18,8 +19,15 @@ export interface SetKeyMessage extends BaseMessage {
   kind: 'setKey';
   data: {
     participantId?: string;
-    key: Uint8Array;
+    key: CryptoKey;
     keyIndex?: number;
+  };
+}
+
+export interface RTPVideoMapMessage extends BaseMessage {
+  kind: 'setRTPMap';
+  data: {
+    map: Map<number, VideoCodec>;
   };
 }
 
@@ -30,7 +38,7 @@ export interface EncodeMessage extends BaseMessage {
     readableStream: ReadableStream;
     writableStream: WritableStream;
     trackId: string;
-    codec?: string;
+    codec?: VideoCodec;
   };
 }
 
@@ -47,7 +55,15 @@ export interface UpdateCodecMessage extends BaseMessage {
   data: {
     participantId: string;
     trackId: string;
-    codec: string;
+    codec: VideoCodec;
+  };
+}
+
+export interface RatchetMessage extends BaseMessage {
+  kind: 'ratchetKey';
+  data: {
+    participantId: string | undefined;
+    keyIndex?: number;
   };
 }
 
@@ -74,16 +90,21 @@ export type E2EEWorkerMessage =
   | ErrorMessage
   | EnableMessage
   | RemoveTransformMessage
-  | UpdateCodecMessage;
+  | RTPVideoMapMessage
+  | UpdateCodecMessage
+  | RatchetMessage;
 
-export type KeySet = { material?: CryptoKey; encryptionKey: CryptoKey };
+export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
 export type KeyProviderOptions = {
   sharedKey: boolean;
+  ratchetSalt: string;
+  ratchetWindowSize: number;
 };
 
 export type KeyProviderCallbacks = {
   setKey: (keyInfo: KeyInfo) => void;
+  ratchetKey: (participantId?: string, keyIndex?: number) => void;
 };
 
 export type E2EEManagerCallbacks = {
@@ -105,11 +126,12 @@ export const CryptorEvent = {
 } as const;
 
 export type KeyInfo = {
-  key: Uint8Array;
+  key: CryptoKey;
   participantId?: string;
   keyIndex?: number;
 };
 
 export type E2EEOptions = {
   keyProvider: BaseKeyProvider;
+  worker: Worker;
 };

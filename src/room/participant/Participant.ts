@@ -177,14 +177,22 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   /** @internal */
   setPermissions(permissions: ParticipantPermission): boolean {
+    const prevPermissions = this.permissions;
     const changed =
       permissions.canPublish !== this.permissions?.canPublish ||
       permissions.canSubscribe !== this.permissions?.canSubscribe ||
       permissions.canPublishData !== this.permissions?.canPublishData ||
       permissions.hidden !== this.permissions?.hidden ||
-      permissions.recorder !== this.permissions?.recorder;
+      permissions.recorder !== this.permissions?.recorder ||
+      permissions.canPublishSources.length !== this.permissions.canPublishSources.length ||
+      permissions.canPublishSources.some(
+        (value, index) => value !== this.permissions?.canPublishSources[index],
+      );
     this.permissions = permissions;
 
+    if (changed) {
+      this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
+    }
     return changed;
   }
 
@@ -261,7 +269,7 @@ export type ParticipantEventCallbacks = {
     status: TrackPublication.PermissionStatus,
   ) => void;
   mediaDevicesError: (error: Error) => void;
-  participantPermissionsChanged: (prevPermissions: ParticipantPermission) => void;
+  participantPermissionsChanged: (prevPermissions?: ParticipantPermission) => void;
   trackSubscriptionStatusChanged: (
     publication: RemoteTrackPublication,
     status: TrackPublication.SubscriptionStatus,

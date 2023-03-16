@@ -9,7 +9,7 @@ import { TURNCheck } from './checks/turn';
 import { WebRTCCheck } from './checks/webrtc';
 import { WebSocketCheck } from './checks/websocket';
 
-export type { CheckInfo };
+export type { CheckInfo, CheckStatus };
 
 export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<ConnectionCheckCallbacks>) {
   token: string;

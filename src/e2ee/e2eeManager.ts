@@ -13,29 +13,29 @@ import {
   SetKeyMessage,
   RemoveTransformMessage,
   UpdateCodecMessage,
+  RTPVideoMapMessage,
+  RatchetMessage,
 } from './types';
 
-import { isE2EESupported, isScriptTransformSupported, mimeTypeToCodecString } from './utils';
+import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
 import type Room from '../room/Room';
-import { ParticipantEvent, RoomEvent } from '../room/events';
+import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import LocalTrack from '../room/track/LocalTrack';
-import type { BaseKeyProvider } from './keyProvider';
+import type { BaseKeyProvider } from './KeyProvider';
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
 import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
 import type { VideoCodec } from '../room/track/options';
-// @ts-ignore
-import E2EEWorker from './e2ee.worker?worker';
+// // @ts-ignore
+// import E2EEWorker from './worker/e2ee.worker?worker';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
-  protected worker?: Worker;
+  protected worker: Worker;
 
   protected room?: Room;
-
-  protected workerAsModule = true;
 
   private encryptionEnabled: boolean;
 
@@ -48,6 +48,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
   constructor(options: E2EEOptions) {
     super();
     this.keyProvider = options.keyProvider;
+    this.worker = options.worker;
     this.encryptionEnabled = false;
   }
 
@@ -65,11 +66,11 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     if (room !== this.room) {
       this.room = room;
       this.setupEventListeners(room, this.keyProvider);
-      this.worker = new E2EEWorker();
+      // this.worker = new Worker('');
       const msg: InitMessage = {
         kind: 'init',
         data: {
-          sharedKey: true,
+          keyProviderOptions: this.keyProvider.getOptions(),
         },
       };
       if (this.worker) {
@@ -155,14 +156,37 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
       this.setupE2EEReceiver(track, participant.identity, pub.trackInfo);
     });
-    room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
+    room.localParticipant.on(ParticipantEvent.LocalTrackPublished, async (publication) => {
+      const stats = await publication.track?.sender?.getStats();
+      console.log('sender stats', stats);
       this.setupE2EESender(
         publication.track!,
         publication.track!.sender!,
         room.localParticipant.identity,
       );
     });
-    keyProvider.on('setKey', (keyInfo) => this.postKey(keyInfo));
+    room.engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {
+      this.postRTPMap(rtpMap);
+    });
+    keyProvider
+      .on('setKey', (keyInfo) => this.postKey(keyInfo))
+      .on('ratchetKey', (participantId, keyIndex) =>
+        this.postRatchetRequest(participantId, keyIndex),
+      );
+  }
+
+  private postRatchetRequest(participantId?: string, keyIndex?: number) {
+    if (!this.worker) {
+      throw Error('could not ratchet key, worker is missing');
+    }
+    const msg: RatchetMessage = {
+      kind: 'ratchetKey',
+      data: {
+        participantId,
+        keyIndex,
+      },
+    };
+    this.worker.postMessage(msg);
   }
 
   private postKey({ key, participantId, keyIndex }: KeyInfo) {
@@ -180,19 +204,32 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     this.worker.postMessage(msg);
   }
 
+  private postRTPMap(map: Map<number, VideoCodec>) {
+    if (!this.worker) {
+      throw Error('could not set key, worker is missing');
+    }
+    const msg: RTPVideoMapMessage = {
+      kind: 'setRTPMap',
+      data: {
+        map,
+      },
+    };
+    this.worker.postMessage(msg);
+  }
+
   private setupE2EEReceiver(track: RemoteTrack, remoteId: string, trackInfo?: TrackInfo) {
     if (!track.receiver) {
       return;
     }
-    console.log('handle receiver');
-    if (!trackInfo?.mimeType) {
+    console.log('handle receiver', trackInfo?.mimeType);
+    if (!trackInfo?.mimeType || trackInfo.mimeType === '') {
       throw new E2EEError('MimeType missing from trackInfo, cannot set up E2EE cryptor');
     }
     this.handleReceiver(
       track.receiver,
       track.mediaStreamID,
       remoteId,
-      mimeTypeToCodecString(trackInfo.mimeType),
+      track.kind === 'video' ? mimeTypeToVideoCodecString(trackInfo.mimeType) : undefined,
     );
   }
 
@@ -201,7 +238,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       if (!sender) log.warn('early return because sender is not ready');
       return;
     }
-    this.handleSender(sender, track.mediaStreamID, localId, track.codec);
+    this.handleSender(sender, track.mediaStreamID, localId, undefined);
   }
 
   /**
@@ -213,7 +250,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     receiver: RTCRtpReceiver,
     trackId: string,
     participantId: string,
-    codec: string,
+    codec?: VideoCodec,
   ) {
     if (!this.worker) {
       return;
@@ -229,7 +266,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       // @ts-ignore
       receiver.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
-      if (E2EE_FLAG in receiver) {
+      if (E2EE_FLAG in receiver && codec) {
         // only update codec
         const msg: UpdateCodecMessage = {
           kind: 'updateCodec',

@@ -151,7 +151,9 @@ export interface SignalRequest {
     | { $case: "subscriptionPermission"; subscriptionPermission: SubscriptionPermission }
     | { $case: "syncState"; syncState: SyncState }
     | { $case: "simulate"; simulate: SimulateScenario }
-    | { $case: "ping"; ping: number };
+    | { $case: "ping"; ping: number }
+    | { $case: "updateMetadata"; updateMetadata: UpdateParticipantMetadata }
+    | { $case: "pingReq"; pingReq: Ping };
 }
 
 export interface SignalResponse {
@@ -173,7 +175,8 @@ export interface SignalResponse {
     | { $case: "refreshToken"; refreshToken: string }
     | { $case: "trackUnpublished"; trackUnpublished: TrackUnpublishedResponse }
     | { $case: "pong"; pong: number }
-    | { $case: "reconnect"; reconnect: ReconnectResponse };
+    | { $case: "reconnect"; reconnect: ReconnectResponse }
+    | { $case: "pongResp"; pongResp: Pong };
 }
 
 export interface SimulcastCodec {
@@ -278,6 +281,16 @@ export interface UpdateTrackSettings {
   /** for video, height to receive */
   height: number;
   fps: number;
+  /**
+   * subscription priority. 1 being the highest (0 is unset)
+   * when unset, server sill assign priority based on the order of subscription
+   * server will use priority in the following ways:
+   * 1. when subscribed tracks exceed per-participant subscription limit, server will
+   *    pause the lowest priority tracks
+   * 2. when the network is congested, server will assign available bandwidth to
+   *    higher priority tracks first. lowest priority tracks can be paused
+   */
+  priority: number;
 }
 
 export interface LeaveRequest {
@@ -293,6 +306,10 @@ export interface LeaveRequest {
 export interface UpdateVideoLayers {
   trackSid: string;
   layers: VideoLayer[];
+}
+
+export interface UpdateParticipantMetadata {
+  metadata: string;
 }
 
 export interface ICEServer {
@@ -389,50 +406,70 @@ export interface SimulateScenario {
     | { $case: "switchCandidateProtocol"; switchCandidateProtocol: CandidateProtocol };
 }
 
+export interface Ping {
+  timestamp: number;
+  /** rtt in milliseconds calculated by client */
+  rtt: number;
+}
+
+export interface Pong {
+  /** timestamp field of last received ping request */
+  lastPingTimestamp: number;
+  timestamp: number;
+}
+
 function createBaseSignalRequest(): SignalRequest {
   return { message: undefined };
 }
 
 export const SignalRequest = {
   encode(message: SignalRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.message?.$case === "offer") {
-      SessionDescription.encode(message.message.offer, writer.uint32(10).fork()).ldelim();
-    }
-    if (message.message?.$case === "answer") {
-      SessionDescription.encode(message.message.answer, writer.uint32(18).fork()).ldelim();
-    }
-    if (message.message?.$case === "trickle") {
-      TrickleRequest.encode(message.message.trickle, writer.uint32(26).fork()).ldelim();
-    }
-    if (message.message?.$case === "addTrack") {
-      AddTrackRequest.encode(message.message.addTrack, writer.uint32(34).fork()).ldelim();
-    }
-    if (message.message?.$case === "mute") {
-      MuteTrackRequest.encode(message.message.mute, writer.uint32(42).fork()).ldelim();
-    }
-    if (message.message?.$case === "subscription") {
-      UpdateSubscription.encode(message.message.subscription, writer.uint32(50).fork()).ldelim();
-    }
-    if (message.message?.$case === "trackSetting") {
-      UpdateTrackSettings.encode(message.message.trackSetting, writer.uint32(58).fork()).ldelim();
-    }
-    if (message.message?.$case === "leave") {
-      LeaveRequest.encode(message.message.leave, writer.uint32(66).fork()).ldelim();
-    }
-    if (message.message?.$case === "updateLayers") {
-      UpdateVideoLayers.encode(message.message.updateLayers, writer.uint32(82).fork()).ldelim();
-    }
-    if (message.message?.$case === "subscriptionPermission") {
-      SubscriptionPermission.encode(message.message.subscriptionPermission, writer.uint32(90).fork()).ldelim();
-    }
-    if (message.message?.$case === "syncState") {
-      SyncState.encode(message.message.syncState, writer.uint32(98).fork()).ldelim();
-    }
-    if (message.message?.$case === "simulate") {
-      SimulateScenario.encode(message.message.simulate, writer.uint32(106).fork()).ldelim();
-    }
-    if (message.message?.$case === "ping") {
-      writer.uint32(112).int64(message.message.ping);
+    switch (message.message?.$case) {
+      case "offer":
+        SessionDescription.encode(message.message.offer, writer.uint32(10).fork()).ldelim();
+        break;
+      case "answer":
+        SessionDescription.encode(message.message.answer, writer.uint32(18).fork()).ldelim();
+        break;
+      case "trickle":
+        TrickleRequest.encode(message.message.trickle, writer.uint32(26).fork()).ldelim();
+        break;
+      case "addTrack":
+        AddTrackRequest.encode(message.message.addTrack, writer.uint32(34).fork()).ldelim();
+        break;
+      case "mute":
+        MuteTrackRequest.encode(message.message.mute, writer.uint32(42).fork()).ldelim();
+        break;
+      case "subscription":
+        UpdateSubscription.encode(message.message.subscription, writer.uint32(50).fork()).ldelim();
+        break;
+      case "trackSetting":
+        UpdateTrackSettings.encode(message.message.trackSetting, writer.uint32(58).fork()).ldelim();
+        break;
+      case "leave":
+        LeaveRequest.encode(message.message.leave, writer.uint32(66).fork()).ldelim();
+        break;
+      case "updateLayers":
+        UpdateVideoLayers.encode(message.message.updateLayers, writer.uint32(82).fork()).ldelim();
+        break;
+      case "subscriptionPermission":
+        SubscriptionPermission.encode(message.message.subscriptionPermission, writer.uint32(90).fork()).ldelim();
+        break;
+      case "syncState":
+        SyncState.encode(message.message.syncState, writer.uint32(98).fork()).ldelim();
+        break;
+      case "simulate":
+        SimulateScenario.encode(message.message.simulate, writer.uint32(106).fork()).ldelim();
+        break;
+      case "ping":
+        writer.uint32(112).int64(message.message.ping);
+        break;
+      case "updateMetadata":
+        UpdateParticipantMetadata.encode(message.message.updateMetadata, writer.uint32(122).fork()).ldelim();
+        break;
+      case "pingReq":
+        Ping.encode(message.message.pingReq, writer.uint32(130).fork()).ldelim();
+        break;
     }
     return writer;
   },
@@ -489,6 +526,15 @@ export const SignalRequest = {
         case 14:
           message.message = { $case: "ping", ping: longToNumber(reader.int64() as Long) };
           break;
+        case 15:
+          message.message = {
+            $case: "updateMetadata",
+            updateMetadata: UpdateParticipantMetadata.decode(reader, reader.uint32()),
+          };
+          break;
+        case 16:
+          message.message = { $case: "pingReq", pingReq: Ping.decode(reader, reader.uint32()) };
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -528,6 +574,10 @@ export const SignalRequest = {
         ? { $case: "simulate", simulate: SimulateScenario.fromJSON(object.simulate) }
         : isSet(object.ping)
         ? { $case: "ping", ping: Number(object.ping) }
+        : isSet(object.updateMetadata)
+        ? { $case: "updateMetadata", updateMetadata: UpdateParticipantMetadata.fromJSON(object.updateMetadata) }
+        : isSet(object.pingReq)
+        ? { $case: "pingReq", pingReq: Ping.fromJSON(object.pingReq) }
         : undefined,
     };
   },
@@ -564,7 +614,16 @@ export const SignalRequest = {
     message.message?.$case === "simulate" &&
       (obj.simulate = message.message?.simulate ? SimulateScenario.toJSON(message.message?.simulate) : undefined);
     message.message?.$case === "ping" && (obj.ping = Math.round(message.message?.ping));
+    message.message?.$case === "updateMetadata" && (obj.updateMetadata = message.message?.updateMetadata
+      ? UpdateParticipantMetadata.toJSON(message.message?.updateMetadata)
+      : undefined);
+    message.message?.$case === "pingReq" &&
+      (obj.pingReq = message.message?.pingReq ? Ping.toJSON(message.message?.pingReq) : undefined);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SignalRequest>, I>>(base?: I): SignalRequest {
+    return SignalRequest.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SignalRequest>, I>>(object: I): SignalRequest {
@@ -650,6 +709,21 @@ export const SignalRequest = {
     if (object.message?.$case === "ping" && object.message?.ping !== undefined && object.message?.ping !== null) {
       message.message = { $case: "ping", ping: object.message.ping };
     }
+    if (
+      object.message?.$case === "updateMetadata" &&
+      object.message?.updateMetadata !== undefined &&
+      object.message?.updateMetadata !== null
+    ) {
+      message.message = {
+        $case: "updateMetadata",
+        updateMetadata: UpdateParticipantMetadata.fromPartial(object.message.updateMetadata),
+      };
+    }
+    if (
+      object.message?.$case === "pingReq" && object.message?.pingReq !== undefined && object.message?.pingReq !== null
+    ) {
+      message.message = { $case: "pingReq", pingReq: Ping.fromPartial(object.message.pingReq) };
+    }
     return message;
   },
 };
@@ -660,60 +734,65 @@ function createBaseSignalResponse(): SignalResponse {
 
 export const SignalResponse = {
   encode(message: SignalResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.message?.$case === "join") {
-      JoinResponse.encode(message.message.join, writer.uint32(10).fork()).ldelim();
-    }
-    if (message.message?.$case === "answer") {
-      SessionDescription.encode(message.message.answer, writer.uint32(18).fork()).ldelim();
-    }
-    if (message.message?.$case === "offer") {
-      SessionDescription.encode(message.message.offer, writer.uint32(26).fork()).ldelim();
-    }
-    if (message.message?.$case === "trickle") {
-      TrickleRequest.encode(message.message.trickle, writer.uint32(34).fork()).ldelim();
-    }
-    if (message.message?.$case === "update") {
-      ParticipantUpdate.encode(message.message.update, writer.uint32(42).fork()).ldelim();
-    }
-    if (message.message?.$case === "trackPublished") {
-      TrackPublishedResponse.encode(message.message.trackPublished, writer.uint32(50).fork()).ldelim();
-    }
-    if (message.message?.$case === "leave") {
-      LeaveRequest.encode(message.message.leave, writer.uint32(66).fork()).ldelim();
-    }
-    if (message.message?.$case === "mute") {
-      MuteTrackRequest.encode(message.message.mute, writer.uint32(74).fork()).ldelim();
-    }
-    if (message.message?.$case === "speakersChanged") {
-      SpeakersChanged.encode(message.message.speakersChanged, writer.uint32(82).fork()).ldelim();
-    }
-    if (message.message?.$case === "roomUpdate") {
-      RoomUpdate.encode(message.message.roomUpdate, writer.uint32(90).fork()).ldelim();
-    }
-    if (message.message?.$case === "connectionQuality") {
-      ConnectionQualityUpdate.encode(message.message.connectionQuality, writer.uint32(98).fork()).ldelim();
-    }
-    if (message.message?.$case === "streamStateUpdate") {
-      StreamStateUpdate.encode(message.message.streamStateUpdate, writer.uint32(106).fork()).ldelim();
-    }
-    if (message.message?.$case === "subscribedQualityUpdate") {
-      SubscribedQualityUpdate.encode(message.message.subscribedQualityUpdate, writer.uint32(114).fork()).ldelim();
-    }
-    if (message.message?.$case === "subscriptionPermissionUpdate") {
-      SubscriptionPermissionUpdate.encode(message.message.subscriptionPermissionUpdate, writer.uint32(122).fork())
-        .ldelim();
-    }
-    if (message.message?.$case === "refreshToken") {
-      writer.uint32(130).string(message.message.refreshToken);
-    }
-    if (message.message?.$case === "trackUnpublished") {
-      TrackUnpublishedResponse.encode(message.message.trackUnpublished, writer.uint32(138).fork()).ldelim();
-    }
-    if (message.message?.$case === "pong") {
-      writer.uint32(144).int64(message.message.pong);
-    }
-    if (message.message?.$case === "reconnect") {
-      ReconnectResponse.encode(message.message.reconnect, writer.uint32(154).fork()).ldelim();
+    switch (message.message?.$case) {
+      case "join":
+        JoinResponse.encode(message.message.join, writer.uint32(10).fork()).ldelim();
+        break;
+      case "answer":
+        SessionDescription.encode(message.message.answer, writer.uint32(18).fork()).ldelim();
+        break;
+      case "offer":
+        SessionDescription.encode(message.message.offer, writer.uint32(26).fork()).ldelim();
+        break;
+      case "trickle":
+        TrickleRequest.encode(message.message.trickle, writer.uint32(34).fork()).ldelim();
+        break;
+      case "update":
+        ParticipantUpdate.encode(message.message.update, writer.uint32(42).fork()).ldelim();
+        break;
+      case "trackPublished":
+        TrackPublishedResponse.encode(message.message.trackPublished, writer.uint32(50).fork()).ldelim();
+        break;
+      case "leave":
+        LeaveRequest.encode(message.message.leave, writer.uint32(66).fork()).ldelim();
+        break;
+      case "mute":
+        MuteTrackRequest.encode(message.message.mute, writer.uint32(74).fork()).ldelim();
+        break;
+      case "speakersChanged":
+        SpeakersChanged.encode(message.message.speakersChanged, writer.uint32(82).fork()).ldelim();
+        break;
+      case "roomUpdate":
+        RoomUpdate.encode(message.message.roomUpdate, writer.uint32(90).fork()).ldelim();
+        break;
+      case "connectionQuality":
+        ConnectionQualityUpdate.encode(message.message.connectionQuality, writer.uint32(98).fork()).ldelim();
+        break;
+      case "streamStateUpdate":
+        StreamStateUpdate.encode(message.message.streamStateUpdate, writer.uint32(106).fork()).ldelim();
+        break;
+      case "subscribedQualityUpdate":
+        SubscribedQualityUpdate.encode(message.message.subscribedQualityUpdate, writer.uint32(114).fork()).ldelim();
+        break;
+      case "subscriptionPermissionUpdate":
+        SubscriptionPermissionUpdate.encode(message.message.subscriptionPermissionUpdate, writer.uint32(122).fork())
+          .ldelim();
+        break;
+      case "refreshToken":
+        writer.uint32(130).string(message.message.refreshToken);
+        break;
+      case "trackUnpublished":
+        TrackUnpublishedResponse.encode(message.message.trackUnpublished, writer.uint32(138).fork()).ldelim();
+        break;
+      case "pong":
+        writer.uint32(144).int64(message.message.pong);
+        break;
+      case "reconnect":
+        ReconnectResponse.encode(message.message.reconnect, writer.uint32(154).fork()).ldelim();
+        break;
+      case "pongResp":
+        Pong.encode(message.message.pongResp, writer.uint32(162).fork()).ldelim();
+        break;
     }
     return writer;
   },
@@ -800,6 +879,9 @@ export const SignalResponse = {
         case 19:
           message.message = { $case: "reconnect", reconnect: ReconnectResponse.decode(reader, reader.uint32()) };
           break;
+        case 20:
+          message.message = { $case: "pongResp", pongResp: Pong.decode(reader, reader.uint32()) };
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -852,6 +934,8 @@ export const SignalResponse = {
         ? { $case: "pong", pong: Number(object.pong) }
         : isSet(object.reconnect)
         ? { $case: "reconnect", reconnect: ReconnectResponse.fromJSON(object.reconnect) }
+        : isSet(object.pongResp)
+        ? { $case: "pongResp", pongResp: Pong.fromJSON(object.pongResp) }
         : undefined,
     };
   },
@@ -901,7 +985,13 @@ export const SignalResponse = {
     message.message?.$case === "pong" && (obj.pong = Math.round(message.message?.pong));
     message.message?.$case === "reconnect" &&
       (obj.reconnect = message.message?.reconnect ? ReconnectResponse.toJSON(message.message?.reconnect) : undefined);
+    message.message?.$case === "pongResp" &&
+      (obj.pongResp = message.message?.pongResp ? Pong.toJSON(message.message?.pongResp) : undefined);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SignalResponse>, I>>(base?: I): SignalResponse {
+    return SignalResponse.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SignalResponse>, I>>(object: I): SignalResponse {
@@ -1025,6 +1115,13 @@ export const SignalResponse = {
     ) {
       message.message = { $case: "reconnect", reconnect: ReconnectResponse.fromPartial(object.message.reconnect) };
     }
+    if (
+      object.message?.$case === "pongResp" &&
+      object.message?.pongResp !== undefined &&
+      object.message?.pongResp !== null
+    ) {
+      message.message = { $case: "pongResp", pongResp: Pong.fromPartial(object.message.pongResp) };
+    }
     return message;
   },
 };
@@ -1085,6 +1182,10 @@ export const SimulcastCodec = {
     message.cid !== undefined && (obj.cid = message.cid);
     message.enableSimulcastLayers !== undefined && (obj.enableSimulcastLayers = message.enableSimulcastLayers);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SimulcastCodec>, I>>(base?: I): SimulcastCodec {
+    return SimulcastCodec.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SimulcastCodec>, I>>(object: I): SimulcastCodec {
@@ -1267,6 +1368,10 @@ export const AddTrackRequest = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<AddTrackRequest>, I>>(base?: I): AddTrackRequest {
+    return AddTrackRequest.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<AddTrackRequest>, I>>(object: I): AddTrackRequest {
     const message = createBaseAddTrackRequest();
     message.cid = object.cid ?? "";
@@ -1337,6 +1442,10 @@ export const TrickleRequest = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<TrickleRequest>, I>>(base?: I): TrickleRequest {
+    return TrickleRequest.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<TrickleRequest>, I>>(object: I): TrickleRequest {
     const message = createBaseTrickleRequest();
     message.candidateInit = object.candidateInit ?? "";
@@ -1393,6 +1502,10 @@ export const MuteTrackRequest = {
     message.sid !== undefined && (obj.sid = message.sid);
     message.muted !== undefined && (obj.muted = message.muted);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MuteTrackRequest>, I>>(base?: I): MuteTrackRequest {
+    return MuteTrackRequest.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<MuteTrackRequest>, I>>(object: I): MuteTrackRequest {
@@ -1562,6 +1675,10 @@ export const JoinResponse = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<JoinResponse>, I>>(base?: I): JoinResponse {
+    return JoinResponse.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<JoinResponse>, I>>(object: I): JoinResponse {
     const message = createBaseJoinResponse();
     message.room = (object.room !== undefined && object.room !== null) ? Room.fromPartial(object.room) : undefined;
@@ -1644,6 +1761,10 @@ export const ReconnectResponse = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<ReconnectResponse>, I>>(base?: I): ReconnectResponse {
+    return ReconnectResponse.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<ReconnectResponse>, I>>(object: I): ReconnectResponse {
     const message = createBaseReconnectResponse();
     message.iceServers = object.iceServers?.map((e) => ICEServer.fromPartial(e)) || [];
@@ -1704,6 +1825,10 @@ export const TrackPublishedResponse = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<TrackPublishedResponse>, I>>(base?: I): TrackPublishedResponse {
+    return TrackPublishedResponse.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<TrackPublishedResponse>, I>>(object: I): TrackPublishedResponse {
     const message = createBaseTrackPublishedResponse();
     message.cid = object.cid ?? "";
@@ -1752,6 +1877,10 @@ export const TrackUnpublishedResponse = {
     const obj: any = {};
     message.trackSid !== undefined && (obj.trackSid = message.trackSid);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<TrackUnpublishedResponse>, I>>(base?: I): TrackUnpublishedResponse {
+    return TrackUnpublishedResponse.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<TrackUnpublishedResponse>, I>>(object: I): TrackUnpublishedResponse {
@@ -1808,6 +1937,10 @@ export const SessionDescription = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<SessionDescription>, I>>(base?: I): SessionDescription {
+    return SessionDescription.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<SessionDescription>, I>>(object: I): SessionDescription {
     const message = createBaseSessionDescription();
     message.type = object.type ?? "";
@@ -1862,6 +1995,10 @@ export const ParticipantUpdate = {
       obj.participants = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ParticipantUpdate>, I>>(base?: I): ParticipantUpdate {
+    return ParticipantUpdate.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<ParticipantUpdate>, I>>(object: I): ParticipantUpdate {
@@ -1939,6 +2076,10 @@ export const UpdateSubscription = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<UpdateSubscription>, I>>(base?: I): UpdateSubscription {
+    return UpdateSubscription.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<UpdateSubscription>, I>>(object: I): UpdateSubscription {
     const message = createBaseUpdateSubscription();
     message.trackSids = object.trackSids?.map((e) => e) || [];
@@ -1949,7 +2090,7 @@ export const UpdateSubscription = {
 };
 
 function createBaseUpdateTrackSettings(): UpdateTrackSettings {
-  return { trackSids: [], disabled: false, quality: 0, width: 0, height: 0, fps: 0 };
+  return { trackSids: [], disabled: false, quality: 0, width: 0, height: 0, fps: 0, priority: 0 };
 }
 
 export const UpdateTrackSettings = {
@@ -1971,6 +2112,9 @@ export const UpdateTrackSettings = {
     }
     if (message.fps !== 0) {
       writer.uint32(56).uint32(message.fps);
+    }
+    if (message.priority !== 0) {
+      writer.uint32(64).uint32(message.priority);
     }
     return writer;
   },
@@ -2000,6 +2144,9 @@ export const UpdateTrackSettings = {
         case 7:
           message.fps = reader.uint32();
           break;
+        case 8:
+          message.priority = reader.uint32();
+          break;
         default:
           reader.skipType(tag & 7);
           break;
@@ -2016,6 +2163,7 @@ export const UpdateTrackSettings = {
       width: isSet(object.width) ? Number(object.width) : 0,
       height: isSet(object.height) ? Number(object.height) : 0,
       fps: isSet(object.fps) ? Number(object.fps) : 0,
+      priority: isSet(object.priority) ? Number(object.priority) : 0,
     };
   },
 
@@ -2031,7 +2179,12 @@ export const UpdateTrackSettings = {
     message.width !== undefined && (obj.width = Math.round(message.width));
     message.height !== undefined && (obj.height = Math.round(message.height));
     message.fps !== undefined && (obj.fps = Math.round(message.fps));
+    message.priority !== undefined && (obj.priority = Math.round(message.priority));
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<UpdateTrackSettings>, I>>(base?: I): UpdateTrackSettings {
+    return UpdateTrackSettings.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<UpdateTrackSettings>, I>>(object: I): UpdateTrackSettings {
@@ -2042,6 +2195,7 @@ export const UpdateTrackSettings = {
     message.width = object.width ?? 0;
     message.height = object.height ?? 0;
     message.fps = object.fps ?? 0;
+    message.priority = object.priority ?? 0;
     return message;
   },
 };
@@ -2094,6 +2248,10 @@ export const LeaveRequest = {
     message.canReconnect !== undefined && (obj.canReconnect = message.canReconnect);
     message.reason !== undefined && (obj.reason = disconnectReasonToJSON(message.reason));
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<LeaveRequest>, I>>(base?: I): LeaveRequest {
+    return LeaveRequest.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<LeaveRequest>, I>>(object: I): LeaveRequest {
@@ -2158,10 +2316,65 @@ export const UpdateVideoLayers = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<UpdateVideoLayers>, I>>(base?: I): UpdateVideoLayers {
+    return UpdateVideoLayers.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<UpdateVideoLayers>, I>>(object: I): UpdateVideoLayers {
     const message = createBaseUpdateVideoLayers();
     message.trackSid = object.trackSid ?? "";
     message.layers = object.layers?.map((e) => VideoLayer.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseUpdateParticipantMetadata(): UpdateParticipantMetadata {
+  return { metadata: "" };
+}
+
+export const UpdateParticipantMetadata = {
+  encode(message: UpdateParticipantMetadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.metadata !== "") {
+      writer.uint32(10).string(message.metadata);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): UpdateParticipantMetadata {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUpdateParticipantMetadata();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.metadata = reader.string();
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UpdateParticipantMetadata {
+    return { metadata: isSet(object.metadata) ? String(object.metadata) : "" };
+  },
+
+  toJSON(message: UpdateParticipantMetadata): unknown {
+    const obj: any = {};
+    message.metadata !== undefined && (obj.metadata = message.metadata);
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<UpdateParticipantMetadata>, I>>(base?: I): UpdateParticipantMetadata {
+    return UpdateParticipantMetadata.fromPartial(base ?? {});
+  },
+
+  fromPartial<I extends Exact<DeepPartial<UpdateParticipantMetadata>, I>>(object: I): UpdateParticipantMetadata {
+    const message = createBaseUpdateParticipantMetadata();
+    message.metadata = object.metadata ?? "";
     return message;
   },
 };
@@ -2228,6 +2441,10 @@ export const ICEServer = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<ICEServer>, I>>(base?: I): ICEServer {
+    return ICEServer.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<ICEServer>, I>>(object: I): ICEServer {
     const message = createBaseICEServer();
     message.urls = object.urls?.map((e) => e) || [];
@@ -2283,6 +2500,10 @@ export const SpeakersChanged = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<SpeakersChanged>, I>>(base?: I): SpeakersChanged {
+    return SpeakersChanged.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<SpeakersChanged>, I>>(object: I): SpeakersChanged {
     const message = createBaseSpeakersChanged();
     message.speakers = object.speakers?.map((e) => SpeakerInfo.fromPartial(e)) || [];
@@ -2328,6 +2549,10 @@ export const RoomUpdate = {
     const obj: any = {};
     message.room !== undefined && (obj.room = message.room ? Room.toJSON(message.room) : undefined);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RoomUpdate>, I>>(base?: I): RoomUpdate {
+    return RoomUpdate.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<RoomUpdate>, I>>(object: I): RoomUpdate {
@@ -2395,6 +2620,10 @@ export const ConnectionQualityInfo = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<ConnectionQualityInfo>, I>>(base?: I): ConnectionQualityInfo {
+    return ConnectionQualityInfo.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<ConnectionQualityInfo>, I>>(object: I): ConnectionQualityInfo {
     const message = createBaseConnectionQualityInfo();
     message.participantSid = object.participantSid ?? "";
@@ -2448,6 +2677,10 @@ export const ConnectionQualityUpdate = {
       obj.updates = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ConnectionQualityUpdate>, I>>(base?: I): ConnectionQualityUpdate {
+    return ConnectionQualityUpdate.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<ConnectionQualityUpdate>, I>>(object: I): ConnectionQualityUpdate {
@@ -2515,6 +2748,10 @@ export const StreamStateInfo = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<StreamStateInfo>, I>>(base?: I): StreamStateInfo {
+    return StreamStateInfo.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<StreamStateInfo>, I>>(object: I): StreamStateInfo {
     const message = createBaseStreamStateInfo();
     message.participantSid = object.participantSid ?? "";
@@ -2572,6 +2809,10 @@ export const StreamStateUpdate = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<StreamStateUpdate>, I>>(base?: I): StreamStateUpdate {
+    return StreamStateUpdate.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<StreamStateUpdate>, I>>(object: I): StreamStateUpdate {
     const message = createBaseStreamStateUpdate();
     message.streamStates = object.streamStates?.map((e) => StreamStateInfo.fromPartial(e)) || [];
@@ -2627,6 +2868,10 @@ export const SubscribedQuality = {
     message.quality !== undefined && (obj.quality = videoQualityToJSON(message.quality));
     message.enabled !== undefined && (obj.enabled = message.enabled);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SubscribedQuality>, I>>(base?: I): SubscribedQuality {
+    return SubscribedQuality.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SubscribedQuality>, I>>(object: I): SubscribedQuality {
@@ -2691,6 +2936,10 @@ export const SubscribedCodec = {
       obj.qualities = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SubscribedCodec>, I>>(base?: I): SubscribedCodec {
+    return SubscribedCodec.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SubscribedCodec>, I>>(object: I): SubscribedCodec {
@@ -2769,6 +3018,10 @@ export const SubscribedQualityUpdate = {
       obj.subscribedCodecs = [];
     }
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SubscribedQualityUpdate>, I>>(base?: I): SubscribedQualityUpdate {
+    return SubscribedQualityUpdate.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SubscribedQualityUpdate>, I>>(object: I): SubscribedQualityUpdate {
@@ -2850,6 +3103,10 @@ export const TrackPermission = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<TrackPermission>, I>>(base?: I): TrackPermission {
+    return TrackPermission.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<TrackPermission>, I>>(object: I): TrackPermission {
     const message = createBaseTrackPermission();
     message.participantSid = object.participantSid ?? "";
@@ -2916,6 +3173,10 @@ export const SubscriptionPermission = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<SubscriptionPermission>, I>>(base?: I): SubscriptionPermission {
+    return SubscriptionPermission.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<SubscriptionPermission>, I>>(object: I): SubscriptionPermission {
     const message = createBaseSubscriptionPermission();
     message.allParticipants = object.allParticipants ?? false;
@@ -2980,6 +3241,10 @@ export const SubscriptionPermissionUpdate = {
     message.trackSid !== undefined && (obj.trackSid = message.trackSid);
     message.allowed !== undefined && (obj.allowed = message.allowed);
     return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SubscriptionPermissionUpdate>, I>>(base?: I): SubscriptionPermissionUpdate {
+    return SubscriptionPermissionUpdate.fromPartial(base ?? {});
   },
 
   fromPartial<I extends Exact<DeepPartial<SubscriptionPermissionUpdate>, I>>(object: I): SubscriptionPermissionUpdate {
@@ -3079,6 +3344,10 @@ export const SyncState = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<SyncState>, I>>(base?: I): SyncState {
+    return SyncState.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<SyncState>, I>>(object: I): SyncState {
     const message = createBaseSyncState();
     message.answer = (object.answer !== undefined && object.answer !== null)
@@ -3154,6 +3423,10 @@ export const DataChannelInfo = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<DataChannelInfo>, I>>(base?: I): DataChannelInfo {
+    return DataChannelInfo.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<DataChannelInfo>, I>>(object: I): DataChannelInfo {
     const message = createBaseDataChannelInfo();
     message.label = object.label ?? "";
@@ -3169,20 +3442,22 @@ function createBaseSimulateScenario(): SimulateScenario {
 
 export const SimulateScenario = {
   encode(message: SimulateScenario, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.scenario?.$case === "speakerUpdate") {
-      writer.uint32(8).int32(message.scenario.speakerUpdate);
-    }
-    if (message.scenario?.$case === "nodeFailure") {
-      writer.uint32(16).bool(message.scenario.nodeFailure);
-    }
-    if (message.scenario?.$case === "migration") {
-      writer.uint32(24).bool(message.scenario.migration);
-    }
-    if (message.scenario?.$case === "serverLeave") {
-      writer.uint32(32).bool(message.scenario.serverLeave);
-    }
-    if (message.scenario?.$case === "switchCandidateProtocol") {
-      writer.uint32(40).int32(message.scenario.switchCandidateProtocol);
+    switch (message.scenario?.$case) {
+      case "speakerUpdate":
+        writer.uint32(8).int32(message.scenario.speakerUpdate);
+        break;
+      case "nodeFailure":
+        writer.uint32(16).bool(message.scenario.nodeFailure);
+        break;
+      case "migration":
+        writer.uint32(24).bool(message.scenario.migration);
+        break;
+      case "serverLeave":
+        writer.uint32(32).bool(message.scenario.serverLeave);
+        break;
+      case "switchCandidateProtocol":
+        writer.uint32(40).int32(message.scenario.switchCandidateProtocol);
+        break;
     }
     return writer;
   },
@@ -3249,6 +3524,10 @@ export const SimulateScenario = {
     return obj;
   },
 
+  create<I extends Exact<DeepPartial<SimulateScenario>, I>>(base?: I): SimulateScenario {
+    return SimulateScenario.fromPartial(base ?? {});
+  },
+
   fromPartial<I extends Exact<DeepPartial<SimulateScenario>, I>>(object: I): SimulateScenario {
     const message = createBaseSimulateScenario();
     if (
@@ -3293,10 +3572,134 @@ export const SimulateScenario = {
   },
 };
 
+function createBasePing(): Ping {
+  return { timestamp: 0, rtt: 0 };
+}
+
+export const Ping = {
+  encode(message: Ping, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.timestamp !== 0) {
+      writer.uint32(8).int64(message.timestamp);
+    }
+    if (message.rtt !== 0) {
+      writer.uint32(16).int64(message.rtt);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): Ping {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePing();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.timestamp = longToNumber(reader.int64() as Long);
+          break;
+        case 2:
+          message.rtt = longToNumber(reader.int64() as Long);
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Ping {
+    return {
+      timestamp: isSet(object.timestamp) ? Number(object.timestamp) : 0,
+      rtt: isSet(object.rtt) ? Number(object.rtt) : 0,
+    };
+  },
+
+  toJSON(message: Ping): unknown {
+    const obj: any = {};
+    message.timestamp !== undefined && (obj.timestamp = Math.round(message.timestamp));
+    message.rtt !== undefined && (obj.rtt = Math.round(message.rtt));
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Ping>, I>>(base?: I): Ping {
+    return Ping.fromPartial(base ?? {});
+  },
+
+  fromPartial<I extends Exact<DeepPartial<Ping>, I>>(object: I): Ping {
+    const message = createBasePing();
+    message.timestamp = object.timestamp ?? 0;
+    message.rtt = object.rtt ?? 0;
+    return message;
+  },
+};
+
+function createBasePong(): Pong {
+  return { lastPingTimestamp: 0, timestamp: 0 };
+}
+
+export const Pong = {
+  encode(message: Pong, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.lastPingTimestamp !== 0) {
+      writer.uint32(8).int64(message.lastPingTimestamp);
+    }
+    if (message.timestamp !== 0) {
+      writer.uint32(16).int64(message.timestamp);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): Pong {
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePong();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          message.lastPingTimestamp = longToNumber(reader.int64() as Long);
+          break;
+        case 2:
+          message.timestamp = longToNumber(reader.int64() as Long);
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
+      }
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Pong {
+    return {
+      lastPingTimestamp: isSet(object.lastPingTimestamp) ? Number(object.lastPingTimestamp) : 0,
+      timestamp: isSet(object.timestamp) ? Number(object.timestamp) : 0,
+    };
+  },
+
+  toJSON(message: Pong): unknown {
+    const obj: any = {};
+    message.lastPingTimestamp !== undefined && (obj.lastPingTimestamp = Math.round(message.lastPingTimestamp));
+    message.timestamp !== undefined && (obj.timestamp = Math.round(message.timestamp));
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Pong>, I>>(base?: I): Pong {
+    return Pong.fromPartial(base ?? {});
+  },
+
+  fromPartial<I extends Exact<DeepPartial<Pong>, I>>(object: I): Pong {
+    const message = createBasePong();
+    message.lastPingTimestamp = object.lastPingTimestamp ?? 0;
+    message.timestamp = object.timestamp ?? 0;
+    return message;
+  },
+};
+
 declare var self: any | undefined;
 declare var window: any | undefined;
 declare var global: any | undefined;
-var globalThis: any = (() => {
+var tsProtoGlobalThis: any = (() => {
   if (typeof globalThis !== "undefined") {
     return globalThis;
   }
@@ -3326,7 +3729,7 @@ export type Exact<P, I extends P> = P extends Builtin ? P
 
 function longToNumber(long: Long): number {
   if (long.gt(Number.MAX_SAFE_INTEGER)) {
-    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+    throw new tsProtoGlobalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
   }
   return long.toNumber();
 }

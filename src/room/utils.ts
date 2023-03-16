@@ -2,6 +2,7 @@ import UAParser from 'ua-parser-js';
 import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models';
 import { protocolVersion, version } from '../version';
 import type LocalAudioTrack from './track/LocalAudioTrack';
+import { VideoCodec, videoCodecs } from './track/options';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
 import { getNewAudioContext } from './track/utils';
 
@@ -373,4 +374,8 @@ export class Mutex {
 
     return willUnlock;
   }
+}
+
+export function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec {
+  return videoCodecs.includes(maybeCodec as VideoCodec);
 }

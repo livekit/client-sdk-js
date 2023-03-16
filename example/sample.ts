@@ -4,7 +4,6 @@ import {
   createAudioAnalyser,
   DataPacket_Kind,
   DisconnectReason,
-  createE2EEKey,
   LocalAudioTrack,
   LocalParticipant,
   LogLevel,
@@ -27,6 +26,8 @@ import {
   VideoQuality,
   ExternalE2EEKeyProvider,
 } from '../src/index';
+//@ts-ignore
+import E2EEWorker from '../src/e2ee/worker/e2ee.worker?worker';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -49,9 +50,7 @@ const storedToken = searchParams.get('token') ?? '';
 (<HTMLInputElement>$('token')).value = storedToken;
 let storedKey = searchParams.get('key');
 if (!storedKey) {
-  const key = createE2EEKey();
-  console.log('created key', key);
-  (<HTMLSelectElement>$('crypto-key')).value = JSON.stringify(Array.from(key));
+  (<HTMLSelectElement>$('crypto-key')).value = 'password';
 } else {
   (<HTMLSelectElement>$('crypto-key')).value = storedKey;
 }
@@ -91,7 +90,7 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
-      e2ee: { keyProvider: state.e2eeKeyProvider },
+      e2ee: { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() },
     };
 
     const connectOpts: RoomConnectOptions = {
@@ -127,8 +126,11 @@ const appActions = {
       .on(RoomEvent.DataReceived, handleData)
       .on(RoomEvent.Disconnected, handleRoomDisconnect)
       .on(RoomEvent.Reconnecting, () => appendLog('Reconnecting to room'))
-      .on(RoomEvent.Reconnected, () => {
-        appendLog('Successfully reconnected. server', room.engine.connectedServerAddress);
+      .on(RoomEvent.Reconnected, async () => {
+        appendLog(
+          'Successfully reconnected. server',
+          await room.engine.getConnectedServerAddress(),
+        );
       })
       .on(RoomEvent.LocalTrackPublished, (pub) => {
         const track = pub.track as LocalAudioTrack;
@@ -198,14 +200,14 @@ const appActions = {
     try {
       // read and set current key from input
       const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
-      state.e2eeKeyProvider.setKey(Uint8Array.from(JSON.parse(cryptoKey)));
+      state.e2eeKeyProvider.setKey(cryptoKey);
       await room.setE2EEEnabled(true);
 
       await room.connect(url, token, connectOptions);
       const elapsed = Date.now() - startTime;
       appendLog(
         `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
-        room.engine.connectedServerAddress,
+        await room.engine.getConnectedServerAddress(),
       );
     } catch (error: any) {
       let message: any = error;
@@ -232,7 +234,7 @@ const appActions = {
 
     // read and set current key from input
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
-    state.e2eeKeyProvider.setKey(Uint8Array.from(JSON.parse(cryptoKey)));
+    state.e2eeKeyProvider.setKey(cryptoKey);
 
     await currentRoom.setE2EEEnabled(!currentRoom.isE2EEEnabled);
   },

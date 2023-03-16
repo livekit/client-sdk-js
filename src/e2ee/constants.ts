@@ -1,3 +1,5 @@
+import type { KeyProviderOptions } from './types';
+
 export const ENCRYPTION_ALGORITHM = 'AES-GCM';
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
@@ -26,9 +28,13 @@ export const UNENCRYPTED_BYTES = {
  packet. See https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt#parameters */
 export const IV_LENGTH = 12;
 
-export const RATCHET_WINDOW_SIZE = 8;
-
-export const RATCHET_SALT = 'LKFrameEncryptionKey';
-
 // flag set to indicate that e2ee has been setup for sender/receiver;
 export const E2EE_FLAG = 'lk_e2ee';
+
+export const SALT = 'LKFrameEncryptionKey';
+
+export const KEY_PROVIDER_DEFAULTS: KeyProviderOptions = {
+  sharedKey: false,
+  ratchetSalt: SALT,
+  ratchetWindowSize: 8,
+} as const;
