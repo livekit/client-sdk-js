@@ -98,7 +98,6 @@ export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
 export type KeyProviderOptions = {
   sharedKey: boolean;
-  autoRatchet: boolean;
   ratchetSalt: string;
   ratchetWindowSize: number;
 };
@@ -134,4 +133,5 @@ export type KeyInfo = {
 
 export type E2EEOptions = {
   keyProvider: BaseKeyProvider;
+  worker: Worker;
 };

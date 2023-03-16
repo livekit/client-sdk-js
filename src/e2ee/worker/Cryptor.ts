@@ -5,16 +5,10 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
-import {
-  ENCRYPTION_ALGORITHM,
-  IV_LENGTH,
-  KEYRING_SIZE,
-  SALT,
-  UNENCRYPTED_BYTES,
-} from '../constants';
+import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { E2EEError, E2EEErrorReason } from '../errors';
-import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeyProviderOptions, KeySet } from '../types';
-import { deriveKeys, importKey, isVideoFrame, ratchet } from '../utils';
+import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeyProviderOptions } from '../types';
+import { importKey, isVideoFrame, ratchet } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 export interface CryptorConstructor {
@@ -174,7 +168,7 @@ export class Cryptor extends BaseCryptor {
       return controller.enqueue(encodedFrame);
     }
 
-    const { encryptionKey, material } = this.keys.getKey();
+    const { encryptionKey } = this.keys.getKey();
     const keyIndex = this.keys.getCurrentKeyIndex();
 
     if (encryptionKey) {
@@ -376,7 +370,7 @@ export class Cryptor extends BaseCryptor {
       return encodedFrame;
     } catch (error: any) {
       workerLogger.error(error);
-      if (this.keyProviderOptions.autoRatchet) {
+      if (this.keyProviderOptions.ratchetWindowSize > 0) {
         if (ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
           workerLogger.info(
             `ratcheting key attempt ${ratchetCount} of ${this.keyProviderOptions.ratchetWindowSize}`,

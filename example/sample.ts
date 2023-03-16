@@ -26,6 +26,8 @@ import {
   VideoQuality,
   ExternalE2EEKeyProvider,
 } from '../src/index';
+//@ts-ignore
+import E2EEWorker from '../src/e2ee/worker/e2ee.worker?worker';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -88,7 +90,7 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
-      e2ee: { keyProvider: state.e2eeKeyProvider },
+      e2ee: { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() },
     };
 
     const connectOpts: RoomConnectOptions = {

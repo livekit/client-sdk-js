@@ -35,7 +35,6 @@ export const SALT = 'LKFrameEncryptionKey';
 
 export const KEY_PROVIDER_DEFAULTS: KeyProviderOptions = {
   sharedKey: false,
-  autoRatchet: true,
   ratchetSalt: SALT,
   ratchetWindowSize: 8,
 } as const;

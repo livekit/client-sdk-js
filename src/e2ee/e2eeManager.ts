@@ -29,15 +29,13 @@ import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
 import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
 import type { VideoCodec } from '../room/track/options';
-// @ts-ignore
-import E2EEWorker from './e2ee.worker?worker';
+// // @ts-ignore
+// import E2EEWorker from './worker/e2ee.worker?worker';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
-  protected worker?: Worker;
+  protected worker: Worker;
 
   protected room?: Room;
-
-  protected workerAsModule = true;
 
   private encryptionEnabled: boolean;
 
@@ -50,6 +48,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
   constructor(options: E2EEOptions) {
     super();
     this.keyProvider = options.keyProvider;
+    this.worker = options.worker;
     this.encryptionEnabled = false;
   }
 
@@ -67,7 +66,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     if (room !== this.room) {
       this.room = room;
       this.setupEventListeners(room, this.keyProvider);
-      this.worker = new E2EEWorker();
+      // this.worker = new Worker('');
       const msg: InitMessage = {
         kind: 'init',
         data: {

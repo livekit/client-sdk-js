@@ -6,9 +6,16 @@
   "unpkg": "./dist/livekit-client.umd.js",
   "module": "./dist/livekit-client.esm.mjs",
   "exports": {
-    "types": "./dist/src/index.d.ts",
-    "import": "./dist/livekit-client.esm.mjs",
-    "require": "./dist/livekit-client.umd.js"
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/livekit-client.esm.mjs",
+      "require": "./dist/livekit-client.umd.js"
+    },
+    "./e2ee-worker": {
+      "types": "./dist/src/e2ee/worker/e2ee.worker.d.ts",
+      "import": "./dist/livekit-client.e2ee.worker.mjs",
+      "require": "./dist/livekit-client.e2ee.worker.js"
+    }
   },
   "files": [
     "dist",
@@ -18,7 +25,10 @@
   "typesVersions": {
     "<4.8": {
       "./dist/src/index.d.ts": [
-        "./dist/src/ts4.2/index.d.ts"
+        "./dist/ts4.2/src/index.d.ts"
+      ],
+      "./dist/src/e2ee/worker/e2ee.worker.d.ts": [
+        "./dist/ts4.2//dist/src/e2ee/worker/e2ee.worker.d.ts"
       ]
     }
   },
@@ -26,7 +36,7 @@
   "author": "David Zhao <david@davidzhao.com>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rollup --config --bundleConfigAsCjs && yarn downlevel-dts",
+    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs  && yarn downlevel-dts",
     "build:watch": "rollup --watch --config rollup.config.js",
     "build-docs": "typedoc",
     "proto": "protoc --plugin=node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_opt=esModuleInterop=true --ts_proto_out=./src/proto --ts_proto_opt=outputClientImpl=false,useOptionals=messages,oneof=unions -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",

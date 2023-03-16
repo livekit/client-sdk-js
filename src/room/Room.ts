@@ -37,7 +37,7 @@ import {
   videoDefaults,
 } from './defaults';
 import DeviceManager from './DeviceManager';
-import { E2EEManager } from '../e2ee/e2eeManager';
+import { E2EEManager } from '../e2ee/E2eeManager';
 import { ConnectionError, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
