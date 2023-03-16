@@ -1,3 +1,5 @@
+import type { KeyProviderOptions } from './types';
+
 export const ENCRYPTION_ALGORITHM = 'AES-GCM';
 
 // We use a ringbuffer of keys so we can change them and still decode packets that were
@@ -30,3 +32,10 @@ export const IV_LENGTH = 12;
 export const E2EE_FLAG = 'lk_e2ee';
 
 export const SALT = 'LKFrameEncryptionKey';
+
+export const KEY_PROVIDER_DEFAULTS: KeyProviderOptions = {
+  sharedKey: false,
+  autoRatchet: true,
+  ratchetSalt: SALT,
+  ratchetWindowSize: 8,
+} as const;

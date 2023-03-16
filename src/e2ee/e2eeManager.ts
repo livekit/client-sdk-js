@@ -14,6 +14,7 @@ import {
   RemoveTransformMessage,
   UpdateCodecMessage,
   RTPVideoMapMessage,
+  RatchetMessage,
 } from './types';
 
 import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
@@ -168,7 +169,25 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     room.engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {
       this.postRTPMap(rtpMap);
     });
-    keyProvider.on('setKey', (keyInfo) => this.postKey(keyInfo));
+    keyProvider
+      .on('setKey', (keyInfo) => this.postKey(keyInfo))
+      .on('ratchetKey', (participantId, keyIndex) =>
+        this.postRatchetRequest(participantId, keyIndex),
+      );
+  }
+
+  private postRatchetRequest(participantId?: string, keyIndex?: number) {
+    if (!this.worker) {
+      throw Error('could not ratchet key, worker is missing');
+    }
+    const msg: RatchetMessage = {
+      kind: 'ratchetKey',
+      data: {
+        participantId,
+        keyIndex,
+      },
+    };
+    this.worker.postMessage(msg);
   }
 
   private postKey({ key, participantId, keyIndex }: KeyInfo) {

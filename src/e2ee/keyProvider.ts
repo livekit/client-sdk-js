@@ -1,15 +1,8 @@
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
-import { SALT } from './constants';
+import { KEY_PROVIDER_DEFAULTS } from './constants';
 import type { KeyProviderCallbacks, KeyInfo, KeyProviderOptions } from './types';
-import { deriveKeyFromString, deriveKeyMaterialFromString } from './utils';
-
-const keyProviderDefaults: KeyProviderOptions = {
-  sharedKey: false,
-  autoRatchet: true,
-  ratchetSalt: SALT,
-  ratchetWindowSize: 8,
-};
+import { deriveKeyMaterialFromString } from './utils';
 
 export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<KeyProviderCallbacks>) {
   private keyInfoMap: Map<string, KeyInfo>;
@@ -19,10 +12,10 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
   constructor(options: Partial<KeyProviderOptions> = {}) {
     super();
     this.keyInfoMap = new Map();
-    this.options = { ...keyProviderDefaults, ...options };
+    this.options = { ...KEY_PROVIDER_DEFAULTS, ...options };
   }
 
-  onSetEncryptionKey(key: CryptoKey, participantId?: string, keyIndex?: number) {
+  protected onSetEncryptionKey(key: CryptoKey, participantId?: string, keyIndex?: number) {
     const keyInfo: KeyInfo = { key, participantId, keyIndex };
     this.keyInfoMap.set(`${participantId ?? 'shared'}-${keyIndex ?? 0}`, keyInfo);
     this.emit('setKey', keyInfo);
@@ -35,9 +28,15 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
   getOptions() {
     return this.options;
   }
+
+  ratchetKey(participantId?: string) {
+    this.emit('ratchetKey', participantId);
+  }
 }
 
 export class ExternalE2EEKeyProvider extends BaseKeyProvider {
+  ratchetInterval: number | undefined;
+
   constructor(options: Partial<KeyProviderOptions> = { sharedKey: true }) {
     super(options);
   }
@@ -45,5 +44,11 @@ export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   async setKey(key: string) {
     const derivedKey = await deriveKeyMaterialFromString(key);
     this.onSetEncryptionKey(derivedKey);
+    // setTimeout(() => {
+    //   clearInterval(this.ratchetInterval);
+    //   this.ratchetInterval = setInterval(() => {
+    //     this.ratchetKey();
+    //   }, 5000) as unknown as number;
+    // }, 5000);
   }
 }

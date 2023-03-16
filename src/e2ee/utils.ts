@@ -40,35 +40,6 @@ export async function importKey(
   );
 }
 
-// export async function deriveKeyFromString(password: string) {
-//   let enc = new TextEncoder();
-//   const salt = enc.encode(SALT);
-
-//   const keyMaterial = await crypto.subtle.importKey(
-//     'raw',
-//     enc.encode(password),
-//     {
-//       name: 'PBKDF2',
-//     },
-//     false,
-//     ['deriveBits', 'deriveKey'],
-//   );
-
-//   const encryptionKey = await crypto.subtle.deriveKey(
-//     {
-//       name: 'PBKDF2',
-//       salt,
-//       iterations: 100000,
-//       hash: 'SHA-256',
-//     },
-//     keyMaterial,
-//     { name: ENCRYPTION_ALGORITHM, length: 128 },
-//     true,
-//     ['encrypt', 'decrypt'],
-//   );
-//   return encryptionKey;
-// }
-
 export async function deriveKeyMaterialFromString(password: string) {
   let enc = new TextEncoder();
 
@@ -85,22 +56,41 @@ export async function deriveKeyMaterialFromString(password: string) {
   return keyMaterial;
 }
 
+function getAlgoOptions(algorithmName: string, salt: string) {
+  const textEncoder = new TextEncoder();
+  const encodedSalt = textEncoder.encode(salt);
+  switch (algorithmName) {
+    case 'HKDF':
+      return {
+        name: 'HKDF',
+        salt: encodedSalt,
+        hash: 'SHA-256',
+        info: new ArrayBuffer(128),
+      };
+    case 'PBKDF2': {
+      return {
+        name: 'PBKDF2',
+        salt: encodedSalt,
+        hash: 'SHA-256',
+        iterations: 100000,
+      };
+    }
+    default:
+      throw new Error(`algorithm ${algorithmName} is currently unsupported`);
+  }
+}
+
 /**
  * Derives a set of keys from the master key.
  * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.1
  */
 export async function deriveKeys(material: CryptoKey, salt: string) {
-  const textEncoder = new TextEncoder();
+  const algorithmOptions = getAlgoOptions(material.algorithm.name, salt);
 
   // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#HKDF
   // https://developer.mozilla.org/en-US/docs/Web/API/HkdfParams
   const encryptionKey = await crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: textEncoder.encode(salt),
-      hash: 'SHA-256',
-      iterations: 100000,
-    },
+    algorithmOptions,
     material,
     {
       name: ENCRYPTION_ALGORITHM,
@@ -130,17 +120,8 @@ export function mimeTypeToVideoCodecString(mimeType: string) {
  * https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.5.1
  */
 export async function ratchet(material: CryptoKey, salt: string): Promise<ArrayBuffer> {
-  const textEncoder = new TextEncoder();
+  const algorithmOptions = getAlgoOptions(material.algorithm.name, salt);
 
   // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveBits
-  return crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: textEncoder.encode(salt),
-      hash: 'SHA-256',
-      iterations: 100000,
-    },
-    material,
-    256,
-  );
+  return crypto.subtle.deriveBits(algorithmOptions, material, 256);
 }

@@ -14,7 +14,7 @@ import {
 } from './constants';
 import { E2EEError, E2EEErrorReason } from './errors';
 import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeyProviderOptions, KeySet } from './types';
-import { deriveKeys, isVideoFrame } from './utils';
+import { deriveKeys, importKey, isVideoFrame, ratchet } from './utils';
 
 export interface CryptorConstructor {
   new (opts?: unknown): BaseCryptor;
@@ -173,7 +173,7 @@ export class Cryptor extends BaseCryptor {
       return controller.enqueue(encodedFrame);
     }
 
-    const { encryptionKey } = this.keys.getKey();
+    const { encryptionKey, material } = this.keys.getKey();
     const keyIndex = this.keys.getCurrentKeyIndex();
 
     if (encryptionKey) {
@@ -224,6 +224,24 @@ export class Cryptor extends BaseCryptor {
         newUint8.set(frameTrailer, frameHeader.byteLength + cipherText.byteLength + iv.byteLength); // append frame trailer.
 
         encodedFrame.data = newData;
+
+        // // DEBUG test to ratchet key after every 100th frame
+        // if (
+        //   encodedFrame instanceof RTCEncodedVideoFrame &&
+        //   encodedFrame.getMetadata().frameId! % 100 === 0
+        // ) {
+        //   const newMaterial = await importKey(
+        //     await ratchet(material, this.keyProviderOptions.ratchetSalt),
+        //     material.algorithm.name,
+        //     'derive',
+        //   );
+
+        //   this.keys.setKeyFromMaterial(
+        //     newMaterial,
+        //     this.keys.getCurrentKeyIndex(),
+        //   );
+        // }
+        // // DEBUG END
 
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
@@ -357,39 +375,43 @@ export class Cryptor extends BaseCryptor {
       return encodedFrame;
     } catch (error: any) {
       workerLogger.error(error);
-      // if (this.keyProviderOptions.autoRatchet) {
-      //   if (ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
-      //     workerLogger.info(
-      //       `ratcheting key attempt ${ratchetCount} of ${this.keyProviderOptions.ratchetWindowSize}`,
-      //     );
-      //     workerLogger.debug('current key algo', encryptionKey.algorithm);
+      if (this.keyProviderOptions.autoRatchet) {
+        if (ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
+          workerLogger.info(
+            `ratcheting key attempt ${ratchetCount} of ${this.keyProviderOptions.ratchetWindowSize}`,
+          );
+          workerLogger.debug('current key algo', encryptionKey.algorithm);
+          workerLogger.debug('current material algo', material.algorithm);
 
-      //     const newKey = await deriveKeys(encryptionKey, this.keyProviderOptions.ratchetSalt);
-      //     workerLogger.debug('new key algo', newKey.algorithm);
+          const newMaterial = await importKey(
+            await ratchet(material, this.keyProviderOptions.ratchetSalt),
+            'PBKDF2',
+            'derive',
+          );
 
-      //     this.keys.setKeyFromMaterial(newKey, this.keys.getCurrentKeyIndex());
+          this.keys.setKeyFromMaterial(newMaterial, this.keys.getCurrentKeyIndex());
 
-      //     return await this.decryptFrame(
-      //       encodedFrame,
-      //       keyIndex,
-      //       initialKey || encryptionKey,
-      //       ratchetCount + 1,
-      //     );
-      //   }
+          return await this.decryptFrame(
+            encodedFrame,
+            keyIndex,
+            initialKey || encryptionKey,
+            ratchetCount + 1,
+          );
+        }
 
-      //   /**
-      //    * Since the key it is first send and only afterwards actually used for encrypting, there were
-      //    * situations when the decrypting failed due to the fact that the received frame was not encrypted
-      //    * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
-      //    * we come back to the initial key.
-      //    */
-      //   if (initialKey) {
-      //     this.keys.setKeyFromMaterial(initialKey);
-      //   }
-      //   workerLogger.error('maximum ratchet attempts exceeded, resetting key');
-      // } else {
-      throw new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey);
-      // }
+        /**
+         * Since the key it is first send and only afterwards actually used for encrypting, there were
+         * situations when the decrypting failed due to the fact that the received frame was not encrypted
+         * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
+         * we come back to the initial key.
+         */
+        if (initialKey) {
+          this.keys.setKeyFromMaterial(initialKey);
+        }
+        workerLogger.error('maximum ratchet attempts exceeded, resetting key');
+      } else {
+        throw new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey);
+      }
     }
   }
 
@@ -578,14 +600,28 @@ export class ParticipantKeys {
 
   private enabled: boolean;
 
-  constructor(isEnabled = true) {
+  private keyProviderOptions: KeyProviderOptions;
+
+  constructor(isEnabled: boolean, keyProviderOptions: KeyProviderOptions) {
     this.currentKeyIndex = 0;
     this.cryptoKeyRing = new Array(KEYRING_SIZE);
     this.enabled = isEnabled;
+    this.keyProviderOptions = keyProviderOptions;
   }
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled;
+  }
+
+  async ratchetKey(keyIndex?: number) {
+    const currentMaterial = this.getKey(keyIndex).material;
+    const newMaterial = await importKey(
+      await ratchet(currentMaterial, this.keyProviderOptions.ratchetSalt),
+      currentMaterial.algorithm.name,
+      'derive',
+    );
+
+    this.setKeyFromMaterial(newMaterial, keyIndex ?? this.getCurrentKeyIndex());
   }
 
   async setKeyFromMaterial(material: CryptoKey, keyIndex = 0) {
@@ -610,7 +646,10 @@ export class ParticipantKeys {
     if (keyIndex >= 0) {
       this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
     }
-    this.cryptoKeyRing[this.currentKeyIndex] = await deriveKeys(material, SALT);
+    this.cryptoKeyRing[this.currentKeyIndex] = await deriveKeys(
+      material,
+      this.keyProviderOptions.ratchetSalt,
+    );
     // }
   }
 

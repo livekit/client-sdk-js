@@ -1,6 +1,7 @@
 import { Cryptor, ParticipantKeys } from './cryptor';
 import type { E2EEWorkerMessage, EnableMessage, ErrorMessage, KeyProviderOptions } from './types';
 import { setLogLevel, workerLogger } from '../logger';
+import { KEY_PROVIDER_DEFAULTS } from './constants';
 
 const participantCryptors: Cryptor[] = [];
 const participantKeys: Map<string, ParticipantKeys> = new Map();
@@ -14,7 +15,7 @@ let useSharedKey: boolean = false;
 
 let sharedKey: CryptoKey | undefined;
 
-let keyProviderOptions: KeyProviderOptions | undefined;
+let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
 setLogLevel('debug', 'lk-e2ee');
 
@@ -34,7 +35,7 @@ onmessage = (ev) => {
         kind: 'enable',
         data: { enabled: isEncryptionEnabled },
       };
-      publisherKeys = new ParticipantKeys(isEncryptionEnabled);
+      publisherKeys = new ParticipantKeys(isEncryptionEnabled, keyProviderOptions);
       postMessage(enableMsg);
       break;
     case 'enable':
@@ -83,6 +84,10 @@ onmessage = (ev) => {
       publishCryptors.forEach((cr) => {
         cr.setRtpMap(data.map);
       });
+      break;
+    case 'ratchetKey':
+      getParticipantKeyHandler(data.participantId).ratchetKey(data.keyIndex);
+
     default:
       break;
   }
@@ -118,7 +123,7 @@ function getParticipantKeyHandler(participantId?: string) {
   }
   let keys = participantKeys.get(participantId);
   if (!keys) {
-    keys = new ParticipantKeys();
+    keys = new ParticipantKeys(true, keyProviderOptions);
     if (sharedKey) {
       keys.setKeyFromMaterial(sharedKey);
     }

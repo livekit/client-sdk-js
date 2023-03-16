@@ -5,7 +5,7 @@ import type { BaseKeyProvider } from './keyProvider';
 
 export interface BaseMessage {
   kind: string;
-  data: unknown;
+  data?: unknown;
 }
 
 export interface InitMessage extends BaseMessage {
@@ -59,6 +59,14 @@ export interface UpdateCodecMessage extends BaseMessage {
   };
 }
 
+export interface RatchetMessage extends BaseMessage {
+  kind: 'ratchetKey';
+  data: {
+    participantId: string | undefined;
+    keyIndex?: number;
+  };
+}
+
 export interface ErrorMessage extends BaseMessage {
   kind: 'error';
   data: {
@@ -83,7 +91,8 @@ export type E2EEWorkerMessage =
   | EnableMessage
   | RemoveTransformMessage
   | RTPVideoMapMessage
-  | UpdateCodecMessage;
+  | UpdateCodecMessage
+  | RatchetMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
@@ -96,6 +105,7 @@ export type KeyProviderOptions = {
 
 export type KeyProviderCallbacks = {
   setKey: (keyInfo: KeyInfo) => void;
+  ratchetKey: (participantId?: string, keyIndex?: number) => void;
 };
 
 export type E2EEManagerCallbacks = {
