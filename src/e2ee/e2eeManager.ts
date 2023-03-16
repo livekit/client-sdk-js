@@ -70,7 +70,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       const msg: InitMessage = {
         kind: 'init',
         data: {
-          sharedKey: true,
+          keyProviderOptions: this.keyProvider.getOptions(),
         },
       };
       if (this.worker) {

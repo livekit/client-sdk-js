@@ -1,5 +1,5 @@
 import { Cryptor, ParticipantKeys } from './cryptor';
-import type { E2EEWorkerMessage, EnableMessage, ErrorMessage } from './types';
+import type { E2EEWorkerMessage, EnableMessage, ErrorMessage, KeyProviderOptions } from './types';
 import { setLogLevel, workerLogger } from '../logger';
 
 const participantCryptors: Cryptor[] = [];
@@ -14,6 +14,8 @@ let useSharedKey: boolean = false;
 
 let sharedKey: CryptoKey | undefined;
 
+let keyProviderOptions: KeyProviderOptions | undefined;
+
 setLogLevel('debug', 'lk-e2ee');
 
 /**
@@ -25,7 +27,8 @@ onmessage = (ev) => {
   switch (kind) {
     case 'init':
       workerLogger.info('worker initialized');
-      useSharedKey = !!data.sharedKey;
+      keyProviderOptions = data.keyProviderOptions;
+      useSharedKey = !!data.keyProviderOptions.sharedKey;
       // acknowledge init successful
       const enableMsg: EnableMessage = {
         kind: 'enable',
@@ -65,7 +68,7 @@ onmessage = (ev) => {
         workerLogger.debug('set shared key');
         setSharedKey(data.key, data.keyIndex);
       } else if (data.participantId) {
-        getParticipantKeyHandler(data.participantId).setKey(data.key, data.keyIndex);
+        getParticipantKeyHandler(data.participantId).setKeyFromMaterial(data.key, data.keyIndex);
       } else {
         workerLogger.error('no participant Id was provided and shared key usage is disabled');
       }
@@ -89,10 +92,13 @@ function getTrackCryptor(participantId: string, trackId: string) {
   let cryptor = participantCryptors.find((c) => c.getTrackId() === trackId);
   if (!cryptor) {
     workerLogger.info('creating new cryptor for', { participantId });
+    if (!keyProviderOptions) {
+      throw Error('Missing keyProvider options');
+    }
     cryptor = new Cryptor({
-      sharedKey: useSharedKey,
       participantId,
       keys: getParticipantKeyHandler(participantId),
+      keyProviderOptions,
     });
 
     setupCryptorErrorEvents(cryptor);
@@ -114,7 +120,7 @@ function getParticipantKeyHandler(participantId?: string) {
   if (!keys) {
     keys = new ParticipantKeys();
     if (sharedKey) {
-      keys.setKey(sharedKey);
+      keys.setKeyFromMaterial(sharedKey);
     }
     participantKeys.set(participantId, keys);
   }
@@ -128,10 +134,13 @@ function unsetCryptorParticipant(trackId: string) {
 function getPublisherCryptor(trackId: string) {
   let publishCryptor = publishCryptors.find((cryptor) => cryptor.getTrackId() === trackId);
   if (!publishCryptor) {
+    if (!keyProviderOptions) {
+      throw Error('Missing keyProvider options');
+    }
     publishCryptor = new Cryptor({
-      sharedKey: useSharedKey,
       keys: publisherKeys!,
       participantId: 'publisher',
+      keyProviderOptions,
     });
     setupCryptorErrorEvents(publishCryptor);
     publishCryptors.push(publishCryptor);
@@ -151,9 +160,9 @@ function setEncryptionEnabled(enable: boolean, participantId?: string) {
 function setSharedKey(key: CryptoKey, index?: number) {
   workerLogger.debug('setting shared key');
   sharedKey = key;
-  publisherKeys?.setKey(key, index);
+  publisherKeys?.setKeyFromMaterial(key, index);
   for (const [, keyHandler] of participantKeys) {
-    keyHandler.setKey(key, index);
+    keyHandler.setKeyFromMaterial(key, index);
   }
 }
 

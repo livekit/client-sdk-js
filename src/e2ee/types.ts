@@ -11,7 +11,7 @@ export interface BaseMessage {
 export interface InitMessage extends BaseMessage {
   kind: 'init';
   data: {
-    sharedKey?: boolean;
+    keyProviderOptions: KeyProviderOptions;
   };
 }
 
@@ -85,10 +85,13 @@ export type E2EEWorkerMessage =
   | RTPVideoMapMessage
   | UpdateCodecMessage;
 
-export type KeySet = { material?: CryptoKey; encryptionKey: CryptoKey };
+export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
 export type KeyProviderOptions = {
   sharedKey: boolean;
+  autoRatchet: boolean;
+  ratchetSalt: string;
+  ratchetWindowSize: number;
 };
 
 export type KeyProviderCallbacks = {

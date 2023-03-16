@@ -803,18 +803,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       region: joinResponse.serverRegion,
     });
 
-<<<<<<< HEAD
-    // rehydrate participants
-    if (joinResponse.participant) {
-      // with a restart, the sid will have changed, we'll map our understanding to it
-      this.localParticipant.sid = joinResponse.participant.sid;
-      this.handleParticipantUpdates([joinResponse.participant]);
-    }
-    this.handleParticipantUpdates(joinResponse.otherParticipants);
-
-    // unpublish & republish tracks
-    await this.localParticipant.republishAllTracks();
-=======
     try {
       // rehydrate participants
       if (joinResponse.participant) {
@@ -861,7 +849,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.setAndEmitConnectionState(ConnectionState.Connected);
       this.emit(RoomEvent.Reconnected);
     }
->>>>>>> main
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {

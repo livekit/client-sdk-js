@@ -244,11 +244,7 @@ export interface AudioPreset {
 export const videoCodecs = ['vp8', 'h264', 'av1'] as const;
 const backupCodecs = ['vp8', 'h264'] as const;
 
-<<<<<<< HEAD
 export type VideoCodec = (typeof videoCodecs)[number];
-=======
-export type VideoCodec = (typeof codecs)[number];
->>>>>>> main
 
 export type BackupVideoCodec = (typeof backupCodecs)[number];
 
