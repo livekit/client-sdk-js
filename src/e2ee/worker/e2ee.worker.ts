@@ -1,13 +1,14 @@
-import { Cryptor, ParticipantKeys } from './cryptor';
-import type { E2EEWorkerMessage, EnableMessage, ErrorMessage, KeyProviderOptions } from './types';
-import { setLogLevel, workerLogger } from '../logger';
-import { KEY_PROVIDER_DEFAULTS } from './constants';
+import { Cryptor } from './Cryptor';
+import type { E2EEWorkerMessage, EnableMessage, ErrorMessage, KeyProviderOptions } from '../types';
+import { setLogLevel, workerLogger } from '../../logger';
+import { KEY_PROVIDER_DEFAULTS } from '../constants';
+import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 const participantCryptors: Cryptor[] = [];
-const participantKeys: Map<string, ParticipantKeys> = new Map();
+const participantKeys: Map<string, ParticipantKeyHandler> = new Map();
 
 let publishCryptors: Cryptor[] = [];
-let publisherKeys: ParticipantKeys;
+let publisherKeys: ParticipantKeyHandler;
 
 let isEncryptionEnabled: boolean = false;
 
@@ -35,7 +36,7 @@ onmessage = (ev) => {
         kind: 'enable',
         data: { enabled: isEncryptionEnabled },
       };
-      publisherKeys = new ParticipantKeys(isEncryptionEnabled, keyProviderOptions);
+      publisherKeys = new ParticipantKeyHandler(isEncryptionEnabled, keyProviderOptions);
       postMessage(enableMsg);
       break;
     case 'enable':
@@ -123,7 +124,7 @@ function getParticipantKeyHandler(participantId?: string) {
   }
   let keys = participantKeys.get(participantId);
   if (!keys) {
-    keys = new ParticipantKeys(true, keyProviderOptions);
+    keys = new ParticipantKeyHandler(true, keyProviderOptions);
     if (sharedKey) {
       keys.setKeyFromMaterial(sharedKey);
     }

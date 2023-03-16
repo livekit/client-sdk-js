@@ -1,7 +1,7 @@
 import type Participant from '../room/participant/Participant';
 import type { VideoCodec } from '../room/track/options';
 import type { E2EEError } from './errors';
-import type { BaseKeyProvider } from './keyProvider';
+import type { BaseKeyProvider } from './KeyProvider';
 
 export interface BaseMessage {
   kind: string;

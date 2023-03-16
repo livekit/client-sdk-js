@@ -3,18 +3,19 @@
 
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import { workerLogger } from '../logger';
-import type { VideoCodec } from '../room/track/options';
+import { workerLogger } from '../../logger';
+import type { VideoCodec } from '../../room/track/options';
 import {
   ENCRYPTION_ALGORITHM,
   IV_LENGTH,
   KEYRING_SIZE,
   SALT,
   UNENCRYPTED_BYTES,
-} from './constants';
-import { E2EEError, E2EEErrorReason } from './errors';
-import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeyProviderOptions, KeySet } from './types';
-import { deriveKeys, importKey, isVideoFrame, ratchet } from './utils';
+} from '../constants';
+import { E2EEError, E2EEErrorReason } from '../errors';
+import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeyProviderOptions, KeySet } from '../types';
+import { deriveKeys, importKey, isVideoFrame, ratchet } from '../utils';
+import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 export interface CryptorConstructor {
   new (opts?: unknown): BaseCryptor;
@@ -56,7 +57,7 @@ export class Cryptor extends BaseCryptor {
 
   private trackId: string | undefined;
 
-  private keys: ParticipantKeys;
+  private keys: ParticipantKeyHandler;
 
   private videoCodec?: VideoCodec;
 
@@ -66,7 +67,7 @@ export class Cryptor extends BaseCryptor {
 
   constructor(opts: {
     // enabled?: boolean;
-    keys: ParticipantKeys;
+    keys: ParticipantKeyHandler;
     participantId: string;
     keyProviderOptions: KeyProviderOptions;
   }) {
@@ -78,7 +79,7 @@ export class Cryptor extends BaseCryptor {
     this.keyProviderOptions = opts.keyProviderOptions;
   }
 
-  setParticipant(id: string, keys: ParticipantKeys) {
+  setParticipant(id: string, keys: ParticipantKeyHandler) {
     this.participantId = id;
     this.keys = keys;
   }
@@ -591,77 +592,4 @@ export enum NALUType {
   SLICE_LAYER_EXT = 21,
 
   // 22, 23 reserved
-}
-
-export class ParticipantKeys {
-  private currentKeyIndex: number;
-
-  private cryptoKeyRing: Array<KeySet>;
-
-  private enabled: boolean;
-
-  private keyProviderOptions: KeyProviderOptions;
-
-  constructor(isEnabled: boolean, keyProviderOptions: KeyProviderOptions) {
-    this.currentKeyIndex = 0;
-    this.cryptoKeyRing = new Array(KEYRING_SIZE);
-    this.enabled = isEnabled;
-    this.keyProviderOptions = keyProviderOptions;
-  }
-
-  setEnabled(enabled: boolean) {
-    this.enabled = enabled;
-  }
-
-  async ratchetKey(keyIndex?: number) {
-    const currentMaterial = this.getKey(keyIndex).material;
-    const newMaterial = await importKey(
-      await ratchet(currentMaterial, this.keyProviderOptions.ratchetSalt),
-      currentMaterial.algorithm.name,
-      'derive',
-    );
-
-    this.setKeyFromMaterial(newMaterial, keyIndex ?? this.getCurrentKeyIndex());
-  }
-
-  async setKeyFromMaterial(material: CryptoKey, keyIndex = 0) {
-    // if (key) {
-    //   let newKey: CryptoKey;
-    //   if (this.isSharedKey) {
-    //     newKey = await crypto.subtle.importKey(
-    //       'raw',
-    //       key,
-    //       {
-    //         name: ENCRYPTION_ALGORITHM,
-    //         length: 256,
-    //       },
-    //       false,
-    //       ['encrypt', 'decrypt'],
-    //     );
-    //   } else {
-    //     const material = await importKey(key);
-    //     newKey = await deriveKeys(material);
-    //   }
-    workerLogger.debug('setting new key');
-    if (keyIndex >= 0) {
-      this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
-    }
-    this.cryptoKeyRing[this.currentKeyIndex] = await deriveKeys(
-      material,
-      this.keyProviderOptions.ratchetSalt,
-    );
-    // }
-  }
-
-  isEnabled() {
-    return this.enabled;
-  }
-
-  getCurrentKeyIndex() {
-    return this.currentKeyIndex;
-  }
-
-  getKey(keyIndex?: number) {
-    return this.cryptoKeyRing[keyIndex ?? this.currentKeyIndex];
-  }
 }

@@ -23,7 +23,7 @@ import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import LocalTrack from '../room/track/LocalTrack';
-import type { BaseKeyProvider } from './keyProvider';
+import type { BaseKeyProvider } from './KeyProvider';
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { E2EEError, E2EEErrorReason } from './errors';
