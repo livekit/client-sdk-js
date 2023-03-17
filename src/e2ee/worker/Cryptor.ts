@@ -319,7 +319,7 @@ export class Cryptor extends BaseCryptor {
     initialKey: CryptoKey | undefined = undefined,
     ratchetCount: number = 0,
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
-    const { encryptionKey, material } = this.keys.getKey(keyIndex);
+    const { encryptionKey } = this.keys.getKey(keyIndex);
 
     // Construct frame trailer. Similar to the frame header described in
     // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -375,16 +375,8 @@ export class Cryptor extends BaseCryptor {
           workerLogger.info(
             `ratcheting key attempt ${ratchetCount} of ${this.keyProviderOptions.ratchetWindowSize}`,
           );
-          workerLogger.debug('current key algo', encryptionKey.algorithm);
-          workerLogger.debug('current material algo', material.algorithm);
 
-          const newMaterial = await importKey(
-            await ratchet(material, this.keyProviderOptions.ratchetSalt),
-            'PBKDF2',
-            'derive',
-          );
-
-          this.keys.setKeyFromMaterial(newMaterial, this.keys.getCurrentKeyIndex());
+          await this.keys.ratchetKey();
 
           return await this.decryptFrame(
             encodedFrame,
