@@ -92,9 +92,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    * @returns
    */
   getTrack(source: Track.Source): TrackPublication | undefined {
-    if (source === Track.Source.Unknown) {
-      return;
-    }
     for (const [, pub] of this.tracks) {
       if (pub.source === source) {
         return pub;
