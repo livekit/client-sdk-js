@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.7.0
+
+### Minor Changes
+
+- [#619](https://github.com/livekit/client-sdk-js/pull/619) [`937a538`](https://github.com/livekit/client-sdk-js/commit/937a538c618f397910d1354cadf165d63eff1da6) Thanks [@lukasIO](https://github.com/lukasIO)! - Return publication of Track.Source.Unknown in getTrack
+
 ## 1.6.9
 
 ### Patch Changes
