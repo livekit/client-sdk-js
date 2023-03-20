@@ -40,7 +40,7 @@ export async function importKey(
   );
 }
 
-export async function deriveKeyMaterialFromString(password: string) {
+export async function createKeyMaterialFromString(password: string) {
   let enc = new TextEncoder();
 
   const keyMaterial = await crypto.subtle.importKey(

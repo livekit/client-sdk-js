@@ -2,7 +2,7 @@ import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { KEY_PROVIDER_DEFAULTS } from './constants';
 import type { KeyProviderCallbacks, KeyInfo, KeyProviderOptions } from './types';
-import { deriveKeyMaterialFromString } from './utils';
+import { createKeyMaterialFromString } from './utils';
 
 export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<KeyProviderCallbacks>) {
   private keyInfoMap: Map<string, KeyInfo>;
@@ -42,7 +42,7 @@ export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   }
 
   async setKey(key: string) {
-    const derivedKey = await deriveKeyMaterialFromString(key);
+    const derivedKey = await createKeyMaterialFromString(key);
     this.onSetEncryptionKey(derivedKey);
     // setTimeout(() => {
     //   clearInterval(this.ratchetInterval);
