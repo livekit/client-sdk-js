@@ -223,7 +223,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
       this.adaptiveStreamSettings?.pauseVideoInBackground ?? true // default to true
         ? this.isInBackground
         : false;
-    const isVisible = this.elementInfos.some((info) => info.visible) && !backgroundPause;
+    const isPiPMode = this.elementInfos.some((info) => info.pictureInPicture);
+    const isVisible =
+      (this.elementInfos.some((info) => info.visible) && !backgroundPause) || isPiPMode;
 
     if (this.lastVisible === isVisible) {
       return;
@@ -273,6 +275,7 @@ export interface ElementInfo {
   width(): number;
   height(): number;
   visible: boolean;
+  pictureInPicture: boolean;
   visibilityChangedAt: number | undefined;
 
   handleResize?: () => void;
@@ -284,7 +287,14 @@ export interface ElementInfo {
 class HTMLElementInfo implements ElementInfo {
   element: HTMLMediaElement;
 
-  visible: boolean;
+  get visible(): boolean {
+    console.log({ pip: this.isPiP, intersect: this.isIntersecting });
+    return this.isPiP || this.isIntersecting;
+  }
+
+  get pictureInPicture(): boolean {
+    return this.isPiP;
+  }
 
   visibilityChangedAt: number | undefined;
 
@@ -292,9 +302,14 @@ class HTMLElementInfo implements ElementInfo {
 
   handleVisibilityChanged?: () => void;
 
+  private isPiP: boolean;
+
+  private isIntersecting: boolean;
+
   constructor(element: HTMLMediaElement, visible?: boolean) {
     this.element = element;
-    this.visible = visible ?? isElementInViewport(element);
+    this.isIntersecting = visible ?? isElementInViewport(element);
+    this.isPiP = false; // we cannot be sure, but default to false as a first guess
     this.visibilityChangedAt = 0;
   }
 
@@ -314,20 +329,43 @@ class HTMLElementInfo implements ElementInfo {
 
     getIntersectionObserver().observe(this.element);
     getResizeObserver().observe(this.element);
+    (this.element as HTMLVideoElement).addEventListener('enterpictureinpicture', this.onEnterPiP);
+    (this.element as HTMLVideoElement).addEventListener('leavepictureinpicture', this.onLeavePiP);
   }
 
   private onVisibilityChanged = (entry: IntersectionObserverEntry) => {
     const { target, isIntersecting } = entry;
     if (target === this.element) {
-      this.visible = isIntersecting;
+      this.isIntersecting = isIntersecting;
       this.visibilityChangedAt = Date.now();
       this.handleVisibilityChanged?.();
     }
   };
 
+  private onEnterPiP = () => {
+    console.log('enter pip');
+    this.isPiP = true;
+    this.handleVisibilityChanged?.();
+  };
+
+  private onLeavePiP = () => {
+    console.log('leave pip');
+
+    this.isPiP = false;
+    this.handleVisibilityChanged?.();
+  };
+
   stopObserving() {
     getIntersectionObserver()?.unobserve(this.element);
     getResizeObserver()?.unobserve(this.element);
+    (this.element as HTMLVideoElement).removeEventListener(
+      'enterpictureinpicture',
+      this.onEnterPiP,
+    );
+    (this.element as HTMLVideoElement).removeEventListener(
+      'leavepictureinpicture',
+      this.onLeavePiP,
+    );
   }
 }
 
