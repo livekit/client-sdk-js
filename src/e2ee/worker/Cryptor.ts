@@ -8,7 +8,7 @@ import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { E2EEError, E2EEErrorReason } from '../errors';
 import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeyProviderOptions } from '../types';
-import { importKey, isVideoFrame, ratchet } from '../utils';
+import { isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 export interface CryptorConstructor {
@@ -39,8 +39,8 @@ export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<Cryptor
 }
 
 /**
- * Per-track cryptor holding
- * encode/decode functions
+ * Cryptor is responsible for en-/decrypting media frames.
+ * Each Cryptor instance is responsible for en-/decrypting a single mediaStreamTrack.
  */
 export class Cryptor extends BaseCryptor {
   private sendCounts: Map<number, number>;
@@ -73,6 +73,12 @@ export class Cryptor extends BaseCryptor {
     this.keyProviderOptions = opts.keyProviderOptions;
   }
 
+  /**
+   * Assign a different participant to the cryptor.
+   * useful for transceiver re-use
+   * @param id
+   * @param keys
+   */
   setParticipant(id: string, keys: ParticipantKeyHandler) {
     this.participantId = id;
     this.keys = keys;
@@ -90,6 +96,10 @@ export class Cryptor extends BaseCryptor {
     return this.trackId;
   }
 
+  /**
+   * Update the video codec used by the mediaStreamTrack
+   * @param codec
+   */
   setVideoCodec(codec: VideoCodec) {
     this.videoCodec = codec;
   }
@@ -146,7 +156,7 @@ export class Cryptor extends BaseCryptor {
    * This is fine as the SFU keeps having access to it for routing.
    *
    * The encrypted frame is formed as follows:
-   * 1) Leave the first (10, 3, 1) bytes unencrypted, depending on the frame type and kind.
+   * 1) Find unencrypted byte length, depending on the codec, frame type and kind.
    * 2) Form the GCM IV for the frame as described above.
    * 3) Encrypt the rest of the frame using AES-GCM.
    * 4) Allocate space for the encrypted frame.
@@ -168,7 +178,7 @@ export class Cryptor extends BaseCryptor {
       return controller.enqueue(encodedFrame);
     }
 
-    const { encryptionKey } = this.keys.getKey();
+    const { encryptionKey } = this.keys.getKeySet();
     const keyIndex = this.keys.getCurrentKeyIndex();
 
     if (encryptionKey) {
@@ -220,24 +230,6 @@ export class Cryptor extends BaseCryptor {
 
         encodedFrame.data = newData;
 
-        // // DEBUG test to ratchet key after every 100th frame
-        // if (
-        //   encodedFrame instanceof RTCEncodedVideoFrame &&
-        //   encodedFrame.getMetadata().frameId! % 100 === 0
-        // ) {
-        //   const newMaterial = await importKey(
-        //     await ratchet(material, this.keyProviderOptions.ratchetSalt),
-        //     material.algorithm.name,
-        //     'derive',
-        //   );
-
-        //   this.keys.setKeyFromMaterial(
-        //     newMaterial,
-        //     this.keys.getCurrentKeyIndex(),
-        //   );
-        // }
-        // // DEBUG END
-
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
         // TODO: surface this to the app.
@@ -272,7 +264,7 @@ export class Cryptor extends BaseCryptor {
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
 
-    if (this.keys.getKey(keyIndex)) {
+    if (this.keys.getKeySet(keyIndex)) {
       try {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
         if (decodedFrame) {
@@ -319,7 +311,7 @@ export class Cryptor extends BaseCryptor {
     initialKey: CryptoKey | undefined = undefined,
     ratchetCount: number = 0,
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
-    const { encryptionKey } = this.keys.getKey(keyIndex);
+    const { encryptionKey } = this.keys.getKeySet(keyIndex);
 
     // Construct frame trailer. Similar to the frame header described in
     // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -485,6 +477,9 @@ export class Cryptor extends BaseCryptor {
     }
   }
 
+  /**
+   * inspects frame payloadtype if available and maps it to the codec specified in rtpMap
+   */
   getVideoCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
     if (this.rtpMap.size === 0) {
       return undefined;
