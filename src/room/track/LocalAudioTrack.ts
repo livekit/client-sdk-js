@@ -150,5 +150,6 @@ export default class LocalAudioTrack extends LocalTrack {
       }
       this.emit(TrackEvent.AudioSilenceDetected);
     }
+    return trackIsSilent;
   }
 }
