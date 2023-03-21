@@ -17,12 +17,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
    * and blocks autoplay when the tab is in the background. maximize chances
    * by initializing some directly when the SDK initializes
    */
-  static audioElementPool: Array<HTMLAudioElement> = new Array<HTMLAudioElement>(8)
-    .fill(new Audio(), 0, 8)
-    .map((el) => {
-      el.autoplay = true;
-      return el;
-    });
+  static audioElementPool: Array<HTMLAudioElement> = [];
 
   kind: Track.Kind;
 

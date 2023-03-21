@@ -59,6 +59,7 @@ import {
   createDummyVideoStreamTrack,
   Future,
   getEmptyAudioStreamTrack,
+  isSafari,
   isWeb,
   Mutex,
   supportsSetSinkId,
@@ -258,12 +259,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
-
-    Track.audioElementPool.map((el) => {
-      el.src = createSilentAudio(10, 44100);
-      el.play().catch((e) => this.handleAudioPlaybackFailed(e));
-      return el;
-    });
+    if (isSafari()) {
+      Track.audioElementPool = new Array<HTMLAudioElement>(8);
+      Track.audioElementPool.fill(new Audio(), 0, 8).map((el) => {
+        el.autoplay = true;
+        el.src = createSilentAudio(10, 44100);
+        el.play().catch((e) => this.handleAudioPlaybackFailed(e));
+        return el;
+      });
+    }
 
     const connectFn = async (resolve: () => void, reject: (reason: any) => void) => {
       if (!this.abortController || this.abortController.signal.aborted) {
