@@ -65,6 +65,12 @@ export interface InternalRoomOptions {
   reconnectPolicy: ReconnectPolicy;
 
   /**
+   * specifies whether the sdk should automatically disconnect the room
+   * on 'pagehide' and 'beforeunload' events
+   */
+  disconnectOnPageLeave: boolean;
+
+  /**
    * @internal
    * experimental flag, introduce a delay before sending signaling messages
    */
