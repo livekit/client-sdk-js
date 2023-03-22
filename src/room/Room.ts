@@ -1275,8 +1275,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
   };
 
-  private onLocalTrackPublished = (pub: LocalTrackPublication) => {
+  private onLocalTrackPublished = async (pub: LocalTrackPublication) => {
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
+    if (pub.track instanceof LocalAudioTrack) {
+      const trackIsSilent = await pub.track.checkForSilence();
+      if (trackIsSilent) {
+        this.emit(RoomEvent.LocalAudioSilenceDetected, pub);
+      }
+    }
   };
 
   private onLocalTrackUnpublished = (pub: LocalTrackPublication) => {
@@ -1455,6 +1461,7 @@ export type RoomEventCallbacks = {
     publication: LocalTrackPublication,
     participant: LocalParticipant,
   ) => void;
+  localAudioSilenceDetected: (publication: LocalTrackPublication) => void;
   participantMetadataChanged: (
     metadata: string | undefined,
     participant: RemoteParticipant | LocalParticipant,

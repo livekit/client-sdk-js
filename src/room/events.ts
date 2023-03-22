@@ -140,6 +140,14 @@ export enum RoomEvent {
   LocalTrackUnpublished = 'localTrackUnpublished',
 
   /**
+   * When a local audio track is published the SDK checks whether there is complete silence
+   * on that track and emits the LocalAudioSilenceDetected event in that case.
+   * This allows for applications to show UI informing users that they might have to
+   * reset their audio hardware or check for proper device connectivity.
+   */
+  LocalAudioSilenceDetected = 'localAudioSilenceDetected',
+
+  /**
    * Active speakers changed. List of speakers are ordered by their audio level.
    * loudest speakers first. This will include the LocalParticipant too.
    *
