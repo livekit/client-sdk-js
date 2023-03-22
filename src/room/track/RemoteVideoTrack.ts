@@ -3,7 +3,12 @@ import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate, VideoReceiverStats } from '../stats';
 import CriticalTimers from '../timers';
-import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
+import {
+  getIntersectionObserver,
+  getResizeObserver,
+  isWeb,
+  ObservableMediaElement,
+} from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
 import type { AdaptiveStreamSettings } from './types';
@@ -288,7 +293,6 @@ class HTMLElementInfo implements ElementInfo {
   element: HTMLMediaElement;
 
   get visible(): boolean {
-    console.log({ pip: this.isPiP, intersect: this.isIntersecting });
     return this.isPiP || this.isIntersecting;
   }
 
@@ -309,7 +313,7 @@ class HTMLElementInfo implements ElementInfo {
   constructor(element: HTMLMediaElement, visible?: boolean) {
     this.element = element;
     this.isIntersecting = visible ?? isElementInViewport(element);
-    this.isPiP = false; // we cannot be sure, but default to false as a first guess
+    this.isPiP = isWeb() && document.pictureInPictureElement === element;
     this.visibilityChangedAt = 0;
   }
 
@@ -331,6 +335,10 @@ class HTMLElementInfo implements ElementInfo {
     getResizeObserver().observe(this.element);
     (this.element as HTMLVideoElement).addEventListener('enterpictureinpicture', this.onEnterPiP);
     (this.element as HTMLVideoElement).addEventListener('leavepictureinpicture', this.onLeavePiP);
+
+    // make sure we update the current visible state once we start to observe
+    this.isIntersecting = isElementInViewport(this.element);
+    this.isPiP = document.pictureInPictureElement === this.element;
   }
 
   private onVisibilityChanged = (entry: IntersectionObserverEntry) => {
