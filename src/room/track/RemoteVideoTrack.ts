@@ -326,6 +326,10 @@ class HTMLElementInfo implements ElementInfo {
   }
 
   observe() {
+    // make sure we update the current visible state once we start to observe
+    this.isIntersecting = isElementInViewport(this.element);
+    this.isPiP = document.pictureInPictureElement === this.element;
+
     (this.element as ObservableMediaElement).handleResize = () => {
       this.handleResize?.();
     };
@@ -335,10 +339,6 @@ class HTMLElementInfo implements ElementInfo {
     getResizeObserver().observe(this.element);
     (this.element as HTMLVideoElement).addEventListener('enterpictureinpicture', this.onEnterPiP);
     (this.element as HTMLVideoElement).addEventListener('leavepictureinpicture', this.onLeavePiP);
-
-    // make sure we update the current visible state once we start to observe
-    this.isIntersecting = isElementInViewport(this.element);
-    this.isPiP = document.pictureInPictureElement === this.element;
   }
 
   private onVisibilityChanged = (entry: IntersectionObserverEntry) => {
