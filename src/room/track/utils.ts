@@ -105,8 +105,9 @@ export async function detectSilence(track: AudioTrack, timeOffset = 200): Promis
  * @internal
  */
 export function getNewAudioContext(): AudioContext | void {
-  // @ts-ignore
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  const AudioContext =
+    // @ts-ignore
+    typeof window !== undefined && (window.AudioContext || window.webkitAudioContext);
   if (AudioContext) {
     return new AudioContext({ latencyHint: 'interactive' });
   }
