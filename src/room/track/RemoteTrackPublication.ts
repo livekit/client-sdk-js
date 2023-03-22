@@ -207,14 +207,11 @@ export default class RemoteTrackPublication extends TrackPublication {
   /** @internal */
   updateInfo(info: TrackInfo) {
     super.updateInfo(info);
-    if (this.metadataMuted === info.muted) {
-      return;
-    }
-
+    const prevMetadataMuted = this.metadataMuted;
     this.metadataMuted = info.muted;
     if (this.track) {
       this.track.setMuted(info.muted);
-    } else {
+    } else if (prevMetadataMuted !== info.muted) {
       this.emit(info.muted ? TrackEvent.Muted : TrackEvent.Unmuted);
     }
   }
