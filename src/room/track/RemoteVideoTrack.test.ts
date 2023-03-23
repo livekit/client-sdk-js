@@ -130,6 +130,8 @@ class MockElementInfo implements ElementInfo {
 
   visible = false;
 
+  pictureInPicture = false;
+
   setVisible = (visible: boolean) => {
     if (this.visible !== visible) {
       this.visible = visible;
