@@ -122,6 +122,28 @@ export function isWeb(): boolean {
   return typeof document !== 'undefined';
 }
 
+export function isReactNative(): boolean {
+  let reactNative;
+  try {
+    reactNative = require("react-native");
+  } catch {
+    return false;
+  }
+
+  return Boolean(reactNative);
+}
+
+export function getReactNativeOs(): string | undefined {
+  let reactNative;
+  try {
+    reactNative = require("react-native");
+  } catch {
+    return undefined;
+  }
+
+  return reactNative.Platform.OS
+}
+
 export function compareVersions(v1: string, v2: string): number {
   const parts1 = v1.split('.');
   const parts2 = v2.split('.');
@@ -174,6 +196,10 @@ export function getClientInfo(): ClientInfo {
     protocol: protocolVersion,
     version,
   });
+
+  if (isReactNative()) {
+    info.os = getReactNativeOs() ?? "";
+  }
   return info;
 }
 
