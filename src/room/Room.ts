@@ -391,8 +391,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         CriticalTimers.clearTimeout(connectTimeout);
         this.abortController?.signal.removeEventListener('abort', abortHandler);
         // also hook unload event
-        if (isWeb()) {
-          window.addEventListener('beforeunload', this.onBeforeUnload);
+        if (isWeb() && this.options.disconnectOnPageLeave) {
+          // capturing both 'pagehide' and 'beforeunload' to capture broadest set of browser behaviors
+          window.addEventListener('pagehide', this.onPageLeave);
+          window.addEventListener('beforeunload', this.onPageLeave);
           navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
         }
         this.setAndEmitConnectionState(ConnectionState.Connected);
@@ -549,7 +551,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private onBeforeUnload = async () => {
+  private onPageLeave = async () => {
     await this.disconnect();
   };
 
@@ -853,7 +855,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.audioContext = undefined;
     }
     if (isWeb()) {
-      window.removeEventListener('beforeunload', this.onBeforeUnload);
+      window.removeEventListener('beforeunload', this.onPageLeave);
+      window.removeEventListener('pagehide', this.onPageLeave);
       navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
     }
     this.setAndEmitConnectionState(ConnectionState.Disconnected);
