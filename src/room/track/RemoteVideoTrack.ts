@@ -351,14 +351,11 @@ class HTMLElementInfo implements ElementInfo {
   };
 
   private onEnterPiP = () => {
-    console.log('enter pip');
     this.isPiP = true;
     this.handleVisibilityChanged?.();
   };
 
   private onLeavePiP = () => {
-    console.log('leave pip');
-
     this.isPiP = false;
     this.handleVisibilityChanged?.();
   };
