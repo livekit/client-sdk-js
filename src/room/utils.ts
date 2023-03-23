@@ -125,7 +125,7 @@ export function isWeb(): boolean {
 export function isReactNative(): boolean {
   let reactNative;
   try {
-    reactNative = require("react-native");
+    reactNative = require('react-native');
   } catch {
     return false;
   }
@@ -136,12 +136,12 @@ export function isReactNative(): boolean {
 export function getReactNativeOs(): string | undefined {
   let reactNative;
   try {
-    reactNative = require("react-native");
+    reactNative = require('react-native');
   } catch {
     return undefined;
   }
 
-  return reactNative.Platform.OS
+  return reactNative.Platform.OS;
 }
 
 export function compareVersions(v1: string, v2: string): number {
@@ -198,7 +198,7 @@ export function getClientInfo(): ClientInfo {
   });
 
   if (isReactNative()) {
-    info.os = getReactNativeOs() ?? "";
+    info.os = getReactNativeOs() ?? '';
   }
   return info;
 }
