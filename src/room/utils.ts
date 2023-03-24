@@ -123,14 +123,8 @@ export function isWeb(): boolean {
 }
 
 export function isReactNative(): boolean {
-  let reactNative;
-  try {
-    reactNative = require('react-native');
-  } catch {
-    return false;
-  }
-
-  return Boolean(reactNative);
+  // navigator.product is deprecated on browsers, but will be set appropriately for react-native.
+  return navigator.product == 'ReactNative';
 }
 
 export function getReactNativeOs(): string | undefined {
