@@ -128,14 +128,18 @@ export function isReactNative(): boolean {
 }
 
 export function getReactNativeOs(): string | undefined {
-  let reactNative;
-  try {
-    reactNative = require('react-native');
-  } catch {
+  if (!isReactNative()) {
     return undefined;
   }
 
-  return reactNative.Platform.OS;
+  // global defined only for ReactNative.
+  // @ts-ignore
+  if(global && global.LiveKitReactNativeGlobal){
+    // @ts-ignore
+    return global.LiveKitReactNativeGlobal.platform;
+  }
+
+  return undefined;
 }
 
 export function compareVersions(v1: string, v2: string): number {
