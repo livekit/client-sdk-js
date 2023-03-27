@@ -134,7 +134,7 @@ export function getReactNativeOs(): string | undefined {
 
   // global defined only for ReactNative.
   // @ts-ignore
-  if(global && global.LiveKitReactNativeGlobal){
+  if (global && global.LiveKitReactNativeGlobal) {
     // @ts-ignore
     return global.LiveKitReactNativeGlobal.platform;
   }
