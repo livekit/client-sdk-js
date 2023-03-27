@@ -45,6 +45,7 @@ export class ParticipantKeyHandler {
     );
 
     this.setKeyFromMaterial(newMaterial, keyIndex ?? this.getCurrentKeyIndex());
+    // TODO if participant is publisher, send `newMaterial` back to main thread in order to be able to use it as a new announced sender key
   }
 
   /**
