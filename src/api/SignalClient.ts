@@ -33,7 +33,7 @@ import {
 } from '../proto/livekit_rtc';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
-import { getClientInfo, Mutex, sleep } from '../room/utils';
+import { getClientInfo, isReactNative, Mutex, sleep } from '../room/utils';
 
 // internal options
 interface ConnectOpts {
@@ -706,7 +706,7 @@ function createConnectionParams(token: string, info: ClientInfo, opts: ConnectOp
   params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
 
   // ClientInfo
-  params.set('sdk', 'js');
+  params.set('sdk', isReactNative() ? 'reactnative' : 'js');
   params.set('version', info.version!);
   params.set('protocol', info.protocol!.toString());
   if (info.deviceModel) {
