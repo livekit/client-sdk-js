@@ -29,6 +29,8 @@ export default abstract class LocalTrack extends Track {
 
   protected muteLock: Mutex;
 
+  protected pauseUpstreamLock: Mutex;
+
   /**
    *
    * @param mediaTrack
@@ -48,6 +50,7 @@ export default abstract class LocalTrack extends Track {
     this.reacquireTrack = false;
     this.providedByUser = userProvidedTrack;
     this.muteLock = new Mutex();
+    this.pauseUpstreamLock = new Mutex();
   }
 
   get id(): string {
@@ -251,7 +254,7 @@ export default abstract class LocalTrack extends Track {
   };
 
   async pauseUpstream() {
-    const unlock = await this.muteLock.lock();
+    const unlock = await this.pauseUpstreamLock.lock();
     try {
       if (this._isUpstreamPaused === true) {
         return;
@@ -272,7 +275,7 @@ export default abstract class LocalTrack extends Track {
   }
 
   async resumeUpstream() {
-    const unlock = await this.muteLock.lock();
+    const unlock = await this.pauseUpstreamLock.lock();
     try {
       if (this._isUpstreamPaused === false) {
         return;
