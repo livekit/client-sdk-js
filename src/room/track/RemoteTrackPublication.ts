@@ -4,7 +4,7 @@ import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc
 import { TrackEvent } from '../events';
 import type RemoteTrack from './RemoteTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
-import type { Track } from './Track';
+import { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
 
 export default class RemoteTrackPublication extends TrackPublication {
@@ -238,8 +238,8 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   private isManualOperationAllowed(): boolean {
-    if (this.isAdaptiveStream) {
-      log.warn('adaptive stream is enabled, cannot change track settings', {
+    if (this.kind === Track.Kind.Video && this.isAdaptiveStream) {
+      log.warn('adaptive stream is enabled, cannot change video track settings', {
         trackSid: this.trackSid,
       });
       return false;
