@@ -20,11 +20,14 @@ export class ParticipantKeyHandler {
 
   private keyProviderOptions: KeyProviderOptions;
 
+  private ratchetPromiseMap: Map<number, Promise<void>>;
+
   constructor(isEnabled: boolean, keyProviderOptions: KeyProviderOptions) {
     this.currentKeyIndex = 0;
     this.cryptoKeyRing = new Array(KEYRING_SIZE);
     this.enabled = isEnabled;
     this.keyProviderOptions = keyProviderOptions;
+    this.ratchetPromiseMap = new Map();
   }
 
   setEnabled(enabled: boolean) {
@@ -36,16 +39,32 @@ export class ParticipantKeyHandler {
    * sets the ratcheted key at the same index on the key ring buffer.
    * @param keyIndex
    */
-  async ratchetKey(keyIndex?: number) {
-    const currentMaterial = this.getKeySet(keyIndex).material;
-    const newMaterial = await importKey(
-      await ratchet(currentMaterial, this.keyProviderOptions.ratchetSalt),
-      currentMaterial.algorithm.name,
-      'derive',
-    );
+  ratchetKey(keyIndex?: number): Promise<void> {
+    const currentKeyIndex = (keyIndex ??= this.getCurrentKeyIndex());
 
-    this.setKeyFromMaterial(newMaterial, keyIndex ?? this.getCurrentKeyIndex());
+    const existingPromise = this.ratchetPromiseMap.get(currentKeyIndex);
+    if (existingPromise) {
+      return existingPromise;
+    }
+    const ratchetPromise = new Promise<void>(async (resolve, reject) => {
+      try {
+        const currentMaterial = this.getKeySet(currentKeyIndex).material;
+        const newMaterial = await importKey(
+          await ratchet(currentMaterial, this.keyProviderOptions.ratchetSalt),
+          currentMaterial.algorithm.name,
+          'derive',
+        );
+
+        this.setKeyFromMaterial(newMaterial, currentKeyIndex);
+        resolve();
+        this.ratchetPromiseMap.delete(currentKeyIndex);
+      } catch (e) {
+        reject(e);
+      }
+    });
+    this.ratchetPromiseMap.set(currentKeyIndex, ratchetPromise);
     // TODO if participant is publisher, send `newMaterial` back to main thread in order to be able to use it as a new announced sender key
+    return ratchetPromise;
   }
 
   /**
