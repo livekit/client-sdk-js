@@ -1,9 +1,14 @@
-import Queue from 'async-await-queue';
 import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import { getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, isMobile, sleep } from '../utils';
+import {
+  getEmptyAudioStreamTrack,
+  getEmptyVideoStreamTrack,
+  isMobile,
+  Mutex,
+  sleep,
+} from '../utils';
 import type { VideoCodec } from './options';
 import { attachToElement, detachTrack, Track } from './Track';
 
@@ -22,7 +27,9 @@ export default abstract class LocalTrack extends Track {
 
   protected providedByUser: boolean;
 
-  protected muteQueue: Queue;
+  protected muteLock: Mutex;
+
+  protected pauseUpstreamLock: Mutex;
 
   /**
    *
@@ -42,7 +49,8 @@ export default abstract class LocalTrack extends Track {
     this.constraints = constraints ?? mediaTrack.getConstraints();
     this.reacquireTrack = false;
     this.providedByUser = userProvidedTrack;
-    this.muteQueue = new Queue();
+    this.muteLock = new Mutex();
+    this.pauseUpstreamLock = new Mutex();
   }
 
   get id(): string {
@@ -246,7 +254,8 @@ export default abstract class LocalTrack extends Track {
   };
 
   async pauseUpstream() {
-    this.muteQueue.run(async () => {
+    const unlock = await this.pauseUpstreamLock.lock();
+    try {
       if (this._isUpstreamPaused === true) {
         return;
       }
@@ -260,11 +269,14 @@ export default abstract class LocalTrack extends Track {
       const emptyTrack =
         this.kind === Track.Kind.Audio ? getEmptyAudioStreamTrack() : getEmptyVideoStreamTrack();
       await this.sender.replaceTrack(emptyTrack);
-    });
+    } finally {
+      unlock();
+    }
   }
 
   async resumeUpstream() {
-    this.muteQueue.run(async () => {
+    const unlock = await this.pauseUpstreamLock.lock();
+    try {
       if (this._isUpstreamPaused === false) {
         return;
       }
@@ -276,7 +288,9 @@ export default abstract class LocalTrack extends Track {
       this.emit(TrackEvent.UpstreamResumed, this);
 
       await this.sender.replaceTrack(this._mediaStreamTrack);
-    });
+    } finally {
+      unlock();
+    }
   }
 
   protected abstract monitorSender(): void;
