@@ -151,3 +151,10 @@ export type E2EEOptions = {
   keyProvider: BaseKeyProvider;
   worker: Worker;
 };
+
+export type DecodeRatchetOptions = {
+  /** attempts  */
+  ratchetCount: number;
+  /** ratcheted key to try */
+  encryptionKey?: CryptoKey;
+};

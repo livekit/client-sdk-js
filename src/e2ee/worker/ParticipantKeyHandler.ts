@@ -25,7 +25,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEmitt
 
   private keyProviderOptions: KeyProviderOptions;
 
-  private ratchetPromiseMap: Map<number, Promise<void>>;
+  private ratchetPromiseMap: Map<number, Promise<CryptoKey>>;
 
   private participantId: string | undefined;
 
@@ -49,17 +49,19 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEmitt
 
   /**
    * Ratchets the current key (or the one at keyIndex if provided) and
-   * sets the ratcheted key at the same index on the key ring buffer.
+   * returns the ratcheted material
+   * if `setKey` is true (default), it will also set the ratcheted key directly on the crypto key ring
    * @param keyIndex
+   * @param setKey
    */
-  ratchetKey(keyIndex?: number): Promise<void> {
+  ratchetKey(keyIndex?: number, setKey = true): Promise<CryptoKey> {
     const currentKeyIndex = (keyIndex ??= this.getCurrentKeyIndex());
 
     const existingPromise = this.ratchetPromiseMap.get(currentKeyIndex);
     if (typeof existingPromise !== 'undefined') {
       return existingPromise;
     }
-    const ratchetPromise = new Promise<void>(async (resolve, reject) => {
+    const ratchetPromise = new Promise<CryptoKey>(async (resolve, reject) => {
       try {
         const currentMaterial = this.getKeySet(currentKeyIndex).material;
         const newMaterial = await importKey(
@@ -68,12 +70,15 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEmitt
           'derive',
         );
 
-        this.setKeyFromMaterial(newMaterial, currentKeyIndex);
-        this.ratchetPromiseMap.delete(currentKeyIndex);
+        if (setKey) {
+          this.setKeyFromMaterial(newMaterial, currentKeyIndex, true);
+        }
         this.emit('keyRatcheted', newMaterial, keyIndex, this.participantId);
-        resolve();
+        resolve(newMaterial);
       } catch (e) {
         reject(e);
+      } finally {
+        this.ratchetPromiseMap.delete(currentKeyIndex);
       }
     });
     this.ratchetPromiseMap.set(currentKeyIndex, ratchetPromise);
@@ -84,16 +89,26 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEmitt
    * takes in a key material with `deriveBits` and `deriveKey` set as key usages
    * and derives encryption keys from the material and sets it on the key ring buffer
    * together with the material
+   * also updates the currentKeyIndex
    */
-  async setKeyFromMaterial(material: CryptoKey, keyIndex = 0) {
+  async setKeyFromMaterial(material: CryptoKey, keyIndex = 0, emitRatchetEvent = false) {
     workerLogger.debug('setting new key');
     if (keyIndex >= 0) {
       this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
     }
-    this.cryptoKeyRing[this.currentKeyIndex] = await deriveKeys(
-      material,
-      this.keyProviderOptions.ratchetSalt,
-    );
+    const keySet = await deriveKeys(material, this.keyProviderOptions.ratchetSalt);
+    this.setKeySet(keySet, this.currentKeyIndex, emitRatchetEvent);
+  }
+
+  async setKeySet(keySet: KeySet, keyIndex: number, emitRatchetEvent = false) {
+    this.cryptoKeyRing[keyIndex % this.cryptoKeyRing.length] = keySet;
+    if (emitRatchetEvent) {
+      this.emit('keyRatcheted', keySet.material, keyIndex, this.participantId);
+    }
+  }
+
+  async setCurrentKeyIndex(index: number) {
+    this.currentKeyIndex = index % this.cryptoKeyRing.length;
   }
 
   isEnabled() {

@@ -7,8 +7,15 @@ import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { E2EEError, E2EEErrorReason } from '../errors';
-import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeyProviderOptions, KeySet } from '../types';
-import { isVideoFrame } from '../utils';
+import {
+  CryptorCallbacks,
+  CryptorEvent,
+  DecodeRatchetOptions,
+  ErrorMessage,
+  KeyProviderOptions,
+  KeySet,
+} from '../types';
+import { deriveKeys, isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 export interface CryptorConstructor {
@@ -309,7 +316,7 @@ export class Cryptor extends BaseCryptor {
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     keyIndex: number,
     initialMaterial: KeySet | undefined = undefined,
-    ratchetCount: number = 0,
+    ratchetOpts: DecodeRatchetOptions = { ratchetCount: 0 },
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
     const keySet = this.keys.getKeySet(keyIndex);
 
@@ -347,7 +354,7 @@ export class Cryptor extends BaseCryptor {
           iv,
           additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
         },
-        keySet.encryptionKey,
+        ratchetOpts.encryptionKey ?? keySet.encryptionKey,
         new Uint8Array(encodedFrame.data, cipherTextStart, cipherTextLength),
       );
 
@@ -363,33 +370,49 @@ export class Cryptor extends BaseCryptor {
     } catch (error: any) {
       workerLogger.error(error);
       if (this.keyProviderOptions.ratchetWindowSize > 0) {
-        if (ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
+        if (ratchetOpts.ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
           workerLogger.info(
-            `ratcheting key attempt ${ratchetCount} of ${this.keyProviderOptions.ratchetWindowSize}`,
+            `ratcheting key attempt ${ratchetOpts.ratchetCount} of ${
+              this.keyProviderOptions.ratchetWindowSize
+            }, for kind ${encodedFrame instanceof RTCEncodedAudioFrame ? 'audio' : 'video'}`,
           );
-
-          if (keySet === this.keys.getKeySet(keyIndex)) {
-            await this.keys.ratchetKey(keyIndex);
+          if (encodedFrame instanceof RTCEncodedAudioFrame) {
+            console.log(encodedFrame.data);
           }
 
-          return await this.decryptFrame(
-            encodedFrame,
-            keyIndex,
-            initialMaterial || keySet,
-            ratchetCount + 1,
-          );
-        }
+          let ratchetedKeySet: KeySet | undefined;
+          if (keySet === this.keys.getKeySet(keyIndex)) {
+            // only ratchet if the currently set key is still the same as the one used to decrypt this frame
+            // if not, it might be that a different frame has already ratcheted and we try with that one first
+            const newMaterial = await this.keys.ratchetKey(keyIndex, false);
 
-        /**
-         * Since the key it is first send and only afterwards actually used for encrypting, there were
-         * situations when the decrypting failed due to the fact that the received frame was not encrypted
-         * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
-         * we come back to the initial key.
-         */
-        if (initialMaterial) {
-          this.keys.setKeyFromMaterial(initialMaterial.material);
+            ratchetedKeySet = await deriveKeys(newMaterial, this.keyProviderOptions.ratchetSalt);
+          }
+
+          const frame = await this.decryptFrame(encodedFrame, keyIndex, initialMaterial || keySet, {
+            ratchetCount: ratchetOpts.ratchetCount + 1,
+            encryptionKey: ratchetedKeySet?.encryptionKey,
+          });
+          if (frame && ratchetedKeySet) {
+            this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
+            // decryption was successful, set the new key index to reflect the ratcheted key set
+            this.keys.setCurrentKeyIndex(keyIndex);
+          }
+          return frame;
+        } else {
+          /**
+           * Since the key it is first send and only afterwards actually used for encrypting, there were
+           * situations when the decrypting failed due to the fact that the received frame was not encrypted
+           * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
+           * we come back to the initial key.
+           */
+          if (initialMaterial) {
+            workerLogger.debug('resetting to initial material');
+            this.keys.setKeyFromMaterial(initialMaterial.material, keyIndex);
+          }
+
+          workerLogger.error('maximum ratchet attempts exceeded, resetting key');
         }
-        workerLogger.error('maximum ratchet attempts exceeded, resetting key');
       } else {
         throw new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey);
       }
