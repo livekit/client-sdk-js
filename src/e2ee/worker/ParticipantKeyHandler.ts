@@ -5,6 +5,9 @@ import { KEYRING_SIZE } from '../constants';
 import type { KeySet, KeyProviderOptions, ParticipantKeyHandlerCallbacks } from '../types';
 import { importKey, ratchet, deriveKeys } from '../utils';
 
+// TODO ParticipantKeyHandlers currently don't get destroyed on participant disconnect
+// we could do this by having a separate worker message on participant disconnected.
+
 /**
  * ParticipantKeyHandler is responsible for providing a cryptor instance with the
  * en-/decryption key of a participant. It assumes that all tracks of a specific participant
@@ -53,7 +56,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEmitt
     const currentKeyIndex = (keyIndex ??= this.getCurrentKeyIndex());
 
     const existingPromise = this.ratchetPromiseMap.get(currentKeyIndex);
-    if (existingPromise) {
+    if (typeof existingPromise !== 'undefined') {
       return existingPromise;
     }
     const ratchetPromise = new Promise<void>(async (resolve, reject) => {
@@ -66,15 +69,14 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEmitt
         );
 
         this.setKeyFromMaterial(newMaterial, currentKeyIndex);
-        resolve();
         this.ratchetPromiseMap.delete(currentKeyIndex);
-        this.emit('keyRatcheted', newMaterial, keyIndex);
+        this.emit('keyRatcheted', newMaterial, keyIndex, this.participantId);
+        resolve();
       } catch (e) {
         reject(e);
       }
     });
     this.ratchetPromiseMap.set(currentKeyIndex, ratchetPromise);
-    // TODO if participant is publisher, send `newMaterial` back to main thread in order to be able to use it as a new announced sender key
     return ratchetPromise;
   }
 

@@ -120,8 +120,7 @@ export type KeyProviderCallbacks = {
 };
 
 export type ParticipantKeyHandlerCallbacks = {
-  /** currently only emitted for local participant */
-  keyRatcheted: (material: CryptoKey, keyIndex?: number) => void;
+  keyRatcheted: (material: CryptoKey, keyIndex?: number, participantId?: string) => void;
 };
 
 export type E2EEManagerCallbacks = {

@@ -239,6 +239,13 @@ const appActions = {
     await currentRoom.setE2EEEnabled(!currentRoom.isE2EEEnabled);
   },
 
+  ratchetE2EEKey: async () => {
+    if (!currentRoom) {
+      return;
+    }
+    await state.e2eeKeyProvider.ratchetKey();
+  },
+
   toggleAudio: async () => {
     if (!currentRoom) return;
     const enabled = currentRoom.localParticipant.isMicrophoneEnabled;
@@ -759,6 +766,7 @@ function setButtonsForState(connected: boolean) {
     'flip-video-button',
     'send-button',
     'toggle-e2ee-button',
+    'e2ee-ratchet-button',
   ];
   const disconnectedSet = ['connect-button'];
 

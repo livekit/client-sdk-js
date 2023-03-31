@@ -7,7 +7,7 @@ import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { E2EEError, E2EEErrorReason } from '../errors';
-import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeyProviderOptions } from '../types';
+import { CryptorCallbacks, CryptorEvent, ErrorMessage, KeyProviderOptions, KeySet } from '../types';
 import { isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
@@ -308,10 +308,10 @@ export class Cryptor extends BaseCryptor {
   async decryptFrame(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     keyIndex: number,
-    initialKey: CryptoKey | undefined = undefined,
+    initialMaterial: KeySet | undefined = undefined,
     ratchetCount: number = 0,
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
-    const { encryptionKey } = this.keys.getKeySet(keyIndex);
+    const keySet = this.keys.getKeySet(keyIndex);
 
     // Construct frame trailer. Similar to the frame header described in
     // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -347,7 +347,7 @@ export class Cryptor extends BaseCryptor {
           iv,
           additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
         },
-        encryptionKey,
+        keySet.encryptionKey,
         new Uint8Array(encodedFrame.data, cipherTextStart, cipherTextLength),
       );
 
@@ -368,12 +368,14 @@ export class Cryptor extends BaseCryptor {
             `ratcheting key attempt ${ratchetCount} of ${this.keyProviderOptions.ratchetWindowSize}`,
           );
 
-          await this.keys.ratchetKey();
+          if (keySet === this.keys.getKeySet(keyIndex)) {
+            await this.keys.ratchetKey(keyIndex);
+          }
 
           return await this.decryptFrame(
             encodedFrame,
             keyIndex,
-            initialKey || encryptionKey,
+            initialMaterial || keySet,
             ratchetCount + 1,
           );
         }
@@ -384,8 +386,8 @@ export class Cryptor extends BaseCryptor {
          * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
          * we come back to the initial key.
          */
-        if (initialKey) {
-          this.keys.setKeyFromMaterial(initialKey);
+        if (initialMaterial) {
+          this.keys.setKeyFromMaterial(initialMaterial.material);
         }
         workerLogger.error('maximum ratchet attempts exceeded, resetting key');
       } else {
