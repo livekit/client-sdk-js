@@ -1,5 +1,11 @@
 import { Cryptor } from './Cryptor';
-import type { E2EEWorkerMessage, EnableMessage, ErrorMessage, KeyProviderOptions } from '../types';
+import type {
+  E2EEWorkerMessage,
+  EnableMessage,
+  ErrorMessage,
+  KeyProviderOptions,
+  RatchetMessage,
+} from '../types';
 import { setLogLevel, workerLogger } from '../../logger';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
@@ -36,7 +42,8 @@ onmessage = (ev) => {
         kind: 'enable',
         data: { enabled: isEncryptionEnabled },
       };
-      publisherKeys = new ParticipantKeyHandler(isEncryptionEnabled, keyProviderOptions);
+      publisherKeys = new ParticipantKeyHandler(undefined, isEncryptionEnabled, keyProviderOptions);
+      publisherKeys.on('keyRatcheted', emitRatchetedKeys);
       postMessage(enableMsg);
       break;
     case 'enable':
@@ -86,7 +93,7 @@ onmessage = (ev) => {
         cr.setRtpMap(data.map);
       });
       break;
-    case 'ratchetKey':
+    case 'ratchetRequest':
       getParticipantKeyHandler(data.participantId).ratchetKey(data.keyIndex);
 
     default:
@@ -124,7 +131,7 @@ function getParticipantKeyHandler(participantId?: string) {
   }
   let keys = participantKeys.get(participantId);
   if (!keys) {
-    keys = new ParticipantKeyHandler(true, keyProviderOptions);
+    keys = new ParticipantKeyHandler(participantId, true, keyProviderOptions);
     if (sharedKey) {
       keys.setKeyFromMaterial(sharedKey);
     }
@@ -180,6 +187,18 @@ function setupCryptorErrorEvents(cryptor: Cryptor) {
     };
     postMessage(msg);
   });
+}
+
+function emitRatchetedKeys(material: CryptoKey, keyIndex?: number) {
+  const msg: RatchetMessage = {
+    kind: `ratchetKey`,
+    data: {
+      // participantId,
+      keyIndex,
+      material,
+    },
+  };
+  postMessage(msg);
 }
 
 // Operations using RTCRtpScriptTransform.

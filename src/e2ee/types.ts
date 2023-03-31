@@ -59,11 +59,20 @@ export interface UpdateCodecMessage extends BaseMessage {
   };
 }
 
-export interface RatchetMessage extends BaseMessage {
-  kind: 'ratchetKey';
+export interface RatchetRequestMessage extends BaseMessage {
+  kind: 'ratchetRequest';
   data: {
     participantId: string | undefined;
     keyIndex?: number;
+  };
+}
+
+export interface RatchetMessage extends BaseMessage {
+  kind: 'ratchetKey';
+  data: {
+    // participantId: string | undefined;
+    keyIndex?: number;
+    material: CryptoKey;
   };
 }
 
@@ -92,6 +101,7 @@ export type E2EEWorkerMessage =
   | RemoveTransformMessage
   | RTPVideoMapMessage
   | UpdateCodecMessage
+  | RatchetRequestMessage
   | RatchetMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
@@ -104,7 +114,14 @@ export type KeyProviderOptions = {
 
 export type KeyProviderCallbacks = {
   setKey: (keyInfo: KeyInfo) => void;
-  ratchetKey: (participantId?: string, keyIndex?: number) => void;
+  ratchetRequest: (participantId?: string, keyIndex?: number) => void;
+  /** currently only emitted for local participant */
+  keyRatcheted: (material: CryptoKey, keyIndex?: number) => void;
+};
+
+export type ParticipantKeyHandlerCallbacks = {
+  /** currently only emitted for local participant */
+  keyRatcheted: (material: CryptoKey, keyIndex?: number) => void;
 };
 
 export type E2EEManagerCallbacks = {

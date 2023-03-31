@@ -14,7 +14,7 @@ import {
   RemoveTransformMessage,
   UpdateCodecMessage,
   RTPVideoMapMessage,
-  RatchetMessage,
+  RatchetRequestMessage,
 } from './types';
 
 import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
@@ -119,11 +119,13 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
           this.emit(EncryptionEvent.ParticipantEncryptionStatusChanged, data.enabled, participant);
         }
         if (this.encryptionEnabled) {
-          console.log('updating keys from keyprovider', this.keyProvider.getKeys());
           this.keyProvider.getKeys().forEach((keyInfo) => {
             this.postKey(keyInfo);
           });
         }
+        break;
+      case 'ratchetKey':
+        this.keyProvider.emit('keyRatcheted', data.material, data.keyIndex);
         break;
       default:
         break;
@@ -170,7 +172,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     });
     keyProvider
       .on('setKey', (keyInfo) => this.postKey(keyInfo))
-      .on('ratchetKey', (participantId, keyIndex) =>
+      .on('ratchetRequest', (participantId, keyIndex) =>
         this.postRatchetRequest(participantId, keyIndex),
       );
   }
@@ -179,8 +181,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     if (!this.worker) {
       throw Error('could not ratchet key, worker is missing');
     }
-    const msg: RatchetMessage = {
-      kind: 'ratchetKey',
+    const msg: RatchetRequestMessage = {
+      kind: 'ratchetRequest',
       data: {
         participantId,
         keyIndex,

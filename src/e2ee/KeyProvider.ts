@@ -13,6 +13,7 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
     super();
     this.keyInfoMap = new Map();
     this.options = { ...KEY_PROVIDER_DEFAULTS, ...options };
+    this.on('keyRatcheted', this.onKeyRatcheted);
   }
 
   /**
@@ -27,6 +28,17 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
     this.emit('setKey', keyInfo);
   }
 
+  /**
+   * callback being invoked after a ratchet request has been performed on the local participant
+   * that surfaces the new key material. participant id will be `undefined`
+   * @param material
+   * @param participantId
+   * @param keyIndex
+   */
+  protected onKeyRatcheted = (material: CryptoKey, keyIndex?: number) => {
+    console.debug('key ratcheted event received', material, keyIndex);
+  };
+
   getKeys() {
     return Array.from(this.keyInfoMap.values());
   }
@@ -36,7 +48,7 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
   }
 
   ratchetKey(participantId?: string, keyIndex?: number) {
-    this.emit('ratchetKey', participantId, keyIndex);
+    this.emit('ratchetRequest', participantId, keyIndex);
   }
 }
 

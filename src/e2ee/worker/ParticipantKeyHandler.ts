@@ -1,6 +1,8 @@
+import EventEmitter from 'events';
+import type TypedEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import { KEYRING_SIZE } from '../constants';
-import type { KeySet, KeyProviderOptions } from '../types';
+import type { KeySet, KeyProviderOptions, ParticipantKeyHandlerCallbacks } from '../types';
 import { importKey, ratchet, deriveKeys } from '../utils';
 
 /**
@@ -11,7 +13,7 @@ import { importKey, ratchet, deriveKeys } from '../utils';
  * if decryption fails or can be triggered manually on both sender and receiver side.
  *
  */
-export class ParticipantKeyHandler {
+export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEmitter<ParticipantKeyHandlerCallbacks>) {
   private currentKeyIndex: number;
 
   private cryptoKeyRing: Array<KeySet>;
@@ -22,12 +24,20 @@ export class ParticipantKeyHandler {
 
   private ratchetPromiseMap: Map<number, Promise<void>>;
 
-  constructor(isEnabled: boolean, keyProviderOptions: KeyProviderOptions) {
+  private participantId: string | undefined;
+
+  constructor(
+    participantId: string | undefined,
+    isEnabled: boolean,
+    keyProviderOptions: KeyProviderOptions,
+  ) {
+    super();
     this.currentKeyIndex = 0;
     this.cryptoKeyRing = new Array(KEYRING_SIZE);
     this.enabled = isEnabled;
     this.keyProviderOptions = keyProviderOptions;
     this.ratchetPromiseMap = new Map();
+    this.participantId = participantId;
   }
 
   setEnabled(enabled: boolean) {
@@ -58,6 +68,7 @@ export class ParticipantKeyHandler {
         this.setKeyFromMaterial(newMaterial, currentKeyIndex);
         resolve();
         this.ratchetPromiseMap.delete(currentKeyIndex);
+        this.emit('keyRatcheted', newMaterial, keyIndex);
       } catch (e) {
         reject(e);
       }
