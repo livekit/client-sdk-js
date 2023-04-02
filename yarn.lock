@@ -7605,9 +7605,9 @@ typescript@next:
   integrity sha512-Iy2S0JPIKVsT5vHeRdKPTTz8VHBp7kC12Ur430Fba4a7kEh6Caa09pZGzaB0+erx2gGNn/82JDiAEN+yVeRo5Q==
 
 ua-parser-js@^1.0.2:
-  version "1.0.33"
-  resolved "https://registry.yarnpkg.com/ua-parser-js/-/ua-parser-js-1.0.33.tgz#f21f01233e90e7ed0f059ceab46eb190ff17f8f4"
-  integrity sha512-RqshF7TPTE0XLYAqmjlu5cLLuGdKrNu9O1KLA/qp39QtbZwuzwv1dT46DZSopoUMsYgXpB3Cv8a03FI8b74oFQ==
+  version "1.0.35"
+  resolved "https://registry.yarnpkg.com/ua-parser-js/-/ua-parser-js-1.0.35.tgz#c4ef44343bc3db0a3cbefdf21822f1b1fc1ab011"
+  integrity sha512-fKnGuqmTBnIE+/KXSzCn4db8RTigUzw1AN0DmdU6hJovUTbYJKyqj+8Mt1c4VfRDnOVJnENmfYkIPZ946UrSAA==
 
 unbox-primitive@^1.0.1:
   version "1.0.1"
