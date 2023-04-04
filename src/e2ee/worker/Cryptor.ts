@@ -6,12 +6,11 @@ import type TypedEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
-import { E2EEError, E2EEErrorReason } from '../errors';
+import { CryptorError, CryptorErrorReason } from '../errors';
 import {
   CryptorCallbacks,
   CryptorEvent,
   DecodeRatchetOptions,
-  ErrorMessage,
   KeyProviderOptions,
   KeySet,
 } from '../types';
@@ -139,14 +138,7 @@ export class Cryptor extends BaseCryptor {
       .pipeThrough(transformStream)
       .pipeTo(writable)
       .catch((e) => {
-        const errorMsg: ErrorMessage = {
-          kind: 'error',
-          data: {
-            error: new E2EEError(e.message, E2EEErrorReason.InternalError),
-          },
-        };
-        postMessage(errorMsg);
-        workerLogger.error(e);
+        this.emit('cryptorError', e instanceof CryptorError ? e : new CryptorError(e.message));
       });
     this.trackId = trackId;
   }
@@ -245,9 +237,8 @@ export class Cryptor extends BaseCryptor {
     } else {
       this.emit(
         CryptorEvent.Error,
-        new E2EEError(`encryption key missing for encoding`, E2EEErrorReason.MissingKey),
+        new CryptorError(`encryption key missing for encoding`, CryptorErrorReason.MissingKey),
       );
-      // workerLogger.debug('skipping frame encryption');
     }
   }
 
@@ -279,14 +270,14 @@ export class Cryptor extends BaseCryptor {
         }
         this.isKeyInvalid = false;
       } catch (error) {
-        if (error instanceof E2EEError && error.reason === E2EEErrorReason.InvalidKey) {
+        if (error instanceof CryptorError && error.reason === CryptorErrorReason.InvalidKey) {
           if (!this.isKeyInvalid) {
             workerLogger.warn('invalid key');
             this.emit(
               CryptorEvent.Error,
-              new E2EEError(
+              new CryptorError(
                 `invalid key for participant ${this.participantId}`,
-                E2EEErrorReason.InvalidKey,
+                CryptorErrorReason.InvalidKey,
               ),
             );
             this.isKeyInvalid = true;
@@ -298,9 +289,9 @@ export class Cryptor extends BaseCryptor {
     } else {
       this.emit(
         CryptorEvent.Error,
-        new E2EEError(
+        new CryptorError(
           `key missing for participant ${this.participantId}`,
-          E2EEErrorReason.MissingKey,
+          CryptorErrorReason.MissingKey,
         ),
       );
     }
@@ -368,10 +359,9 @@ export class Cryptor extends BaseCryptor {
 
       return encodedFrame;
     } catch (error: any) {
-      workerLogger.error(error);
       if (this.keyProviderOptions.ratchetWindowSize > 0) {
         if (ratchetOpts.ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
-          workerLogger.info(
+          workerLogger.debug(
             `ratcheting key attempt ${ratchetOpts.ratchetCount} of ${
               this.keyProviderOptions.ratchetWindowSize
             }, for kind ${encodedFrame instanceof RTCEncodedAudioFrame ? 'audio' : 'video'}`,
@@ -411,10 +401,13 @@ export class Cryptor extends BaseCryptor {
             this.keys.setKeyFromMaterial(initialMaterial.material, keyIndex);
           }
 
-          workerLogger.error('maximum ratchet attempts exceeded, resetting key');
+          workerLogger.warn('maximum ratchet attempts exceeded, resetting key');
         }
       } else {
-        throw new E2EEError('Got invalid key when trying to decode', E2EEErrorReason.InvalidKey);
+        throw new CryptorError(
+          'Decryption failed, most likely because of an invalid key',
+          CryptorErrorReason.InvalidKey,
+        );
       }
     }
   }
@@ -492,7 +485,7 @@ export class Cryptor extends BaseCryptor {
               break;
           }
         }
-        throw new E2EEError('Could not find NALU');
+        throw new TypeError('Could not find NALU');
       } else {
         // we could not detect the video codec, so default back to treat it as vp8
         return UNENCRYPTED_BYTES[frame.type];

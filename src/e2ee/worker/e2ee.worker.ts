@@ -9,6 +9,7 @@ import type {
 import { setLogLevel, workerLogger } from '../../logger';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
+import { CryptorErrorReason } from '../errors';
 
 const participantCryptors: Cryptor[] = [];
 const participantKeys: Map<string, ParticipantKeyHandler> = new Map();
@@ -148,7 +149,7 @@ function getPublisherCryptor(trackId: string) {
   let publishCryptor = publishCryptors.find((cryptor) => cryptor.getTrackId() === trackId);
   if (!publishCryptor) {
     if (!keyProviderOptions) {
-      throw Error('Missing keyProvider options');
+      throw new TypeError('Missing keyProvider options');
     }
     publishCryptor = new Cryptor({
       keys: publisherKeys!,
@@ -183,7 +184,7 @@ function setupCryptorErrorEvents(cryptor: Cryptor) {
   cryptor.on('cryptorError', (error) => {
     const msg: ErrorMessage = {
       kind: 'error',
-      data: { error },
+      data: { error: new Error(`${CryptorErrorReason[error.reason]}: ${error.message}`) },
     };
     postMessage(msg);
   });

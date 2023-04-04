@@ -1,7 +1,7 @@
 import type Participant from '../room/participant/Participant';
 import type { VideoCodec } from '../room/track/options';
-import type { E2EEError } from './errors';
 import type { BaseKeyProvider } from './KeyProvider';
+import { CryptorError } from './errors';
 
 export interface BaseMessage {
   kind: string;
@@ -79,7 +79,7 @@ export interface RatchetMessage extends BaseMessage {
 export interface ErrorMessage extends BaseMessage {
   kind: 'error';
   data: {
-    error: E2EEError;
+    error: Error;
   };
 }
 
@@ -125,7 +125,7 @@ export type ParticipantKeyHandlerCallbacks = {
 
 export type E2EEManagerCallbacks = {
   participantEncryptionStatusChanged: (enabled: boolean, participant?: Participant) => void;
-  encryptionError: (error: E2EEError) => void;
+  encryptionError: (error: Error) => void;
 };
 
 export const EncryptionEvent = {
@@ -134,7 +134,7 @@ export const EncryptionEvent = {
 } as const;
 
 export type CryptorCallbacks = {
-  cryptorError: (error: E2EEError) => void;
+  cryptorError: (error: CryptorError) => void;
 };
 
 export const CryptorEvent = {

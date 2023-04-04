@@ -1,17 +1,15 @@
 import { LivekitError } from '../room/errors';
 
-export const enum E2EEErrorReason {
-  BrowserUnsupported,
-  InvalidKey,
-  MissingKey,
-  InternalError,
-  WorkerError,
+export enum CryptorErrorReason {
+  InvalidKey = 0,
+  MissingKey = 1,
+  InternalError = 2,
 }
 
-export class E2EEError extends LivekitError {
-  reason: E2EEErrorReason;
+export class CryptorError extends LivekitError {
+  reason: CryptorErrorReason;
 
-  constructor(message?: string, reason: E2EEErrorReason = E2EEErrorReason.InternalError) {
+  constructor(message?: string, reason: CryptorErrorReason = CryptorErrorReason.InternalError) {
     super(40, message);
     this.reason = reason;
   }
