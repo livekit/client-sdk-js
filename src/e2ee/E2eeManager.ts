@@ -26,9 +26,9 @@ import LocalTrack from '../room/track/LocalTrack';
 import type { BaseKeyProvider } from './KeyProvider';
 import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
-import { E2EEError, E2EEErrorReason } from './errors';
 import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
 import type { VideoCodec } from '../room/track/options';
+import { DeviceUnsupportedError } from '../room/errors';
 // // @ts-ignore
 // import E2EEWorker from './worker/e2ee.worker?worker';
 
@@ -57,9 +57,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
    */
   setup(room: Room) {
     if (!isE2EESupported()) {
-      throw new E2EEError(
+      throw new DeviceUnsupportedError(
         'tried to setup end-to-end encryption on an unsupported browser',
-        E2EEErrorReason.BrowserUnsupported,
       );
     }
     log.info('setting up e2ee');
@@ -95,7 +94,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       };
       this.worker.postMessage(enableMsg);
     } else {
-      throw new E2EEError('failed to enable e2ee, worker is not ready');
+      throw new ReferenceError('failed to enable e2ee, worker is not ready');
     }
   }
 
@@ -225,7 +224,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     }
     console.log('handle receiver', trackInfo?.mimeType);
     if (!trackInfo?.mimeType || trackInfo.mimeType === '') {
-      throw new E2EEError('MimeType missing from trackInfo, cannot set up E2EE cryptor');
+      throw new TypeError('MimeType missing from trackInfo, cannot set up E2EE cryptor');
     }
     this.handleReceiver(
       track.receiver,
