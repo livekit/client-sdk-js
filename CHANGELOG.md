@@ -1,5 +1,19 @@
 # Change Log
 
+## 1.7.1
+
+### Patch Changes
+
+- [#625](https://github.com/livekit/client-sdk-js/pull/625) [`b74da67`](https://github.com/livekit/client-sdk-js/commit/b74da67c3e041ac910a7293c6fded45510a3af69) Thanks [@wjaykim](https://github.com/wjaykim)! - Emit mute status events also for unsubscribed publications
+
+- [#622](https://github.com/livekit/client-sdk-js/pull/622) [`2268333`](https://github.com/livekit/client-sdk-js/commit/22683335c0384541a2d532552dfc812773a19206) Thanks [@lukasIO](https://github.com/lukasIO)! - Don't auto-pause videos when element is in pictureInPicture mode (only applies when adaptiveStream is enabled)
+
+- [#627](https://github.com/livekit/client-sdk-js/pull/627) [`0342650`](https://github.com/livekit/client-sdk-js/commit/03426505cdc8976b700fa2ecd52ed0d62df11a5c) Thanks [@lukasIO](https://github.com/lukasIO)! - Add room option to configure automatic disconnect on page leave
+
+- [#628](https://github.com/livekit/client-sdk-js/pull/628) [`4ed8b89`](https://github.com/livekit/client-sdk-js/commit/4ed8b89a9315e5b358fdfbb955893f480e21c9c5) Thanks [@lukasIO](https://github.com/lukasIO)! - Respect incoming data message order by processing message events sequentially
+
+- [#623](https://github.com/livekit/client-sdk-js/pull/623) [`d8e7a20`](https://github.com/livekit/client-sdk-js/commit/d8e7a20afffefd75377e1638c7461dc8f768ae07) Thanks [@lukasIO](https://github.com/lukasIO)! - Emit `RoomEvent.LocalAudioSilenceDetected` if a `LocalAudioTrack` is silent after publishing
+
 ## 1.7.0
 
 ### Minor Changes

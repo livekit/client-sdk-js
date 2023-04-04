@@ -123,6 +123,26 @@ export function isWeb(): boolean {
   return typeof document !== 'undefined';
 }
 
+export function isReactNative(): boolean {
+  // navigator.product is deprecated on browsers, but will be set appropriately for react-native.
+  return navigator.product == 'ReactNative';
+}
+
+export function getReactNativeOs(): string | undefined {
+  if (!isReactNative()) {
+    return undefined;
+  }
+
+  // global defined only for ReactNative.
+  // @ts-ignore
+  if (global && global.LiveKitReactNativeGlobal) {
+    // @ts-ignore
+    return global.LiveKitReactNativeGlobal.platform;
+  }
+
+  return undefined;
+}
+
 export function compareVersions(v1: string, v2: string): number {
   const parts1 = v1.split('.');
   const parts2 = v2.split('.');
@@ -175,6 +195,10 @@ export function getClientInfo(): ClientInfo {
     protocol: protocolVersion,
     version,
   });
+
+  if (isReactNative()) {
+    info.os = getReactNativeOs() ?? '';
+  }
   return info;
 }
 

@@ -136,6 +136,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private closingLock: Mutex;
 
+  private dataProcessLock: Mutex;
+
   private shouldFailNext: boolean = false;
 
   constructor(private options: InternalRoomOptions) {
@@ -145,6 +147,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.reconnectPolicy = this.options.reconnectPolicy;
     this.registerOnLineListener();
     this.closingLock = new Mutex();
+    this.dataProcessLock = new Mutex();
   }
 
   async join(
@@ -533,22 +536,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   };
 
   private handleDataMessage = async (message: MessageEvent) => {
-    // decode
-    let buffer: ArrayBuffer | undefined;
-    if (message.data instanceof ArrayBuffer) {
-      buffer = message.data;
-    } else if (message.data instanceof Blob) {
-      buffer = await message.data.arrayBuffer();
-    } else {
-      log.error('unsupported data type', message.data);
-      return;
-    }
-    const dp = DataPacket.decode(new Uint8Array(buffer));
-    if (dp.value?.$case === 'speaker') {
-      // dispatch speaker updates
-      this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.speaker.speakers);
-    } else if (dp.value?.$case === 'user') {
-      this.emit(EngineEvent.DataPacketReceived, dp.value.user, dp.kind);
+    // make sure to respect incoming data message order by processing message events one after the other
+    const unlock = await this.dataProcessLock.lock();
+    try {
+      // decode
+      let buffer: ArrayBuffer | undefined;
+      if (message.data instanceof ArrayBuffer) {
+        buffer = message.data;
+      } else if (message.data instanceof Blob) {
+        buffer = await message.data.arrayBuffer();
+      } else {
+        log.error('unsupported data type', message.data);
+        return;
+      }
+      const dp = DataPacket.decode(new Uint8Array(buffer));
+      if (dp.value?.$case === 'speaker') {
+        // dispatch speaker updates
+        this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.speaker.speakers);
+      } else if (dp.value?.$case === 'user') {
+        this.emit(EngineEvent.DataPacketReceived, dp.value.user, dp.kind);
+      }
+    } finally {
+      unlock();
     }
   };
 
