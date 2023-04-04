@@ -129,7 +129,7 @@ export default class LocalAudioTrack extends LocalTrack {
   }
 
   /**
-   * @internal
+   * setting an audio context on the track will force it into web audio mode as soon as there are elements attached to it
    * @experimental
    */
   setAudioContext(audioContext: AudioContext | undefined) {
