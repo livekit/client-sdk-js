@@ -1,6 +1,8 @@
+<!--BEGIN_BANNER_IMAGE--><!--END_BANNER_IMAGE-->
+
 # JavaScript/TypeScript client SDK for LiveKit
 
-`livekit-client` is the official client SDK for [LiveKit](https://github.com/livekit/livekit-server). With it, you can add real time video and audio to your web apps.
+`livekit-client` is the official client SDK for [LiveKit](https://github.com/livekit/livekit-server). With it, you can add real time video and audio to your web apps. <!--BEGIN_DESCRIPTION--><!--END_DESCRIPTION-->
 
 ## Docs
 
@@ -286,3 +288,5 @@ You can have a look at the `"browerslist"` section of `package.json` for more de
 > Support for more modern features like adaptiveStream and dynacast can be checked for with `supportsAdaptiveStream()` and `supportsDynacast()`.
 
 If you are targeting legacy browsers, but still want adaptiveStream functionality you'll likely need to use polyfills for [ResizeObserver](https://www.npmjs.com/package/resize-observer-polyfill) and [IntersectionObserver](https://www.npmjs.com/package/intersection-observer).
+
+<!--BEGIN_REPO_NAV--><!--END_REPO_NAV-->
