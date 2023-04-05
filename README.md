@@ -2,7 +2,9 @@
 
 # JavaScript/TypeScript client SDK for LiveKit
 
-`livekit-client` is the official client SDK for [LiveKit](https://github.com/livekit/livekit-server). With it, you can add real time video and audio to your web apps. <!--BEGIN_DESCRIPTION--><!--END_DESCRIPTION-->
+<!--BEGIN_DESCRIPTION-->
+`livekit-client` is the official client SDK for [LiveKit](https://github.com/livekit/livekit-server). With it, you can add real time video and audio to your web apps.
+<!--END_DESCRIPTION-->
 
 ## Docs
 
