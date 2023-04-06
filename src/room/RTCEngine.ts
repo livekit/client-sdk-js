@@ -19,8 +19,6 @@ import {
   JoinResponse,
   LeaveRequest,
   ReconnectResponse,
-  RegionInfo,
-  RegionSettings,
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
@@ -49,6 +47,7 @@ import {
   supportsSetCodecPreferences,
   supportsTransceiver,
 } from './utils';
+import { RegionUrlProvider, isCloud } from './track/RegionUrlProvider';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -139,6 +138,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private dataProcessLock: Mutex;
 
   private shouldFailNext: boolean = false;
+
+  private regionUrlProvider?: RegionUrlProvider;
 
   constructor(private options: InternalRoomOptions) {
     super();
@@ -742,6 +743,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     log.debug(`reconnecting in ${delay}ms`);
 
     this.clearReconnectTimeout();
+    if (this.url && this.token && isCloud(new URL(this.url))) {
+      this.regionUrlProvider = new RegionUrlProvider(this.url, this.token);
+    }
     this.reconnectTimeout = CriticalTimers.setTimeout(
       () => this.attemptReconnect(disconnectReason),
       delay,
@@ -813,46 +817,57 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return null;
   }
 
-  private async restartConnection() {
-    if (!this.url || !this.token) {
-      // permanent failure, don't attempt reconnection
-      throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
-    }
-
-    log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
-    this.emit(EngineEvent.Restarting);
-
-    if (this.client.isConnected) {
-      await this.client.sendLeave();
-    }
-    await this.client.close();
-    this.primaryPC = undefined;
-    this.publisher?.close();
-    this.publisher = undefined;
-    this.subscriber?.close();
-    this.subscriber = undefined;
-
-    let joinResponse: JoinResponse;
+  private async restartConnection(regionUrl?: string) {
     try {
-      if (!this.signalOpts) {
-        log.warn('attempted connection restart, without signal options present');
+      if (!this.url || !this.token) {
+        // permanent failure, don't attempt reconnection
+        throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
+      }
+
+      log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
+      this.emit(EngineEvent.Restarting);
+
+      if (this.client.isConnected) {
+        await this.client.sendLeave();
+      }
+      await this.client.close();
+      this.primaryPC = undefined;
+      this.publisher?.close();
+      this.publisher = undefined;
+      this.subscriber?.close();
+      this.subscriber = undefined;
+
+      let joinResponse: JoinResponse;
+      try {
+        if (!this.signalOpts) {
+          log.warn('attempted connection restart, without signal options present');
+          throw new SignalReconnectError();
+        }
+        // in case a regionUrl is passed, the region URL takes precedence
+        joinResponse = await this.join(regionUrl ?? this.url, this.token, this.signalOpts);
+      } catch (e) {
         throw new SignalReconnectError();
       }
-      joinResponse = await this.join(this.url, this.token, this.signalOpts);
-    } catch (e) {
-      throw new SignalReconnectError();
+
+      if (this.shouldFailNext) {
+        this.shouldFailNext = false;
+        throw new Error('simulated failure');
+      }
+
+      await this.waitForPCConnected();
+      this.client.setReconnected();
+
+      // reconnect success
+      this.emit(EngineEvent.Restarted, joinResponse);
+    } catch (error) {
+      const nextRegionUrl = await this.regionUrlProvider?.getNextBestRegionUrl();
+      if (nextRegionUrl) {
+        await this.restartConnection(nextRegionUrl);
+        return;
+      } else {
+        throw error;
+      }
     }
-
-    if (this.shouldFailNext) {
-      this.shouldFailNext = false;
-      throw new Error('simulated failure');
-    }
-
-    await this.waitForPCConnected();
-    this.client.setReconnected();
-
-    // reconnect success
-    this.emit(EngineEvent.Restarted, joinResponse);
   }
 
   private async resumeConnection(reason?: ReconnectReason): Promise<void> {
