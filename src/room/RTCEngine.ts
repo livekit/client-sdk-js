@@ -856,7 +856,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       await this.waitForPCConnected();
       this.client.setReconnected();
-
+      this.regionUrlProvider?.resetAttempts();
       // reconnect success
       this.emit(EngineEvent.Restarted, joinResponse);
     } catch (error) {
@@ -865,6 +865,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         await this.restartConnection(nextRegionUrl);
         return;
       } else {
+        // no more regions to try (or we're not on cloud)
+        this.regionUrlProvider?.resetAttempts();
         throw error;
       }
     }
