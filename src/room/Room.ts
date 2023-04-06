@@ -286,71 +286,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
 
       try {
-        const joinResponse = await this.engine.join(
+        const joinResponse = await this.connectSignal(
           url,
           token,
-          {
-            autoSubscribe: this.connOptions.autoSubscribe,
-            publishOnly: this.connOptions.publishOnly,
-            adaptiveStream:
-              typeof this.options.adaptiveStream === 'object' ? true : this.options.adaptiveStream,
-            maxRetries: this.connOptions.maxRetries,
-          },
-          this.abortController.signal,
+          this.engine,
+          this.connOptions,
+          this.options,
+          this.abortController,
         );
 
-        let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
-        if (!serverInfo) {
-          serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
-        }
-
-        log.debug(
-          `connected to Livekit Server ${Object.entries(serverInfo)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join(', ')}`,
-        );
-
-        if (!joinResponse.serverVersion) {
-          throw new UnsupportedServer('unknown server version');
-        }
-
-        if (joinResponse.serverVersion === '0.15.1' && this.options.dynacast) {
-          log.debug('disabling dynacast due to server version');
-          // dynacast has a bug in 0.15.1, so we cannot use it then
-          this.options.dynacast = false;
-        }
-
-        const pi = joinResponse.participant!;
-
-        this.localParticipant.sid = pi.sid;
-        this.localParticipant.identity = pi.identity;
-
-        this.localParticipant.updateInfo(pi);
-        // forward metadata changed for the local participant
-        this.setupLocalParticipantEvents();
-
-        // populate remote participants, these should not trigger new events
-        joinResponse.otherParticipants.forEach((info) => {
-          if (
-            info.sid !== this.localParticipant.sid &&
-            info.identity !== this.localParticipant.identity
-          ) {
-            this.getOrCreateParticipant(info.sid, info);
-          } else {
-            log.warn('received info to create local participant as remote participant', {
-              info,
-              localParticipant: this.localParticipant,
-            });
-          }
-        });
-
-        this.name = joinResponse.room!.name;
-        this.sid = joinResponse.room!.sid;
-        this.metadata = joinResponse.room!.metadata;
-        if (this._isRecording !== joinResponse.room!.activeRecording) {
-          this._isRecording = joinResponse.room!.activeRecording;
-          this.emit(RoomEvent.RecordingStatusChanged, joinResponse.room!.activeRecording);
-        }
+        this.applyJoinResponse(joinResponse);
         this.emit(RoomEvent.SignalConnected);
       } catch (err) {
         this.recreateEngine();
@@ -407,6 +352,85 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
 
     return this.connectFuture.promise;
+  };
+
+  private connectSignal = async (
+    url: string,
+    token: string,
+    engine: RTCEngine,
+    connectOptions: InternalRoomConnectOptions,
+    roomOptions: InternalRoomOptions,
+    abortController: AbortController,
+  ): Promise<JoinResponse> => {
+    const joinResponse = await engine.join(
+      url,
+      token,
+      {
+        autoSubscribe: connectOptions.autoSubscribe,
+        publishOnly: connectOptions.publishOnly,
+        adaptiveStream:
+          typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
+        maxRetries: connectOptions.maxRetries,
+      },
+      abortController.signal,
+    );
+
+    let serverInfo: Partial<ServerInfo> | undefined = joinResponse.serverInfo;
+    if (!serverInfo) {
+      serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
+    }
+
+    log.debug(
+      `connected to Livekit Server ${Object.entries(serverInfo)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(', ')}`,
+    );
+
+    if (!joinResponse.serverVersion) {
+      throw new UnsupportedServer('unknown server version');
+    }
+
+    if (joinResponse.serverVersion === '0.15.1' && this.options.dynacast) {
+      log.debug('disabling dynacast due to server version');
+      // dynacast has a bug in 0.15.1, so we cannot use it then
+      roomOptions.dynacast = false;
+    }
+
+    return joinResponse;
+  };
+
+  applyJoinResponse = (joinResponse: JoinResponse) => {
+    const pi = joinResponse.participant!;
+
+    this.localParticipant.sid = pi.sid;
+    this.localParticipant.identity = pi.identity;
+
+    this.localParticipant.updateInfo(pi);
+    // forward metadata changed for the local participant
+    this.setupLocalParticipantEvents();
+
+    // populate remote participants, these should not trigger new events
+    joinResponse.otherParticipants.forEach((info) => {
+      if (
+        info.sid !== this.localParticipant.sid &&
+        info.identity !== this.localParticipant.identity
+      ) {
+        this.getOrCreateParticipant(info.sid, info);
+      } else {
+        log.warn('received info to create local participant as remote participant', {
+          info,
+          localParticipant: this.localParticipant,
+        });
+      }
+    });
+
+    this.name = joinResponse.room!.name;
+    this.sid = joinResponse.room!.sid;
+    this.metadata = joinResponse.room!.metadata;
+    if (this._isRecording !== joinResponse.room!.activeRecording) {
+      this._isRecording = joinResponse.room!.activeRecording;
+      this.emit(RoomEvent.RecordingStatusChanged, joinResponse.room!.activeRecording);
+    }
   };
 
   /**

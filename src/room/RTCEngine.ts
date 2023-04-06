@@ -19,6 +19,8 @@ import {
   JoinResponse,
   LeaveRequest,
   ReconnectResponse,
+  RegionInfo,
+  RegionSettings,
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
@@ -182,6 +184,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           );
           if (this.joinAttempts < this.maxJoinAttempts) {
             return this.join(url, token, opts, abortSignal);
+          } else {
           }
         }
       }
