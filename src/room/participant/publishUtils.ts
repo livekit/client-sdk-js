@@ -13,6 +13,7 @@ import {
   VideoPresets43,
 } from '../track/options';
 import { Track } from '../track/Track';
+import { isSVCCodec } from '../utils';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
@@ -121,7 +122,7 @@ export function computeVideoEncodings(
     videoEncoding.maxFramerate,
   );
 
-  if (scalabilityMode && videoCodec === 'av1') {
+  if (scalabilityMode && isSVCCodec(videoCodec)) {
     log.debug(`using svc with scalabilityMode ${scalabilityMode}`);
 
     const encodings: RTCRtpEncodingParameters[] = [];

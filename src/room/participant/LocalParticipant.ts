@@ -30,7 +30,7 @@ import {
 import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
 import type { DataPublishOptions } from '../types';
-import { Future, isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
+import { Future, isFireFox, isSVCCodec, isSafari, isWeb, supportsAV1, supportsVP9 } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
 import {
@@ -550,8 +550,11 @@ export default class LocalParticipant extends Participant {
       opts.simulcast = false;
     }
 
-    // require full AV1 SVC support prior to using it
+    // require full AV1/VP9 SVC support prior to using it
     if (opts.videoCodec === 'av1' && !supportsAV1()) {
+      opts.videoCodec = undefined;
+    }
+    if (opts.videoCodec === 'vp9' && !supportsVP9()) {
       opts.videoCodec = undefined;
     }
 
@@ -594,7 +597,7 @@ export default class LocalParticipant extends Participant {
       req.height = dims.height;
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
-        if (opts?.videoCodec === 'av1') {
+        if (isSVCCodec(opts.videoCodec)) {
           // set scalabilityMode to 'L3T3' by default
           opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
         }
@@ -653,7 +656,7 @@ export default class LocalParticipant extends Participant {
     // store RTPSender
     track.sender = await this.engine.createSender(track, opts, encodings);
 
-    if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
+    if (track.codec && isSVCCodec(track.codec) && encodings && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
         req.cid,
         track.codec,

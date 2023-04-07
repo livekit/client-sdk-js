@@ -241,7 +241,7 @@ export interface AudioPreset {
   maxBitrate: number;
 }
 
-const codecs = ['vp8', 'h264', 'av1'] as const;
+const codecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
 const backupCodecs = ['vp8', 'h264'] as const;
 
 export type VideoCodec = (typeof codecs)[number];
