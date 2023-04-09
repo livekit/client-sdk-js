@@ -1,5 +1,5 @@
 {
-  "name": "livekit-client",
+  "name": "livekit-client-vp9",
   "version": "1.7.1",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
@@ -22,8 +22,8 @@
       ]
     }
   },
-  "repository": "git@github.com:livekit/client-sdk-js.git",
-  "author": "David Zhao <david@davidzhao.com>",
+  "repository": "git@github.com:meetmo/lk-client-sdk-js.git",
+  "author": "Anish Menon <anish@nexhe.com>",
   "license": "Apache-2.0",
   "scripts": {
     "build": "rollup --config --bundleConfigAsCjs && yarn downlevel-dts",
