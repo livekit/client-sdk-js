@@ -1,6 +1,6 @@
-import type { RegionInfo, RegionSettings } from '../../proto/livekit_rtc';
-import { ConnectionError } from '../errors';
-import log from '../../logger';
+import type { RegionInfo, RegionSettings } from '../proto/livekit_rtc';
+import { ConnectionError } from './errors';
+import log from '../logger';
 
 export class RegionUrlProvider {
   private serverUrl: URL;
@@ -24,12 +24,12 @@ export class RegionUrlProvider {
     return isCloud(this.serverUrl);
   }
 
-  async getNextBestRegionUrl() {
+  async getNextBestRegionUrl(abortSignal?: AbortSignal) {
     if (!this.isCloud()) {
       throw Error('region availability is only supported for livekit cloud domains');
     }
     if (!this.regionSettings || Date.now() - this.lastUpdateAt > this.settingsCacheTime) {
-      this.regionSettings = await this.fetchRegionSettings();
+      this.regionSettings = await this.fetchRegionSettings(abortSignal);
     }
     const regionsLeft = this.regionSettings.regions.filter(
       (region) => !this.attemptedRegions.find((attempted) => attempted.url === region.url),
@@ -48,9 +48,10 @@ export class RegionUrlProvider {
     this.attemptedRegions = [];
   }
 
-  private async fetchRegionSettings() {
-    const regionSettingsResponse = await fetch(getCloudConfigUrl(this.serverUrl), {
+  private async fetchRegionSettings(signal?: AbortSignal) {
+    const regionSettingsResponse = await fetch(`${getCloudConfigUrl(this.serverUrl)}/regions`, {
       headers: { authorization: `Bearer ${this.token}` },
+      signal,
     });
     if (regionSettingsResponse.ok) {
       const regionSettings = (await regionSettingsResponse.json()) as RegionSettings;
@@ -71,16 +72,8 @@ export function isCloud(serverUrl: URL) {
 }
 
 function getCloudConfigUrl(serverUrl: URL) {
-  const urlParts = serverUrl.hostname.split('.');
-  const subdomain = urlParts[0];
-  const isStaging = urlParts[1] === 'staging';
-
   // TODO REMOVE DEBUG
-  return `localhost:7880/region`;
+  return `${serverUrl.protocol.replace('ws', 'http')}//${serverUrl.host}/settings`;
 
-  if (isStaging) {
-    return `https://${subdomain}.config.staging.livekit.cloud/region`;
-  } else {
-    return `https://${subdomain}.config.livekit.cloud/region`;
-  }
+  return serverUrl.host.replace('.', '.config.');
 }

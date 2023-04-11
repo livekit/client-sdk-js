@@ -47,7 +47,7 @@ import {
   supportsSetCodecPreferences,
   supportsTransceiver,
 } from './utils';
-import { RegionUrlProvider, isCloud } from './track/RegionUrlProvider';
+import { RegionUrlProvider, isCloud } from './RegionUrlProvider';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -854,7 +854,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         throw new Error('simulated failure');
       }
 
-      await this.waitForPCConnected();
+      await this.waitForPCReconnected();
       this.client.setReconnected();
       this.regionUrlProvider?.resetAttempts();
       // reconnect success
@@ -913,7 +913,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       await this.publisher.createAndSendOffer({ iceRestart: true });
     }
 
-    await this.waitForPCConnected();
+    await this.waitForPCReconnected();
     this.client.setReconnected();
 
     // recreate publish datachannel if it's id is null
@@ -926,7 +926,43 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.emit(EngineEvent.Resumed);
   }
 
-  async waitForPCConnected() {
+  async waitForPCInitialConnection(timeout?: number, abortController?: AbortController) {
+    if (this.pcState === PCState.Connected) {
+      return;
+    }
+    if (this.pcState !== PCState.New) {
+      throw new UnexpectedConnectionState(
+        'Expected peer connection to be new on initial connection',
+      );
+    }
+    return new Promise<void>((resolve, reject) => {
+      const abortHandler = () => {
+        log.warn('closing engine');
+        CriticalTimers.clearTimeout(connectTimeout);
+
+        throw new ConnectionError(
+          'room connection has been cancelled',
+          ConnectionErrorReason.Cancelled,
+        );
+      };
+      if (abortController?.signal.aborted) {
+        abortHandler();
+      }
+      abortController?.signal.addEventListener('abort', abortHandler);
+      const onConnected = () => {
+        CriticalTimers.clearTimeout(connectTimeout);
+        abortController?.signal.removeEventListener('abort', abortHandler);
+        resolve();
+      };
+      const connectTimeout = CriticalTimers.setTimeout(() => {
+        this.off(EngineEvent.Connected, onConnected);
+        reject(new ConnectionError('could not establish pc connection'));
+      }, timeout ?? this.peerConnectionTimeout);
+      this.once(EngineEvent.Connected, onConnected);
+    });
+  }
+
+  async waitForPCReconnected() {
     const startTime = Date.now();
     let now = startTime;
     this.pcState = PCState.Reconnecting;
