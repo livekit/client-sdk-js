@@ -58,6 +58,7 @@ import {
   createDummyVideoStreamTrack,
   Future,
   getEmptyAudioStreamTrack,
+  isCloud,
   isWeb,
   Mutex,
   supportsSetSinkId,
@@ -278,7 +279,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.abortController = undefined;
         resolve();
       } catch (e) {
-        if (e instanceof ConnectionError && e.reason !== ConnectionErrorReason.Cancelled) {
+        if (
+          isCloud(new URL(url)) &&
+          e instanceof ConnectionError &&
+          e.reason !== ConnectionErrorReason.Cancelled
+        ) {
           let nextUrl: string | null = null;
           try {
             nextUrl = await urlProvider.getNextBestRegionUrl(this.abortController?.signal);

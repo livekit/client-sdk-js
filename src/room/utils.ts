@@ -127,6 +127,10 @@ export function isReactNative(): boolean {
   return navigator.product == 'ReactNative';
 }
 
+export function isCloud(serverUrl: URL) {
+  return serverUrl.hostname.endsWith('.livekit.cloud');
+}
+
 export function getReactNativeOs(): string | undefined {
   if (!isReactNative()) {
     return undefined;

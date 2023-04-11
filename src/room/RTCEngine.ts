@@ -40,6 +40,7 @@ import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { Track } from './track/Track';
 import {
+  isCloud,
   isWeb,
   Mutex,
   sleep,
@@ -47,7 +48,7 @@ import {
   supportsSetCodecPreferences,
   supportsTransceiver,
 } from './utils';
-import { RegionUrlProvider, isCloud } from './RegionUrlProvider';
+import { RegionUrlProvider } from './RegionUrlProvider';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';

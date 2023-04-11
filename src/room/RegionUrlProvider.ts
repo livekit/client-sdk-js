@@ -1,6 +1,7 @@
 import type { RegionInfo, RegionSettings } from '../proto/livekit_rtc';
 import { ConnectionError } from './errors';
 import log from '../logger';
+import { isCloud } from './utils';
 
 export class RegionUrlProvider {
   private serverUrl: URL;
@@ -65,10 +66,6 @@ export class RegionUrlProvider {
       );
     }
   }
-}
-
-export function isCloud(serverUrl: URL) {
-  return serverUrl.hostname.endsWith('.livekit.cloud');
 }
 
 function getCloudConfigUrl(serverUrl: URL) {
