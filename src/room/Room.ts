@@ -393,20 +393,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  counter = 0;
-
   private attemptConnection = async (
     url: string,
     token: string,
     opts: RoomConnectOptions | undefined,
     abortController: AbortController,
   ) => {
-    this.counter += 1;
-
-    if (this.counter <= 1) {
-      throw new ConnectionError('debug error');
-    }
-
     if (this.state === ConnectionState.Reconnecting) {
       log.info('Reconnection attempt replaced by new connection attempt');
       // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
