@@ -186,7 +186,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           );
           if (this.joinAttempts < this.maxJoinAttempts) {
             return this.join(url, token, opts, abortSignal);
-          } else {
           }
         }
       }
