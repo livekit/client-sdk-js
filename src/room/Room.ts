@@ -275,11 +275,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
       try {
         await this.attemptConnection(regionUrl ?? url, token, opts, this.abortController);
-        console.warn('connected successfully', this.localParticipant.identity);
         this.abortController = undefined;
         resolve();
       } catch (e) {
-        log.error(e as any);
         if (e instanceof ConnectionError && e.reason !== ConnectionErrorReason.Cancelled) {
           let nextUrl: string | null = null;
           try {
