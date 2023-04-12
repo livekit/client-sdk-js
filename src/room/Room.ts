@@ -23,6 +23,7 @@ import {
   UserPacket,
 } from '../proto/livekit_models';
 import {
+  AudioTrackMuxUpdate,
   ConnectionQualityUpdate,
   JoinResponse,
   SimulateScenario,
@@ -50,6 +51,7 @@ import LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
+import MuxedRemoteAudioTrack from './track/MuxedRemoteAudioTrack';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
@@ -133,6 +135,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private disconnectLock: Mutex;
 
+  private lastMuxUpdate?: AudioTrackMuxUpdate;
+
+  /** mapping of track id -> MuxedRemoteAudioTrack */
+  private muxedTracks: Map<string, MuxedRemoteAudioTrack> = new Map();
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -177,6 +184,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.engine.client.onStreamStateUpdate = this.handleStreamStateUpdate;
     this.engine.client.onSubscriptionPermissionUpdate = this.handleSubscriptionPermissionUpdate;
     this.engine.client.onConnectionQuality = this.handleConnectionQualityUpdate;
+    this.engine.client.onAudioMuxUpdate = this.handleAudioMuxUpdate;
 
     this.engine
       .on(
@@ -660,6 +668,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.options.audioOutput.deviceId = prevDeviceId;
         throw e;
       }
+
+      // TODO: set audio output for room audio tracks
     }
   }
 
@@ -1061,6 +1071,61 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
     });
   };
+
+  private handleAudioMuxUpdate = (update: AudioTrackMuxUpdate) => {
+
+    const newlySubTracks = update.audioTrackMuxes.filter(val => !(this.lastMuxUpdate?.audioTrackMuxes.some(lval => lval.trackSid === val.trackSid)));
+    const newlyUnsubTracks = this.lastMuxUpdate?.audioTrackMuxes.filter(lval => !(update.audioTrackMuxes.some(val => val.trackSid === lval.trackSid)));
+    this.lastMuxUpdate = update;
+
+    newlySubTracks.forEach(track => {
+      const muxTrack = this.engine.audioMuxTracks.get(track.sdpTrackId);
+      if (track.sdpTrackId !== '' && !muxTrack) {
+        log.error(`can't find mux track for sdp track id ${track.sdpTrackId}`);
+      }
+
+      const remoteTrack = new MuxedRemoteAudioTrack(track.trackSid, muxTrack?.track,muxTrack?.stream, muxTrack?.receiver, this.audioContext, this.options.audioOutput);
+
+      const participant = this.participants.get(track.participantSid);
+      if (!participant) {
+        log.error(`can't find participant for ${track.participantSid}`);
+        return;
+      }
+
+      participant.addMuxAudioTrack(remoteTrack, track.trackSid);
+      this.muxedTracks.set(track.trackSid, remoteTrack);
+    });
+
+    newlyUnsubTracks?.forEach(track => {
+      log.info(`unsub track ${track.trackSid}`);
+      const muxedTrack = this.muxedTracks.get(track.trackSid);
+      if (!muxedTrack) {
+        log.error(`can't find muxed track for participant ${track.participantSid}, track ${track.trackSid}`);
+        return
+      }
+      muxedTrack.close();
+      this.muxedTracks.delete(track.trackSid);
+    });
+
+    update.audioTrackMuxes.forEach(track => {
+      const muxedTrack = this.muxedTracks.get(track.trackSid);
+      if(!muxedTrack) {
+        log.error(`can't find muxed track for participant ${track.participantSid}, track ${track.trackSid}`);
+        return
+      }
+      if (track.sdpTrackId === '') {
+        muxedTrack.unbind();
+      } else {
+        const muxTrack = this.engine.audioMuxTracks.get(track.sdpTrackId)
+        if (!muxTrack) {
+          log.error(`can't find mux track for sdp track id ${track.sdpTrackId}`);
+          return 
+        }
+        log.info(`track ${track.trackSid} muxed to ${track.sdpTrackId}`);
+        muxedTrack.bind(muxTrack.track, muxTrack.stream,muxTrack.receiver);
+      }
+    });
+  }
 
   private async acquireAudioContext() {
     if (

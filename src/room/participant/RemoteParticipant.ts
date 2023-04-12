@@ -120,6 +120,35 @@ export default class RemoteParticipant extends Participant {
   }
 
   /** @internal */
+  addMuxAudioTrack(
+    track: RemoteAudioTrack,
+    sid: Track.SID,
+  ) {
+    let publication = this.getTrackPublication(sid);
+    if (!publication) {
+      log.error('could not find published track', { participant: this.sid, trackSid: sid });
+      this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
+      return;
+    }
+    track.source = publication.source;
+    // keep publication's muted status
+    track.isMuted = publication.isMuted;
+    track.start();
+
+    publication.setTrack(track);
+    // set participant volume on new microphone tracks
+    if (
+      this.volume !== undefined &&
+      track instanceof RemoteAudioTrack &&
+      track.source === Track.Source.Microphone
+    ) {
+      track.setVolume(this.volume);
+    }
+
+    return publication;
+  }
+
+  /** @internal */
   addSubscribedMediaTrack(
     mediaTrack: MediaStreamTrack,
     sid: Track.SID,
