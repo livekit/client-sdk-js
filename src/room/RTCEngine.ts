@@ -838,7 +838,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       joinResponse = await this.join(this.url, this.token, this.signalOpts);
     } catch (e) {
       if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
-        throw new UnexpectedConnectionState('could not reconnect, token might have expired');
+        throw new UnexpectedConnectionState('could not reconnect, token might be expired');
       }
       throw new SignalReconnectError();
     }
