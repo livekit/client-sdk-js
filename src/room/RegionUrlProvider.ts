@@ -1,5 +1,5 @@
 import type { RegionInfo, RegionSettings } from '../proto/livekit_rtc';
-import { ConnectionError } from './errors';
+import { ConnectionError, ConnectionErrorReason } from './errors';
 import log from '../logger';
 import { isCloud } from './utils';
 
@@ -27,7 +27,7 @@ export class RegionUrlProvider {
 
   async getNextBestRegionUrl(abortSignal?: AbortSignal) {
     if (!this.isCloud()) {
-      throw Error('region availability is only supported for livekit cloud domains');
+      throw Error('region availability is only supported for LiveKit Cloud domains');
     }
     if (!this.regionSettings || Date.now() - this.lastUpdateAt > this.settingsCacheTime) {
       this.regionSettings = await this.fetchRegionSettings(abortSignal);
@@ -38,7 +38,7 @@ export class RegionUrlProvider {
     if (regionsLeft.length > 0) {
       const nextRegion = regionsLeft[0];
       this.attemptedRegions.push(nextRegion);
-      log.debug(`trying to connect to region: ${nextRegion.region}`);
+      log.debug(`next region: ${nextRegion.region}`);
       return nextRegion.url;
     } else {
       return null;
@@ -61,7 +61,7 @@ export class RegionUrlProvider {
     } else {
       throw new ConnectionError(
         `Could not fetch region settings: ${regionSettingsResponse.statusText}`,
-        undefined,
+        regionSettingsResponse.status === 401 ? ConnectionErrorReason.NotAllowed : undefined,
         regionSettingsResponse.status,
       );
     }
@@ -69,8 +69,5 @@ export class RegionUrlProvider {
 }
 
 function getCloudConfigUrl(serverUrl: URL) {
-  // TODO REMOVE DEBUG
   return `${serverUrl.protocol.replace('ws', 'http')}//${serverUrl.host}/settings`;
-
-  return serverUrl.host.replace('.', '.config.');
 }

@@ -447,7 +447,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     try {
-      await this.engine.waitForPCInitialConnection(this.connOptions.peerConnectionTimeout);
+      await this.engine.waitForPCInitialConnection(
+        this.connOptions.peerConnectionTimeout,
+        abortController,
+      );
     } catch (e) {
       this.recreateEngine();
       this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
