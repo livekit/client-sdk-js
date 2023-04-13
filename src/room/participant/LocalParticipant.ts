@@ -22,6 +22,7 @@ import {
   BackupVideoCodec,
   CreateLocalTracksOptions,
   isBackupCodec,
+  isCodecEqual,
   ScreenShareCaptureOptions,
   ScreenSharePresets,
   TrackPublishOptions,
@@ -643,6 +644,33 @@ export default class LocalParticipant extends Participant {
     }
 
     const ti = await this.engine.addTrack(req);
+    let primaryCodecSupported = false;
+    let backupCodecSupported = false;
+    ti.codecs.forEach((c) => {
+      if (isCodecEqual(c.mimeType, opts.videoCodec)) {
+        primaryCodecSupported = true;
+      } else if (opts.backupCodec && isCodecEqual(c.mimeType, opts.backupCodec.codec)) {
+        backupCodecSupported = true;
+      }
+    });
+
+    if (req.simulcastCodecs.length > 0) {
+      if (!primaryCodecSupported && !backupCodecSupported) {
+        throw Error('cannot publish track, codec not supported by server');
+      }
+
+      if (!primaryCodecSupported && opts.backupCodec) {
+        const backupCodec = opts.backupCodec;
+        opts = { ...opts };
+        log.debug(
+          `primary codec ${opts.videoCodec} not supported, fallback to ${backupCodec.codec}`,
+        );
+        opts.videoCodec = backupCodec.codec;
+        opts.videoEncoding = backupCodec.encoding;
+        encodings = simEncodings;
+      }
+    }
+
     const publication = new LocalTrackPublication(track.kind, ti, track);
     // save options for when it needs to be republished again
     publication.options = opts;

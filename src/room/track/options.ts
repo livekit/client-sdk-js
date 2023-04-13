@@ -252,6 +252,13 @@ export function isBackupCodec(codec: string): codec is BackupVideoCodec {
   return !!backupCodecs.find((backup) => backup === codec);
 }
 
+export function isCodecEqual(c1: string | undefined, c2: string | undefined): boolean {
+  return (
+    c1?.toLowerCase().replace(/audio\/|video\//y, '') ===
+    c2?.toLowerCase().replace(/audio\/|video\//y, '')
+  );
+}
+
 /**
  * scalability modes for svc, only supprot l3t3 now.
  */

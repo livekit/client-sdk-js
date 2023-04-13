@@ -249,9 +249,12 @@ export function determineAppropriateEncoding(
   if (codec) {
     switch (codec) {
       case 'av1':
-      case 'vp9':
         encoding = { ...encoding };
         encoding.maxBitrate = encoding.maxBitrate * 0.7;
+        break;
+      case 'vp9':
+        encoding = { ...encoding };
+        encoding.maxBitrate = encoding.maxBitrate * 0.85;
         break;
       default:
         break;
