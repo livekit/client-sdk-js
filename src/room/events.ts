@@ -431,6 +431,7 @@ export enum EngineEvent {
   MediaTrackAdded = 'mediaTrackAdded',
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
   DataPacketReceived = 'dataPacketReceived',
+  DCBufferStatusChanged = 'dcBufferStatusChanged',
 }
 
 export enum TrackEvent {

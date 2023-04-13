@@ -47,6 +47,7 @@ import {
   supportsSetCodecPreferences,
   supportsTransceiver,
 } from './utils';
+import { DCBufferStatus } from './types';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -943,10 +944,27 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
+    const prevBufferStatus = this.getDCBufferStatus(kind);
     if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
       this.lossyDC.send(msg);
     } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
       this.reliableDC.send(msg);
+    }
+    const newBufferStatus = this.getDCBufferStatus(kind);
+    if (newBufferStatus && prevBufferStatus !== newBufferStatus) {
+      this.emit(EngineEvent.DCBufferStatusChanged, newBufferStatus, kind);
+    }
+  }
+
+  private getDCBufferStatus(kind: DataPacket_Kind): DCBufferStatus | undefined {
+    if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
+      return this.lossyDC.bufferedAmount > this.lossyDC.bufferedAmountLowThreshold
+        ? DCBufferStatus.HIGH
+        : DCBufferStatus.LOW;
+    } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
+      return this.reliableDC.bufferedAmount > this.reliableDC.bufferedAmountLowThreshold
+        ? DCBufferStatus.HIGH
+        : DCBufferStatus.LOW;
     }
   }
 
@@ -1155,4 +1173,5 @@ export type EngineEventCallbacks = {
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
+  dcBufferStatusChanged: (status: DCBufferStatus, kind: DataPacket_Kind) => void;
 };
