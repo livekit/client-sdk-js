@@ -20,3 +20,8 @@ export type DataPublishOptions = {
   /** the topic under which the message gets published */
   topic?: string;
 };
+
+export type LiveKitReactNativeInfo = {
+  platform: 'ios' | 'android' | 'windows' | 'macos' | 'web' | 'native';
+  devicePixelRatio: number;
+};
