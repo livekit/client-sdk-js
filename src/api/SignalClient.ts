@@ -234,7 +234,7 @@ export class SignalClient {
         if (!this.isConnected) {
           try {
             const resp = await fetch(`http${url.substring(2)}/validate${params}`);
-            if (!resp.ok) {
+            if (resp.status.toFixed(0).startsWith('4')) {
               const msg = await resp.text();
               reject(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
             } else {
