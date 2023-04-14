@@ -47,7 +47,6 @@ import {
   supportsSetCodecPreferences,
   supportsTransceiver,
 } from './utils';
-import { DCBufferStatus } from './types';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -85,7 +84,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reliableDC?: RTCDataChannel;
 
-  private dcBufferStatus: Map<DataPacket_Kind, DCBufferStatus>;
+  private dcBufferStatus: Map<DataPacket_Kind, boolean>;
 
   // @ts-ignore noUnusedLocals
   private reliableDCSub?: RTCDataChannel;
@@ -150,8 +149,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.closingLock = new Mutex();
     this.dataProcessLock = new Mutex();
     this.dcBufferStatus = new Map([
-      [DataPacket_Kind.LOSSY, DCBufferStatus.LOW],
-      [DataPacket_Kind.RELIABLE, DCBufferStatus.LOW],
+      [DataPacket_Kind.LOSSY, true],
+      [DataPacket_Kind.RELIABLE, true],
     ]);
   }
 
@@ -517,7 +516,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.lossyDC.onerror = this.handleDataError;
     this.reliableDC.onerror = this.handleDataError;
 
-    // handle buffer events
+    // set up dc buffer threshold, set to 64kB (otherwise 0 by default)
+    this.lossyDC.bufferedAmountLowThreshold = 65535;
+    this.reliableDC.bufferedAmountLowThreshold = 65535;
+
+    // handle buffer amount low events
     this.lossyDC.onbufferedamountlow = this.handleBufferedAmountLow;
     this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
   }
@@ -971,19 +974,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private updateAndEmitDCBufferStatus = (kind: DataPacket_Kind) => {
-    const status = this.getDCBufferStatus(kind);
-    if (status && status !== this.dcBufferStatus.get(kind)) {
+    const status = this.isBufferStatusLow(kind);
+    if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
       this.dcBufferStatus.set(kind, status);
       this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
     }
   };
 
-  private getDCBufferStatus = (kind: DataPacket_Kind): DCBufferStatus | undefined => {
+  private isBufferStatusLow = (kind: DataPacket_Kind): boolean | undefined => {
     const dc = this.dataChannelForKind(kind);
     if (dc) {
-      return dc.bufferedAmount > dc.bufferedAmountLowThreshold
-        ? DCBufferStatus.HIGH
-        : DCBufferStatus.LOW;
+      return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
     }
   };
 
@@ -1192,5 +1193,5 @@ export type EngineEventCallbacks = {
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
-  dcBufferStatusChanged: (status: DCBufferStatus, kind: DataPacket_Kind) => void;
+  dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
 };

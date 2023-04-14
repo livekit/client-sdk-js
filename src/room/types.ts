@@ -20,8 +20,3 @@ export type DataPublishOptions = {
   /** the topic under which the message gets published */
   topic?: string;
 };
-
-export const enum DCBufferStatus {
-  HIGH,
-  LOW,
-}

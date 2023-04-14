@@ -267,7 +267,7 @@ export enum RoomEvent {
 
   /**
    * Emits whenever the current buffer status of a data channel changes
-   * args: (status: [[DCBufferStatus]], kind: [[DataPacket_Kind]])
+   * args: (isLow: boolean, kind: [[DataPacket_Kind]])
    */
   DCBufferStatusChanged = 'dcBufferStatusChanged',
 }

@@ -1504,5 +1504,5 @@ export type RoomEventCallbacks = {
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
-  dcBufferStatusChanged: (status: DCBufferStatus, kind: DataPacket_Kind) => void;
+  dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
 };
