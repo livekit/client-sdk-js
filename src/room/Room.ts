@@ -54,7 +54,7 @@ import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
-import type { DCBufferStatus, SimulationOptions } from './types';
+import type { SimulationOptions } from './types';
 import {
   createDummyVideoStreamTrack,
   Future,
