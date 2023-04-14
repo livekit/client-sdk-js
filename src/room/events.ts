@@ -264,6 +264,12 @@ export enum RoomEvent {
    * args: (isRecording: boolean)
    */
   RecordingStatusChanged = 'recordingStatusChanged',
+
+  /**
+   * Emits whenever the current buffer status of a data channel changes
+   * args: (status: [[DCBufferStatus]], kind: [[DataPacket_Kind]])
+   */
+  DCBufferStatusChanged = 'dcBufferStatusChanged',
 }
 
 export enum ParticipantEvent {

@@ -54,7 +54,7 @@ import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
-import type { SimulationOptions } from './types';
+import type { DCBufferStatus, SimulationOptions } from './types';
 import {
   createDummyVideoStreamTrack,
   Future,
@@ -206,7 +206,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
-      .on(EngineEvent.Restarted, this.handleRestarted);
+      .on(EngineEvent.Restarted, this.handleRestarted)
+      .on(EngineEvent.DCBufferStatusChanged, (status, kind) => {
+        this.emit(RoomEvent.DCBufferStatusChanged, status, kind);
+      });
 
     if (this.localParticipant) {
       this.localParticipant.setupEngine(this.engine);
@@ -1501,4 +1504,5 @@ export type RoomEventCallbacks = {
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
+  dcBufferStatusChanged: (status: DCBufferStatus, kind: DataPacket_Kind) => void;
 };

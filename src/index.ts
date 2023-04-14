@@ -32,6 +32,7 @@ import type { AudioAnalyserOptions } from './room/utils';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';
+export { DCBufferStatus, DataPublishOptions } from './room/types';
 export * from './room/track/create';
 export * from './room/track/options';
 export * from './room/track/Track';

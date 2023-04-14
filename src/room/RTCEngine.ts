@@ -85,6 +85,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reliableDC?: RTCDataChannel;
 
+  private dcBufferStatus: Map<DataPacket_Kind, DCBufferStatus>;
+
   // @ts-ignore noUnusedLocals
   private reliableDCSub?: RTCDataChannel;
 
@@ -147,6 +149,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.registerOnLineListener();
     this.closingLock = new Mutex();
     this.dataProcessLock = new Mutex();
+    this.dcBufferStatus = new Map([
+      [DataPacket_Kind.LOSSY, DCBufferStatus.LOW],
+      [DataPacket_Kind.RELIABLE, DCBufferStatus.LOW],
+    ]);
   }
 
   async join(
@@ -510,6 +516,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // handle datachannel errors
     this.lossyDC.onerror = this.handleDataError;
     this.reliableDC.onerror = this.handleDataError;
+
+    // handle buffer events
+    this.lossyDC.onbufferedamountlow = this.handleBufferedAmountLow;
+    this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
   }
 
   private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
@@ -563,6 +573,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } else {
       log.error(`Unknown DataChannel Error on ${channelKind}`, event);
     }
+  };
+
+  private handleBufferedAmountLow = (event: Event) => {
+    const channel = event.currentTarget as RTCDataChannel;
+    const channelKind =
+      channel.maxRetransmits === 0 ? DataPacket_Kind.LOSSY : DataPacket_Kind.RELIABLE;
+
+    this.updateAndEmitDCBufferStatus(channelKind);
   };
 
   private setPreferredCodec(
@@ -944,29 +962,30 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
-    const prevBufferStatus = this.getDCBufferStatus(kind);
-    if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
-      this.lossyDC.send(msg);
-    } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
-      this.reliableDC.send(msg);
+    const dc = this.dataChannelForKind(kind);
+    if (dc) {
+      dc.send(msg);
     }
-    const newBufferStatus = this.getDCBufferStatus(kind);
-    if (newBufferStatus && prevBufferStatus !== newBufferStatus) {
-      this.emit(EngineEvent.DCBufferStatusChanged, newBufferStatus, kind);
-    }
+
+    this.updateAndEmitDCBufferStatus(kind);
   }
 
-  private getDCBufferStatus(kind: DataPacket_Kind): DCBufferStatus | undefined {
-    if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
-      return this.lossyDC.bufferedAmount > this.lossyDC.bufferedAmountLowThreshold
-        ? DCBufferStatus.HIGH
-        : DCBufferStatus.LOW;
-    } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
-      return this.reliableDC.bufferedAmount > this.reliableDC.bufferedAmountLowThreshold
+  private updateAndEmitDCBufferStatus = (kind: DataPacket_Kind) => {
+    const status = this.getDCBufferStatus(kind);
+    if (status && status !== this.dcBufferStatus.get(kind)) {
+      this.dcBufferStatus.set(kind, status);
+      this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
+    }
+  };
+
+  private getDCBufferStatus = (kind: DataPacket_Kind): DCBufferStatus | undefined => {
+    const dc = this.dataChannelForKind(kind);
+    if (dc) {
+      return dc.bufferedAmount > dc.bufferedAmountLowThreshold
         ? DCBufferStatus.HIGH
         : DCBufferStatus.LOW;
     }
-  }
+  };
 
   /**
    * @internal
