@@ -208,8 +208,8 @@ export default class RemoteVideoTrack extends RemoteTrack {
     this.elementInfos = this.elementInfos.filter((info) => info.element !== element);
   }
 
-  protected async handleAppVisibilityChanged() {
-    await super.handleAppVisibilityChanged();
+  protected async handlePageVisibilityChanged() {
+    await super.handlePageVisibilityChanged();
     if (!this.isAdaptiveStream) return;
     this.updateVisibility();
   }

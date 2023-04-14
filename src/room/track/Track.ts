@@ -234,6 +234,26 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     }
   }
 
+  protected pageVisibilityChangedListener = () => {
+    if (this.backgroundTimeout) {
+      clearTimeout(this.backgroundTimeout);
+    }
+    // delay app visibility update if it goes to hidden
+    // update immediately if it comes back to focus
+    if (document.visibilityState === 'hidden') {
+      this.backgroundTimeout = setTimeout(
+        () => this.handlePageVisibilityChanged(),
+        BACKGROUND_REACTION_DELAY,
+      );
+    } else {
+      this.handlePageVisibilityChanged();
+    }
+  };
+
+  protected async handlePageVisibilityChanged() {
+    this.isInBackground = document.visibilityState === 'hidden';
+  }
+
   protected addPageVisibilityListener() {
     if (isWeb()) {
       this.isInBackground = document.visibilityState === 'hidden';
@@ -247,26 +267,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     if (isWeb()) {
       document.removeEventListener('visibilitychange', this.pageVisibilityChangedListener);
     }
-  }
-
-  protected pageVisibilityChangedListener = () => {
-    if (this.backgroundTimeout) {
-      clearTimeout(this.backgroundTimeout);
-    }
-    // delay app visibility update if it goes to hidden
-    // update immediately if it comes back to focus
-    if (document.visibilityState === 'hidden') {
-      this.backgroundTimeout = setTimeout(
-        () => this.handleAppVisibilityChanged(),
-        BACKGROUND_REACTION_DELAY,
-      );
-    } else {
-      this.handleAppVisibilityChanged();
-    }
-  };
-
-  protected async handleAppVisibilityChanged() {
-    this.isInBackground = document.visibilityState === 'hidden';
   }
 }
 
