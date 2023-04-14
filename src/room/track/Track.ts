@@ -5,7 +5,9 @@ import log from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
-import { isFireFox, isSafari } from '../utils';
+import { isFireFox, isSafari, isWeb } from '../utils';
+
+const BACKGROUND_REACTION_DELAY = 5000;
 
 // keep old audio elements when detached, we would re-use them since on iOS
 // Safari tracks which audio elements have been "blessed" by the user.
@@ -39,6 +41,10 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
   protected _mediaStreamTrack: MediaStreamTrack;
 
   protected _mediaStreamID: string;
+
+  protected isInBackground: boolean = false;
+
+  private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
 
   protected _currentBitrate: number = 0;
 
@@ -84,6 +90,9 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     let elementType = 'audio';
     if (this.kind === Track.Kind.Video) {
       elementType = 'video';
+    }
+    if (this.attachedElements.length === 0 && Track.Kind.Video) {
+      this.addPageVisibilityListener();
     }
     if (!element) {
       if (elementType === 'audio') {
@@ -155,29 +164,35 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
    */
   detach(element: HTMLMediaElement): HTMLMediaElement;
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
-    // detach from a single element
-    if (element) {
-      detachTrack(this._mediaStreamTrack, element);
-      const idx = this.attachedElements.indexOf(element);
-      if (idx >= 0) {
-        this.attachedElements.splice(idx, 1);
-        this.recycleElement(element);
-        this.emit(TrackEvent.ElementDetached, element);
+    try {
+      // detach from a single element
+      if (element) {
+        detachTrack(this._mediaStreamTrack, element);
+        const idx = this.attachedElements.indexOf(element);
+        if (idx >= 0) {
+          this.attachedElements.splice(idx, 1);
+          this.recycleElement(element);
+          this.emit(TrackEvent.ElementDetached, element);
+        }
+        return element;
       }
-      return element;
+
+      const detached: HTMLMediaElement[] = [];
+      this.attachedElements.forEach((elm) => {
+        detachTrack(this._mediaStreamTrack, elm);
+        detached.push(elm);
+        this.recycleElement(elm);
+        this.emit(TrackEvent.ElementDetached, elm);
+      });
+
+      // remove all tracks
+      this.attachedElements = [];
+      return detached;
+    } finally {
+      if (this.attachedElements.length === 0) {
+        this.removePageVisibilityListener();
+      }
     }
-
-    const detached: HTMLMediaElement[] = [];
-    this.attachedElements.forEach((elm) => {
-      detachTrack(this._mediaStreamTrack, elm);
-      detached.push(elm);
-      this.recycleElement(elm);
-      this.emit(TrackEvent.ElementDetached, elm);
-    });
-
-    // remove all tracks
-    this.attachedElements = [];
-    return detached;
   }
 
   stop() {
@@ -217,6 +232,41 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
         recycledElements.push(element);
       }
     }
+  }
+
+  protected addPageVisibilityListener() {
+    if (isWeb()) {
+      this.isInBackground = document.visibilityState === 'hidden';
+      document.addEventListener('visibilitychange', this.pageVisibilityChangedListener);
+    } else {
+      this.isInBackground = false;
+    }
+  }
+
+  protected removePageVisibilityListener() {
+    if (isWeb()) {
+      document.removeEventListener('visibilitychange', this.pageVisibilityChangedListener);
+    }
+  }
+
+  protected pageVisibilityChangedListener = () => {
+    if (this.backgroundTimeout) {
+      clearTimeout(this.backgroundTimeout);
+    }
+    // delay app visibility update if it goes to hidden
+    // update immediately if it comes back to focus
+    if (document.visibilityState === 'hidden') {
+      this.backgroundTimeout = setTimeout(
+        () => this.handleAppVisibilityChanged(),
+        BACKGROUND_REACTION_DELAY,
+      );
+    } else {
+      this.handleAppVisibilityChanged();
+    }
+  };
+
+  protected async handleAppVisibilityChanged() {
+    this.isInBackground = document.visibilityState === 'hidden';
   }
 }
 
