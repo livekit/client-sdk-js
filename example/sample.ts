@@ -34,6 +34,8 @@ const state = {
   decoder: new TextDecoder(),
   defaultDevices: new Map<MediaDeviceKind, string>(),
   bitrateInterval: undefined as any,
+  dataFireInterval: undefined as any,
+  canFireMoreData: true,
 };
 let currentRoom: Room | undefined;
 
@@ -178,6 +180,10 @@ const appActions = {
           appendLog(`tracks published in ${Date.now() - startTime}ms`);
           updateButtonsForPublishState();
         }
+      })
+      .on(RoomEvent.DCBufferStatusChanged, (isLow, kind) => {
+        state.canFireMoreData = isLow;
+        console.log('Data Buffer Status Changed', isLow, kind);
       });
 
     try {
@@ -236,6 +242,29 @@ const appActions = {
 
     // update display
     updateButtonsForPublishState();
+  },
+
+  toggleFireData: async () => {
+    if (!currentRoom) return;
+
+    if (state.dataFireInterval) {
+      clearInterval(state.dataFireInterval);
+    } else {
+      await currentRoom?.localParticipant.publishData(
+        new Uint8Array(500).fill(1),
+        DataPacket_Kind.LOSSY,
+      );
+      state.dataFireInterval = setInterval(() => {
+        if (state.canFireMoreData) {
+          currentRoom?.localParticipant.publishData(
+            new Uint8Array(50000).fill(1),
+            DataPacket_Kind.LOSSY,
+          );
+        } else {
+          console.log('waiting for dc buffer to be low');
+        }
+      }, 10);
+    }
   },
 
   flipVideo: () => {
