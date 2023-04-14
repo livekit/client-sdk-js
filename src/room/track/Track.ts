@@ -92,7 +92,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
       elementType = 'video';
     }
     if (this.attachedElements.length === 0 && Track.Kind.Video) {
-      this.addPageVisibilityListener();
+      this.addAppVisibilityListener();
     }
     if (!element) {
       if (elementType === 'audio') {
@@ -190,7 +190,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
       return detached;
     } finally {
       if (this.attachedElements.length === 0) {
-        this.removePageVisibilityListener();
+        this.removeAppVisibilityListener();
       }
     }
   }
@@ -234,7 +234,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     }
   }
 
-  protected pageVisibilityChangedListener = () => {
+  protected appVisibilityChangedListener = () => {
     if (this.backgroundTimeout) {
       clearTimeout(this.backgroundTimeout);
     }
@@ -242,30 +242,30 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     // update immediately if it comes back to focus
     if (document.visibilityState === 'hidden') {
       this.backgroundTimeout = setTimeout(
-        () => this.handlePageVisibilityChanged(),
+        () => this.handleAppVisibilityChanged(),
         BACKGROUND_REACTION_DELAY,
       );
     } else {
-      this.handlePageVisibilityChanged();
+      this.handleAppVisibilityChanged();
     }
   };
 
-  protected async handlePageVisibilityChanged() {
+  protected async handleAppVisibilityChanged() {
     this.isInBackground = document.visibilityState === 'hidden';
   }
 
-  protected addPageVisibilityListener() {
+  protected addAppVisibilityListener() {
     if (isWeb()) {
       this.isInBackground = document.visibilityState === 'hidden';
-      document.addEventListener('visibilitychange', this.pageVisibilityChangedListener);
+      document.addEventListener('visibilitychange', this.appVisibilityChangedListener);
     } else {
       this.isInBackground = false;
     }
   }
 
-  protected removePageVisibilityListener() {
+  protected removeAppVisibilityListener() {
     if (isWeb()) {
-      document.removeEventListener('visibilitychange', this.pageVisibilityChangedListener);
+      document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
     }
   }
 }

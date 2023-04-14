@@ -234,8 +234,8 @@ export default abstract class LocalTrack extends Track {
     );
   }
 
-  protected async handlePageVisibilityChanged() {
-    await super.handlePageVisibilityChanged();
+  protected async handleAppVisibilityChanged() {
+    await super.handleAppVisibilityChanged();
     if (!isMobile()) return;
     log.debug(`visibility changed, is in Background: ${this.isInBackground}`);
 
