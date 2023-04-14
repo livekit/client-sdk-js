@@ -14,6 +14,7 @@ import { attachToElement, detachTrack, Track } from './Track';
 import type { AdaptiveStreamSettings } from './types';
 
 const REACTION_DELAY = 100;
+const BACKGROUND_REACTION_DELAY = 5000;
 
 export default class RemoteVideoTrack extends RemoteTrack {
   private prevStats?: VideoReceiverStats;
@@ -27,6 +28,10 @@ export default class RemoteVideoTrack extends RemoteTrack {
   private lastDimensions?: Track.Dimensions;
 
   private hasUsedAttach: boolean = false;
+
+  protected isInBackground: boolean = false;
+
+  private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -68,6 +73,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
   attach(): HTMLMediaElement;
   attach(element: HTMLMediaElement): HTMLMediaElement;
   attach(element?: HTMLMediaElement): HTMLMediaElement {
+    if (this.attachedElements.length === 0) {
+      this.addPageVisibilityListener();
+    }
     if (!element) {
       element = super.attach();
     } else {
@@ -136,18 +144,24 @@ export default class RemoteVideoTrack extends RemoteTrack {
   detach(): HTMLMediaElement[];
   detach(element: HTMLMediaElement): HTMLMediaElement;
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
-    let detachedElements: HTMLMediaElement[] = [];
-    if (element) {
-      this.stopObservingElement(element);
-      return super.detach(element);
-    }
-    detachedElements = super.detach();
+    try {
+      let detachedElements: HTMLMediaElement[] = [];
+      if (element) {
+        this.stopObservingElement(element);
+        return super.detach(element);
+      }
+      detachedElements = super.detach();
 
-    for (const e of detachedElements) {
-      this.stopObservingElement(e);
-    }
+      for (const e of detachedElements) {
+        this.stopObservingElement(e);
+      }
 
-    return detachedElements;
+      return detachedElements;
+    } finally {
+      if (this.attachedElements.length === 0) {
+        this.removePageVisibilityListener();
+      }
+    }
   }
 
   /** @internal */
@@ -209,7 +223,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   protected async handleAppVisibilityChanged() {
-    await super.handleAppVisibilityChanged();
+    this.isInBackground = document.visibilityState === 'hidden';
     if (!this.isAdaptiveStream) return;
     this.updateVisibility();
   }
@@ -273,6 +287,37 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
     this.emit(TrackEvent.VideoDimensionsChanged, this.lastDimensions, this);
   }
+
+  protected addPageVisibilityListener() {
+    if (isWeb()) {
+      this.isInBackground = document.visibilityState === 'hidden';
+      document.addEventListener('visibilitychange', this.pageVisibilityChangedListener);
+    } else {
+      this.isInBackground = false;
+    }
+  }
+
+  protected removePageVisibilityListener() {
+    if (isWeb()) {
+      document.removeEventListener('visibilitychange', this.pageVisibilityChangedListener);
+    }
+  }
+
+  protected pageVisibilityChangedListener = () => {
+    if (this.backgroundTimeout) {
+      clearTimeout(this.backgroundTimeout);
+    }
+    // delay app visibility update if it goes to hidden
+    // update immediately if it comes back to focus
+    if (document.visibilityState === 'hidden') {
+      this.backgroundTimeout = setTimeout(
+        () => this.handleAppVisibilityChanged(),
+        BACKGROUND_REACTION_DELAY,
+      );
+    } else {
+      this.handleAppVisibilityChanged();
+    }
+  };
 }
 
 export interface ElementInfo {

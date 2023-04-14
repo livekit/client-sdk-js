@@ -5,9 +5,7 @@ import log from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
-import { isFireFox, isSafari, isWeb } from '../utils';
-
-const BACKGROUND_REACTION_DELAY = 5000;
+import { isFireFox, isSafari } from '../utils';
 
 // keep old audio elements when detached, we would re-use them since on iOS
 // Safari tracks which audio elements have been "blessed" by the user.
@@ -42,10 +40,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
   protected _mediaStreamID: string;
 
-  protected isInBackground: boolean;
-
-  private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
-
   protected _currentBitrate: number = 0;
 
   protected monitorInterval?: ReturnType<typeof setInterval>;
@@ -57,12 +51,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     this._mediaStreamTrack = mediaTrack;
     this._mediaStreamID = mediaTrack.id;
     this.source = Track.Source.Unknown;
-    if (isWeb()) {
-      this.isInBackground = document.visibilityState === 'hidden';
-      document.addEventListener('visibilitychange', this.appVisibilityChangedListener);
-    } else {
-      this.isInBackground = false;
-    }
   }
 
   /** current receive bits per second */
@@ -195,9 +183,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
   stop() {
     this.stopMonitor();
     this._mediaStreamTrack.stop();
-    if (isWeb()) {
-      document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
-    }
   }
 
   protected enable() {
@@ -232,26 +217,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
         recycledElements.push(element);
       }
     }
-  }
-
-  protected appVisibilityChangedListener = () => {
-    if (this.backgroundTimeout) {
-      clearTimeout(this.backgroundTimeout);
-    }
-    // delay app visibility update if it goes to hidden
-    // update immediately if it comes back to focus
-    if (document.visibilityState === 'hidden') {
-      this.backgroundTimeout = setTimeout(
-        () => this.handleAppVisibilityChanged(),
-        BACKGROUND_REACTION_DELAY,
-      );
-    } else {
-      this.handleAppVisibilityChanged();
-    }
-  };
-
-  protected async handleAppVisibilityChanged() {
-    this.isInBackground = document.visibilityState === 'hidden';
   }
 }
 
