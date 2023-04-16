@@ -22,6 +22,7 @@ export type DataPublishOptions = {
 };
 
 export type LiveKitReactNativeInfo = {
+  // Corresponds to RN's PlatformOSType
   platform: 'ios' | 'android' | 'windows' | 'macos' | 'web' | 'native';
   devicePixelRatio: number;
 };

@@ -153,13 +153,15 @@ export function getReactNativeOs(): string | undefined {
 }
 
 export function getDevicePixelRatio(): number {
-  if (!isReactNative()) {
+  if (isWeb()) {
     return window.devicePixelRatio;
   }
 
-  let info = getLKReactNativeInfo();
-  if (info) {
-    return info.devicePixelRatio;
+  if (isReactNative()) {
+    let info = getLKReactNativeInfo();
+    if (info) {
+      return info.devicePixelRatio;
+    }
   }
 
   return 1;
