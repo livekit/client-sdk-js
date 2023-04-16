@@ -28,6 +28,7 @@ import {
 } from './room/utils';
 
 import type { AudioAnalyserOptions } from './room/utils';
+import type { LiveKitReactNativeInfo } from './room/types';
 
 export * from './options';
 export * from './room/errors';
@@ -73,4 +74,5 @@ export {
   ElementInfo,
   DefaultReconnectPolicy,
   CriticalTimers,
+  LiveKitReactNativeInfo,
 };
