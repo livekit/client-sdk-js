@@ -940,9 +940,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         log.warn('closing engine');
         CriticalTimers.clearTimeout(connectTimeout);
 
-        throw new ConnectionError(
-          'room connection has been cancelled',
-          ConnectionErrorReason.Cancelled,
+        reject(
+          new ConnectionError(
+            'room connection has been cancelled',
+            ConnectionErrorReason.Cancelled,
+          ),
         );
       };
       if (abortController?.signal.aborted) {

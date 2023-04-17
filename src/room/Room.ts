@@ -272,7 +272,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.abortController = new AbortController();
 
       // at this point the intention to connect has been signalled so we can allow cancelling of the connection via disconnect() again
-      unlockDisconnect();
+      unlockDisconnect?.();
 
       try {
         await this.attemptConnection(regionUrl ?? url, token, opts, this.abortController);
@@ -444,6 +444,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
       log.debug(`error trying to establish signal connection`, { error: err });
       throw resultingError;
+    }
+
+    if (abortController.signal.aborted) {
+      this.recreateEngine();
+      this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+      throw new ConnectionError(`Connection attempt aborted`);
     }
 
     try {

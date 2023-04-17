@@ -216,7 +216,7 @@ export class SignalClient {
     return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
       const abortHandler = async () => {
         await this.close();
-        reject(new ConnectionError('room connection has been cancelled'));
+        reject(new ConnectionError('room connection has been cancelled (signal)'));
       };
 
       if (abortSignal?.aborted) {
