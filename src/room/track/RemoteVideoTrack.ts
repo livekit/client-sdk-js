@@ -26,7 +26,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
   private lastDimensions?: Track.Dimensions;
 
-  private hasUsedAttach: boolean = false;
+  private isObserved: boolean = false;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -43,7 +43,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   get mediaStreamTrack() {
-    if (this.isAdaptiveStream && !this.hasUsedAttach) {
+    if (this.isAdaptiveStream && !this.isObserved) {
       log.warn(
         'When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, otherwise your video tracks might never start',
       );
@@ -109,7 +109,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       // the tab comes into focus for the first time.
       this.debouncedHandleResize();
       this.updateVisibility();
-      this.hasUsedAttach = true;
+      this.isObserved = true;
     } else {
       log.warn('visibility resize observer not triggered');
     }
