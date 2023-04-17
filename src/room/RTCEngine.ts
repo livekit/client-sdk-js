@@ -846,6 +846,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // in case a regionUrl is passed, the region URL takes precedence
         joinResponse = await this.join(regionUrl ?? this.url, this.token, this.signalOpts);
       } catch (e) {
+        if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
+          throw new UnexpectedConnectionState('could not reconnect, token might be expired');
+        }
         throw new SignalReconnectError();
       }
 
@@ -896,6 +899,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       let message = '';
       if (e instanceof Error) {
         message = e.message;
+      }
+      if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
+        throw new UnexpectedConnectionState('could not reconnect, token might be expired');
       }
       throw new SignalReconnectError(message);
     }

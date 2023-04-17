@@ -4,6 +4,7 @@ import { TrackEvent } from '../events';
 import { computeBitrate, VideoReceiverStats } from '../stats';
 import CriticalTimers from '../timers';
 import {
+  getDevicePixelRatio,
   getIntersectionObserver,
   getResizeObserver,
   isWeb,
@@ -253,7 +254,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     let maxHeight = 0;
     for (const info of this.elementInfos) {
       const pixelDensity = this.adaptiveStreamSettings?.pixelDensity ?? 1;
-      const pixelDensityValue = pixelDensity === 'screen' ? window.devicePixelRatio : pixelDensity;
+      const pixelDensityValue = pixelDensity === 'screen' ? getDevicePixelRatio() : pixelDensity;
       const currentElementWidth = info.width() * pixelDensityValue;
       const currentElementHeight = info.height() * pixelDensityValue;
       if (currentElementWidth + currentElementHeight > maxWidth + maxHeight) {

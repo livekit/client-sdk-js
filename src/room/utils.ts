@@ -4,6 +4,7 @@ import { protocolVersion, version } from '../version';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
 import { getNewAudioContext } from './track/utils';
+import type { LiveKitReactNativeInfo } from './types';
 
 const separator = '|';
 
@@ -131,19 +132,43 @@ export function isCloud(serverUrl: URL) {
   return serverUrl.hostname.endsWith('.livekit.cloud');
 }
 
+function getLKReactNativeInfo(): LiveKitReactNativeInfo | undefined {
+  // global defined only for ReactNative.
+  // @ts-ignore
+  if (global && global.LiveKitReactNativeGlobal) {
+    // @ts-ignore
+    return global.LiveKitReactNativeGlobal as LiveKitReactNativeInfo;
+  }
+
+  return undefined;
+}
+
 export function getReactNativeOs(): string | undefined {
   if (!isReactNative()) {
     return undefined;
   }
 
-  // global defined only for ReactNative.
-  // @ts-ignore
-  if (global && global.LiveKitReactNativeGlobal) {
-    // @ts-ignore
-    return global.LiveKitReactNativeGlobal.platform;
+  let info = getLKReactNativeInfo();
+  if (info) {
+    return info.platform;
   }
 
   return undefined;
+}
+
+export function getDevicePixelRatio(): number {
+  if (isWeb()) {
+    return window.devicePixelRatio;
+  }
+
+  if (isReactNative()) {
+    let info = getLKReactNativeInfo();
+    if (info) {
+      return info.devicePixelRatio;
+    }
+  }
+
+  return 1;
 }
 
 export function compareVersions(v1: string, v2: string): number {
