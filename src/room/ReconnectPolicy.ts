@@ -22,4 +22,6 @@ export interface ReconnectContext {
    * Reason for retrying
    */
   readonly retryReason?: Error;
+
+  readonly serverUrl?: string;
 }
