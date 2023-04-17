@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "async-await-queue": "^1.2.1",
+    "create-silent-audio": "^0.1.2",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
     "protobufjs": "^7.0.0",

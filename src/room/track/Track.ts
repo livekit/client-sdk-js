@@ -9,11 +9,16 @@ import { isFireFox, isSafari, isWeb } from '../utils';
 
 const BACKGROUND_REACTION_DELAY = 5000;
 
-// keep old audio elements when detached, we would re-use them since on iOS
-// Safari tracks which audio elements have been "blessed" by the user.
-const recycledElements: Array<HTMLAudioElement> = [];
-
 export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
+  /**
+   * @internal
+   * initialize a pool auf audio elements
+   * Safari tracks which audio elements have been "blessed" by the user.
+   * and blocks autoplay when the tab is in the background. maximize chances
+   * by initializing some directly when the SDK initializes
+   */
+  static audioElementPool: Array<HTMLAudioElement> = [];
+
   kind: Track.Kind;
 
   attachedElements: HTMLMediaElement[] = [];
@@ -87,7 +92,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
    */
   attach(element: HTMLMediaElement): HTMLMediaElement;
   attach(element?: HTMLMediaElement): HTMLMediaElement {
-    let elementType = 'audio';
+    let elementType: 'audio' | 'video' = 'audio';
     if (this.kind === Track.Kind.Video) {
       elementType = 'video';
     }
@@ -96,14 +101,14 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     }
     if (!element) {
       if (elementType === 'audio') {
-        recycledElements.forEach((e) => {
+        Track.audioElementPool.forEach((e) => {
           if (e.parentElement === null && !element) {
             element = e;
           }
         });
         if (element) {
           // remove it from pool
-          recycledElements.splice(recycledElements.indexOf(element), 1);
+          Track.audioElementPool.splice(Track.audioElementPool.indexOf(element), 1);
         }
       }
       if (!element) {
@@ -223,13 +228,13 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
       // we only need to re-use a single element
       let shouldCache = true;
       element.pause();
-      recycledElements.forEach((e) => {
+      Track.audioElementPool.forEach((e) => {
         if (!e.parentElement) {
           shouldCache = false;
         }
       });
       if (shouldCache) {
-        recycledElements.push(element);
+        Track.audioElementPool.push(element);
       }
     }
   }
