@@ -83,7 +83,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
       const elementInfo = new HTMLElementInfo(element);
       this.observeElementInfo(elementInfo);
     }
-    this.hasUsedAttach = true;
     return element;
   }
 
@@ -110,6 +109,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       // the tab comes into focus for the first time.
       this.debouncedHandleResize();
       this.updateVisibility();
+      this.hasUsedAttach = true;
     } else {
       log.warn('visibility resize observer not triggered');
     }
