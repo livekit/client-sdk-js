@@ -212,7 +212,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
   abstract startMonitor(signalClient?: SignalClient): void;
 
   /* @internal */
-  protected stopMonitor() {
+  stopMonitor() {
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
     }
