@@ -1542,15 +1542,6 @@
   dependencies:
     "@changesets/types" "^5.2.1"
 
-"@changesets/changelog-github@0.4.8":
-  version "0.4.8"
-  resolved "https://registry.yarnpkg.com/@changesets/changelog-github/-/changelog-github-0.4.8.tgz#b7f8ae85d0c0ff08028d924c5e59a1cbd3742634"
-  integrity sha512-jR1DHibkMAb5v/8ym77E4AMNWZKB5NPzw5a5Wtqm1JepAuIF+hrKp2u04NKM14oBZhHglkCfrla9uq8ORnK/dw==
-  dependencies:
-    "@changesets/get-github-info" "^0.5.2"
-    "@changesets/types" "^5.2.1"
-    dotenv "^8.1.0"
-
 "@changesets/cli@2.26.1":
   version "2.26.1"
   resolved "https://registry.yarnpkg.com/@changesets/cli/-/cli-2.26.1.tgz#2d10858d7d32314a524e383111c96d831eb0402f"
@@ -2228,6 +2219,15 @@
   dependencies:
     "@jridgewell/resolve-uri" "3.1.0"
     "@jridgewell/sourcemap-codec" "1.4.14"
+
+"@livekit/changesets-changelog-github@^0.0.4":
+  version "0.0.4"
+  resolved "https://registry.yarnpkg.com/@livekit/changesets-changelog-github/-/changesets-changelog-github-0.0.4.tgz#45e76d4872e300e60b489ae8c2702e4c02f21ce2"
+  integrity sha512-MXaiLYwgkYciZb8G2wkVtZ1pJJzZmVx5cM30Q+ClslrIYyAqQhRbPmZDM79/5CGxb1MTemR/tfOM25tgJgAK0g==
+  dependencies:
+    "@changesets/get-github-info" "^0.5.2"
+    "@changesets/types" "^5.2.1"
+    dotenv "^8.1.0"
 
 "@manypkg/find-root@^1.1.0":
   version "1.1.0"
