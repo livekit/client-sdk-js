@@ -1,5 +1,5 @@
 ---
-"livekit-client": patch
+'livekit-client': minor
 ---
 
 Add Region URL Provider
