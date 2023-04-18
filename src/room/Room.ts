@@ -207,7 +207,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
-      .on(EngineEvent.Restarted, this.handleRestarted);
+      .on(EngineEvent.Restarted, this.handleRestarted)
+      .on(EngineEvent.DCBufferStatusChanged, (status, kind) => {
+        this.emit(RoomEvent.DCBufferStatusChanged, status, kind);
+      });
 
     if (this.localParticipant) {
       this.localParticipant.setupEngine(this.engine);
@@ -1566,4 +1569,5 @@ export type RoomEventCallbacks = {
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
+  dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
 };
