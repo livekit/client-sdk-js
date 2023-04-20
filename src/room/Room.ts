@@ -206,6 +206,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.sendSyncState();
         }
       })
+      .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.Restarted, this.handleRestarted)
       .on(EngineEvent.DCBufferStatusChanged, (status, kind) => {
@@ -369,23 +370,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant.identity = pi.identity;
 
     this.localParticipant.updateInfo(pi);
-    // forward metadata changed for the local participant
-    this.setupLocalParticipantEvents();
 
     // populate remote participants, these should not trigger new events
-    joinResponse.otherParticipants.forEach((info) => {
-      if (
-        info.sid !== this.localParticipant.sid &&
-        info.identity !== this.localParticipant.identity
-      ) {
-        this.getOrCreateParticipant(info.sid, info);
-      } else {
-        log.warn('received info to create local participant as remote participant', {
-          info,
-          localParticipant: this.localParticipant,
-        });
-      }
-    });
+    this.handleParticipantUpdates([pi, ...joinResponse.otherParticipants]);
 
     this.name = joinResponse.room!.name;
     this.sid = joinResponse.room!.sid;
@@ -433,6 +420,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
 
       this.applyJoinResponse(joinResponse);
+      // forward metadata changed for the local participant
+      this.setupLocalParticipantEvents();
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
       this.recreateEngine();
@@ -825,20 +814,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  private handleRestarted = async (joinResponse: JoinResponse) => {
-    log.debug(`reconnected to server`, {
+  private handleSignalRestarted = (joinResponse: JoinResponse) => {
+    log.debug(`signal reconnected to server`, {
       region: joinResponse.serverRegion,
     });
+    this.applyJoinResponse(joinResponse);
 
+    // rehydrate participants
+    if (joinResponse.participant) {
+      // with a restart, the sid will have changed, we'll map our understanding to it
+      this.localParticipant.sid = joinResponse.participant.sid;
+      this.handleParticipantUpdates([joinResponse.participant]);
+    }
+    this.handleParticipantUpdates(joinResponse.otherParticipants);
+  };
+
+  private handleRestarted = async () => {
     try {
-      // rehydrate participants
-      if (joinResponse.participant) {
-        // with a restart, the sid will have changed, we'll map our understanding to it
-        this.localParticipant.sid = joinResponse.participant.sid;
-        this.handleParticipantUpdates([joinResponse.participant]);
-      }
-      this.handleParticipantUpdates(joinResponse.otherParticipants);
-
       // unpublish & republish tracks
       const localPubs: LocalTrackPublication[] = [];
       this.localParticipant.tracks.forEach((pub) => {

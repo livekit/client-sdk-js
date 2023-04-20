@@ -867,6 +867,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
         // in case a regionUrl is passed, the region URL takes precedence
         joinResponse = await this.join(regionUrl ?? this.url, this.token, this.signalOpts);
+        this.emit(EngineEvent.SignalRestarted, joinResponse);
       } catch (e) {
         if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
           throw new UnexpectedConnectionState('could not reconnect, token might be expired');
@@ -883,7 +884,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.client.setReconnected();
       this.regionUrlProvider?.resetAttempts();
       // reconnect success
-      this.emit(EngineEvent.Restarted, joinResponse);
+      this.emit(EngineEvent.Restarted);
     } catch (error) {
       const nextRegionUrl = await this.regionUrlProvider?.getNextBestRegionUrl();
       if (nextRegionUrl) {
@@ -1246,8 +1247,9 @@ export type EngineEventCallbacks = {
   resuming: () => void;
   resumed: () => void;
   restarting: () => void;
-  restarted: (joinResp: JoinResponse) => void;
+  restarted: () => void;
   signalResumed: () => void;
+  signalRestarted: (joinResp: JoinResponse) => void;
   closing: () => void;
   mediaTrackAdded: (
     track: MediaStreamTrack,
