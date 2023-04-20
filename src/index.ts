@@ -33,7 +33,7 @@ import type { LiveKitReactNativeInfo } from './room/types';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';
-export type { DataPublishOptions } from './room/types';
+export type { DataPublishOptions, SimulationScenario } from './room/types';
 export * from './room/track/create';
 export * from './room/track/options';
 export * from './room/track/Track';

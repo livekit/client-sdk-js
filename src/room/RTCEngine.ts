@@ -75,6 +75,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
 
+  fullReconnectOnNext: boolean = false;
+
   get isClosed() {
     return this._isClosed;
   }
@@ -117,8 +119,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private reconnectAttempts: number = 0;
 
   private reconnectStart: number = 0;
-
-  private fullReconnectOnNext: boolean = false;
 
   private clientConfiguration?: ClientConfiguration;
 
