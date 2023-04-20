@@ -2,10 +2,10 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import log from '../../logger';
 import {
-  ConnectionQuality as ProtoQuality,
   DataPacket_Kind,
   ParticipantInfo,
   ParticipantPermission,
+  ConnectionQuality as ProtoQuality,
 } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
@@ -144,7 +144,20 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   /** @internal */
-  updateInfo(info: ParticipantInfo) {
+  updateInfo(info: ParticipantInfo): boolean {
+    // it's possible the update could be applied out of order due to await
+    // during reconnect sequences. when that happens, it's possible for server
+    // to have sent more recent version of participant info while JS is waiting
+    // to process the existing payload.
+    // when the participant sid remains the same, and we already have a later version
+    // of the payload, they can be safely skipped
+    if (
+      this.participantInfo &&
+      this.participantInfo.sid === info.sid &&
+      this.participantInfo.version > info.version
+    ) {
+      return false;
+    }
     this.identity = info.identity;
     this.sid = info.sid;
     this.name = info.name;
@@ -155,6 +168,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
     log.trace('update participant info', { info });
+    return true;
   }
 
   /** @internal */

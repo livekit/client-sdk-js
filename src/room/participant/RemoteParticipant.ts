@@ -215,8 +215,10 @@ export default class RemoteParticipant extends Participant {
   }
 
   /** @internal */
-  updateInfo(info: ParticipantInfo) {
-    super.updateInfo(info);
+  updateInfo(info: ParticipantInfo): boolean {
+    if (!super.updateInfo(info)) {
+      return false;
+    }
 
     // we are getting a list of all available tracks, reconcile in here
     // and send out events for changes
@@ -277,6 +279,7 @@ export default class RemoteParticipant extends Participant {
     newTracks.forEach((publication) => {
       this.emit(ParticipantEvent.TrackPublished, publication);
     });
+    return true;
   }
 
   /** @internal */
