@@ -369,10 +369,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant.identity = pi.identity;
 
     // populate remote participants, these should not trigger new events
-    const { remoteParticipants } = this.handleParticipantUpdates([
-      pi,
-      ...joinResponse.otherParticipants,
-    ]);
+    this.handleParticipantUpdates([pi, ...joinResponse.otherParticipants]);
 
     this.name = joinResponse.room!.name;
     this.sid = joinResponse.room!.sid;
@@ -381,9 +378,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this._isRecording = joinResponse.room!.activeRecording;
       this.emit(RoomEvent.RecordingStatusChanged, joinResponse.room!.activeRecording);
     }
-    return {
-      remoteParticipants,
-    };
   };
 
   private attemptConnection = async (
@@ -822,7 +816,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       region: joinResponse.serverRegion,
     });
 
-    const { remoteParticipants } = this.applyJoinResponse(joinResponse);
+    this.applyJoinResponse(joinResponse);
 
     try {
       // unpublish & republish tracks
@@ -873,7 +867,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.Reconnected);
 
     // emit participant connected events after connection has been re-established
-    remoteParticipants.forEach((participant) => {
+    this.participants.forEach((participant) => {
       this.emit(RoomEvent.ParticipantConnected, participant);
     });
   };
@@ -932,7 +926,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
-    const remoteParticipants: RemoteParticipant[] = [];
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
       if (info.identity === this.localParticipant.identity) {
@@ -956,14 +949,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       } else {
         // create participant if doesn't exist
         remoteParticipant = this.getOrCreateParticipant(info.sid, info);
-        remoteParticipants.push(remoteParticipant);
         if (!isNewParticipant) {
           // just update, no events
           remoteParticipant.updateInfo(info);
         }
       }
     });
-    return { remoteParticipants };
   };
 
   private handleParticipantDisconnected(sid: string, participant?: RemoteParticipant) {
