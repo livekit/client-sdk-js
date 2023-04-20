@@ -54,7 +54,7 @@ import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
-import type { SimulationOptions } from './types';
+import type { SimulationOptions, SimulationScenario } from './types';
 import {
   Future,
   Mutex,
@@ -544,7 +544,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /**
    * @internal for testing
    */
-  async simulateScenario(scenario: string) {
+  async simulateScenario(scenario: SimulationScenario) {
     let postAction = () => {};
     let req: SimulateScenario | undefined;
     switch (scenario) {
@@ -591,6 +591,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         await this.engine.client.close();
         if (this.engine.client.onClose) {
           this.engine.client.onClose('simulate resume-reconnect');
+        }
+        break;
+      case 'full-reconnect':
+        this.engine.fullReconnectOnNext = true;
+        await this.engine.client.close();
+        if (this.engine.client.onClose) {
+          this.engine.client.onClose('simulate full-reconnect');
         }
         break;
       case 'force-tcp':
