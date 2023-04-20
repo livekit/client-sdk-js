@@ -878,10 +878,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.shouldFailNext = false;
         throw new Error('simulated failure');
       }
-      const reconnectPromise = this.waitForPCReconnected();
-      this.emit(EngineEvent.SignalRestarted, joinResponse, reconnectPromise);
 
-      await reconnectPromise;
+      this.emit(EngineEvent.SignalRestarted, joinResponse);
+
+      await this.waitForPCReconnected();
       this.client.setReconnected();
       this.regionUrlProvider?.resetAttempts();
       // reconnect success
@@ -994,7 +994,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     });
   }
 
-  async waitForPCReconnected() {
+  private async waitForPCReconnected() {
     const startTime = Date.now();
     let now = startTime;
     this.pcState = PCState.Reconnecting;
@@ -1023,6 +1023,24 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // have not reconnected, throw
     throw new ConnectionError('could not establish PC connection');
   }
+
+  waitForRestarted = () => {
+    return new Promise<void>((resolve, reject) => {
+      if (this.pcState === PCState.Connected) {
+        resolve();
+      }
+      const onRestarted = () => {
+        this.off(EngineEvent.Disconnected, onDisconnected);
+        resolve();
+      };
+      const onDisconnected = () => {
+        this.off(EngineEvent.Restarted, onRestarted);
+        reject();
+      };
+      this.once(EngineEvent.Restarted, onRestarted);
+      this.once(EngineEvent.Disconnected, onDisconnected);
+    });
+  };
 
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
@@ -1250,7 +1268,7 @@ export type EngineEventCallbacks = {
   restarting: () => void;
   restarted: () => void;
   signalResumed: () => void;
-  signalRestarted: (joinResp: JoinResponse, reconnectPromise: Promise<void>) => void;
+  signalRestarted: (joinResp: JoinResponse) => void;
   closing: () => void;
   mediaTrackAdded: (
     track: MediaStreamTrack,

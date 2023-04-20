@@ -819,10 +819,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  private handleSignalRestarted = async (
-    joinResponse: JoinResponse,
-    reconnectPromise: Promise<void>,
-  ) => {
+  private handleSignalRestarted = async (joinResponse: JoinResponse) => {
     log.debug(`signal reconnected to server`, {
       region: joinResponse.serverRegion,
     });
@@ -866,7 +863,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     try {
-      await reconnectPromise;
+      await this.engine.waitForRestarted();
       log.debug(`fully reconnected to server`, {
         region: joinResponse.serverRegion,
       });
