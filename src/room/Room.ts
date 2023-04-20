@@ -371,7 +371,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant.updateInfo(pi);
 
     // populate remote participants, these should not trigger new events
-    const remoteParticipants = this.handleParticipantUpdates([
+    const { remoteParticipants } = this.handleParticipantUpdates([
       pi,
       ...joinResponse.otherParticipants,
     ]);
@@ -828,12 +828,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
 
     const { remoteParticipants } = this.applyJoinResponse(joinResponse);
-    try {
-      await reconnectPromise;
-    } catch {
-      // reconnection failed, handleDisconnect is being invoked already, just return here
-      return;
-    }
 
     try {
       // unpublish & republish tracks
@@ -869,13 +863,24 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
     } catch (error) {
       log.error('error trying to re-publish tracks after reconnection', { error });
-    } finally {
-      this.setAndEmitConnectionState(ConnectionState.Connected);
-      this.emit(RoomEvent.Reconnected);
-      remoteParticipants.forEach((participant) => {
-        this.emit(RoomEvent.ParticipantConnected, participant);
-      });
     }
+
+    try {
+      await reconnectPromise;
+      log.debug(`fully reconnected to server`, {
+        region: joinResponse.serverRegion,
+      });
+    } catch {
+      // reconnection failed, handleDisconnect is being invoked already, just return here
+      return;
+    }
+    this.setAndEmitConnectionState(ConnectionState.Connected);
+    this.emit(RoomEvent.Reconnected);
+
+    // emit participant connected events after connection has been re-established
+    remoteParticipants.forEach((participant) => {
+      this.emit(RoomEvent.ParticipantConnected, participant);
+    });
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
@@ -932,7 +937,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
-    const participants: RemoteParticipant[] = [];
+    const remoteParticipants: RemoteParticipant[] = [];
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
       if (info.identity === this.localParticipant.identity) {
@@ -956,14 +961,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       } else {
         // create participant if doesn't exist
         remoteParticipant = this.getOrCreateParticipant(info.sid, info);
-        participants.push(remoteParticipant);
+        remoteParticipants.push(remoteParticipant);
         if (!isNewParticipant) {
           // just update, no events
           remoteParticipant.updateInfo(info);
         }
       }
     });
-    return participants;
+    return { remoteParticipants };
   };
 
   private handleParticipantDisconnected(sid: string, participant?: RemoteParticipant) {
