@@ -368,8 +368,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant.sid = pi.sid;
     this.localParticipant.identity = pi.identity;
 
-    this.localParticipant.updateInfo(pi);
-
     // populate remote participants, these should not trigger new events
     const { remoteParticipants } = this.handleParticipantUpdates([
       pi,
