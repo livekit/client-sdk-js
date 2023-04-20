@@ -29,6 +29,9 @@ import {
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
 } from '../proto/livekit_rtc';
+import DeviceManager from './DeviceManager';
+import RTCEngine from './RTCEngine';
+import { RegionUrlProvider } from './RegionUrlProvider';
 import {
   audioDefaults,
   publishDefaults,
@@ -36,14 +39,12 @@ import {
   roomOptionDefaults,
   videoDefaults,
 } from './defaults';
-import DeviceManager from './DeviceManager';
 import { ConnectionError, ConnectionErrorReason, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import RTCEngine from './RTCEngine';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
@@ -55,16 +56,15 @@ import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext } from './track/utils';
 import type { SimulationOptions } from './types';
 import {
-  createDummyVideoStreamTrack,
   Future,
+  Mutex,
+  createDummyVideoStreamTrack,
   getEmptyAudioStreamTrack,
   isCloud,
   isWeb,
-  Mutex,
   supportsSetSinkId,
   unpackStreamId,
 } from './utils';
-import { RegionUrlProvider } from './RegionUrlProvider';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
