@@ -879,10 +879,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         throw new Error('simulated failure');
       }
 
+      this.client.setReconnected();
       this.emit(EngineEvent.SignalRestarted, joinResponse);
 
       await this.waitForPCReconnected();
-      this.client.setReconnected();
       this.regionUrlProvider?.resetAttempts();
       // reconnect success
       this.emit(EngineEvent.Restarted);
