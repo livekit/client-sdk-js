@@ -149,6 +149,26 @@ export default class LocalParticipant extends Participant {
   };
 
   /**
+   * Sets and updates the metadata of the local participant.
+   * Note: this requires `CanUpdateOwnMetadata` permission encoded in the token.
+   * @param metadata
+   */
+  setMetadata(metadata: string): void {
+    super.setMetadata(metadata);
+    this.engine.client.sendUpdateLocalMetadata(metadata, this.name ?? '');
+  }
+
+  /**
+   * Sets and updates the name of the local participant.
+   * Note: this requires `CanUpdateOwnMetadata` permission encoded in the token.
+   * @param metadata
+   */
+  setName(name: string): void {
+    super.setName(name);
+    this.engine.client.sendUpdateLocalMetadata(this.metadata ?? '', name);
+  }
+
+  /**
    * Enable or disable a participant's camera track.
    *
    * If a track has already published, it'll mute or unmute the track.

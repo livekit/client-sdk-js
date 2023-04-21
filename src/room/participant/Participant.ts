@@ -160,7 +160,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
     this.identity = info.identity;
     this.sid = info.sid;
-    this.name = info.name;
+    this.setName(info.name);
     this.setMetadata(info.metadata);
     if (info.permission) {
       this.setPermissions(info.permission);
@@ -179,6 +179,15 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
     if (changed) {
       this.emit(ParticipantEvent.ParticipantMetadataChanged, prevMetadata);
+    }
+  }
+
+  protected setName(name: string) {
+    const changed = this.name !== name;
+    this.name = name;
+
+    if (changed) {
+      this.emit(ParticipantEvent.ParticipantNameChanged, name);
     }
   }
 
@@ -264,6 +273,7 @@ export type ParticipantEventCallbacks = {
   localTrackPublished: (publication: LocalTrackPublication) => void;
   localTrackUnpublished: (publication: LocalTrackPublication) => void;
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
+  participantNameChanged: (name: string) => void;
   dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
   isSpeakingChanged: (speaking: boolean) => void;
   connectionQualityChanged: (connectionQuality: ConnectionQuality) => void;

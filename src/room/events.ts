@@ -169,6 +169,14 @@ export enum RoomEvent {
   ParticipantMetadataChanged = 'participantMetadataChanged',
 
   /**
+   * Participant's display name changed
+   *
+   * args: (name: string, [[Participant]])
+   *
+   */
+  ParticipantNameChanged = 'participantNameChanged',
+
+  /**
    * Room metadata is a simple way for app-specific state to be pushed to
    * all users.
    * When RoomService.UpdateRoomMetadata is called to change a room's state,
@@ -358,6 +366,14 @@ export enum ParticipantEvent {
    *
    */
   ParticipantMetadataChanged = 'participantMetadataChanged',
+
+  /**
+   * Participant's display name changed
+   *
+   * args: (name: string, [[Participant]])
+   *
+   */
+  ParticipantNameChanged = 'participantNameChanged',
 
   /**
    * Data received from this participant as sender.
