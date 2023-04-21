@@ -1266,7 +1266,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private onLocalParticipantNameChanged = (name: string) => {
-    this.emit(RoomEvent.ParticipantMetadataChanged, name, this.localParticipant);
+    this.emit(RoomEvent.ParticipantNameChanged, name, this.localParticipant);
   };
 
   private onLocalTrackMuted = (pub: TrackPublication) => {
