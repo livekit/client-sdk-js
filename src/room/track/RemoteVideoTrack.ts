@@ -3,7 +3,13 @@ import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate, VideoReceiverStats } from '../stats';
 import CriticalTimers from '../timers';
-import { getIntersectionObserver, getResizeObserver, ObservableMediaElement } from '../utils';
+import {
+  getDevicePixelRatio,
+  getIntersectionObserver,
+  getResizeObserver,
+  isWeb,
+  ObservableMediaElement,
+} from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { attachToElement, detachTrack, Track } from './Track';
 import type { AdaptiveStreamSettings } from './types';
@@ -21,7 +27,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
   private lastDimensions?: Track.Dimensions;
 
-  private hasUsedAttach: boolean = false;
+  private isObserved: boolean = false;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -38,7 +44,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   get mediaStreamTrack() {
-    if (this.isAdaptiveStream && !this.hasUsedAttach) {
+    if (this.isAdaptiveStream && !this.isObserved) {
       log.warn(
         'When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, otherwise your video tracks might never start',
       );
@@ -78,7 +84,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
       const elementInfo = new HTMLElementInfo(element);
       this.observeElementInfo(elementInfo);
     }
-    this.hasUsedAttach = true;
     return element;
   }
 
@@ -105,6 +110,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       // the tab comes into focus for the first time.
       this.debouncedHandleResize();
       this.updateVisibility();
+      this.isObserved = true;
     } else {
       log.warn('visibility resize observer not triggered');
     }
@@ -223,7 +229,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
       this.adaptiveStreamSettings?.pauseVideoInBackground ?? true // default to true
         ? this.isInBackground
         : false;
-    const isVisible = this.elementInfos.some((info) => info.visible) && !backgroundPause;
+    const isPiPMode = this.elementInfos.some((info) => info.pictureInPicture);
+    const isVisible =
+      (this.elementInfos.some((info) => info.visible) && !backgroundPause) || isPiPMode;
 
     if (this.lastVisible === isVisible) {
       return;
@@ -246,7 +254,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     let maxHeight = 0;
     for (const info of this.elementInfos) {
       const pixelDensity = this.adaptiveStreamSettings?.pixelDensity ?? 1;
-      const pixelDensityValue = pixelDensity === 'screen' ? window.devicePixelRatio : pixelDensity;
+      const pixelDensityValue = pixelDensity === 'screen' ? getDevicePixelRatio() : pixelDensity;
       const currentElementWidth = info.width() * pixelDensityValue;
       const currentElementHeight = info.height() * pixelDensityValue;
       if (currentElementWidth + currentElementHeight > maxWidth + maxHeight) {
@@ -273,6 +281,7 @@ export interface ElementInfo {
   width(): number;
   height(): number;
   visible: boolean;
+  pictureInPicture: boolean;
   visibilityChangedAt: number | undefined;
 
   handleResize?: () => void;
@@ -284,7 +293,13 @@ export interface ElementInfo {
 class HTMLElementInfo implements ElementInfo {
   element: HTMLMediaElement;
 
-  visible: boolean;
+  get visible(): boolean {
+    return this.isPiP || this.isIntersecting;
+  }
+
+  get pictureInPicture(): boolean {
+    return this.isPiP;
+  }
 
   visibilityChangedAt: number | undefined;
 
@@ -292,9 +307,14 @@ class HTMLElementInfo implements ElementInfo {
 
   handleVisibilityChanged?: () => void;
 
+  private isPiP: boolean;
+
+  private isIntersecting: boolean;
+
   constructor(element: HTMLMediaElement, visible?: boolean) {
     this.element = element;
-    this.visible = visible ?? isElementInViewport(element);
+    this.isIntersecting = visible ?? isElementInViewport(element);
+    this.isPiP = isWeb() && document.pictureInPictureElement === element;
     this.visibilityChangedAt = 0;
   }
 
@@ -307,6 +327,10 @@ class HTMLElementInfo implements ElementInfo {
   }
 
   observe() {
+    // make sure we update the current visible state once we start to observe
+    this.isIntersecting = isElementInViewport(this.element);
+    this.isPiP = document.pictureInPictureElement === this.element;
+
     (this.element as ObservableMediaElement).handleResize = () => {
       this.handleResize?.();
     };
@@ -314,20 +338,40 @@ class HTMLElementInfo implements ElementInfo {
 
     getIntersectionObserver().observe(this.element);
     getResizeObserver().observe(this.element);
+    (this.element as HTMLVideoElement).addEventListener('enterpictureinpicture', this.onEnterPiP);
+    (this.element as HTMLVideoElement).addEventListener('leavepictureinpicture', this.onLeavePiP);
   }
 
   private onVisibilityChanged = (entry: IntersectionObserverEntry) => {
     const { target, isIntersecting } = entry;
     if (target === this.element) {
-      this.visible = isIntersecting;
+      this.isIntersecting = isIntersecting;
       this.visibilityChangedAt = Date.now();
       this.handleVisibilityChanged?.();
     }
   };
 
+  private onEnterPiP = () => {
+    this.isPiP = true;
+    this.handleVisibilityChanged?.();
+  };
+
+  private onLeavePiP = () => {
+    this.isPiP = false;
+    this.handleVisibilityChanged?.();
+  };
+
   stopObserving() {
     getIntersectionObserver()?.unobserve(this.element);
     getResizeObserver()?.unobserve(this.element);
+    (this.element as HTMLVideoElement).removeEventListener(
+      'enterpictureinpicture',
+      this.onEnterPiP,
+    );
+    (this.element as HTMLVideoElement).removeEventListener(
+      'leavepictureinpicture',
+      this.onLeavePiP,
+    );
   }
 }
 

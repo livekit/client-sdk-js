@@ -25,6 +25,7 @@ import {
   VideoPresets,
   VideoQuality,
 } from '../src/index';
+import { SimulationScenario } from '../src/room/types';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -34,6 +35,7 @@ const state = {
   decoder: new TextDecoder(),
   defaultDevices: new Map<MediaDeviceKind, string>(),
   bitrateInterval: undefined as any,
+  dataFireInterval: undefined as any,
 };
 let currentRoom: Room | undefined;
 
@@ -304,7 +306,7 @@ const appActions = {
         p.tracks.forEach((rp) => rp.setSubscribed(false));
       });
     } else if (scenario !== '') {
-      currentRoom?.simulateScenario(scenario);
+      currentRoom?.simulateScenario(scenario as SimulationScenario);
       (<HTMLSelectElement>e.target).value = '';
     }
   },

@@ -33,7 +33,7 @@ import {
 } from '../proto/livekit_rtc';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
-import { getClientInfo, Mutex, sleep } from '../room/utils';
+import { getClientInfo, isReactNative, Mutex, sleep } from '../room/utils';
 
 // internal options
 interface ConnectOpts {
@@ -216,7 +216,7 @@ export class SignalClient {
     return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
       const abortHandler = async () => {
         await this.close();
-        reject(new ConnectionError('room connection has been cancelled'));
+        reject(new ConnectionError('room connection has been cancelled (signal)'));
       };
 
       if (abortSignal?.aborted) {
@@ -234,7 +234,7 @@ export class SignalClient {
         if (!this.isConnected) {
           try {
             const resp = await fetch(`http${url.substring(2)}/validate${params}`);
-            if (!resp.ok) {
+            if (resp.status.toFixed(0).startsWith('4')) {
               const msg = await resp.text();
               reject(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
             } else {
@@ -718,7 +718,7 @@ function createConnectionParams(token: string, info: ClientInfo, opts: ConnectOp
   params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
 
   // ClientInfo
-  params.set('sdk', 'js');
+  params.set('sdk', isReactNative() ? 'reactnative' : 'js');
   params.set('version', info.version!);
   params.set('protocol', info.protocol!.toString());
   if (info.deviceModel) {

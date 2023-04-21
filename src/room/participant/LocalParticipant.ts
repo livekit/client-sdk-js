@@ -10,34 +10,35 @@ import {
   TrackPublishedResponse,
   TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc';
+import type RTCEngine from '../RTCEngine';
 import { DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
-import type RTCEngine from '../RTCEngine';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
+import { Track } from '../track/Track';
 import {
   AudioCaptureOptions,
   BackupVideoCodec,
   CreateLocalTracksOptions,
-  isBackupCodec,
   ScreenShareCaptureOptions,
   ScreenSharePresets,
   TrackPublishOptions,
   VideoCaptureOptions,
+  isBackupCodec,
 } from '../track/options';
-import { Track } from '../track/Track';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
-import { isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
+import type { DataPublishOptions } from '../types';
+import { Future, isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
 import Participant from './Participant';
 import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
+import RemoteParticipant from './RemoteParticipant';
 import {
   computeTrackBackupEncodings,
   computeVideoEncodings,
   mediaTrackToLocalTrack,
 } from './publishUtils';
-import RemoteParticipant from './RemoteParticipant';
 
 export default class LocalParticipant extends Participant {
   audioTracks: Map<string, LocalTrackPublication>;
@@ -52,6 +53,8 @@ export default class LocalParticipant extends Participant {
 
   private pendingPublishing = new Set<Track.Source>();
 
+  private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
+
   private cameraError: Error | undefined;
 
   private microphoneError: Error | undefined;
@@ -62,6 +65,8 @@ export default class LocalParticipant extends Participant {
 
   // keep a pointer to room options
   private roomOptions: InternalRoomOptions;
+
+  private reconnectFuture?: Future<void>;
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
@@ -118,10 +123,30 @@ export default class LocalParticipant extends Participant {
     this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
 
     this.engine
-      .on(EngineEvent.Connected, this.updateTrackSubscriptionPermissions)
-      .on(EngineEvent.Restarted, this.updateTrackSubscriptionPermissions)
-      .on(EngineEvent.Resumed, this.updateTrackSubscriptionPermissions);
+      .on(EngineEvent.Connected, this.handleReconnected)
+      .on(EngineEvent.Restarted, this.handleReconnected)
+      .on(EngineEvent.Resumed, this.handleReconnected)
+      .on(EngineEvent.Restarting, this.handleReconnecting)
+      .on(EngineEvent.Resuming, this.handleReconnecting)
+      .on(EngineEvent.Disconnected, this.handleDisconnected);
   }
+
+  private handleReconnecting = () => {
+    if (!this.reconnectFuture) {
+      this.reconnectFuture = new Future<void>();
+    }
+  };
+
+  private handleReconnected = () => {
+    this.reconnectFuture?.resolve?.();
+    this.reconnectFuture = undefined;
+    this.updateTrackSubscriptionPermissions();
+  };
+
+  private handleDisconnected = () => {
+    this.reconnectFuture?.reject?.('Got disconnected during publishing attempt');
+    this.reconnectFuture = undefined;
+  };
 
   /**
    * Sets and updates the metadata of the local participant.
@@ -433,6 +458,10 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
+    await this.reconnectFuture?.promise;
+    if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
+      await this.pendingPublishPromises.get(track);
+    }
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
@@ -445,6 +474,22 @@ export default class LocalParticipant extends Participant {
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
       }
+    }
+
+    // is it already published? if so skip
+    let existingPublication: LocalTrackPublication | undefined;
+    this.tracks.forEach((publication) => {
+      if (!publication.track) {
+        return;
+      }
+      if (publication.track === track) {
+        existingPublication = <LocalTrackPublication>publication;
+      }
+    });
+
+    if (existingPublication) {
+      log.warn('track has already been published, skipping');
+      return existingPublication;
     }
 
     const isStereo =
@@ -477,22 +522,27 @@ export default class LocalParticipant extends Participant {
       ...options,
     };
 
-    // is it already published? if so skip
-    let existingPublication: LocalTrackPublication | undefined;
-    this.tracks.forEach((publication) => {
-      if (!publication.track) {
-        return;
-      }
-      if (publication.track === track) {
-        existingPublication = <LocalTrackPublication>publication;
-      }
-    });
-
-    if (existingPublication) return existingPublication;
-
     if (opts.source) {
       track.source = opts.source;
     }
+    const publishPromise = this.publish(track, opts, options, isStereo);
+    this.pendingPublishPromises.set(track, publishPromise);
+    try {
+      const publication = await publishPromise;
+      return publication;
+    } catch (e) {
+      throw e;
+    } finally {
+      this.pendingPublishPromises.delete(track);
+    }
+  }
+
+  private async publish(
+    track: LocalTrack,
+    opts: TrackPublishOptions,
+    options: TrackPublishOptions | undefined,
+    isStereo: boolean,
+  ) {
     const existingTrackOfSource = Array.from(this.tracks.values()).find(
       (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
     );
@@ -833,6 +883,22 @@ export default class LocalParticipant extends Participant {
 
   /**
    * Publish a new data payload to the room. Data will be forwarded to each
+   * participant in the room if the destination field in publishOptions is empty
+   *
+   * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
+   * @param kind whether to send this as reliable or lossy.
+   * For data that you need delivery guarantee (such as chat messages), use Reliable.
+   * For data that should arrive as quickly as possible, but you are ok with dropped
+   * packets, use Lossy.
+   * @param publishOptions optionally specify a `topic` and `destination`
+   */
+  async publishData(
+    data: Uint8Array,
+    kind: DataPacket_Kind,
+    publishOptions?: DataPublishOptions,
+  ): Promise<void>;
+  /**
+   * Publish a new data payload to the room. Data will be forwarded to each
    * participant in the room if the destination argument is empty
    *
    * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
@@ -846,14 +912,26 @@ export default class LocalParticipant extends Participant {
     data: Uint8Array,
     kind: DataPacket_Kind,
     destination?: RemoteParticipant[] | string[],
+  ): Promise<void>;
+
+  async publishData(
+    data: Uint8Array,
+    kind: DataPacket_Kind,
+    publishOptions: DataPublishOptions | RemoteParticipant[] | string[] = {},
   ) {
-    const dest: string[] = [];
+    const destination = Array.isArray(publishOptions)
+      ? publishOptions
+      : publishOptions?.destination;
+    const destinationSids: string[] = [];
+
+    const topic = !Array.isArray(publishOptions) ? publishOptions.topic : undefined;
+
     if (destination !== undefined) {
       destination.forEach((val: any) => {
         if (val instanceof RemoteParticipant) {
-          dest.push(val.sid);
+          destinationSids.push(val.sid);
         } else {
-          dest.push(val);
+          destinationSids.push(val);
         }
       });
     }
@@ -865,7 +943,8 @@ export default class LocalParticipant extends Participant {
         user: {
           participantSid: this.sid,
           payload: data,
-          destinationSids: dest,
+          destinationSids: destinationSids,
+          topic,
         },
       },
     };
@@ -902,13 +981,15 @@ export default class LocalParticipant extends Participant {
   }
 
   /** @internal */
-  updateInfo(info: ParticipantInfo) {
+  updateInfo(info: ParticipantInfo): boolean {
     if (info.sid !== this.sid) {
       // drop updates that specify a wrong sid.
       // the sid for local participant is only explicitly set on join and full reconnect
-      return;
+      return false;
     }
-    super.updateInfo(info);
+    if (!super.updateInfo(info)) {
+      return false;
+    }
 
     // reconcile track mute status.
     // if server's track mute status doesn't match actual, we'll have to update
@@ -927,6 +1008,7 @@ export default class LocalParticipant extends Participant {
         }
       }
     });
+    return true;
   }
 
   private updateTrackSubscriptionPermissions = () => {

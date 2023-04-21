@@ -140,6 +140,14 @@ export enum RoomEvent {
   LocalTrackUnpublished = 'localTrackUnpublished',
 
   /**
+   * When a local audio track is published the SDK checks whether there is complete silence
+   * on that track and emits the LocalAudioSilenceDetected event in that case.
+   * This allows for applications to show UI informing users that they might have to
+   * reset their audio hardware or check for proper device connectivity.
+   */
+  LocalAudioSilenceDetected = 'localAudioSilenceDetected',
+
+  /**
    * Active speakers changed. List of speakers are ordered by their audio level.
    * loudest speakers first. This will include the LocalParticipant too.
    *
@@ -183,7 +191,7 @@ export enum RoomEvent {
    * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
    * All participants in the room will receive the messages sent to the room.
    *
-   * args: (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]])
+   * args: (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]], topic?: string)
    */
   DataReceived = 'dataReceived',
 
@@ -264,6 +272,12 @@ export enum RoomEvent {
    * args: (isRecording: boolean)
    */
   RecordingStatusChanged = 'recordingStatusChanged',
+
+  /**
+   * Emits whenever the current buffer status of a data channel changes
+   * args: (isLow: boolean, kind: [[DataPacket_Kind]])
+   */
+  DCBufferStatusChanged = 'dcBufferStatusChanged',
 }
 
 export enum ParticipantEvent {
@@ -439,6 +453,7 @@ export enum EngineEvent {
   MediaTrackAdded = 'mediaTrackAdded',
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
   DataPacketReceived = 'dataPacketReceived',
+  DCBufferStatusChanged = 'dcBufferStatusChanged',
 }
 
 export enum TrackEvent {

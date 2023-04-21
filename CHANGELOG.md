@@ -1,5 +1,75 @@
 # Change Log
 
+## 1.8.0
+
+### Minor Changes
+
+- [#633](https://github.com/livekit/client-sdk-js/pull/633) [`95bd94e`](https://github.com/livekit/client-sdk-js/commit/95bd94eae361be8a23ed627bff665275050f8073) Thanks [@lukasIO](https://github.com/lukasIO)! - Give up on reconnections if token is invalid
+
+- [#634](https://github.com/livekit/client-sdk-js/pull/634) [`f085fbe`](https://github.com/livekit/client-sdk-js/commit/f085fbec0bb1c7687f0ea16dfc36d6d34220c35c) Thanks [@lukasIO](https://github.com/lukasIO)! - Allow manual operation on audio publications with adaptiveStream enabled
+
+- [#642](https://github.com/livekit/client-sdk-js/pull/642) [`dd381f1`](https://github.com/livekit/client-sdk-js/commit/dd381f106d68805388b3486b4cc3a23cb12132b5) Thanks [@lukasIO](https://github.com/lukasIO)! - Add Region URL Provider
+
+### Patch Changes
+
+- [#655](https://github.com/livekit/client-sdk-js/pull/655) [`8d7f854`](https://github.com/livekit/client-sdk-js/commit/8d7f85495b4562e629ac3f808407bddf08196f95) Thanks [@lukasIO](https://github.com/lukasIO)! - Remove page visibility listener when last element gets detached
+
+- [#658](https://github.com/livekit/client-sdk-js/pull/658) [`756cf56`](https://github.com/livekit/client-sdk-js/commit/756cf56b6ddab6e1ef2eee7359329a0ef5f9a2be) Thanks [@lukasIO](https://github.com/lukasIO)! - Stop monitoring track on unsubscribe
+
+- [#652](https://github.com/livekit/client-sdk-js/pull/652) [`bda2fa9`](https://github.com/livekit/client-sdk-js/commit/bda2fa91e0971b36ce15e2f481f576a1ecd0d3a9) Thanks [@renovate](https://github.com/apps/renovate)! - chore(deps): update devdependencies (non-major)
+
+- [#653](https://github.com/livekit/client-sdk-js/pull/653) [`201fcda`](https://github.com/livekit/client-sdk-js/commit/201fcdabd9868dd6a205dd85fdb84294af86a9b3) Thanks [@renovate](https://github.com/apps/renovate)! - fix(deps): update dependency webrtc-adapter to v8.2.2
+
+- [#629](https://github.com/livekit/client-sdk-js/pull/629) [`cb380c2`](https://github.com/livekit/client-sdk-js/commit/cb380c20201e590cd9f7e4fa1e1f563a5d3899a0) Thanks [@davidliu](https://github.com/davidliu)! - Identify react-native apps when connecting to server
+
+- [#654](https://github.com/livekit/client-sdk-js/pull/654) [`958eef2`](https://github.com/livekit/client-sdk-js/commit/958eef215454f0a600ae433654babe7bfaef108c) Thanks [@lukasIO](https://github.com/lukasIO)! - Expose DataChannel buffer status events
+
+- [#651](https://github.com/livekit/client-sdk-js/pull/651) [`80ec8d7`](https://github.com/livekit/client-sdk-js/commit/80ec8d7f0a1db1fb65ee18e3cd428474cc06c6d0) Thanks [@davidliu](https://github.com/davidliu)! - Support screen pixel density for react-native
+
+- [#632](https://github.com/livekit/client-sdk-js/pull/632) [`111971d`](https://github.com/livekit/client-sdk-js/commit/111971d43a0510d425950538873aa2482a790ac2) Thanks [@lukasIO](https://github.com/lukasIO)! - Replace async queue with mutex lock for mute operations
+
+## 1.7.1
+
+### Patch Changes
+
+- [#625](https://github.com/livekit/client-sdk-js/pull/625) [`b74da67`](https://github.com/livekit/client-sdk-js/commit/b74da67c3e041ac910a7293c6fded45510a3af69) Thanks [@wjaykim](https://github.com/wjaykim)! - Emit mute status events also for unsubscribed publications
+
+- [#622](https://github.com/livekit/client-sdk-js/pull/622) [`2268333`](https://github.com/livekit/client-sdk-js/commit/22683335c0384541a2d532552dfc812773a19206) Thanks [@lukasIO](https://github.com/lukasIO)! - Don't auto-pause videos when element is in pictureInPicture mode (only applies when adaptiveStream is enabled)
+
+- [#627](https://github.com/livekit/client-sdk-js/pull/627) [`0342650`](https://github.com/livekit/client-sdk-js/commit/03426505cdc8976b700fa2ecd52ed0d62df11a5c) Thanks [@lukasIO](https://github.com/lukasIO)! - Add room option to configure automatic disconnect on page leave
+
+- [#628](https://github.com/livekit/client-sdk-js/pull/628) [`4ed8b89`](https://github.com/livekit/client-sdk-js/commit/4ed8b89a9315e5b358fdfbb955893f480e21c9c5) Thanks [@lukasIO](https://github.com/lukasIO)! - Respect incoming data message order by processing message events sequentially
+
+- [#623](https://github.com/livekit/client-sdk-js/pull/623) [`d8e7a20`](https://github.com/livekit/client-sdk-js/commit/d8e7a20afffefd75377e1638c7461dc8f768ae07) Thanks [@lukasIO](https://github.com/lukasIO)! - Emit `RoomEvent.LocalAudioSilenceDetected` if a `LocalAudioTrack` is silent after publishing
+
+## 1.7.0
+
+### Minor Changes
+
+- [#619](https://github.com/livekit/client-sdk-js/pull/619) [`937a538`](https://github.com/livekit/client-sdk-js/commit/937a538c618f397910d1354cadf165d63eff1da6) Thanks [@lukasIO](https://github.com/lukasIO)! - Return publication of Track.Source.Unknown in getTrack
+
+## 1.6.9
+
+### Patch Changes
+
+- [#612](https://github.com/livekit/client-sdk-js/pull/612) [`347c497`](https://github.com/livekit/client-sdk-js/commit/347c4971fcf3d4cd549134a1341f68a3f215abc2) Thanks [@lukasIO](https://github.com/lukasIO)! - Allow to specify exact constraint for room.switchActiveDevice
+
+- [#609](https://github.com/livekit/client-sdk-js/pull/609) [`068c05e`](https://github.com/livekit/client-sdk-js/commit/068c05e757e7218e12da971e3803834e439e139e) Thanks [@lukasIO](https://github.com/lukasIO)! - Reject publish future if engine disconnects
+
+- [#615](https://github.com/livekit/client-sdk-js/pull/615) [`505a78e`](https://github.com/livekit/client-sdk-js/commit/505a78e459808b0e73ea6737bf333de93a84e390) Thanks [@davidzhao](https://github.com/davidzhao)! - Only trigger AudioPlaybackFailed when error is NotAllowed
+
+## 1.6.8
+
+### Patch Changes
+
+- [#605](https://github.com/livekit/client-sdk-js/pull/605) [`4bc4183`](https://github.com/livekit/client-sdk-js/commit/4bc41831c0da8c3c17f9afd06f9787e6004a644a) Thanks [@cnderrauber](https://github.com/cnderrauber)! - Receive remote participant disconnected updates while reconnecting
+
+- [#592](https://github.com/livekit/client-sdk-js/pull/592) [`fea43e4`](https://github.com/livekit/client-sdk-js/commit/fea43e4de8b79176c6485a1d181467a284242b4b) Thanks [@lukasIO](https://github.com/lukasIO)! - Add support for some experimental getDisplayMedia options in ScreenShareCaptureOptions
+
+- [#608](https://github.com/livekit/client-sdk-js/pull/608) [`5efa607`](https://github.com/livekit/client-sdk-js/commit/5efa60710096bf050ea7438312843e694a0db5fa) Thanks [@lukasIO](https://github.com/lukasIO)! - Defer publishing of tracks during reconnection
+
+- [#597](https://github.com/livekit/client-sdk-js/pull/597) [`27dbd6a`](https://github.com/livekit/client-sdk-js/commit/27dbd6a6d8d2950d7a90bd928bd0229c4a956008) Thanks [@lukasIO](https://github.com/lukasIO)! - Add support for topics on data messages
+
 ## 1.6.7
 
 ### Patch Changes

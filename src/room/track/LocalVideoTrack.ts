@@ -97,26 +97,32 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   async mute(): Promise<LocalVideoTrack> {
-    await this.muteQueue.run(async () => {
+    const unlock = await this.muteLock.lock();
+    try {
       if (this.source === Track.Source.Camera && !this.isUserProvided) {
         log.debug('stopping camera track');
         // also stop the track, so that camera indicator is turned off
         this._mediaStreamTrack.stop();
       }
       await super.mute();
-    });
-    return this;
+      return this;
+    } finally {
+      unlock();
+    }
   }
 
   async unmute(): Promise<LocalVideoTrack> {
-    await this.muteQueue.run(async () => {
+    const unlock = await this.muteLock.lock();
+    try {
       if (this.source === Track.Source.Camera && !this.isUserProvided) {
         log.debug('reacquiring camera track');
         await this.restartTrack();
       }
       await super.unmute();
-    });
-    return this;
+      return this;
+    } finally {
+      unlock();
+    }
   }
 
   async getSenderStats(): Promise<VideoSenderStats[]> {
@@ -174,7 +180,7 @@ export default class LocalVideoTrack extends LocalTrack {
     this.setPublishingLayers(qualities);
   }
 
-  async setDeviceId(deviceId: string) {
+  async setDeviceId(deviceId: ConstrainDOMString) {
     if (this.constraints.deviceId === deviceId) {
       return;
     }

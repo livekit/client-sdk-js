@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
+import log from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
@@ -41,7 +42,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
   protected _mediaStreamID: string;
 
-  protected isInBackground: boolean;
+  protected isInBackground: boolean = false;
 
   private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -56,12 +57,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     this._mediaStreamTrack = mediaTrack;
     this._mediaStreamID = mediaTrack.id;
     this.source = Track.Source.Unknown;
-    if (isWeb()) {
-      this.isInBackground = document.visibilityState === 'hidden';
-      document.addEventListener('visibilitychange', this.appVisibilityChangedListener);
-    } else {
-      this.isInBackground = false;
-    }
   }
 
   /** current receive bits per second */
@@ -95,6 +90,9 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     let elementType = 'audio';
     if (this.kind === Track.Kind.Video) {
       elementType = 'video';
+    }
+    if (this.attachedElements.length === 0 && Track.Kind.Video) {
+      this.addAppVisibilityListener();
     }
     if (!element) {
       if (elementType === 'audio') {
@@ -132,7 +130,11 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
           this.emit(TrackEvent.AudioPlaybackStarted);
         })
         .catch((e) => {
-          this.emit(TrackEvent.AudioPlaybackFailed, e);
+          if (e.name === 'NotAllowedError') {
+            this.emit(TrackEvent.AudioPlaybackFailed, e);
+          } else {
+            log.warn('could not playback audio', e);
+          }
           // If audio playback isn't allowed make sure we still play back the video
           if (
             element &&
@@ -162,37 +164,40 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
    */
   detach(element: HTMLMediaElement): HTMLMediaElement;
   detach(element?: HTMLMediaElement): HTMLMediaElement | HTMLMediaElement[] {
-    // detach from a single element
-    if (element) {
-      detachTrack(this._mediaStreamTrack, element);
-      const idx = this.attachedElements.indexOf(element);
-      if (idx >= 0) {
-        this.attachedElements.splice(idx, 1);
-        this.recycleElement(element);
-        this.emit(TrackEvent.ElementDetached, element);
+    try {
+      // detach from a single element
+      if (element) {
+        detachTrack(this._mediaStreamTrack, element);
+        const idx = this.attachedElements.indexOf(element);
+        if (idx >= 0) {
+          this.attachedElements.splice(idx, 1);
+          this.recycleElement(element);
+          this.emit(TrackEvent.ElementDetached, element);
+        }
+        return element;
       }
-      return element;
+
+      const detached: HTMLMediaElement[] = [];
+      this.attachedElements.forEach((elm) => {
+        detachTrack(this._mediaStreamTrack, elm);
+        detached.push(elm);
+        this.recycleElement(elm);
+        this.emit(TrackEvent.ElementDetached, elm);
+      });
+
+      // remove all tracks
+      this.attachedElements = [];
+      return detached;
+    } finally {
+      if (this.attachedElements.length === 0) {
+        this.removeAppVisibilityListener();
+      }
     }
-
-    const detached: HTMLMediaElement[] = [];
-    this.attachedElements.forEach((elm) => {
-      detachTrack(this._mediaStreamTrack, elm);
-      detached.push(elm);
-      this.recycleElement(elm);
-      this.emit(TrackEvent.ElementDetached, elm);
-    });
-
-    // remove all tracks
-    this.attachedElements = [];
-    return detached;
   }
 
   stop() {
     this.stopMonitor();
     this._mediaStreamTrack.stop();
-    if (isWeb()) {
-      document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
-    }
   }
 
   protected enable() {
@@ -207,7 +212,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
   abstract startMonitor(signalClient?: SignalClient): void;
 
   /* @internal */
-  protected stopMonitor() {
+  stopMonitor() {
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
     }
@@ -247,6 +252,21 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
   protected async handleAppVisibilityChanged() {
     this.isInBackground = document.visibilityState === 'hidden';
+  }
+
+  protected addAppVisibilityListener() {
+    if (isWeb()) {
+      this.isInBackground = document.visibilityState === 'hidden';
+      document.addEventListener('visibilitychange', this.appVisibilityChangedListener);
+    } else {
+      this.isInBackground = false;
+    }
+  }
+
+  protected removeAppVisibilityListener() {
+    if (isWeb()) {
+      document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
+    }
   }
 }
 
