@@ -129,6 +129,7 @@ export default class LocalParticipant extends Participant {
    * @param metadata
    */
   setMetadata(metadata: string): void {
+    super.setMetadata(metadata);
     this.engine.client.sendUpdateLocalMetadata(metadata, this.name ?? '');
   }
 
