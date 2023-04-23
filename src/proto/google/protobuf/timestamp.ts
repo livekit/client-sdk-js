@@ -127,31 +127,22 @@ export const Timestamp = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): Timestamp {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTimestamp();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 8) {
-            break;
-          }
-
           message.seconds = longToNumber(reader.int64() as Long);
-          continue;
+          break;
         case 2:
-          if (tag != 16) {
-            break;
-          }
-
           message.nanos = reader.int32();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },

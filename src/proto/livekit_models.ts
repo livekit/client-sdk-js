@@ -438,6 +438,7 @@ export interface Room {
   enabledCodecs: Codec[];
   metadata: string;
   numParticipants: number;
+  numPublishers: number;
   activeRecording: boolean;
 }
 
@@ -904,6 +905,7 @@ function createBaseRoom(): Room {
     enabledCodecs: [],
     metadata: "",
     numParticipants: 0,
+    numPublishers: 0,
     activeRecording: false,
   };
 }
@@ -937,6 +939,9 @@ export const Room = {
     if (message.numParticipants !== 0) {
       writer.uint32(72).uint32(message.numParticipants);
     }
+    if (message.numPublishers !== 0) {
+      writer.uint32(88).uint32(message.numPublishers);
+    }
     if (message.activeRecording === true) {
       writer.uint32(80).bool(message.activeRecording);
     }
@@ -944,87 +949,49 @@ export const Room = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): Room {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseRoom();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.sid = reader.string();
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.name = reader.string();
-          continue;
+          break;
         case 3:
-          if (tag != 24) {
-            break;
-          }
-
           message.emptyTimeout = reader.uint32();
-          continue;
+          break;
         case 4:
-          if (tag != 32) {
-            break;
-          }
-
           message.maxParticipants = reader.uint32();
-          continue;
+          break;
         case 5:
-          if (tag != 40) {
-            break;
-          }
-
           message.creationTime = longToNumber(reader.int64() as Long);
-          continue;
+          break;
         case 6:
-          if (tag != 50) {
-            break;
-          }
-
           message.turnPassword = reader.string();
-          continue;
+          break;
         case 7:
-          if (tag != 58) {
-            break;
-          }
-
           message.enabledCodecs.push(Codec.decode(reader, reader.uint32()));
-          continue;
+          break;
         case 8:
-          if (tag != 66) {
-            break;
-          }
-
           message.metadata = reader.string();
-          continue;
+          break;
         case 9:
-          if (tag != 72) {
-            break;
-          }
-
           message.numParticipants = reader.uint32();
-          continue;
+          break;
+        case 11:
+          message.numPublishers = reader.uint32();
+          break;
         case 10:
-          if (tag != 80) {
-            break;
-          }
-
           message.activeRecording = reader.bool();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -1042,6 +1009,7 @@ export const Room = {
         : [],
       metadata: isSet(object.metadata) ? String(object.metadata) : "",
       numParticipants: isSet(object.numParticipants) ? Number(object.numParticipants) : 0,
+      numPublishers: isSet(object.numPublishers) ? Number(object.numPublishers) : 0,
       activeRecording: isSet(object.activeRecording) ? Boolean(object.activeRecording) : false,
     };
   },
@@ -1061,6 +1029,7 @@ export const Room = {
     }
     message.metadata !== undefined && (obj.metadata = message.metadata);
     message.numParticipants !== undefined && (obj.numParticipants = Math.round(message.numParticipants));
+    message.numPublishers !== undefined && (obj.numPublishers = Math.round(message.numPublishers));
     message.activeRecording !== undefined && (obj.activeRecording = message.activeRecording);
     return obj;
   },
@@ -1080,6 +1049,7 @@ export const Room = {
     message.enabledCodecs = object.enabledCodecs?.map((e) => Codec.fromPartial(e)) || [];
     message.metadata = object.metadata ?? "";
     message.numParticipants = object.numParticipants ?? 0;
+    message.numPublishers = object.numPublishers ?? 0;
     message.activeRecording = object.activeRecording ?? false;
     return message;
   },
@@ -1101,31 +1071,22 @@ export const Codec = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): Codec {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseCodec();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.mime = reader.string();
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.fmtpLine = reader.string();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -1197,75 +1158,44 @@ export const ParticipantPermission = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): ParticipantPermission {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseParticipantPermission();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 8) {
-            break;
-          }
-
           message.canSubscribe = reader.bool();
-          continue;
+          break;
         case 2:
-          if (tag != 16) {
-            break;
-          }
-
           message.canPublish = reader.bool();
-          continue;
+          break;
         case 3:
-          if (tag != 24) {
-            break;
-          }
-
           message.canPublishData = reader.bool();
-          continue;
+          break;
         case 9:
-          if (tag == 72) {
-            message.canPublishSources.push(reader.int32() as any);
-            continue;
-          }
-
-          if (tag == 74) {
+          if ((tag & 7) === 2) {
             const end2 = reader.uint32() + reader.pos;
             while (reader.pos < end2) {
               message.canPublishSources.push(reader.int32() as any);
             }
-
-            continue;
+          } else {
+            message.canPublishSources.push(reader.int32() as any);
           }
-
           break;
         case 7:
-          if (tag != 56) {
-            break;
-          }
-
           message.hidden = reader.bool();
-          continue;
+          break;
         case 8:
-          if (tag != 64) {
-            break;
-          }
-
           message.recorder = reader.bool();
-          continue;
+          break;
         case 10:
-          if (tag != 80) {
-            break;
-          }
-
           message.canUpdateMetadata = reader.bool();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -1372,94 +1302,49 @@ export const ParticipantInfo = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): ParticipantInfo {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseParticipantInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.sid = reader.string();
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.identity = reader.string();
-          continue;
+          break;
         case 3:
-          if (tag != 24) {
-            break;
-          }
-
           message.state = reader.int32() as any;
-          continue;
+          break;
         case 4:
-          if (tag != 34) {
-            break;
-          }
-
           message.tracks.push(TrackInfo.decode(reader, reader.uint32()));
-          continue;
+          break;
         case 5:
-          if (tag != 42) {
-            break;
-          }
-
           message.metadata = reader.string();
-          continue;
+          break;
         case 6:
-          if (tag != 48) {
-            break;
-          }
-
           message.joinedAt = longToNumber(reader.int64() as Long);
-          continue;
+          break;
         case 9:
-          if (tag != 74) {
-            break;
-          }
-
           message.name = reader.string();
-          continue;
+          break;
         case 10:
-          if (tag != 80) {
-            break;
-          }
-
           message.version = reader.uint32();
-          continue;
+          break;
         case 11:
-          if (tag != 90) {
-            break;
-          }
-
           message.permission = ParticipantPermission.decode(reader, reader.uint32());
-          continue;
+          break;
         case 12:
-          if (tag != 98) {
-            break;
-          }
-
           message.region = reader.string();
-          continue;
+          break;
         case 13:
-          if (tag != 104) {
-            break;
-          }
-
           message.isPublisher = reader.bool();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -1534,17 +1419,16 @@ export const Encryption = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): Encryption {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseEncryption();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -1590,45 +1474,28 @@ export const SimulcastCodecInfo = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): SimulcastCodecInfo {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseSimulcastCodecInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.mimeType = reader.string();
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.mid = reader.string();
-          continue;
+          break;
         case 3:
-          if (tag != 26) {
-            break;
-          }
-
           message.cid = reader.string();
-          continue;
+          break;
         case 4:
-          if (tag != 34) {
-            break;
-          }
-
           message.layers.push(VideoLayer.decode(reader, reader.uint32()));
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -1744,129 +1611,64 @@ export const TrackInfo = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): TrackInfo {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTrackInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.sid = reader.string();
-          continue;
+          break;
         case 2:
-          if (tag != 16) {
-            break;
-          }
-
           message.type = reader.int32() as any;
-          continue;
+          break;
         case 3:
-          if (tag != 26) {
-            break;
-          }
-
           message.name = reader.string();
-          continue;
+          break;
         case 4:
-          if (tag != 32) {
-            break;
-          }
-
           message.muted = reader.bool();
-          continue;
+          break;
         case 5:
-          if (tag != 40) {
-            break;
-          }
-
           message.width = reader.uint32();
-          continue;
+          break;
         case 6:
-          if (tag != 48) {
-            break;
-          }
-
           message.height = reader.uint32();
-          continue;
+          break;
         case 7:
-          if (tag != 56) {
-            break;
-          }
-
           message.simulcast = reader.bool();
-          continue;
+          break;
         case 8:
-          if (tag != 64) {
-            break;
-          }
-
           message.disableDtx = reader.bool();
-          continue;
+          break;
         case 9:
-          if (tag != 72) {
-            break;
-          }
-
           message.source = reader.int32() as any;
-          continue;
+          break;
         case 10:
-          if (tag != 82) {
-            break;
-          }
-
           message.layers.push(VideoLayer.decode(reader, reader.uint32()));
-          continue;
+          break;
         case 11:
-          if (tag != 90) {
-            break;
-          }
-
           message.mimeType = reader.string();
-          continue;
+          break;
         case 12:
-          if (tag != 98) {
-            break;
-          }
-
           message.mid = reader.string();
-          continue;
+          break;
         case 13:
-          if (tag != 106) {
-            break;
-          }
-
           message.codecs.push(SimulcastCodecInfo.decode(reader, reader.uint32()));
-          continue;
+          break;
         case 14:
-          if (tag != 112) {
-            break;
-          }
-
           message.stereo = reader.bool();
-          continue;
+          break;
         case 15:
-          if (tag != 120) {
-            break;
-          }
-
           message.disableRed = reader.bool();
-          continue;
+          break;
         case 16:
-          if (tag != 128) {
-            break;
-          }
-
           message.encryption = reader.int32() as any;
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -1972,52 +1774,31 @@ export const VideoLayer = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): VideoLayer {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseVideoLayer();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 8) {
-            break;
-          }
-
           message.quality = reader.int32() as any;
-          continue;
+          break;
         case 2:
-          if (tag != 16) {
-            break;
-          }
-
           message.width = reader.uint32();
-          continue;
+          break;
         case 3:
-          if (tag != 24) {
-            break;
-          }
-
           message.height = reader.uint32();
-          continue;
+          break;
         case 4:
-          if (tag != 32) {
-            break;
-          }
-
           message.bitrate = reader.uint32();
-          continue;
+          break;
         case 5:
-          if (tag != 40) {
-            break;
-          }
-
           message.ssrc = reader.uint32();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -2078,38 +1859,25 @@ export const DataPacket = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): DataPacket {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseDataPacket();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 8) {
-            break;
-          }
-
           message.kind = reader.int32() as any;
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.value = { $case: "user", user: UserPacket.decode(reader, reader.uint32()) };
-          continue;
+          break;
         case 3:
-          if (tag != 26) {
-            break;
-          }
-
           message.value = { $case: "speaker", speaker: ActiveSpeakerUpdate.decode(reader, reader.uint32()) };
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -2165,24 +1933,19 @@ export const ActiveSpeakerUpdate = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): ActiveSpeakerUpdate {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseActiveSpeakerUpdate();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.speakers.push(SpeakerInfo.decode(reader, reader.uint32()));
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -2233,38 +1996,25 @@ export const SpeakerInfo = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): SpeakerInfo {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseSpeakerInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.sid = reader.string();
-          continue;
+          break;
         case 2:
-          if (tag != 21) {
-            break;
-          }
-
           message.level = reader.float();
-          continue;
+          break;
         case 3:
-          if (tag != 24) {
-            break;
-          }
-
           message.active = reader.bool();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -2320,45 +2070,28 @@ export const UserPacket = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): UserPacket {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseUserPacket();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.participantSid = reader.string();
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.payload = reader.bytes();
-          continue;
+          break;
         case 3:
-          if (tag != 26) {
-            break;
-          }
-
           message.destinationSids.push(reader.string());
-          continue;
+          break;
         case 4:
-          if (tag != 34) {
-            break;
-          }
-
           message.topic = reader.string();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -2416,31 +2149,22 @@ export const ParticipantTracks = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): ParticipantTracks {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseParticipantTracks();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.participantSid = reader.string();
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.trackSids.push(reader.string());
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -2503,59 +2227,34 @@ export const ServerInfo = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): ServerInfo {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseServerInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 8) {
-            break;
-          }
-
           message.edition = reader.int32() as any;
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.version = reader.string();
-          continue;
+          break;
         case 3:
-          if (tag != 24) {
-            break;
-          }
-
           message.protocol = reader.int32();
-          continue;
+          break;
         case 4:
-          if (tag != 34) {
-            break;
-          }
-
           message.region = reader.string();
-          continue;
+          break;
         case 5:
-          if (tag != 42) {
-            break;
-          }
-
           message.nodeId = reader.string();
-          continue;
+          break;
         case 6:
-          if (tag != 50) {
-            break;
-          }
-
           message.debugInfo = reader.string();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -2649,87 +2348,46 @@ export const ClientInfo = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): ClientInfo {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseClientInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 8) {
-            break;
-          }
-
           message.sdk = reader.int32() as any;
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.version = reader.string();
-          continue;
+          break;
         case 3:
-          if (tag != 24) {
-            break;
-          }
-
           message.protocol = reader.int32();
-          continue;
+          break;
         case 4:
-          if (tag != 34) {
-            break;
-          }
-
           message.os = reader.string();
-          continue;
+          break;
         case 5:
-          if (tag != 42) {
-            break;
-          }
-
           message.osVersion = reader.string();
-          continue;
+          break;
         case 6:
-          if (tag != 50) {
-            break;
-          }
-
           message.deviceModel = reader.string();
-          continue;
+          break;
         case 7:
-          if (tag != 58) {
-            break;
-          }
-
           message.browser = reader.string();
-          continue;
+          break;
         case 8:
-          if (tag != 66) {
-            break;
-          }
-
           message.browserVersion = reader.string();
-          continue;
+          break;
         case 9:
-          if (tag != 74) {
-            break;
-          }
-
           message.address = reader.string();
-          continue;
+          break;
         case 10:
-          if (tag != 82) {
-            break;
-          }
-
           message.network = reader.string();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -2809,52 +2467,31 @@ export const ClientConfiguration = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): ClientConfiguration {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseClientConfiguration();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.video = VideoConfiguration.decode(reader, reader.uint32());
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.screen = VideoConfiguration.decode(reader, reader.uint32());
-          continue;
+          break;
         case 3:
-          if (tag != 24) {
-            break;
-          }
-
           message.resumeConnection = reader.int32() as any;
-          continue;
+          break;
         case 4:
-          if (tag != 34) {
-            break;
-          }
-
           message.disabledCodecs = DisabledCodecs.decode(reader, reader.uint32());
-          continue;
+          break;
         case 5:
-          if (tag != 40) {
-            break;
-          }
-
           message.forceRelay = reader.int32() as any;
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -2916,24 +2553,19 @@ export const VideoConfiguration = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): VideoConfiguration {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseVideoConfiguration();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 8) {
-            break;
-          }
-
           message.hardwareEncoder = reader.int32() as any;
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -2972,24 +2604,19 @@ export const DisabledCodecs = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): DisabledCodecs {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseDisabledCodecs();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.codecs.push(Codec.decode(reader, reader.uint32()));
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -3194,307 +2821,142 @@ export const RTPStats = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): RTPStats {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseRTPStats();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 10) {
-            break;
-          }
-
           message.startTime = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
-          continue;
+          break;
         case 2:
-          if (tag != 18) {
-            break;
-          }
-
           message.endTime = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
-          continue;
+          break;
         case 3:
-          if (tag != 25) {
-            break;
-          }
-
           message.duration = reader.double();
-          continue;
+          break;
         case 4:
-          if (tag != 32) {
-            break;
-          }
-
           message.packets = reader.uint32();
-          continue;
+          break;
         case 5:
-          if (tag != 41) {
-            break;
-          }
-
           message.packetRate = reader.double();
-          continue;
+          break;
         case 6:
-          if (tag != 48) {
-            break;
-          }
-
           message.bytes = longToNumber(reader.uint64() as Long);
-          continue;
+          break;
         case 39:
-          if (tag != 312) {
-            break;
-          }
-
           message.headerBytes = longToNumber(reader.uint64() as Long);
-          continue;
+          break;
         case 7:
-          if (tag != 57) {
-            break;
-          }
-
           message.bitrate = reader.double();
-          continue;
+          break;
         case 8:
-          if (tag != 64) {
-            break;
-          }
-
           message.packetsLost = reader.uint32();
-          continue;
+          break;
         case 9:
-          if (tag != 73) {
-            break;
-          }
-
           message.packetLossRate = reader.double();
-          continue;
+          break;
         case 10:
-          if (tag != 85) {
-            break;
-          }
-
           message.packetLossPercentage = reader.float();
-          continue;
+          break;
         case 11:
-          if (tag != 88) {
-            break;
-          }
-
           message.packetsDuplicate = reader.uint32();
-          continue;
+          break;
         case 12:
-          if (tag != 97) {
-            break;
-          }
-
           message.packetDuplicateRate = reader.double();
-          continue;
+          break;
         case 13:
-          if (tag != 104) {
-            break;
-          }
-
           message.bytesDuplicate = longToNumber(reader.uint64() as Long);
-          continue;
+          break;
         case 40:
-          if (tag != 320) {
-            break;
-          }
-
           message.headerBytesDuplicate = longToNumber(reader.uint64() as Long);
-          continue;
+          break;
         case 14:
-          if (tag != 113) {
-            break;
-          }
-
           message.bitrateDuplicate = reader.double();
-          continue;
+          break;
         case 15:
-          if (tag != 120) {
-            break;
-          }
-
           message.packetsPadding = reader.uint32();
-          continue;
+          break;
         case 16:
-          if (tag != 129) {
-            break;
-          }
-
           message.packetPaddingRate = reader.double();
-          continue;
+          break;
         case 17:
-          if (tag != 136) {
-            break;
-          }
-
           message.bytesPadding = longToNumber(reader.uint64() as Long);
-          continue;
+          break;
         case 41:
-          if (tag != 328) {
-            break;
-          }
-
           message.headerBytesPadding = longToNumber(reader.uint64() as Long);
-          continue;
+          break;
         case 18:
-          if (tag != 145) {
-            break;
-          }
-
           message.bitratePadding = reader.double();
-          continue;
+          break;
         case 19:
-          if (tag != 152) {
-            break;
-          }
-
           message.packetsOutOfOrder = reader.uint32();
-          continue;
+          break;
         case 20:
-          if (tag != 160) {
-            break;
-          }
-
           message.frames = reader.uint32();
-          continue;
+          break;
         case 21:
-          if (tag != 169) {
-            break;
-          }
-
           message.frameRate = reader.double();
-          continue;
+          break;
         case 22:
-          if (tag != 177) {
-            break;
-          }
-
           message.jitterCurrent = reader.double();
-          continue;
+          break;
         case 23:
-          if (tag != 185) {
-            break;
-          }
-
           message.jitterMax = reader.double();
-          continue;
+          break;
         case 24:
-          if (tag != 194) {
-            break;
-          }
-
           const entry24 = RTPStats_GapHistogramEntry.decode(reader, reader.uint32());
           if (entry24.value !== undefined) {
             message.gapHistogram[entry24.key] = entry24.value;
           }
-          continue;
+          break;
         case 25:
-          if (tag != 200) {
-            break;
-          }
-
           message.nacks = reader.uint32();
-          continue;
+          break;
         case 37:
-          if (tag != 296) {
-            break;
-          }
-
           message.nackAcks = reader.uint32();
-          continue;
+          break;
         case 26:
-          if (tag != 208) {
-            break;
-          }
-
           message.nackMisses = reader.uint32();
-          continue;
+          break;
         case 38:
-          if (tag != 304) {
-            break;
-          }
-
           message.nackRepeated = reader.uint32();
-          continue;
+          break;
         case 27:
-          if (tag != 216) {
-            break;
-          }
-
           message.plis = reader.uint32();
-          continue;
+          break;
         case 28:
-          if (tag != 226) {
-            break;
-          }
-
           message.lastPli = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
-          continue;
+          break;
         case 29:
-          if (tag != 232) {
-            break;
-          }
-
           message.firs = reader.uint32();
-          continue;
+          break;
         case 30:
-          if (tag != 242) {
-            break;
-          }
-
           message.lastFir = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
-          continue;
+          break;
         case 31:
-          if (tag != 248) {
-            break;
-          }
-
           message.rttCurrent = reader.uint32();
-          continue;
+          break;
         case 32:
-          if (tag != 256) {
-            break;
-          }
-
           message.rttMax = reader.uint32();
-          continue;
+          break;
         case 33:
-          if (tag != 264) {
-            break;
-          }
-
           message.keyFrames = reader.uint32();
-          continue;
+          break;
         case 34:
-          if (tag != 274) {
-            break;
-          }
-
           message.lastKeyFrame = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
-          continue;
+          break;
         case 35:
-          if (tag != 280) {
-            break;
-          }
-
           message.layerLockPlis = reader.uint32();
-          continue;
+          break;
         case 36:
-          if (tag != 290) {
-            break;
-          }
-
           message.lastLayerLockPli = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -3676,31 +3138,22 @@ export const RTPStats_GapHistogramEntry = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): RTPStats_GapHistogramEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseRTPStats_GapHistogramEntry();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 8) {
-            break;
-          }
-
           message.key = reader.int32();
-          continue;
+          break;
         case 2:
-          if (tag != 16) {
-            break;
-          }
-
           message.value = reader.uint32();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
@@ -3744,31 +3197,22 @@ export const TimedVersion = {
   },
 
   decode(input: _m0.Reader | Uint8Array, length?: number): TimedVersion {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    const reader = input instanceof _m0.Reader ? input : new _m0.Reader(input);
     let end = length === undefined ? reader.len : reader.pos + length;
     const message = createBaseTimedVersion();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
         case 1:
-          if (tag != 8) {
-            break;
-          }
-
           message.unixMicro = longToNumber(reader.int64() as Long);
-          continue;
+          break;
         case 2:
-          if (tag != 16) {
-            break;
-          }
-
           message.ticks = reader.int32();
-          continue;
+          break;
+        default:
+          reader.skipType(tag & 7);
+          break;
       }
-      if ((tag & 7) == 4 || tag == 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
     }
     return message;
   },
