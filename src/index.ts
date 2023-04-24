@@ -28,10 +28,12 @@ import {
 } from './room/utils';
 
 import type { AudioAnalyserOptions } from './room/utils';
+import type { LiveKitReactNativeInfo } from './room/types';
 
 export * from './options';
 export * from './room/errors';
 export * from './room/events';
+export type { DataPublishOptions, SimulationScenario } from './room/types';
 export * from './room/track/create';
 export * from './room/track/options';
 export * from './room/track/Track';
@@ -74,4 +76,5 @@ export {
   ElementInfo,
   DefaultReconnectPolicy,
   CriticalTimers,
+  LiveKitReactNativeInfo,
 };

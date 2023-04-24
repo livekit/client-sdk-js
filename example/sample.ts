@@ -28,6 +28,7 @@ import {
 } from '../src/index';
 //@ts-ignore
 import E2EEWorker from '../src/e2ee/worker/e2ee.worker?worker';
+import type { SimulationScenario } from '../src/room/types';
 
 const $ = (id: string) => document.getElementById(id);
 
@@ -343,7 +344,7 @@ const appActions = {
         p.tracks.forEach((rp) => rp.setSubscribed(false));
       });
     } else if (scenario !== '') {
-      currentRoom?.simulateScenario(scenario);
+      currentRoom?.simulateScenario(scenario as SimulationScenario);
       (<HTMLSelectElement>e.target).value = '';
     }
   },

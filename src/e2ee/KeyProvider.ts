@@ -58,9 +58,9 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
 export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   ratchetInterval: number | undefined;
 
-  constructor(options: Partial<KeyProviderOptions>) {
-    options = { ...options, sharedKey: true };
-    super(options);
+  constructor(options: Partial<Omit<KeyProviderOptions, 'sharedKey'>> = {}) {
+    const opts: Partial<KeyProviderOptions> = { ...options, sharedKey: true };
+    super(opts);
   }
 
   /**

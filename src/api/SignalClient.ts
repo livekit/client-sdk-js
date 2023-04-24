@@ -217,7 +217,7 @@ export class SignalClient {
     return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
       const abortHandler = async () => {
         await this.close();
-        reject(new ConnectionError('room connection has been cancelled'));
+        reject(new ConnectionError('room connection has been cancelled (signal)'));
       };
 
       if (abortSignal?.aborted) {
@@ -235,7 +235,7 @@ export class SignalClient {
         if (!this.isConnected) {
           try {
             const resp = await fetch(`http${url.substring(2)}/validate${params}`);
-            if (!resp.ok) {
+            if (resp.status.toFixed(0).startsWith('4')) {
               const msg = await resp.text();
               reject(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
             } else {
@@ -375,7 +375,7 @@ export class SignalClient {
   // answer a server-initiated offer
   sendAnswer(answer: RTCSessionDescriptionInit) {
     log.debug('sending answer');
-    this.sendRequest({
+    return this.sendRequest({
       $case: 'answer',
       answer: toProtoSessionDescription(answer),
     });
@@ -383,7 +383,7 @@ export class SignalClient {
 
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
     log.trace('sending ice candidate', candidate);
-    this.sendRequest({
+    return this.sendRequest({
       $case: 'trickle',
       trickle: {
         candidateInit: JSON.stringify(candidate),
@@ -393,7 +393,7 @@ export class SignalClient {
   }
 
   sendMuteTrack(trackSid: string, muted: boolean) {
-    this.sendRequest({
+    return this.sendRequest({
       $case: 'mute',
       mute: {
         sid: trackSid,
@@ -402,10 +402,20 @@ export class SignalClient {
     });
   }
 
-  sendAddTrack(req: AddTrackRequest): void {
-    this.sendRequest({
+  sendAddTrack(req: AddTrackRequest) {
+    return this.sendRequest({
       $case: 'addTrack',
       addTrack: req,
+    });
+  }
+
+  sendUpdateLocalMetadata(metadata: string, name: string) {
+    return this.sendRequest({
+      $case: 'updateMetadata',
+      updateMetadata: {
+        metadata,
+        name,
+      },
     });
   }
 
@@ -417,21 +427,21 @@ export class SignalClient {
   }
 
   sendUpdateSubscription(sub: UpdateSubscription) {
-    this.sendRequest({
+    return this.sendRequest({
       $case: 'subscription',
       subscription: sub,
     });
   }
 
   sendSyncState(sync: SyncState) {
-    this.sendRequest({
+    return this.sendRequest({
       $case: 'syncState',
       syncState: sync,
     });
   }
 
   sendUpdateVideoLayers(trackSid: string, layers: VideoLayer[]) {
-    this.sendRequest({
+    return this.sendRequest({
       $case: 'updateLayers',
       updateLayers: {
         trackSid,
@@ -441,7 +451,7 @@ export class SignalClient {
   }
 
   sendUpdateSubscriptionPermissions(allParticipants: boolean, trackPermissions: TrackPermission[]) {
-    this.sendRequest({
+    return this.sendRequest({
       $case: 'subscriptionPermission',
       subscriptionPermission: {
         allParticipants,
@@ -451,7 +461,7 @@ export class SignalClient {
   }
 
   sendSimulateScenario(scenario: SimulateScenario) {
-    this.sendRequest({
+    return this.sendRequest({
       $case: 'simulate',
       simulate: scenario,
     });
@@ -459,21 +469,23 @@ export class SignalClient {
 
   sendPing() {
     /** send both of ping and pingReq for compatibility to old and new server */
-    this.sendRequest({
-      $case: 'ping',
-      ping: Date.now(),
-    });
-    this.sendRequest({
-      $case: 'pingReq',
-      pingReq: {
-        timestamp: Date.now(),
-        rtt: this.rtt,
-      },
-    });
+    return Promise.all([
+      this.sendRequest({
+        $case: 'ping',
+        ping: Date.now(),
+      }),
+      this.sendRequest({
+        $case: 'pingReq',
+        pingReq: {
+          timestamp: Date.now(),
+          rtt: this.rtt,
+        },
+      }),
+    ]);
   }
 
-  async sendLeave() {
-    await this.sendRequest({
+  sendLeave() {
+    return this.sendRequest({
       $case: 'leave',
       leave: {
         canReconnect: false,

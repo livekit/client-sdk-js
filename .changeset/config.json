@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@2.0.0/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "livekit/client-sdk-js" }],
+  "changelog": ["@livekit/changesets-changelog-github", { "repo": "livekit/client-sdk-js" }],
   "commit": false,
   "fixed": [],
   "linked": [],
