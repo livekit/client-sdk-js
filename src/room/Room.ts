@@ -99,23 +99,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** @internal */
   engine!: RTCEngine;
 
-  // available after connected
-  /** server assigned unique room id */
-  sid: string = '';
-
-  /** user assigned name, derived from JWT token */
-  name: string = '';
-
   /** the current participant */
   localParticipant: LocalParticipant;
-
-  /** room metadata */
-  metadata: string | undefined = undefined;
 
   /** options of room */
   options: InternalRoomOptions;
 
-  private _isRecording: boolean = false;
+  private roomInfo?: RoomModel;
 
   private identityToSid: Map<string, string>;
 
@@ -163,6 +153,36 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.disconnectLock = new Mutex();
 
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
+  }
+
+  /**
+   * if the current room has a participant with `recorder: true` in its JWT grant
+   **/
+  get isRecording(): boolean {
+    return this.roomInfo?.activeRecording ?? false;
+  }
+
+  /** server assigned unique room id */
+  get sid(): string {
+    return this.roomInfo?.sid ?? '';
+  }
+
+  /** user assigned name, derived from JWT token */
+  get name(): string {
+    return this.roomInfo?.name ?? '';
+  }
+
+  /** room metadata */
+  get metadata(): string | undefined {
+    return this.roomInfo?.metadata;
+  }
+
+  get numParticipants(): number {
+    return this.roomInfo?.numParticipants ?? 0;
+  }
+
+  get numPublishers(): number {
+    return this.roomInfo?.numPublishers ?? 0;
   }
 
   private maybeCreateEngine() {
@@ -371,12 +391,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // populate remote participants, these should not trigger new events
     this.handleParticipantUpdates([pi, ...joinResponse.otherParticipants]);
 
-    this.name = joinResponse.room!.name;
-    this.sid = joinResponse.room!.sid;
-    this.metadata = joinResponse.room!.metadata;
-    if (this._isRecording !== joinResponse.room!.activeRecording) {
-      this._isRecording = joinResponse.room!.activeRecording;
-      this.emit(RoomEvent.RecordingStatusChanged, joinResponse.room!.activeRecording);
+    if (joinResponse.room) {
+      this.handleRoomUpdate(joinResponse.room);
     }
   };
 
@@ -518,13 +534,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private clearConnectionFutures() {
     this.connectFuture = undefined;
-  }
-
-  /**
-   * if the current room has a participant with `recorder: true` in its JWT grant
-   **/
-  get isRecording() {
-    return this._isRecording;
   }
 
   /**
@@ -1109,14 +1118,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.MediaDevicesChanged);
   };
 
-  private handleRoomUpdate = (r: RoomModel) => {
-    if (this._isRecording !== r.activeRecording) {
-      this._isRecording = r.activeRecording;
-      this.emit(RoomEvent.RecordingStatusChanged, r.activeRecording);
+  private handleRoomUpdate = (room: RoomModel) => {
+    const oldRoom = this.roomInfo;
+    this.roomInfo = room;
+    if (oldRoom && oldRoom.metadata !== room.metadata) {
+      this.emitWhenConnected(RoomEvent.RoomMetadataChanged, room.metadata);
     }
-    if (this.metadata !== r.metadata) {
-      this.metadata = r.metadata;
-      this.emitWhenConnected(RoomEvent.RoomMetadataChanged, r.metadata);
+    if (oldRoom?.activeRecording !== room.activeRecording) {
+      this.emitWhenConnected(RoomEvent.RecordingStatusChanged, room.activeRecording);
     }
   };
 
@@ -1402,7 +1411,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ...options.participants,
     };
     this.handleDisconnect();
-    this.name = 'simulated-room';
+    this.roomInfo = {
+      sid: 'RM_SIMULATED',
+      name: 'simulated-room',
+      emptyTimeout: 0,
+      maxParticipants: 0,
+      creationTime: new Date().getTime(),
+      metadata: '',
+      numParticipants: 1,
+      numPublishers: 1,
+      turnPassword: '',
+      enabledCodecs: [],
+      activeRecording: false,
+    };
 
     this.localParticipant.updateInfo(
       ParticipantInfo.fromPartial({
