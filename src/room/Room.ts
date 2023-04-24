@@ -105,7 +105,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** options of room */
   options: InternalRoomOptions;
 
-  private _room?: RoomModel;
+  private roomInfo?: RoomModel;
 
   private identityToSid: Map<string, string>;
 
@@ -159,30 +159,30 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * if the current room has a participant with `recorder: true` in its JWT grant
    **/
   get isRecording(): boolean {
-    return this._room?.activeRecording ?? false;
+    return this.roomInfo?.activeRecording ?? false;
   }
 
   /** server assigned unique room id */
   get sid(): string {
-    return this._room?.sid ?? '';
+    return this.roomInfo?.sid ?? '';
   }
 
   /** user assigned name, derived from JWT token */
   get name(): string {
-    return this._room?.name ?? '';
+    return this.roomInfo?.name ?? '';
   }
 
   /** room metadata */
   get metadata(): string | undefined {
-    return this._room?.metadata;
+    return this.roomInfo?.metadata;
   }
 
   get numParticipants(): number {
-    return this._room?.numParticipants ?? 0;
+    return this.roomInfo?.numParticipants ?? 0;
   }
 
   get numPublishers(): number {
-    return this._room?.numPublishers ?? 0;
+    return this.roomInfo?.numPublishers ?? 0;
   }
 
   private maybeCreateEngine() {
@@ -1125,8 +1125,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleRoomUpdate = (room: RoomModel) => {
-    const oldRoom = this._room;
-    this._room = room;
+    const oldRoom = this.roomInfo;
+    this.roomInfo = room;
     if (oldRoom && oldRoom.metadata !== room.metadata) {
       this.emitWhenConnected(RoomEvent.RoomMetadataChanged, room.metadata);
     }
@@ -1417,7 +1417,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ...options.participants,
     };
     this.handleDisconnect();
-    this._room = {
+    this.roomInfo = {
       sid: 'RM_SIMULATED',
       name: 'simulated-room',
       emptyTimeout: 0,
