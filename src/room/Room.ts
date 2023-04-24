@@ -207,7 +207,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
-      .on(EngineEvent.Restarted, this.handleRestarted)
+      .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
       .on(EngineEvent.DCBufferStatusChanged, (status, kind) => {
         this.emit(RoomEvent.DCBufferStatusChanged, status, kind);
       });
@@ -368,24 +368,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant.sid = pi.sid;
     this.localParticipant.identity = pi.identity;
 
-    this.localParticipant.updateInfo(pi);
-    // forward metadata changed for the local participant
-    this.setupLocalParticipantEvents();
-
     // populate remote participants, these should not trigger new events
-    joinResponse.otherParticipants.forEach((info) => {
-      if (
-        info.sid !== this.localParticipant.sid &&
-        info.identity !== this.localParticipant.identity
-      ) {
-        this.getOrCreateParticipant(info.sid, info);
-      } else {
-        log.warn('received info to create local participant as remote participant', {
-          info,
-          localParticipant: this.localParticipant,
-        });
-      }
-    });
+    this.handleParticipantUpdates([pi, ...joinResponse.otherParticipants]);
 
     this.name = joinResponse.room!.name;
     this.sid = joinResponse.room!.sid;
@@ -433,6 +417,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
 
       this.applyJoinResponse(joinResponse);
+      // forward metadata changed for the local participant
+      this.setupLocalParticipantEvents();
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
       this.recreateEngine();
@@ -833,20 +819,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  private handleRestarted = async (joinResponse: JoinResponse) => {
-    log.debug(`reconnected to server`, {
+  private handleSignalRestarted = async (joinResponse: JoinResponse) => {
+    log.debug(`signal reconnected to server`, {
       region: joinResponse.serverRegion,
     });
 
-    try {
-      // rehydrate participants
-      if (joinResponse.participant) {
-        // with a restart, the sid will have changed, we'll map our understanding to it
-        this.localParticipant.sid = joinResponse.participant.sid;
-        this.handleParticipantUpdates([joinResponse.participant]);
-      }
-      this.handleParticipantUpdates(joinResponse.otherParticipants);
+    this.applyJoinResponse(joinResponse);
 
+    try {
       // unpublish & republish tracks
       const localPubs: LocalTrackPublication[] = [];
       this.localParticipant.tracks.forEach((pub) => {
@@ -880,10 +860,24 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
     } catch (error) {
       log.error('error trying to re-publish tracks after reconnection', { error });
-    } finally {
-      this.setAndEmitConnectionState(ConnectionState.Connected);
-      this.emit(RoomEvent.Reconnected);
     }
+
+    try {
+      await this.engine.waitForRestarted();
+      log.debug(`fully reconnected to server`, {
+        region: joinResponse.serverRegion,
+      });
+    } catch {
+      // reconnection failed, handleDisconnect is being invoked already, just return here
+      return;
+    }
+    this.setAndEmitConnectionState(ConnectionState.Connected);
+    this.emit(RoomEvent.Reconnected);
+
+    // emit participant connected events after connection has been re-established
+    this.participants.forEach((participant) => {
+      this.emit(RoomEvent.ParticipantConnected, participant);
+    });
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {

@@ -449,6 +449,7 @@ export enum EngineEvent {
   Restarting = 'restarting',
   Restarted = 'restarted',
   SignalResumed = 'signalResumed',
+  SignalRestarted = 'signalRestarted',
   Closing = 'closing',
   MediaTrackAdded = 'mediaTrackAdded',
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
