@@ -1,4 +1,7 @@
-import { FrameCryptor } from './FrameCryptor';
+/// <reference lib="webworker" />
+import { workerLogger } from '../../logger';
+import { KEY_PROVIDER_DEFAULTS } from '../constants';
+import { CryptorErrorReason } from '../errors';
 import type {
   E2EEWorkerMessage,
   EnableMessage,
@@ -6,10 +9,8 @@ import type {
   KeyProviderOptions,
   RatchetMessage,
 } from '../types';
-import { workerLogger } from '../../logger';
-import { KEY_PROVIDER_DEFAULTS } from '../constants';
+import { FrameCryptor } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
-import { CryptorErrorReason } from '../errors';
 
 const participantCryptors: FrameCryptor[] = [];
 const participantKeys: Map<string, ParticipantKeyHandler> = new Map();
