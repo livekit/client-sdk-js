@@ -1,4 +1,4 @@
-import { Cryptor } from './Cryptor';
+import { FrameCryptor } from './FrameCryptor';
 import type {
   E2EEWorkerMessage,
   EnableMessage,
@@ -6,15 +6,15 @@ import type {
   KeyProviderOptions,
   RatchetMessage,
 } from '../types';
-import { setLogLevel, workerLogger } from '../../logger';
+import { workerLogger } from '../../logger';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { CryptorErrorReason } from '../errors';
 
-const participantCryptors: Cryptor[] = [];
+const participantCryptors: FrameCryptor[] = [];
 const participantKeys: Map<string, ParticipantKeyHandler> = new Map();
 
-let publishCryptors: Cryptor[] = [];
+let publishCryptors: FrameCryptor[] = [];
 let publisherKeys: ParticipantKeyHandler;
 
 let isEncryptionEnabled: boolean = false;
@@ -25,7 +25,7 @@ let sharedKey: CryptoKey | undefined;
 
 let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
-setLogLevel('debug', 'lk-e2ee');
+workerLogger.setDefaultLevel('info');
 
 /**
  * @param ev{string}
@@ -109,7 +109,7 @@ function getTrackCryptor(participantId: string, trackId: string) {
     if (!keyProviderOptions) {
       throw Error('Missing keyProvider options');
     }
-    cryptor = new Cryptor({
+    cryptor = new FrameCryptor({
       participantId,
       keys: getParticipantKeyHandler(participantId),
       keyProviderOptions,
@@ -151,7 +151,7 @@ function getPublisherCryptor(trackId: string) {
     if (!keyProviderOptions) {
       throw new TypeError('Missing keyProvider options');
     }
-    publishCryptor = new Cryptor({
+    publishCryptor = new FrameCryptor({
       keys: publisherKeys!,
       participantId: 'publisher',
       keyProviderOptions,
@@ -180,7 +180,7 @@ function setSharedKey(key: CryptoKey, index?: number) {
   }
 }
 
-function setupCryptorErrorEvents(cryptor: Cryptor) {
+function setupCryptorErrorEvents(cryptor: FrameCryptor) {
   cryptor.on('cryptorError', (error) => {
     const msg: ErrorMessage = {
       kind: 'error',

@@ -17,8 +17,8 @@ import {
 import { deriveKeys, isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
-export interface CryptorConstructor {
-  new (opts?: unknown): BaseCryptor;
+export interface FrameCryptorConstructor {
+  new (opts?: unknown): BaseFrameCryptor;
 }
 
 export interface TransformerInfo {
@@ -28,7 +28,7 @@ export interface TransformerInfo {
   abortController: AbortController;
 }
 
-export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<CryptorCallbacks>) {
+export class BaseFrameCryptor extends (EventEmitter as new () => TypedEmitter<CryptorCallbacks>) {
   encodeFunction(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
@@ -48,7 +48,7 @@ export class BaseCryptor extends (EventEmitter as new () => TypedEmitter<Cryptor
  * Cryptor is responsible for en-/decrypting media frames.
  * Each Cryptor instance is responsible for en-/decrypting a single mediaStreamTrack.
  */
-export class Cryptor extends BaseCryptor {
+export class FrameCryptor extends BaseFrameCryptor {
   private sendCounts: Map<number, number>;
 
   private isKeyInvalid = false;

@@ -30,9 +30,8 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
 
   /**
    * callback being invoked after a ratchet request has been performed on the local participant
-   * that surfaces the new key material. participant id will be `undefined`
+   * that surfaces the new key material.
    * @param material
-   * @param participantId
    * @param keyIndex
    */
   protected onKeyRatcheted = (material: CryptoKey, keyIndex?: number) => {
@@ -59,7 +58,8 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<Key
 export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   ratchetInterval: number | undefined;
 
-  constructor(options: Partial<KeyProviderOptions> = { sharedKey: true }) {
+  constructor(options: Partial<KeyProviderOptions>) {
+    options = { ...options, sharedKey: true };
     super(options);
   }
 
@@ -70,11 +70,5 @@ export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   async setKey(key: string) {
     const derivedKey = await createKeyMaterialFromString(key);
     this.onSetEncryptionKey(derivedKey);
-    // setTimeout(() => {
-    //   clearInterval(this.ratchetInterval);
-    //   this.ratchetInterval = setInterval(() => {
-    //     this.ratchetKey();
-    //   }, 5000) as unknown as number;
-    // }, 5000);
   }
 }

@@ -17,11 +17,12 @@ type StructuredLogger = {
   info: (msg: string, context?: object) => void;
   warn: (msg: string, context?: object) => void;
   error: (msg: string, context?: object) => void;
+  setDefaultLevel: (level: log.LogLevelDesc) => void;
 };
 
 const livekitLogger = log.getLogger('livekit');
 
-livekitLogger.setLevel(LogLevel.info);
+livekitLogger.setDefaultLevel(LogLevel.info);
 
 export default livekitLogger as StructuredLogger;
 
