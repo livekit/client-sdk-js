@@ -3,9 +3,9 @@ import { TrackEvent } from '../events';
 import type LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import type LocalVideoTrack from './LocalVideoTrack';
-import type { TrackPublishOptions } from './options';
 import type { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
+import type { TrackPublishOptions } from './options';
 
 export default class LocalTrackPublication extends TrackPublication {
   track?: LocalTrack = undefined;

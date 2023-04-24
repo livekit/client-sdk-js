@@ -33,7 +33,7 @@ import {
 } from '../proto/livekit_rtc';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
-import { getClientInfo, isReactNative, Mutex, sleep } from '../room/utils';
+import { Mutex, getClientInfo, isReactNative, sleep } from '../room/utils';
 
 // internal options
 interface ConnectOpts {

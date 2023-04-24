@@ -1,6 +1,6 @@
+import log from '../logger';
 import type { RegionInfo, RegionSettings } from '../proto/livekit_rtc';
 import { ConnectionError, ConnectionErrorReason } from './errors';
-import log from '../logger';
 import { isCloud } from './utils';
 
 export class RegionUrlProvider {
