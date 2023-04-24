@@ -18,6 +18,7 @@ import RemoteVideoTrack, { type ElementInfo } from './room/track/RemoteVideoTrac
 import { TrackPublication } from './room/track/TrackPublication';
 import type { LiveKitReactNativeInfo } from './room/types';
 import {
+  type AudioAnalyserOptions,
   createAudioAnalyser,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
@@ -25,7 +26,6 @@ import {
   supportsAV1,
   supportsAdaptiveStream,
   supportsDynacast,
-  type AudioAnalyserOptions,
 } from './room/utils';
 
 export * from './options';
