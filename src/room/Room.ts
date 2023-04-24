@@ -67,7 +67,6 @@ import {
   unpackStreamId,
 } from './utils';
 import { EncryptionEvent } from '../e2ee';
-import type { E2EEError } from '../e2ee/errors';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -1624,6 +1623,6 @@ export type RoomEventCallbacks = {
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
   participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;
-  encryptionError: (error: E2EEError) => void;
+  encryptionError: (error: Error) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
 };
