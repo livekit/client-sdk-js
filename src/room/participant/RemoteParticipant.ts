@@ -3,13 +3,13 @@ import log from '../../logger';
 import type { ParticipantInfo } from '../../proto/livekit_models';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { ParticipantEvent, TrackEvent } from '../events';
-import type { AudioOutputOptions } from '../track/options';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
 import RemoteVideoTrack from '../track/RemoteVideoTrack';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
+import type { AudioOutputOptions } from '../track/options';
 import type { AdaptiveStreamSettings } from '../track/types';
 import Participant, { ParticipantEventCallbacks } from './Participant';
 

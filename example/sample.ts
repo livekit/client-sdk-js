@@ -1,7 +1,6 @@
 import {
   ConnectionQuality,
   ConnectionState,
-  createAudioAnalyser,
   DataPacket_Kind,
   DisconnectReason,
   LocalAudioTrack,
@@ -17,17 +16,18 @@ import {
   RoomConnectOptions,
   RoomEvent,
   RoomOptions,
-  setLogLevel,
   Track,
   TrackPublication,
   VideoCaptureOptions,
   VideoCodec,
   VideoPresets,
   VideoQuality,
+  createAudioAnalyser,
+  setLogLevel,
 } from '../src/index';
 import { SimulationScenario } from '../src/room/types';
 
-const $ = (id: string) => document.getElementById(id);
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const state = {
   isFrontFacing: false,
@@ -35,7 +35,6 @@ const state = {
   decoder: new TextDecoder(),
   defaultDevices: new Map<MediaDeviceKind, string>(),
   bitrateInterval: undefined as any,
-  dataFireInterval: undefined as any,
 };
 let currentRoom: Room | undefined;
 
@@ -44,8 +43,8 @@ let startTime: number;
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
 const storedToken = searchParams.get('token') ?? '';
-(<HTMLInputElement>$('url')).value = storedUrl;
-(<HTMLInputElement>$('token')).value = storedToken;
+$<HTMLInputElement>('url').value = storedUrl;
+$<HTMLInputElement>('token').value = storedToken;
 
 function updateSearchParams(url: string, token: string) {
   const params = new URLSearchParams({ url, token });

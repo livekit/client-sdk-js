@@ -2,6 +2,7 @@ import log from '../../logger';
 import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
+import { Track } from '../track/Track';
 import {
   BackupVideoCodec,
   ScreenSharePresets,
@@ -12,7 +13,6 @@ import {
   VideoPresets,
   VideoPresets43,
 } from '../track/options';
-import { Track } from '../track/Track';
 
 /** @internal */
 export function mediaTrackToLocalTrack(

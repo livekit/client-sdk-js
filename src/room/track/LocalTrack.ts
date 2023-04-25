@@ -3,14 +3,14 @@ import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import {
+  Mutex,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
   isMobile,
-  Mutex,
   sleep,
 } from '../utils';
+import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
-import { attachToElement, detachTrack, Track } from './Track';
 
 const defaultDimensionsTimeout = 2 * 1000;
 

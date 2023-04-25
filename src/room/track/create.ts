@@ -1,10 +1,11 @@
 import DeviceManager from '../DeviceManager';
+import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
-import { audioDefaults, videoDefaults } from '../defaults';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
+import { Track } from './Track';
 import {
   AudioCaptureOptions,
   CreateLocalTracksOptions,
@@ -12,7 +13,6 @@ import {
   VideoCaptureOptions,
   VideoPresets,
 } from './options';
-import { Track } from './Track';
 import { constraintsForOptions, mergeDefaultOptions } from './utils';
 
 /**

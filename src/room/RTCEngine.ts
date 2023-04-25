@@ -22,6 +22,9 @@ import {
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
+import PCTransport, { PCEvents } from './PCTransport';
+import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
+import { RegionUrlProvider } from './RegionUrlProvider';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -31,24 +34,21 @@ import {
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
-import PCTransport, { PCEvents } from './PCTransport';
-import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
-import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { Track } from './track/Track';
+import type { TrackPublishOptions, VideoCodec } from './track/options';
 import {
+  Mutex,
   isCloud,
   isWeb,
-  Mutex,
   sleep,
   supportsAddTrack,
   supportsSetCodecPreferences,
   supportsTransceiver,
 } from './utils';
-import { RegionUrlProvider } from './RegionUrlProvider';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';

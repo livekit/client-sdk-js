@@ -3,8 +3,8 @@ import { TrackEvent } from '../events';
 import { AudioSenderStats, computeBitrate, monitorFrequency } from '../stats';
 import { isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
-import type { AudioCaptureOptions } from './options';
 import { Track } from './Track';
+import type { AudioCaptureOptions } from './options';
 import { constraintsForOptions, detectSilence } from './utils';
 
 export default class LocalAudioTrack extends LocalTrack {

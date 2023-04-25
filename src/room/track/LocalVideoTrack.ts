@@ -2,11 +2,11 @@ import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import type { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc';
-import { computeBitrate, monitorFrequency, VideoSenderStats } from '../stats';
-import { isFireFox, isMobile, isWeb, Mutex } from '../utils';
+import { VideoSenderStats, computeBitrate, monitorFrequency } from '../stats';
+import { Mutex, isFireFox, isMobile, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
-import type { VideoCaptureOptions, VideoCodec } from './options';
 import { Track } from './Track';
+import type { VideoCaptureOptions, VideoCodec } from './options';
 import { constraintsForOptions } from './utils';
 
 export class SimulcastTrackInfo {

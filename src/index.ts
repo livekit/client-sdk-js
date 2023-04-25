@@ -1,11 +1,12 @@
 import { LogLevel, setLogExtension, setLogLevel } from './logger';
 import { DataPacket_Kind, DisconnectReason, VideoQuality } from './proto/livekit_models';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
+import Room, { ConnectionState, RoomState } from './room/Room';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './room/participant/Participant';
 import type { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
 import RemoteParticipant from './room/participant/RemoteParticipant';
-import Room, { ConnectionState, RoomState } from './room/Room';
+import CriticalTimers from './room/timers';
 import LocalAudioTrack from './room/track/LocalAudioTrack';
 import LocalTrack from './room/track/LocalTrack';
 import LocalTrackPublication from './room/track/LocalTrackPublication';
@@ -13,22 +14,19 @@ import LocalVideoTrack from './room/track/LocalVideoTrack';
 import RemoteAudioTrack from './room/track/RemoteAudioTrack';
 import RemoteTrack from './room/track/RemoteTrack';
 import RemoteTrackPublication from './room/track/RemoteTrackPublication';
-import RemoteVideoTrack from './room/track/RemoteVideoTrack';
-import type { ElementInfo } from './room/track/RemoteVideoTrack';
+import RemoteVideoTrack, { type ElementInfo } from './room/track/RemoteVideoTrack';
 import { TrackPublication } from './room/track/TrackPublication';
-import CriticalTimers from './room/timers';
+import type { LiveKitReactNativeInfo } from './room/types';
 import {
+  type AudioAnalyserOptions,
+  createAudioAnalyser,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
   isBrowserSupported,
-  supportsAdaptiveStream,
   supportsAV1,
+  supportsAdaptiveStream,
   supportsDynacast,
-  createAudioAnalyser,
 } from './room/utils';
-
-import type { AudioAnalyserOptions } from './room/utils';
-import type { LiveKitReactNativeInfo } from './room/types';
 
 export * from './options';
 export * from './room/errors';
