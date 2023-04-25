@@ -1,5 +1,19 @@
 # Change Log
 
+## 1.9.0
+
+### Minor Changes
+
+- Fix race condition with full reconnect sequence during server restart - [#663](https://github.com/livekit/client-sdk-js/pull/663) ([@davidzhao](https://github.com/davidzhao))
+
+### Patch Changes
+
+- Add support for local participants to update own metadata - [#599](https://github.com/livekit/client-sdk-js/pull/599) ([@lukasIO](https://github.com/lukasIO))
+
+- Expose numParticipants and numPublishers on Room - [#668](https://github.com/livekit/client-sdk-js/pull/668) ([@davidzhao](https://github.com/davidzhao))
+
+- Handle signal reconnect and full reconnection separately #665 - [#670](https://github.com/livekit/client-sdk-js/pull/670) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.8.0
 
 ### Minor Changes
