@@ -112,4 +112,3 @@ docs/
 pkg/
 bin/
 example/build/
-package-lock.json
