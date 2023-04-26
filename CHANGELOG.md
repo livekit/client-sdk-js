@@ -1,5 +1,47 @@
 # Change Log
 
+## 1.9.0
+
+### Minor Changes
+
+- Fix race condition with full reconnect sequence during server restart - [#663](https://github.com/livekit/client-sdk-js/pull/663) ([@davidzhao](https://github.com/davidzhao))
+
+### Patch Changes
+
+- Add support for local participants to update own metadata - [#599](https://github.com/livekit/client-sdk-js/pull/599) ([@lukasIO](https://github.com/lukasIO))
+
+- Expose numParticipants and numPublishers on Room - [#668](https://github.com/livekit/client-sdk-js/pull/668) ([@davidzhao](https://github.com/davidzhao))
+
+- Handle signal reconnect and full reconnection separately #665 - [#670](https://github.com/livekit/client-sdk-js/pull/670) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.8.0
+
+### Minor Changes
+
+- [#633](https://github.com/livekit/client-sdk-js/pull/633) [`95bd94e`](https://github.com/livekit/client-sdk-js/commit/95bd94eae361be8a23ed627bff665275050f8073) Thanks [@lukasIO](https://github.com/lukasIO)! - Give up on reconnections if token is invalid
+
+- [#634](https://github.com/livekit/client-sdk-js/pull/634) [`f085fbe`](https://github.com/livekit/client-sdk-js/commit/f085fbec0bb1c7687f0ea16dfc36d6d34220c35c) Thanks [@lukasIO](https://github.com/lukasIO)! - Allow manual operation on audio publications with adaptiveStream enabled
+
+- [#642](https://github.com/livekit/client-sdk-js/pull/642) [`dd381f1`](https://github.com/livekit/client-sdk-js/commit/dd381f106d68805388b3486b4cc3a23cb12132b5) Thanks [@lukasIO](https://github.com/lukasIO)! - Add Region URL Provider
+
+### Patch Changes
+
+- [#655](https://github.com/livekit/client-sdk-js/pull/655) [`8d7f854`](https://github.com/livekit/client-sdk-js/commit/8d7f85495b4562e629ac3f808407bddf08196f95) Thanks [@lukasIO](https://github.com/lukasIO)! - Remove page visibility listener when last element gets detached
+
+- [#658](https://github.com/livekit/client-sdk-js/pull/658) [`756cf56`](https://github.com/livekit/client-sdk-js/commit/756cf56b6ddab6e1ef2eee7359329a0ef5f9a2be) Thanks [@lukasIO](https://github.com/lukasIO)! - Stop monitoring track on unsubscribe
+
+- [#652](https://github.com/livekit/client-sdk-js/pull/652) [`bda2fa9`](https://github.com/livekit/client-sdk-js/commit/bda2fa91e0971b36ce15e2f481f576a1ecd0d3a9) Thanks [@renovate](https://github.com/apps/renovate)! - chore(deps): update devdependencies (non-major)
+
+- [#653](https://github.com/livekit/client-sdk-js/pull/653) [`201fcda`](https://github.com/livekit/client-sdk-js/commit/201fcdabd9868dd6a205dd85fdb84294af86a9b3) Thanks [@renovate](https://github.com/apps/renovate)! - fix(deps): update dependency webrtc-adapter to v8.2.2
+
+- [#629](https://github.com/livekit/client-sdk-js/pull/629) [`cb380c2`](https://github.com/livekit/client-sdk-js/commit/cb380c20201e590cd9f7e4fa1e1f563a5d3899a0) Thanks [@davidliu](https://github.com/davidliu)! - Identify react-native apps when connecting to server
+
+- [#654](https://github.com/livekit/client-sdk-js/pull/654) [`958eef2`](https://github.com/livekit/client-sdk-js/commit/958eef215454f0a600ae433654babe7bfaef108c) Thanks [@lukasIO](https://github.com/lukasIO)! - Expose DataChannel buffer status events
+
+- [#651](https://github.com/livekit/client-sdk-js/pull/651) [`80ec8d7`](https://github.com/livekit/client-sdk-js/commit/80ec8d7f0a1db1fb65ee18e3cd428474cc06c6d0) Thanks [@davidliu](https://github.com/davidliu)! - Support screen pixel density for react-native
+
+- [#632](https://github.com/livekit/client-sdk-js/pull/632) [`111971d`](https://github.com/livekit/client-sdk-js/commit/111971d43a0510d425950538873aa2482a790ac2) Thanks [@lukasIO](https://github.com/lukasIO)! - Replace async queue with mutex lock for mute operations
+
 ## 1.7.1
 
 ### Patch Changes

@@ -1,16 +1,17 @@
 import { debounce } from 'ts-debounce';
 import log from '../../logger';
 import { TrackEvent } from '../events';
-import { computeBitrate, VideoReceiverStats } from '../stats';
+import { VideoReceiverStats, computeBitrate } from '../stats';
 import CriticalTimers from '../timers';
 import {
+  ObservableMediaElement,
+  getDevicePixelRatio,
   getIntersectionObserver,
   getResizeObserver,
   isWeb,
-  ObservableMediaElement,
 } from '../utils';
 import RemoteTrack from './RemoteTrack';
-import { attachToElement, detachTrack, Track } from './Track';
+import { Track, attachToElement, detachTrack } from './Track';
 import type { AdaptiveStreamSettings } from './types';
 
 const REACTION_DELAY = 100;
@@ -26,7 +27,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
   private lastDimensions?: Track.Dimensions;
 
-  private hasUsedAttach: boolean = false;
+  private isObserved: boolean = false;
 
   constructor(
     mediaTrack: MediaStreamTrack,
@@ -43,7 +44,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   }
 
   get mediaStreamTrack() {
-    if (this.isAdaptiveStream && !this.hasUsedAttach) {
+    if (this.isAdaptiveStream && !this.isObserved) {
       log.warn(
         'When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, otherwise your video tracks might never start',
       );
@@ -83,7 +84,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
       const elementInfo = new HTMLElementInfo(element);
       this.observeElementInfo(elementInfo);
     }
-    this.hasUsedAttach = true;
     return element;
   }
 
@@ -110,6 +110,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       // the tab comes into focus for the first time.
       this.debouncedHandleResize();
       this.updateVisibility();
+      this.isObserved = true;
     } else {
       log.warn('visibility resize observer not triggered');
     }
@@ -253,7 +254,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     let maxHeight = 0;
     for (const info of this.elementInfos) {
       const pixelDensity = this.adaptiveStreamSettings?.pixelDensity ?? 1;
-      const pixelDensityValue = pixelDensity === 'screen' ? window.devicePixelRatio : pixelDensity;
+      const pixelDensityValue = pixelDensity === 'screen' ? getDevicePixelRatio() : pixelDensity;
       const currentElementWidth = info.width() * pixelDensityValue;
       const currentElementHeight = info.height() * pixelDensityValue;
       if (currentElementWidth + currentElementHeight > maxWidth + maxHeight) {

@@ -169,6 +169,14 @@ export enum RoomEvent {
   ParticipantMetadataChanged = 'participantMetadataChanged',
 
   /**
+   * Participant's display name changed
+   *
+   * args: (name: string, [[Participant]])
+   *
+   */
+  ParticipantNameChanged = 'participantNameChanged',
+
+  /**
    * Room metadata is a simple way for app-specific state to be pushed to
    * all users.
    * When RoomService.UpdateRoomMetadata is called to change a room's state,
@@ -264,6 +272,12 @@ export enum RoomEvent {
    * args: (isRecording: boolean)
    */
   RecordingStatusChanged = 'recordingStatusChanged',
+
+  /**
+   * Emits whenever the current buffer status of a data channel changes
+   * args: (isLow: boolean, kind: [[DataPacket_Kind]])
+   */
+  DCBufferStatusChanged = 'dcBufferStatusChanged',
 }
 
 export enum ParticipantEvent {
@@ -354,6 +368,14 @@ export enum ParticipantEvent {
   ParticipantMetadataChanged = 'participantMetadataChanged',
 
   /**
+   * Participant's display name changed
+   *
+   * args: (name: string, [[Participant]])
+   *
+   */
+  ParticipantNameChanged = 'participantNameChanged',
+
+  /**
    * Data received from this participant as sender.
    * Data packets provides the ability to use LiveKit to send/receive arbitrary payloads.
    * All participants in the room will receive the messages sent to the room.
@@ -427,10 +449,12 @@ export enum EngineEvent {
   Restarting = 'restarting',
   Restarted = 'restarted',
   SignalResumed = 'signalResumed',
+  SignalRestarted = 'signalRestarted',
   Closing = 'closing',
   MediaTrackAdded = 'mediaTrackAdded',
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
   DataPacketReceived = 'dataPacketReceived',
+  DCBufferStatusChanged = 'dcBufferStatusChanged',
 }
 
 export enum TrackEvent {

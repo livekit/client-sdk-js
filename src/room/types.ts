@@ -20,3 +20,20 @@ export type DataPublishOptions = {
   /** the topic under which the message gets published */
   topic?: string;
 };
+
+export type LiveKitReactNativeInfo = {
+  // Corresponds to RN's PlatformOSType
+  platform: 'ios' | 'android' | 'windows' | 'macos' | 'web' | 'native';
+  devicePixelRatio: number;
+};
+
+export type SimulationScenario =
+  | 'signal-reconnect'
+  | 'speaker'
+  | 'node-failure'
+  | 'server-leave'
+  | 'migration'
+  | 'resume-reconnect'
+  | 'force-tcp'
+  | 'force-tls'
+  | 'full-reconnect';

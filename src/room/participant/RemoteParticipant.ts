@@ -3,13 +3,13 @@ import log from '../../logger';
 import type { ParticipantInfo } from '../../proto/livekit_models';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { ParticipantEvent, TrackEvent } from '../events';
-import type { AudioOutputOptions } from '../track/options';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
 import RemoteVideoTrack from '../track/RemoteVideoTrack';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
+import type { AudioOutputOptions } from '../track/options';
 import type { AdaptiveStreamSettings } from '../track/types';
 import Participant, { ParticipantEventCallbacks } from './Participant';
 
@@ -215,8 +215,10 @@ export default class RemoteParticipant extends Participant {
   }
 
   /** @internal */
-  updateInfo(info: ParticipantInfo) {
-    super.updateInfo(info);
+  updateInfo(info: ParticipantInfo): boolean {
+    if (!super.updateInfo(info)) {
+      return false;
+    }
 
     // we are getting a list of all available tracks, reconcile in here
     // and send out events for changes
@@ -277,6 +279,7 @@ export default class RemoteParticipant extends Participant {
     newTracks.forEach((publication) => {
       this.emit(ParticipantEvent.TrackPublished, publication);
     });
+    return true;
   }
 
   /** @internal */

@@ -22,6 +22,9 @@ import {
   SignalTarget,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
+import PCTransport, { PCEvents } from './PCTransport';
+import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
+import { RegionUrlProvider } from './RegionUrlProvider';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -31,17 +34,16 @@ import {
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
-import PCTransport, { PCEvents } from './PCTransport';
-import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
-import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { Track } from './track/Track';
+import type { TrackPublishOptions, VideoCodec } from './track/options';
 import {
-  isWeb,
   Mutex,
+  isCloud,
+  isWeb,
   sleep,
   supportsAddTrack,
   supportsSetCodecPreferences,
@@ -73,6 +75,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
 
+  fullReconnectOnNext: boolean = false;
+
   get isClosed() {
     return this._isClosed;
   }
@@ -83,6 +87,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private lossyDCSub?: RTCDataChannel;
 
   private reliableDC?: RTCDataChannel;
+
+  private dcBufferStatus: Map<DataPacket_Kind, boolean>;
 
   // @ts-ignore noUnusedLocals
   private reliableDCSub?: RTCDataChannel;
@@ -114,8 +120,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reconnectStart: number = 0;
 
-  private fullReconnectOnNext: boolean = false;
-
   private clientConfiguration?: ClientConfiguration;
 
   private attemptingReconnect: boolean = false;
@@ -138,6 +142,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private shouldFailNext: boolean = false;
 
+  private regionUrlProvider?: RegionUrlProvider;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.client = new SignalClient();
@@ -146,6 +152,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.registerOnLineListener();
     this.closingLock = new Mutex();
     this.dataProcessLock = new Mutex();
+    this.dcBufferStatus = new Map([
+      [DataPacket_Kind.LOSSY, true],
+      [DataPacket_Kind.RELIABLE, true],
+    ]);
   }
 
   async join(
@@ -509,6 +519,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // handle datachannel errors
     this.lossyDC.onerror = this.handleDataError;
     this.reliableDC.onerror = this.handleDataError;
+
+    // set up dc buffer threshold, set to 64kB (otherwise 0 by default)
+    this.lossyDC.bufferedAmountLowThreshold = 65535;
+    this.reliableDC.bufferedAmountLowThreshold = 65535;
+
+    // handle buffer amount low events
+    this.lossyDC.onbufferedamountlow = this.handleBufferedAmountLow;
+    this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
   }
 
   private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
@@ -562,6 +580,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } else {
       log.error(`Unknown DataChannel Error on ${channelKind}`, event);
     }
+  };
+
+  private handleBufferedAmountLow = (event: Event) => {
+    const channel = event.currentTarget as RTCDataChannel;
+    const channelKind =
+      channel.maxRetransmits === 0 ? DataPacket_Kind.LOSSY : DataPacket_Kind.RELIABLE;
+
+    this.updateAndEmitDCBufferStatus(channelKind);
   };
 
   private setPreferredCodec(
@@ -739,6 +765,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     log.debug(`reconnecting in ${delay}ms`);
 
     this.clearReconnectTimeout();
+    if (this.url && this.token && isCloud(new URL(this.url))) {
+      this.regionUrlProvider = new RegionUrlProvider(this.url, this.token);
+    }
     this.reconnectTimeout = CriticalTimers.setTimeout(
       () => this.attemptReconnect(disconnectReason),
       delay,
@@ -810,46 +839,64 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return null;
   }
 
-  private async restartConnection() {
-    if (!this.url || !this.token) {
-      // permanent failure, don't attempt reconnection
-      throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
-    }
-
-    log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
-    this.emit(EngineEvent.Restarting);
-
-    if (this.client.isConnected) {
-      await this.client.sendLeave();
-    }
-    await this.client.close();
-    this.primaryPC = undefined;
-    this.publisher?.close();
-    this.publisher = undefined;
-    this.subscriber?.close();
-    this.subscriber = undefined;
-
-    let joinResponse: JoinResponse;
+  private async restartConnection(regionUrl?: string) {
     try {
-      if (!this.signalOpts) {
-        log.warn('attempted connection restart, without signal options present');
+      if (!this.url || !this.token) {
+        // permanent failure, don't attempt reconnection
+        throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
+      }
+
+      log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
+      this.emit(EngineEvent.Restarting);
+
+      if (this.client.isConnected) {
+        await this.client.sendLeave();
+      }
+      await this.client.close();
+      this.primaryPC = undefined;
+      this.publisher?.close();
+      this.publisher = undefined;
+      this.subscriber?.close();
+      this.subscriber = undefined;
+
+      let joinResponse: JoinResponse;
+      try {
+        if (!this.signalOpts) {
+          log.warn('attempted connection restart, without signal options present');
+          throw new SignalReconnectError();
+        }
+        // in case a regionUrl is passed, the region URL takes precedence
+        joinResponse = await this.join(regionUrl ?? this.url, this.token, this.signalOpts);
+      } catch (e) {
+        if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
+          throw new UnexpectedConnectionState('could not reconnect, token might be expired');
+        }
         throw new SignalReconnectError();
       }
-      joinResponse = await this.join(this.url, this.token, this.signalOpts);
-    } catch (e) {
-      throw new SignalReconnectError();
+
+      if (this.shouldFailNext) {
+        this.shouldFailNext = false;
+        throw new Error('simulated failure');
+      }
+
+      this.client.setReconnected();
+      this.emit(EngineEvent.SignalRestarted, joinResponse);
+
+      await this.waitForPCReconnected();
+      this.regionUrlProvider?.resetAttempts();
+      // reconnect success
+      this.emit(EngineEvent.Restarted);
+    } catch (error) {
+      const nextRegionUrl = await this.regionUrlProvider?.getNextBestRegionUrl();
+      if (nextRegionUrl) {
+        await this.restartConnection(nextRegionUrl);
+        return;
+      } else {
+        // no more regions to try (or we're not on cloud)
+        this.regionUrlProvider?.resetAttempts();
+        throw error;
+      }
     }
-
-    if (this.shouldFailNext) {
-      this.shouldFailNext = false;
-      throw new Error('simulated failure');
-    }
-
-    await this.waitForPCConnected();
-    this.client.setReconnected();
-
-    // reconnect success
-    this.emit(EngineEvent.Restarted, joinResponse);
   }
 
   private async resumeConnection(reason?: ReconnectReason): Promise<void> {
@@ -877,6 +924,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (e instanceof Error) {
         message = e.message;
       }
+      if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
+        throw new UnexpectedConnectionState('could not reconnect, token might be expired');
+      }
       throw new SignalReconnectError(message);
     }
     this.emit(EngineEvent.SignalResumed);
@@ -893,7 +943,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       await this.publisher.createAndSendOffer({ iceRestart: true });
     }
 
-    await this.waitForPCConnected();
+    await this.waitForPCReconnected();
     this.client.setReconnected();
 
     // recreate publish datachannel if it's id is null
@@ -906,7 +956,45 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.emit(EngineEvent.Resumed);
   }
 
-  async waitForPCConnected() {
+  async waitForPCInitialConnection(timeout?: number, abortController?: AbortController) {
+    if (this.pcState === PCState.Connected) {
+      return;
+    }
+    if (this.pcState !== PCState.New) {
+      throw new UnexpectedConnectionState(
+        'Expected peer connection to be new on initial connection',
+      );
+    }
+    return new Promise<void>((resolve, reject) => {
+      const abortHandler = () => {
+        log.warn('closing engine');
+        CriticalTimers.clearTimeout(connectTimeout);
+
+        reject(
+          new ConnectionError(
+            'room connection has been cancelled',
+            ConnectionErrorReason.Cancelled,
+          ),
+        );
+      };
+      if (abortController?.signal.aborted) {
+        abortHandler();
+      }
+      abortController?.signal.addEventListener('abort', abortHandler);
+      const onConnected = () => {
+        CriticalTimers.clearTimeout(connectTimeout);
+        abortController?.signal.removeEventListener('abort', abortHandler);
+        resolve();
+      };
+      const connectTimeout = CriticalTimers.setTimeout(() => {
+        this.off(EngineEvent.Connected, onConnected);
+        reject(new ConnectionError('could not establish pc connection'));
+      }, timeout ?? this.peerConnectionTimeout);
+      this.once(EngineEvent.Connected, onConnected);
+    });
+  }
+
+  private async waitForPCReconnected() {
     const startTime = Date.now();
     let now = startTime;
     this.pcState = PCState.Reconnecting;
@@ -936,6 +1024,24 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     throw new ConnectionError('could not establish PC connection');
   }
 
+  waitForRestarted = () => {
+    return new Promise<void>((resolve, reject) => {
+      if (this.pcState === PCState.Connected) {
+        resolve();
+      }
+      const onRestarted = () => {
+        this.off(EngineEvent.Disconnected, onDisconnected);
+        resolve();
+      };
+      const onDisconnected = () => {
+        this.off(EngineEvent.Restarted, onRestarted);
+        reject();
+      };
+      this.once(EngineEvent.Restarted, onRestarted);
+      this.once(EngineEvent.Disconnected, onDisconnected);
+    });
+  };
+
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
     const msg = DataPacket.encode(packet).finish();
@@ -943,12 +1049,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
-    if (kind === DataPacket_Kind.LOSSY && this.lossyDC) {
-      this.lossyDC.send(msg);
-    } else if (kind === DataPacket_Kind.RELIABLE && this.reliableDC) {
-      this.reliableDC.send(msg);
+    const dc = this.dataChannelForKind(kind);
+    if (dc) {
+      dc.send(msg);
     }
+
+    this.updateAndEmitDCBufferStatus(kind);
   }
+
+  private updateAndEmitDCBufferStatus = (kind: DataPacket_Kind) => {
+    const status = this.isBufferStatusLow(kind);
+    if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
+      this.dcBufferStatus.set(kind, status);
+      this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
+    }
+  };
+
+  private isBufferStatusLow = (kind: DataPacket_Kind): boolean | undefined => {
+    const dc = this.dataChannelForKind(kind);
+    if (dc) {
+      return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
+    }
+  };
 
   /**
    * @internal
@@ -1144,8 +1266,9 @@ export type EngineEventCallbacks = {
   resuming: () => void;
   resumed: () => void;
   restarting: () => void;
-  restarted: (joinResp: JoinResponse) => void;
+  restarted: () => void;
   signalResumed: () => void;
+  signalRestarted: (joinResp: JoinResponse) => void;
   closing: () => void;
   mediaTrackAdded: (
     track: MediaStreamTrack,
@@ -1155,4 +1278,5 @@ export type EngineEventCallbacks = {
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
+  dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
 };

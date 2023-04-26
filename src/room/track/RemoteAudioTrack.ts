@@ -2,9 +2,9 @@ import log from '../../logger';
 import { TrackEvent } from '../events';
 import { AudioReceiverStats, computeBitrate } from '../stats';
 import { supportsSetSinkId } from '../utils';
-import type { AudioOutputOptions } from './options';
 import RemoteTrack from './RemoteTrack';
 import { Track } from './Track';
+import type { AudioOutputOptions } from './options';
 
 export default class RemoteAudioTrack extends RemoteTrack {
   private prevStats?: AudioReceiverStats;

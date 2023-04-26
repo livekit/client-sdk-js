@@ -181,6 +181,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       prevTrack.off(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
       prevTrack.off(TrackEvent.Ended, this.handleEnded);
       prevTrack.detach();
+      prevTrack.stopMonitor();
       this.emit(TrackEvent.Unsubscribed, prevTrack);
     }
     super.setTrack(track);
