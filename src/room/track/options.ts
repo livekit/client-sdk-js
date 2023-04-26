@@ -188,6 +188,12 @@ export interface AudioCaptureOptions {
    * sample size or range of sample sizes which are acceptable and/or required.
    */
   sampleSize?: ConstrainULong;
+
+  /**
+   * Experimental option to controls whether the audio playing in a tab will continue to be played out of a user's 
+   * local speakers when the tab is captured.
+   */
+  suppressLocalAudioPlayback?: boolean;
 }
 
 export interface AudioOutputOptions {
