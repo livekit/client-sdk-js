@@ -147,7 +147,7 @@ export interface ScreenShareCaptureOptions {
   systemAudio?: 'include' | 'exclude';
 
   /**
-   * Experimental option to controls whether the audio playing in a tab will continue to be played out of a user's
+   * Experimental option to control whether the audio playing in a tab will continue to be played out of a user's
    * local speakers when the tab is captured.
    */
   suppressLocalAudioPlayback?: boolean;
