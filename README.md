@@ -45,13 +45,12 @@ await room.connect(...);
 
 ```typescript
 import {
-  connect,
+  Participant,
+  RemoteParticipant,
+  RemoteTrack,
+  RemoteTrackPublication,
   Room,
   RoomEvent,
-  RemoteParticipant,
-  RemoteTrackPublication,
-  RemoteTrack,
-  Participant,
 } from 'livekit-client';
 
 // creates a new room with options
@@ -296,7 +295,9 @@ You can have a look at the `"browerslist"` section of `package.json` for more de
 If you are targeting legacy browsers, but still want adaptiveStream functionality you'll likely need to use polyfills for [ResizeObserver](https://www.npmjs.com/package/resize-observer-polyfill) and [IntersectionObserver](https://www.npmjs.com/package/intersection-observer).
 
 <!--BEGIN_REPO_NAV-->
+
 <br/><table>
+
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>
 <tr><td>Client SDKs</td><td><a href="https://github.com/livekit/components-js">Components</a> · <b>JavaScript</b> · <a href="https://github.com/livekit/client-sdk-rust">Rust</a> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (web)</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native (beta)</a></td></tr><tr></tr>
