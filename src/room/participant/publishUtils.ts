@@ -13,6 +13,7 @@ import {
   VideoPresets,
   VideoPresets43,
 } from '../track/options';
+import { isSVCCodec } from '../utils';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
@@ -121,7 +122,7 @@ export function computeVideoEncodings(
     videoEncoding.maxFramerate,
   );
 
-  if (scalabilityMode && videoCodec === 'av1') {
+  if (scalabilityMode && isSVCCodec(videoCodec)) {
     log.debug(`using svc with scalabilityMode ${scalabilityMode}`);
 
     const encodings: RTCRtpEncodingParameters[] = [];
@@ -248,7 +249,12 @@ export function determineAppropriateEncoding(
   if (codec) {
     switch (codec) {
       case 'av1':
+        encoding = { ...encoding };
         encoding.maxBitrate = encoding.maxBitrate * 0.7;
+        break;
+      case 'vp9':
+        encoding = { ...encoding };
+        encoding.maxBitrate = encoding.maxBitrate * 0.85;
         break;
       default:
         break;
