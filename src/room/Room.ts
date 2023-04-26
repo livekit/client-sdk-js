@@ -124,6 +124,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private disconnectLock: Mutex;
 
+  private cachedParticipantSids: Array<string>;
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -132,6 +134,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     super();
     this.setMaxListeners(100);
     this.participants = new Map();
+    this.cachedParticipantSids = [];
     this.identityToSid = new Map();
     this.options = { ...roomOptionDefaults, ...options };
 
@@ -215,11 +218,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
         }
+        this.cachedParticipantSids = Array.from(this.participants.keys());
       })
       .on(EngineEvent.Resumed, () => {
         this.setAndEmitConnectionState(ConnectionState.Connected);
         this.emit(RoomEvent.Reconnected);
         this.updateSubscriptions();
+
+        // once reconnected, figure out if any participants connected during reconnect and emit events for it
+        const diffParticipants = Array.from(this.participants.values()).filter(
+          (p) => !this.cachedParticipantSids.includes(p.sid),
+        );
+        diffParticipants.forEach((p) => this.emit(RoomEvent.ParticipantConnected, p));
+        this.cachedParticipantSids = [];
       })
       .on(EngineEvent.SignalResumed, () => {
         if (this.state === ConnectionState.Reconnecting) {
@@ -833,6 +844,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       region: joinResponse.serverRegion,
     });
 
+    this.cachedParticipantSids = [];
     this.applyJoinResponse(joinResponse);
 
     try {
