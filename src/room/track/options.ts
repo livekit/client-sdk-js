@@ -145,6 +145,12 @@ export interface ScreenShareCaptureOptions {
 
   /** specifies whether the browser should include the system audio among the possible audio sources offered to the user */
   systemAudio?: 'include' | 'exclude';
+
+  /**
+   * Experimental option to control whether the audio playing in a tab will continue to be played out of a user's
+   * local speakers when the tab is captured.
+   */
+  suppressLocalAudioPlayback?: boolean;
 }
 
 export interface AudioCaptureOptions {
