@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.9.1
+
+### Patch Changes
+
+- Only set maxFramerate on encoding if defined - [#676](https://github.com/livekit/client-sdk-js/pull/676) ([@lukasIO](https://github.com/lukasIO))
+
+- added experimental option suppressLocalAudioPlayback - [#675](https://github.com/livekit/client-sdk-js/pull/675) ([@jibon57](https://github.com/jibon57))
+
+- Fix: Emit connected events for participants that connected during signal reconnect - [#672](https://github.com/livekit/client-sdk-js/pull/672) ([@lukasIO](https://github.com/lukasIO))
+
+- Add VP9 SVC support - [#643](https://github.com/livekit/client-sdk-js/pull/643) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 1.9.0
 
 ### Minor Changes
