@@ -309,13 +309,15 @@ function encodingsFromPresets(
     }
     const size = Math.min(width, height);
     const rid = videoRids[idx];
-    encodings.push({
+    const encoding: RTCRtpEncodingParameters = {
       rid,
       scaleResolutionDownBy: Math.max(1, size / Math.min(preset.width, preset.height)),
       maxBitrate: preset.encoding.maxBitrate,
-      /* @ts-ignore */
-      maxFramerate: preset.encoding.maxFramerate,
-    });
+    };
+    if (preset.encoding.maxFramerate) {
+      encoding.maxFramerate = preset.encoding.maxFramerate;
+    }
+    encodings.push(encoding);
   });
   return encodings;
 }
