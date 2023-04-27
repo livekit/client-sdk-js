@@ -61,6 +61,7 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
           ),
         ),
         t.fps,
+        'medium',
       ),
   );
 };
@@ -316,6 +317,9 @@ function encodingsFromPresets(
     };
     if (preset.encoding.maxFramerate) {
       encoding.maxFramerate = preset.encoding.maxFramerate;
+    }
+    if (preset.encoding.priority) {
+      encoding.priority = preset.encoding.priority;
     }
     encodings.push(encoding);
   });

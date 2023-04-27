@@ -307,8 +307,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.participantSid = joinResponse.participant?.sid;
 
     const rtcConfig = this.makeRTCConfiguration(joinResponse);
-
-    this.publisher = new PCTransport(rtcConfig);
+    const googConstraints = { optional: [{ googDscp: true }] };
+    this.publisher = new PCTransport(rtcConfig, googConstraints);
     this.subscriber = new PCTransport(rtcConfig);
 
     this.emit(EngineEvent.TransportsCreated, this.publisher, this.subscriber);

@@ -655,6 +655,7 @@ export default class LocalParticipant extends Participant {
       encodings = [
         {
           maxBitrate: opts.audioBitrate,
+          priority: opts.priority ?? 'high',
         },
       ];
     }

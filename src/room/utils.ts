@@ -119,6 +119,11 @@ export function isFireFox(): boolean {
   return navigator.userAgent.indexOf('Firefox') !== -1;
 }
 
+export function isChromiumBased(): boolean {
+  if (!isWeb()) return false;
+  return navigator.userAgent.indexOf('Chrom') !== -1;
+}
+
 export function isSafari(): boolean {
   if (!isWeb()) return false;
   return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);

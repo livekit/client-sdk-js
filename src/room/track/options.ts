@@ -215,6 +215,7 @@ export interface VideoResolution {
 export interface VideoEncoding {
   maxBitrate: number;
   maxFramerate?: number;
+  priority?: RTCPriorityType;
 }
 
 export class VideoPreset {
@@ -224,12 +225,19 @@ export class VideoPreset {
 
   height: number;
 
-  constructor(width: number, height: number, maxBitrate: number, maxFramerate?: number) {
+  constructor(
+    width: number,
+    height: number,
+    maxBitrate: number,
+    maxFramerate?: number,
+    priority?: RTCPriorityType,
+  ) {
     this.width = width;
     this.height = height;
     this.encoding = {
       maxBitrate,
       maxFramerate,
+      priority,
     };
   }
 
@@ -245,6 +253,7 @@ export class VideoPreset {
 
 export interface AudioPreset {
   maxBitrate: number;
+  priority?: RTCPriorityType;
 }
 
 const codecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
@@ -295,15 +304,15 @@ export namespace AudioPresets {
  * Sane presets for video resolution/encoding
  */
 export const VideoPresets = {
-  h90: new VideoPreset(160, 90, 60_000, 15),
-  h180: new VideoPreset(320, 180, 120_000, 15),
-  h216: new VideoPreset(384, 216, 180_000, 15),
-  h360: new VideoPreset(640, 360, 300_000, 20),
-  h540: new VideoPreset(960, 540, 600_000, 25),
-  h720: new VideoPreset(1280, 720, 1_700_000, 30),
-  h1080: new VideoPreset(1920, 1080, 3_000_000, 30),
-  h1440: new VideoPreset(2560, 1440, 5_000_000, 30),
-  h2160: new VideoPreset(3840, 2160, 8_000_000, 30),
+  h90: new VideoPreset(160, 90, 60_000, 15, 'low'),
+  h180: new VideoPreset(320, 180, 120_000, 15, 'low'),
+  h216: new VideoPreset(384, 216, 180_000, 15, 'low'),
+  h360: new VideoPreset(640, 360, 300_000, 20, 'low'),
+  h540: new VideoPreset(960, 540, 600_000, 25, 'low'),
+  h720: new VideoPreset(1280, 720, 1_700_000, 30, 'low'),
+  h1080: new VideoPreset(1920, 1080, 3_000_000, 30, 'low'),
+  h1440: new VideoPreset(2560, 1440, 5_000_000, 30, 'low'),
+  h2160: new VideoPreset(3840, 2160, 8_000_000, 30, 'low'),
 } as const;
 
 /**
