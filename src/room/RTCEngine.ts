@@ -634,6 +634,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
+  @recordException
   async createSender(
     track: LocalTrack,
     opts: TrackPublishOptions,
@@ -1280,3 +1281,22 @@ export type EngineEventCallbacks = {
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
 };
+
+
+
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function recordException(originalMethod: any, _context: ClassMethodDecoratorContext) {
+  
+  function replacementMethod(this: any, ...args: any[]) {
+    try {
+      return originalMethod.call(this, ...args);
+    } catch (e: any) {
+      log.error("custom decorator logger", e);
+      throw e;
+    }
+}
+
+return replacementMethod;
+}
+
