@@ -1,16 +1,20 @@
 import type { InternalRoomConnectOptions, InternalRoomOptions } from '../options';
 import DefaultReconnectPolicy from './DefaultReconnectPolicy';
 import {
-  AudioCaptureOptions,
+  type AudioCaptureOptions,
   AudioPresets,
   ScreenSharePresets,
-  TrackPublishDefaults,
-  VideoCaptureOptions,
+  type TrackPublishDefaults,
+  type VideoCaptureOptions,
   VideoPresets,
 } from './track/options';
 
 export const publishDefaults: TrackPublishDefaults = {
+  /**
+   * @deprecated
+   */
   audioBitrate: AudioPresets.music.maxBitrate,
+  audioPreset: AudioPresets.music,
   dtx: true,
   red: true,
   forceStereo: false,

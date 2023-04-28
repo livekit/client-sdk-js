@@ -4,11 +4,11 @@ import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
 import {
-  BackupVideoCodec,
+  type BackupVideoCodec,
   ScreenSharePresets,
-  TrackPublishOptions,
-  VideoCodec,
-  VideoEncoding,
+  type TrackPublishOptions,
+  type VideoCodec,
+  type VideoEncoding,
   VideoPreset,
   VideoPresets,
   VideoPresets43,
@@ -61,7 +61,7 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
           ),
         ),
         t.fps,
-        'medium',
+        fromPreset.encoding.priority,
       ),
   );
 };

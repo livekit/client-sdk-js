@@ -1,6 +1,6 @@
 import log from '../../logger';
 import { TrackEvent } from '../events';
-import { AudioSenderStats, computeBitrate, monitorFrequency } from '../stats';
+import { type AudioSenderStats, computeBitrate, monitorFrequency } from '../stats';
 import { isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';

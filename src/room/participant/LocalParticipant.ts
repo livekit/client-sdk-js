@@ -19,13 +19,13 @@ import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
 import {
-  AudioCaptureOptions,
-  BackupVideoCodec,
-  CreateLocalTracksOptions,
-  ScreenShareCaptureOptions,
+  type AudioCaptureOptions,
+  type BackupVideoCodec,
+  type CreateLocalTracksOptions,
+  type ScreenShareCaptureOptions,
   ScreenSharePresets,
-  TrackPublishOptions,
-  VideoCaptureOptions,
+  type TrackPublishOptions,
+  type VideoCaptureOptions,
   isBackupCodec,
   isCodecEqual,
 } from '../track/options';
@@ -33,7 +33,10 @@ import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
 import type { DataPublishOptions } from '../types';
 import { Future, isFireFox, isSVCCodec, isSafari, isWeb, supportsAV1, supportsVP9 } from '../utils';
 import Participant from './Participant';
-import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
+import {
+  type ParticipantTrackPermission,
+  trackPermissionToProto,
+} from './ParticipantTrackPermission';
 import RemoteParticipant from './RemoteParticipant';
 import {
   computeTrackBackupEncodings,
@@ -651,11 +654,11 @@ export default class LocalParticipant extends Participant {
         opts,
       );
       req.layers = videoLayersFromEncodings(req.width, req.height, simEncodings ?? encodings);
-    } else if (track.kind === Track.Kind.Audio && opts.audioBitrate) {
+    } else if (track.kind === Track.Kind.Audio) {
       encodings = [
         {
-          maxBitrate: opts.audioBitrate,
-          priority: opts.priority ?? 'high',
+          maxBitrate: opts.audioPreset?.maxBitrate ?? opts.audioBitrate,
+          priority: opts.audioPreset?.priority ?? 'high',
         },
       ];
     }

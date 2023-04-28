@@ -2,7 +2,7 @@ import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import type { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc';
-import { VideoSenderStats, computeBitrate, monitorFrequency } from '../stats';
+import { type VideoSenderStats, computeBitrate, monitorFrequency } from '../stats';
 import { Mutex, isFireFox, isMobile, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
