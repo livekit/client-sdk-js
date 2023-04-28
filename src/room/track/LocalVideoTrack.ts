@@ -154,6 +154,7 @@ export default class LocalVideoTrack extends LocalTrack {
         };
 
         // locate the appropriate remote-inbound-rtp item
+        // @ts-expect-error get support got removed from the type
         const r = stats.get(v.remoteId);
         if (r) {
           vs.jitter = r.jitter;

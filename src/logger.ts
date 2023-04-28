@@ -54,3 +54,20 @@ export function setLogExtension(extension: LogExtension) {
   };
   livekitLogger.setLevel(livekitLogger.getLevel()); // Be sure to call setLevel method in order to apply plugin
 }
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function recordException(originalMethod: any, _context: ClassMethodDecoratorContext) {
+  function replacementMethod(this: any, ...args: any[]) {
+    try {
+      return originalMethod.call(this, ...args).then((result: any) => {
+        log.error('decorator works!');
+        return result;
+      });
+    } catch (e: any) {
+      log.error('custom decorator logger', e);
+      throw e;
+    }
+  }
+
+  return replacementMethod;
+}
