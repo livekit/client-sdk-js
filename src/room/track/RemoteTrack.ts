@@ -1,5 +1,5 @@
 import { TrackEvent } from '../events';
-import { monitorFrequency } from '../stats';
+import { AudioReceiverStats, VideoReceiverStats, monitorFrequency } from '../stats';
 import { Track } from './Track';
 
 export default abstract class RemoteTrack extends Track {
@@ -59,4 +59,6 @@ export default abstract class RemoteTrack extends Track {
   }
 
   protected abstract monitorReceiver(): void;
+
+  abstract getReceiverStats(): Promise<VideoReceiverStats | AudioReceiverStats | undefined>;
 }

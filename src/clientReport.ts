@@ -2,13 +2,16 @@ import type Room from './room/Room';
 import type { RoomEventCallbacks } from './room/Room';
 import type { QualityLimitationReason } from './room/stats';
 import type LocalTrackPublication from './room/track/LocalTrackPublication';
+import type RemoteTrackPublication from './room/track/RemoteTrackPublication';
 import type { TrackPublication } from './room/track/TrackPublication';
 
 interface RTCSenderStats {
   qualityLimitationReason: QualityLimitationReason;
   qualityLimitationDurations: Record<QualityLimitationReason, number>;
 }
-interface RTCReceiverStats {}
+interface RTCReceiverStats {
+  jitter?: number;
+}
 
 interface EventReport {
   type: keyof RoomEventCallbacks;
@@ -25,10 +28,11 @@ interface PublicationReport {
 }
 
 interface SubscriptionReport {
+  sid: string;
   rtcStats: RTCReceiverStats;
   readyState: MediaStreamTrack['readyState'];
-  permissionState: PermissionState;
-  subscriptionState: TrackPublication.SubscriptionStatus;
+  permissionStatus: TrackPublication.PermissionStatus;
+  subscriptionStatus: TrackPublication.SubscriptionStatus;
 }
 
 interface ApiError {
@@ -54,7 +58,7 @@ type WithoutTimestamp<T> = Omit<T, 'timestamp'>;
 /**
  * @internal
  */
-export function createClientReporter(room: Room) {
+export function createWebClientReporter(room: Room) {
   const errors: ApiError[] = [];
   const events: EventReport[] = [];
   const recordError = (error: WithoutTimestamp<ApiError>) => {
@@ -67,14 +71,25 @@ export function createClientReporter(room: Room) {
   const createReport = async () => {
     const report: ClientReport = {
       publications: await Promise.all(
-        (room.localParticipant.getTracks() as LocalTrackPublication[]).map(async (pub) =>
-          publicationToReport(pub),
+        (room.localParticipant.getTracks() as LocalTrackPublication[]).map(publicationToReport),
+      ),
+      subscriptions: await Promise.all(
+        Array.from(room.participants.values()).flatMap((p) =>
+          (p.getTracks() as RemoteTrackPublication[]).map(subscriptionToReport),
         ),
       ),
+      events,
+      errors,
+      deviceInfo: {
+        ua: navigator.userAgent,
+        concurrency: navigator.hardwareConcurrency,
+      },
     };
+
+    return report;
   };
 
-  return { recordError, recordEvent };
+  return { recordError, recordEvent, createReport };
 }
 
 async function publicationToReport(pub: LocalTrackPublication) {
@@ -95,4 +110,22 @@ async function publicationToReport(pub: LocalTrackPublication) {
     muted: pub.track.isMuted,
     rtcStats,
   } satisfies PublicationReport;
+}
+
+async function subscriptionToReport(pub: RemoteTrackPublication) {
+  if (!pub.track) {
+    throw Error('expected track to be present on local publication');
+  }
+  const senderStats = await pub.track.getReceiverStats();
+  let rtcStats: RTCReceiverStats = {};
+  if (senderStats !== undefined) {
+    rtcStats = { jitter: senderStats.jitter };
+  }
+  return {
+    sid: pub.trackSid,
+    readyState: pub.track.mediaStreamTrack.readyState,
+    permissionStatus: pub.permissionStatus,
+    subscriptionStatus: pub.subscriptionStatus,
+    rtcStats,
+  } satisfies SubscriptionReport;
 }
