@@ -151,6 +151,7 @@ export default class LocalVideoTrack extends LocalTrack {
           retransmittedPacketsSent: v.retransmittedPacketsSent,
           qualityLimitationReason: v.qualityLimitationReason,
           qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
+          qualityLimitationDurations: v.qualityLimitationDurations,
         };
 
         // locate the appropriate remote-inbound-rtp item

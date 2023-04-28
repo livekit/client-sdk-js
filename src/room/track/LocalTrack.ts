@@ -2,6 +2,7 @@ import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
+import type { AudioSenderStats, VideoSenderStats } from '../stats';
 import {
   Mutex,
   getEmptyAudioStreamTrack,
@@ -294,4 +295,6 @@ export default abstract class LocalTrack extends Track {
   }
 
   protected abstract monitorSender(): void;
+
+  public abstract getSenderStats(): Promise<AudioSenderStats | VideoSenderStats[] | undefined>;
 }
