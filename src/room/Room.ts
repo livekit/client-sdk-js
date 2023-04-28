@@ -416,7 +416,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.state === ConnectionState.Reconnecting) {
       log.info('Reconnection attempt replaced by new connection attempt');
       // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
-      this.recreateEngine();
+      await this.recreateEngine();
     } else {
       // create engine if previously disconnected
       this.maybeCreateEngine();
@@ -448,7 +448,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.setupLocalParticipantEvents();
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
-      this.recreateEngine();
+      await this.recreateEngine();
       this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       const resultingError = new ConnectionError(`could not establish signal connection`);
       if (err instanceof Error) {
@@ -463,7 +463,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     if (abortController.signal.aborted) {
-      this.recreateEngine();
+      await this.recreateEngine();
       this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       throw new ConnectionError(`Connection attempt aborted`);
     }
@@ -474,7 +474,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         abortController,
       );
     } catch (e) {
-      this.recreateEngine();
+      await this.recreateEngine();
       this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       throw e;
     }
@@ -760,8 +760,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
   }
 
-  private recreateEngine() {
-    this.engine?.close();
+  private async recreateEngine() {
+    await this.engine?.close();
     /* @ts-ignore */
     this.engine = undefined;
 
