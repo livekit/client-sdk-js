@@ -1120,6 +1120,39 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     await this.ensureDataTransportConnected(kind, false);
   }
 
+  /* @internal */
+  verifyTransport(): boolean {
+    // primary connection
+    if (!this.primaryPC) {
+      return false;
+    }
+    if (
+      this.primaryPC.connectionState === 'closed' ||
+      this.primaryPC.connectionState === 'failed'
+    ) {
+      return false;
+    }
+
+    // also verify publisher connection if it's needed or different
+    if (this.hasPublished && this.subscriberPrimary) {
+      if (!this.publisher) {
+        return false;
+      }
+      if (
+        this.publisher.pc.connectionState === 'closed' ||
+        this.publisher.pc.connectionState === 'failed'
+      ) {
+        return false;
+      }
+    }
+
+    // ensure signal is connected
+    if (!this.client.ws || this.client.ws.readyState === WebSocket.CLOSED) {
+      return false;
+    }
+    return true;
+  }
+
   /** @internal */
   negotiate(): Promise<void> {
     // observe signal state
