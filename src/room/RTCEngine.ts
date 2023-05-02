@@ -821,7 +821,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           }ms. giving up`,
         );
         this.emit(EngineEvent.Disconnected);
-        this.close();
+        await this.close();
       }
     } finally {
       this.attemptingReconnect = false;
