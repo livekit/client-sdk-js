@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.9.2
+
+### Patch Changes
+
+- Ensure engine is always set to undefined when closing - [#682](https://github.com/livekit/client-sdk-js/pull/682) ([@lukasIO](https://github.com/lukasIO))
+
+- Handle connection state mismatch with periodic reconciliation - [#680](https://github.com/livekit/client-sdk-js/pull/680) ([@davidzhao](https://github.com/davidzhao))
+
 ## 1.9.1
 
 ### Patch Changes
