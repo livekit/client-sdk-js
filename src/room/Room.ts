@@ -241,10 +241,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
       .on(EngineEvent.DCBufferStatusChanged, (status, kind) => {
         this.emit(RoomEvent.DCBufferStatusChanged, status, kind);
-      })
-      .on(EngineEvent.Closing, () => {
-        // @ts-ignore
-        this.engine = undefined;
       });
 
     if (this.localParticipant) {
@@ -909,7 +905,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
-
     this.participants.forEach((p) => {
       p.tracks.forEach((pub) => {
         p.unpublishTrack(pub.trackSid);
