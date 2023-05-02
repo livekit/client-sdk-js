@@ -1,5 +1,4 @@
-import EventEmitter from 'events';
-import type TypedEmitter from 'typed-emitter';
+import EventEmitter from 'eventemitter3';
 import { CheckInfo, CheckStatus, Checker, InstantiableCheck } from './checks/Checker';
 import { PublishAudioCheck } from './checks/publishAudio';
 import { PublishVideoCheck } from './checks/publishVideo';
@@ -10,7 +9,7 @@ import { WebSocketCheck } from './checks/websocket';
 
 export type { CheckInfo, CheckStatus };
 
-export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<ConnectionCheckCallbacks>) {
+export class ConnectionCheck extends EventEmitter<ConnectionCheckCallbacks> {
   token: string;
 
   url: string;
