@@ -955,7 +955,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       window.removeEventListener('pagehide', this.onPageLeave);
       navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
     }
-
     this.setAndEmitConnectionState(ConnectionState.Disconnected);
     this.emit(RoomEvent.Disconnected, reason);
   }
