@@ -14,11 +14,11 @@ import LocalVideoTrack from './room/track/LocalVideoTrack';
 import RemoteAudioTrack from './room/track/RemoteAudioTrack';
 import RemoteTrack from './room/track/RemoteTrack';
 import RemoteTrackPublication from './room/track/RemoteTrackPublication';
-import RemoteVideoTrack, { type ElementInfo } from './room/track/RemoteVideoTrack';
+import type { ElementInfo } from './room/track/RemoteVideoTrack';
+import RemoteVideoTrack from './room/track/RemoteVideoTrack';
 import { TrackPublication } from './room/track/TrackPublication';
 import type { LiveKitReactNativeInfo } from './room/types';
 import {
-  type AudioAnalyserOptions,
   createAudioAnalyser,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
@@ -27,6 +27,7 @@ import {
   supportsAdaptiveStream,
   supportsDynacast,
 } from './room/utils';
+import type { AudioAnalyserOptions } from './room/utils';
 
 export * from './options';
 export * from './room/errors';
@@ -48,7 +49,6 @@ export {
   supportsDynacast,
   supportsAV1,
   createAudioAnalyser,
-  AudioAnalyserOptions,
   LogLevel,
   Room,
   ConnectionState,
@@ -66,12 +66,16 @@ export {
   RemoteAudioTrack,
   RemoteVideoTrack,
   RemoteTrackPublication,
-  ParticipantTrackPermission,
   TrackPublication,
   VideoQuality,
   ConnectionQuality,
-  ElementInfo,
   DefaultReconnectPolicy,
   CriticalTimers,
+};
+
+export type {
+  ElementInfo,
+  ParticipantTrackPermission,
+  AudioAnalyserOptions,
   LiveKitReactNativeInfo,
 };

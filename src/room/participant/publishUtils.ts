@@ -3,15 +3,12 @@ import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
-import {
+import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
+import type {
   BackupVideoCodec,
-  ScreenSharePresets,
   TrackPublishOptions,
   VideoCodec,
   VideoEncoding,
-  VideoPreset,
-  VideoPresets,
-  VideoPresets43,
 } from '../track/options';
 import { isSVCCodec } from '../utils';
 
@@ -61,6 +58,7 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
           ),
         ),
         t.fps,
+        fromPreset.encoding.priority,
       ),
   );
 };
@@ -316,6 +314,10 @@ function encodingsFromPresets(
     };
     if (preset.encoding.maxFramerate) {
       encoding.maxFramerate = preset.encoding.maxFramerate;
+    }
+    if (preset.encoding.priority) {
+      encoding.priority = preset.encoding.priority;
+      encoding.networkPriority = preset.encoding.priority;
     }
     encodings.push(encoding);
   });
