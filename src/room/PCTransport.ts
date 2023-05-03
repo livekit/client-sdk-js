@@ -1,5 +1,6 @@
 import EventEmitter from 'events';
-import { type MediaDescription, parse, write } from 'sdp-transform';
+import { parse, write } from 'sdp-transform';
+import type { MediaDescription } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
 import { NegotiationError } from './errors';

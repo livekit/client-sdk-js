@@ -1,15 +1,11 @@
 import { debounce } from 'ts-debounce';
 import log from '../../logger';
 import { TrackEvent } from '../events';
-import { type VideoReceiverStats, computeBitrate } from '../stats';
+import { computeBitrate } from '../stats';
+import type { VideoReceiverStats } from '../stats';
 import CriticalTimers from '../timers';
-import {
-  type ObservableMediaElement,
-  getDevicePixelRatio,
-  getIntersectionObserver,
-  getResizeObserver,
-  isWeb,
-} from '../utils';
+import { getDevicePixelRatio, getIntersectionObserver, getResizeObserver, isWeb } from '../utils';
+import type { ObservableMediaElement } from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { AdaptiveStreamSettings } from './types';

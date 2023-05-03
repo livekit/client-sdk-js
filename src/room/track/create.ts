@@ -6,12 +6,12 @@ import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
-import {
-  type AudioCaptureOptions,
-  type CreateLocalTracksOptions,
-  type ScreenShareCaptureOptions,
-  type VideoCaptureOptions,
-  VideoPresets,
+import { VideoPresets } from './options';
+import type {
+  AudioCaptureOptions,
+  CreateLocalTracksOptions,
+  ScreenShareCaptureOptions,
+  VideoCaptureOptions,
 } from './options';
 import { constraintsForOptions, mergeDefaultOptions } from './utils';
 

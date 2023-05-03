@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
-import { SignalClient, type SignalOptions } from '../api/SignalClient';
+import { SignalClient } from '../api/SignalClient';
+import type { SignalOptions } from '../api/SignalClient';
 import log from '../logger';
 import type { InternalRoomOptions } from '../options';
 import {

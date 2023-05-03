@@ -3,15 +3,12 @@ import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
-import {
-  type BackupVideoCodec,
-  ScreenSharePresets,
-  type TrackPublishOptions,
-  type VideoCodec,
-  type VideoEncoding,
-  VideoPreset,
-  VideoPresets,
-  VideoPresets43,
+import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
+import type {
+  BackupVideoCodec,
+  TrackPublishOptions,
+  VideoCodec,
+  VideoEncoding,
 } from '../track/options';
 import { isSVCCodec } from '../utils';
 

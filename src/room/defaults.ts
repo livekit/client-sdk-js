@@ -1,12 +1,10 @@
 import type { InternalRoomConnectOptions, InternalRoomOptions } from '../options';
 import DefaultReconnectPolicy from './DefaultReconnectPolicy';
-import {
-  type AudioCaptureOptions,
-  AudioPresets,
-  ScreenSharePresets,
-  type TrackPublishDefaults,
-  type VideoCaptureOptions,
-  VideoPresets,
+import { AudioPresets, ScreenSharePresets, VideoPresets } from './track/options';
+import type {
+  AudioCaptureOptions,
+  TrackPublishDefaults,
+  VideoCaptureOptions,
 } from './track/options';
 
 export const publishDefaults: TrackPublishDefaults = {

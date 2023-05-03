@@ -18,25 +18,21 @@ import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
-import {
-  type AudioCaptureOptions,
-  type BackupVideoCodec,
-  type CreateLocalTracksOptions,
-  type ScreenShareCaptureOptions,
-  ScreenSharePresets,
-  type TrackPublishOptions,
-  type VideoCaptureOptions,
-  isBackupCodec,
-  isCodecEqual,
+import { ScreenSharePresets, isBackupCodec, isCodecEqual } from '../track/options';
+import type {
+  AudioCaptureOptions,
+  BackupVideoCodec,
+  CreateLocalTracksOptions,
+  ScreenShareCaptureOptions,
+  TrackPublishOptions,
+  VideoCaptureOptions,
 } from '../track/options';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
 import type { DataPublishOptions } from '../types';
 import { Future, isFireFox, isSVCCodec, isSafari, isWeb, supportsAV1, supportsVP9 } from '../utils';
 import Participant from './Participant';
-import {
-  type ParticipantTrackPermission,
-  trackPermissionToProto,
-} from './ParticipantTrackPermission';
+import { trackPermissionToProto } from './ParticipantTrackPermission';
+import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import RemoteParticipant from './RemoteParticipant';
 import {
   computeTrackBackupEncodings,
