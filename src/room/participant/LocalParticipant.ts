@@ -659,6 +659,7 @@ export default class LocalParticipant extends Participant {
         {
           maxBitrate: opts.audioPreset?.maxBitrate ?? opts.audioBitrate,
           priority: opts.audioPreset?.priority ?? 'high',
+          networkPriority: opts.audioPreset?.priority ?? 'high',
         },
       ];
     }

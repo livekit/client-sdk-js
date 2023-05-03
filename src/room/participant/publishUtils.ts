@@ -320,6 +320,7 @@ function encodingsFromPresets(
     }
     if (preset.encoding.priority) {
       encoding.priority = preset.encoding.priority;
+      encoding.networkPriority = preset.encoding.priority;
     }
     encodings.push(encoding);
   });
