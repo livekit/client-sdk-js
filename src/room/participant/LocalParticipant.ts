@@ -151,7 +151,7 @@ export default class LocalParticipant extends Participant {
 
   /**
    * Sets and updates the metadata of the local participant.
-   * Note: this requires `CanUpdateOwnMetadata` permission encoded in the token.
+   * Note: this requires `canUpdateOwnMetadata` permission encoded in the token.
    * @param metadata
    */
   setMetadata(metadata: string): void {
@@ -161,7 +161,7 @@ export default class LocalParticipant extends Participant {
 
   /**
    * Sets and updates the name of the local participant.
-   * Note: this requires `CanUpdateOwnMetadata` permission encoded in the token.
+   * Note: this requires `canUpdateOwnMetadata` permission encoded in the token.
    * @param metadata
    */
   setName(name: string): void {
