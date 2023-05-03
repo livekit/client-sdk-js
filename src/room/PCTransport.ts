@@ -38,9 +38,9 @@ export default class PCTransport extends EventEmitter {
   constructor(config?: RTCConfiguration, mediaConstraints: Record<string, unknown> = {}) {
     super();
     this.pc = isChromiumBased()
-      ? new RTCPeerConnection(config)
-      : // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
-        new RTCPeerConnection(config, mediaConstraints);
+      ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
+        new RTCPeerConnection(config, mediaConstraints)
+      : new RTCPeerConnection(config);
   }
 
   get isICEConnected(): boolean {
