@@ -210,14 +210,17 @@ const appActions = {
 
   toggleAudio: async () => {
     if (!currentRoom) return;
-    const enabled = currentRoom.localParticipant.isMicrophoneEnabled;
+    const micTrack = currentRoom.localParticipant.getTrack(Track.Source.Microphone);
+    const enabled = !micTrack?.isUpstreamPaused;
     setButtonDisabled('toggle-audio-button', true);
     if (enabled) {
       appendLog('disabling audio');
+      await micTrack?.pauseUpstream();
     } else {
       appendLog('enabling audio');
+      await micTrack.resumeUpstream();
     }
-    await currentRoom.localParticipant.setMicrophoneEnabled(!enabled);
+
     setButtonDisabled('toggle-audio-button', false);
     updateButtonsForPublishState();
   },
@@ -225,13 +228,15 @@ const appActions = {
   toggleVideo: async () => {
     if (!currentRoom) return;
     setButtonDisabled('toggle-video-button', true);
-    const enabled = currentRoom.localParticipant.isCameraEnabled;
+    const camTrack = currentRoom.localParticipant.getTrack(Track.Source.Camera);
+    const enabled = !camTrack?.isUpstreamPaused;
     if (enabled) {
       appendLog('disabling video');
+      await camTrack?.pauseUpstream();
     } else {
       appendLog('enabling video');
+      await camTrack.resumeUpstream();
     }
-    await currentRoom.localParticipant.setCameraEnabled(!enabled);
     setButtonDisabled('toggle-video-button', false);
     renderParticipant(currentRoom.localParticipant);
 
@@ -773,15 +778,15 @@ function updateButtonsForPublishState() {
   // video
   setButtonState(
     'toggle-video-button',
-    `${lp.isCameraEnabled ? 'Disable' : 'Enable'} Video`,
-    lp.isCameraEnabled,
+    `${!lp.getTrack(Track.Source.Camera)?.isUpstreamPaused ? 'Disable' : 'Enable'} Video`,
+    !lp.getTrack(Track.Source.Camera)?.isUpstreamPaused,
   );
 
   // audio
   setButtonState(
     'toggle-audio-button',
-    `${lp.isMicrophoneEnabled ? 'Disable' : 'Enable'} Audio`,
-    lp.isMicrophoneEnabled,
+    `${!lp.getTrack(Track.Source.Microphone)?.isUpstreamPaused ? 'Disable' : 'Enable'} Audio`,
+    !lp.getTrack(Track.Source.Microphone)?.isUpstreamPaused,
   );
 
   // screen share
