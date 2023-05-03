@@ -289,7 +289,7 @@ function ensureVideoDDExtensionForSVC(
     payloads?: string | undefined;
   } & MediaDescription,
 ) {
-  const codec = media.rtp.at(0)?.codec?.toLowerCase();
+  const codec = media.rtp[0]?.codec?.toLowerCase();
   if (!isSVCCodec(codec)) {
     return;
   }
