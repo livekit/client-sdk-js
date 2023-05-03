@@ -153,7 +153,7 @@ export default class LocalVideoTrack extends LocalTrack {
           qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
         };
 
-        // locate the appropriate remote-inbound-rtp item
+        // locate the appropriate remote-inbound-rtp item
         const r = stats.get(v.remoteId);
         if (r) {
           vs.jitter = r.jitter;
