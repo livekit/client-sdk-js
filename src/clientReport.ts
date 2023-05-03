@@ -11,6 +11,8 @@ interface RTCSenderStats {
 }
 interface RTCReceiverStats {
   jitter?: number;
+  freezeCount?: number;
+  totalFreezeDuration?: number;
 }
 
 interface EventReport {
@@ -30,7 +32,7 @@ interface PublicationReport {
 interface SubscriptionReport {
   sid: string;
   rtcStats: RTCReceiverStats;
-  readyState: MediaStreamTrack['readyState'];
+  readyState?: MediaStreamTrack['readyState'];
   permissionStatus: TrackPublication.PermissionStatus;
   subscriptionStatus: TrackPublication.SubscriptionStatus;
 }
@@ -113,17 +115,21 @@ async function publicationToReport(pub: LocalTrackPublication) {
 }
 
 async function subscriptionToReport(pub: RemoteTrackPublication) {
-  if (!pub.track) {
-    throw Error('expected track to be present on local publication');
-  }
-  const senderStats = await pub.track.getReceiverStats();
+  const senderStats = await pub.track?.getReceiverStats();
   let rtcStats: RTCReceiverStats = {};
   if (senderStats !== undefined) {
     rtcStats = { jitter: senderStats.jitter };
+    if (senderStats.type === 'video') {
+      rtcStats = {
+        ...rtcStats,
+        freezeCount: senderStats.freezeCount,
+        totalFreezeDuration: senderStats.totalFreezeDuration,
+      };
+    }
   }
   return {
     sid: pub.trackSid,
-    readyState: pub.track.mediaStreamTrack.readyState,
+    readyState: pub.track?.mediaStreamTrack.readyState,
     permissionStatus: pub.permissionStatus,
     subscriptionStatus: pub.subscriptionStatus,
     rtcStats,
