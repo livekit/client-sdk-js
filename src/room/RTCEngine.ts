@@ -43,9 +43,9 @@ import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 import {
-  isVideoCodec,
   Mutex,
   isCloud,
+  isVideoCodec,
   isWeb,
   sleep,
   supportsAddTrack,
@@ -317,7 +317,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       // @ts-ignore
       rtcConfig.encodedInsertableStreams = true;
     }
-    
+
     const googConstraints = { optional: [{ googDscp: true }] };
     this.publisher = new PCTransport(rtcConfig, googConstraints);
     this.subscriber = new PCTransport(rtcConfig);

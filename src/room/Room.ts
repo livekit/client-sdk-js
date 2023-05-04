@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { toProtoSessionDescription } from '../api/SignalClient';
+import { EncryptionEvent } from '../e2ee';
+import { E2EEManager } from '../e2ee/E2eeManager';
 import log from '../logger';
 import type {
   InternalRoomConnectOptions,
@@ -39,7 +41,6 @@ import {
   roomOptionDefaults,
   videoDefaults,
 } from './defaults';
-import { E2EEManager } from '../e2ee/E2eeManager';
 import { ConnectionError, ConnectionErrorReason, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
@@ -67,7 +68,6 @@ import {
   supportsSetSinkId,
   unpackStreamId,
 } from './utils';
-import { EncryptionEvent } from '../e2ee';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -112,7 +112,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /** reflects the sender encryption status of the local participant */
   isE2EEEnabled: boolean = false;
-  
+
   private roomInfo?: RoomModel;
 
   private identityToSid: Map<string, string>;

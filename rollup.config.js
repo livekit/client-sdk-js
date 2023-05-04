@@ -21,7 +21,6 @@ export const commonPlugins = [
   typescript({ tsconfig: './tsconfig.json' }),
   commonjs(),
   json(),
-  // webWorkerLoader({ extensions: ['.js', '.ts'], pattern: /(.+)\?worker/ }),
   babel({
     babelHelpers: 'bundled',
     plugins: ['@babel/plugin-proposal-object-rest-spread'],
