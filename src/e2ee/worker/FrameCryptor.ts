@@ -1,12 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
-
-import { EventEmitter } from 'events';
-import type TypedEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
+
 import {
   CryptorCallbacks,
   CryptorEvent,
@@ -16,6 +14,8 @@ import {
 } from '../types';
 import { deriveKeys, isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 
 export interface FrameCryptorConstructor {
   new (opts?: unknown): BaseFrameCryptor;
@@ -65,11 +65,16 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private keyProviderOptions: KeyProviderOptions;
 
+  /**
+   * used for detecting server injected unencrypted frames
+   */
+  private unencryptedFrameByteTrailer: Uint8Array;
+
   constructor(opts: {
-    // enabled?: boolean;
     keys: ParticipantKeyHandler;
     participantId: string;
     keyProviderOptions: KeyProviderOptions;
+    unencryptedFrameBytes?: Uint8Array;
   }) {
     super();
     this.sendCounts = new Map();
@@ -77,6 +82,8 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.participantId = opts.participantId;
     this.rtpMap = new Map();
     this.keyProviderOptions = opts.keyProviderOptions;
+    this.unencryptedFrameByteTrailer =
+      opts.unencryptedFrameBytes ?? new TextEncoder().encode('LKROCKS');
   }
 
   /**
@@ -255,7 +262,9 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (
       !this.keys.isEnabled() ||
       // skip for decryption for empty dtx frames
-      encodedFrame.data.byteLength === 0
+      encodedFrame.data.byteLength === 0 ||
+      // skip encryption if frame is server injected
+      isFrameServerInjected(encodedFrame.data, this.unencryptedFrameByteTrailer)
     ) {
       return controller.enqueue(encodedFrame);
     }
@@ -591,4 +600,14 @@ export enum NALUType {
   SLICE_LAYER_EXT = 21,
 
   // 22, 23 reserved
+}
+
+/**
+ * @internal
+ */
+export function isFrameServerInjected(frameData: ArrayBuffer, trailerBytes: Uint8Array): boolean {
+  const frameTrailer = new Uint8Array(
+    frameData.slice(frameData.byteLength - trailerBytes.byteLength),
+  );
+  return trailerBytes.every((value, index) => value === frameTrailer[index]);
 }
