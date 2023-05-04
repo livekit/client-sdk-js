@@ -263,7 +263,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       !this.keys.isEnabled() ||
       // skip for decryption for empty dtx frames
       encodedFrame.data.byteLength === 0 ||
-      // skip encryption if frame is server injected
+      // skip decryption if frame is server injected
       isFrameServerInjected(encodedFrame.data, this.unencryptedFrameByteTrailer)
     ) {
       return controller.enqueue(encodedFrame);
@@ -603,6 +603,8 @@ export enum NALUType {
 }
 
 /**
+ * we use a magic frame trailer to detect whether a frame is injected
+ * by the livekit server and thus to be treated as unencrypted
  * @internal
  */
 export function isFrameServerInjected(frameData: ArrayBuffer, trailerBytes: Uint8Array): boolean {
