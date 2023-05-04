@@ -1,8 +1,10 @@
 import EventEmitter from 'events';
-import { MediaDescription, parse, write } from 'sdp-transform';
+import { parse, write } from 'sdp-transform';
+import type { MediaDescription } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
 import { NegotiationError } from './errors';
+import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -35,9 +37,12 @@ export default class PCTransport extends EventEmitter {
 
   onOffer?: (offer: RTCSessionDescriptionInit) => void;
 
-  constructor(config?: RTCConfiguration) {
+  constructor(config?: RTCConfiguration, mediaConstraints: Record<string, unknown> = {}) {
     super();
-    this.pc = new RTCPeerConnection(config);
+    this.pc = isChromiumBased()
+      ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
+        new RTCPeerConnection(config, mediaConstraints)
+      : new RTCPeerConnection(config);
   }
 
   get isICEConnected(): boolean {
@@ -132,6 +137,7 @@ export default class PCTransport extends EventEmitter {
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, [], []);
       } else if (media.type === 'video') {
+        ensureVideoDDExtensionForSVC(media);
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
           if (!media.msid || !media.msid.includes(trackbr.sid)) {
@@ -152,6 +158,9 @@ export default class PCTransport extends EventEmitter {
             if (
               !media.fmtp.some((fmtp): boolean => {
                 if (fmtp.payload === codecPayload) {
+                  if (!fmtp.config.includes('x-google-start-bitrate')) {
+                    fmtp.config += `;x-google-start-bitrate=${trackbr.maxbr * 0.7}`;
+                  }
                   if (!fmtp.config.includes('x-google-max-bitrate')) {
                     fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
                   }
@@ -162,7 +171,9 @@ export default class PCTransport extends EventEmitter {
             ) {
               media.fmtp.push({
                 payload: codecPayload,
-                config: `x-google-max-bitrate=${trackbr.maxbr}`,
+                config: `x-google-start-bitrate=${trackbr.maxbr * 0.7};x-google-max-bitrate=${
+                  trackbr.maxbr
+                }`,
               });
             }
           }
@@ -287,6 +298,38 @@ function ensureAudioNackAndStereo(
         return false;
       });
     }
+  }
+}
+
+function ensureVideoDDExtensionForSVC(
+  media: {
+    type: string;
+    port: number;
+    protocol: string;
+    payloads?: string | undefined;
+  } & MediaDescription,
+) {
+  const codec = media.rtp[0]?.codec?.toLowerCase();
+  if (!isSVCCodec(codec)) {
+    return;
+  }
+
+  let maxID = 0;
+  const ddFound = media.ext?.some((ext): boolean => {
+    if (ext.uri === ddExtensionURI) {
+      return true;
+    }
+    if (ext.value > maxID) {
+      maxID = ext.value;
+    }
+    return false;
+  });
+
+  if (!ddFound) {
+    media.ext?.push({
+      value: maxID + 1,
+      uri: ddExtensionURI,
+    });
   }
 }
 

@@ -1,14 +1,13 @@
-import typescript from 'rollup-plugin-typescript2';
-import commonjs from '@rollup/plugin-commonjs';
-import { nodeResolve } from '@rollup/plugin-node-resolve';
+// @ts-check
 import { babel } from '@rollup/plugin-babel';
+import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
+import { nodeResolve } from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
-import replace from 'rollup-plugin-re';
-import filesize from 'rollup-plugin-filesize';
-// import webWorkerLoader from 'rollup-plugin-web-worker-loader';
 import del from 'rollup-plugin-delete';
-
+import filesize from 'rollup-plugin-filesize';
+import replace from 'rollup-plugin-re';
+import typescript from 'rollup-plugin-typescript2';
 import packageJson from './package.json';
 
 export function kebabCaseToPascalCase(string = '') {
@@ -28,6 +27,7 @@ export const commonPlugins = [
     plugins: ['@babel/plugin-proposal-object-rest-spread'],
     presets: ['@babel/preset-env'],
     extensions: ['.js', '.ts', '.mjs'],
+    babelrc: false,
   }),
 ];
 

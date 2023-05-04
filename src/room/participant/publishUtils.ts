@@ -2,17 +2,15 @@ import log from '../../logger';
 import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
-import {
+import { Track } from '../track/Track';
+import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
+import type {
   BackupVideoCodec,
-  ScreenSharePresets,
   TrackPublishOptions,
   VideoCodec,
   VideoEncoding,
-  VideoPreset,
-  VideoPresets,
-  VideoPresets43,
 } from '../track/options';
-import { Track } from '../track/Track';
+import { isSVCCodec } from '../utils';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
@@ -60,6 +58,7 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
           ),
         ),
         t.fps,
+        fromPreset.encoding.priority,
       ),
   );
 };
@@ -121,7 +120,7 @@ export function computeVideoEncodings(
     videoEncoding.maxFramerate,
   );
 
-  if (scalabilityMode && videoCodec === 'av1') {
+  if (scalabilityMode && isSVCCodec(videoCodec)) {
     log.debug(`using svc with scalabilityMode ${scalabilityMode}`);
 
     const encodings: RTCRtpEncodingParameters[] = [];
@@ -248,7 +247,12 @@ export function determineAppropriateEncoding(
   if (codec) {
     switch (codec) {
       case 'av1':
+        encoding = { ...encoding };
         encoding.maxBitrate = encoding.maxBitrate * 0.7;
+        break;
+      case 'vp9':
+        encoding = { ...encoding };
+        encoding.maxBitrate = encoding.maxBitrate * 0.85;
         break;
       default:
         break;
@@ -303,13 +307,19 @@ function encodingsFromPresets(
     }
     const size = Math.min(width, height);
     const rid = videoRids[idx];
-    encodings.push({
+    const encoding: RTCRtpEncodingParameters = {
       rid,
       scaleResolutionDownBy: Math.max(1, size / Math.min(preset.width, preset.height)),
       maxBitrate: preset.encoding.maxBitrate,
-      /* @ts-ignore */
-      maxFramerate: preset.encoding.maxFramerate,
-    });
+    };
+    if (preset.encoding.maxFramerate) {
+      encoding.maxFramerate = preset.encoding.maxFramerate;
+    }
+    if (preset.encoding.priority) {
+      encoding.priority = preset.encoding.priority;
+      encoding.networkPriority = preset.encoding.priority;
+    }
+    encodings.push(encoding);
   });
   return encodings;
 }

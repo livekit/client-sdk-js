@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import type { RoomConnectOptions, RoomOptions } from '../../options';
-import Room, { ConnectionState } from '../../room/Room';
 import type RTCEngine from '../../room/RTCEngine';
+import Room, { ConnectionState } from '../../room/Room';
 
 type LogMessage = {
   level: 'info' | 'warning' | 'error';

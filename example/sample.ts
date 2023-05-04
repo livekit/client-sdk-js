@@ -1,7 +1,6 @@
 import {
   ConnectionQuality,
   ConnectionState,
-  createAudioAnalyser,
   DataPacket_Kind,
   DisconnectReason,
   LocalAudioTrack,
@@ -17,7 +16,6 @@ import {
   RoomConnectOptions,
   RoomEvent,
   RoomOptions,
-  setLogLevel,
   Track,
   TrackPublication,
   VideoCaptureOptions,
@@ -25,12 +23,14 @@ import {
   VideoPresets,
   VideoQuality,
   ExternalE2EEKeyProvider,
+  createAudioAnalyser,
+  setLogLevel,
 } from '../src/index';
 //@ts-ignore
 import E2EEWorker from '../src/e2ee/worker/e2ee.worker?worker';
 import type { SimulationScenario } from '../src/room/types';
 
-const $ = (id: string) => document.getElementById(id);
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const state = {
   isFrontFacing: false,

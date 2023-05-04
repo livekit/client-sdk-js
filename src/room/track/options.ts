@@ -23,9 +23,16 @@ export interface TrackPublishDefaults {
   videoCodec?: VideoCodec;
 
   /**
-   * max audio bitrate, defaults to [[AudioPresets.speech]]
+   * max audio bitrate, defaults to [[AudioPresets.music]]
+   * @deprecated use `audioPreset` instead
    */
   audioBitrate?: number;
+
+  /**
+   * which audio preset should be used for publishing (audio) tracks
+   * defaults to [[AudioPresets.music]]
+   */
+  audioPreset?: AudioPreset;
 
   /**
    * dtx (Discontinuous Transmission of audio), enabled by default for mono tracks.
@@ -145,6 +152,12 @@ export interface ScreenShareCaptureOptions {
 
   /** specifies whether the browser should include the system audio among the possible audio sources offered to the user */
   systemAudio?: 'include' | 'exclude';
+
+  /**
+   * Experimental option to control whether the audio playing in a tab will continue to be played out of a user's
+   * local speakers when the tab is captured.
+   */
+  suppressLocalAudioPlayback?: boolean;
 }
 
 export interface AudioCaptureOptions {
@@ -209,6 +222,7 @@ export interface VideoResolution {
 export interface VideoEncoding {
   maxBitrate: number;
   maxFramerate?: number;
+  priority?: RTCPriorityType;
 }
 
 export class VideoPreset {
@@ -218,12 +232,19 @@ export class VideoPreset {
 
   height: number;
 
-  constructor(width: number, height: number, maxBitrate: number, maxFramerate?: number) {
+  constructor(
+    width: number,
+    height: number,
+    maxBitrate: number,
+    maxFramerate?: number,
+    priority?: RTCPriorityType,
+  ) {
     this.width = width;
     this.height = height;
     this.encoding = {
       maxBitrate,
       maxFramerate,
+      priority,
     };
   }
 
@@ -239,10 +260,12 @@ export class VideoPreset {
 
 export interface AudioPreset {
   maxBitrate: number;
+  priority?: RTCPriorityType;
 }
 
-export const videoCodecs = ['vp8', 'h264', 'av1'] as const;
 const backupCodecs = ['vp8', 'h264'] as const;
+
+export const videoCodecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
 
 export type VideoCodec = (typeof videoCodecs)[number];
 
@@ -250,6 +273,13 @@ export type BackupVideoCodec = (typeof backupCodecs)[number];
 
 export function isBackupCodec(codec: string): codec is BackupVideoCodec {
   return !!backupCodecs.find((backup) => backup === codec);
+}
+
+export function isCodecEqual(c1: string | undefined, c2: string | undefined): boolean {
+  return (
+    c1?.toLowerCase().replace(/audio\/|video\//y, '') ===
+    c2?.toLowerCase().replace(/audio\/|video\//y, '')
+  );
 }
 
 /**
@@ -309,9 +339,9 @@ export const VideoPresets43 = {
 } as const;
 
 export const ScreenSharePresets = {
-  h360fps3: new VideoPreset(640, 360, 200_000, 3),
-  h720fps5: new VideoPreset(1280, 720, 400_000, 5),
-  h720fps15: new VideoPreset(1280, 720, 1_000_000, 15),
-  h1080fps15: new VideoPreset(1920, 1080, 1_500_000, 15),
-  h1080fps30: new VideoPreset(1920, 1080, 3_000_000, 30),
+  h360fps3: new VideoPreset(640, 360, 200_000, 3, 'medium'),
+  h720fps5: new VideoPreset(1280, 720, 400_000, 5, 'medium'),
+  h720fps15: new VideoPreset(1280, 720, 1_000_000, 15, 'medium'),
+  h1080fps15: new VideoPreset(1920, 1080, 1_500_000, 15, 'medium'),
+  h1080fps30: new VideoPreset(1920, 1080, 3_000_000, 30, 'medium'),
 } as const;

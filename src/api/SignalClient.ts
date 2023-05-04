@@ -33,7 +33,7 @@ import {
 } from '../proto/livekit_rtc';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
-import { getClientInfo, isReactNative, Mutex, sleep } from '../room/utils';
+import { Mutex, getClientInfo, isReactNative, sleep } from '../room/utils';
 
 // internal options
 interface ConnectOpts {
@@ -322,14 +322,8 @@ export class SignalClient {
       };
 
       this.ws.onclose = (ev: CloseEvent) => {
-        if (!this.isConnected) return;
-
-        log.debug(`websocket connection closed: ${ev.reason}`);
-        this.isConnected = false;
-        if (this.onClose) {
-          this.onClose(ev.reason);
-        }
-        this.ws = undefined;
+        log.warn(`websocket closed`, { ev });
+        this.handleOnClose(ev.reason);
       };
     });
   }
@@ -352,12 +346,14 @@ export class SignalClient {
           }
         });
 
-        this.ws.close();
-        // 250ms grace period for ws to close gracefully
-        await Promise.race([closePromise, sleep(250)]);
+        if (this.ws.readyState < this.ws.CLOSING) {
+          this.ws.close();
+          // 250ms grace period for ws to close gracefully
+          await Promise.race([closePromise, sleep(250)]);
+        }
+        this.ws = undefined;
+        this.clearPingInterval();
       }
-      this.ws = undefined;
-      this.clearPingInterval();
     } finally {
       unlock();
     }
@@ -619,6 +615,15 @@ export class SignalClient {
     this.isReconnecting = false;
   }
 
+  private async handleOnClose(reason: string) {
+    if (!this.isConnected) return;
+    await this.close();
+    log.debug(`websocket connection closed: ${reason}`);
+    if (this.onClose) {
+      this.onClose(reason);
+    }
+  }
+
   private handleWSError(ev: Event) {
     log.error('websocket error', ev);
   }
@@ -639,9 +644,7 @@ export class SignalClient {
           Date.now() - this.pingTimeoutDuration! * 1000,
         ).toUTCString()}`,
       );
-      if (this.onClose) {
-        this.onClose('ping timeout');
-      }
+      this.handleOnClose('ping timeout');
     }, this.pingTimeoutDuration * 1000);
   }
 

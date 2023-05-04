@@ -1,5 +1,39 @@
 # Change Log
 
+## 1.9.2
+
+### Patch Changes
+
+- Ensure engine is always set to undefined when closing - [#682](https://github.com/livekit/client-sdk-js/pull/682) ([@lukasIO](https://github.com/lukasIO))
+
+- Handle connection state mismatch with periodic reconciliation - [#680](https://github.com/livekit/client-sdk-js/pull/680) ([@davidzhao](https://github.com/davidzhao))
+
+## 1.9.1
+
+### Patch Changes
+
+- Only set maxFramerate on encoding if defined - [#676](https://github.com/livekit/client-sdk-js/pull/676) ([@lukasIO](https://github.com/lukasIO))
+
+- added experimental option suppressLocalAudioPlayback - [#675](https://github.com/livekit/client-sdk-js/pull/675) ([@jibon57](https://github.com/jibon57))
+
+- Fix: Emit connected events for participants that connected during signal reconnect - [#672](https://github.com/livekit/client-sdk-js/pull/672) ([@lukasIO](https://github.com/lukasIO))
+
+- Add VP9 SVC support - [#643](https://github.com/livekit/client-sdk-js/pull/643) ([@cnderrauber](https://github.com/cnderrauber))
+
+## 1.9.0
+
+### Minor Changes
+
+- Fix race condition with full reconnect sequence during server restart - [#663](https://github.com/livekit/client-sdk-js/pull/663) ([@davidzhao](https://github.com/davidzhao))
+
+### Patch Changes
+
+- Add support for local participants to update own metadata - [#599](https://github.com/livekit/client-sdk-js/pull/599) ([@lukasIO](https://github.com/lukasIO))
+
+- Expose numParticipants and numPublishers on Room - [#668](https://github.com/livekit/client-sdk-js/pull/668) ([@davidzhao](https://github.com/davidzhao))
+
+- Handle signal reconnect and full reconnection separately #665 - [#670](https://github.com/livekit/client-sdk-js/pull/670) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.8.0
 
 ### Minor Changes

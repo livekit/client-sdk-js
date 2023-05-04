@@ -24,21 +24,21 @@ import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
-import {
+import { ScreenSharePresets, isBackupCodec, isCodecEqual } from '../track/options';
+import type {
   AudioCaptureOptions,
   BackupVideoCodec,
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
-  ScreenSharePresets,
   TrackPublishOptions,
   VideoCaptureOptions,
-  isBackupCodec,
 } from '../track/options';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
 import type { DataPublishOptions } from '../types';
-import { Future, isFireFox, isSafari, isWeb, supportsAV1 } from '../utils';
+import { Future, isFireFox, isSVCCodec, isSafari, isWeb, supportsAV1, supportsVP9 } from '../utils';
 import Participant from './Participant';
-import { ParticipantTrackPermission, trackPermissionToProto } from './ParticipantTrackPermission';
+import { trackPermissionToProto } from './ParticipantTrackPermission';
+import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import RemoteParticipant from './RemoteParticipant';
 import {
   computeTrackBackupEncodings,
@@ -158,7 +158,7 @@ export default class LocalParticipant extends Participant {
 
   /**
    * Sets and updates the metadata of the local participant.
-   * Note: this requires `CanUpdateOwnMetadata` permission encoded in the token.
+   * Note: this requires `canUpdateOwnMetadata` permission encoded in the token.
    * @param metadata
    */
   setMetadata(metadata: string): void {
@@ -168,7 +168,7 @@ export default class LocalParticipant extends Participant {
 
   /**
    * Sets and updates the name of the local participant.
-   * Note: this requires `CanUpdateOwnMetadata` permission encoded in the token.
+   * Note: this requires `canUpdateOwnMetadata` permission encoded in the token.
    * @param metadata
    */
   setName(name: string): void {
@@ -600,8 +600,11 @@ export default class LocalParticipant extends Participant {
       opts.simulcast = false;
     }
 
-    // require full AV1 SVC support prior to using it
+    // require full AV1/VP9 SVC support prior to using it
     if (opts.videoCodec === 'av1' && !supportsAV1()) {
+      opts.videoCodec = undefined;
+    }
+    if (opts.videoCodec === 'vp9' && !supportsVP9()) {
       opts.videoCodec = undefined;
     }
 
@@ -645,7 +648,7 @@ export default class LocalParticipant extends Participant {
       req.height = dims.height;
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
-        if (opts?.videoCodec === 'av1') {
+        if (isSVCCodec(opts.videoCodec)) {
           // set scalabilityMode to 'L3T3' by default
           opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
         }
@@ -678,10 +681,12 @@ export default class LocalParticipant extends Participant {
         opts,
       );
       req.layers = videoLayersFromEncodings(req.width, req.height, simEncodings ?? encodings);
-    } else if (track.kind === Track.Kind.Audio && opts.audioBitrate) {
+    } else if (track.kind === Track.Kind.Audio) {
       encodings = [
         {
-          maxBitrate: opts.audioBitrate,
+          maxBitrate: opts.audioPreset?.maxBitrate ?? opts.audioBitrate,
+          priority: opts.audioPreset?.priority ?? 'high',
+          networkPriority: opts.audioPreset?.priority ?? 'high',
         },
       ];
     }
@@ -691,6 +696,33 @@ export default class LocalParticipant extends Participant {
     }
 
     const ti = await this.engine.addTrack(req);
+    let primaryCodecSupported = false;
+    let backupCodecSupported = false;
+    ti.codecs.forEach((c) => {
+      if (isCodecEqual(c.mimeType, opts.videoCodec)) {
+        primaryCodecSupported = true;
+      } else if (opts.backupCodec && isCodecEqual(c.mimeType, opts.backupCodec.codec)) {
+        backupCodecSupported = true;
+      }
+    });
+
+    if (req.simulcastCodecs.length > 0) {
+      if (!primaryCodecSupported && !backupCodecSupported) {
+        throw Error('cannot publish track, codec not supported by server');
+      }
+
+      if (!primaryCodecSupported && opts.backupCodec) {
+        const backupCodec = opts.backupCodec;
+        opts = { ...opts };
+        log.debug(
+          `primary codec ${opts.videoCodec} not supported, fallback to ${backupCodec.codec}`,
+        );
+        opts.videoCodec = backupCodec.codec;
+        opts.videoEncoding = backupCodec.encoding;
+        encodings = simEncodings;
+      }
+    }
+
     const publication = new LocalTrackPublication(track.kind, ti, track);
     // save options for when it needs to be republished again
     publication.options = opts;
@@ -704,7 +736,7 @@ export default class LocalParticipant extends Participant {
     // store RTPSender
     track.sender = await this.engine.createSender(track, opts, encodings);
 
-    if (track.codec === 'av1' && encodings && encodings[0]?.maxBitrate) {
+    if (track.codec && isSVCCodec(track.codec) && encodings && encodings[0]?.maxBitrate) {
       this.engine.publisher.setTrackCodecBitrate(
         req.cid,
         track.codec,

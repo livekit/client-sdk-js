@@ -8,6 +8,8 @@ import { getNewAudioContext } from './track/utils';
 import type { LiveKitReactNativeInfo } from './types';
 
 const separator = '|';
+export const ddExtensionURI =
+  'https://aomediacodec.github.io/av1-rtp-spec/#dependency-descriptor-rtp-header-extension';
 
 export function unpackStreamId(packed: string): string[] {
   const parts = packed.split(separator);
@@ -42,7 +44,6 @@ export function supportsDynacast() {
 export function supportsAV1(): boolean {
   const capabilities = RTCRtpReceiver.getCapabilities('video');
   let hasAV1 = false;
-  let hasDDExt = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
       if (codec.mimeType === 'video/AV1') {
@@ -50,17 +51,26 @@ export function supportsAV1(): boolean {
         break;
       }
     }
-    for (const ext of capabilities.headerExtensions) {
-      if (
-        ext.uri ===
-        'https://aomediacodec.github.io/av1-rtp-spec/#dependency-descriptor-rtp-header-extension'
-      ) {
-        hasDDExt = true;
+  }
+  return hasAV1;
+}
+
+export function supportsVP9(): boolean {
+  const capabilities = RTCRtpReceiver.getCapabilities('video');
+  let hasVP9 = false;
+  if (capabilities) {
+    for (const codec of capabilities.codecs) {
+      if (codec.mimeType === 'video/VP9') {
+        hasVP9 = true;
         break;
       }
     }
   }
-  return hasAV1 && hasDDExt;
+  return hasVP9;
+}
+
+export function isSVCCodec(codec?: string): boolean {
+  return codec === 'av1' || codec === 'vp9';
 }
 
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
@@ -108,6 +118,11 @@ export function isBrowserSupported() {
 export function isFireFox(): boolean {
   if (!isWeb()) return false;
   return navigator.userAgent.indexOf('Firefox') !== -1;
+}
+
+export function isChromiumBased(): boolean {
+  if (!isWeb()) return false;
+  return navigator.userAgent.indexOf('Chrom') !== -1;
 }
 
 export function isSafari(): boolean {

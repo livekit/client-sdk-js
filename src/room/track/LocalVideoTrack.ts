@@ -2,11 +2,12 @@ import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import type { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc';
-import { computeBitrate, monitorFrequency, VideoSenderStats } from '../stats';
-import { isFireFox, isMobile, isWeb, Mutex } from '../utils';
+import { computeBitrate, monitorFrequency } from '../stats';
+import type { VideoSenderStats } from '../stats';
+import { Mutex, isFireFox, isMobile, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
-import type { VideoCaptureOptions, VideoCodec } from './options';
 import { Track } from './Track';
+import type { VideoCaptureOptions, VideoCodec } from './options';
 import { constraintsForOptions } from './utils';
 
 export class SimulcastTrackInfo {
@@ -153,7 +154,7 @@ export default class LocalVideoTrack extends LocalTrack {
           qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
         };
 
-        // locate the appropriate remote-inbound-rtp item
+        // locate the appropriate remote-inbound-rtp item
         const r = stats.get(v.remoteId);
         if (r) {
           vs.jitter = r.jitter;

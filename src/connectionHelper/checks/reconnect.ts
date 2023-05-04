@@ -1,5 +1,5 @@
-import { RoomEvent } from '../../room/events';
 import { ConnectionState } from '../../room/Room';
+import { RoomEvent } from '../../room/events';
 import { Checker } from './Checker';
 
 export class ReconnectCheck extends Checker {
