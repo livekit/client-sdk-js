@@ -102,7 +102,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     const { kind, data } = ev.data;
     switch (kind) {
       case 'error':
-        console.log('error in worker', { data });
+        console.error('error in worker', { data });
         this.emit(EncryptionEvent.Error, data.error);
         break;
       case 'enable':

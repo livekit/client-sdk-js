@@ -145,6 +145,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       .pipeThrough(transformStream)
       .pipeTo(writable)
       .catch((e) => {
+        console.error(e);
         this.emit('cryptorError', e instanceof CryptorError ? e : new CryptorError(e.message));
       });
     this.trackId = trackId;
@@ -474,31 +475,34 @@ export class FrameCryptor extends BaseFrameCryptor {
       }
 
       const data = new Uint8Array(frame.data);
-      const naluIndices = findNALUIndices(data);
+      try {
+        const naluIndices = findNALUIndices(data);
 
-      // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
-      const isH264 =
-        detectedCodec === 'h264' ||
-        naluIndices.some((naluIndex) =>
-          [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
-        );
+        // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
+        const isH264 =
+          detectedCodec === 'h264' ||
+          naluIndices.some((naluIndex) =>
+            [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
+          );
 
-      if (isH264) {
-        for (const index of naluIndices) {
-          let type = parseNALUType(data[index]);
-          switch (type) {
-            case NALUType.SLICE_IDR:
-            case NALUType.SLICE_NON_IDR:
-              return index + 2;
-            default:
-              break;
+        if (isH264) {
+          for (const index of naluIndices) {
+            let type = parseNALUType(data[index]);
+            switch (type) {
+              case NALUType.SLICE_IDR:
+              case NALUType.SLICE_NON_IDR:
+                return index + 2;
+              default:
+                break;
+            }
           }
+          throw new TypeError('Could not find NALU');
         }
-        throw new TypeError('Could not find NALU');
-      } else {
-        // we could not detect the video codec, so default back to treat it as vp8
-        return UNENCRYPTED_BYTES[frame.type];
+      } catch(e) {
+        // no op, we just continue and fallback to vp8
       }
+
+      return UNENCRYPTED_BYTES[frame.type];
     } else {
       return UNENCRYPTED_BYTES.audio;
     }
