@@ -376,9 +376,6 @@ export class FrameCryptor extends BaseFrameCryptor {
               this.keyProviderOptions.ratchetWindowSize
             }, for kind ${encodedFrame instanceof RTCEncodedAudioFrame ? 'audio' : 'video'}`,
           );
-          if (encodedFrame instanceof RTCEncodedAudioFrame) {
-            console.log(encodedFrame.data);
-          }
 
           let ratchetedKeySet: KeySet | undefined;
           if (keySet === this.keys.getKeySet(keyIndex)) {

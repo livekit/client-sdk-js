@@ -79,7 +79,7 @@ export default class PCTransport extends EventEmitter {
         const sdpParsed = parse(sd.sdp);
         sdpParsed.media.forEach((media) => {
           if (media.type === 'video') {
-            console.log('negotiated video tracks', media);
+            this.emit(PCEvents.RTPVideoPayloadTypes, media.rtp);
           }
         });
       }
@@ -133,7 +133,6 @@ export default class PCTransport extends EventEmitter {
 
     const sdpParsed = parse(offer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
-      console.log('media sdp', media);
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, [], []);
       } else if (media.type === 'video') {
@@ -180,7 +179,6 @@ export default class PCTransport extends EventEmitter {
 
           return true;
         });
-        this.emit(PCEvents.RTPVideoPayloadTypes, media.rtp);
       }
     });
 

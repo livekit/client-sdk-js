@@ -294,6 +294,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.localParticipant) {
       this.localParticipant.setupEngine(this.engine);
     }
+    if (this.e2eeManager) {
+      this.e2eeManager.setupEngine(this.engine);
+    }
   }
 
   /**

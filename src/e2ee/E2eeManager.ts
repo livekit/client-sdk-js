@@ -29,6 +29,7 @@ import type TypedEmitter from 'typed-emitter';
 import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
 import type { VideoCodec } from '../room/track/options';
 import { DeviceUnsupportedError } from '../room/errors';
+import type RTCEngine from '../room/RTCEngine';
 // // @ts-ignore
 // import E2EEWorker from './worker/e2ee.worker?worker';
 
@@ -136,6 +137,12 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     this.emit(EncryptionEvent.Error, ev.error);
   };
 
+  public setupEngine(engine: RTCEngine) {
+    engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {
+      this.postRTPMap(rtpMap);
+    });
+  }
+
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
     room.on(RoomEvent.TrackPublished, (pub, participant) =>
       this.setParticipantCryptorEnabled(
@@ -144,7 +151,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       ),
     );
     room.on(RoomEvent.TrackUnsubscribed, (track, _, participant) => {
-      console.log('mediastream id being removed', track.mediaStreamID);
       const msg: RemoveTransformMessage = {
         kind: 'removeTransform',
         data: {
@@ -158,17 +164,13 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       this.setupE2EEReceiver(track, participant.identity, pub.trackInfo);
     });
     room.localParticipant.on(ParticipantEvent.LocalTrackPublished, async (publication) => {
-      const stats = await publication.track?.sender?.getStats();
-      console.log('sender stats', stats);
       this.setupE2EESender(
         publication.track!,
         publication.track!.sender!,
         room.localParticipant.identity,
       );
     });
-    room.engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {
-      this.postRTPMap(rtpMap);
-    });
+   
     keyProvider
       .on('setKey', (keyInfo) => this.postKey(keyInfo))
       .on('ratchetRequest', (participantId, keyIndex) =>
@@ -207,7 +209,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
 
   private postRTPMap(map: Map<number, VideoCodec>) {
     if (!this.worker) {
-      throw Error('could not set key, worker is missing');
+      throw Error('could not post rtp map, worker is missing');
     }
     const msg: RTPVideoMapMessage = {
       kind: 'setRTPMap',
@@ -222,7 +224,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
     if (!track.receiver) {
       return;
     }
-    console.log('handle receiver', trackInfo?.mimeType);
     if (!trackInfo?.mimeType || trackInfo.mimeType === '') {
       throw new TypeError('MimeType missing from trackInfo, cannot set up E2EE cryptor');
     }
