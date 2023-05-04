@@ -2,8 +2,8 @@ import UAParser from 'ua-parser-js';
 import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models';
 import { protocolVersion, version } from '../version';
 import type LocalAudioTrack from './track/LocalAudioTrack';
-import { VideoCodec, videoCodecs } from './track/options';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
+import { VideoCodec, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
 import type { LiveKitReactNativeInfo } from './types';
 

@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
-
 import {
   CryptorCallbacks,
   CryptorEvent,
@@ -14,8 +15,6 @@ import {
 } from '../types';
 import { deriveKeys, isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
-import { EventEmitter } from 'events';
-import type TypedEmitter from 'typed-emitter';
 
 export interface FrameCryptorConstructor {
   new (opts?: unknown): BaseFrameCryptor;
@@ -495,7 +494,7 @@ export class FrameCryptor extends BaseFrameCryptor {
           }
           throw new TypeError('Could not find NALU');
         }
-      } catch(e) {
+      } catch (e) {
         // no op, we just continue and fallback to vp8
       }
 

@@ -2,8 +2,8 @@ import EventEmitter from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import { KEYRING_SIZE } from '../constants';
-import type { KeySet, KeyProviderOptions, ParticipantKeyHandlerCallbacks } from '../types';
-import { importKey, ratchet, deriveKeys } from '../utils';
+import type { KeyProviderOptions, KeySet, ParticipantKeyHandlerCallbacks } from '../types';
+import { deriveKeys, importKey, ratchet } from '../utils';
 
 // TODO ParticipantKeyHandlers currently don't get destroyed on participant disconnect
 // we could do this by having a separate worker message on participant disconnected.

@@ -1,35 +1,34 @@
-import { E2EE_FLAG } from './constants';
-
+import EventEmitter from 'events';
+import type TypedEmitter from 'typed-emitter';
 import log from '../logger';
+import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
+import type RTCEngine from '../room/RTCEngine';
+import type Room from '../room/Room';
+import { DeviceUnsupportedError } from '../room/errors';
+import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
+import LocalTrack from '../room/track/LocalTrack';
+import type RemoteTrack from '../room/track/RemoteTrack';
+import type { Track } from '../room/track/Track';
+import type { VideoCodec } from '../room/track/options';
+import type { BaseKeyProvider } from './KeyProvider';
+import { E2EE_FLAG } from './constants';
 import {
-  EncryptionEvent,
   E2EEManagerCallbacks,
   E2EEOptions,
   E2EEWorkerMessage,
   EnableMessage,
   EncodeMessage,
+  EncryptionEvent,
   InitMessage,
   KeyInfo,
-  SetKeyMessage,
-  RemoveTransformMessage,
-  UpdateCodecMessage,
   RTPVideoMapMessage,
   RatchetRequestMessage,
+  RemoveTransformMessage,
+  SetKeyMessage,
+  UpdateCodecMessage,
 } from './types';
-
 import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
-import type Room from '../room/Room';
-import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
-import type RemoteTrack from '../room/track/RemoteTrack';
-import type { Track } from '../room/track/Track';
-import LocalTrack from '../room/track/LocalTrack';
-import type { BaseKeyProvider } from './KeyProvider';
-import EventEmitter from 'events';
-import type TypedEmitter from 'typed-emitter';
-import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
-import type { VideoCodec } from '../room/track/options';
-import { DeviceUnsupportedError } from '../room/errors';
-import type RTCEngine from '../room/RTCEngine';
+
 // // @ts-ignore
 // import E2EEWorker from './worker/e2ee.worker?worker';
 
@@ -170,7 +169,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
         room.localParticipant.identity,
       );
     });
-   
+
     keyProvider
       .on('setKey', (keyInfo) => this.postKey(keyInfo))
       .on('ratchetRequest', (participantId, keyIndex) =>

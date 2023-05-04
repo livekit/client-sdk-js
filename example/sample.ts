@@ -1,8 +1,11 @@
+//@ts-ignore
+import E2EEWorker from '../src/e2ee/worker/e2ee.worker?worker';
 import {
   ConnectionQuality,
   ConnectionState,
   DataPacket_Kind,
   DisconnectReason,
+  ExternalE2EEKeyProvider,
   LocalAudioTrack,
   LocalParticipant,
   LogLevel,
@@ -22,12 +25,9 @@ import {
   VideoCodec,
   VideoPresets,
   VideoQuality,
-  ExternalE2EEKeyProvider,
   createAudioAnalyser,
   setLogLevel,
 } from '../src/index';
-//@ts-ignore
-import E2EEWorker from '../src/e2ee/worker/e2ee.worker?worker';
 import type { SimulationScenario } from '../src/room/types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
