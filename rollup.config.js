@@ -16,6 +16,9 @@ export function kebabCaseToPascalCase(string = '') {
   );
 }
 
+/**
+ * @type {import('rollup').InputPluginOption}
+ */
 export const commonPlugins = [
   nodeResolve({ browser: true, preferBuiltins: false }),
   typescript({ tsconfig: './tsconfig.json' }),
@@ -30,6 +33,9 @@ export const commonPlugins = [
   }),
 ];
 
+/**
+ * @type {import('rollup').RollupOptions}
+ */
 export default {
   input: 'src/index.ts',
   output: [
