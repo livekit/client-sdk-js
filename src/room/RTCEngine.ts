@@ -78,6 +78,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   fullReconnectOnNext: boolean = false;
 
+  /**
+   * @internal
+   */
+  latestJoinResponse?: JoinResponse;
+
   get isClosed() {
     return this._isClosed;
   }
@@ -172,6 +177,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
       const joinResponse = await this.client.join(url, token, opts, abortSignal);
       this._isClosed = false;
+      this.latestJoinResponse = joinResponse;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (!this.publisher) {
