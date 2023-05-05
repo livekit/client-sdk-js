@@ -59,6 +59,8 @@ export function supportsAV1(): boolean {
 
 export function supportsVP9(): boolean {
   if (!('getCapabilities' in RTCRtpSender)) {
+    // technically speaking FireFox supports VP9, but SVC publishing is broken
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
     return false;
   }
   const capabilities = RTCRtpSender.getCapabilities('video');
