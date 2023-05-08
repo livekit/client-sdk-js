@@ -2,7 +2,8 @@ import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import type { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc';
-import { VideoSenderStats, computeBitrate, monitorFrequency } from '../stats';
+import { computeBitrate, monitorFrequency } from '../stats';
+import type { VideoSenderStats } from '../stats';
 import { Mutex, isFireFox, isMobile, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
@@ -154,8 +155,7 @@ export default class LocalVideoTrack extends LocalTrack {
           qualityLimitationDurations: v.qualityLimitationDurations,
         };
 
-        // locate the appropriate remote-inbound-rtp item
-        // @ts-expect-error get support got removed from the type
+        // locate the appropriate remote-inbound-rtp item
         const r = stats.get(v.remoteId);
         if (r) {
           vs.jitter = r.jitter;

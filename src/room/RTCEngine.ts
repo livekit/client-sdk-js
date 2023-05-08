@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
-import { SignalClient, SignalOptions } from '../api/SignalClient';
+import { SignalClient } from '../api/SignalClient';
+import type { SignalOptions } from '../api/SignalClient';
 import log, { recordException } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import {
@@ -76,6 +77,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
 
   fullReconnectOnNext: boolean = false;
+
+  /**
+   * @internal
+   */
+  latestJoinResponse?: JoinResponse;
 
   get isClosed() {
     return this._isClosed;
@@ -171,6 +177,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
       const joinResponse = await this.client.join(url, token, opts, abortSignal);
       this._isClosed = false;
+      this.latestJoinResponse = joinResponse;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (!this.publisher) {
@@ -307,8 +314,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.participantSid = joinResponse.participant?.sid;
 
     const rtcConfig = this.makeRTCConfiguration(joinResponse);
-
-    this.publisher = new PCTransport(rtcConfig);
+    const googConstraints = { optional: [{ googDscp: true }] };
+    this.publisher = new PCTransport(rtcConfig, googConstraints);
     this.subscriber = new PCTransport(rtcConfig);
 
     this.emit(EngineEvent.TransportsCreated, this.publisher, this.subscriber);
