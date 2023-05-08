@@ -294,6 +294,8 @@ You can have a look at the `"browerslist"` section of `package.json` for more de
 
 If you are targeting legacy browsers, but still want adaptiveStream functionality you'll likely need to use polyfills for [ResizeObserver](https://www.npmjs.com/package/resize-observer-polyfill) and [IntersectionObserver](https://www.npmjs.com/package/intersection-observer).
 
+Also when targeting legacy browsers, older than the ones specified in our browserslist target, make sure to include required polyfills and transpilation with babel and/or corejs.
+
 <!--BEGIN_REPO_NAV-->
 
 <br/><table>
