@@ -44,7 +44,6 @@ export default {
       babelHelpers: 'bundled',
       plugins: ['@babel/plugin-proposal-object-rest-spread'],
       presets: ['@babel/preset-env'],
-      include: ['src/**/*'],
       extensions: ['.js', '.ts', '.mjs'],
     }),
     replace({

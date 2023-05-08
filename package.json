@@ -90,7 +90,7 @@
   },
   "browserslist": [
     "safari >= 11.1",
-    "ios_saf >= 11.1",
+    "ios_saf >= 11.3",
     "chrome >= 64",
     "and_chr >= 64",
     "android >= 64",
