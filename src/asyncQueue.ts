@@ -16,7 +16,7 @@ type QueueTaskInfo<T> = {
   task: QueueTask<T>;
 };
 
-export class Queue {
+export class AsyncQueue {
   private pendingTasks: Map<number, QueueTaskInfo<unknown>>;
 
   private taskMutex: Mutex;

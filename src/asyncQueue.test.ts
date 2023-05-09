@@ -1,9 +1,9 @@
-import { Queue } from './asyncQueue';
+import { AsyncQueue } from './AsyncQueue';
 import { sleep } from './room/utils';
 
 describe('asyncQueue', () => {
   it('runs multiple tasks in order', async () => {
-    const queue = new Queue();
+    const queue = new AsyncQueue();
     const tasksExecuted: number[] = [];
 
     for (let i = 0; i < 5; i++) {
@@ -16,7 +16,7 @@ describe('asyncQueue', () => {
     expect(tasksExecuted).toMatchObject([0, 1, 2, 3, 4]);
   });
   it('runs tasks sequentially and not in parallel', async () => {
-    const queue = new Queue();
+    const queue = new AsyncQueue();
     const results: number[] = [];
     for (let i = 0; i < 5; i++) {
       queue.run(async () => {
@@ -29,7 +29,7 @@ describe('asyncQueue', () => {
     expect(results).toMatchObject([0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
   });
   it('continues executing tasks if one task throws an error', async () => {
-    const queue = new Queue();
+    const queue = new AsyncQueue();
 
     let task1threw = false;
     let task2Executed = false;
@@ -55,7 +55,7 @@ describe('asyncQueue', () => {
     expect(task2Executed).toBeTruthy();
   });
   it('returns the result of the task', async () => {
-    const queue = new Queue();
+    const queue = new AsyncQueue();
 
     const result = await queue.run(async () => {
       await sleep(10);
@@ -65,7 +65,7 @@ describe('asyncQueue', () => {
     expect(result).toBe('result');
   });
   it('returns only when the enqueued task and all previous tasks have completed', async () => {
-    const queue = new Queue();
+    const queue = new AsyncQueue();
     const tasksExecuted: number[] = [];
     for (let i = 0; i < 10; i += 1) {
       queue.run(async () => {
@@ -85,7 +85,7 @@ describe('asyncQueue', () => {
     expect(tasksExecuted).toMatchObject([...new Array(10).fill(0).map((_, idx) => idx), 999]);
   });
   it('can handle queue sizes of up to 10_000 tasks', async () => {
-    const queue = new Queue();
+    const queue = new AsyncQueue();
     const tasksExecuted: number[] = [];
 
     for (let i = 0; i < 10_000; i++) {
