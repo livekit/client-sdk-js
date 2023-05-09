@@ -37,7 +37,8 @@
     "format": "prettier --write src example/sample.ts",
     "format:check": "prettier --check src",
     "release": "yarn build && changeset publish",
-    "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2"
+    "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2",
+    "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js"
   },
   "dependencies": {
     "async-await-queue": "^1.2.1",
@@ -65,13 +66,13 @@
     "@types/jest": "29.5.1",
     "@types/sdp-transform": "2.4.6",
     "@types/ua-parser-js": "0.7.36",
-    "@types/ws": "8.5.4",
     "@typescript-eslint/eslint-plugin": "5.59.2",
     "@typescript-eslint/parser": "5.59.2",
     "downlevel-dts": "^0.11.0",
     "eslint": "8.39.0",
     "eslint-config-airbnb-typescript": "17.0.0",
     "eslint-config-prettier": "8.8.0",
+    "eslint-plugin-ecmascript-compat": "^3.0.0",
     "eslint-plugin-import": "2.27.5",
     "gh-pages": "5.0.0",
     "jest": "29.5.0",
@@ -87,19 +88,5 @@
     "typedoc-plugin-no-inherit": "1.4.0",
     "typescript": "5.0.4",
     "vite": "4.3.4"
-  },
-  "browserslist": [
-    "safari >= 11.1",
-    "ios_saf >= 11.3",
-    "chrome >= 64",
-    "and_chr >= 64",
-    "android >= 64",
-    "firefox >= 53",
-    "and_ff >= 53",
-    "edge >= 79",
-    "Opera >= 52",
-    "Samsung >= 9.2",
-    "not IE 11",
-    "not dead"
-  ]
+  }
 }
