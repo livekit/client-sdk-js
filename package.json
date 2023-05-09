@@ -41,7 +41,6 @@
     "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js"
   },
   "dependencies": {
-    "async-await-queue": "^1.2.1",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
     "protobufjs": "^7.0.0",

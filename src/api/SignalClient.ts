@@ -1,5 +1,5 @@
-import Queue from 'async-await-queue';
 import 'webrtc-adapter';
+import { Queue } from '../asyncQueue';
 import log from '../logger';
 import {
   ClientInfo,
@@ -329,6 +329,7 @@ export class SignalClient {
 
   async close() {
     const unlock = await this.closingLock.lock();
+    this.queuedRequests = []; // TODO verify this is actually a fix and we can assume that on close requests queues get emptied
     try {
       this.isConnected = false;
       if (this.ws) {
