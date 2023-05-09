@@ -8,16 +8,15 @@ enum QueueTaskStatus {
   'COMPLETED',
 }
 
-type QueueTaskInfo<T> = {
+type QueueTaskInfo = {
   id: number;
   enqueuedAt: number;
   executedAt?: number;
   status: QueueTaskStatus;
-  task: QueueTask<T>;
 };
 
 export class AsyncQueue {
-  private pendingTasks: Map<number, QueueTaskInfo<unknown>>;
+  private pendingTasks: Map<number, QueueTaskInfo>;
 
   private taskMutex: Mutex;
 
@@ -30,9 +29,8 @@ export class AsyncQueue {
   }
 
   async run<T>(task: QueueTask<T>) {
-    const taskInfo: QueueTaskInfo<T> = {
+    const taskInfo: QueueTaskInfo = {
       id: this.nextTaskIndex++,
-      task,
       enqueuedAt: Date.now(),
       status: QueueTaskStatus.WAITING,
     };
@@ -41,7 +39,7 @@ export class AsyncQueue {
     try {
       taskInfo.executedAt = Date.now();
       taskInfo.status = QueueTaskStatus.RUNNING;
-      return await taskInfo.task();
+      return await task();
     } finally {
       taskInfo.status = QueueTaskStatus.COMPLETED;
       this.pendingTasks.delete(taskInfo.id);
@@ -51,5 +49,9 @@ export class AsyncQueue {
 
   async flush() {
     return this.run(async () => {});
+  }
+
+  snapshot() {
+    return Array.from(this.pendingTasks.values());
   }
 }
