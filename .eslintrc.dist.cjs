@@ -11,7 +11,10 @@ module.exports = {
     'ecmascript-compat/compat': [
       'error',
       {
-        polyfills: ['globalThis'],
+        polyfills: [
+          // rollup-common-js and tsproto have environment checks using `globalThis` which causes the compat check to fail on the output
+          'globalThis',
+        ],
       },
     ],
   },

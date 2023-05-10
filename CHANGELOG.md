@@ -1,5 +1,21 @@
 # Change Log
 
+## 1.9.3
+
+### Patch Changes
+
+- Update devDependencies (non-major) - [#678](https://github.com/livekit/client-sdk-js/pull/678) ([@renovate](https://github.com/apps/renovate))
+
+- Consolidate ws close action - [#685](https://github.com/livekit/client-sdk-js/pull/685) ([@lukasIO](https://github.com/lukasIO))
+
+- Add support for local priority in presets - [#677](https://github.com/livekit/client-sdk-js/pull/677) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix supportsAV1 and supportsVP9 helper functions on Firefox - [#689](https://github.com/livekit/client-sdk-js/pull/689) ([@davidzhao](https://github.com/davidzhao))
+
+- Change TS target to es2015 - [#687](https://github.com/livekit/client-sdk-js/pull/687) ([@lukasIO](https://github.com/lukasIO))
+
+- Keep reference to latest joinResponse on engine - [#691](https://github.com/livekit/client-sdk-js/pull/691) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.9.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -36,7 +36,7 @@
     "deploy": "gh-pages -d example/dist",
     "format": "prettier --write src example/sample.ts",
     "format:check": "prettier --check src",
-    "release": "yarn build && changeset publish",
+    "release": "yarn build && yarn compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2",
     "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js"
   },
