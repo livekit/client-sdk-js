@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.9.4
+
+### Patch Changes
+
+- Replace async-await-queue with mutex based queue - [`2b09b7c`](https://github.com/livekit/client-sdk-js/commit/2b09b7cd45f5dad132363c0f79b375fa0e71ee48) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.9.3
 
 ### Patch Changes
