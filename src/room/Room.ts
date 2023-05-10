@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
+import 'webrtc-adapter';
 import { toProtoSessionDescription } from '../api/SignalClient';
 import log from '../logger';
 import type {
