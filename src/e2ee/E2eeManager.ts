@@ -1,4 +1,4 @@
-import EventEmitter from 'events';
+import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import log from '../logger';
 import { Encryption_Type, TrackInfo } from '../proto/livekit_models';

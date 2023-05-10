@@ -1,4 +1,3 @@
-/// <reference lib="webworker" />
 import { workerLogger } from '../../logger';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';
@@ -28,9 +27,6 @@ let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
 workerLogger.setDefaultLevel('info');
 
-/**
- * @param ev{string}
- */
 onmessage = (ev) => {
   const { kind, data }: E2EEWorkerMessage = ev.data;
 

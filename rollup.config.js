@@ -21,7 +21,6 @@ export function kebabCaseToPascalCase(string = '') {
  */
 export const commonPlugins = [
   nodeResolve({ browser: true, preferBuiltins: false }),
-  typescript({ tsconfig: './tsconfig.json' }),
   commonjs(),
   json(),
   babel({
@@ -56,6 +55,7 @@ export default {
   ],
   plugins: [
     del({ targets: 'dist/*' }),
+    typescript({ tsconfig: './tsconfig.json' }),
     ...commonPlugins,
     replace({
       patterns: [
