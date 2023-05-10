@@ -27,6 +27,8 @@ import {
   VideoQuality,
   createAudioAnalyser,
   setLogLevel,
+  supportsAV1,
+  supportsVP9,
 } from '../src/index';
 import type { SimulationScenario } from '../src/room/types';
 
@@ -855,4 +857,33 @@ async function acquireDeviceList() {
   handleDevicesChanged();
 }
 
+function populateSupportedCodecs() {
+  /*
+<option value="" selected>PreferredCodec</option>
+                <option value="vp8">VP8</option>
+                <option value="h264">H.264</option>
+                <option value="vp9">VP9</option>
+                <option value="av1">AV1</option>
+*/
+  const codecSelect = $('preferred-codec');
+  const options: string[][] = [
+    ['', 'Preferred codec'],
+    ['h264', 'H.264'],
+    ['vp8', 'VP8'],
+  ];
+  if (supportsVP9()) {
+    options.push(['vp9', 'VP9']);
+  }
+  if (supportsAV1()) {
+    options.push(['av1', 'AV1']);
+  }
+  for (const o of options) {
+    const n = document.createElement('option');
+    n.value = o[0];
+    n.appendChild(document.createTextNode(o[1]));
+    codecSelect.appendChild(n);
+  }
+}
+
 acquireDeviceList();
+populateSupportedCodecs();

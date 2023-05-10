@@ -1,5 +1,5 @@
-import Queue from 'async-await-queue';
 import 'webrtc-adapter';
+import { AsyncQueue } from '../AsyncQueue';
 import log from '../logger';
 import {
   ClientInfo,
@@ -77,7 +77,7 @@ const passThroughQueueSignals: Array<SignalKind> = [
 ];
 
 function canPassThroughQueue(req: SignalMessage): boolean {
-  const canPass = passThroughQueueSignals.includes(req!.$case);
+  const canPass = passThroughQueueSignals.indexOf(req!.$case) >= 0;
   log.trace('request allowed to bypass queue:', { canPass, req });
   return canPass;
 }
@@ -88,7 +88,7 @@ export class SignalClient {
 
   isReconnecting: boolean;
 
-  requestQueue: Queue;
+  requestQueue: AsyncQueue;
 
   queuedRequests: Array<() => Promise<void>>;
 
@@ -155,7 +155,7 @@ export class SignalClient {
     this.isConnected = false;
     this.isReconnecting = false;
     this.useJSON = useJSON;
-    this.requestQueue = new Queue();
+    this.requestQueue = new AsyncQueue();
     this.queuedRequests = [];
     this.closingLock = new Mutex();
   }

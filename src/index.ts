@@ -18,6 +18,7 @@ import type { ElementInfo } from './room/track/RemoteVideoTrack';
 import RemoteVideoTrack from './room/track/RemoteVideoTrack';
 import { TrackPublication } from './room/track/TrackPublication';
 import type { LiveKitReactNativeInfo } from './room/types';
+import type { AudioAnalyserOptions } from './room/utils';
 import {
   createAudioAnalyser,
   getEmptyAudioStreamTrack,
@@ -26,20 +27,20 @@ import {
   supportsAV1,
   supportsAdaptiveStream,
   supportsDynacast,
+  supportsVP9,
 } from './room/utils';
-import type { AudioAnalyserOptions } from './room/utils';
 
+export * from './connectionHelper/ConnectionCheck';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';
-export type { DataPublishOptions, SimulationScenario } from './room/types';
+export * from './room/track/Track';
 export * from './room/track/create';
 export * from './room/track/options';
-export * from './room/track/Track';
 export * from './room/track/types';
+export type { DataPublishOptions, SimulationScenario } from './room/types';
 export * from './version';
 export * from './e2ee';
-export * from './connectionHelper/ConnectionCheck';
 export {
   setLogLevel,
   setLogExtension,
@@ -49,6 +50,7 @@ export {
   supportsAdaptiveStream,
   supportsDynacast,
   supportsAV1,
+  supportsVP9,
   createAudioAnalyser,
   LogLevel,
   Room,
@@ -73,7 +75,6 @@ export {
   DefaultReconnectPolicy,
   CriticalTimers,
 };
-
 export type {
   ElementInfo,
   ParticipantTrackPermission,

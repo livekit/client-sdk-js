@@ -37,3 +37,8 @@ jobs:
 
     - name: Run Tests
       run: yarn test
+
+    - name: Check browser target compatibility
+      run: |
+        yarn build
+        yarn compat

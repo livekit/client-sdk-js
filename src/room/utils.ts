@@ -42,7 +42,10 @@ export function supportsDynacast() {
 }
 
 export function supportsAV1(): boolean {
-  const capabilities = RTCRtpReceiver.getCapabilities('video');
+  if (!('getCapabilities' in RTCRtpSender)) {
+    return false;
+  }
+  const capabilities = RTCRtpSender.getCapabilities('video');
   let hasAV1 = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
@@ -56,7 +59,12 @@ export function supportsAV1(): boolean {
 }
 
 export function supportsVP9(): boolean {
-  const capabilities = RTCRtpReceiver.getCapabilities('video');
+  if (!('getCapabilities' in RTCRtpSender)) {
+    // technically speaking FireFox supports VP9, but SVC publishing is broken
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
+    return false;
+  }
+  const capabilities = RTCRtpSender.getCapabilities('video');
   let hasVP9 = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
