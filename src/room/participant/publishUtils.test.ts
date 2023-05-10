@@ -1,12 +1,10 @@
-import {
-  ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43,
-} from '../track/options';
+import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import {
   computeDefaultScreenShareSimulcastPresets,
   computeVideoEncodings,
   determineAppropriateEncoding,
-  presets169,
   presets43,
+  presets169,
   presetsForResolution,
   presetsScreenShare,
   sortPresets,
@@ -30,13 +28,11 @@ describe('presetsForResolution', () => {
 
 describe('determineAppropriateEncoding', () => {
   it('uses higher encoding', () => {
-    expect(determineAppropriateEncoding(false, 600, 300))
-      .toEqual(VideoPresets.vga.encoding);
+    expect(determineAppropriateEncoding(false, 600, 300)).toEqual(VideoPresets.h360.encoding);
   });
 
   it('handles portrait', () => {
-    expect(determineAppropriateEncoding(false, 300, 600))
-      .toEqual(VideoPresets.vga.encoding);
+    expect(determineAppropriateEncoding(false, 300, 600)).toEqual(VideoPresets.h360.encoding);
   });
 });
 
@@ -97,6 +93,18 @@ describe('computeVideoEncodings', () => {
     expect(encodings![1].maxBitrate).toBe(VideoPresets.h360.encoding.maxBitrate);
   });
 
+  it('returns one encoding if an empty array is provided for custom screen share layers', () => {
+    const encodings = computeVideoEncodings(true, 1920, 1080, {
+      simulcast: true,
+      screenShareSimulcastLayers: [],
+    });
+    expect(encodings).toHaveLength(1);
+
+    // ensure they are what we expect
+    expect(encodings![0].rid).toBe('q');
+    expect(encodings![0].scaleResolutionDownBy).toBe(1);
+  });
+
   it('respects provided min resolution', () => {
     const encodings = computeVideoEncodings(false, 100, 120, {
       simulcast: true,
@@ -106,13 +114,48 @@ describe('computeVideoEncodings', () => {
     expect(encodings![0].maxBitrate).toBe(VideoPresets43.h120.encoding.maxBitrate);
     expect(encodings![0].scaleResolutionDownBy).toBe(1);
   });
+
+  //   it('respects default backup codec encoding', () => {
+  //     const vp8Encodings = computeTrackBackupEncodings(false, 100, 120, { simulcast: true });
+  //     const h264Encodings = computeVideoEncodings(false, 100, 120, {
+  //       simulcast: true,
+  //       videoCodec: 'h264',
+  //     });
+  //     const av1Encodings = computeVideoEncodings(false, 100, 120, {
+  //       simulcast: true,
+  //       videoCodec: 'av1',
+  //     });
+  //     expect(h264Encodings).toHaveLength(1);
+  //     expect(h264Encodings![0].rid).toBe('q');
+  //     expect(h264Encodings![0].maxBitrate).toBe(vp8Encodings[0].maxBitrate! * 1.1);
+  //     expect(av1Encodings![0].maxBitrate).toBe(vp8Encodings[0].maxBitrate! * 0.7);
+  //     expect(h264Encodings![0].scaleResolutionDownBy).toBe(1);
+  //   });
+
+  //   it('respects custom backup codec encoding', () => {
+  //     const encodings = computeVideoEncodings(false, 100, 120, {
+  //       simulcast: true,
+  //       videoCodec: 'h264',
+  //       backupCodec: {
+  //         vp8: { maxBitrate: 1_000 },
+  //         h264: { maxBitrate: 2_000 },
+  //       },
+  //     });
+  //     expect(encodings).toHaveLength(1);
+  //     expect(encodings![0].rid).toBe('q');
+  //     expect(encodings![0].maxBitrate).toBe(2_000);
+  //     expect(encodings![0].scaleResolutionDownBy).toBe(1);
+  //   });
 });
 
 describe('customSimulcastLayers', () => {
   it('sorts presets from lowest to highest', () => {
-    const sortedPresets = sortPresets(
-      [VideoPresets.h1440, VideoPresets.h360, VideoPresets.h1080, VideoPresets.h90],
-    ) as Array<VideoPreset>;
+    const sortedPresets = sortPresets([
+      VideoPresets.h1440,
+      VideoPresets.h360,
+      VideoPresets.h1080,
+      VideoPresets.h90,
+    ]) as Array<VideoPreset>;
     expect(sortPresets).not.toBeUndefined();
     expect(sortedPresets[0]).toBe(VideoPresets.h90);
     expect(sortedPresets[1]).toBe(VideoPresets.h360);

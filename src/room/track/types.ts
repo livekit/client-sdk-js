@@ -3,7 +3,6 @@ import type LocalVideoTrack from './LocalVideoTrack';
 import type RemoteAudioTrack from './RemoteAudioTrack';
 import type RemoteVideoTrack from './RemoteVideoTrack';
 
-export type RemoteTrack = RemoteAudioTrack | RemoteVideoTrack;
 export type AudioTrack = RemoteAudioTrack | LocalAudioTrack;
 export type VideoTrack = RemoteVideoTrack | LocalVideoTrack;
 
@@ -16,5 +15,10 @@ export type AdaptiveStreamSettings = {
    * Note: this might significantly increase the bandwidth consumed by people
    * streaming on high definition screens.
    */
-  pixelDensity?: number | 'screen'
+  pixelDensity?: number | 'screen';
+  /**
+   * If true, video gets paused when switching to another tab.
+   * Defaults to true.
+   */
+  pauseVideoInBackground?: boolean;
 };

@@ -1,14 +1,18 @@
-import { TrackInvalidError } from '../errors';
+import DeviceManager from '../DeviceManager';
+import { audioDefaults, videoDefaults } from '../defaults';
+import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
-import { audioDefaults, videoDefaults } from './defaults';
 import LocalAudioTrack from './LocalAudioTrack';
-import LocalTrack from './LocalTrack';
+import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
-import {
-  AudioCaptureOptions, CreateLocalTracksOptions, ScreenShareCaptureOptions,
-  VideoCaptureOptions, VideoPresets,
-} from './options';
 import { Track } from './Track';
+import { VideoPresets } from './options';
+import type {
+  AudioCaptureOptions,
+  CreateLocalTracksOptions,
+  ScreenShareCaptureOptions,
+  VideoCaptureOptions,
+} from './options';
 import { constraintsForOptions, mergeDefaultOptions } from './utils';
 
 /**
@@ -27,9 +31,21 @@ export async function createLocalTracks(
 
   const opts = mergeDefaultOptions(options, audioDefaults, videoDefaults);
   const constraints = constraintsForOptions(opts);
-  const stream = await navigator.mediaDevices.getUserMedia(
-    constraints,
-  );
+
+  // Keep a reference to the promise on DeviceManager and await it in getLocalDevices()
+  // works around iOS Safari Bug https://bugs.webkit.org/show_bug.cgi?id=179363
+  const mediaPromise = navigator.mediaDevices.getUserMedia(constraints);
+
+  if (options.audio) {
+    DeviceManager.userMediaPromiseMap.set('audioinput', mediaPromise);
+    mediaPromise.catch(() => DeviceManager.userMediaPromiseMap.delete('audioinput'));
+  }
+  if (options.video) {
+    DeviceManager.userMediaPromiseMap.set('videoinput', mediaPromise);
+    mediaPromise.catch(() => DeviceManager.userMediaPromiseMap.delete('videoinput'));
+  }
+
+  const stream = await mediaPromise;
   return stream.getTracks().map((mediaStreamTrack) => {
     const isAudio = mediaStreamTrack.kind === 'audio';
     let trackOptions = isAudio ? options!.audio : options!.video;
@@ -47,6 +63,7 @@ export async function createLocalTracks(
     } else if (track.kind === Track.Kind.Audio) {
       track.source = Track.Source.Microphone;
     }
+    track.mediaStream = stream;
     return track;
   });
 }
@@ -87,7 +104,7 @@ export async function createLocalScreenTracks(
     options = {};
   }
   if (options.resolution === undefined) {
-    options.resolution = VideoPresets.fhd.resolution;
+    options.resolution = VideoPresets.h1080.resolution;
   }
 
   let videoConstraints: MediaTrackConstraints | boolean = true;
@@ -97,6 +114,11 @@ export async function createLocalScreenTracks(
       height: options.resolution.height,
     };
   }
+
+  if (navigator.mediaDevices.getDisplayMedia === undefined) {
+    throw new DeviceUnsupportedError('getDisplayMedia not supported');
+  }
+
   // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
   // @ts-ignore
   const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
@@ -108,11 +130,11 @@ export async function createLocalScreenTracks(
   if (tracks.length === 0) {
     throw new TrackInvalidError('no video track found');
   }
-  const screenVideo = new LocalVideoTrack(tracks[0]);
+  const screenVideo = new LocalVideoTrack(tracks[0], undefined, false);
   screenVideo.source = Track.Source.ScreenShare;
   const localTracks: Array<LocalTrack> = [screenVideo];
   if (stream.getAudioTracks().length > 0) {
-    const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0]);
+    const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0], undefined, false);
     screenAudio.source = Track.Source.ScreenShareAudio;
     localTracks.push(screenAudio);
   }

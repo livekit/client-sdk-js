@@ -9,13 +9,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
-    - uses: actions/setup-node@v2
+    - uses: actions/setup-node@v3
       with:
         node-version: '16.x'
 
-    - uses: actions/cache@v2
+    - uses: actions/cache@v3
       with:
         path: |
           ~/.npm
@@ -31,6 +31,14 @@ jobs:
 
     - name: ESLint
       run: yarn lint
+    
+    - name: Prettier
+      run: yarn format:check
 
     - name: Run Tests
       run: yarn test
+
+    - name: Check browser target compatibility
+      run: |
+        yarn build
+        yarn compat

@@ -1,4 +1,4 @@
-import { Track } from './Track';
+import type { Track } from './Track';
 
 export interface TrackPublishDefaults {
   /**
@@ -7,24 +7,47 @@ export interface TrackPublishDefaults {
   videoEncoding?: VideoEncoding;
 
   /**
+   * @experimental
+   */
+  backupCodec?: { codec: BackupVideoCodec; encoding: VideoEncoding } | false;
+
+  /**
    * encoding parameters for screen share track
    */
   screenShareEncoding?: VideoEncoding;
 
   /**
-   * codec, defaults to vp8
+   * codec, defaults to vp8; for svc codecs, auto enable vp8
+   * as backup. (TBD)
    */
   videoCodec?: VideoCodec;
 
   /**
-   * max audio bitrate, defaults to [[AudioPresets.speech]]
+   * max audio bitrate, defaults to [[AudioPresets.music]]
+   * @deprecated use `audioPreset` instead
    */
   audioBitrate?: number;
 
   /**
-   * dtx (Discontinuous Transmission of audio), defaults to true
+   * which audio preset should be used for publishing (audio) tracks
+   * defaults to [[AudioPresets.music]]
+   */
+  audioPreset?: AudioPreset;
+
+  /**
+   * dtx (Discontinuous Transmission of audio), enabled by default for mono tracks.
    */
   dtx?: boolean;
+
+  /**
+   * red (Redundant Audio Data), enabled by default for mono tracks.
+   */
+  red?: boolean;
+
+  /**
+   * stereo audio track. defaults determined by capture channel count.
+   */
+  forceStereo?: boolean;
 
   /**
    * use simulcast, defaults to true.
@@ -34,7 +57,13 @@ export interface TrackPublishDefaults {
   simulcast?: boolean;
 
   /**
-   * custom video simulcast layers for camera tracks, defaults to h180, h360, h540
+   * scalability mode for svc codecs, defaults to 'L3T3'.
+   * for svc codecs, simulcast is disabled.
+   */
+  scalabilityMode?: ScalabilityMode;
+
+  /**
+   * custom video simulcast layers for camera tracks, defaults to h180, h360
    * You can specify up to two custom layers that will be used instead of
    * the LiveKit default layers.
    * Note: the layers need to be ordered from lowest to highest quality
@@ -107,10 +136,28 @@ export interface ScreenShareCaptureOptions {
    * true to capture audio shared. browser support for audio capturing in
    * screenshare is limited: https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia#browser_compatibility
    */
-  audio?: boolean;
+  audio?: boolean | AudioCaptureOptions;
 
   /** capture resolution, defaults to full HD */
   resolution?: VideoResolution;
+
+  /** a CaptureController object instance containing methods that can be used to further manipulate the capture session if included. */
+  controller?: unknown; // TODO replace type with CaptureController once it lands in TypeScript
+
+  /** specifies whether the browser should allow the user to select the current tab for capture */
+  selfBrowserSurface?: 'include' | 'exclude';
+
+  /** specifies whether the browser should display a control to allow the user to dynamically switch the shared tab during screen-sharing. */
+  surfaceSwitching?: 'include' | 'exclude';
+
+  /** specifies whether the browser should include the system audio among the possible audio sources offered to the user */
+  systemAudio?: 'include' | 'exclude';
+
+  /**
+   * Experimental option to control whether the audio playing in a tab will continue to be played out of a user's
+   * local speakers when the tab is captured.
+   */
+  suppressLocalAudioPlayback?: boolean;
 }
 
 export interface AudioCaptureOptions {
@@ -156,6 +203,15 @@ export interface AudioCaptureOptions {
   sampleSize?: ConstrainULong;
 }
 
+export interface AudioOutputOptions {
+  /**
+   * deviceId to output audio
+   *
+   * Only supported on browsers where `setSinkId` is available
+   */
+  deviceId?: string;
+}
+
 export interface VideoResolution {
   width: number;
   height: number;
@@ -166,6 +222,7 @@ export interface VideoResolution {
 export interface VideoEncoding {
   maxBitrate: number;
   maxFramerate?: number;
+  priority?: RTCPriorityType;
 }
 
 export class VideoPreset {
@@ -175,12 +232,19 @@ export class VideoPreset {
 
   height: number;
 
-  constructor(width: number, height: number, maxBitrate: number, maxFramerate?: number) {
+  constructor(
+    width: number,
+    height: number,
+    maxBitrate: number,
+    maxFramerate?: number,
+    priority?: RTCPriorityType,
+  ) {
     this.width = width;
     this.height = height;
     this.encoding = {
       maxBitrate,
       maxFramerate,
+      priority,
     };
   }
 
@@ -196,9 +260,31 @@ export class VideoPreset {
 
 export interface AudioPreset {
   maxBitrate: number;
+  priority?: RTCPriorityType;
 }
 
-export type VideoCodec = 'vp8' | 'h264';
+const codecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
+const backupCodecs = ['vp8', 'h264'] as const;
+
+export type VideoCodec = (typeof codecs)[number];
+
+export type BackupVideoCodec = (typeof backupCodecs)[number];
+
+export function isBackupCodec(codec: string): codec is BackupVideoCodec {
+  return !!backupCodecs.find((backup) => backup === codec);
+}
+
+export function isCodecEqual(c1: string | undefined, c2: string | undefined): boolean {
+  return (
+    c1?.toLowerCase().replace(/audio\/|video\//y, '') ===
+    c2?.toLowerCase().replace(/audio\/|video\//y, '')
+  );
+}
+
+/**
+ * scalability modes for svc, only supprot l3t3 now.
+ */
+export type ScalabilityMode = 'L3T3';
 
 export namespace AudioPresets {
   export const telephone: AudioPreset = {
@@ -209,6 +295,15 @@ export namespace AudioPresets {
   };
   export const music: AudioPreset = {
     maxBitrate: 32_000,
+  };
+  export const musicStereo: AudioPreset = {
+    maxBitrate: 48_000,
+  };
+  export const musicHighQuality: AudioPreset = {
+    maxBitrate: 64_000,
+  };
+  export const musicHighQualityStereo: AudioPreset = {
+    maxBitrate: 96_000,
   };
 }
 
@@ -221,20 +316,10 @@ export const VideoPresets = {
   h216: new VideoPreset(384, 216, 180_000, 15),
   h360: new VideoPreset(640, 360, 300_000, 20),
   h540: new VideoPreset(960, 540, 600_000, 25),
-  h720: new VideoPreset(1280, 720, 2_000_000, 30),
+  h720: new VideoPreset(1280, 720, 1_700_000, 30),
   h1080: new VideoPreset(1920, 1080, 3_000_000, 30),
   h1440: new VideoPreset(2560, 1440, 5_000_000, 30),
   h2160: new VideoPreset(3840, 2160, 8_000_000, 30),
-  /** @deprecated */
-  qvga: new VideoPreset(320, 180, 120_000, 10),
-  /** @deprecated */
-  vga: new VideoPreset(640, 360, 300_000, 20),
-  /** @deprecated */
-  qhd: new VideoPreset(960, 540, 600_000, 25),
-  /** @deprecated */
-  hd: new VideoPreset(1280, 720, 2_000_000, 30),
-  /** @deprecated */
-  fhd: new VideoPreset(1920, 1080, 3_000_000, 30),
 } as const;
 
 /**
@@ -250,32 +335,12 @@ export const VideoPresets43 = {
   h720: new VideoPreset(960, 720, 1_500_000, 30),
   h1080: new VideoPreset(1440, 1080, 2_500_000, 30),
   h1440: new VideoPreset(1920, 1440, 3_500_000, 30),
-  /** @deprecated */
-  qvga: new VideoPreset(240, 180, 90_000, 10),
-  /** @deprecated */
-  vga: new VideoPreset(480, 360, 225_000, 20),
-  /** @deprecated */
-  qhd: new VideoPreset(720, 540, 450_000, 25),
-  /** @deprecated */
-  hd: new VideoPreset(960, 720, 1_500_000, 30),
-  /** @deprecated */
-  fhd: new VideoPreset(1440, 1080, 2_800_000, 30),
 } as const;
 
 export const ScreenSharePresets = {
-  h360fps3: new VideoPreset(640, 360, 200_000, 3),
-  h720fps5: new VideoPreset(1280, 720, 400_000, 5),
-  h720fps15: new VideoPreset(1280, 720, 1_000_000, 15),
-  h1080fps15: new VideoPreset(1920, 1080, 1_500_000, 15),
-  h1080fps30: new VideoPreset(1920, 1080, 3_000_000, 30),
-  /** @deprecated */
-  vga: new VideoPreset(640, 360, 200_000, 3),
-  /** @deprecated */
-  hd_8: new VideoPreset(1280, 720, 400_000, 5),
-  /** @deprecated */
-  hd_15: new VideoPreset(1280, 720, 1_000_000, 15),
-  /** @deprecated */
-  fhd_15: new VideoPreset(1920, 1080, 1_500_000, 15),
-  /** @deprecated */
-  fhd_30: new VideoPreset(1920, 1080, 3_000_000, 30),
+  h360fps3: new VideoPreset(640, 360, 200_000, 3, 'medium'),
+  h720fps5: new VideoPreset(1280, 720, 400_000, 5, 'medium'),
+  h720fps15: new VideoPreset(1280, 720, 1_000_000, 15, 'medium'),
+  h1080fps15: new VideoPreset(1920, 1080, 1_500_000, 15, 'medium'),
+  h1080fps30: new VideoPreset(1920, 1080, 3_000_000, 30, 'medium'),
 } as const;

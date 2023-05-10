@@ -1,16 +1,35 @@
-import { BlurBackground, VirtualBackground } from '@livekit/stream-processors';
-
 import {
   ConnectionQuality,
-  createLocalVideoTrack,
-  DataPacket_Kind, LocalParticipant, MediaDeviceFailure,
-  Participant, ParticipantEvent, RemoteParticipant, Room,
-  RoomConnectOptions, RoomEvent,
-  RoomOptions, RoomState, setLogLevel, Track, TrackPublication,
-  VideoCaptureOptions, VideoPresets,
+  ConnectionState,
+  DataPacket_Kind,
+  DisconnectReason,
+  LocalAudioTrack,
+  LocalParticipant,
+  LogLevel,
+  MediaDeviceFailure,
+  Participant,
+  ParticipantEvent,
+  RemoteParticipant,
+  RemoteTrackPublication,
+  RemoteVideoTrack,
+  Room,
+  RoomConnectOptions,
+  RoomEvent,
+  RoomOptions,
+  Track,
+  TrackPublication,
+  VideoCaptureOptions,
+  VideoCodec,
+  VideoPresets,
+  VideoQuality,
+  createAudioAnalyser,
+  setLogLevel,
+  supportsAV1,
+  supportsVP9,
 } from '../src/index';
+import { SimulationScenario } from '../src/room/types';
 
-const $ = (id: string) => document.getElementById(id);
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const state = {
   isFrontFacing: false,
@@ -21,15 +40,17 @@ const state = {
 };
 let currentRoom: Room | undefined;
 
+let startTime: number;
+
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
 const storedToken = searchParams.get('token') ?? '';
-(<HTMLInputElement>$('url')).value = storedUrl;
-(<HTMLInputElement>$('token')).value = storedToken;
+$<HTMLInputElement>('url').value = storedUrl;
+$<HTMLInputElement>('token').value = storedToken;
 
 function updateSearchParams(url: string, token: string) {
   const params = new URLSearchParams({ url, token });
-  window.history.replaceState(null, '', `/?${params.toString()}`);
+  window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 }
 
 // handles actions from the HTML
@@ -41,23 +62,20 @@ const appActions = {
     const dynacast = (<HTMLInputElement>$('dynacast')).checked;
     const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
     const adaptiveStream = (<HTMLInputElement>$('adaptive-stream')).checked;
-    const publishOnly = (<HTMLInputElement>$('publish-only')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
+    const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
+    const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
 
-    setLogLevel('debug');
+    setLogLevel(LogLevel.debug);
     updateSearchParams(url, token);
 
     const roomOpts: RoomOptions = {
-      adaptiveStream: adaptiveStream ? {
-        pixelDensity: 'screen',
-      } : false,
+      adaptiveStream,
       dynacast,
       publishDefaults: {
         simulcast,
-        videoSimulcastLayers: [
-          VideoPresets.h90,
-          VideoPresets.h216,
-        ],
+        videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
+        videoCodec: preferredCodec || 'vp8',
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -65,31 +83,14 @@ const appActions = {
     };
 
     const connectOpts: RoomConnectOptions = {
-      autoSubscribe: !publishOnly,
-      publishOnly: publishOnly ? 'publish_only' : undefined,
+      autoSubscribe: autoSubscribe,
     };
     if (forceTURN) {
       connectOpts.rtcConfig = {
         iceTransportPolicy: 'relay',
       };
     }
-    const room = await appActions.connectToRoom(url, token, roomOpts, connectOpts);
-
-    if (room && shouldPublish) {
-      await room.localParticipant.createTracks({ audio: true });
-      const videoTrack = await createLocalVideoTrack();
-
-      room.localParticipant.publishTrack(videoTrack);
-
-      let disable = true;
-      setInterval(async () => {
-        await videoTrack.setProcessor(disable ? BlurBackground(10) : VirtualBackground('https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/An%C3%A9mona_de_mar_com%C3%BAn_%28Anemonia_viridis%29%2C_Parque_natural_de_la_Arr%C3%A1bida%2C_Portugal%2C_2020-07-21%2C_DD_07.jpg/1000px-An%C3%A9mona_de_mar_com%C3%BAn_%28Anemonia_viridis%29%2C_Parque_natural_de_la_Arr%C3%A1bida%2C_Portugal%2C_2020-07-21%2C_DD_07.jpg'));
-
-        disable = !disable;
-      }, 5000);
-
-      updateButtonsForPublishState();
-    }
+    await appActions.connectToRoom(url, token, roomOpts, connectOpts, shouldPublish);
 
     state.bitrateInterval = setInterval(renderBitrate, 1000);
   },
@@ -99,26 +100,45 @@ const appActions = {
     token: string,
     roomOptions?: RoomOptions,
     connectOptions?: RoomConnectOptions,
+    shouldPublish?: boolean,
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
+
+    startTime = Date.now();
+    await room.prepareConnection(url);
+    const prewarmTime = Date.now() - startTime;
+    appendLog(`prewarmed connection in ${prewarmTime}ms`);
+
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
       .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
       .on(RoomEvent.DataReceived, handleData)
       .on(RoomEvent.Disconnected, handleRoomDisconnect)
       .on(RoomEvent.Reconnecting, () => appendLog('Reconnecting to room'))
-      .on(RoomEvent.Reconnected, () => {
-        appendLog('Successfully reconnected. server', room.engine.connectedServerAddress);
+      .on(RoomEvent.Reconnected, async () => {
+        appendLog(
+          'Successfully reconnected. server',
+          await room.engine.getConnectedServerAddress(),
+        );
       })
-      .on(RoomEvent.LocalTrackPublished, () => {
+      .on(RoomEvent.LocalTrackPublished, (pub) => {
+        const track = pub.track as LocalAudioTrack;
+
+        if (track instanceof LocalAudioTrack) {
+          const { calculateVolume } = createAudioAnalyser(track);
+
+          setInterval(() => {
+            $('local-volume')?.setAttribute('value', calculateVolume().toFixed(4));
+          }, 200);
+        }
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
-        renderScreenShare();
+        renderScreenShare(room);
       })
       .on(RoomEvent.LocalTrackUnpublished, () => {
         renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
-        renderScreenShare();
+        renderScreenShare(room);
       })
       .on(RoomEvent.RoomMetadataChanged, (metadata) => {
         appendLog('new metadata for room', metadata);
@@ -135,17 +155,42 @@ const appActions = {
         const failure = MediaDeviceFailure.getFailure(e);
         appendLog('media device failure', failure);
       })
-      .on(RoomEvent.ConnectionQualityChanged,
+      .on(
+        RoomEvent.ConnectionQualityChanged,
         (quality: ConnectionQuality, participant?: Participant) => {
           appendLog('connection quality changed', participant?.identity, quality);
-        });
+        },
+      )
+      .on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+        appendLog('subscribed to track', pub.trackSid, participant.identity);
+        renderParticipant(participant);
+        renderScreenShare(room);
+      })
+      .on(RoomEvent.TrackUnsubscribed, (_, pub, participant) => {
+        appendLog('unsubscribed from track', pub.trackSid);
+        renderParticipant(participant);
+        renderScreenShare(room);
+      })
+      .on(RoomEvent.SignalConnected, async () => {
+        const signalConnectionTime = Date.now() - startTime;
+        appendLog(`signal connection established in ${signalConnectionTime}ms`);
+        // speed up publishing by starting to publish before it's fully connected
+        // publishing is accepted as soon as signal connection has established
+        if (shouldPublish) {
+          await room.localParticipant.enableCameraAndMicrophone();
+          appendLog(`tracks published in ${Date.now() - startTime}ms`);
+          updateButtonsForPublishState();
+        }
+      });
 
     try {
-      const start = Date.now();
       await room.connect(url, token, connectOptions);
-      const elapsed = Date.now() - start;
-      appendLog(`successfully connected to ${room.name} in ${Math.round(elapsed)}ms`, room.engine.connectedServerAddress);
-    } catch (error) {
+      const elapsed = Date.now() - startTime;
+      appendLog(
+        `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
+        await room.engine.getConnectedServerAddress(),
+      );
+    } catch (error: any) {
       let message: any = error;
       if (error.message) {
         message = error.message;
@@ -168,17 +213,20 @@ const appActions = {
   toggleAudio: async () => {
     if (!currentRoom) return;
     const enabled = currentRoom.localParticipant.isMicrophoneEnabled;
+    setButtonDisabled('toggle-audio-button', true);
     if (enabled) {
       appendLog('disabling audio');
     } else {
       appendLog('enabling audio');
     }
     await currentRoom.localParticipant.setMicrophoneEnabled(!enabled);
+    setButtonDisabled('toggle-audio-button', false);
     updateButtonsForPublishState();
   },
 
   toggleVideo: async () => {
     if (!currentRoom) return;
+    setButtonDisabled('toggle-video-button', true);
     const enabled = currentRoom.localParticipant.isCameraEnabled;
     if (enabled) {
       appendLog('disabling video');
@@ -186,6 +234,7 @@ const appActions = {
       appendLog('enabling video');
     }
     await currentRoom.localParticipant.setCameraEnabled(!enabled);
+    setButtonDisabled('toggle-video-button', false);
     renderParticipant(currentRoom.localParticipant);
 
     // update display
@@ -204,7 +253,7 @@ const appActions = {
     }
     state.isFrontFacing = !state.isFrontFacing;
     const options: VideoCaptureOptions = {
-      resolution: VideoPresets.qhd.resolution,
+      resolution: VideoPresets.h720.resolution,
       facingMode: state.isFrontFacing ? 'user' : 'environment',
     };
     videoPub.videoTrack?.restartTrack(options);
@@ -215,7 +264,9 @@ const appActions = {
 
     const enabled = currentRoom.localParticipant.isScreenShareEnabled;
     appendLog(`${enabled ? 'stopping' : 'starting'} screen share`);
-    await currentRoom.localParticipant.setScreenShareEnabled(!enabled);
+    setButtonDisabled('share-screen-button', true);
+    await currentRoom.localParticipant.setScreenShareEnabled(!enabled, { audio: true });
+    setButtonDisabled('share-screen-button', false);
     updateButtonsForPublishState();
   },
 
@@ -230,8 +281,8 @@ const appActions = {
       const msg = state.encoder.encode(textField.value);
       currentRoom.localParticipant.publishData(msg, DataPacket_Kind.RELIABLE);
       (<HTMLTextAreaElement>(
-      $('chat')
-    )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
+        $('chat')
+      )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
       textField.value = '';
     }
   },
@@ -247,21 +298,17 @@ const appActions = {
 
   handleScenario: (e: Event) => {
     const scenario = (<HTMLSelectElement>e.target).value;
-    if (scenario !== '') {
-      if (scenario === 'signal-reconnect') {
-        appActions.disconnectSignal();
-      } else {
-        currentRoom?.simulateScenario(scenario);
-      }
+    if (scenario === 'subscribe-all') {
+      currentRoom?.participants.forEach((p) => {
+        p.tracks.forEach((rp) => rp.setSubscribed(true));
+      });
+    } else if (scenario === 'unsubscribe-all') {
+      currentRoom?.participants.forEach((p) => {
+        p.tracks.forEach((rp) => rp.setSubscribed(false));
+      });
+    } else if (scenario !== '') {
+      currentRoom?.simulateScenario(scenario as SimulationScenario);
       (<HTMLSelectElement>e.target).value = '';
-    }
-  },
-
-  disconnectSignal: () => {
-    if (!currentRoom) return;
-    currentRoom.engine.client.close();
-    if (currentRoom.engine.client.onClose) {
-      currentRoom.engine.client.onClose('manual disconnect');
     }
   },
 
@@ -277,6 +324,42 @@ const appActions = {
 
     if (currentRoom) {
       await currentRoom.switchActiveDevice(kind, deviceId);
+    }
+  },
+
+  handlePreferredQuality: (e: Event) => {
+    const quality = (<HTMLSelectElement>e.target).value;
+    let q = VideoQuality.HIGH;
+    switch (quality) {
+      case 'low':
+        q = VideoQuality.LOW;
+        break;
+      case 'medium':
+        q = VideoQuality.MEDIUM;
+        break;
+      case 'high':
+        q = VideoQuality.HIGH;
+        break;
+      default:
+        break;
+    }
+    if (currentRoom) {
+      currentRoom.participants.forEach((participant) => {
+        participant.tracks.forEach((track) => {
+          track.setVideoQuality(q);
+        });
+      });
+    }
+  },
+
+  handlePreferredFPS: (e: Event) => {
+    const fps = +(<HTMLSelectElement>e.target).value;
+    if (currentRoom) {
+      currentRoom.participants.forEach((participant) => {
+        participant.tracks.forEach((track) => {
+          track.setVideoFPS(fps);
+        });
+      });
     }
   },
 };
@@ -305,16 +388,6 @@ function handleData(msg: Uint8Array, participant?: RemoteParticipant) {
 function participantConnected(participant: Participant) {
   appendLog('participant', participant.identity, 'connected', participant.metadata);
   participant
-    .on(ParticipantEvent.TrackSubscribed, (_, pub: TrackPublication) => {
-      appendLog('subscribed to track', pub.trackSid, participant.identity);
-      renderParticipant(participant);
-      renderScreenShare();
-    })
-    .on(ParticipantEvent.TrackUnsubscribed, (_, pub: TrackPublication) => {
-      appendLog('unsubscribed from track', pub.trackSid);
-      renderParticipant(participant);
-      renderScreenShare();
-    })
     .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
       appendLog('track was muted', pub.trackSid, participant.identity);
       renderParticipant(participant);
@@ -337,15 +410,15 @@ function participantDisconnected(participant: RemoteParticipant) {
   renderParticipant(participant, true);
 }
 
-function handleRoomDisconnect() {
+function handleRoomDisconnect(reason?: DisconnectReason) {
   if (!currentRoom) return;
-  appendLog('disconnected from room');
+  appendLog('disconnected from room', { reason });
   setButtonsForState(false);
   renderParticipant(currentRoom.localParticipant, true);
   currentRoom.participants.forEach((p) => {
     renderParticipant(p, true);
   });
-  renderScreenShare();
+  renderScreenShare(currentRoom);
 
   const container = $('participants-area');
   if (container) {
@@ -366,10 +439,9 @@ function appendLog(...args: any[]) {
   const logger = $('log')!;
   for (let i = 0; i < arguments.length; i += 1) {
     if (typeof args[i] === 'object') {
-      logger.innerHTML
-        += `${JSON && JSON.stringify
-          ? JSON.stringify(args[i], undefined, 2)
-          : args[i]} `;
+      logger.innerHTML += `${
+        JSON && JSON.stringify ? JSON.stringify(args[i], undefined, 2) : args[i]
+      } `;
     } else {
       logger.innerHTML += `${args[i]} `;
     }
@@ -397,6 +469,8 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         <div id="name-${identity}" class="name">
         </div>
         <div style="text-align: center;">
+          <span id="codec-${identity}" class="codec">
+          </span>
           <span id="size-${identity}" class="size">
           </span>
           <span id="bitrate-${identity}" class="bitrate">
@@ -407,6 +481,14 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
           <span id="mic-${identity}" class="mic-on"></span>
         </div>
       </div>
+      ${
+        participant instanceof RemoteParticipant
+          ? `<div class="volume-control">
+        <input id="volume-${identity}" type="range" min="0" max="1" step="0.1" value="1" orient="vertical" />
+      </div>`
+          : `<progress id="local-volume" max="1" value="0" />`
+      }
+
     `;
     container.appendChild(div);
 
@@ -446,17 +528,31 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     div!.classList.remove('speaking');
   }
 
+  if (participant instanceof RemoteParticipant) {
+    const volumeSlider = <HTMLInputElement>$(`volume-${identity}`);
+    volumeSlider.addEventListener('input', (ev) => {
+      participant.setVolume(Number.parseFloat((ev.target as HTMLInputElement).value));
+    });
+  }
+
   const cameraEnabled = cameraPub && cameraPub.isSubscribed && !cameraPub.isMuted;
   if (cameraEnabled) {
     if (participant instanceof LocalParticipant) {
       // flip
       videoElm.style.transform = 'scale(-1, 1)';
     } else if (!cameraPub?.videoTrack?.attachedElements.includes(videoElm)) {
-      const startTime = Date.now();
+      const renderStartTime = Date.now();
       // measure time to render
       videoElm.onloadeddata = () => {
-        const elapsed = Date.now() - startTime;
-        appendLog(`RemoteVideoTrack ${cameraPub?.trackSid} (${videoElm.videoWidth}x${videoElm.videoHeight}) rendered in ${elapsed}ms`);
+        const elapsed = Date.now() - renderStartTime;
+        let fromJoin = 0;
+        if (participant.joinedAt && participant.joinedAt.getTime() < startTime) {
+          fromJoin = Date.now() - startTime;
+        }
+        appendLog(
+          `RemoteVideoTrack ${cameraPub?.trackSid} (${videoElm.videoWidth}x${videoElm.videoHeight}) rendered in ${elapsed}ms`,
+          fromJoin > 0 ? `, ${fromJoin}ms from start` : '',
+        );
       };
     }
     cameraPub?.videoTrack?.attach(videoElm);
@@ -476,6 +572,12 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
   if (micEnabled) {
     if (!(participant instanceof LocalParticipant)) {
       // don't attach local audio
+      audioELm.onloadeddata = () => {
+        if (participant.joinedAt && participant.joinedAt.getTime() < startTime) {
+          const fromJoin = Date.now() - startTime;
+          appendLog(`RemoteAudioTrack ${micPub?.trackSid} played ${fromJoin}ms from start`);
+        }
+      };
       micPub?.audioTrack?.attach(audioELm);
     }
     micElm.className = 'mic-on';
@@ -494,22 +596,23 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       break;
     default:
       signalElm.innerHTML = '';
-      // do nothing
+    // do nothing
   }
 }
 
-function renderScreenShare() {
+function renderScreenShare(room: Room) {
   const div = $('screenshare-area')!;
-  if (!currentRoom || currentRoom.state !== RoomState.Connected) {
+  if (room.state !== ConnectionState.Connected) {
     div.style.display = 'none';
     return;
   }
   let participant: Participant | undefined;
-  let screenSharePub: TrackPublication | undefined = currentRoom.localParticipant.getTrack(
+  let screenSharePub: TrackPublication | undefined = room.localParticipant.getTrack(
     Track.Source.ScreenShare,
   );
+  let screenShareAudioPub: RemoteTrackPublication | undefined;
   if (!screenSharePub) {
-    currentRoom.participants.forEach((p) => {
+    room.participants.forEach((p) => {
       if (screenSharePub) {
         return;
       }
@@ -518,15 +621,22 @@ function renderScreenShare() {
       if (pub?.isSubscribed) {
         screenSharePub = pub;
       }
+      const audioPub = p.getTrack(Track.Source.ScreenShareAudio);
+      if (audioPub?.isSubscribed) {
+        screenShareAudioPub = audioPub;
+      }
     });
   } else {
-    participant = currentRoom.localParticipant;
+    participant = room.localParticipant;
   }
 
   if (screenSharePub && participant) {
     div.style.display = 'block';
     const videoElm = <HTMLVideoElement>$('screenshare-video');
     screenSharePub.videoTrack?.attach(videoElm);
+    if (screenShareAudioPub) {
+      screenShareAudioPub.audioTrack?.attach(videoElm);
+    }
     videoElm.onresize = () => {
       updateVideoSize(videoElm, <HTMLSpanElement>$('screenshare-resolution'));
     };
@@ -538,7 +648,7 @@ function renderScreenShare() {
 }
 
 function renderBitrate() {
-  if (!currentRoom || currentRoom.state !== RoomState.Connected) {
+  if (!currentRoom || currentRoom.state !== ConnectionState.Connected) {
     return;
   }
   const participants: Participant[] = [...currentRoom.participants.values()];
@@ -550,6 +660,13 @@ function renderBitrate() {
     for (const t of p.tracks.values()) {
       if (t.track) {
         totalBitrate += t.track.currentBitrate;
+      }
+
+      if (t.source === Track.Source.Camera) {
+        if (t.videoTrack instanceof RemoteVideoTrack) {
+          const codecElm = $(`codec-${p.identity}`)!;
+          codecElm.innerHTML = t.videoTrack.getDecoderImplementation() ?? '';
+        }
       }
     }
     let displayText = '';
@@ -566,16 +683,28 @@ function updateVideoSize(element: HTMLVideoElement, target: HTMLElement) {
   target.innerHTML = `(${element.videoWidth}x${element.videoHeight})`;
 }
 
-function setButtonState(buttonId: string, buttonText: string, isActive: boolean) {
-  const el = $(buttonId);
+function setButtonState(
+  buttonId: string,
+  buttonText: string,
+  isActive: boolean,
+  isDisabled: boolean | undefined = undefined,
+) {
+  const el = $(buttonId) as HTMLButtonElement;
   if (!el) return;
-
+  if (isDisabled !== undefined) {
+    el.disabled = isDisabled;
+  }
   el.innerHTML = buttonText;
   if (isActive) {
     el.classList.add('active');
   } else {
     el.classList.remove('active');
   }
+}
+
+function setButtonDisabled(buttonId: string, isDisabled: boolean) {
+  const el = $(buttonId) as HTMLButtonElement;
+  el.disabled = isDisabled;
 }
 
 setTimeout(handleDevicesChanged, 100);
@@ -605,34 +734,26 @@ const elementMapping: { [k: string]: MediaDeviceKind } = {
   'audio-output': 'audiooutput',
 };
 async function handleDevicesChanged() {
-  Promise.all(Object.keys(elementMapping).map(async (id) => {
-    const kind = elementMapping[id];
-    if (!kind) {
-      return;
-    }
-    const devices = await Room.getLocalDevices(kind);
-    const element = <HTMLSelectElement>$(id);
-    populateSelect(kind, element, devices, state.defaultDevices.get(kind));
-  }));
+  Promise.all(
+    Object.keys(elementMapping).map(async (id) => {
+      const kind = elementMapping[id];
+      if (!kind) {
+        return;
+      }
+      const devices = await Room.getLocalDevices(kind);
+      const element = <HTMLSelectElement>$(id);
+      populateSelect(element, devices, state.defaultDevices.get(kind));
+    }),
+  );
 }
 
 function populateSelect(
-  kind: MediaDeviceKind,
   element: HTMLSelectElement,
   devices: MediaDeviceInfo[],
   selectedDeviceId?: string,
 ) {
   // clear all elements
   element.innerHTML = '';
-  const initialOption = document.createElement('option');
-  if (kind === 'audioinput') {
-    initialOption.text = 'Audio Input (default)';
-  } else if (kind === 'videoinput') {
-    initialOption.text = 'Video Input (default)';
-  } else if (kind === 'audiooutput') {
-    initialOption.text = 'Audio Output (default)';
-  }
-  element.appendChild(initialOption);
 
   for (const device of devices) {
     const option = document.createElement('option');
@@ -672,3 +793,38 @@ function updateButtonsForPublishState() {
     lp.isScreenShareEnabled,
   );
 }
+
+async function acquireDeviceList() {
+  handleDevicesChanged();
+}
+
+function populateSupportedCodecs() {
+  /*
+<option value="" selected>PreferredCodec</option>
+                <option value="vp8">VP8</option>
+                <option value="h264">H.264</option>
+                <option value="vp9">VP9</option>
+                <option value="av1">AV1</option>
+*/
+  const codecSelect = $('preferred-codec');
+  const options: string[][] = [
+    ['', 'Preferred codec'],
+    ['h264', 'H.264'],
+    ['vp8', 'VP8'],
+  ];
+  if (supportsVP9()) {
+    options.push(['vp9', 'VP9']);
+  }
+  if (supportsAV1()) {
+    options.push(['av1', 'AV1']);
+  }
+  for (const o of options) {
+    const n = document.createElement('option');
+    n.value = o[0];
+    n.appendChild(document.createTextNode(o[1]));
+    codecSelect.appendChild(n);
+  }
+}
+
+acquireDeviceList();
+populateSupportedCodecs();

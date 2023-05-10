@@ -7,33 +7,58 @@ export class LivekitError extends Error {
   }
 }
 
+export const enum ConnectionErrorReason {
+  NotAllowed,
+  ServerUnreachable,
+  InternalError,
+  Cancelled,
+}
+
 export class ConnectionError extends LivekitError {
-  constructor(message?: string) {
+  status?: number;
+
+  reason?: ConnectionErrorReason;
+
+  constructor(message?: string, reason?: ConnectionErrorReason, status?: number) {
     super(1, message);
+    this.status = status;
+    this.reason = reason;
+  }
+}
+
+export class DeviceUnsupportedError extends LivekitError {
+  constructor(message?: string) {
+    super(21, message ?? 'device is unsupported');
   }
 }
 
 export class TrackInvalidError extends LivekitError {
   constructor(message?: string) {
-    super(20, message || 'Track is invalid');
+    super(20, message ?? 'track is invalid');
   }
 }
 
 export class UnsupportedServer extends LivekitError {
   constructor(message?: string) {
-    super(10, message || 'Unsupported server');
+    super(10, message ?? 'unsupported server');
   }
 }
 
 export class UnexpectedConnectionState extends LivekitError {
   constructor(message?: string) {
-    super(12, message || 'Unexpected connection state');
+    super(12, message ?? 'unexpected connection state');
+  }
+}
+
+export class NegotiationError extends LivekitError {
+  constructor(message?: string) {
+    super(13, message ?? 'unable to negotiate');
   }
 }
 
 export class PublishDataError extends LivekitError {
   constructor(message?: string) {
-    super(13, message || 'Unable to publish data');
+    super(13, message ?? 'unable to publish data');
   }
 }
 

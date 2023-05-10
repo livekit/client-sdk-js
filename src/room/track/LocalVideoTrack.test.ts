@@ -11,9 +11,11 @@ describe('videoLayersFromEncodings', () => {
   });
 
   it('returns single layer for explicit encoding', () => {
-    const layers = videoLayersFromEncodings(640, 360, [{
-      maxBitrate: 200_000,
-    }]);
+    const layers = videoLayersFromEncodings(640, 360, [
+      {
+        maxBitrate: 200_000,
+      },
+    ]);
     expect(layers).toHaveLength(1);
     expect(layers[0].quality).toBe(VideoQuality.HIGH);
     expect(layers[0].bitrate).toBe(200_000);

@@ -1,12 +1,18 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import { ConnectionQuality as ProtoQuality, DataPacket_Kind, ParticipantInfo } from '../../proto/livekit_models';
+import log from '../../logger';
+import {
+  DataPacket_Kind,
+  ParticipantInfo,
+  ParticipantPermission,
+  ConnectionQuality as ProtoQuality,
+} from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
-import LocalTrackPublication from '../track/LocalTrackPublication';
-import RemoteTrackPublication from '../track/RemoteTrackPublication';
+import type LocalTrackPublication from '../track/LocalTrackPublication';
+import type RemoteTrack from '../track/RemoteTrack';
+import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
-import { TrackPublication } from '../track/TrackPublication';
-import { RemoteTrack } from '../track/types';
+import type { TrackPublication } from '../track/TrackPublication';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -28,9 +34,7 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
   }
 }
 
-export default class Participant extends (
-  EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>
-) {
+export default class Participant extends (EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>) {
   protected participantInfo?: ParticipantInfo;
 
   audioTracks: Map<string, TrackPublication>;
@@ -60,13 +64,18 @@ export default class Participant extends (
 
   lastSpokeAt?: Date | undefined;
 
+  permissions?: ParticipantPermission;
+
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
   /** @internal */
-  constructor(sid: string, identity: string) {
+  constructor(sid: string, identity: string, name?: string, metadata?: string) {
     super();
+    this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
+    this.name = name;
+    this.metadata = metadata;
     this.audioTracks = new Map();
     this.videoTracks = new Map();
     this.tracks = new Map();
@@ -83,26 +92,9 @@ export default class Participant extends (
    * @returns
    */
   getTrack(source: Track.Source): TrackPublication | undefined {
-    if (source === Track.Source.Unknown) {
-      return;
-    }
     for (const [, pub] of this.tracks) {
       if (pub.source === source) {
         return pub;
-      }
-      if (pub.source === Track.Source.Unknown) {
-        if (source === Track.Source.Microphone && pub.kind === Track.Kind.Audio && pub.trackName !== 'screen') {
-          return pub;
-        }
-        if (source === Track.Source.Camera && pub.kind === Track.Kind.Video && pub.trackName !== 'screen') {
-          return pub;
-        }
-        if (source === Track.Source.ScreenShare && pub.kind === Track.Kind.Video && pub.trackName === 'screen') {
-          return pub;
-        }
-        if (source === Track.Source.ScreenShareAudio && pub.kind === Track.Kind.Audio && pub.trackName === 'screen') {
-          return pub;
-        }
       }
     }
   }
@@ -139,6 +131,10 @@ export default class Participant extends (
     return !!track;
   }
 
+  get isLocal(): boolean {
+    return false;
+  }
+
   /** when participant joined the room */
   get joinedAt(): Date | undefined {
     if (this.participantInfo) {
@@ -148,25 +144,72 @@ export default class Participant extends (
   }
 
   /** @internal */
-  updateInfo(info: ParticipantInfo) {
+  updateInfo(info: ParticipantInfo): boolean {
+    // it's possible the update could be applied out of order due to await
+    // during reconnect sequences. when that happens, it's possible for server
+    // to have sent more recent version of participant info while JS is waiting
+    // to process the existing payload.
+    // when the participant sid remains the same, and we already have a later version
+    // of the payload, they can be safely skipped
+    if (
+      this.participantInfo &&
+      this.participantInfo.sid === info.sid &&
+      this.participantInfo.version > info.version
+    ) {
+      return false;
+    }
     this.identity = info.identity;
     this.sid = info.sid;
-    this.name = info.name;
+    this.setName(info.name);
     this.setMetadata(info.metadata);
+    if (info.permission) {
+      this.setPermissions(info.permission);
+    }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
+    log.trace('update participant info', { info });
+    return true;
   }
 
   /** @internal */
   setMetadata(md: string) {
-    const changed = !this.participantInfo || this.participantInfo.metadata !== md;
+    const changed = this.metadata !== md;
     const prevMetadata = this.metadata;
     this.metadata = md;
 
     if (changed) {
-      this.emit(ParticipantEvent.MetadataChanged, prevMetadata);
       this.emit(ParticipantEvent.ParticipantMetadataChanged, prevMetadata);
     }
+  }
+
+  protected setName(name: string) {
+    const changed = this.name !== name;
+    this.name = name;
+
+    if (changed) {
+      this.emit(ParticipantEvent.ParticipantNameChanged, name);
+    }
+  }
+
+  /** @internal */
+  setPermissions(permissions: ParticipantPermission): boolean {
+    const prevPermissions = this.permissions;
+    const changed =
+      permissions.canPublish !== this.permissions?.canPublish ||
+      permissions.canSubscribe !== this.permissions?.canSubscribe ||
+      permissions.canPublishData !== this.permissions?.canPublishData ||
+      permissions.hidden !== this.permissions?.hidden ||
+      permissions.recorder !== this.permissions?.recorder ||
+      permissions.canPublishSources.length !== this.permissions.canPublishSources.length ||
+      permissions.canPublishSources.some(
+        (value, index) => value !== this.permissions?.canPublishSources[index],
+      );
+    this.permissions = permissions;
+
+    if (changed) {
+      this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
+    }
+    return changed;
   }
 
   /** @internal */
@@ -220,30 +263,32 @@ export default class Participant extends (
 }
 
 export type ParticipantEventCallbacks = {
-  trackPublished: (publication: RemoteTrackPublication) => void,
-  trackSubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void,
-  trackSubscriptionFailed: (trackSid: string) => void,
-  trackUnpublished: (publication: RemoteTrackPublication) => void,
-  trackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void,
-  trackMuted: (publication: TrackPublication) => void,
-  trackUnmuted: (publication: TrackPublication) => void,
-  localTrackPublished: (publication: LocalTrackPublication) => void,
-  localTrackUnpublished: (publication: LocalTrackPublication) => void,
-  /**
-   * @deprecated use [[participantMetadataChanged]] instead
-   */
-  metadataChanged: (prevMetadata: string | undefined, participant?: any) => void,
-  participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void,
-  dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void,
-  isSpeakingChanged: (speaking: boolean) => void,
-  connectionQualityChanged: (connectionQuality: ConnectionQuality) => void,
+  trackPublished: (publication: RemoteTrackPublication) => void;
+  trackSubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
+  trackSubscriptionFailed: (trackSid: string) => void;
+  trackUnpublished: (publication: RemoteTrackPublication) => void;
+  trackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
+  trackMuted: (publication: TrackPublication) => void;
+  trackUnmuted: (publication: TrackPublication) => void;
+  localTrackPublished: (publication: LocalTrackPublication) => void;
+  localTrackUnpublished: (publication: LocalTrackPublication) => void;
+  participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
+  participantNameChanged: (name: string) => void;
+  dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
+  isSpeakingChanged: (speaking: boolean) => void;
+  connectionQualityChanged: (connectionQuality: ConnectionQuality) => void;
   trackStreamStateChanged: (
     publication: RemoteTrackPublication,
-    streamState: Track.StreamState
-  ) => void,
+    streamState: Track.StreamState,
+  ) => void;
   trackSubscriptionPermissionChanged: (
     publication: RemoteTrackPublication,
-    status: TrackPublication.SubscriptionStatus
-  ) => void,
-  mediaDevicesError: (error: Error) => void,
+    status: TrackPublication.PermissionStatus,
+  ) => void;
+  mediaDevicesError: (error: Error) => void;
+  participantPermissionsChanged: (prevPermissions?: ParticipantPermission) => void;
+  trackSubscriptionStatusChanged: (
+    publication: RemoteTrackPublication,
+    status: TrackPublication.SubscriptionStatus,
+  ) => void;
 };

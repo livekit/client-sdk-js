@@ -1,10 +1,17 @@
-import { TrackPermission } from '../../proto/livekit_rtc';
+import type { TrackPermission } from '../../proto/livekit_rtc';
 
 export interface ParticipantTrackPermission {
   /**
-   * The participant id this permission applies to.
+   * The participant identity this permission applies to.
+   * You can either provide this or `participantSid`
    */
-  participantSid: string;
+  participantIdentity?: string;
+
+  /**
+   * The participant server id this permission applies to.
+   * You can either provide this or `participantIdentity`
+   */
+  participantSid?: string;
 
   /**
    * Grant permission to all all tracks. Takes precedence over allowedTrackSids.
@@ -21,11 +28,14 @@ export interface ParticipantTrackPermission {
 }
 
 export function trackPermissionToProto(perms: ParticipantTrackPermission): TrackPermission {
-  if (!perms.participantSid) {
-    throw new Error('Invalid track permission, missing participantSid');
+  if (!perms.participantSid && !perms.participantIdentity) {
+    throw new Error(
+      'Invalid track permission, must provide at least one of participantIdentity and participantSid',
+    );
   }
   return {
-    participantSid: perms.participantSid,
+    participantIdentity: perms.participantIdentity ?? '',
+    participantSid: perms.participantSid ?? '',
     allTracks: perms.allowAll ?? false,
     trackSids: perms.allowedTrackSids || [],
   };

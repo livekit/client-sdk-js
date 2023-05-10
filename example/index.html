@@ -3,10 +3,7 @@
   <head>
     <title>Livekit test app</title>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, shrink-to-fit=no"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
     <link
       rel="stylesheet"
@@ -14,27 +11,20 @@
       integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2"
       crossorigin="anonymous"
     />
-
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css" />
   </head>
-
   <body>
     <div class="container">
       <div class="row">
         <div class="col-md-8">
           <h2>Livekit Sample App</h2>
-          <br/>
+          <br />
           <div id="connect-area">
             <div>
               <b>LiveKit URL</b>
             </div>
             <div>
-              <input
-                type="text"
-                class="form-control"
-                id="url"
-                value="ws://localhost:7880"
-              />
+              <input type="text" class="form-control" id="url" value="ws://localhost:7880" />
             </div>
             <div>
               <b>Token</b>
@@ -47,68 +37,31 @@
           <!-- connect options -->
           <div id="options-area">
             <div>
-              <input
-                type="checkbox"
-                class="form-check-input"
-                id="publish-option"
-                checked
-              />
-              <label for="publish-option" class="form-check-label">
-                Publish
-              </label>
+              <input type="checkbox" class="form-check-input" id="publish-option" checked />
+              <label for="publish-option" class="form-check-label"> Publish </label>
             </div>
             <div>
-              <input
-                type="checkbox"
-                class="form-check-input"
-                id="simulcast"
-                checked
-              />
-              <label for="simulcast" class="form-check-label">
-                Simulcast
-              </label>
+              <input type="checkbox" class="form-check-input" id="simulcast" checked />
+              <label for="simulcast" class="form-check-label"> Simulcast </label>
             </div>
             <div>
-              <input
-                type="checkbox"
-                class="form-check-input"
-                id="dynacast"
-                checked
-              />
-              <label for="dynacast" class="form-check-label">
-                Dynacast
-              </label>
+              <input type="checkbox" class="form-check-input" id="dynacast" checked />
+              <label for="dynacast" class="form-check-label"> Dynacast </label>
             </div>
             <div>
-              <input
-                type="checkbox"
-                class="form-check-input"
-                id="adaptive-stream"
-                checked
-              />
-              <label for="adaptive-stream" class="form-check-label">
-                AdaptiveStream
-              </label>
+              <input type="checkbox" class="form-check-input" id="adaptive-stream" checked />
+              <label for="adaptive-stream" class="form-check-label"> AdaptiveStream </label>
             </div>
             <div>
-              <input
-                type="checkbox"
-                class="form-check-input"
-                id="force-turn"
-              />
-              <label for="force-turn" class="form-check-label">
-                Force TURN
-              </label>
+              <input type="checkbox" class="form-check-input" id="force-turn" />
+              <label for="force-turn" class="form-check-label"> Force TURN </label>
             </div>
             <div>
-              <input
-                type="checkbox"
-                class="form-check-input"
-                id="publish-only"
-              />
-              <label for="publish-only" class="form-check-label">
-                PublishOnly
-              </label>
+              <input type="checkbox" class="form-check-input" id="auto-subscribe" checked />
+              <label for="auto-subscribe" class="form-check-label"> Auto Subscribe </label>
+            </div>
+            <div>
+              <select id="preferred-codec" class="custom-select" style="width: auto"></select>
             </div>
           </div>
 
@@ -161,13 +114,23 @@
               >
                 Share Screen
               </button>
-              <select id="simulate-scenario" class="custom-select" style="width: auto;" onchange="appActions.handleScenario(event)">
+              <select
+                id="simulate-scenario"
+                class="custom-select"
+                style="width: auto"
+                onchange="appActions.handleScenario(event)"
+              >
                 <option value="" selected>Simulate</option>
                 <option value="signal-reconnect">Signal reconnect</option>
+                <option value="full-reconnect">Full reconnect</option>
                 <option value="speaker">Speaker update</option>
                 <option value="node-failure">Node failure</option>
                 <option value="server-leave">Server booted</option>
                 <option value="migration">Migration</option>
+                <option value="force-tcp">Force TCP</option>
+                <option value="force-tls">Force TURN/TLS</option>
+                <option value="subscribe-all">Subscribe all</option>
+                <option value="unsubscribe-all">Unsubscribe all</option>
               </select>
               <button
                 id="disconnect-room-button"
@@ -187,22 +150,56 @@
               >
                 Start Audio
               </button>
+              <select
+                id="preferred-quality"
+                class="custom-select"
+                style="width: auto"
+                onchange="appActions.handlePreferredQuality(event)"
+              >
+                <option value="" selected>PreferredQuality</option>
+                <option value="high">high</option>
+                <option value="medium">medium</option>
+                <option value="low">low</option>
+              </select>
+              <select
+                id="preferred-fps"
+                class="custom-select"
+                style="width: auto"
+                onchange="appActions.handlePreferredFPS(event)"
+              >
+                <option value="" selected>PreferredFPS</option>
+                <option value="30">30</option>
+                <option value="15">15</option>
+                <option value="8">8</option>
+              </select>
             </div>
           </div>
 
           <div id="inputs-area">
             <div>
-              <select id="video-input" class="custom-select" onchange="appActions.handleDeviceSelected(event)">
+              <select
+                id="video-input"
+                class="custom-select"
+                onchange="appActions.handleDeviceSelected(event)"
+              >
                 <option selected>Video Input (default)</option>
               </select>
             </div>
             <div>
-              <select id="audio-input" class="custom-select" onchange="appActions.handleDeviceSelected(event)">
+              <select
+                id="audio-input"
+                class="custom-select"
+                onchange="appActions.handleDeviceSelected(event)"
+              >
                 <option selected>Audio Input (default)</option>
               </select>
             </div>
             <div>
-              <select id="audio-output" class="custom-select" onchange="appActions.handleDeviceSelected(event)">
+              <select
+                id="audio-output"
+                class="custom-select"
+                onchange="appActions.handleDeviceSelected(event)"
+              >
                 <option selected>Audio Output (default)</option>
               </select>
             </div>
@@ -214,8 +211,12 @@
             <textarea class="form-control" id="chat" rows="9"></textarea>
             <div id="chat-input-area">
               <div>
-                <input type="text" class="form-control" id="entry"
-                  placeholder="Type your message here" />
+                <input
+                  type="text"
+                  class="form-control"
+                  id="entry"
+                  placeholder="Type your message here"
+                />
               </div>
               <div>
                 <button
@@ -235,22 +236,19 @@
 
       <div id="screenshare-area">
         <div>
-          <span id="screenshare-info">
-          </span>
-          <span id="screenshare-resolution">
-          </span>
+          <span id="screenshare-info"> </span>
+          <span id="screenshare-resolution"> </span>
         </div>
         <video id="screenshare-video" autoplay playsinline></video>
       </div>
 
-      <div id="participants-area">
-      </div>
+      <div id="participants-area"></div>
 
       <div id="log-area">
         <textarea id="log"></textarea>
       </div>
     </div>
-    <script src="bundle.js"></script>
+    <script src="./sample.ts" type="module"></script>
     <!-- for icons -->
     <script src="https://kit.fontawesome.com/7c1c4c7e9c.js" crossorigin="anonymous"></script>
   </body>

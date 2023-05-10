@@ -2,11 +2,15 @@ import log from '../../logger';
 import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
-import {
-  ScreenSharePresets, TrackPublishOptions,
-  VideoEncoding, VideoPreset, VideoPresets,
-  VideoPresets43,
+import { Track } from '../track/Track';
+import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
+import type {
+  BackupVideoCodec,
+  TrackPublishOptions,
+  VideoCodec,
+  VideoEncoding,
 } from '../track/options';
+import { isSVCCodec } from '../utils';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
@@ -15,13 +19,11 @@ export function mediaTrackToLocalTrack(
 ): LocalVideoTrack | LocalAudioTrack {
   switch (mediaStreamTrack.kind) {
     case 'audio':
-      return new LocalAudioTrack(mediaStreamTrack, constraints);
+      return new LocalAudioTrack(mediaStreamTrack, constraints, false);
     case 'video':
-      return new LocalVideoTrack(mediaStreamTrack, constraints);
+      return new LocalVideoTrack(mediaStreamTrack, constraints, false);
     default:
-      throw new TrackInvalidError(
-        `unsupported track type: ${mediaStreamTrack.kind}`,
-      );
+      throw new TrackInvalidError(`unsupported track type: ${mediaStreamTrack.kind}`);
   }
 }
 
@@ -35,28 +37,50 @@ export const presets43 = Object.values(VideoPresets43);
 export const presetsScreenShare = Object.values(ScreenSharePresets);
 
 /* @internal */
-export const defaultSimulcastPresets169 = [
-  VideoPresets.h180,
-  VideoPresets.h360,
-];
+export const defaultSimulcastPresets169 = [VideoPresets.h180, VideoPresets.h360];
 
 /* @internal */
-export const defaultSimulcastPresets43 = [
-  VideoPresets43.h180,
-  VideoPresets43.h360,
-];
+export const defaultSimulcastPresets43 = [VideoPresets43.h180, VideoPresets43.h360];
 
 /* @internal */
 export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPreset) => {
   const layers = [{ scaleResolutionDownBy: 2, fps: 3 }];
-  return layers.map((t) => new VideoPreset(
-    Math.floor(fromPreset.width / t.scaleResolutionDownBy),
-    Math.floor(fromPreset.height / t.scaleResolutionDownBy),
-    Math.max(150_000, Math.floor(fromPreset.encoding.maxBitrate
-      / (t.scaleResolutionDownBy ** 2 * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps)))),
-    t.fps,
-  ));
+  return layers.map(
+    (t) =>
+      new VideoPreset(
+        Math.floor(fromPreset.width / t.scaleResolutionDownBy),
+        Math.floor(fromPreset.height / t.scaleResolutionDownBy),
+        Math.max(
+          150_000,
+          Math.floor(
+            fromPreset.encoding.maxBitrate /
+              (t.scaleResolutionDownBy ** 2 * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps)),
+          ),
+        ),
+        t.fps,
+        fromPreset.encoding.priority,
+      ),
+  );
 };
+
+// /**
+//  *
+//  * @internal
+//  * @experimental
+//  */
+// const computeDefaultMultiCodecSimulcastEncodings = (width: number, height: number) => {
+//   // use vp8 as a default
+//   const vp8 = determineAppropriateEncoding(false, width, height);
+//   const vp9 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.9 };
+//   const h264 = { ...vp8, maxBitrate: vp8.maxBitrate * 1.1 };
+//   const av1 = { ...vp8, maxBitrate: vp8.maxBitrate * 0.7 };
+//   return {
+//     vp8,
+//     vp9,
+//     h264,
+//     av1,
+//   };
+// };
 
 const videoRids = ['q', 'h', 'f'];
 
@@ -68,66 +92,133 @@ export function computeVideoEncodings(
   options?: TrackPublishOptions,
 ): RTCRtpEncodingParameters[] {
   let videoEncoding: VideoEncoding | undefined = options?.videoEncoding;
+
   if (isScreenShare) {
     videoEncoding = options?.screenShareEncoding;
   }
-  const useSimulcast = options?.simulcast;
 
-  if ((!videoEncoding && !useSimulcast) || !width || !height) {
-    // when we aren't simulcasting, will need to return a single encoding without
+  const useSimulcast = options?.simulcast;
+  const scalabilityMode = options?.scalabilityMode;
+  const videoCodec = options?.videoCodec;
+
+  if ((!videoEncoding && !useSimulcast && !scalabilityMode) || !width || !height) {
+    // when we aren't simulcasting or svc, will need to return a single encoding without
     // capping bandwidth. we always require a encoding for dynacast
     return [{}];
   }
 
   if (!videoEncoding) {
     // find the right encoding based on width/height
-    videoEncoding = determineAppropriateEncoding(isScreenShare, width, height);
+    videoEncoding = determineAppropriateEncoding(isScreenShare, width, height, videoCodec);
     log.debug('using video encoding', videoEncoding);
+  }
+
+  const original = new VideoPreset(
+    width,
+    height,
+    videoEncoding.maxBitrate,
+    videoEncoding.maxFramerate,
+  );
+
+  if (scalabilityMode && isSVCCodec(videoCodec)) {
+    log.debug(`using svc with scalabilityMode ${scalabilityMode}`);
+
+    const encodings: RTCRtpEncodingParameters[] = [];
+
+    // svc use first encoding as the original, so we sort encoding from high to low
+    switch (scalabilityMode) {
+      case 'L3T3':
+        for (let i = 0; i < 3; i += 1) {
+          encodings.push({
+            rid: videoRids[2 - i],
+            scaleResolutionDownBy: 2 ** i,
+            maxBitrate: videoEncoding.maxBitrate / 3 ** i,
+            /* @ts-ignore */
+            maxFramerate: original.encoding.maxFramerate,
+            /* @ts-ignore */
+            scalabilityMode: 'L3T3',
+          });
+        }
+        log.debug('encodings', encodings);
+        return encodings;
+
+      default:
+        // TODO : support other scalability modes
+        throw new Error(`unsupported scalabilityMode: ${scalabilityMode}`);
+    }
   }
 
   if (!useSimulcast) {
     return [videoEncoding];
   }
-  const original = new VideoPreset(
-    width, height, videoEncoding.maxBitrate, videoEncoding.maxFramerate,
-  );
+
   let presets: Array<VideoPreset> = [];
   if (isScreenShare) {
-    presets = sortPresets(options?.screenShareSimulcastLayers)
-      ?? defaultSimulcastLayers(isScreenShare, original);
+    presets =
+      sortPresets(options?.screenShareSimulcastLayers) ??
+      defaultSimulcastLayers(isScreenShare, original);
   } else {
-    presets = sortPresets(options?.videoSimulcastLayers)
-      ?? defaultSimulcastLayers(isScreenShare, original);
+    presets =
+      sortPresets(options?.videoSimulcastLayers) ?? defaultSimulcastLayers(isScreenShare, original);
   }
   let midPreset: VideoPreset | undefined;
-  const lowPreset = presets[0];
-  if (presets.length > 1) {
-    [, midPreset] = presets;
+  if (presets.length > 0) {
+    const lowPreset = presets[0];
+    if (presets.length > 1) {
+      [, midPreset] = presets;
+    }
+
+    // NOTE:
+    //   1. Ordering of these encodings is important. Chrome seems
+    //      to use the index into encodings to decide which layer
+    //      to disable when CPU constrained.
+    //      So encodings should be ordered in increasing spatial
+    //      resolution order.
+    //   2. ion-sfu translates rids into layers. So, all encodings
+    //      should have the base layer `q` and then more added
+    //      based on other conditions.
+    const size = Math.max(width, height);
+    if (size >= 960 && midPreset) {
+      return encodingsFromPresets(width, height, [lowPreset, midPreset, original]);
+    }
+    if (size >= 480) {
+      return encodingsFromPresets(width, height, [lowPreset, original]);
+    }
+  }
+  return encodingsFromPresets(width, height, [original]);
+}
+
+export function computeTrackBackupEncodings(
+  track: LocalVideoTrack,
+  videoCodec: BackupVideoCodec,
+  opts: TrackPublishOptions,
+) {
+  if (!opts.backupCodec || opts.backupCodec.codec === opts.videoCodec) {
+    // backup codec publishing is disabled
+    return;
+  }
+  if (videoCodec !== opts.backupCodec.codec) {
+    log.warn('requested a different codec than specified as backup', {
+      serverRequested: videoCodec,
+      backup: opts.backupCodec.codec,
+    });
   }
 
-  // NOTE:
-  //   1. Ordering of these encodings is important. Chrome seems
-  //      to use the index into encodings to decide which layer
-  //      to disable when CPU constrained.
-  //      So encodings should be ordered in increasing spatial
-  //      resolution order.
-  //   2. ion-sfu translates rids into layers. So, all encodings
-  //      should have the base layer `q` and then more added
-  //      based on other conditions.
-  const size = Math.max(width, height);
-  if (size >= 960 && midPreset) {
-    return encodingsFromPresets(width, height, [
-      lowPreset, midPreset, original,
-    ]);
-  }
-  if (size >= 480) {
-    return encodingsFromPresets(width, height, [
-      lowPreset, original,
-    ]);
-  }
-  return encodingsFromPresets(width, height, [
-    original,
-  ]);
+  opts.videoCodec = videoCodec;
+  // use backup encoding setting as videoEncoding for backup codec publishing
+  opts.videoEncoding = opts.backupCodec.encoding;
+
+  const settings = track.mediaStreamTrack.getSettings();
+  const width = settings.width ?? track.dimensions?.width;
+  const height = settings.height ?? track.dimensions?.height;
+
+  const encodings = computeVideoEncodings(
+    track.source === Track.Source.ScreenShare,
+    width,
+    height,
+    opts,
+  );
+  return encodings;
 }
 
 /* @internal */
@@ -135,6 +226,7 @@ export function determineAppropriateEncoding(
   isScreenShare: boolean,
   width: number,
   height: number,
+  codec?: VideoCodec,
 ): VideoEncoding {
   const presets = presetsForResolution(isScreenShare, width, height);
   let { encoding } = presets[0];
@@ -149,13 +241,32 @@ export function determineAppropriateEncoding(
       break;
     }
   }
+  // presets are based on the assumption of vp8 as a codec
+  // for other codecs we adjust the maxBitrate if no specific videoEncoding has been provided
+  // TODO make the bitrate multipliers configurable per codec
+  if (codec) {
+    switch (codec) {
+      case 'av1':
+        encoding = { ...encoding };
+        encoding.maxBitrate = encoding.maxBitrate * 0.7;
+        break;
+      case 'vp9':
+        encoding = { ...encoding };
+        encoding.maxBitrate = encoding.maxBitrate * 0.85;
+        break;
+      default:
+        break;
+    }
+  }
 
   return encoding;
 }
 
 /* @internal */
 export function presetsForResolution(
-  isScreenShare: boolean, width: number, height: number,
+  isScreenShare: boolean,
+  width: number,
+  height: number,
 ): VideoPreset[] {
   if (isScreenShare) {
     return presetsScreenShare;
@@ -169,7 +280,8 @@ export function presetsForResolution(
 
 /* @internal */
 export function defaultSimulcastLayers(
-  isScreenShare: boolean, original: VideoPreset,
+  isScreenShare: boolean,
+  original: VideoPreset,
 ): VideoPreset[] {
   if (isScreenShare) {
     return computeDefaultScreenShareSimulcastPresets(original);
@@ -195,13 +307,19 @@ function encodingsFromPresets(
     }
     const size = Math.min(width, height);
     const rid = videoRids[idx];
-    encodings.push({
+    const encoding: RTCRtpEncodingParameters = {
       rid,
-      scaleResolutionDownBy: size / Math.min(preset.width, preset.height),
+      scaleResolutionDownBy: Math.max(1, size / Math.min(preset.width, preset.height)),
       maxBitrate: preset.encoding.maxBitrate,
-      /* @ts-ignore */
-      maxFramerate: preset.encoding.maxFramerate,
-    });
+    };
+    if (preset.encoding.maxFramerate) {
+      encoding.maxFramerate = preset.encoding.maxFramerate;
+    }
+    if (preset.encoding.priority) {
+      encoding.priority = preset.encoding.priority;
+      encoding.networkPriority = preset.encoding.priority;
+    }
+    encodings.push(encoding);
   });
   return encodings;
 }

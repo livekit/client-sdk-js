@@ -1,28 +1,35 @@
 import log from '../../logger';
 import { TrackEvent } from '../events';
-import { AudioSenderStats, computeBitrate, monitorFrequency } from '../stats';
+import { computeBitrate, monitorFrequency } from '../stats';
+import type { AudioSenderStats } from '../stats';
+import { isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
-import { AudioCaptureOptions } from './options';
 import { Track } from './Track';
+import type { AudioCaptureOptions } from './options';
 import { constraintsForOptions, detectSilence } from './utils';
 
 export default class LocalAudioTrack extends LocalTrack {
-  sender?: RTCRtpSender;
-
   /** @internal */
   stopOnMute: boolean = false;
 
   private prevStats?: AudioSenderStats;
 
+  /**
+   *
+   * @param mediaTrack
+   * @param constraints MediaTrackConstraints that are being used when restarting or reacquiring tracks
+   * @param userProvidedTrack Signals to the SDK whether or not the mediaTrack should be managed (i.e. released and reacquired) internally by the SDK
+   */
   constructor(
     mediaTrack: MediaStreamTrack,
     constraints?: MediaTrackConstraints,
+    userProvidedTrack = true,
   ) {
-    super(mediaTrack, Track.Kind.Audio, constraints);
+    super(mediaTrack, Track.Kind.Audio, constraints, userProvidedTrack);
     this.checkForSilence();
   }
 
-  async setDeviceId(deviceId: string) {
+  async setDeviceId(deviceId: ConstrainDOMString) {
     if (this.constraints.deviceId === deviceId) {
       return;
     }
@@ -33,23 +40,38 @@ export default class LocalAudioTrack extends LocalTrack {
   }
 
   async mute(): Promise<LocalAudioTrack> {
-    // disabled special handling as it will cause BT headsets to switch communication modes
-    if (this.source === Track.Source.Microphone && this.stopOnMute) {
-      log.debug('stopping mic track');
-      // also stop the track, so that microphone indicator is turned off
-      this.mediaStreamTrack.stop();
+    const unlock = await this.muteLock.lock();
+    try {
+      // disabled special handling as it will cause BT headsets to switch communication modes
+      if (this.source === Track.Source.Microphone && this.stopOnMute && !this.isUserProvided) {
+        log.debug('stopping mic track');
+        // also stop the track, so that microphone indicator is turned off
+        this._mediaStreamTrack.stop();
+      }
+      await super.mute();
+      return this;
+    } finally {
+      unlock();
     }
-    await super.mute();
-    return this;
   }
 
   async unmute(): Promise<LocalAudioTrack> {
-    if (this.source === Track.Source.Microphone && this.stopOnMute) {
-      log.debug('reacquiring mic track');
-      await this.restartTrack();
+    const unlock = await this.muteLock.lock();
+    try {
+      if (
+        this.source === Track.Source.Microphone &&
+        (this.stopOnMute || this._mediaStreamTrack.readyState === 'ended') &&
+        !this.isUserProvided
+      ) {
+        log.debug('reacquiring mic track');
+        await this.restartTrack();
+      }
+      await super.unmute();
+
+      return this;
+    } finally {
+      unlock();
     }
-    await super.unmute();
-    return this;
   }
 
   async restartTrack(options?: AudioCaptureOptions) {
@@ -71,12 +93,18 @@ export default class LocalAudioTrack extends LocalTrack {
 
   /* @internal */
   startMonitor() {
-    setTimeout(() => {
+    if (!isWeb()) {
+      return;
+    }
+    if (this.monitorInterval) {
+      return;
+    }
+    this.monitorInterval = setInterval(() => {
       this.monitorSender();
     }, monitorFrequency);
   }
 
-  private monitorSender = async () => {
+  protected monitorSender = async () => {
     if (!this.sender) {
       this._currentBitrate = 0;
       return;
@@ -86,7 +114,7 @@ export default class LocalAudioTrack extends LocalTrack {
     try {
       stats = await this.getSenderStats();
     } catch (e) {
-      log.error('could not get audio sender stats', e);
+      log.error('could not get audio sender stats', { error: e });
       return;
     }
 
@@ -95,13 +123,10 @@ export default class LocalAudioTrack extends LocalTrack {
     }
 
     this.prevStats = stats;
-    setTimeout(() => {
-      this.monitorSender();
-    }, monitorFrequency);
   };
 
   async getSenderStats(): Promise<AudioSenderStats | undefined> {
-    if (!this.sender) {
+    if (!this.sender?.getStats) {
       return undefined;
     }
 
@@ -133,5 +158,6 @@ export default class LocalAudioTrack extends LocalTrack {
       }
       this.emit(TrackEvent.AudioSilenceDetected);
     }
+    return trackIsSilent;
   }
 }

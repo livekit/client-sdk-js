@@ -1,6 +1,6 @@
 module.exports = {
   clearMocks: true,
-  modulePathIgnorePatterns: ['<rootDir>/dist/'],
+  modulePathIgnorePatterns: ['<rootDir>/dist/', '<rootDir>/example/'],
   preset: 'ts-jest',
   testEnvironment: 'node',
 };

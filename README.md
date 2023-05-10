@@ -1,6 +1,14 @@
+<!--BEGIN_BANNER_IMAGE-->
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="/.github/banner_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="/.github/banner_light.png">
+    <img style="width:100%;" alt="The LiveKit icon, the name of the repository and some sample code in the background." src="/.github/banner_light.png">
+  </picture>
+  <!--END_BANNER_IMAGE-->
+
 # JavaScript/TypeScript client SDK for LiveKit
 
-`livekit-client` is the official client SDK for [LiveKit](https://github.com/livekit/livekit-server). With it, you can add real time video and audio to your web apps.
+<!--BEGIN_DESCRIPTION-->Use this SDK to add real-time video, audio and data features to your JavaScript/TypeScript app. By connecting to a self- or cloud-hosted <a href="https://livekit.io/">LiveKit</a> server, you can quickly build applications like interactive live streaming or video calls with just a few lines of code.<!--END_DESCRIPTION-->
 
 ## Docs
 
@@ -37,12 +45,12 @@ await room.connect(...);
 
 ```typescript
 import {
-  connect,
-  RoomEvent,
-  RemoteParticipant,
-  RemoteTrackPublication,
-  RemoteTrack,
   Participant,
+  RemoteParticipant,
+  RemoteTrack,
+  RemoteTrackPublication,
+  Room,
+  RoomEvent,
 } from 'livekit-client';
 
 // creates a new room with options
@@ -50,28 +58,25 @@ const room = new Room({
   // automatically manage subscribed video quality
   adaptiveStream: true,
 
-  // optimize publishing bandwidth and CPU for simulcasted tracks
+  // optimize publishing bandwidth and CPU for published tracks
   dynacast: true,
 
   // default capture settings
   videoCaptureDefaults: {
-    resolution: VideoPresets.hd.resolution,
-  }
+    resolution: VideoPresets.h720.resolution,
+  },
 });
 
 // set up event listeners
 room
-    .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
-    .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
-    .on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakerChange)
-    .on(RoomEvent.Disconnected, handleDisconnect)
-    .on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
+  .on(RoomEvent.TrackSubscribed, handleTrackSubscribed)
+  .on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed)
+  .on(RoomEvent.ActiveSpeakersChanged, handleActiveSpeakerChange)
+  .on(RoomEvent.Disconnected, handleDisconnect)
+  .on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
 
 // connect to room
-await room.connect('ws://localhost:7800', token, {
-  // don't subscribe to other participants automatically
-  autoSubscribe: false,
-});
+await room.connect('ws://localhost:7800', token);
 console.log('connected to room', room.name);
 
 // publish local camera and mic tracks
@@ -80,7 +85,7 @@ await room.localParticipant.enableCameraAndMicrophone();
 function handleTrackSubscribed(
   track: RemoteTrack,
   publication: RemoteTrackPublication,
-  participant: RemoteParticipant
+  participant: RemoteParticipant,
 ) {
   if (track.kind === Track.Kind.Video || track.kind === Track.Kind.Audio) {
     // attach it to a new HTMLVideoElement or HTMLAudioElement
@@ -92,16 +97,13 @@ function handleTrackSubscribed(
 function handleTrackUnsubscribed(
   track: RemoteTrack,
   publication: RemoteTrackPublication,
-  participant: RemoteParticipant
+  participant: RemoteParticipant,
 ) {
   // remove tracks from all attached elements
   track.detach();
 }
 
-function handleLocalTrackUnpublished(
-  track: LocalTrackPublication,
-  participant: LocalParticipant,
-) {
+function handleLocalTrackUnpublished(track: LocalTrackPublication, participant: LocalParticipant) {
   // when local tracks are ended, update UI to remove them from rendering
   track.detach();
 }
@@ -148,7 +150,7 @@ if (p) {
   if (p.isCameraEnabled) {
     const track = p.getTrack(Track.Source.Camera);
     if (track?.isSubscribed) {
-      const videoElement = track.videoTrack?.attach()
+      const videoElement = track.videoTrack?.attach();
       // do something with the element
     }
   }
@@ -174,19 +176,18 @@ const tracks = await createLocalTracks({
 LiveKit lets you publish any track as long as it can be represented by a MediaStreamTrack. You can specify a name on the track in order to identify it later.
 
 ```typescript
-
 const pub = await room.localParticipant.publishTrack(mediaStreamTrack, {
   name: 'mytrack',
   simulcast: true,
   // if this should be treated like a camera feed, tag it as such
   // supported known sources are .Camera, .Microphone, .ScreenShare
   source: Track.Source.Camera,
-})
+});
 
 // you may mute or unpublish the track later
 pub.setMuted(true);
 
-room.localParticipant.unpublishTrack(mediaStreamTrack)
+room.localParticipant.unpublishTrack(mediaStreamTrack);
 ```
 
 ### Device management APIs
@@ -202,7 +203,7 @@ We use the same deviceId as one returned by [MediaDevices.enumerateDevices()](ht
 const devices = await Room.getLocalDevices('audioinput');
 
 // select last device
-const device = devices[devices.length-1];
+const device = devices[devices.length - 1];
 
 // in the current room, switch to the selected device and set
 // it as default audioinput in the future.
@@ -223,9 +224,9 @@ When creating tracks using LiveKit APIs (`connect`, `createLocalTracks`, `setCam
 
 You can use the helper `MediaDeviceFailure.getFailure(error)` to determine specific reason for the error.
 
-* `PermissionDenied` - the user disallowed capturing devices
-* `NotFound` - the particular device isn't available
-* `DeviceInUse` - device is in use by another process (happens on Windows)
+- `PermissionDenied` - the user disallowed capturing devices
+- `NotFound` - the particular device isn't available
+- `DeviceInUse` - device is in use by another process (happens on Windows)
 
 These distinctions enables you to provide more specific messaging to the user.
 
@@ -258,6 +259,16 @@ room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
 ### Configuring logging
 
 This library uses [loglevel](https://github.com/pimterry/loglevel) for its internal logs. You can change the effective log level with the `logLevel` field in `ConnectOptions`.
+The method `setLogExtension` allows to hook into the livekit internal logs and send them to some third party logging service
+
+```ts
+setLogExtension((level: LogLevel, msg: string, context: object) => {
+  const enhancedContext = { ...context, timeStamp: Date.now() };
+  if (level >= LogLevel.debug) {
+    console.log(level, msg, enhancedContext);
+  }
+});
+```
 
 ## Examples
 
@@ -273,3 +284,28 @@ This library uses [loglevel](https://github.com/pimterry/loglevel) for its inter
 | Firefox         | Windows, macOS, Linux | Android   |
 | Safari          | macOS                 | iOS       |
 | Edge (Chromium) | Windows, macOS        |           |
+
+We aim to support a broad range of browser versions by transpiling the library code with babel.
+You can have a look at the `"browerslist"` section of `package.json` for more details.
+
+> Note that the library requires some specific browser APIs to be present.
+> You can check general compatibility with the helper function `isBrowserSupported()`.
+> Support for more modern features like adaptiveStream and dynacast can be checked for with `supportsAdaptiveStream()` and `supportsDynacast()`.
+
+If you are targeting legacy browsers, but still want adaptiveStream functionality you'll likely need to use polyfills for [ResizeObserver](https://www.npmjs.com/package/resize-observer-polyfill) and [IntersectionObserver](https://www.npmjs.com/package/intersection-observer).
+
+Also when targeting legacy browsers, older than the ones specified in our browserslist target, make sure to transpile the library code to your desired target and include required polyfills with babel and/or corejs.
+
+<!--BEGIN_REPO_NAV-->
+
+<br/><table>
+
+<thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
+<tbody>
+<tr><td>Client SDKs</td><td><a href="https://github.com/livekit/components-js">Components</a> · <b>JavaScript</b> · <a href="https://github.com/livekit/client-sdk-rust">Rust</a> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (web)</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native (beta)</a></td></tr><tr></tr>
+<tr><td>Server SDKs</td><td><a href="https://github.com/livekit/server-sdk-js">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a> · <a href="https://github.com/tradablebits/livekit-server-sdk-python">Python (community)</a></td></tr><tr></tr>
+<tr><td>Services</td><td><a href="https://github.com/livekit/livekit">Livekit server</a> · <a href="https://github.com/livekit/egress">Egress</a> · <a href="https://github.com/livekit/ingress">Ingress</a></td></tr><tr></tr>
+<tr><td>Resources</td><td><a href="https://docs.livekit.io">Docs</a> · <a href="https://github.com/livekit-examples">Example apps</a> · <a href="https://livekit.io/cloud">Cloud</a> · <a href="https://docs.livekit.io/oss/deployment">Self-hosting</a> · <a href="https://github.com/livekit/livekit-cli">CLI</a></td></tr>
+</tbody>
+</table>
+<!--END_REPO_NAV-->

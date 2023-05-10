@@ -1,22 +1,19 @@
 import log from '../../logger';
 import { TrackInfo, VideoQuality } from '../../proto/livekit_models';
-import {
-  UpdateSubscription,
-  UpdateTrackSettings,
-} from '../../proto/livekit_rtc';
+import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
+import type RemoteTrack from './RemoteTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
-import { RemoteTrack } from './types';
 
 export default class RemoteTrackPublication extends TrackPublication {
-  track?: RemoteTrack;
+  track?: RemoteTrack = undefined;
 
   /** @internal */
-  _allowed = true;
+  protected allowed = true;
 
-  // keeps track of client's desire to subscribe to a track
+  // keeps track of client's desire to subscribe to a track, also true if autoSubscribe is active
   protected subscribed?: boolean;
 
   protected disabled: boolean = false;
@@ -25,34 +22,59 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected videoDimensions?: Track.Dimensions;
 
+  protected fps?: number;
+
+  constructor(kind: Track.Kind, ti: TrackInfo, autoSubscribe: boolean | undefined) {
+    super(kind, ti.sid, ti.name);
+    this.subscribed = autoSubscribe;
+    this.updateInfo(ti);
+  }
+
   /**
    * Subscribe or unsubscribe to this remote track
    * @param subscribed true to subscribe to a track, false to unsubscribe
    */
   setSubscribed(subscribed: boolean) {
+    const prevStatus = this.subscriptionStatus;
+    const prevPermission = this.permissionStatus;
     this.subscribed = subscribed;
+    // reset allowed status when desired subscription state changes
+    // server will notify client via signal message if it's not allowed
+    if (subscribed) {
+      this.allowed = true;
+    }
 
     const sub: UpdateSubscription = {
       trackSids: [this.trackSid],
       subscribe: this.subscribed,
-      participantTracks: [{
-        // sending an empty participant id since TrackPublication doesn't keep it
-        // this is filled in by the participant that receives this message
-        participantSid: '',
-        trackSids: [this.trackSid],
-      }],
+      participantTracks: [
+        {
+          // sending an empty participant id since TrackPublication doesn't keep it
+          // this is filled in by the participant that receives this message
+          participantSid: '',
+          trackSids: [this.trackSid],
+        },
+      ],
     };
     this.emit(TrackEvent.UpdateSubscription, sub);
+    this.emitSubscriptionUpdateIfChanged(prevStatus);
+    this.emitPermissionUpdateIfChanged(prevPermission);
   }
 
   get subscriptionStatus(): TrackPublication.SubscriptionStatus {
-    if (this.subscribed === false || !super.isSubscribed) {
+    if (this.subscribed === false) {
       return TrackPublication.SubscriptionStatus.Unsubscribed;
     }
-    if (!this._allowed) {
-      return TrackPublication.SubscriptionStatus.NotAllowed;
+    if (!super.isSubscribed) {
+      return TrackPublication.SubscriptionStatus.Desired;
     }
     return TrackPublication.SubscriptionStatus.Subscribed;
+  }
+
+  get permissionStatus(): TrackPublication.PermissionStatus {
+    return this.allowed
+      ? TrackPublication.PermissionStatus.Allowed
+      : TrackPublication.PermissionStatus.NotAllowed;
   }
 
   /**
@@ -62,10 +84,12 @@ export default class RemoteTrackPublication extends TrackPublication {
     if (this.subscribed === false) {
       return false;
     }
-    if (!this._allowed) {
-      return false;
-    }
     return super.isSubscribed;
+  }
+
+  // returns client's desire to subscribe to a track, also true if autoSubscribe is enabled
+  get isDesired(): boolean {
+    return this.subscribed !== false;
   }
 
   get isEnabled(): boolean {
@@ -108,13 +132,34 @@ export default class RemoteTrackPublication extends TrackPublication {
     if (!this.isManualOperationAllowed()) {
       return;
     }
-    if (this.videoDimensions?.width === dimensions.width
-        && this.videoDimensions?.height === dimensions.height) {
+    if (
+      this.videoDimensions?.width === dimensions.width &&
+      this.videoDimensions?.height === dimensions.height
+    ) {
       return;
     }
-    if (this.track instanceof RemoteVideoTrack) { this.videoDimensions = dimensions; }
+    if (this.track instanceof RemoteVideoTrack) {
+      this.videoDimensions = dimensions;
+    }
     this.currentVideoQuality = undefined;
 
+    this.emitTrackUpdate();
+  }
+
+  setVideoFPS(fps: number) {
+    if (!this.isManualOperationAllowed()) {
+      return;
+    }
+
+    if (!(this.track instanceof RemoteVideoTrack)) {
+      return;
+    }
+
+    if (this.fps === fps) {
+      return;
+    }
+
+    this.fps = fps;
     this.emitTrackUpdate();
   }
 
@@ -122,12 +167,22 @@ export default class RemoteTrackPublication extends TrackPublication {
     return this.currentVideoQuality;
   }
 
-  setTrack(track?: Track) {
-    if (this.track) {
+  /** @internal */
+  setTrack(track?: RemoteTrack) {
+    const prevStatus = this.subscriptionStatus;
+    const prevPermission = this.permissionStatus;
+    const prevTrack = this.track;
+    if (prevTrack === track) {
+      return;
+    }
+    if (prevTrack) {
       // unregister listener
-      this.track.off(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
-      this.track.off(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
-      this.track.off(TrackEvent.Ended, this.handleEnded);
+      prevTrack.off(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
+      prevTrack.off(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
+      prevTrack.off(TrackEvent.Ended, this.handleEnded);
+      prevTrack.detach();
+      prevTrack.stopMonitor();
+      this.emit(TrackEvent.Unsubscribed, prevTrack);
     }
     super.setTrack(track);
     if (track) {
@@ -135,29 +190,70 @@ export default class RemoteTrackPublication extends TrackPublication {
       track.on(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
       track.on(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
       track.on(TrackEvent.Ended, this.handleEnded);
+      this.emit(TrackEvent.Subscribed, track);
     }
+    this.emitPermissionUpdateIfChanged(prevPermission);
+    this.emitSubscriptionUpdateIfChanged(prevStatus);
+  }
+
+  /** @internal */
+  setAllowed(allowed: boolean) {
+    const prevStatus = this.subscriptionStatus;
+    const prevPermission = this.permissionStatus;
+    this.allowed = allowed;
+    this.emitPermissionUpdateIfChanged(prevPermission);
+    this.emitSubscriptionUpdateIfChanged(prevStatus);
   }
 
   /** @internal */
   updateInfo(info: TrackInfo) {
     super.updateInfo(info);
+    const prevMetadataMuted = this.metadataMuted;
     this.metadataMuted = info.muted;
-    this.track?.setMuted(info.muted);
+    if (this.track) {
+      this.track.setMuted(info.muted);
+    } else if (prevMetadataMuted !== info.muted) {
+      this.emit(info.muted ? TrackEvent.Muted : TrackEvent.Unmuted);
+    }
+  }
+
+  private emitSubscriptionUpdateIfChanged(previousStatus: TrackPublication.SubscriptionStatus) {
+    const currentStatus = this.subscriptionStatus;
+    if (previousStatus === currentStatus) {
+      return;
+    }
+    this.emit(TrackEvent.SubscriptionStatusChanged, currentStatus, previousStatus);
+  }
+
+  private emitPermissionUpdateIfChanged(
+    previousPermissionStatus: TrackPublication.PermissionStatus,
+  ) {
+    const currentPermissionStatus = this.permissionStatus;
+    if (currentPermissionStatus !== previousPermissionStatus) {
+      this.emit(
+        TrackEvent.SubscriptionPermissionChanged,
+        this.permissionStatus,
+        previousPermissionStatus,
+      );
+    }
   }
 
   private isManualOperationAllowed(): boolean {
-    if (this.isAdaptiveStream) {
-      log.warn('adaptive stream is enabled, cannot change track settings', this.trackSid);
+    if (this.kind === Track.Kind.Video && this.isAdaptiveStream) {
+      log.warn('adaptive stream is enabled, cannot change video track settings', {
+        trackSid: this.trackSid,
+      });
       return false;
     }
-    if (!this.isSubscribed) {
-      log.warn('cannot update track settings when not subscribed', this.trackSid);
+    if (!this.isDesired) {
+      log.warn('cannot update track settings when not subscribed', { trackSid: this.trackSid });
       return false;
     }
     return true;
   }
 
   protected handleEnded = (track: RemoteTrack) => {
+    this.setTrack(undefined);
     this.emit(TrackEvent.Ended, track);
   };
 
@@ -166,13 +262,17 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   protected handleVisibilityChange = (visible: boolean) => {
-    log.debug('adaptivestream video visibility', this.trackSid, `visible=${visible}`);
+    log.debug(`adaptivestream video visibility ${this.trackSid}, visible=${visible}`, {
+      trackSid: this.trackSid,
+    });
     this.disabled = !visible;
     this.emitTrackUpdate();
   };
 
   protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
-    log.debug('adaptivestream video dimensions', this.trackSid, `${dimensions.width}x${dimensions.height}`);
+    log.debug(`adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`, {
+      trackSid: this.trackSid,
+    });
     this.videoDimensions = dimensions;
     this.emitTrackUpdate();
   };
@@ -182,6 +282,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     const settings: UpdateTrackSettings = UpdateTrackSettings.fromPartial({
       trackSids: [this.trackSid],
       disabled: this.disabled,
+      fps: this.fps,
     });
     if (this.videoDimensions) {
       settings.width = this.videoDimensions.width;

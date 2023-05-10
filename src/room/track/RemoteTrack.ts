@@ -6,8 +6,6 @@ export default abstract class RemoteTrack extends Track {
   /** @internal */
   receiver?: RTCRtpReceiver;
 
-  streamState: Track.StreamState = Track.StreamState.Active;
-
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
@@ -23,6 +21,7 @@ export default abstract class RemoteTrack extends Track {
   setMuted(muted: boolean) {
     if (this.isMuted !== muted) {
       this.isMuted = muted;
+      this._mediaStreamTrack.enabled = !muted;
       this.emit(muted ? TrackEvent.Muted : TrackEvent.Unmuted, this);
     }
   }
@@ -32,6 +31,7 @@ export default abstract class RemoteTrack extends Track {
     // this is needed to determine when the track is finished
     // we send each track down in its own MediaStream, so we can assume the
     // current track is the only one that can be removed.
+    this.mediaStream = stream;
     stream.onremovetrack = () => {
       this.receiver = undefined;
       this._currentBitrate = 0;
@@ -46,15 +46,16 @@ export default abstract class RemoteTrack extends Track {
   }
 
   stop() {
+    this.stopMonitor();
     // use `enabled` of track to enable re-use of transceiver
     super.disable();
   }
 
   /* @internal */
   startMonitor() {
-    setTimeout(() => {
-      this.monitorReceiver();
-    }, monitorFrequency);
+    if (!this.monitorInterval) {
+      this.monitorInterval = setInterval(() => this.monitorReceiver(), monitorFrequency);
+    }
   }
 
   protected abstract monitorReceiver(): void;
