@@ -1,4 +1,4 @@
-import EventEmitter from 'events';
+import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import { CheckStatus, Checker } from './checks/Checker';
 import type { CheckInfo, InstantiableCheck } from './checks/Checker';

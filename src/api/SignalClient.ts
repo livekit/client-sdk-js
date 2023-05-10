@@ -76,7 +76,7 @@ const passThroughQueueSignals: Array<SignalKind> = [
 ];
 
 function canPassThroughQueue(req: SignalMessage): boolean {
-  const canPass = passThroughQueueSignals.includes(req!.$case);
+  const canPass = passThroughQueueSignals.indexOf(req!.$case) >= 0;
   log.trace('request allowed to bypass queue:', { canPass, req });
   return canPass;
 }

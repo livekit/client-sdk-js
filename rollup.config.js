@@ -45,7 +45,6 @@ export default {
       plugins: ['@babel/plugin-proposal-object-rest-spread'],
       presets: ['@babel/preset-env'],
       extensions: ['.js', '.ts', '.mjs'],
-      babelrc: false,
     }),
     replace({
       patterns: [
