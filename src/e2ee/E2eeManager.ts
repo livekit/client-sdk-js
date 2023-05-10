@@ -12,13 +12,12 @@ import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
-import {
+import type {
   E2EEManagerCallbacks,
   E2EEOptions,
   E2EEWorkerMessage,
   EnableMessage,
   EncodeMessage,
-  EncryptionEvent,
   InitMessage,
   KeyInfo,
   RTPVideoMapMessage,
@@ -27,10 +26,8 @@ import {
   SetKeyMessage,
   UpdateCodecMessage,
 } from './types';
+import { EncryptionEvent } from './types';
 import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
-
-// // @ts-ignore
-// import E2EEWorker from './worker/e2ee.worker?worker';
 
 export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEManagerCallbacks>) {
   protected worker: Worker;
@@ -355,7 +352,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEmitter<E2EEMan
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);
     }
 
-    // // @ts-ignore
-    // sender[E2EE_FLAG] = true;
+    // @ts-ignore
+    sender[E2EE_FLAG] = true;
   }
 }
