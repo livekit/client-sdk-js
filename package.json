@@ -79,7 +79,6 @@
     "prettier": "^2.8.8",
     "rollup": "3.21.3",
     "rollup-plugin-delete": "^2.0.0",
-    "rollup-plugin-filesize": "10.0.0",
     "rollup-plugin-re": "1.0.7",
     "rollup-plugin-typescript2": "0.34.1",
     "size-limit": "^8.2.4",
