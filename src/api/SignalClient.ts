@@ -1,5 +1,3 @@
-import 'webrtc-adapter';
-import { AsyncQueue } from '../AsyncQueue';
 import log from '../logger';
 import {
   ClientInfo,
@@ -34,6 +32,7 @@ import {
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import { Mutex, getClientInfo, isReactNative, sleep } from '../room/utils';
+import { AsyncQueue } from '../utils/AsyncQueue';
 
 // internal options
 interface ConnectOpts {
