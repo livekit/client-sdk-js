@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import * as SDPUtils from 'sdp';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
-import { NegotiationError } from './errors';
+// import { NegotiationError } from './errors';
 import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
@@ -152,7 +152,7 @@ export default class PCTransport extends EventEmitter {
 
     this.trackBitrates = [];
 
-    await this.setMungedLocalDescription(offer, write(sdpParsed));
+    // await this.setMungedLocalDescription(offer, write(sdpParsed));
     this.onOffer(offer);
   }
 
@@ -164,7 +164,7 @@ export default class PCTransport extends EventEmitter {
         ensureAudioNackAndStereo(media, this.remoteStereoMids, this.remoteNackMids);
       }
     });
-    await this.setMungedLocalDescription(answer, write(sdpParsed));
+    // await this.setMungedLocalDescription(answer, write(sdpParsed));
     return answer;
   }
 
@@ -182,34 +182,34 @@ export default class PCTransport extends EventEmitter {
     this.pc.close();
   }
 
-  private async setMungedLocalDescription(sd: RTCSessionDescriptionInit, munged: string) {
-    const originalSdp = sd.sdp;
-    sd.sdp = munged;
-    try {
-      log.debug('setting munged local description');
-      await this.pc.setLocalDescription(sd);
-      return;
-    } catch (e) {
-      log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
-        error: e,
-      });
-      sd.sdp = originalSdp;
-    }
+  // private async setMungedLocalDescription(sd: RTCSessionDescriptionInit, munged: string) {
+  //   const originalSdp = sd.sdp;
+  //   sd.sdp = munged;
+  //   try {
+  //     log.debug('setting munged local description');
+  //     await this.pc.setLocalDescription(sd);
+  //     return;
+  //   } catch (e) {
+  //     log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
+  //       error: e,
+  //     });
+  //     sd.sdp = originalSdp;
+  //   }
 
-    try {
-      await this.pc.setLocalDescription(sd);
-    } catch (e) {
-      // this error cannot always be caught.
-      // If the local description has a setCodecPreferences error, this error will be uncaught
-      let msg = 'unknown error';
-      if (e instanceof Error) {
-        msg = e.message;
-      } else if (typeof e === 'string') {
-        msg = e;
-      }
-      throw new NegotiationError(msg);
-    }
-  }
+  //   try {
+  //     await this.pc.setLocalDescription(sd);
+  //   } catch (e) {
+  //     // this error cannot always be caught.
+  //     // If the local description has a setCodecPreferences error, this error will be uncaught
+  //     let msg = 'unknown error';
+  //     if (e instanceof Error) {
+  //       msg = e.message;
+  //     } else if (typeof e === 'string') {
+  //       msg = e;
+  //     }
+  //     throw new NegotiationError(msg);
+  //   }
+  // }
 }
 
 function ensureAudioNackAndStereo(
