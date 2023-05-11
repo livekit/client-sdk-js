@@ -45,7 +45,7 @@
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
     "protobufjs": "^7.0.0",
-    "sdp-transform": "^2.14.1",
+    "sdp": "^3.2.0",
     "ts-debounce": "^4.0.0",
     "typed-emitter": "^2.1.0",
     "webrtc-adapter": "^8.1.1"
@@ -65,7 +65,6 @@
     "@trivago/prettier-plugin-sort-imports": "^4.1.1",
     "@types/events": "^3.0.0",
     "@types/jest": "29.5.1",
-    "@types/sdp-transform": "2.4.6",
     "@types/ua-parser-js": "0.7.36",
     "@typescript-eslint/eslint-plugin": "5.59.2",
     "@typescript-eslint/parser": "5.59.2",

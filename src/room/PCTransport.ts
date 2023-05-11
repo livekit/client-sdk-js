@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events';
-import { parse, write } from 'sdp-transform';
-import type { MediaDescription } from 'sdp-transform';
+import * as SDPUtils from 'sdp';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
 import { NegotiationError } from './errors';
@@ -122,53 +121,31 @@ export default class PCTransport extends EventEmitter {
     log.debug('starting to negotiate');
     const offer = await this.pc.createOffer(options);
 
-    const sdpParsed = parse(offer.sdp ?? '');
-    sdpParsed.media.forEach((media) => {
-      if (media.type === 'audio') {
+    const mediaSections = parseSdpMediaSections(offer.sdp);
+    mediaSections.forEach((media) => {
+      if (media.mLine.kind === 'audio') {
         ensureAudioNackAndStereo(media, [], []);
-      } else if (media.type === 'video') {
+      } else if (media.mLine.kind === 'video') {
         ensureVideoDDExtensionForSVC(media);
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
-          if (!media.msid || !media.msid.includes(trackbr.sid)) {
+          if (!media.msid.track || media.msid.track !== trackbr.sid) {
             return false;
           }
 
-          let codecPayload = 0;
-          media.rtp.some((rtp): boolean => {
-            if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
-              codecPayload = rtp.payload;
+          return media.rtp.codecs.some((codec): boolean => {
+            if (codec.name.toUpperCase() === trackbr.codec.toUpperCase()) {
+              // add x-google-max-bitrate to fmtp line if not exist
+              if (!codec.parameters?.['x-google-max-bitrate']) {
+                codec.parameters = {
+                  ...codec.parameters,
+                  'x-google-max-bitrate': trackbr.maxbr.toFixed(0),
+                };
+              }
               return true;
             }
             return false;
           });
-
-          // add x-google-max-bitrate to fmtp line if not exist
-          if (codecPayload > 0) {
-            if (
-              !media.fmtp.some((fmtp): boolean => {
-                if (fmtp.payload === codecPayload) {
-                  if (!fmtp.config.includes('x-google-start-bitrate')) {
-                    fmtp.config += `;x-google-start-bitrate=${trackbr.maxbr * 0.7}`;
-                  }
-                  if (!fmtp.config.includes('x-google-max-bitrate')) {
-                    fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
-                  }
-                  return true;
-                }
-                return false;
-              })
-            ) {
-              media.fmtp.push({
-                payload: codecPayload,
-                config: `x-google-start-bitrate=${trackbr.maxbr * 0.7};x-google-max-bitrate=${
-                  trackbr.maxbr
-                }`,
-              });
-            }
-          }
-
-          return true;
         });
       }
     });
@@ -181,9 +158,9 @@ export default class PCTransport extends EventEmitter {
 
   async createAndSetAnswer(): Promise<RTCSessionDescriptionInit> {
     const answer = await this.pc.createAnswer();
-    const sdpParsed = parse(answer.sdp ?? '');
-    sdpParsed.media.forEach((media) => {
-      if (media.type === 'audio') {
+    const mediaSections = parseSdpMediaSections(answer.sdp);
+    mediaSections.forEach((media) => {
+      if (media.mLine.kind === 'audio') {
         ensureAudioNackAndStereo(media, this.remoteStereoMids, this.remoteNackMids);
       }
     });
@@ -236,83 +213,63 @@ export default class PCTransport extends EventEmitter {
 }
 
 function ensureAudioNackAndStereo(
-  media: {
-    type: string;
-    port: number;
-    protocol: string;
-    payloads?: string | undefined;
-  } & MediaDescription,
+  media: SDPMediaSection,
   stereoMids: string[],
   nackMids: string[],
 ) {
-  // found opus codec to add nack fb
-  let opusPayload = 0;
-  media.rtp.some((rtp): boolean => {
-    if (rtp.codec === 'opus') {
-      opusPayload = rtp.payload;
+  const opus = media.rtp.codecs.find((codec): boolean => {
+    if (codec.name === 'opus') {
       return true;
     }
     return false;
   });
 
-  // add nack rtcpfb if not exist
-  if (opusPayload > 0) {
-    if (!media.rtcpFb) {
-      media.rtcpFb = [];
+  // add nack rtcpFeedback if not exist
+  if (typeof opus !== 'undefined') {
+    if (!opus.rtcpFeedback) {
+      opus.rtcpFeedback = [];
     }
 
-    if (
-      nackMids.includes(media.mid!) &&
-      !media.rtcpFb.some((fb) => fb.payload === opusPayload && fb.type === 'nack')
-    ) {
-      media.rtcpFb.push({
-        payload: opusPayload,
+    if (nackMids.includes(media.mid!) && !opus.rtcpFeedback.some((fb) => fb.type === 'nack')) {
+      opus.rtcpFeedback.push({
         type: 'nack',
+        parameter: '',
       });
     }
 
     if (stereoMids.includes(media.mid!)) {
-      media.fmtp.some((fmtp): boolean => {
-        if (fmtp.payload === opusPayload) {
-          if (!fmtp.config.includes('stereo=1')) {
-            fmtp.config += ';stereo=1';
-          }
-          return true;
-        }
-        return false;
-      });
+      opus.parameters ??= {};
+      if (opus.parameters.stereo !== '1') {
+        opus.parameters.stereo = '1';
+      }
+      return true;
     }
+    return false;
   }
 }
 
-function ensureVideoDDExtensionForSVC(
-  media: {
-    type: string;
-    port: number;
-    protocol: string;
-    payloads?: string | undefined;
-  } & MediaDescription,
-) {
-  const codec = media.rtp[0]?.codec?.toLowerCase();
+function ensureVideoDDExtensionForSVC(media: SDPMediaSection) {
+  const codec = media.rtp.codecs[0].name.toLowerCase();
   if (!isSVCCodec(codec)) {
     return;
   }
 
   let maxID = 0;
-  const ddFound = media.ext?.some((ext): boolean => {
+  const ddFound = media.rtp.headerExtensions?.some((ext): boolean => {
     if (ext.uri === ddExtensionURI) {
       return true;
     }
-    if (ext.value > maxID) {
-      maxID = ext.value;
+    if (ext.id > maxID) {
+      maxID = ext.id;
     }
     return false;
   });
 
   if (!ddFound) {
-    media.ext?.push({
-      value: maxID + 1,
+    media.rtp.headerExtensions?.push({
+      id: maxID + 1,
       uri: ddExtensionURI,
+      atrributes: '',
     });
   }
 }
@@ -323,32 +280,42 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
 } {
   const stereoMids: string[] = [];
   const nackMids: string[] = [];
-  const sdpParsed = parse(offer.sdp ?? '');
-  let opusPayload = 0;
-  sdpParsed.media.forEach((media) => {
-    if (media.type === 'audio') {
-      media.rtp.some((rtp): boolean => {
-        if (rtp.codec === 'opus') {
-          opusPayload = rtp.payload;
-          return true;
-        }
-        return false;
-      });
+  const sdpMedia = parseSdpMediaSections(offer.sdp);
+  sdpMedia.forEach((media) => {
+    if (media.mLine.kind === 'audio') {
+      const opus = media.rtp.codecs.find((codec): boolean => codec.name === 'opus');
+      if (!opus) {
+        return;
+      }
 
-      if (media.rtcpFb?.some((fb) => fb.payload === opusPayload && fb.type === 'nack')) {
+      if (opus.rtcpFeedback?.some((fb) => fb.type === 'nack')) {
         nackMids.push(media.mid!);
       }
 
-      media.fmtp.some((fmtp): boolean => {
-        if (fmtp.payload === opusPayload) {
-          if (fmtp.config.includes('sprop-stereo=1')) {
-            stereoMids.push(media.mid!);
-          }
-          return true;
-        }
-        return false;
-      });
+      if (opus.parameters?.['sprop-stereo'] === '1') {
+        stereoMids.push(media.mid!);
+      }
+      return true;
     }
+    return false;
   });
   return { stereoMids, nackMids };
 }
+
+function parseSdpMediaSections(blob?: string) {
+  return SDPUtils.getMediaSections(blob ?? '').map((section) => {
+    return {
+      mLine: SDPUtils.parseMLine(section),
+      rtp: SDPUtils.parseRtpParameters(section),
+      mid: SDPUtils.getMid(section),
+      msid: SDPUtils.parseMsid(section),
+    } satisfies SDPMediaSection;
+  });
+}
+
+type SDPMediaSection = {
+  mLine: SDPUtils.SDPMLine;
+  rtp: SDPUtils.SDPRtpCapabilities;
+  mid: string;
+  msid: SDPUtils.SDPMediaStreamId;
+};
