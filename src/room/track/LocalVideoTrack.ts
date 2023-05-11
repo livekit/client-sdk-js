@@ -1,7 +1,7 @@
 import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
-import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
-import type { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc';
+import { VideoLayer, VideoQuality } from '../../proto/livekit_models_pb';
+import { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc_pb';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { VideoSenderStats } from '../stats';
 import { Mutex, isFireFox, isMobile, isWeb } from '../utils';
@@ -172,10 +172,12 @@ export default class LocalVideoTrack extends LocalTrack {
   setPublishingQuality(maxQuality: VideoQuality) {
     const qualities: SubscribedQuality[] = [];
     for (let q = VideoQuality.LOW; q <= VideoQuality.HIGH; q += 1) {
-      qualities.push({
-        quality: q,
-        enabled: q <= maxQuality,
-      });
+      qualities.push(
+        new SubscribedQuality({
+          quality: q,
+          enabled: q <= maxQuality,
+        }),
+      );
     }
     log.debug(`setting publishing quality. max quality ${maxQuality}`);
     this.setPublishingLayers(qualities);
@@ -404,7 +406,8 @@ export function videoQualityForRid(rid: string): VideoQuality {
     case 'q':
       return VideoQuality.LOW;
     default:
-      return VideoQuality.UNRECOGNIZED;
+      // FIXME should be unrecognized
+      return VideoQuality.OFF;
   }
 }
 
@@ -416,27 +419,28 @@ export function videoLayersFromEncodings(
   // default to a single layer, HQ
   if (!encodings) {
     return [
-      {
+      new VideoLayer({
         quality: VideoQuality.HIGH,
         width,
         height,
         bitrate: 0,
         ssrc: 0,
-      },
+      }),
     ];
   }
   return encodings.map((encoding) => {
     const scale = encoding.scaleResolutionDownBy ?? 1;
     let quality = videoQualityForRid(encoding.rid ?? '');
-    if (quality === VideoQuality.UNRECOGNIZED && encodings.length === 1) {
+    // FIXME UNRECOGNIZED -> OFF
+    if (quality === VideoQuality.OFF && encodings.length === 1) {
       quality = VideoQuality.HIGH;
     }
-    return {
+    return new VideoLayer({
       quality,
       width: width / scale,
       height: height / scale,
       bitrate: encoding.maxBitrate ?? 0,
       ssrc: 0,
-    };
+    });
   });
 }

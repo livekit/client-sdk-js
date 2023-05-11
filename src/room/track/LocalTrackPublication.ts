@@ -1,4 +1,4 @@
-import type { TrackInfo } from '../../proto/livekit_models';
+import type { TrackInfo } from '../../proto/livekit_models_pb';
 import { TrackEvent } from '../events';
 import type LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';

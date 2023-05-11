@@ -29,7 +29,7 @@
     "build": "rollup --config --bundleConfigAsCjs && yarn downlevel-dts",
     "build:watch": "rollup --watch --config rollup.config.js",
     "build-docs": "typedoc",
-    "proto": "protoc --plugin=node_modules/ts-proto/protoc-gen-ts_proto --ts_proto_opt=esModuleInterop=true --ts_proto_out=./src/proto --ts_proto_opt=outputClientImpl=false,useOptionals=messages,oneof=unions -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
+    "proto": "protoc --es_out src/proto --es_opt target=ts -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
     "sample": "vite serve example --port 8080 --open",
     "lint": "eslint src",
     "test": "jest",
@@ -42,9 +42,9 @@
     "size-limit": "size-limit"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^1.2.0",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
-    "protobufjs": "^7.0.0",
     "sdp-transform": "^2.14.1",
     "ts-debounce": "^4.0.0",
     "typed-emitter": "^2.1.0",
@@ -53,6 +53,7 @@
   "devDependencies": {
     "@babel/core": "7.21.8",
     "@babel/preset-env": "7.21.5",
+    "@bufbuild/protoc-gen-es": "^1.2.0",
     "@changesets/cli": "2.26.1",
     "@livekit/changesets-changelog-github": "^0.0.4",
     "@rollup/plugin-babel": "6.0.3",

@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import log from '../../logger';
-import type { TrackInfo } from '../../proto/livekit_models';
-import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
+import type { TrackInfo } from '../../proto/livekit_models_pb';
+import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalVideoTrack from './LocalVideoTrack';
