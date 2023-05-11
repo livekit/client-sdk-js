@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { VideoQuality } from '../../proto/livekit_models_pb';
 import { videoLayersFromEncodings } from './LocalVideoTrack';
 
