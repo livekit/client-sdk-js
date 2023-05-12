@@ -1370,11 +1370,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ) {
         consecutiveFailures++;
         log.warn('detected connection state mismatch', { numFailures: consecutiveFailures });
-        if (consecutiveFailures >= 3)
+        if (consecutiveFailures >= 3) {
+          this.recreateEngine();
           this.handleDisconnect(
             this.options.stopLocalTrackOnUnpublish,
             DisconnectReason.UNKNOWN_REASON,
           );
+        }
       } else {
         consecutiveFailures = 0;
       }
