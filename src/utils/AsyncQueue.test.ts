@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { sleep } from '../room/utils';
 import { AsyncQueue } from './AsyncQueue';
 
