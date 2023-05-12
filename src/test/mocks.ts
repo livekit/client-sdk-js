@@ -1,16 +1,17 @@
+import { MockedClass, vi } from 'vitest';
 import { SignalClient } from '../api/SignalClient';
 import RTCEngine from '../room/RTCEngine';
 
-jest.mock('../api/SignalClient');
-jest.mock('../room/RTCEngine');
+vi.mock('../api/SignalClient');
+vi.mock('../room/RTCEngine');
 
 // mock helpers for testing
 
 const mocks = {
-  SignalClient: SignalClient as jest.MockedClass<typeof SignalClient>,
-  RTCEngine: RTCEngine as jest.MockedClass<typeof RTCEngine>,
+  SignalClient: SignalClient as MockedClass<typeof SignalClient>,
+  RTCEngine: RTCEngine as MockedClass<typeof RTCEngine>,
   MockLocalVideoTrack: {
-    stop: jest.fn(),
+    stop: vi.fn(),
   },
 };
 
