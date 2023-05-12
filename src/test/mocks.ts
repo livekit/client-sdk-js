@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { MockedClass, vi } from 'vitest';
 import { SignalClient } from '../api/SignalClient';
 import RTCEngine from '../room/RTCEngine';
