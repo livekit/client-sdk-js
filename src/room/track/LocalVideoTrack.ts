@@ -406,8 +406,7 @@ export function videoQualityForRid(rid: string): VideoQuality {
     case 'q':
       return VideoQuality.LOW;
     default:
-      // FIXME should be unrecognized
-      return VideoQuality.OFF;
+      return VideoQuality.HIGH;
   }
 }
 
@@ -431,10 +430,6 @@ export function videoLayersFromEncodings(
   return encodings.map((encoding) => {
     const scale = encoding.scaleResolutionDownBy ?? 1;
     let quality = videoQualityForRid(encoding.rid ?? '');
-    // FIXME UNRECOGNIZED -> OFF
-    if (quality === VideoQuality.OFF && encodings.length === 1) {
-      quality = VideoQuality.HIGH;
-    }
     return new VideoLayer({
       quality,
       width: width / scale,
