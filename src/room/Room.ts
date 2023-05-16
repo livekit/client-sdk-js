@@ -1374,7 +1374,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.recreateEngine();
           this.handleDisconnect(
             this.options.stopLocalTrackOnUnpublish,
-            DisconnectReason.UNKNOWN_REASON,
+            DisconnectReason.STATE_MISMATCH,
           );
         }
       } else {
