@@ -293,22 +293,18 @@ export function createDummyVideoStreamTrack(
   return dummyTrack;
 }
 
-let emptyAudioStreamTrack: MediaStreamTrack | undefined;
-
-export function getEmptyAudioStreamTrack() {
+export function getEmptyAudioStreamTrack(options: AudioContextOptions = {}) {
+  // implementation adapted from https://blog.mozilla.org/webrtc/warm-up-with-replacetrack/
+  const ctx = new AudioContext(options);
+  const oscillator = ctx.createOscillator();
+  const dst = ctx.createMediaStreamDestination();
+  oscillator.connect(dst);
+  oscillator.start();
+  const [emptyAudioStreamTrack] = dst.stream.getAudioTracks();
   if (!emptyAudioStreamTrack) {
-    // implementation adapted from https://blog.mozilla.org/webrtc/warm-up-with-replacetrack/
-    const ctx = new AudioContext();
-    const oscillator = ctx.createOscillator();
-    const dst = ctx.createMediaStreamDestination();
-    oscillator.connect(dst);
-    oscillator.start();
-    [emptyAudioStreamTrack] = dst.stream.getAudioTracks();
-    if (!emptyAudioStreamTrack) {
-      throw Error('Could not get empty media stream audio track');
-    }
-    emptyAudioStreamTrack.enabled = false;
+    throw Error('Could not get empty media stream audio track');
   }
+  emptyAudioStreamTrack.enabled = false;
   return emptyAudioStreamTrack;
 }
 

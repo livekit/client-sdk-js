@@ -266,8 +266,11 @@ export default abstract class LocalTrack extends Track {
 
       this._isUpstreamPaused = true;
       this.emit(TrackEvent.UpstreamPaused, this);
+      const sampleRate = this._mediaStreamTrack.getSettings().sampleRate ?? 48_000;
       const emptyTrack =
-        this.kind === Track.Kind.Audio ? getEmptyAudioStreamTrack() : getEmptyVideoStreamTrack();
+        this.kind === Track.Kind.Audio
+          ? getEmptyAudioStreamTrack({ sampleRate })
+          : getEmptyVideoStreamTrack();
       await this.sender.replaceTrack(emptyTrack);
     } finally {
       unlock();
