@@ -230,7 +230,7 @@ let intersectionObserver: IntersectionObserver | null = null;
 export const getIntersectionObserver = () => {
   if (!intersectionObserver) {
     intersectionObserver = new IntersectionObserver(ioDispatchCallback, {
-      root: document.body,
+      root: null,
       rootMargin: '0px',
     });
   }
