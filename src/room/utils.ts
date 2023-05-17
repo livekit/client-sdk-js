@@ -228,11 +228,12 @@ export const getResizeObserver = () => {
 
 let intersectionObserver: IntersectionObserver | null = null;
 export const getIntersectionObserver = () => {
-  if (!intersectionObserver)
+  if (!intersectionObserver) {
     intersectionObserver = new IntersectionObserver(ioDispatchCallback, {
-      root: document,
+      root: null,
       rootMargin: '0px',
     });
+  }
   return intersectionObserver;
 };
 
