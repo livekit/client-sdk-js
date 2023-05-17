@@ -290,6 +290,14 @@ export default class RemoteParticipant extends Participant {
       return;
     }
 
+    // also send unsubscribe, if track is actively subscribed
+    const { track } = publication;
+    if (track) {
+      track.stop();
+      publication.setTrack(undefined);
+    }
+
+    // remove track from maps only after unsubscribed has been fired
     this.tracks.delete(sid);
 
     // remove from the right type map
@@ -304,12 +312,6 @@ export default class RemoteParticipant extends Participant {
         break;
     }
 
-    // also send unsubscribe, if track is actively subscribed
-    const { track } = publication;
-    if (track) {
-      track.stop();
-      publication.setTrack(undefined);
-    }
     if (sendUnpublish) {
       this.emit(ParticipantEvent.TrackUnpublished, publication);
     }
