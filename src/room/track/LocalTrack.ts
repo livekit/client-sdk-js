@@ -12,7 +12,7 @@ import {
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 
-const defaultDimensionsTimeout = 2 * 1000;
+const defaultDimensionsTimeout = 1000;
 
 export default abstract class LocalTrack extends Track {
   /** @internal */
