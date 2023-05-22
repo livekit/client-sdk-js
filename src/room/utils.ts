@@ -293,25 +293,33 @@ export function createDummyVideoStreamTrack(
   return dummyTrack;
 }
 
-let audioCtx: AudioContext | undefined;
+let emptyAudio: { context?: AudioContext; track?: MediaStreamTrack } = {
+  context: undefined,
+  track: undefined,
+};
 
 export function getEmptyAudioStreamTrack(options: AudioContextOptions = {}) {
   // implementation adapted from https://blog.mozilla.org/webrtc/warm-up-with-replacetrack/
-  if (!audioCtx || (options.sampleRate && audioCtx.sampleRate !== options.sampleRate)) {
-    audioCtx?.close();
-    audioCtx = new AudioContext(options);
+  if (
+    emptyAudio.context === undefined ||
+    (options.sampleRate && emptyAudio.context.sampleRate !== options.sampleRate) ||
+    emptyAudio.track === undefined
+  ) {
+    emptyAudio.context?.close();
+    emptyAudio.context = new AudioContext(options);
+    const oscillator = emptyAudio.context.createOscillator();
+    const dst = emptyAudio.context.createMediaStreamDestination();
+    oscillator.connect(dst);
+    oscillator.start();
+    const [emptyAudioStreamTrack] = dst.stream.getAudioTracks();
+    if (!emptyAudioStreamTrack) {
+      throw Error('Could not get empty media stream audio track');
+    }
+    emptyAudioStreamTrack.enabled = false;
+    emptyAudio.track = emptyAudioStreamTrack;
   }
-  const oscillator = audioCtx.createOscillator();
-  const dst = audioCtx.createMediaStreamDestination();
-  oscillator.connect(dst);
-  oscillator.start();
-  const [emptyAudioStreamTrack] = dst.stream.getAudioTracks();
-  if (!emptyAudioStreamTrack) {
-    throw Error('Could not get empty media stream audio track');
-  }
-  emptyAudioStreamTrack.enabled = false;
 
-  return emptyAudioStreamTrack;
+  return emptyAudio.track;
 }
 
 export class Future<T> {
