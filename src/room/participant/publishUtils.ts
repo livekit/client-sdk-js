@@ -323,24 +323,24 @@ function encodingsFromPresets(
   });
 
   // RN ios simulcast requires all same framerates.
-  if(isReactNative() && getReactNativeOs() === "ios") {
+  if (isReactNative() && getReactNativeOs() === 'ios') {
     let topFramerate: number | undefined = undefined;
     encodings.forEach((encoding) => {
-      if(!topFramerate) { 
-        topFramerate = encoding.maxFramerate
+      if (!topFramerate) {
+        topFramerate = encoding.maxFramerate;
       } else if (encoding.maxFramerate && encoding.maxFramerate > topFramerate) {
-        topFramerate = encoding.maxFramerate
+        topFramerate = encoding.maxFramerate;
       }
-    })
+    });
 
     encodings.forEach((encoding) => {
-      encoding.maxFramerate = topFramerate
-    })
+      encoding.maxFramerate = topFramerate;
+    });
   }
 
   encodings.forEach((encoding) => {
-    console.log(encoding)
-  })
+    console.log(encoding);
+  });
   return encodings;
 }
 
