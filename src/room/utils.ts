@@ -293,11 +293,16 @@ export function createDummyVideoStreamTrack(
   return dummyTrack;
 }
 
+let audioCtx: AudioContext | undefined;
+
 export function getEmptyAudioStreamTrack(options: AudioContextOptions = {}) {
   // implementation adapted from https://blog.mozilla.org/webrtc/warm-up-with-replacetrack/
-  const ctx = new AudioContext(options);
-  const oscillator = ctx.createOscillator();
-  const dst = ctx.createMediaStreamDestination();
+  if (!audioCtx || (options.sampleRate && audioCtx.sampleRate !== options.sampleRate)) {
+    audioCtx?.close();
+    audioCtx = new AudioContext(options);
+  }
+  const oscillator = audioCtx.createOscillator();
+  const dst = audioCtx.createMediaStreamDestination();
   oscillator.connect(dst);
   oscillator.start();
   const [emptyAudioStreamTrack] = dst.stream.getAudioTracks();
@@ -305,9 +310,7 @@ export function getEmptyAudioStreamTrack(options: AudioContextOptions = {}) {
     throw Error('Could not get empty media stream audio track');
   }
   emptyAudioStreamTrack.enabled = false;
-  setTimeout(() => {
-    ctx.close();
-  }, 500);
+
   return emptyAudioStreamTrack;
 }
 
