@@ -305,6 +305,9 @@ export function getEmptyAudioStreamTrack(options: AudioContextOptions = {}) {
     throw Error('Could not get empty media stream audio track');
   }
   emptyAudioStreamTrack.enabled = false;
+  setTimeout(() => {
+    ctx.close();
+  }, 500);
   return emptyAudioStreamTrack;
 }
 
