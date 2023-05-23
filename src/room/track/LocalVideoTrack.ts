@@ -6,9 +6,8 @@ import { computeBitrate, monitorFrequency } from '../stats';
 import type { VideoSenderStats } from '../stats';
 import { Mutex, isFireFox, isMobile, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
-import { Track, attachToElement } from './Track';
+import { Track } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
-import type { ProcessorOptions, VideoProcessor } from './processor/types';
 import { constraintsForOptions } from './utils';
 
 export class SimulcastTrackInfo {
@@ -35,12 +34,6 @@ export default class LocalVideoTrack extends LocalTrack {
   private prevStats?: Map<string, VideoSenderStats>;
 
   private encodings?: RTCRtpEncodingParameters[];
-
-  private processorElement?: HTMLMediaElement;
-
-  private processor?: VideoProcessor<ProcessorOptions>;
-
-  private isSettingUpProcessor: boolean = false;
 
   /* @internal */
   simulcastCodecs: Map<VideoCodec, SimulcastTrackInfo> = new Map<VideoCodec, SimulcastTrackInfo>();
@@ -102,7 +95,6 @@ export default class LocalVideoTrack extends LocalTrack {
       trackInfo.mediaStreamTrack.stop();
     });
     super.stop();
-    this.processor?.destroy();
   }
 
   async mute(): Promise<LocalVideoTrack> {
@@ -333,57 +325,6 @@ export default class LocalVideoTrack extends LocalTrack {
     if (this.isInBackground && this.source === Track.Source.Camera) {
       this._mediaStreamTrack.enabled = false;
     }
-  }
-
-  async setProcessor(
-    processor: VideoProcessor<ProcessorOptions>,
-    showProcessedStreamLocally = true,
-  ) {
-    if (this.isSettingUpProcessor) {
-      log.warn('already trying to set up a processor');
-      return;
-    }
-    log.debug('setting up processor');
-    this.isSettingUpProcessor = true;
-    if (this.processor) {
-      await this.stopProcessor();
-    }
-
-    this.processorElement = this.processorElement ?? document.createElement('video');
-    this.processorElement.muted = true;
-
-    attachToElement(this.mediaStreamTrack, this.processorElement);
-    this.processorElement.play().catch((e) => log.error(e));
-
-    const processorOptions = {
-      track: this.mediaStreamTrack,
-      element: this.processorElement as HTMLVideoElement,
-    };
-
-    await processor.init(processorOptions);
-    this.processor = processor as VideoProcessor<ProcessorOptions>;
-    if (this.processor.processedTrack) {
-      this.attachedElements.forEach((el) => {
-        if (el !== this.processorElement && showProcessedStreamLocally) {
-          this.attach(el);
-        }
-      });
-
-      await this.sender?.replaceTrack(this.processor.processedTrack);
-    }
-    this.isSettingUpProcessor = false;
-  }
-
-  async stopProcessor() {
-    if (!this.processor) return;
-
-    log.debug('stopping processor');
-    this.mediaStreamTrack?.stop();
-    this.processor.processedTrack?.stop();
-    await this.processor.destroy();
-    this.processor = undefined;
-
-    await this.restart();
   }
 }
 

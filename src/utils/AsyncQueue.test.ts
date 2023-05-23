@@ -1,5 +1,5 @@
+import { sleep } from '../room/utils';
 import { AsyncQueue } from './AsyncQueue';
-import { sleep } from './room/utils';
 
 describe('asyncQueue', () => {
   it('runs multiple tasks in order', async () => {

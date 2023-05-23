@@ -1,5 +1,25 @@
 # Change Log
 
+## 1.9.6
+
+### Patch Changes
+
+- Make sure `TrackUnsubscribed` events are emitted before the publication gets deleted from maps - [#708](https://github.com/livekit/client-sdk-js/pull/708) ([@lukasIO](https://github.com/lukasIO))
+
+- Use body instead of document as intersection observer root - [#703](https://github.com/livekit/client-sdk-js/pull/703) ([@lukasIO](https://github.com/lukasIO))
+
+- Use default video dimensions when they are not available - [#709](https://github.com/livekit/client-sdk-js/pull/709) ([@davidzhao](https://github.com/davidzhao))
+
+## 1.9.5
+
+### Patch Changes
+
+- Remove ua-parser-js dependency and fix browser version comparison - [#697](https://github.com/livekit/client-sdk-js/pull/697) ([@lukasIO](https://github.com/lukasIO))
+
+- Use STATE_MISMATCH disconnect reason in connection reconciliation - [#705](https://github.com/livekit/client-sdk-js/pull/705) ([@lukasIO](https://github.com/lukasIO))
+
+- Make sure engine gets closed when connection reconciliation triggers - [#702](https://github.com/livekit/client-sdk-js/pull/702) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.9.4
 
 ### Patch Changes

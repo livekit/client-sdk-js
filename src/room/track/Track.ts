@@ -118,7 +118,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     // even if we believe it's already attached to the element, it's possible
     // the element's srcObject was set to something else out of band.
     // we'll want to re-attach it in that case
-    attachToElement(this._mediaStreamTrack, element);
+    attachToElement(this.mediaStreamTrack, element);
 
     // handle auto playback failures
     const allMediaStreamTracks = (element.srcObject as MediaStream).getTracks();
@@ -167,7 +167,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     try {
       // detach from a single element
       if (element) {
-        detachTrack(this._mediaStreamTrack, element);
+        detachTrack(this.mediaStreamTrack, element);
         const idx = this.attachedElements.indexOf(element);
         if (idx >= 0) {
           this.attachedElements.splice(idx, 1);
@@ -179,7 +179,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
       const detached: HTMLMediaElement[] = [];
       this.attachedElements.forEach((elm) => {
-        detachTrack(this._mediaStreamTrack, elm);
+        detachTrack(this.mediaStreamTrack, elm);
         detached.push(elm);
         this.recycleElement(elm);
         this.emit(TrackEvent.ElementDetached, elm);

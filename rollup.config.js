@@ -5,7 +5,6 @@ import json from '@rollup/plugin-json';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
 import del from 'rollup-plugin-delete';
-import filesize from 'rollup-plugin-filesize';
 import replace from 'rollup-plugin-re';
 import typescript from 'rollup-plugin-typescript2';
 import packageJson from './package.json';
@@ -58,6 +57,5 @@ export default {
         },
       ],
     }),
-    filesize(),
   ],
 };
