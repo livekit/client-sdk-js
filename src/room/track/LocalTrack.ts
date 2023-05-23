@@ -317,6 +317,16 @@ export default abstract class LocalTrack extends Track {
     }
   }
 
+  /**
+   * Sets a processor on this track.
+   * See https://github.com/livekit/track-processors-js for example usage
+   *
+   * @experimental
+   *
+   * @param processor
+   * @param showProcessedStreamLocally
+   * @returns
+   */
   async setProcessor(
     processor: TrackProcessor<ProcessorOptions>,
     showProcessedStreamLocally = true,
@@ -360,6 +370,13 @@ export default abstract class LocalTrack extends Track {
     this.isSettingUpProcessor = false;
   }
 
+  /**
+   * Stops the track processor
+   * See https://github.com/livekit/track-processors-js for example usage
+   *
+   * @experimental
+   * @returns
+   */
   async stopProcessor() {
     if (!this.processor) return;
 
