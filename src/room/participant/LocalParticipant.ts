@@ -1,4 +1,3 @@
-import 'webrtc-adapter';
 import log from '../../logger';
 import type { InternalRoomOptions } from '../../options';
 import {
@@ -24,7 +23,6 @@ import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
-import { ScreenSharePresets, isBackupCodec, isCodecEqual } from '../track/options';
 import type {
   AudioCaptureOptions,
   BackupVideoCodec,
@@ -33,12 +31,13 @@ import type {
   TrackPublishOptions,
   VideoCaptureOptions,
 } from '../track/options';
+import { ScreenSharePresets, VideoPresets, isBackupCodec, isCodecEqual } from '../track/options';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
 import type { DataPublishOptions } from '../types';
 import { Future, isFireFox, isSVCCodec, isSafari, isWeb, supportsAV1, supportsVP9 } from '../utils';
 import Participant from './Participant';
-import { trackPermissionToProto } from './ParticipantTrackPermission';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
+import { trackPermissionToProto } from './ParticipantTrackPermission';
 import RemoteParticipant from './RemoteParticipant';
 import {
   computeTrackBackupEncodings,
@@ -640,8 +639,16 @@ export default class LocalParticipant extends Participant {
       try {
         dims = await track.waitForDimensions();
       } catch (e) {
+        // use defaults, it's quite painful for congestion control without simulcast
+        // so using default dims according to publish settings
+        const defaultRes =
+          this.roomOptions.videoCaptureDefaults?.resolution ?? VideoPresets.h720.resolution;
+        dims = {
+          width: defaultRes.width,
+          height: defaultRes.height,
+        };
         // log failure
-        log.error('could not determine track dimensions');
+        log.error('could not determine track dimensions, using defaults', dims);
       }
       // width and height should be defined for video
       req.width = dims.width;

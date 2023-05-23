@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "1.9.3",
+  "version": "1.9.6",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -48,7 +48,8 @@
     "format:check": "prettier --check src",
     "release": "yarn build && yarn compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2",
-    "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js"
+    "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js",
+    "size-limit": "size-limit"
   },
   "dependencies": {
     "events": "^3.3.0",
@@ -57,7 +58,6 @@
     "sdp-transform": "^2.14.1",
     "ts-debounce": "^4.0.0",
     "typed-emitter": "^2.1.0",
-    "ua-parser-js": "^1.0.2",
     "webrtc-adapter": "^8.1.1"
   },
   "devDependencies": {
@@ -70,6 +70,8 @@
     "@rollup/plugin-json": "6.0.0",
     "@rollup/plugin-node-resolve": "15.0.2",
     "@rollup/plugin-terser": "^0.4.0",
+    "@size-limit/file": "^8.2.4",
+    "@size-limit/webpack": "^8.2.4",
     "@trivago/prettier-plugin-sort-imports": "^4.1.1",
     "@types/events": "^3.0.0",
     "@types/jest": "29.5.1",
@@ -88,9 +90,9 @@
     "prettier": "^2.8.8",
     "rollup": "3.21.3",
     "rollup-plugin-delete": "^2.0.0",
-    "rollup-plugin-filesize": "10.0.0",
     "rollup-plugin-re": "1.0.7",
     "rollup-plugin-typescript2": "0.34.1",
+    "size-limit": "^8.2.4",
     "ts-jest": "29.1.0",
     "ts-proto": "1.147.1",
     "typedoc": "0.24.6",
