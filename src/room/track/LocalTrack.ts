@@ -2,13 +2,7 @@ import log from '../../logger';
 import DeviceManager from '../DeviceManager';
 import { TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import {
-  Mutex,
-  getEmptyAudioStreamTrack,
-  getEmptyVideoStreamTrack,
-  isMobile,
-  sleep,
-} from '../utils';
+import { Mutex, isMobile, sleep } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 
@@ -266,9 +260,7 @@ export default abstract class LocalTrack extends Track {
 
       this._isUpstreamPaused = true;
       this.emit(TrackEvent.UpstreamPaused, this);
-      const emptyTrack =
-        this.kind === Track.Kind.Audio ? getEmptyAudioStreamTrack() : getEmptyVideoStreamTrack();
-      await this.sender.replaceTrack(emptyTrack);
+      await this.sender.replaceTrack(null);
     } finally {
       unlock();
     }
