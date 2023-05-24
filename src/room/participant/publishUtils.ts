@@ -333,14 +333,19 @@ function encodingsFromPresets(
       }
     });
 
+    let notifyOnce = true;
     encodings.forEach((encoding) => {
-      encoding.maxFramerate = topFramerate;
+      if (encoding.maxFramerate != topFramerate) {
+        if(notifyOnce) {
+          notifyOnce = false;
+          log.info(`Simulcast on iOS React-Native requires all encodings to share the same framerate.`)
+        }
+        log.info(`Setting framerate of encoding \"${encoding.rid ?? ""}\" to ${topFramerate}`);
+        encoding.maxFramerate = topFramerate;
+      }
     });
   }
 
-  encodings.forEach((encoding) => {
-    console.log(encoding);
-  });
   return encodings;
 }
 
