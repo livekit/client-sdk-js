@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.9.7
+
+### Patch Changes
+
+- Fix browser parser check - [#714](https://github.com/livekit/client-sdk-js/pull/714) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure same framerates for iOS RN simulcast - [#710](https://github.com/livekit/client-sdk-js/pull/710) ([@davidliu](https://github.com/davidliu))
+
 ## 1.9.6
 
 ### Patch Changes
