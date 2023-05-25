@@ -266,7 +266,7 @@ export default abstract class LocalTrack extends Track {
       this._isUpstreamPaused = true;
       this.emit(TrackEvent.UpstreamPaused, this);
       const browser = getBrowser();
-      if (browser?.name === 'Safari' && compareVersions(browser?.version, '12.0') < 0) {
+      if (browser?.name === 'Safari' && compareVersions(browser.version, '12.0') < 0) {
         // https://bugs.webkit.org/show_bug.cgi?id=184911
         throw new DeviceUnsupportedError('pauseUpstream is not supported on Safari < 12.');
       }
