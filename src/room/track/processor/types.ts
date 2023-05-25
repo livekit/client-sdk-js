@@ -1,10 +1,20 @@
-export type ProcessorOptions = {
+import type { Track } from '../Track';
+
+/**
+ * @experimental
+ */
+export type ProcessorOptions<T extends Track.Kind> = {
+  kind: T;
   track: MediaStreamTrack;
   element?: HTMLMediaElement;
 };
 
-export interface TrackProcessor<T extends ProcessorOptions = ProcessorOptions> {
-  init: (opts: T) => void;
+/**
+ * @experimental
+ */
+export interface TrackProcessor<T extends Track.Kind> {
+  name: string;
+  init: (opts: ProcessorOptions<T>) => void;
   destroy: () => Promise<void>;
   processedTrack?: MediaStreamTrack;
 }

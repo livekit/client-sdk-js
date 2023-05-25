@@ -11,7 +11,7 @@ import {
 } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
-import type { ProcessorOptions, TrackProcessor } from './processor/types';
+import type { TrackProcessor } from './processor/types';
 
 const defaultDimensionsTimeout = 1000;
 
@@ -34,7 +34,7 @@ export default abstract class LocalTrack extends Track {
 
   protected processorElement?: HTMLMediaElement;
 
-  protected processor?: TrackProcessor<ProcessorOptions>;
+  protected processor?: TrackProcessor<typeof this.kind>;
 
   protected isSettingUpProcessor: boolean = false;
 
@@ -328,7 +328,7 @@ export default abstract class LocalTrack extends Track {
    * @returns
    */
   async setProcessor(
-    processor: TrackProcessor<ProcessorOptions>,
+    processor: TrackProcessor<typeof this.kind>,
     showProcessedStreamLocally = true,
   ) {
     if (this.isSettingUpProcessor) {
@@ -350,6 +350,7 @@ export default abstract class LocalTrack extends Track {
     this.processorElement.play().catch((e) => log.error(e));
 
     const processorOptions = {
+      kind: this.kind,
       track: this._mediaStreamTrack,
       element: this.processorElement,
     };
@@ -368,6 +369,10 @@ export default abstract class LocalTrack extends Track {
       console.log('processed track', this.processor.processedTrack);
     }
     this.isSettingUpProcessor = false;
+  }
+
+  getProcessor() {
+    return this.processor;
   }
 
   /**
