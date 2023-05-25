@@ -16,10 +16,7 @@ let browserDetails: BrowserDetails | undefined;
  * @internal
  */
 export function getBrowser(userAgent?: string, force = true) {
-  if (
-    userAgent === undefined &&
-    (typeof document !== 'undefined' || typeof navigator === 'undefined')
-  ) {
+  if (typeof userAgent === 'undefined' && typeof navigator === 'undefined') {
     return;
   }
   const ua = (userAgent ?? navigator.userAgent).toLowerCase();
