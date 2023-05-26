@@ -850,6 +850,16 @@ export default class LocalParticipant extends Participant {
       trackSender
     ) {
       try {
+        for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
+          // if sender is not currently sending (after replaceTrack(null))
+          // removeTrack would have no effect.
+          // to ensure we end up successfully removing the track, manually set
+          // the transceiver to inactive
+          if (transceiver.sender === trackSender) {
+            transceiver.direction = 'inactive';
+            negotiationNeeded = true;
+          }
+        }
         if (this.engine.removeTrack(trackSender)) {
           negotiationNeeded = true;
         }

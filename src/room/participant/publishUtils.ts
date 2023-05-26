@@ -10,7 +10,7 @@ import type {
   VideoCodec,
   VideoEncoding,
 } from '../track/options';
-import { isSVCCodec } from '../utils';
+import { getReactNativeOs, isReactNative, isSVCCodec } from '../utils';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
@@ -321,6 +321,33 @@ function encodingsFromPresets(
     }
     encodings.push(encoding);
   });
+
+  // RN ios simulcast requires all same framerates.
+  if (isReactNative() && getReactNativeOs() === 'ios') {
+    let topFramerate: number | undefined = undefined;
+    encodings.forEach((encoding) => {
+      if (!topFramerate) {
+        topFramerate = encoding.maxFramerate;
+      } else if (encoding.maxFramerate && encoding.maxFramerate > topFramerate) {
+        topFramerate = encoding.maxFramerate;
+      }
+    });
+
+    let notifyOnce = true;
+    encodings.forEach((encoding) => {
+      if (encoding.maxFramerate != topFramerate) {
+        if (notifyOnce) {
+          notifyOnce = false;
+          log.info(
+            `Simulcast on iOS React-Native requires all encodings to share the same framerate.`,
+          );
+        }
+        log.info(`Setting framerate of encoding \"${encoding.rid ?? ''}\" to ${topFramerate}`);
+        encoding.maxFramerate = topFramerate;
+      }
+    });
+  }
+
   return encodings;
 }
 
