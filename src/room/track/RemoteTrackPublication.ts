@@ -24,9 +24,12 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected fps?: number;
 
+  protected priority: number;
+
   constructor(kind: Track.Kind, ti: TrackInfo, autoSubscribe: boolean | undefined) {
     super(kind, ti.sid, ti.name);
     this.subscribed = autoSubscribe;
+    this.priority = 0;
     this.updateInfo(ti);
   }
 
@@ -59,6 +62,19 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.emit(TrackEvent.UpdateSubscription, sub);
     this.emitSubscriptionUpdateIfChanged(prevStatus);
     this.emitPermissionUpdateIfChanged(prevPermission);
+  }
+
+  /**
+   * In cases where downstream bandwidth is constrained, setting a priority on a RemoteTrackPublication allows to (de-)prioritize specific tracks
+   * @param priority
+   */
+  setSubscriptionPriority(priority: number) {
+    this.priority = priority;
+    this.emitTrackUpdate();
+  }
+
+  get subscriptionPriority() {
+    return this.priority;
   }
 
   get subscriptionStatus(): TrackPublication.SubscriptionStatus {
@@ -283,6 +299,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       trackSids: [this.trackSid],
       disabled: this.disabled,
       fps: this.fps,
+      priority: this.priority,
     });
     if (this.videoDimensions) {
       settings.width = this.videoDimensions.width;
