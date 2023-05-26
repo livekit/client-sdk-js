@@ -364,9 +364,7 @@ export default abstract class LocalTrack extends Track {
           attachToElement(this.processor.processedTrack, el);
         }
       }
-
       await this.sender?.replaceTrack(this.processor.processedTrack);
-      console.log('processed track', this.processor.processedTrack);
     }
     this.isSettingUpProcessor = false;
   }
