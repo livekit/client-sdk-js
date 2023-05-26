@@ -834,16 +834,6 @@ export default class LocalParticipant extends Participant {
     track.off(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
     track.off(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
-    const trackSender = track.sender;
-    track.sender = undefined;
-
-    // when pauseUpstream is used, the transceiver is stopped locally and will
-    // not be correctly removed, so we must mitigate it and replace it back to
-    // the original track, while keeping publisherMute to true
-    if (track.isUpstreamPaused && track.mediaStreamTrack && trackSender) {
-      await trackSender.replaceTrack(track.mediaStreamTrack);
-    }
-
     if (stopOnUnpublish === undefined) {
       stopOnUnpublish = this.roomOptions?.stopLocalTrackOnUnpublish ?? true;
     }
@@ -852,12 +842,24 @@ export default class LocalParticipant extends Participant {
     }
 
     let negotiationNeeded = false;
+    const trackSender = track.sender;
+    track.sender = undefined;
     if (
       this.engine.publisher &&
       this.engine.publisher.pc.connectionState !== 'closed' &&
       trackSender
     ) {
       try {
+        for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
+          // if sender is not currently sending (after replaceTrack(null))
+          // removeTrack would have no effect.
+          // to ensure we end up successfully removing the track, manually set
+          // the transceiver to inactive
+          if (transceiver.sender === trackSender) {
+            transceiver.direction = 'inactive';
+            negotiationNeeded = true;
+          }
+        }
         if (this.engine.removeTrack(trackSender)) {
           negotiationNeeded = true;
         }
