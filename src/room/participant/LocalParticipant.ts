@@ -834,6 +834,13 @@ export default class LocalParticipant extends Participant {
     track.off(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
     track.off(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
+    // when pauseUpstream is used, the transceiver is stopped locally and will
+    // not be correctly removed, so we must mitigate it and replace it back to
+    // the original track, while keeping publisherMute to true
+    if (track.isUpstreamPaused && track.mediaStreamTrack) {
+      await track.replaceTrack(track.mediaStreamTrack);
+    }
+
     if (stopOnUnpublish === undefined) {
       stopOnUnpublish = this.roomOptions?.stopLocalTrackOnUnpublish ?? true;
     }
