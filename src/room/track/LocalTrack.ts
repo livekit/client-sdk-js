@@ -90,7 +90,7 @@ export default abstract class LocalTrack extends Track {
   }
 
   get mediaStreamTrack() {
-    return this.processor?.processedTrack || this._mediaStreamTrack;
+    return this.processor?.processedTrack ?? this._mediaStreamTrack;
   }
 
   async waitForDimensions(timeout = defaultDimensionsTimeout): Promise<Track.Dimensions> {
