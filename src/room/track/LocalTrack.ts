@@ -248,10 +248,12 @@ export default abstract class LocalTrack extends Track {
     this.emit(TrackEvent.Ended, this);
   };
 
-  // pauses publishing to the server without disabling the local MediaStreamTrack
-  // this is used to display a user's own video locally while pausing publishing to
-  // the server.
-  // this API is unsupported on Safari < 12 due to a bug
+  /**
+   * pauses publishing to the server without disabling the local MediaStreamTrack
+   * this is used to display a user's own video locally while pausing publishing to
+   * the server.
+   * this API is unsupported on Safari < 12 due to a bug
+   **/
   async pauseUpstream() {
     const unlock = await this.pauseUpstreamLock.lock();
     try {
