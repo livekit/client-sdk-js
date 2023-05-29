@@ -356,7 +356,7 @@ async function setPublishingLayersForSender(
       // svc dynacast encodings
       const encoding = encodings[0];
       /* @ts-ignore */
-      const mode = new ScalabilityMode(encoding.scalabilityMode);
+      // const mode = new ScalabilityMode(encoding.scalabilityMode);
       let maxQuality = VideoQuality.OFF;
       qualities.forEach((q) => {
         if (q.enabled && (maxQuality === VideoQuality.OFF || q.quality > maxQuality)) {
