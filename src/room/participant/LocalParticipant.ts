@@ -625,8 +625,8 @@ export default class LocalParticipant extends Participant {
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
         if (isSVCCodec(opts.videoCodec)) {
-          // set scalabilityMode to 'L3T3' by default
-          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
+          // set scalabilityMode to 'L3T3_KEY' by default
+          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
         }
 
         // set up backup
@@ -656,7 +656,7 @@ export default class LocalParticipant extends Participant {
         dims.height,
         opts,
       );
-      req.layers = videoLayersFromEncodings(req.width, req.height, simEncodings ?? encodings);
+      req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
     } else if (track.kind === Track.Kind.Audio) {
       encodings = [
         {
