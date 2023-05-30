@@ -6,6 +6,7 @@ import {
   ParticipantInfo,
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
+  SubscriptionError,
 } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
@@ -265,7 +266,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 export type ParticipantEventCallbacks = {
   trackPublished: (publication: RemoteTrackPublication) => void;
   trackSubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
-  trackSubscriptionFailed: (trackSid: string) => void;
+  trackSubscriptionFailed: (trackSid: string, reason?: SubscriptionError) => void;
   trackUnpublished: (publication: RemoteTrackPublication) => void;
   trackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
   trackMuted: (publication: TrackPublication) => void;

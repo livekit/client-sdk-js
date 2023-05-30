@@ -22,6 +22,7 @@ import {
   StreamStateUpdate,
   SubscribedQualityUpdate,
   SubscriptionPermissionUpdate,
+  SubscriptionResponse,
   SyncState,
   TrackPermission,
   TrackPublishedResponse,
@@ -126,6 +127,8 @@ export class SignalClient {
   onSubscribedQualityUpdate?: (update: SubscribedQualityUpdate) => void;
 
   onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
+
+  onSubscriptionError?: (update: SubscriptionResponse) => void;
 
   onLocalTrackUnpublished?: (res: TrackUnpublishedResponse) => void;
 
@@ -592,6 +595,10 @@ export class SignalClient {
     } else if (msg.$case === 'trackUnpublished') {
       if (this.onLocalTrackUnpublished) {
         this.onLocalTrackUnpublished(msg.trackUnpublished);
+      }
+    } else if (msg.$case === 'subscriptionResponse') {
+      if (this.onSubscriptionError) {
+        this.onSubscriptionError(msg.subscriptionResponse);
       }
     } else if (msg.$case === 'pong') {
       this.resetPingTimeout();

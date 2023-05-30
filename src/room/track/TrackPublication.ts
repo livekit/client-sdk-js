@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import log from '../../logger';
-import type { TrackInfo } from '../../proto/livekit_models';
+import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
@@ -146,4 +146,5 @@ export type PublicationEventCallbacks = {
     status: TrackPublication.SubscriptionStatus,
     prevStatus: TrackPublication.SubscriptionStatus,
   ) => void;
+  subscriptionFailed: (error: SubscriptionError) => void;
 };
