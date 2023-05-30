@@ -128,17 +128,15 @@ export function computeVideoEncodings(
     // svc use first encoding as the original, so we sort encoding from high to low
     switch (scalabilityMode) {
       case 'L3T3':
-        for (let i = 0; i < 3; i += 1) {
-          encodings.push({
-            rid: videoRids[2 - i],
-            scaleResolutionDownBy: 2 ** i,
-            maxBitrate: videoEncoding.maxBitrate / 3 ** i,
-            /* @ts-ignore */
-            maxFramerate: original.encoding.maxFramerate,
-            /* @ts-ignore */
-            scalabilityMode: 'L3T3',
-          });
-        }
+      case 'L3T3_KEY':
+        encodings.push({
+          rid: videoRids[2],
+          maxBitrate: videoEncoding.maxBitrate,
+          /* @ts-ignore */
+          maxFramerate: original.encoding.maxFramerate,
+          /* @ts-ignore */
+          scalabilityMode: scalabilityMode,
+        });
         log.debug('encodings', encodings);
         return encodings;
 
@@ -367,4 +365,35 @@ export function sortPresets(presets: Array<VideoPreset> | undefined) {
     }
     return 0;
   });
+}
+
+/** @internal */
+export class ScalabilityMode {
+  spatial: number;
+
+  temporal: number;
+
+  suffix: undefined | 'h' | '_KEY' | '_KEY_SHIFT';
+
+  constructor(scalabilityMode: string) {
+    const results = scalabilityMode.match(/^L(\d)T(\d)(h|_KEY|_KEY_SHIFT){0,1}$/);
+    if (!results) {
+      throw new Error('invalid scalability mode');
+    }
+
+    this.spatial = parseInt(results[1]);
+    this.temporal = parseInt(results[2]);
+    if (results.length > 3) {
+      switch (results[3]) {
+        case 'h':
+        case '_KEY':
+        case '_KEY_SHIFT':
+          this.suffix = results[3];
+      }
+    }
+  }
+
+  toString(): string {
+    return `L${this.spatial}T${this.temporal}${this.suffix ?? ''}`;
+  }
 }
