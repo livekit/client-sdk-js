@@ -431,6 +431,7 @@ export function reconnectReasonToJSON(object: ReconnectReason): string {
 export enum SubscriptionError {
   SE_UNKOWN = 0,
   SE_CODEC_UNSUPPORTED = 1,
+  SE_TRACK_NOTFOUND = 2,
   UNRECOGNIZED = -1,
 }
 
@@ -442,6 +443,9 @@ export function subscriptionErrorFromJSON(object: any): SubscriptionError {
     case 1:
     case "SE_CODEC_UNSUPPORTED":
       return SubscriptionError.SE_CODEC_UNSUPPORTED;
+    case 2:
+    case "SE_TRACK_NOTFOUND":
+      return SubscriptionError.SE_TRACK_NOTFOUND;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -455,6 +459,8 @@ export function subscriptionErrorToJSON(object: SubscriptionError): string {
       return "SE_UNKOWN";
     case SubscriptionError.SE_CODEC_UNSUPPORTED:
       return "SE_CODEC_UNSUPPORTED";
+    case SubscriptionError.SE_TRACK_NOTFOUND:
+      return "SE_TRACK_NOTFOUND";
     case SubscriptionError.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
