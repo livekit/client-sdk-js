@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
-import { SignalClient } from '../api/SignalClient';
 import type { SignalOptions } from '../api/SignalClient';
+import { SignalClient } from '../api/SignalClient';
 import log from '../logger';
 import type { InternalRoomOptions } from '../options';
 import {
@@ -447,6 +447,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onLeave = (leave?: LeaveRequest) => {
+      if (this._isClosed) {
+        return;
+      }
       if (leave?.canReconnect) {
         this.fullReconnectOnNext = true;
         this.primaryPC = undefined;
