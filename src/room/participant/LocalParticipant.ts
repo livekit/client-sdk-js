@@ -648,7 +648,7 @@ export default class LocalParticipant extends Participant {
             },
           ];
         } else if (opts.videoCodec) {
-          // pass codec info to sfu so it can prefer codec for the client which doesn't support
+          // pass codec info to sfu so it can prefer codec for the client which don't support
           // setCodecPreferences
           req.simulcastCodecs = [
             {
