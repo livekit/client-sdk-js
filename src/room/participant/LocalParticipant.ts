@@ -647,6 +647,16 @@ export default class LocalParticipant extends Participant {
               enableSimulcastLayers: true,
             },
           ];
+        } else if (opts.videoCodec) {
+          // pass codec info to sfu so it can prefer codec for the client which doesn't support
+          // setCodecPreferences
+          req.simulcastCodecs = [
+            {
+              codec: opts.videoCodec,
+              cid: track.mediaStreamTrack.id,
+              enableSimulcastLayers: opts.simulcast ?? false,
+            },
+          ];
         }
       }
 
