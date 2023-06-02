@@ -1,6 +1,6 @@
 import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
-import type { ParticipantInfo } from '../../proto/livekit_models';
+import type { ParticipantInfo, SubscriptionError } from '../../proto/livekit_models';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
@@ -80,6 +80,9 @@ export default class RemoteParticipant extends Participant {
     });
     publication.on(TrackEvent.Unsubscribed, (previousTrack: RemoteTrack) => {
       this.emit(ParticipantEvent.TrackUnsubscribed, previousTrack, publication);
+    });
+    publication.on(TrackEvent.SubscriptionFailed, (error: SubscriptionError) => {
+      this.emit(ParticipantEvent.TrackSubscriptionFailed, publication.trackSid, error);
     });
   }
 
