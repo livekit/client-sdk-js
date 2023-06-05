@@ -1,5 +1,23 @@
 # Change Log
 
+## 1.10.0
+
+### Minor Changes
+
+- Add track processor API - [#711](https://github.com/livekit/client-sdk-js/pull/711) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Use replaceTrack(null) for pauseUpstream - [#716](https://github.com/livekit/client-sdk-js/pull/716) ([@davidzhao](https://github.com/davidzhao))
+
+- Always add codec info to AddTrackRequest - [#728](https://github.com/livekit/client-sdk-js/pull/728) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Surface subscription error via TrackEvent.SubscriptionFailed when trying to subsribe to an unsupported codec - [#722](https://github.com/livekit/client-sdk-js/pull/722) ([@lukasIO](https://github.com/lukasIO))
+
+- Reject signal connection promise immediately when aborted - [#719](https://github.com/livekit/client-sdk-js/pull/719) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix svc mode for chrome v113 - [#720](https://github.com/livekit/client-sdk-js/pull/720) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 1.9.7
 
 ### Patch Changes
