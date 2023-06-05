@@ -41,7 +41,7 @@ export default {
     typescript({ tsconfig: './tsconfig.json' }),
     babel({
       babelHelpers: 'bundled',
-      plugins: ['@babel/plugin-proposal-object-rest-spread'],
+      plugins: ['@babel/plugin-transform-object-rest-spread'],
       presets: ['@babel/preset-env'],
       extensions: ['.js', '.ts', '.mjs'],
     }),
