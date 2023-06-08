@@ -63,7 +63,8 @@ export interface TrackPublishDefaults {
   scalabilityMode?: ScalabilityMode;
 
   /**
-   * Up to two additional simulcast layers to publish in addition to the captured stream.
+   * Up to two additional simulcast layers to publish in addition to the original
+   * Track.
    * When left blank, it defaults to h180, h360.
    * If a SVC codec is used (VP9 or AV1), this field has no effect.
    *
