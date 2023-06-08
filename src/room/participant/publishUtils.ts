@@ -138,8 +138,8 @@ export function computeVideoEncodings(
         /* @ts-ignore */
         maxFramerate: original.encoding.maxFramerate,
         /* @ts-ignore */
-        // scalabilityMode: scalabilityMode, 
-      })
+        // scalabilityMode: scalabilityMode,
+      });
     }
     /* @ts-ignore */
     encodings[0].scalabilityMode = scalabilityMode;

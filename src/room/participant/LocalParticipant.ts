@@ -666,7 +666,12 @@ export default class LocalParticipant extends Participant {
         dims.height,
         opts,
       );
-      req.layers = videoLayersFromEncodings(req.width, req.height, encodings, isSVCCodec(opts.videoCodec));
+      req.layers = videoLayersFromEncodings(
+        req.width,
+        req.height,
+        encodings,
+        isSVCCodec(opts.videoCodec),
+      );
     } else if (track.kind === Track.Kind.Audio) {
       encodings = [
         {
