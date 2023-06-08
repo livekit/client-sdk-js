@@ -351,8 +351,9 @@ async function setPublishingLayersForSender(
 
     let hasChanged = false;
 
+    const closableSpatial = false;
     /* @ts-ignore */
-    if (encodings.length === 1 && encodings[0].scalabilityMode) {
+    if (closableSpatial && encodings[0].scalabilityMode) {
       // svc dynacast encodings
       const encoding = encodings[0];
       /* @ts-ignore */
@@ -456,6 +457,7 @@ export function videoLayersFromEncodings(
   width: number,
   height: number,
   encodings?: RTCRtpEncodingParameters[],
+  svc?: boolean,
 ): VideoLayer[] {
   // default to a single layer, HQ
   if (!encodings) {
@@ -470,8 +472,7 @@ export function videoLayersFromEncodings(
     ];
   }
 
-  /* @ts-ignore */
-  if (encodings.length === 1 && encodings[0].scalabilityMode) {
+  if (svc) {
     // svc layers
     /* @ts-ignore */
     const sm = new ScalabilityMode(encodings[0].scalabilityMode);
