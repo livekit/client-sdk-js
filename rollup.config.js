@@ -1,14 +1,12 @@
 // @ts-check
-import typescript from 'rollup-plugin-typescript2';
-import commonjs from '@rollup/plugin-commonjs';
-import { nodeResolve } from '@rollup/plugin-node-resolve';
 import { babel } from '@rollup/plugin-babel';
+import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
+import { nodeResolve } from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
-import replace from 'rollup-plugin-re';
-import filesize from 'rollup-plugin-filesize';
 import del from 'rollup-plugin-delete';
-
+import replace from 'rollup-plugin-re';
+import typescript from 'rollup-plugin-typescript2';
 import packageJson from './package.json';
 
 function kebabCaseToPascalCase(string = '') {
@@ -38,12 +36,12 @@ export default {
   plugins: [
     del({ targets: 'dist/*' }),
     nodeResolve({ browser: true, preferBuiltins: false }),
-    typescript({ tsconfig: './tsconfig.json' }),
-    commonjs(),
     json(),
+    commonjs(),
+    typescript({ tsconfig: './tsconfig.json' }),
     babel({
       babelHelpers: 'bundled',
-      plugins: ['@babel/plugin-proposal-object-rest-spread'],
+      plugins: ['@babel/plugin-transform-object-rest-spread'],
       presets: ['@babel/preset-env'],
       extensions: ['.js', '.ts', '.mjs'],
     }),
@@ -59,6 +57,5 @@ export default {
         },
       ],
     }),
-    filesize(),
   ],
 };

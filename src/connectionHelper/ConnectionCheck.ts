@@ -1,5 +1,6 @@
 import EventEmitter from 'eventemitter3';
-import { CheckInfo, CheckStatus, Checker, InstantiableCheck } from './checks/Checker';
+import { CheckStatus, Checker } from './checks/Checker';
+import type { CheckInfo, InstantiableCheck } from './checks/Checker';
 import { PublishAudioCheck } from './checks/publishAudio';
 import { PublishVideoCheck } from './checks/publishVideo';
 import { ReconnectCheck } from './checks/reconnect';

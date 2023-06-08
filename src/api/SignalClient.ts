@@ -1,5 +1,3 @@
-import Queue from 'async-await-queue';
-import 'webrtc-adapter';
 import log from '../logger';
 import {
   ClientInfo,
@@ -24,6 +22,7 @@ import {
   StreamStateUpdate,
   SubscribedQualityUpdate,
   SubscriptionPermissionUpdate,
+  SubscriptionResponse,
   SyncState,
   TrackPermission,
   TrackPublishedResponse,
@@ -34,6 +33,7 @@ import {
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import { Mutex, getClientInfo, isReactNative, sleep } from '../room/utils';
+import { AsyncQueue } from '../utils/AsyncQueue';
 
 // internal options
 interface ConnectOpts {
@@ -76,7 +76,7 @@ const passThroughQueueSignals: Array<SignalKind> = [
 ];
 
 function canPassThroughQueue(req: SignalMessage): boolean {
-  const canPass = passThroughQueueSignals.includes(req!.$case);
+  const canPass = passThroughQueueSignals.indexOf(req!.$case) >= 0;
   log.trace('request allowed to bypass queue:', { canPass, req });
   return canPass;
 }
@@ -87,7 +87,7 @@ export class SignalClient {
 
   isReconnecting: boolean;
 
-  requestQueue: Queue;
+  requestQueue: AsyncQueue;
 
   queuedRequests: Array<() => Promise<void>>;
 
@@ -128,6 +128,8 @@ export class SignalClient {
 
   onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
 
+  onSubscriptionError?: (update: SubscriptionResponse) => void;
+
   onLocalTrackUnpublished?: (res: TrackUnpublishedResponse) => void;
 
   onTokenRefresh?: (token: string) => void;
@@ -154,7 +156,7 @@ export class SignalClient {
     this.isConnected = false;
     this.isReconnecting = false;
     this.useJSON = useJSON;
-    this.requestQueue = new Queue();
+    this.requestQueue = new AsyncQueue();
     this.queuedRequests = [];
     this.closingLock = new Mutex();
   }
@@ -215,7 +217,7 @@ export class SignalClient {
 
     return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
       const abortHandler = async () => {
-        await this.close();
+        this.close();
         reject(new ConnectionError('room connection has been cancelled (signal)'));
       };
 
@@ -321,14 +323,8 @@ export class SignalClient {
       };
 
       this.ws.onclose = (ev: CloseEvent) => {
-        if (!this.isConnected) return;
-
-        log.debug(`websocket connection closed: ${ev.reason}`);
-        this.isConnected = false;
-        if (this.onClose) {
-          this.onClose(ev.reason);
-        }
-        this.ws = undefined;
+        log.warn(`websocket closed`, { ev });
+        this.handleOnClose(ev.reason);
       };
     });
   }
@@ -351,12 +347,14 @@ export class SignalClient {
           }
         });
 
-        this.ws.close();
-        // 250ms grace period for ws to close gracefully
-        await Promise.race([closePromise, sleep(250)]);
+        if (this.ws.readyState < this.ws.CLOSING) {
+          this.ws.close();
+          // 250ms grace period for ws to close gracefully
+          await Promise.race([closePromise, sleep(250)]);
+        }
+        this.ws = undefined;
+        this.clearPingInterval();
       }
-      this.ws = undefined;
-      this.clearPingInterval();
     } finally {
       unlock();
     }
@@ -598,6 +596,10 @@ export class SignalClient {
       if (this.onLocalTrackUnpublished) {
         this.onLocalTrackUnpublished(msg.trackUnpublished);
       }
+    } else if (msg.$case === 'subscriptionResponse') {
+      if (this.onSubscriptionError) {
+        this.onSubscriptionError(msg.subscriptionResponse);
+      }
     } else if (msg.$case === 'pong') {
       this.resetPingTimeout();
     } else if (msg.$case === 'pongResp') {
@@ -616,6 +618,15 @@ export class SignalClient {
       }
     }
     this.isReconnecting = false;
+  }
+
+  private async handleOnClose(reason: string) {
+    if (!this.isConnected) return;
+    await this.close();
+    log.debug(`websocket connection closed: ${reason}`);
+    if (this.onClose) {
+      this.onClose(reason);
+    }
   }
 
   private handleWSError(ev: Event) {
@@ -638,9 +649,7 @@ export class SignalClient {
           Date.now() - this.pingTimeoutDuration! * 1000,
         ).toUTCString()}`,
       );
-      if (this.onClose) {
-        this.onClose('ping timeout');
-      }
+      this.handleOnClose('ping timeout');
     }, this.pingTimeoutDuration * 1000);
   }
 

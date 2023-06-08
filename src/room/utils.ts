@@ -1,5 +1,6 @@
-import UAParser from 'ua-parser-js';
 import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models';
+import { getBrowser } from '../utils/browserParser';
+import type { DetectableBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
@@ -41,7 +42,10 @@ export function supportsDynacast() {
 }
 
 export function supportsAV1(): boolean {
-  const capabilities = RTCRtpReceiver.getCapabilities('video');
+  if (!('getCapabilities' in RTCRtpSender)) {
+    return false;
+  }
+  const capabilities = RTCRtpSender.getCapabilities('video');
   let hasAV1 = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
@@ -55,7 +59,12 @@ export function supportsAV1(): boolean {
 }
 
 export function supportsVP9(): boolean {
-  const capabilities = RTCRtpReceiver.getCapabilities('video');
+  if (!('getCapabilities' in RTCRtpSender)) {
+    // technically speaking FireFox supports VP9, but SVC publishing is broken
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
+    return false;
+  }
+  const capabilities = RTCRtpSender.getCapabilities('video');
   let hasVP9 = false;
   if (capabilities) {
     for (const codec of capabilities.codecs) {
@@ -82,13 +91,10 @@ export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   return 'setSinkId' in elm;
 }
 
-const setCodecPreferencesVersions: { [key: string]: string } = {
+const setCodecPreferencesVersions: Record<DetectableBrowser, string> = {
   Chrome: '100',
-  Chromium: '100',
   Safari: '15',
   Firefox: '100',
-  Edge: '100',
-  Brave: '1.40',
 };
 
 export function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boolean {
@@ -98,14 +104,14 @@ export function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boo
   if (!('setCodecPreferences' in transceiver)) {
     return false;
   }
-  const uap = UAParser();
-  if (!uap.browser.name || !uap.browser.version) {
+  const browser = getBrowser();
+  if (!browser?.name || !browser.version) {
     // version is required
     return false;
   }
-  const v = setCodecPreferencesVersions[uap.browser.name];
+  const v = setCodecPreferencesVersions[browser.name];
   if (v) {
-    return compareVersions(uap.browser.version, v) >= 0;
+    return compareVersions(browser.version, v) >= 0;
   }
   return false;
 }
@@ -115,13 +121,15 @@ export function isBrowserSupported() {
 }
 
 export function isFireFox(): boolean {
-  if (!isWeb()) return false;
-  return navigator.userAgent.indexOf('Firefox') !== -1;
+  return getBrowser()?.name === 'Firefox';
+}
+
+export function isChromiumBased(): boolean {
+  return getBrowser()?.name === 'Chrome';
 }
 
 export function isSafari(): boolean {
-  if (!isWeb()) return false;
-  return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  return getBrowser()?.name === 'Safari';
 }
 
 export function isMobile(): boolean {
@@ -184,12 +192,18 @@ export function getDevicePixelRatio(): number {
 export function compareVersions(v1: string, v2: string): number {
   const parts1 = v1.split('.');
   const parts2 = v2.split('.');
-  const k = Math.min(v1.length, v2.length);
+  const k = Math.min(parts1.length, parts2.length);
   for (let i = 0; i < k; ++i) {
     const p1 = parseInt(parts1[i], 10);
     const p2 = parseInt(parts2[i], 10);
     if (p1 > p2) return 1;
     if (p1 < p2) return -1;
+    if (i === k - 1 && p1 === p2) return 0;
+  }
+  if (v1 === '' && v2 !== '') {
+    return -1;
+  } else if (v2 === '') {
+    return 1;
   }
   return parts1.length == parts2.length ? 0 : parts1.length < parts2.length ? -1 : 1;
 }
@@ -214,11 +228,12 @@ export const getResizeObserver = () => {
 
 let intersectionObserver: IntersectionObserver | null = null;
 export const getIntersectionObserver = () => {
-  if (!intersectionObserver)
+  if (!intersectionObserver) {
     intersectionObserver = new IntersectionObserver(ioDispatchCallback, {
-      root: document,
+      root: null,
       rootMargin: '0px',
     });
+  }
   return intersectionObserver;
 };
 

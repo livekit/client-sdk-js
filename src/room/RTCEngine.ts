@@ -1,5 +1,6 @@
 import EventEmitter from 'eventemitter3';
-import { SignalClient, SignalOptions } from '../api/SignalClient';
+import { SignalClient } from '../api/SignalClient';
+import type { SignalOptions } from '../api/SignalClient';
 import log from '../logger';
 import type { InternalRoomOptions } from '../options';
 import {
@@ -75,6 +76,11 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
   peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
 
   fullReconnectOnNext: boolean = false;
+
+  /**
+   * @internal
+   */
+  latestJoinResponse?: JoinResponse;
 
   get isClosed() {
     return this._isClosed;
@@ -170,6 +176,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       this.joinAttempts += 1;
       const joinResponse = await this.client.join(url, token, opts, abortSignal);
       this._isClosed = false;
+      this.latestJoinResponse = joinResponse;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (!this.publisher) {
@@ -306,8 +313,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     this.participantSid = joinResponse.participant?.sid;
 
     const rtcConfig = this.makeRTCConfiguration(joinResponse);
-
-    this.publisher = new PCTransport(rtcConfig);
+    const googConstraints = { optional: [{ googDscp: true }] };
+    this.publisher = new PCTransport(rtcConfig, googConstraints);
     this.subscriber = new PCTransport(rtcConfig);
 
     this.emit(EngineEvent.TransportsCreated, this.publisher, this.subscriber);
@@ -820,7 +827,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
           }ms. giving up`,
         );
         this.emit(EngineEvent.Disconnected);
-        this.close();
+        await this.close();
       }
     } finally {
       this.attemptingReconnect = false;
@@ -1118,6 +1125,39 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
 
   private async ensurePublisherConnected(kind: DataPacket_Kind) {
     await this.ensureDataTransportConnected(kind, false);
+  }
+
+  /* @internal */
+  verifyTransport(): boolean {
+    // primary connection
+    if (!this.primaryPC) {
+      return false;
+    }
+    if (
+      this.primaryPC.connectionState === 'closed' ||
+      this.primaryPC.connectionState === 'failed'
+    ) {
+      return false;
+    }
+
+    // also verify publisher connection if it's needed or different
+    if (this.hasPublished && this.subscriberPrimary) {
+      if (!this.publisher) {
+        return false;
+      }
+      if (
+        this.publisher.pc.connectionState === 'closed' ||
+        this.publisher.pc.connectionState === 'failed'
+      ) {
+        return false;
+      }
+    }
+
+    // ensure signal is connected
+    if (!this.client.ws || this.client.ws.readyState === WebSocket.CLOSED) {
+      return false;
+    }
+    return true;
   }
 
   /** @internal */

@@ -1,7 +1,7 @@
 import type EventEmitter from 'eventemitter3';
 import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
-import type { ParticipantInfo } from '../../proto/livekit_models';
+import type { ParticipantInfo, SubscriptionError } from '../../proto/livekit_models';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';
@@ -12,7 +12,8 @@ import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
 import type { AudioOutputOptions } from '../track/options';
 import type { AdaptiveStreamSettings } from '../track/types';
-import Participant, { ParticipantEventCallbacks } from './Participant';
+import Participant from './Participant';
+import type { ParticipantEventCallbacks } from './Participant';
 
 export default class RemoteParticipant extends Participant {
   audioTracks: Map<string, RemoteTrackPublication>;
@@ -80,6 +81,9 @@ export default class RemoteParticipant extends Participant {
     });
     publication.on(TrackEvent.Unsubscribed, (previousTrack: RemoteTrack) => {
       this.emit(ParticipantEvent.TrackUnsubscribed, previousTrack, publication);
+    });
+    publication.on(TrackEvent.SubscriptionFailed, (error: SubscriptionError) => {
+      this.emit(ParticipantEvent.TrackSubscriptionFailed, publication.trackSid, error);
     });
   }
 
@@ -290,6 +294,14 @@ export default class RemoteParticipant extends Participant {
       return;
     }
 
+    // also send unsubscribe, if track is actively subscribed
+    const { track } = publication;
+    if (track) {
+      track.stop();
+      publication.setTrack(undefined);
+    }
+
+    // remove track from maps only after unsubscribed has been fired
     this.tracks.delete(sid);
 
     // remove from the right type map
@@ -304,12 +316,6 @@ export default class RemoteParticipant extends Participant {
         break;
     }
 
-    // also send unsubscribe, if track is actively subscribed
-    const { track } = publication;
-    if (track) {
-      track.stop();
-      publication.setTrack(undefined);
-    }
     if (sendUnpublish) {
       this.emit(ParticipantEvent.TrackUnpublished, publication);
     }

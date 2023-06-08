@@ -1,5 +1,5 @@
 import log from '../../logger';
-import { TrackInfo, VideoQuality } from '../../proto/livekit_models';
+import { SubscriptionError, TrackInfo, VideoQuality } from '../../proto/livekit_models';
 import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import type RemoteTrack from './RemoteTrack';
@@ -23,6 +23,8 @@ export default class RemoteTrackPublication extends TrackPublication {
   protected videoDimensions?: Track.Dimensions;
 
   protected fps?: number;
+
+  protected subscriptionError?: SubscriptionError;
 
   constructor(kind: Track.Kind, ti: TrackInfo, autoSubscribe: boolean | undefined) {
     super(kind, ti.sid, ti.name);
@@ -203,6 +205,11 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.allowed = allowed;
     this.emitPermissionUpdateIfChanged(prevPermission);
     this.emitSubscriptionUpdateIfChanged(prevStatus);
+  }
+
+  /** @internal */
+  setSubscriptionError(error: SubscriptionError) {
+    this.emit(TrackEvent.SubscriptionFailed, error);
   }
 
   /** @internal */

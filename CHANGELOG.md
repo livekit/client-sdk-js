@@ -1,5 +1,81 @@
 # Change Log
 
+## 1.10.0
+
+### Minor Changes
+
+- Add track processor API - [#711](https://github.com/livekit/client-sdk-js/pull/711) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Use replaceTrack(null) for pauseUpstream - [#716](https://github.com/livekit/client-sdk-js/pull/716) ([@davidzhao](https://github.com/davidzhao))
+
+- Always add codec info to AddTrackRequest - [#728](https://github.com/livekit/client-sdk-js/pull/728) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Surface subscription error via TrackEvent.SubscriptionFailed when trying to subsribe to an unsupported codec - [#722](https://github.com/livekit/client-sdk-js/pull/722) ([@lukasIO](https://github.com/lukasIO))
+
+- Reject signal connection promise immediately when aborted - [#719](https://github.com/livekit/client-sdk-js/pull/719) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix svc mode for chrome v113 - [#720](https://github.com/livekit/client-sdk-js/pull/720) ([@cnderrauber](https://github.com/cnderrauber))
+
+## 1.9.7
+
+### Patch Changes
+
+- Fix browser parser check - [#714](https://github.com/livekit/client-sdk-js/pull/714) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure same framerates for iOS RN simulcast - [#710](https://github.com/livekit/client-sdk-js/pull/710) ([@davidliu](https://github.com/davidliu))
+
+## 1.9.6
+
+### Patch Changes
+
+- Make sure `TrackUnsubscribed` events are emitted before the publication gets deleted from maps - [#708](https://github.com/livekit/client-sdk-js/pull/708) ([@lukasIO](https://github.com/lukasIO))
+
+- Use body instead of document as intersection observer root - [#703](https://github.com/livekit/client-sdk-js/pull/703) ([@lukasIO](https://github.com/lukasIO))
+
+- Use default video dimensions when they are not available - [#709](https://github.com/livekit/client-sdk-js/pull/709) ([@davidzhao](https://github.com/davidzhao))
+
+## 1.9.5
+
+### Patch Changes
+
+- Remove ua-parser-js dependency and fix browser version comparison - [#697](https://github.com/livekit/client-sdk-js/pull/697) ([@lukasIO](https://github.com/lukasIO))
+
+- Use STATE_MISMATCH disconnect reason in connection reconciliation - [#705](https://github.com/livekit/client-sdk-js/pull/705) ([@lukasIO](https://github.com/lukasIO))
+
+- Make sure engine gets closed when connection reconciliation triggers - [#702](https://github.com/livekit/client-sdk-js/pull/702) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.9.4
+
+### Patch Changes
+
+- Replace async-await-queue with mutex based queue - [`2b09b7c`](https://github.com/livekit/client-sdk-js/commit/2b09b7cd45f5dad132363c0f79b375fa0e71ee48) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.9.3
+
+### Patch Changes
+
+- Update devDependencies (non-major) - [#678](https://github.com/livekit/client-sdk-js/pull/678) ([@renovate](https://github.com/apps/renovate))
+
+- Consolidate ws close action - [#685](https://github.com/livekit/client-sdk-js/pull/685) ([@lukasIO](https://github.com/lukasIO))
+
+- Add support for local priority in presets - [#677](https://github.com/livekit/client-sdk-js/pull/677) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix supportsAV1 and supportsVP9 helper functions on Firefox - [#689](https://github.com/livekit/client-sdk-js/pull/689) ([@davidzhao](https://github.com/davidzhao))
+
+- Change TS target to es2015 - [#687](https://github.com/livekit/client-sdk-js/pull/687) ([@lukasIO](https://github.com/lukasIO))
+
+- Keep reference to latest joinResponse on engine - [#691](https://github.com/livekit/client-sdk-js/pull/691) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.9.2
+
+### Patch Changes
+
+- Ensure engine is always set to undefined when closing - [#682](https://github.com/livekit/client-sdk-js/pull/682) ([@lukasIO](https://github.com/lukasIO))
+
+- Handle connection state mismatch with periodic reconciliation - [#680](https://github.com/livekit/client-sdk-js/pull/680) ([@davidzhao](https://github.com/davidzhao))
+
 ## 1.9.1
 
 ### Patch Changes

@@ -1,18 +1,14 @@
 import log from '../../logger';
+import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
-import { TrackInvalidError } from '../errors';
+import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import {
-  Mutex,
-  getEmptyAudioStreamTrack,
-  getEmptyVideoStreamTrack,
-  isMobile,
-  sleep,
-} from '../utils';
+import { Mutex, compareVersions, isMobile, sleep } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
+import type { TrackProcessor } from './processor/types';
 
-const defaultDimensionsTimeout = 2 * 1000;
+const defaultDimensionsTimeout = 1000;
 
 export default abstract class LocalTrack extends Track {
   /** @internal */
@@ -30,6 +26,12 @@ export default abstract class LocalTrack extends Track {
   protected muteLock: Mutex;
 
   protected pauseUpstreamLock: Mutex;
+
+  protected processorElement?: HTMLMediaElement;
+
+  protected processor?: TrackProcessor<typeof this.kind>;
+
+  protected isSettingUpProcessor: boolean = false;
 
   /**
    *
@@ -80,6 +82,10 @@ export default abstract class LocalTrack extends Track {
 
   get isUserProvided() {
     return this.providedByUser;
+  }
+
+  get mediaStreamTrack() {
+    return this.processor?.processedTrack ?? this._mediaStreamTrack;
   }
 
   async waitForDimensions(timeout = defaultDimensionsTimeout): Promise<Track.Dimensions> {
@@ -158,6 +164,9 @@ export default abstract class LocalTrack extends Track {
 
     this.mediaStream = new MediaStream([track]);
     this.providedByUser = userProvidedTrack;
+    if (this.processor) {
+      await this.stopProcessor();
+    }
     return this;
   }
 
@@ -180,7 +189,7 @@ export default abstract class LocalTrack extends Track {
 
     // detach
     this.attachedElements.forEach((el) => {
-      detachTrack(this._mediaStreamTrack, el);
+      detachTrack(this.mediaStreamTrack, el);
     });
     this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
     // on Safari, the old audio track must be stopped before attempting to acquire
@@ -203,12 +212,16 @@ export default abstract class LocalTrack extends Track {
 
     await this.resumeUpstream();
 
-    this.attachedElements.forEach((el) => {
-      attachToElement(newTrack, el);
-    });
-
     this.mediaStream = mediaStream;
     this.constraints = constraints;
+    if (this.processor) {
+      const processor = this.processor;
+      await this.setProcessor(processor);
+    } else {
+      this.attachedElements.forEach((el) => {
+        attachToElement(this._mediaStreamTrack, el);
+      });
+    }
     this.emit(TrackEvent.Restarted, this);
     return this;
   }
@@ -253,6 +266,18 @@ export default abstract class LocalTrack extends Track {
     this.emit(TrackEvent.Ended, this);
   };
 
+  stop() {
+    super.stop();
+    this.processor?.destroy();
+    this.processor = undefined;
+  }
+
+  /**
+   * pauses publishing to the server without disabling the local MediaStreamTrack
+   * this is used to display a user's own video locally while pausing publishing to
+   * the server.
+   * this API is unsupported on Safari < 12 due to a bug
+   **/
   async pauseUpstream() {
     const unlock = await this.pauseUpstreamLock.lock();
     try {
@@ -266,9 +291,12 @@ export default abstract class LocalTrack extends Track {
 
       this._isUpstreamPaused = true;
       this.emit(TrackEvent.UpstreamPaused, this);
-      const emptyTrack =
-        this.kind === Track.Kind.Audio ? getEmptyAudioStreamTrack() : getEmptyVideoStreamTrack();
-      await this.sender.replaceTrack(emptyTrack);
+      const browser = getBrowser();
+      if (browser?.name === 'Safari' && compareVersions(browser.version, '12.0') < 0) {
+        // https://bugs.webkit.org/show_bug.cgi?id=184911
+        throw new DeviceUnsupportedError('pauseUpstream is not supported on Safari < 12.');
+      }
+      await this.sender.replaceTrack(null);
     } finally {
       unlock();
     }
@@ -291,6 +319,82 @@ export default abstract class LocalTrack extends Track {
     } finally {
       unlock();
     }
+  }
+
+  /**
+   * Sets a processor on this track.
+   * See https://github.com/livekit/track-processors-js for example usage
+   *
+   * @experimental
+   *
+   * @param processor
+   * @param showProcessedStreamLocally
+   * @returns
+   */
+  async setProcessor(
+    processor: TrackProcessor<typeof this.kind>,
+    showProcessedStreamLocally = true,
+  ) {
+    if (this.isSettingUpProcessor) {
+      log.warn('already trying to set up a processor');
+      return;
+    }
+    log.debug('setting up processor');
+    this.isSettingUpProcessor = true;
+    if (this.processor) {
+      await this.stopProcessor();
+    }
+    if (this.kind === 'unknown') {
+      throw TypeError('cannot set processor on track of unknown kind');
+    }
+    this.processorElement = this.processorElement ?? document.createElement(this.kind);
+    this.processorElement.muted = true;
+
+    attachToElement(this._mediaStreamTrack, this.processorElement);
+    this.processorElement.play().catch((e) => log.error(e));
+
+    const processorOptions = {
+      kind: this.kind,
+      track: this._mediaStreamTrack,
+      element: this.processorElement,
+    };
+
+    await processor.init(processorOptions);
+    this.processor = processor;
+    if (this.processor.processedTrack) {
+      for (const el of this.attachedElements) {
+        if (el !== this.processorElement && showProcessedStreamLocally) {
+          detachTrack(this._mediaStreamTrack, el);
+          attachToElement(this.processor.processedTrack, el);
+        }
+      }
+      await this.sender?.replaceTrack(this.processor.processedTrack);
+    }
+    this.isSettingUpProcessor = false;
+  }
+
+  getProcessor() {
+    return this.processor;
+  }
+
+  /**
+   * Stops the track processor
+   * See https://github.com/livekit/track-processors-js for example usage
+   *
+   * @experimental
+   * @returns
+   */
+  async stopProcessor() {
+    if (!this.processor) return;
+
+    log.debug('stopping processor');
+    this.processor.processedTrack?.stop();
+    await this.processor.destroy();
+    this.processor = undefined;
+    this.processorElement?.remove();
+    this.processorElement = undefined;
+
+    await this.restart();
   }
 
   protected abstract monitorSender(): void;
