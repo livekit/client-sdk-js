@@ -133,17 +133,13 @@ export function computeVideoEncodings(
     for (let i = 0; i < sm.spatial; i += 1) {
       encodings.push({
         rid: videoRids[2 - i],
-        active: false,
         maxBitrate: videoEncoding.maxBitrate / 3 ** i,
         /* @ts-ignore */
         maxFramerate: original.encoding.maxFramerate,
-        /* @ts-ignore */
-        // scalabilityMode: scalabilityMode,
       });
     }
     /* @ts-ignore */
     encodings[0].scalabilityMode = scalabilityMode;
-    encodings[0].active = true;
     log.debug('encodings', encodings);
     return encodings;
   }
