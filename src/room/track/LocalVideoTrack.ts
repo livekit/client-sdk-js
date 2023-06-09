@@ -351,8 +351,13 @@ async function setPublishingLayersForSender(
 
     let hasChanged = false;
 
+    /* disable closable spatial layer as it has video blur / frozen issue with current server / client
+    1. chrome 113: when switching to up layer with scalability Mode change, it will generate a 
+          low resolution frame and recover very quickly, but noticable
+    2. livekit sfu: additional pli request cause video frozen for a few frames, also noticable */
+    const closableSpatial = false;
     /* @ts-ignore */
-    if (encodings.length === 1 && encodings[0].scalabilityMode) {
+    if (closableSpatial && encodings[0].scalabilityMode) {
       // svc dynacast encodings
       const encoding = encodings[0];
       /* @ts-ignore */
@@ -372,10 +377,7 @@ async function setPublishingLayersForSender(
       } else if (!encoding.active /* || mode.spatial !== maxQuality + 1*/) {
         hasChanged = true;
         encoding.active = true;
-        /* disable closable spatial layer as it has video blur/frozen issue with current server/client
-          1. chrome 113: when switching to up layer with scalability Mode change, it will generate a 
-          low resolution frame and recover very quickly, but noticable
-          2. livekit sfu: additional pli request cause video frozen for a few frames, also noticable
+        /*
         @ts-ignore
         const originalMode = new ScalabilityMode(senderEncodings[0].scalabilityMode)
         mode.spatial = maxQuality + 1;
@@ -456,6 +458,7 @@ export function videoLayersFromEncodings(
   width: number,
   height: number,
   encodings?: RTCRtpEncodingParameters[],
+  svc?: boolean,
 ): VideoLayer[] {
   // default to a single layer, HQ
   if (!encodings) {
@@ -470,8 +473,7 @@ export function videoLayersFromEncodings(
     ];
   }
 
-  /* @ts-ignore */
-  if (encodings.length === 1 && encodings[0].scalabilityMode) {
+  if (svc) {
     // svc layers
     /* @ts-ignore */
     const sm = new ScalabilityMode(encodings[0].scalabilityMode);

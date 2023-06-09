@@ -123,27 +123,25 @@ export function computeVideoEncodings(
   if (scalabilityMode && isSVCCodec(videoCodec)) {
     log.debug(`using svc with scalabilityMode ${scalabilityMode}`);
 
+    const sm = new ScalabilityMode(scalabilityMode);
+
     const encodings: RTCRtpEncodingParameters[] = [];
 
-    // svc use first encoding as the original, so we sort encoding from high to low
-    switch (scalabilityMode) {
-      case 'L3T3':
-      case 'L3T3_KEY':
-        encodings.push({
-          rid: videoRids[2],
-          maxBitrate: videoEncoding.maxBitrate,
-          /* @ts-ignore */
-          maxFramerate: original.encoding.maxFramerate,
-          /* @ts-ignore */
-          scalabilityMode: scalabilityMode,
-        });
-        log.debug('encodings', encodings);
-        return encodings;
-
-      default:
-        // TODO : support other scalability modes
-        throw new Error(`unsupported scalabilityMode: ${scalabilityMode}`);
+    if (sm.spatial > 3) {
+      throw new Error(`unsupported scalabilityMode: ${scalabilityMode}`);
     }
+    for (let i = 0; i < sm.spatial; i += 1) {
+      encodings.push({
+        rid: videoRids[2 - i],
+        maxBitrate: videoEncoding.maxBitrate / 3 ** i,
+        /* @ts-ignore */
+        maxFramerate: original.encoding.maxFramerate,
+      });
+    }
+    /* @ts-ignore */
+    encodings[0].scalabilityMode = scalabilityMode;
+    log.debug('encodings', encodings);
+    return encodings;
   }
 
   if (!useSimulcast) {
