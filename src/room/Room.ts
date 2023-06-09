@@ -65,6 +65,7 @@ import {
   createDummyVideoStreamTrack,
   getEmptyAudioStreamTrack,
   isCloud,
+  isSafari,
   isWeb,
   supportsSetSinkId,
   unpackStreamId,
@@ -657,8 +658,30 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   async startAudio() {
     await this.acquireAudioContext();
-
     const elements: Array<HTMLMediaElement> = [];
+
+    if (isSafari()) {
+      /**
+       * iOS Safari blocks audio element playback if
+       * - user is not publishing audio themselves and
+       * - no other audio source is playing
+       *
+       * as a workaround, we create an audio element with an empty track, so that
+       * silent audio is always playing
+       */
+      const audioId = 'livekit-dummy-audio-el';
+      let dummyAudioEl = document.getElementById(audioId) as HTMLAudioElement | null;
+      if (!dummyAudioEl) {
+        dummyAudioEl = document.createElement('audio');
+        dummyAudioEl.autoplay = true;
+        const track = getEmptyAudioStreamTrack();
+        track.enabled = true;
+        dummyAudioEl.srcObject = new MediaStream([track]);
+        document.body.append(dummyAudioEl);
+      }
+      elements.push(dummyAudioEl);
+    }
+
     this.participants.forEach((p) => {
       p.audioTracks.forEach((t) => {
         if (t.track) {
