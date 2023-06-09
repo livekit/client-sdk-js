@@ -301,8 +301,11 @@ export function getEmptyAudioStreamTrack() {
     // implementation adapted from https://blog.mozilla.org/webrtc/warm-up-with-replacetrack/
     const ctx = new AudioContext();
     const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, 0);
     const dst = ctx.createMediaStreamDestination();
-    oscillator.connect(dst);
+    oscillator.connect(gain);
+    gain.connect(dst);
     oscillator.start();
     [emptyAudioStreamTrack] = dst.stream.getAudioTracks();
     if (!emptyAudioStreamTrack) {
