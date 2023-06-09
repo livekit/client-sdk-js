@@ -674,6 +674,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (!dummyAudioEl) {
         dummyAudioEl = document.createElement('audio');
         dummyAudioEl.autoplay = true;
+        dummyAudioEl.hidden = true;
         const track = getEmptyAudioStreamTrack();
         track.enabled = true;
         dummyAudioEl.srcObject = new MediaStream([track]);
