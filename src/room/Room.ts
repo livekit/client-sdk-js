@@ -495,6 +495,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       // capturing both 'pagehide' and 'beforeunload' to capture broadest set of browser behaviors
       window.addEventListener('pagehide', this.onPageLeave);
       window.addEventListener('beforeunload', this.onPageLeave);
+    }
+    if (isWeb()) {
+      document.addEventListener('freeze', this.onPageLeave);
       navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
@@ -965,6 +968,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (isWeb()) {
         window.removeEventListener('beforeunload', this.onPageLeave);
         window.removeEventListener('pagehide', this.onPageLeave);
+        window.removeEventListener('freeze', this.onPageLeave);
         navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
       }
     } finally {
