@@ -8,7 +8,8 @@ export type VideoTrack = RemoteVideoTrack | LocalVideoTrack;
 
 export type AdaptiveStreamSettings = {
   /**
-   * Set a custom pixel density, defaults to 1
+   * Set a custom pixel density. Defaults to 2 for high density screens (3+) or
+   * 1 otherwise.
    * When streaming videos on a ultra high definition screen this setting
    * let's you account for the devicePixelRatio of those screens.
    * Set it to `screen` to use the actual pixel density of the screen
