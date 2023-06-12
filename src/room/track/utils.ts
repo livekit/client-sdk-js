@@ -1,4 +1,6 @@
 import { sleep } from '../utils';
+import log from './../../logger';
+import type LocalTrack from './LocalTrack';
 import type { AudioCaptureOptions, CreateLocalTracksOptions, VideoCaptureOptions } from './options';
 import type { AudioTrack } from './types';
 
@@ -111,4 +113,69 @@ export function getNewAudioContext(): AudioContext | void {
   if (AudioContext) {
     return new AudioContext({ latencyHint: 'interactive' });
   }
+}
+
+type FacingMode = NonNullable<VideoCaptureOptions['facingMode']>;
+type FacingModeFromLocalTrackReturnValue = {
+  facingMode: FacingMode;
+  confidence: 'high' | 'medium' | 'low';
+};
+
+function isFacingModeValue(item: string): item is FacingMode {
+  const allowedValues: FacingMode[] = ['user', 'environment', 'left', 'right'];
+  return item === undefined || allowedValues.includes(item as FacingMode);
+}
+
+/**
+ * Try to analyze the local MediaStreamTrack or device label to determine the facing mode of a device.
+ * There is no accurate and common property supported by all browsers to detect whether a video track is originated from a user- or environment-facing camera device.
+ * For this reason, we use the `facingMode` property when available, but will fall back on a string-based analysis of the device label to determine the facing mode.
+ *
+ * {@link https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode | MDN docs on facingMode}
+ * @alpha
+ */
+export function facingModeFromLocalTrack(
+  localTrack: LocalTrack,
+): FacingModeFromLocalTrackReturnValue {
+  const track = localTrack.mediaStreamTrack;
+  const trackSettings = track.getSettings();
+  let result: FacingModeFromLocalTrackReturnValue = { facingMode: 'user', confidence: 'low' };
+
+  // 1. Try to get facingMode from track settings.
+  if ('facingMode' in trackSettings) {
+    const rawFacingMode = trackSettings.facingMode;
+    log.debug('rawFacingMode', { rawFacingMode });
+    if (rawFacingMode && typeof rawFacingMode === 'string' && isFacingModeValue(rawFacingMode)) {
+      result = { facingMode: rawFacingMode, confidence: 'high' };
+    } else if (Array.isArray(rawFacingMode) && rawFacingMode.length > 0) {
+      result = { facingMode: rawFacingMode[0], confidence: 'medium' };
+    }
+  }
+
+  // 2. If don't have a high confidence we try to get the facing mode from the device label.
+  if (['low', 'medium'].includes(result.confidence)) {
+    log.debug(`Try to get facing mode from device label: (${track.label})`);
+    facingModeFromDeviceLabel(track.label);
+  }
+
+  if (result.confidence === 'low') {
+    log.warn(`Inferring facing mode from track with low confidence, possibly wrong result.`, {
+      track,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Attempt to analyze the device label to determine the facing mode.
+ *
+ * @alpha
+ */
+function facingModeFromDeviceLabel(deviceLabel: string): VideoCaptureOptions['facingMode'] {
+  if (deviceLabel === '') {
+    return undefined;
+  }
+  // TODO Attempt to analyze the device label to determine the facing mode
+  return 'user';
 }
