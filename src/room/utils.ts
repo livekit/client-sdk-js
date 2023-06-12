@@ -261,7 +261,7 @@ export function getEmptyVideoStreamTrack() {
   if (!emptyVideoStreamTrack) {
     emptyVideoStreamTrack = createDummyVideoStreamTrack();
   }
-  return emptyVideoStreamTrack;
+  return emptyVideoStreamTrack.clone();
 }
 
 export function createDummyVideoStreamTrack(
@@ -313,7 +313,7 @@ export function getEmptyAudioStreamTrack() {
     }
     emptyAudioStreamTrack.enabled = false;
   }
-  return emptyAudioStreamTrack;
+  return emptyAudioStreamTrack.clone();
 }
 
 export class Future<T> {
