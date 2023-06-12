@@ -147,15 +147,16 @@ export function facingModeFromLocalTrack(
     log.debug('rawFacingMode', { rawFacingMode });
     if (rawFacingMode && typeof rawFacingMode === 'string' && isFacingModeValue(rawFacingMode)) {
       result = { facingMode: rawFacingMode, confidence: 'high' };
-    } else if (Array.isArray(rawFacingMode) && rawFacingMode.length > 0) {
-      result = { facingMode: rawFacingMode[0], confidence: 'medium' };
     }
   }
 
-  // 2. If don't have a high confidence we try to get the facing mode from the device label.
+  // 2. If we don't have a high confidence we try to get the facing mode from the device label.
   if (['low', 'medium'].includes(result.confidence)) {
     log.debug(`Try to get facing mode from device label: (${track.label})`);
-    facingModeFromDeviceLabel(track.label);
+    const labelFacingMode = facingModeFromDeviceLabel(track.label);
+    if (labelFacingMode !== undefined) {
+      result = { facingMode: labelFacingMode, confidence: 'medium' };
+    }
   }
 
   if (result.confidence === 'low') {
@@ -167,15 +168,21 @@ export function facingModeFromLocalTrack(
   return result;
 }
 
+const knownDeviceLabels = new Map<string, FacingMode>([['obs virtual camera', 'environment']]);
 /**
  * Attempt to analyze the device label to determine the facing mode.
  *
  * @alpha
  */
-function facingModeFromDeviceLabel(deviceLabel: string): VideoCaptureOptions['facingMode'] {
+function facingModeFromDeviceLabel(deviceLabel: string): FacingMode | undefined {
+  // Empty string is a valid device label but we can't infer anything from it.
   if (deviceLabel === '') {
     return undefined;
   }
+  // Can we match against a wieldy known device label.
+  if (knownDeviceLabels.has(deviceLabel)) {
+    return knownDeviceLabels.get(deviceLabel);
+  }
+
   // TODO Attempt to analyze the device label to determine the facing mode
-  return 'user';
 }
