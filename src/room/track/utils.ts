@@ -1,6 +1,6 @@
 import { sleep } from '../utils';
 import log from './../../logger';
-import type LocalTrack from './LocalTrack';
+import LocalTrack from './LocalTrack';
 import type { AudioCaptureOptions, CreateLocalTracksOptions, VideoCaptureOptions } from './options';
 import type { AudioTrack } from './types';
 
@@ -132,12 +132,12 @@ function isFacingModeValue(item: string): item is FacingMode {
  * For this reason, we use the `facingMode` property when available, but will fall back on a string-based analysis of the device label to determine the facing mode.
  *
  * {@link https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode | MDN docs on facingMode}
- * @alpha
+ * @experimental
  */
 export function facingModeFromLocalTrack(
-  localTrack: LocalTrack,
+  localTrack: LocalTrack | MediaStreamTrack,
 ): FacingModeFromLocalTrackReturnValue {
-  const track = localTrack.mediaStreamTrack;
+  const track = localTrack instanceof LocalTrack ? localTrack.mediaStreamTrack : localTrack;
   const trackSettings = track.getSettings();
   let result: FacingModeFromLocalTrackReturnValue = { facingMode: 'user', confidence: 'low' };
 
@@ -159,30 +159,34 @@ export function facingModeFromLocalTrack(
     }
   }
 
-  if (result.confidence === 'low') {
-    log.warn(`Inferring facing mode from track with low confidence, possibly wrong result.`, {
-      track,
-    });
-  }
-
   return result;
 }
 
 const knownDeviceLabels = new Map<string, FacingMode>([['obs virtual camera', 'environment']]);
+const knownDeviceLabelEndings = new Map<string, FacingMode>([['iphone camera', 'environment']]);
 /**
  * Attempt to analyze the device label to determine the facing mode.
  *
- * @alpha
+ * @experimental
  */
 function facingModeFromDeviceLabel(deviceLabel: string): FacingMode | undefined {
+  const label = deviceLabel.trim().toLowerCase();
   // Empty string is a valid device label but we can't infer anything from it.
-  if (deviceLabel === '') {
+  if (label === '') {
     return undefined;
   }
-  // Can we match against a wieldy known device label.
-  if (knownDeviceLabels.has(deviceLabel)) {
-    return knownDeviceLabels.get(deviceLabel);
+
+  // Can we match against widely known device labels.
+  if (knownDeviceLabels.has(label)) {
+    return knownDeviceLabels.get(label);
   }
+
+  // Try to match the endings of known device names.
+  knownDeviceLabelEndings.forEach((facingMode, labelEnding) => {
+    if (label.endsWith(labelEnding)) {
+      return facingMode;
+    }
+  });
 
   // TODO Attempt to analyze the device label to determine the facing mode
 }
