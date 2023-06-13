@@ -47,12 +47,16 @@ export default abstract class LocalTrack extends Track {
     userProvidedTrack = false,
   ) {
     super(mediaTrack, kind);
-    this._mediaStreamTrack.addEventListener('ended', this.handleEnded);
-    this.constraints = constraints ?? mediaTrack.getConstraints();
     this.reacquireTrack = false;
     this.providedByUser = userProvidedTrack;
     this.muteLock = new Mutex();
     this.pauseUpstreamLock = new Mutex();
+    // added to satisfy TS compiler, constraints are synced with MediaStreamTrack
+    this.constraints = mediaTrack.getConstraints();
+    this.setMediaStreamTrack(mediaTrack);
+    if (constraints) {
+      this.constraints = constraints;
+    }
   }
 
   get id(): string {
@@ -86,6 +90,53 @@ export default abstract class LocalTrack extends Track {
 
   get mediaStreamTrack() {
     return this.processor?.processedTrack ?? this._mediaStreamTrack;
+  }
+
+  private async setMediaStreamTrack(newTrack: MediaStreamTrack) {
+    if (newTrack === this._mediaStreamTrack) {
+      return;
+    }
+    if (this._mediaStreamTrack) {
+      // detach
+      this.attachedElements.forEach((el) => {
+        detachTrack(this._mediaStreamTrack, el);
+      });
+      this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+      this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
+      this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
+      if (!this.providedByUser) {
+        this._mediaStreamTrack.stop();
+      }
+    }
+
+    this.mediaStream = new MediaStream([newTrack]);
+    if (newTrack) {
+      newTrack.addEventListener('ended', this.handleEnded);
+      // when underlying track emits mute, it indicates that the device is unable
+      // to produce media. In this case we'll need to signal with remote that
+      // the track is "muted"
+      // note this is different from LocalTrack.mute because we do not want to
+      // touch MediaStreamTrack.enabled
+      newTrack.addEventListener('mute', () => {
+        log.info('pausing upstream due to device mute');
+        this.pauseUpstream();
+      });
+      newTrack.addEventListener('unmute', this.resumeUpstream);
+      this.constraints = newTrack.getConstraints();
+    }
+    if (this.sender) {
+      await this.sender.replaceTrack(newTrack);
+    }
+    this._mediaStreamTrack = newTrack;
+    if (newTrack) {
+      // sync muted state with the enabled state of the newly provided track
+      this._mediaStreamTrack.enabled = !this.isMuted;
+      // when a valid track is replace, we'd want to start producing
+      await this.resumeUpstream();
+      this.attachedElements.forEach((el) => {
+        attachToElement(newTrack, el);
+      });
+    }
   }
 
   async waitForDimensions(timeout = defaultDimensionsTimeout): Promise<Track.Dimensions> {
@@ -133,37 +184,12 @@ export default abstract class LocalTrack extends Track {
       throw new TrackInvalidError('unable to replace an unpublished track');
     }
 
-    // detach
-    this.attachedElements.forEach((el) => {
-      detachTrack(this._mediaStreamTrack, el);
-    });
-    this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
-    // on Safari, the old audio track must be stopped before attempting to acquire
-    // the new track, otherwise the new track will stop with
-    // 'A MediaStreamTrack ended due to a capture failure`
-    if (!this.providedByUser) {
-      this._mediaStreamTrack.stop();
-    }
-
-    track.addEventListener('ended', this.handleEnded);
     log.debug('replace MediaStreamTrack');
-
-    if (this.sender) {
-      await this.sender.replaceTrack(track);
-    }
-    this._mediaStreamTrack = track;
-
-    // sync muted state with the enabled state of the newly provided track
-    this._mediaStreamTrack.enabled = !this.isMuted;
-
-    await this.resumeUpstream();
-
-    this.attachedElements.forEach((el) => {
-      attachToElement(track, el);
-    });
-
-    this.mediaStream = new MediaStream([track]);
+    this.setMediaStreamTrack(track);
+    // this must be synced *after* setting mediaStreamTrack above, since it relies
+    // on the previous state in order to cleanup
     this.providedByUser = userProvidedTrack;
+
     if (this.processor) {
       await this.stopProcessor();
     }
@@ -187,7 +213,8 @@ export default abstract class LocalTrack extends Track {
       streamConstraints.audio = constraints;
     }
 
-    // detach
+    // these steps are duplicated from setMediaStreamTrack because we must stop
+    // the previous tracks before new tracks can be acquired
     this.attachedElements.forEach((el) => {
       detachTrack(this.mediaStreamTrack, el);
     });
@@ -203,16 +230,7 @@ export default abstract class LocalTrack extends Track {
     newTrack.addEventListener('ended', this.handleEnded);
     log.debug('re-acquired MediaStreamTrack');
 
-    if (this.sender) {
-      // Track can be restarted after it's unpublished
-      await this.sender.replaceTrack(newTrack);
-    }
-
-    this._mediaStreamTrack = newTrack;
-
-    await this.resumeUpstream();
-
-    this.mediaStream = mediaStream;
+    this.setMediaStreamTrack(newTrack);
     this.constraints = constraints;
     if (this.processor) {
       const processor = this.processor;
@@ -315,6 +333,7 @@ export default abstract class LocalTrack extends Track {
       this._isUpstreamPaused = false;
       this.emit(TrackEvent.UpstreamResumed, this);
 
+      // this operation is noop if mediastreamtrack is already being sent
       await this.sender.replaceTrack(this._mediaStreamTrack);
     } finally {
       unlock();
