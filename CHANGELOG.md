@@ -1,5 +1,25 @@
 # Change Log
 
+## 1.11.0
+
+### Minor Changes
+
+- Increase default adaptiveStream pixelDensity on high-density(mobile) screens - [#735](https://github.com/livekit/client-sdk-js/pull/735) ([@davidzhao](https://github.com/davidzhao))
+
+- Replace event emitter lib with eventemitter3 - [#681](https://github.com/livekit/client-sdk-js/pull/681) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Handle device mute and document freeze events - [#734](https://github.com/livekit/client-sdk-js/pull/734) ([@davidzhao](https://github.com/davidzhao))
+
+- Pass method logLevel to LogExtension instead of configured logLevel - [#730](https://github.com/livekit/client-sdk-js/pull/730) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix svc encodings for safari and chrome before 113 - [#731](https://github.com/livekit/client-sdk-js/pull/731) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Always catch reconnectFuture rejections - [#727](https://github.com/livekit/client-sdk-js/pull/727) ([@HermanBilous](https://github.com/HermanBilous))
+
+- Work around iOS safari audio playback issue when not publishing, by playing back silent audio - [#733](https://github.com/livekit/client-sdk-js/pull/733) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.10.0
 
 ### Minor Changes
