@@ -116,15 +116,13 @@ export function getNewAudioContext(): AudioContext | void {
 }
 
 type FacingMode = NonNullable<VideoCaptureOptions['facingMode']>;
+type FacingModeFromLocalTrackOptions = {
+  defaultFacingMode?: FacingMode;
+};
 type FacingModeFromLocalTrackReturnValue = {
   facingMode: FacingMode;
   confidence: 'high' | 'medium' | 'low';
 };
-
-function isFacingModeValue(item: string): item is FacingMode {
-  const allowedValues: FacingMode[] = ['user', 'environment', 'left', 'right'];
-  return item === undefined || allowedValues.includes(item as FacingMode);
-}
 
 /**
  * Try to analyze the local MediaStreamTrack or device label to determine the facing mode of a device.
@@ -136,10 +134,14 @@ function isFacingModeValue(item: string): item is FacingMode {
  */
 export function facingModeFromLocalTrack(
   localTrack: LocalTrack | MediaStreamTrack,
+  options: FacingModeFromLocalTrackOptions = {},
 ): FacingModeFromLocalTrackReturnValue {
   const track = localTrack instanceof LocalTrack ? localTrack.mediaStreamTrack : localTrack;
   const trackSettings = track.getSettings();
-  let result: FacingModeFromLocalTrackReturnValue = { facingMode: 'user', confidence: 'low' };
+  let result: FacingModeFromLocalTrackReturnValue = {
+    facingMode: options.defaultFacingMode ?? 'user',
+    confidence: 'low',
+  };
 
   // 1. Try to get facingMode from track settings.
   if ('facingMode' in trackSettings) {
@@ -190,4 +192,9 @@ export function facingModeFromDeviceLabel(deviceLabel: string): FacingMode | und
   if (endingMatch) {
     return endingMatch[1];
   }
+}
+
+function isFacingModeValue(item: string): item is FacingMode {
+  const allowedValues: FacingMode[] = ['user', 'environment', 'left', 'right'];
+  return item === undefined || allowedValues.includes(item as FacingMode);
 }
