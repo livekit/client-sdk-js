@@ -1,5 +1,4 @@
-import { EventEmitter } from 'events';
-import type TypedEventEmitter from 'typed-emitter';
+import EventEmitter from 'eventemitter3';
 import { SignalClient } from '../api/SignalClient';
 import type { SignalOptions } from '../api/SignalClient';
 import log from '../logger';
@@ -65,7 +64,7 @@ enum PCState {
 }
 
 /** @internal */
-export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
+export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
   publisher?: PCTransport;
 
   subscriber?: PCTransport;
@@ -1046,6 +1045,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       };
       this.once(EngineEvent.Restarted, onRestarted);
       this.once(EngineEvent.Disconnected, onDisconnected);
+      this.once(EngineEvent.Closing, onDisconnected);
     });
   };
 
@@ -1172,7 +1172,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.hasPublished = true;
 
       const handleClosed = () => {
-        log.debug('engine disconnected while negotiation was ongoing');
+        log.warn('engine disconnected while negotiation was ongoing');
         cleanup();
         resolve();
         return;

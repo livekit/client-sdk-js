@@ -1,5 +1,4 @@
-import { EventEmitter } from 'events';
-import type TypedEmitter from 'typed-emitter';
+import EventEmitter from 'eventemitter3';
 import log from '../../logger';
 import {
   DataPacket_Kind,
@@ -35,7 +34,7 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
   }
 }
 
-export default class Participant extends (EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>) {
+export default class Participant extends EventEmitter<ParticipantEventCallbacks> {
   protected participantInfo?: ParticipantInfo;
 
   audioTracks: Map<string, TrackPublication>;
@@ -72,7 +71,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   /** @internal */
   constructor(sid: string, identity: string, name?: string, metadata?: string) {
     super();
-    this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
     this.name = name;
