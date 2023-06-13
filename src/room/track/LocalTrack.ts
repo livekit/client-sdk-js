@@ -118,7 +118,7 @@ export default abstract class LocalTrack extends Track {
       // note this is different from LocalTrack.mute because we do not want to
       // touch MediaStreamTrack.enabled
       newTrack.addEventListener('mute', () => {
-        console.log('pausing upstream due to device mute');
+        log.info('pausing upstream due to device mute');
         this.pauseUpstream();
       });
       newTrack.addEventListener('unmute', this.resumeUpstream);
