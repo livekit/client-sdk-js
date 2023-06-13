@@ -42,12 +42,11 @@
     "size-limit": "size-limit"
   },
   "dependencies": {
-    "events": "^3.3.0",
+    "eventemitter3": "^5.0.1",
     "loglevel": "^1.8.0",
     "protobufjs": "^7.0.0",
     "sdp-transform": "^2.14.1",
     "ts-debounce": "^4.0.0",
-    "typed-emitter": "^2.1.0",
     "webrtc-adapter": "^8.1.1"
   },
   "devDependencies": {

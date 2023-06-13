@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import EventEmitter from 'eventemitter3';
 import { parse, write } from 'sdp-transform';
 import type { MediaDescription } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
