@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.11.1
+
+### Patch Changes
+
+- Fix mute event handling - [#740](https://github.com/livekit/client-sdk-js/pull/740) ([@davidzhao](https://github.com/davidzhao))
+
 ## 1.11.0
 
 ### Minor Changes
