@@ -1300,7 +1300,7 @@ async function getConnectedAddress(pc: RTCPeerConnection): Promise<string | unde
 
 class SignalReconnectError extends Error {}
 
-export interface EngineEventCallbacks extends Record<string, (...args: any[]) => void> {
+export type EngineEventCallbacks = {
   connected: (joinResp: JoinResponse) => void;
   disconnected: (reason?: DisconnectReason) => void;
   resuming: () => void;
@@ -1319,4 +1319,4 @@ export interface EngineEventCallbacks extends Record<string, (...args: any[]) =>
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
-}
+};

@@ -1643,7 +1643,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
 export default Room;
 
-export interface RoomEventCallbacks extends Record<string, (...args: any[]) => void> {
+export type RoomEventCallbacks = {
   connected: () => void;
   reconnecting: () => void;
   reconnected: () => void;
@@ -1717,5 +1717,4 @@ export interface RoomEventCallbacks extends Record<string, (...args: any[]) => v
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
-  activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
-}
+};

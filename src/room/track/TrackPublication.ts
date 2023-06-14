@@ -128,7 +128,7 @@ export namespace TrackPublication {
   }
 }
 
-export interface PublicationEventCallbacks extends Record<string, (...args: any[]) => void> {
+export type PublicationEventCallbacks = {
   muted: () => void;
   unmuted: () => void;
   ended: (track?: Track) => void;
@@ -145,4 +145,4 @@ export interface PublicationEventCallbacks extends Record<string, (...args: any[
     prevStatus: TrackPublication.SubscriptionStatus,
   ) => void;
   subscriptionFailed: (error: SubscriptionError) => void;
-}
+};

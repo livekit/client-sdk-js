@@ -261,7 +261,7 @@ export default class Participant extends EventEmitter<ParticipantEventCallbacks>
   }
 }
 
-export interface ParticipantEventCallbacks extends Record<string, (...args: any[]) => void> {
+export type ParticipantEventCallbacks = {
   trackPublished: (publication: RemoteTrackPublication) => void;
   trackSubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
   trackSubscriptionFailed: (trackSid: string, reason?: SubscriptionError) => void;
@@ -290,4 +290,4 @@ export interface ParticipantEventCallbacks extends Record<string, (...args: any[
     publication: RemoteTrackPublication,
     status: TrackPublication.SubscriptionStatus,
   ) => void;
-}
+};
