@@ -2,7 +2,7 @@ import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
-import { isWeb } from '../utils';
+import { isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 import type { AudioCaptureOptions } from './options';
@@ -29,14 +29,15 @@ export default class LocalAudioTrack extends LocalTrack {
     this.checkForSilence();
   }
 
-  async setDeviceId(deviceId: ConstrainDOMString) {
+  async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
     if (this.constraints.deviceId === deviceId) {
-      return;
+      return true;
     }
     this.constraints.deviceId = deviceId;
     if (!this.isMuted) {
       await this.restartTrack();
     }
+    return unwrapConstraint(deviceId) === this.mediaStreamTrack.getSettings().deviceId;
   }
 
   async mute(): Promise<LocalAudioTrack> {

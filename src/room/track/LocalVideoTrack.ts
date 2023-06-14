@@ -5,7 +5,7 @@ import type { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc
 import { ScalabilityMode } from '../participant/publishUtils';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { VideoSenderStats } from '../stats';
-import { Mutex, isFireFox, isMobile, isWeb } from '../utils';
+import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
@@ -182,9 +182,9 @@ export default class LocalVideoTrack extends LocalTrack {
     this.setPublishingLayers(qualities);
   }
 
-  async setDeviceId(deviceId: ConstrainDOMString) {
+  async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
     if (this.constraints.deviceId === deviceId) {
-      return;
+      return true;
     }
     this.constraints.deviceId = deviceId;
     // when video is muted, underlying media stream track is stopped and
@@ -192,6 +192,7 @@ export default class LocalVideoTrack extends LocalTrack {
     if (!this.isMuted) {
       await this.restartTrack();
     }
+    return unwrapConstraint(deviceId) === this.mediaStreamTrack.getSettings().deviceId;
   }
 
   async restartTrack(options?: VideoCaptureOptions) {

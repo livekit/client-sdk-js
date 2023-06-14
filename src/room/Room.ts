@@ -68,6 +68,7 @@ import {
   isWeb,
   supportsSetSinkId,
   unpackStreamId,
+  unwrapConstraint,
 } from './utils';
 
 export enum ConnectionState {
@@ -134,6 +135,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
+  private activeDeviceMap: Map<MediaDeviceKind, string>;
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -161,6 +164,22 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
+    this.activeDeviceMap = new Map();
+    if (this.options.videoCaptureDefaults.deviceId) {
+      this.activeDeviceMap.set(
+        'videoinput',
+        unwrapConstraint(this.options.videoCaptureDefaults.deviceId),
+      );
+    }
+    if (this.options.audioCaptureDefaults.deviceId) {
+      this.activeDeviceMap.set(
+        'audioinput',
+        unwrapConstraint(this.options.audioCaptureDefaults.deviceId),
+      );
+    }
+    if (this.options.audioOutput?.deviceId) {
+      this.switchActiveDevice('audiooutput', unwrapConstraint(this.options.audioOutput.deviceId));
+    }
 
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
   }
@@ -717,13 +736,15 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
   /**
    * Returns the active audio output device used in this room.
-   *
-   * Note: to get the active `audioinput` or `videoinput` use [[LocalTrack.getDeviceId()]]
-   *
    * @return the previously successfully set audio output device ID or an empty string if the default device is used.
+   * @deprecated use `getActiveDevice('audiooutput')` instead
    */
   getActiveAudioOutputDevice(): string {
     return this.options.audioOutput?.deviceId ?? '';
+  }
+
+  getActiveDevice(kind: MediaDeviceKind): string | undefined {
+    return this.activeDeviceMap.get(kind);
   }
 
   /**
@@ -737,15 +758,20 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    * @param deviceId
    */
   async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = false) {
+    let deviceHasChanged = false;
+    let success = true;
     const deviceConstraint = exact ? { exact: deviceId } : deviceId;
     if (kind === 'audioinput') {
       const prevDeviceId = this.options.audioCaptureDefaults!.deviceId;
       this.options.audioCaptureDefaults!.deviceId = deviceConstraint;
+      deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.audioTracks.values()).filter(
         (track) => track.source === Track.Source.Microphone,
       );
       try {
-        await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceConstraint)));
+        success = (
+          await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceConstraint)))
+        ).every((val) => val === true);
       } catch (e) {
         this.options.audioCaptureDefaults!.deviceId = prevDeviceId;
         throw e;
@@ -753,32 +779,49 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     } else if (kind === 'videoinput') {
       const prevDeviceId = this.options.videoCaptureDefaults!.deviceId;
       this.options.videoCaptureDefaults!.deviceId = deviceConstraint;
+      deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.videoTracks.values()).filter(
         (track) => track.source === Track.Source.Camera,
       );
       try {
-        await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceConstraint)));
+        success = (
+          await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceConstraint)))
+        ).every((val) => val === true);
       } catch (e) {
         this.options.videoCaptureDefaults!.deviceId = prevDeviceId;
         throw e;
       }
     } else if (kind === 'audiooutput') {
-      // TODO add support for webaudio mix once the API becomes available https://github.com/WebAudio/web-audio-api/pull/2498
-      if (!supportsSetSinkId()) {
+      if (
+        (!supportsSetSinkId() && !this.options.expWebAudioMix) ||
+        (this.audioContext && !('setSinkId' in this.audioContext))
+      ) {
         throw new Error('cannot switch audio output, setSinkId not supported');
       }
       this.options.audioOutput ??= {};
       const prevDeviceId = this.options.audioOutput.deviceId;
       this.options.audioOutput.deviceId = deviceId;
+      deviceHasChanged = prevDeviceId !== deviceConstraint;
+
       try {
-        await Promise.all(
-          Array.from(this.participants.values()).map((p) => p.setAudioOutput({ deviceId })),
-        );
+        if (this.options.expWebAudioMix) {
+          // @ts-expect-error setSinkId is not yet in the typescript type of AudioContext
+          this.audioContext?.setSinkId(deviceId);
+        } else {
+          await Promise.all(
+            Array.from(this.participants.values()).map((p) => p.setAudioOutput({ deviceId })),
+          );
+        }
       } catch (e) {
         this.options.audioOutput.deviceId = prevDeviceId;
         throw e;
       }
     }
+    if (deviceHasChanged) {
+      this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
+    }
+
+    return success;
   }
 
   private setupLocalParticipantEvents() {
@@ -1717,4 +1760,5 @@ export type RoomEventCallbacks = {
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
+  activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
 };
