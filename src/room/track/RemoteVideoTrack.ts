@@ -23,8 +23,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
   private lastDimensions?: Track.Dimensions;
 
-  private isObserved: boolean = false;
-
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
@@ -104,7 +102,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
       // the tab comes into focus for the first time.
       this.debouncedHandleResize();
       this.updateVisibility();
-      this.isObserved = true;
     } else {
       log.warn('visibility resize observer not triggered');
     }
