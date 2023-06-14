@@ -278,6 +278,8 @@ export default abstract class LocalTrack extends Track {
     if (this.isInBackground) {
       this.reacquireTrack = true;
     }
+    this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
+    this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
     this.emit(TrackEvent.Ended, this);
   };
 
