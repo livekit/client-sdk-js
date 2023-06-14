@@ -117,10 +117,7 @@ export default abstract class LocalTrack extends Track {
       // the track is "muted"
       // note this is different from LocalTrack.mute because we do not want to
       // touch MediaStreamTrack.enabled
-      newTrack.addEventListener('mute', () => {
-        log.info('pausing upstream due to device mute');
-        this.pauseUpstream();
-      });
+      newTrack.addEventListener('mute', this.pauseUpstream);
       newTrack.addEventListener('unmute', this.resumeUpstream);
       this.constraints = newTrack.getConstraints();
     }
@@ -286,6 +283,10 @@ export default abstract class LocalTrack extends Track {
 
   stop() {
     super.stop();
+
+    this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+    this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
+    this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
     this.processor?.destroy();
     this.processor = undefined;
   }
@@ -296,7 +297,7 @@ export default abstract class LocalTrack extends Track {
    * the server.
    * this API is unsupported on Safari < 12 due to a bug
    **/
-  async pauseUpstream() {
+  pauseUpstream = async () => {
     const unlock = await this.pauseUpstreamLock.lock();
     try {
       if (this._isUpstreamPaused === true) {
@@ -318,9 +319,9 @@ export default abstract class LocalTrack extends Track {
     } finally {
       unlock();
     }
-  }
+  };
 
-  async resumeUpstream() {
+  resumeUpstream = async () => {
     const unlock = await this.pauseUpstreamLock.lock();
     try {
       if (this._isUpstreamPaused === false) {
@@ -338,7 +339,7 @@ export default abstract class LocalTrack extends Track {
     } finally {
       unlock();
     }
-  }
+  };
 
   /**
    * Sets a processor on this track.
