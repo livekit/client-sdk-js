@@ -39,12 +39,10 @@ export default class RemoteVideoTrack extends RemoteTrack {
     return this.adaptiveStreamSettings !== undefined;
   }
 
+  /**
+   * Note: When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, otherwise your video tracks might never start
+   */
   get mediaStreamTrack() {
-    if (this.isAdaptiveStream && !this.isObserved) {
-      log.warn(
-        'When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, otherwise your video tracks might never start',
-      );
-    }
     return this._mediaStreamTrack;
   }
 
