@@ -818,6 +818,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       }
     }
     if (deviceHasChanged) {
+      this.activeDeviceMap.set(kind, deviceId);
       this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
     }
 
