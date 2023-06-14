@@ -429,7 +429,7 @@ export namespace Track {
   }
 }
 
-export type TrackEventCallbacks = {
+export interface TrackEventCallbacks extends Record<string, (...args: any[]) => void> {
   message: () => void;
   muted: (track?: any) => void;
   unmuted: (track?: any) => void;
@@ -446,4 +446,4 @@ export type TrackEventCallbacks = {
   elementDetached: (element: HTMLMediaElement) => void;
   upstreamPaused: (track: any) => void;
   upstreamResumed: (track: any) => void;
-};
+}
