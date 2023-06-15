@@ -281,6 +281,7 @@ export enum RoomEvent {
 
   /**
    * Triggered by a call to room.switchActiveDevice
+   * args: (kind: MediaDeviceKind, deviceId: string)
    */
   ActiveDeviceChanged = 'activeDeviceChanged',
 }
