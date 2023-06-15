@@ -23,7 +23,6 @@ import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
-import { ScreenSharePresets, isBackupCodec, isCodecEqual } from '../track/options';
 import type {
   AudioCaptureOptions,
   BackupVideoCodec,
@@ -32,12 +31,13 @@ import type {
   TrackPublishOptions,
   VideoCaptureOptions,
 } from '../track/options';
+import { ScreenSharePresets, VideoPresets, isBackupCodec, isCodecEqual } from '../track/options';
 import { constraintsForOptions, mergeDefaultOptions } from '../track/utils';
 import type { DataPublishOptions } from '../types';
 import { Future, isFireFox, isSVCCodec, isSafari, isWeb, supportsAV1, supportsVP9 } from '../utils';
 import Participant from './Participant';
-import { trackPermissionToProto } from './ParticipantTrackPermission';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
+import { trackPermissionToProto } from './ParticipantTrackPermission';
 import RemoteParticipant from './RemoteParticipant';
 import {
   computeTrackBackupEncodings,
@@ -149,8 +149,11 @@ export default class LocalParticipant extends Participant {
   };
 
   private handleDisconnected = () => {
-    this.reconnectFuture?.reject?.('Got disconnected during publishing attempt');
-    this.reconnectFuture = undefined;
+    if (this.reconnectFuture) {
+      this.reconnectFuture.promise.catch((e) => log.warn(e));
+      this.reconnectFuture?.reject?.('Got disconnected during reconnection attempt');
+      this.reconnectFuture = undefined;
+    }
   };
 
   /**
@@ -614,8 +617,16 @@ export default class LocalParticipant extends Participant {
       try {
         dims = await track.waitForDimensions();
       } catch (e) {
+        // use defaults, it's quite painful for congestion control without simulcast
+        // so using default dims according to publish settings
+        const defaultRes =
+          this.roomOptions.videoCaptureDefaults?.resolution ?? VideoPresets.h720.resolution;
+        dims = {
+          width: defaultRes.width,
+          height: defaultRes.height,
+        };
         // log failure
-        log.error('could not determine track dimensions');
+        log.error('could not determine track dimensions, using defaults', dims);
       }
       // width and height should be defined for video
       req.width = dims.width;
@@ -623,8 +634,8 @@ export default class LocalParticipant extends Participant {
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
         if (isSVCCodec(opts.videoCodec)) {
-          // set scalabilityMode to 'L3T3' by default
-          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
+          // set scalabilityMode to 'L3T3_KEY' by default
+          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
         }
 
         // set up backup
@@ -645,6 +656,16 @@ export default class LocalParticipant extends Participant {
               enableSimulcastLayers: true,
             }),
           ];
+        } else if (opts.videoCodec) {
+          // pass codec info to sfu so it can prefer codec for the client which don't support
+          // setCodecPreferences
+          req.simulcastCodecs = [
+            new SimulcastCodec({
+              codec: opts.videoCodec,
+              cid: track.mediaStreamTrack.id,
+              enableSimulcastLayers: opts.simulcast ?? false,
+            }),
+          ];
         }
       }
 
@@ -654,7 +675,12 @@ export default class LocalParticipant extends Participant {
         dims.height,
         opts,
       );
-      req.layers = videoLayersFromEncodings(req.width, req.height, simEncodings ?? encodings);
+      req.layers = videoLayersFromEncodings(
+        req.width,
+        req.height,
+        encodings,
+        isSVCCodec(opts.videoCodec),
+      );
     } else if (track.kind === Track.Kind.Audio) {
       encodings = [
         {
@@ -848,6 +874,16 @@ export default class LocalParticipant extends Participant {
       trackSender
     ) {
       try {
+        for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
+          // if sender is not currently sending (after replaceTrack(null))
+          // removeTrack would have no effect.
+          // to ensure we end up successfully removing the track, manually set
+          // the transceiver to inactive
+          if (transceiver.sender === trackSender) {
+            transceiver.direction = 'inactive';
+            negotiationNeeded = true;
+          }
+        }
         if (this.engine.removeTrack(trackSender)) {
           negotiationNeeded = true;
         }

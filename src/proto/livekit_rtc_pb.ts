@@ -5,7 +5,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
-import { ClientConfiguration, ConnectionQuality, DisconnectReason, Encryption_Type, ParticipantInfo, ParticipantTracks, Room, ServerInfo, SpeakerInfo, TrackInfo, TrackSource, TrackType, VideoLayer, VideoQuality } from "./livekit_models_pb.js";
+import { ClientConfiguration, ConnectionQuality, DisconnectReason, Encryption_Type, ParticipantInfo, ParticipantTracks, Room, ServerInfo, SpeakerInfo, SubscriptionError, TrackInfo, TrackSource, TrackType, VideoLayer, VideoQuality } from "./livekit_models_pb.js";
 
 /**
  * @generated from enum livekit.SignalTarget
@@ -402,6 +402,14 @@ export class SignalResponse extends Message<SignalResponse> {
      */
     value: Pong;
     case: "pongResp";
+  } | {
+    /**
+     * Subscription response, client should not expect any media from this subscription if it fails
+     *
+     * @generated from field: livekit.SubscriptionResponse subscription_response = 21;
+     */
+    value: SubscriptionResponse;
+    case: "subscriptionResponse";
   } | { case: undefined; value?: undefined } = { case: undefined };
 
   constructor(data?: PartialMessage<SignalResponse>) {
@@ -431,6 +439,7 @@ export class SignalResponse extends Message<SignalResponse> {
     { no: 18, name: "pong", kind: "scalar", T: 3 /* ScalarType.INT64 */, oneof: "message" },
     { no: 19, name: "reconnect", kind: "message", T: ReconnectResponse, oneof: "message" },
     { no: 20, name: "pong_resp", kind: "message", T: Pong, oneof: "message" },
+    { no: 21, name: "subscription_response", kind: "message", T: SubscriptionResponse, oneof: "message" },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SignalResponse {
@@ -785,6 +794,13 @@ export class JoinResponse extends Message<JoinResponse> {
    */
   serverInfo?: ServerInfo;
 
+  /**
+   * Server-Injected-Frame byte trailer, used to identify unencrypted frames when e2ee is enabled
+   *
+   * @generated from field: bytes sif_trailer = 13;
+   */
+  sifTrailer = new Uint8Array(0);
+
   constructor(data?: PartialMessage<JoinResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -805,6 +821,7 @@ export class JoinResponse extends Message<JoinResponse> {
     { no: 10, name: "ping_timeout", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 11, name: "ping_interval", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 12, name: "server_info", kind: "message", T: ServerInfo },
+    { no: 13, name: "sif_trailer", kind: "scalar", T: 12 /* ScalarType.BYTES */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JoinResponse {
@@ -2258,6 +2275,49 @@ export class RegionInfo extends Message<RegionInfo> {
 
   static equals(a: RegionInfo | PlainMessage<RegionInfo> | undefined, b: RegionInfo | PlainMessage<RegionInfo> | undefined): boolean {
     return proto3.util.equals(RegionInfo, a, b);
+  }
+}
+
+/**
+ * @generated from message livekit.SubscriptionResponse
+ */
+export class SubscriptionResponse extends Message<SubscriptionResponse> {
+  /**
+   * @generated from field: string track_sid = 1;
+   */
+  trackSid = "";
+
+  /**
+   * @generated from field: livekit.SubscriptionError err = 2;
+   */
+  err = SubscriptionError.SE_UNKOWN;
+
+  constructor(data?: PartialMessage<SubscriptionResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "livekit.SubscriptionResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "track_sid", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "err", kind: "enum", T: proto3.getEnumType(SubscriptionError) },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubscriptionResponse {
+    return new SubscriptionResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SubscriptionResponse {
+    return new SubscriptionResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SubscriptionResponse {
+    return new SubscriptionResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: SubscriptionResponse | PlainMessage<SubscriptionResponse> | undefined, b: SubscriptionResponse | PlainMessage<SubscriptionResponse> | undefined): boolean {
+    return proto3.util.equals(SubscriptionResponse, a, b);
   }
 }
 

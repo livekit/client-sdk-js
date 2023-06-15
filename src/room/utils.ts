@@ -228,11 +228,12 @@ export const getResizeObserver = () => {
 
 let intersectionObserver: IntersectionObserver | null = null;
 export const getIntersectionObserver = () => {
-  if (!intersectionObserver)
+  if (!intersectionObserver) {
     intersectionObserver = new IntersectionObserver(ioDispatchCallback, {
-      root: document,
+      root: null,
       rootMargin: '0px',
     });
+  }
   return intersectionObserver;
 };
 
@@ -260,7 +261,7 @@ export function getEmptyVideoStreamTrack() {
   if (!emptyVideoStreamTrack) {
     emptyVideoStreamTrack = createDummyVideoStreamTrack();
   }
-  return emptyVideoStreamTrack;
+  return emptyVideoStreamTrack.clone();
 }
 
 export function createDummyVideoStreamTrack(
@@ -300,8 +301,11 @@ export function getEmptyAudioStreamTrack() {
     // implementation adapted from https://blog.mozilla.org/webrtc/warm-up-with-replacetrack/
     const ctx = new AudioContext();
     const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, 0);
     const dst = ctx.createMediaStreamDestination();
-    oscillator.connect(dst);
+    oscillator.connect(gain);
+    gain.connect(dst);
     oscillator.start();
     [emptyAudioStreamTrack] = dst.stream.getAudioTracks();
     if (!emptyAudioStreamTrack) {
@@ -309,7 +313,7 @@ export function getEmptyAudioStreamTrack() {
     }
     emptyAudioStreamTrack.enabled = false;
   }
-  return emptyAudioStreamTrack;
+  return emptyAudioStreamTrack.clone();
 }
 
 export class Future<T> {
@@ -450,4 +454,27 @@ export class Mutex {
 
     return willUnlock;
   }
+}
+
+export function unwrapConstraint(constraint: ConstrainDOMString): string {
+  if (typeof constraint === 'string') {
+    return constraint;
+  }
+
+  if (Array.isArray(constraint)) {
+    return constraint[0];
+  }
+  if (constraint.exact) {
+    if (Array.isArray(constraint.exact)) {
+      return constraint.exact[0];
+    }
+    return constraint.exact;
+  }
+  if (constraint.ideal) {
+    if (Array.isArray(constraint.ideal)) {
+      return constraint.ideal[0];
+    }
+    return constraint.ideal;
+  }
+  throw Error('could not unwrap constraint');
 }

@@ -40,6 +40,7 @@ export * from './room/track/options';
 export * from './room/track/types';
 export type { DataPublishOptions, SimulationScenario } from './room/types';
 export * from './version';
+export * from './room/track/processor/types';
 export {
   setLogLevel,
   setLogExtension,

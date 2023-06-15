@@ -63,10 +63,19 @@ export interface TrackPublishDefaults {
   scalabilityMode?: ScalabilityMode;
 
   /**
-   * custom video simulcast layers for camera tracks, defaults to h180, h360
-   * You can specify up to two custom layers that will be used instead of
-   * the LiveKit default layers.
-   * Note: the layers need to be ordered from lowest to highest quality
+   * Up to two additional simulcast layers to publish in addition to the original
+   * Track.
+   * When left blank, it defaults to h180, h360.
+   * If a SVC codec is used (VP9 or AV1), this field has no effect.
+   *
+   * To publish three total layers, you would specify:
+   * {
+   *   videoEncoding: {...}, // encoding of the primary layer
+   *   videoSimulcastLayers: [
+   *     VideoPresets.h540,
+   *     VideoPresets.h216,
+   *   ],
+   * }
    */
   videoSimulcastLayers?: Array<VideoPreset>;
 
@@ -284,7 +293,7 @@ export function isCodecEqual(c1: string | undefined, c2: string | undefined): bo
 /**
  * scalability modes for svc, only supprot l3t3 now.
  */
-export type ScalabilityMode = 'L3T3';
+export type ScalabilityMode = 'L3T3' | 'L3T3_KEY';
 
 export namespace AudioPresets {
   export const telephone: AudioPreset = {

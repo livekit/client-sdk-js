@@ -313,6 +313,32 @@ proto3.util.setEnumType(ReconnectReason, "livekit.ReconnectReason", [
 ]);
 
 /**
+ * @generated from enum livekit.SubscriptionError
+ */
+export enum SubscriptionError {
+  /**
+   * @generated from enum value: SE_UNKOWN = 0;
+   */
+  SE_UNKOWN = 0,
+
+  /**
+   * @generated from enum value: SE_CODEC_UNSUPPORTED = 1;
+   */
+  SE_CODEC_UNSUPPORTED = 1,
+
+  /**
+   * @generated from enum value: SE_TRACK_NOTFOUND = 2;
+   */
+  SE_TRACK_NOTFOUND = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(SubscriptionError)
+proto3.util.setEnumType(SubscriptionError, "livekit.SubscriptionError", [
+  { no: 0, name: "SE_UNKOWN" },
+  { no: 1, name: "SE_CODEC_UNSUPPORTED" },
+  { no: 2, name: "SE_TRACK_NOTFOUND" },
+]);
+
+/**
  * @generated from message livekit.Room
  */
 export class Room extends Message<Room> {
@@ -1631,9 +1657,18 @@ export class VideoConfiguration extends Message<VideoConfiguration> {
  */
 export class DisabledCodecs extends Message<DisabledCodecs> {
   /**
+   * disabled for both publish and subscribe
+   *
    * @generated from field: repeated livekit.Codec codecs = 1;
    */
   codecs: Codec[] = [];
+
+  /**
+   * only disable for publish
+   *
+   * @generated from field: repeated livekit.Codec publish = 2;
+   */
+  publish: Codec[] = [];
 
   constructor(data?: PartialMessage<DisabledCodecs>) {
     super();
@@ -1644,6 +1679,7 @@ export class DisabledCodecs extends Message<DisabledCodecs> {
   static readonly typeName = "livekit.DisabledCodecs";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "codecs", kind: "message", T: Codec, repeated: true },
+    { no: 2, name: "publish", kind: "message", T: Codec, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DisabledCodecs {
@@ -1872,6 +1908,18 @@ export class RTPStats extends Message<RTPStats> {
    */
   lastLayerLockPli?: Timestamp;
 
+  /**
+   * @generated from field: double sample_rate = 42;
+   */
+  sampleRate = 0;
+
+  /**
+   * NEXT_ID: 44
+   *
+   * @generated from field: double drift_ms = 43;
+   */
+  driftMs = 0;
+
   constructor(data?: PartialMessage<RTPStats>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1921,6 +1969,8 @@ export class RTPStats extends Message<RTPStats> {
     { no: 34, name: "last_key_frame", kind: "message", T: Timestamp },
     { no: 35, name: "layer_lock_plis", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
     { no: 36, name: "last_layer_lock_pli", kind: "message", T: Timestamp },
+    { no: 42, name: "sample_rate", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
+    { no: 43, name: "drift_ms", kind: "scalar", T: 1 /* ScalarType.DOUBLE */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RTPStats {

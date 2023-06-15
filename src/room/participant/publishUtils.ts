@@ -10,7 +10,7 @@ import type {
   VideoCodec,
   VideoEncoding,
 } from '../track/options';
-import { isSVCCodec } from '../utils';
+import { getReactNativeOs, isReactNative, isSVCCodec } from '../utils';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
@@ -123,29 +123,25 @@ export function computeVideoEncodings(
   if (scalabilityMode && isSVCCodec(videoCodec)) {
     log.debug(`using svc with scalabilityMode ${scalabilityMode}`);
 
+    const sm = new ScalabilityMode(scalabilityMode);
+
     const encodings: RTCRtpEncodingParameters[] = [];
 
-    // svc use first encoding as the original, so we sort encoding from high to low
-    switch (scalabilityMode) {
-      case 'L3T3':
-        for (let i = 0; i < 3; i += 1) {
-          encodings.push({
-            rid: videoRids[2 - i],
-            scaleResolutionDownBy: 2 ** i,
-            maxBitrate: videoEncoding.maxBitrate / 3 ** i,
-            /* @ts-ignore */
-            maxFramerate: original.encoding.maxFramerate,
-            /* @ts-ignore */
-            scalabilityMode: 'L3T3',
-          });
-        }
-        log.debug('encodings', encodings);
-        return encodings;
-
-      default:
-        // TODO : support other scalability modes
-        throw new Error(`unsupported scalabilityMode: ${scalabilityMode}`);
+    if (sm.spatial > 3) {
+      throw new Error(`unsupported scalabilityMode: ${scalabilityMode}`);
     }
+    for (let i = 0; i < sm.spatial; i += 1) {
+      encodings.push({
+        rid: videoRids[2 - i],
+        maxBitrate: videoEncoding.maxBitrate / 3 ** i,
+        /* @ts-ignore */
+        maxFramerate: original.encoding.maxFramerate,
+      });
+    }
+    /* @ts-ignore */
+    encodings[0].scalabilityMode = scalabilityMode;
+    log.debug('encodings', encodings);
+    return encodings;
   }
 
   if (!useSimulcast) {
@@ -321,6 +317,33 @@ function encodingsFromPresets(
     }
     encodings.push(encoding);
   });
+
+  // RN ios simulcast requires all same framerates.
+  if (isReactNative() && getReactNativeOs() === 'ios') {
+    let topFramerate: number | undefined = undefined;
+    encodings.forEach((encoding) => {
+      if (!topFramerate) {
+        topFramerate = encoding.maxFramerate;
+      } else if (encoding.maxFramerate && encoding.maxFramerate > topFramerate) {
+        topFramerate = encoding.maxFramerate;
+      }
+    });
+
+    let notifyOnce = true;
+    encodings.forEach((encoding) => {
+      if (encoding.maxFramerate != topFramerate) {
+        if (notifyOnce) {
+          notifyOnce = false;
+          log.info(
+            `Simulcast on iOS React-Native requires all encodings to share the same framerate.`,
+          );
+        }
+        log.info(`Setting framerate of encoding \"${encoding.rid ?? ''}\" to ${topFramerate}`);
+        encoding.maxFramerate = topFramerate;
+      }
+    });
+  }
+
   return encodings;
 }
 
@@ -340,4 +363,35 @@ export function sortPresets(presets: Array<VideoPreset> | undefined) {
     }
     return 0;
   });
+}
+
+/** @internal */
+export class ScalabilityMode {
+  spatial: number;
+
+  temporal: number;
+
+  suffix: undefined | 'h' | '_KEY' | '_KEY_SHIFT';
+
+  constructor(scalabilityMode: string) {
+    const results = scalabilityMode.match(/^L(\d)T(\d)(h|_KEY|_KEY_SHIFT){0,1}$/);
+    if (!results) {
+      throw new Error('invalid scalability mode');
+    }
+
+    this.spatial = parseInt(results[1]);
+    this.temporal = parseInt(results[2]);
+    if (results.length > 3) {
+      switch (results[3]) {
+        case 'h':
+        case '_KEY':
+        case '_KEY_SHIFT':
+          this.suffix = results[3];
+      }
+    }
+  }
+
+  toString(): string {
+    return `L${this.spatial}T${this.temporal}${this.suffix ?? ''}`;
+  }
 }
