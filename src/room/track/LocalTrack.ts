@@ -182,7 +182,7 @@ export default abstract class LocalTrack extends Track {
     }
 
     log.debug('replace MediaStreamTrack');
-    this.setMediaStreamTrack(track);
+    await this.setMediaStreamTrack(track);
     // this must be synced *after* setting mediaStreamTrack above, since it relies
     // on the previous state in order to cleanup
     this.providedByUser = userProvidedTrack;
@@ -227,7 +227,7 @@ export default abstract class LocalTrack extends Track {
     newTrack.addEventListener('ended', this.handleEnded);
     log.debug('re-acquired MediaStreamTrack');
 
-    this.setMediaStreamTrack(newTrack);
+    await this.setMediaStreamTrack(newTrack);
     this.constraints = constraints;
     if (this.processor) {
       const processor = this.processor;
