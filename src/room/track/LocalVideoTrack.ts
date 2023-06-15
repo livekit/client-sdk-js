@@ -183,7 +183,10 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
-    if (this.constraints.deviceId === deviceId) {
+    if (
+      this.constraints.deviceId === deviceId &&
+      this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)
+    ) {
       return true;
     }
     this.constraints.deviceId = deviceId;
@@ -192,7 +195,7 @@ export default class LocalVideoTrack extends LocalTrack {
     if (!this.isMuted) {
       await this.restartTrack();
     }
-    return unwrapConstraint(deviceId) === this.mediaStreamTrack.getSettings().deviceId;
+    return unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId;
   }
 
   async restartTrack(options?: VideoCaptureOptions) {
