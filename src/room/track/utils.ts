@@ -169,22 +169,30 @@ export function facingModeFromLocalTrack(
   // 2. If we don't have a high confidence we try to get the facing mode from the device label.
   if (['low', 'medium'].includes(result.confidence)) {
     log.debug(`Try to get facing mode from device label: (${track.label})`);
-    const labelFacingMode = facingModeFromDeviceLabel(track.label);
-    if (labelFacingMode !== undefined) {
-      result = { facingMode: labelFacingMode, confidence: 'medium' };
+    const labelAnalysisResult = facingModeFromDeviceLabel(track.label);
+    if (labelAnalysisResult !== undefined) {
+      result = labelAnalysisResult;
     }
   }
 
   return result;
 }
 
-const knownDeviceLabels = new Map<string, FacingMode>([['obs virtual camera', 'environment']]);
+const knownDeviceLabels = new Map<string, FacingModeFromLocalTrackReturnValue>([
+  ['obs virtual camera', { facingMode: 'environment', confidence: 'medium' }],
+]);
+const knownDeviceLabelSections = new Map<string, FacingModeFromLocalTrackReturnValue>([
+  ['iphone', { facingMode: 'environment', confidence: 'medium' }],
+  ['ipad', { facingMode: 'environment', confidence: 'medium' }],
+]);
 /**
  * Attempt to analyze the device label to determine the facing mode.
  *
  * @experimental
  */
-export function facingModeFromDeviceLabel(deviceLabel: string): FacingMode | undefined {
+export function facingModeFromDeviceLabel(
+  deviceLabel: string,
+): FacingModeFromLocalTrackReturnValue | undefined {
   const label = deviceLabel.trim().toLowerCase();
   // Empty string is a valid device label but we can't infer anything from it.
   if (label === '') {
@@ -195,6 +203,11 @@ export function facingModeFromDeviceLabel(deviceLabel: string): FacingMode | und
   if (knownDeviceLabels.has(label)) {
     return knownDeviceLabels.get(label);
   }
+
+  // Can we match against sections of the device label.
+  return Array.from(knownDeviceLabelSections.entries()).find(([section]) =>
+    label.includes(section),
+  )?.[1];
 }
 
 function isFacingModeValue(item: string): item is FacingMode {
