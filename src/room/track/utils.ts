@@ -117,19 +117,33 @@ export function getNewAudioContext(): AudioContext | void {
 
 type FacingMode = NonNullable<VideoCaptureOptions['facingMode']>;
 type FacingModeFromLocalTrackOptions = {
+  /**
+   * If no facing mode can be determined, this value will be used.
+   * @defaultValue 'user'
+   */
   defaultFacingMode?: FacingMode;
 };
 type FacingModeFromLocalTrackReturnValue = {
+  /**
+   * The (probable) facingMode of the track.
+   * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode | MDN docs on facingMode}
+   */
   facingMode: FacingMode;
+  /**
+   * The confidence that the returned facingMode is correct.
+   */
   confidence: 'high' | 'medium' | 'low';
 };
 
 /**
- * Try to analyze the local MediaStreamTrack or device label to determine the facing mode of a device.
- * There is no accurate and common property supported by all browsers to detect whether a video track is originated from a user- or environment-facing camera device.
- * For this reason, we use the `facingMode` property when available, but will fall back on a string-based analysis of the device label to determine the facing mode.
+ * Try to analyze the local track to determine the facing mode of a track.
  *
- * {@link https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode | MDN docs on facingMode}
+ * @remarks
+ * There is no property supported by all browsers to detect whether a video track originated from a user- or environment-facing camera device.
+ * For this reason, we use the `facingMode` property when available, but will fall back on a string-based analysis of the device label to determine the facing mode.
+ * If both methods fail, the default facing mode will be used.
+ *
+ * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackConstraints/facingMode | MDN docs on facingMode}
  * @experimental
  */
 export function facingModeFromLocalTrack(
