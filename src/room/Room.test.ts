@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import Room from './Room';
 import { RoomEvent } from './events';
 
