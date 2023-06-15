@@ -455,3 +455,26 @@ export class Mutex {
     return willUnlock;
   }
 }
+
+export function unwrapConstraint(constraint: ConstrainDOMString): string {
+  if (typeof constraint === 'string') {
+    return constraint;
+  }
+
+  if (Array.isArray(constraint)) {
+    return constraint[0];
+  }
+  if (constraint.exact) {
+    if (Array.isArray(constraint.exact)) {
+      return constraint.exact[0];
+    }
+    return constraint.exact;
+  }
+  if (constraint.ideal) {
+    if (Array.isArray(constraint.ideal)) {
+      return constraint.ideal[0];
+    }
+    return constraint.ideal;
+  }
+  throw Error('could not unwrap constraint');
+}
