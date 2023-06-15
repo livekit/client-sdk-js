@@ -165,9 +165,6 @@ export function facingModeFromLocalTrack(
 }
 
 const knownDeviceLabels = new Map<string, FacingMode>([['obs virtual camera', 'environment']]);
-const knownDeviceLabelEndings = new Map<string, FacingMode>([
-  ['s iphone camera', 'environment'], // `<name>'s iPhone Camera` | Rear-facing iPhone camera used as web cam.
-]);
 /**
  * Attempt to analyze the device label to determine the facing mode.
  *
@@ -183,14 +180,6 @@ export function facingModeFromDeviceLabel(deviceLabel: string): FacingMode | und
   // Can we match against widely known device labels.
   if (knownDeviceLabels.has(label)) {
     return knownDeviceLabels.get(label);
-  }
-
-  // Try to match the endings of known device names.
-  const endingMatch = Array.from(knownDeviceLabelEndings.entries()).find(([labelEnding]) =>
-    label.endsWith(labelEnding.toLowerCase()),
-  );
-  if (endingMatch) {
-    return endingMatch[1];
   }
 }
 

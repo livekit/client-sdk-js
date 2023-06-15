@@ -110,10 +110,6 @@ describe('constraintsForOptions', () => {
 });
 
 describe('Test facingMode detection', () => {
-  it('Known labels should return the expected facingMode.', () => {
-    const facingMode = facingModeFromDeviceLabel("Peter's iPhone Camera");
-    expect(facingMode).toEqual('environment');
-  });
   it('OBS virtual camera should be detected.', () => {
     const facingMode = facingModeFromDeviceLabel('OBS Virtual Camera');
     expect(facingMode).toEqual('environment');
