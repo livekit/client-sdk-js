@@ -10,7 +10,7 @@ import type {
   VideoCodec,
   VideoEncoding,
 } from '../track/options';
-import { getReactNativeOs, isReactNative, isSVCCodec } from '../utils';
+import { getReactNativeOs, isFireFox, isReactNative, isSVCCodec } from '../utils';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
@@ -311,7 +311,7 @@ function encodingsFromPresets(
     if (preset.encoding.maxFramerate) {
       encoding.maxFramerate = preset.encoding.maxFramerate;
     }
-    if (preset.encoding.priority) {
+    if (preset.encoding.priority && isFireFox()) {
       encoding.priority = preset.encoding.priority;
       encoding.networkPriority = preset.encoding.priority;
     }
