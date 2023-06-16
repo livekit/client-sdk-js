@@ -118,6 +118,7 @@ export function computeVideoEncodings(
     height,
     videoEncoding.maxBitrate,
     videoEncoding.maxFramerate,
+    videoEncoding.priority,
   );
 
   if (scalabilityMode && isSVCCodec(videoCodec)) {
@@ -311,7 +312,8 @@ function encodingsFromPresets(
     if (preset.encoding.maxFramerate) {
       encoding.maxFramerate = preset.encoding.maxFramerate;
     }
-    if (preset.encoding.priority && isFireFox()) {
+    const canSetPriority = isFireFox() || idx === 0;
+    if (preset.encoding.priority && canSetPriority) {
       encoding.priority = preset.encoding.priority;
       encoding.networkPriority = preset.encoding.priority;
     }
