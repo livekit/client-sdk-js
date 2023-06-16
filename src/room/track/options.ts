@@ -45,7 +45,7 @@ export interface TrackPublishDefaults {
   red?: boolean;
 
   /**
-   * stereo audio track. defaults determined by capture channel count.
+   * publish track in stereo mode (or set to false to disable). defaults determined by capture channel count.
    */
   forceStereo?: boolean;
 
