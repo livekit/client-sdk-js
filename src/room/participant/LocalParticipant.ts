@@ -426,6 +426,7 @@ export default class LocalParticipant extends Participant {
       throw new DeviceUnsupportedError('getDisplayMedia not supported');
     }
 
+    console.log('audio options', options.audio);
     const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
       audio: options.audio ?? false,
       video: videoConstraints,
@@ -730,12 +731,29 @@ export default class LocalParticipant extends Participant {
     // store RTPSender
     track.sender = await this.engine.createSender(track, opts, encodings);
 
-    if (track.codec && isSVCCodec(track.codec) && encodings && encodings[0]?.maxBitrate) {
-      this.engine.publisher.setTrackCodecBitrate(
-        req.cid,
-        track.codec,
-        encodings[0].maxBitrate / 1000,
-      );
+    if (encodings) {
+      if (isFireFox() && track.kind === Track.Kind.Audio) {
+        let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
+        for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
+          if (transceiver.sender === track.sender) {
+            trackTransceiver = transceiver;
+            break;
+          }
+        }
+        if (trackTransceiver) {
+          this.engine.publisher.setTrackCodecBitrate(
+            trackTransceiver,
+            'opus',
+            encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
+          );
+        }
+      } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
+        this.engine.publisher.setTrackCodecBitrate(
+          req.cid,
+          track.codec,
+          encodings[0].maxBitrate / 1000,
+        );
+      }
     }
 
     this.engine.negotiate();

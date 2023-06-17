@@ -8,7 +8,7 @@ import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
-  sid: string;
+  cidOrTransceiver: string | RTCRtpTransceiver;
   codec: string;
   maxbr: number;
 }
@@ -56,12 +56,65 @@ export default class PCTransport extends EventEmitter {
   }
 
   async setRemoteDescription(sd: RTCSessionDescriptionInit): Promise<void> {
+    let mungedSDP: string | undefined = undefined;
     if (sd.type === 'offer') {
       let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
       this.remoteStereoMids = stereoMids;
       this.remoteNackMids = nackMids;
+    } else if (sd.type === 'answer') {
+      const sdpParsed = parse(sd.sdp ?? '');
+      sdpParsed.media.forEach((media) => {
+        if (media.type === 'audio') {
+          // mung sdp for opus bitrate settings
+          this.trackBitrates.some((trackbr): boolean => {
+            if (
+              !(trackbr.cidOrTransceiver instanceof RTCRtpTransceiver) ||
+              media.mid != trackbr.cidOrTransceiver.mid
+            ) {
+              return false;
+            }
+
+            let codecPayload = 0;
+            media.rtp.some((rtp): boolean => {
+              if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
+                codecPayload = rtp.payload;
+                return true;
+              }
+              return false;
+            });
+
+            if (codecPayload > 0) {
+              if (
+                !media.fmtp.some((fmtp): boolean => {
+                  if (fmtp.payload === codecPayload) {
+                    fmtp.config = fmtp.config
+                      .split(';')
+                      .filter((attr) => !attr.includes('maxaveragebitrate'))
+                      .join(';');
+                    if (trackbr.maxbr > 0) {
+                      fmtp.config += `;maxaveragebitrate=${trackbr.maxbr * 1000}`;
+                    }
+                    return true;
+                  }
+                  return false;
+                })
+              ) {
+                if (trackbr.maxbr > 0) {
+                  media.fmtp.push({
+                    payload: codecPayload,
+                    config: `maxaveragebitrate=${trackbr.maxbr * 1000}`,
+                  });
+                }
+              }
+            }
+
+            return true;
+          });
+        }
+      });
+      mungedSDP = write(sdpParsed);
     }
-    await this.pc.setRemoteDescription(sd);
+    await this.setMungedSDP(sd, mungedSDP, true);
 
     this.pendingCandidates.forEach((candidate) => {
       this.pc.addIceCandidate(candidate);
@@ -130,7 +183,10 @@ export default class PCTransport extends EventEmitter {
         ensureVideoDDExtensionForSVC(media);
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
-          if (!media.msid || !media.msid.includes(trackbr.sid)) {
+          if (trackbr.cidOrTransceiver instanceof RTCRtpTransceiver) {
+            return false;
+          }
+          if (!media.msid || !media.msid.includes(trackbr.cidOrTransceiver)) {
             return false;
           }
 
@@ -173,9 +229,7 @@ export default class PCTransport extends EventEmitter {
       }
     });
 
-    this.trackBitrates = [];
-
-    await this.setMungedLocalDescription(offer, write(sdpParsed));
+    await this.setMungedSDP(offer, write(sdpParsed));
     this.onOffer(offer);
   }
 
@@ -187,13 +241,13 @@ export default class PCTransport extends EventEmitter {
         ensureAudioNackAndStereo(media, this.remoteStereoMids, this.remoteNackMids);
       }
     });
-    await this.setMungedLocalDescription(answer, write(sdpParsed));
+    await this.setMungedSDP(answer, write(sdpParsed));
     return answer;
   }
 
-  setTrackCodecBitrate(sid: string, codec: string, maxbr: number) {
+  setTrackCodecBitrate(cidOrTransceiver: string | RTCRtpTransceiver, codec: string, maxbr: number) {
     this.trackBitrates.push({
-      sid,
+      cidOrTransceiver,
       codec,
       maxbr,
     });
@@ -205,22 +259,36 @@ export default class PCTransport extends EventEmitter {
     this.pc.close();
   }
 
-  private async setMungedLocalDescription(sd: RTCSessionDescriptionInit, munged: string) {
-    const originalSdp = sd.sdp;
-    sd.sdp = munged;
-    try {
-      log.debug('setting munged local description');
-      await this.pc.setLocalDescription(sd);
-      return;
-    } catch (e) {
-      log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
-        error: e,
-      });
-      sd.sdp = originalSdp;
+  private async setMungedSDP(
+    sd: RTCSessionDescriptionInit,
+    munged: string | undefined,
+    remote?: boolean,
+  ) {
+    if (munged) {
+      const originalSdp = sd.sdp;
+      sd.sdp = munged;
+      try {
+        log.debug(`setting munged ${remote ? 'remote' : 'local'} description`);
+        if (remote) {
+          await this.pc.setRemoteDescription(sd);
+        } else {
+          await this.pc.setLocalDescription(sd);
+        }
+        return;
+      } catch (e) {
+        log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
+          error: e,
+        });
+        sd.sdp = originalSdp;
+      }
     }
 
     try {
-      await this.pc.setLocalDescription(sd);
+      if (remote) {
+        await this.pc.setRemoteDescription(sd);
+      } else {
+        await this.pc.setLocalDescription(sd);
+      }
     } catch (e) {
       // this error cannot always be caught.
       // If the local description has a setCodecPreferences error, this error will be uncaught
