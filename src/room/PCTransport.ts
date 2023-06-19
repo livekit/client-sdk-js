@@ -8,7 +8,8 @@ import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
-  cidOrTransceiver: string | RTCRtpTransceiver;
+  cid?: string;
+  transceiver?: RTCRtpTransceiver;
   codec: string;
   maxbr: number;
 }
@@ -67,10 +68,7 @@ export default class PCTransport extends EventEmitter {
         if (media.type === 'audio') {
           // mung sdp for opus bitrate settings
           this.trackBitrates.some((trackbr): boolean => {
-            if (
-              !(trackbr.cidOrTransceiver instanceof RTCRtpTransceiver) ||
-              media.mid != trackbr.cidOrTransceiver.mid
-            ) {
+            if (!trackbr.transceiver || media.mid != trackbr.transceiver.mid) {
               return false;
             }
 
@@ -83,28 +81,31 @@ export default class PCTransport extends EventEmitter {
               return false;
             });
 
-            if (codecPayload > 0) {
-              if (
-                !media.fmtp.some((fmtp): boolean => {
-                  if (fmtp.payload === codecPayload) {
-                    fmtp.config = fmtp.config
-                      .split(';')
-                      .filter((attr) => !attr.includes('maxaveragebitrate'))
-                      .join(';');
-                    if (trackbr.maxbr > 0) {
-                      fmtp.config += `;maxaveragebitrate=${trackbr.maxbr * 1000}`;
-                    }
-                    return true;
-                  }
-                  return false;
-                })
-              ) {
+            if (codecPayload === 0) {
+              return true;
+            }
+
+            let fmtpFound = false;
+            for (var fmtp of media.fmtp) {
+              if (fmtp.payload === codecPayload) {
+                fmtp.config = fmtp.config
+                  .split(';')
+                  .filter((attr) => !attr.includes('maxaveragebitrate'))
+                  .join(';');
                 if (trackbr.maxbr > 0) {
-                  media.fmtp.push({
-                    payload: codecPayload,
-                    config: `maxaveragebitrate=${trackbr.maxbr * 1000}`,
-                  });
+                  fmtp.config += `;maxaveragebitrate=${trackbr.maxbr * 1000}`;
                 }
+                fmtpFound = true;
+                break;
+              }
+            }
+
+            if (!fmtpFound) {
+              if (trackbr.maxbr > 0) {
+                media.fmtp.push({
+                  payload: codecPayload,
+                  config: `maxaveragebitrate=${trackbr.maxbr * 1000}`,
+                });
               }
             }
 
@@ -183,10 +184,7 @@ export default class PCTransport extends EventEmitter {
         ensureVideoDDExtensionForSVC(media);
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
-          if (trackbr.cidOrTransceiver instanceof RTCRtpTransceiver) {
-            return false;
-          }
-          if (!media.msid || !media.msid.includes(trackbr.cidOrTransceiver)) {
+          if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
             return false;
           }
 
@@ -199,29 +197,31 @@ export default class PCTransport extends EventEmitter {
             return false;
           });
 
-          // add x-google-max-bitrate to fmtp line if not exist
-          if (codecPayload > 0) {
-            if (
-              !media.fmtp.some((fmtp): boolean => {
-                if (fmtp.payload === codecPayload) {
-                  if (!fmtp.config.includes('x-google-start-bitrate')) {
-                    fmtp.config += `;x-google-start-bitrate=${trackbr.maxbr * 0.7}`;
-                  }
-                  if (!fmtp.config.includes('x-google-max-bitrate')) {
-                    fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
-                  }
-                  return true;
-                }
-                return false;
-              })
-            ) {
-              media.fmtp.push({
-                payload: codecPayload,
-                config: `x-google-start-bitrate=${trackbr.maxbr * 0.7};x-google-max-bitrate=${
-                  trackbr.maxbr
-                }`,
-              });
+          if (codecPayload === 0) {
+            return true;
+          }
+
+          let fmtpFound = false;
+          for (var fmtp of media.fmtp) {
+            if (fmtp.payload === codecPayload) {
+              if (!fmtp.config.includes('x-google-start-bitrate')) {
+                fmtp.config += `;x-google-start-bitrate=${trackbr.maxbr * 0.7}`;
+              }
+              if (!fmtp.config.includes('x-google-max-bitrate')) {
+                fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
+              }
+              fmtpFound = true;
+              break;
             }
+          }
+
+          if (!fmtpFound) {
+            media.fmtp.push({
+              payload: codecPayload,
+              config: `x-google-start-bitrate=${trackbr.maxbr * 0.7};x-google-max-bitrate=${
+                trackbr.maxbr
+              }`,
+            });
           }
 
           return true;
@@ -245,12 +245,8 @@ export default class PCTransport extends EventEmitter {
     return answer;
   }
 
-  setTrackCodecBitrate(cidOrTransceiver: string | RTCRtpTransceiver, codec: string, maxbr: number) {
-    this.trackBitrates.push({
-      cidOrTransceiver,
-      codec,
-      maxbr,
-    });
+  setTrackCodecBitrate(info: TrackBitrateInfo) {
+    this.trackBitrates.push(info);
   }
 
   close() {
@@ -259,11 +255,7 @@ export default class PCTransport extends EventEmitter {
     this.pc.close();
   }
 
-  private async setMungedSDP(
-    sd: RTCSessionDescriptionInit,
-    munged: string | undefined,
-    remote?: boolean,
-  ) {
+  private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {
     if (munged) {
       const originalSdp = sd.sdp;
       sd.sdp = munged;

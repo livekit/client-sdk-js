@@ -426,7 +426,6 @@ export default class LocalParticipant extends Participant {
       throw new DeviceUnsupportedError('getDisplayMedia not supported');
     }
 
-    console.log('audio options', options.audio);
     const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
       audio: options.audio ?? false,
       video: videoConstraints,
@@ -741,18 +740,18 @@ export default class LocalParticipant extends Participant {
           }
         }
         if (trackTransceiver) {
-          this.engine.publisher.setTrackCodecBitrate(
-            trackTransceiver,
-            'opus',
-            encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
-          );
+          this.engine.publisher.setTrackCodecBitrate({
+            transceiver: trackTransceiver,
+            codec: 'opus',
+            maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
+          });
         }
       } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
-        this.engine.publisher.setTrackCodecBitrate(
-          req.cid,
-          track.codec,
-          encodings[0].maxBitrate / 1000,
-        );
+        this.engine.publisher.setTrackCodecBitrate({
+          cid: req.cid,
+          codec: track.codec,
+          maxbr: encodings[0].maxBitrate / 1000,
+        });
       }
     }
 
