@@ -14,6 +14,14 @@ interface TrackBitrateInfo {
   maxbr: number;
 }
 
+/* The svc codec (av1/vp9) would use a very low bitrate at the begining and
+increase slowly by the bandwidth estimator until it reach the target bitrate. The
+process commonly cost more than 10 seconds cause subscriber will get blur video at 
+the first few seconds. So we use a 70% of target bitrate here as the start bitrate to
+eliminate this issue.
+*/
+const startBitrateForSVC = 0.7;
+
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
@@ -86,7 +94,7 @@ export default class PCTransport extends EventEmitter {
             }
 
             let fmtpFound = false;
-            for (var fmtp of media.fmtp) {
+            for (const fmtp of media.fmtp) {
               if (fmtp.payload === codecPayload) {
                 fmtp.config = fmtp.config
                   .split(';')
@@ -202,10 +210,10 @@ export default class PCTransport extends EventEmitter {
           }
 
           let fmtpFound = false;
-          for (var fmtp of media.fmtp) {
+          for (const fmtp of media.fmtp) {
             if (fmtp.payload === codecPayload) {
               if (!fmtp.config.includes('x-google-start-bitrate')) {
-                fmtp.config += `;x-google-start-bitrate=${trackbr.maxbr * 0.7}`;
+                fmtp.config += `;x-google-start-bitrate=${trackbr.maxbr * startBitrateForSVC}`;
               }
               if (!fmtp.config.includes('x-google-max-bitrate')) {
                 fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
@@ -218,9 +226,9 @@ export default class PCTransport extends EventEmitter {
           if (!fmtpFound) {
             media.fmtp.push({
               payload: codecPayload,
-              config: `x-google-start-bitrate=${trackbr.maxbr * 0.7};x-google-max-bitrate=${
-                trackbr.maxbr
-              }`,
+              config: `x-google-start-bitrate=${
+                trackbr.maxbr * startBitrateForSVC
+              };x-google-max-bitrate=${trackbr.maxbr}`,
             });
           }
 
