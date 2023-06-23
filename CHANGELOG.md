@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.11.3
+
+### Patch Changes
+
+- Apply user setting bitrate to maxaveragebitrates for firefox - [#752](https://github.com/livekit/client-sdk-js/pull/752) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Do not override forceStereo=false when publishing stereo input - [#748](https://github.com/livekit/client-sdk-js/pull/748) ([@davidzhao](https://github.com/davidzhao))
+
+- Add helper function to detect camera `facingMode`. - [#738](https://github.com/livekit/client-sdk-js/pull/738) ([@Ocupe](https://github.com/Ocupe))
+
+- Only set priority on Firefox - [#750](https://github.com/livekit/client-sdk-js/pull/750) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.11.2
 
 ### Patch Changes
