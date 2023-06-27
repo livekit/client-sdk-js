@@ -31,7 +31,7 @@ import {
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
 } from '../proto/livekit_rtc';
-import DeviceManager from './DeviceManager';
+import DeviceManager, { PermittedDevices } from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import {
@@ -281,15 +281,22 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    * getLocalDevices abstracts navigator.mediaDevices.enumerateDevices.
    * In particular, it handles Chrome's unique behavior of creating `default`
    * devices. When encountered, it'll be removed from the list of devices.
+   * Additionally this gives the option to request permissions to devices (also for multiple device types at the same time)
    * The actual default device will be placed at top.
-   * @param kind
-   * @returns a list of available local devices
+   * @param kind if undefined all kinds of local devices will be returned. If mediaConstraints is set, the user will be prompted with a permission request
+   * @param mediaConstraints setting media constraints will prompt the user with the defined device permissions
+   * @param requestPermissions for backwards compatibilty this can be set instead of mediaConstraints. The user will be prompted with the permissions defined with kind.
+   * @returns the list of available local devices and the permitted devices
+   * (permittedDevices will only contain id's if mediaConstraints is set,
+   * be aware, that the permittedDevice id's are not necassarly identlical to the ones set in mediaConstraints.
+   * In some browsers the user is given the option to select a device in the permission prompt)
    */
   static getLocalDevices(
     kind?: MediaDeviceKind,
-    requestPermissions: boolean = true,
-  ): Promise<MediaDeviceInfo[]> {
-    return DeviceManager.getInstance().getDevices(kind, requestPermissions);
+    mediaConstraints?: MediaStreamConstraints,
+    requestPermissions?: boolean,
+  ): Promise<[MediaDeviceInfo[], PermittedDevices]> {
+    return DeviceManager.getInstance().getDevices(kind, mediaConstraints, requestPermissions);
   }
 
   /**
