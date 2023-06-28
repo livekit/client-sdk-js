@@ -63,7 +63,9 @@ export default class LocalAudioTrack extends LocalTrack {
     try {
       if (
         this.source === Track.Source.Microphone &&
-        (this.stopOnMute || this._mediaStreamTrack.readyState === 'ended') &&
+        (this.stopOnMute ||
+          this._mediaStreamTrack.readyState === 'ended' ||
+          this._mediaStreamTrack.getSettings().deviceId !== this.constraints.deviceId) &&
         !this.isUserProvided
       ) {
         log.debug('reacquiring mic track');
