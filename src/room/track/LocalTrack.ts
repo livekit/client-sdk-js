@@ -17,7 +17,11 @@ export default abstract class LocalTrack extends Track {
   /** @internal */
   codec?: VideoCodec;
 
-  protected constraints: MediaTrackConstraints;
+  get constraints() {
+    return this._constraints;
+  }
+
+  protected _constraints: MediaTrackConstraints;
 
   protected reacquireTrack: boolean;
 
@@ -52,10 +56,10 @@ export default abstract class LocalTrack extends Track {
     this.muteLock = new Mutex();
     this.pauseUpstreamLock = new Mutex();
     // added to satisfy TS compiler, constraints are synced with MediaStreamTrack
-    this.constraints = mediaTrack.getConstraints();
+    this._constraints = mediaTrack.getConstraints();
     this.setMediaStreamTrack(mediaTrack);
     if (constraints) {
-      this.constraints = constraints;
+      this._constraints = constraints;
     }
   }
 
@@ -119,7 +123,7 @@ export default abstract class LocalTrack extends Track {
       // touch MediaStreamTrack.enabled
       newTrack.addEventListener('mute', this.pauseUpstream);
       newTrack.addEventListener('unmute', this.resumeUpstream);
-      this.constraints = newTrack.getConstraints();
+      this._constraints = newTrack.getConstraints();
     }
     if (this.sender) {
       await this.sender.replaceTrack(newTrack);
@@ -195,7 +199,7 @@ export default abstract class LocalTrack extends Track {
 
   protected async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {
     if (!constraints) {
-      constraints = this.constraints;
+      constraints = this._constraints;
     }
     log.debug('restarting track with constraints', constraints);
 
@@ -228,7 +232,7 @@ export default abstract class LocalTrack extends Track {
     log.debug('re-acquired MediaStreamTrack');
 
     await this.setMediaStreamTrack(newTrack);
-    this.constraints = constraints;
+    this._constraints = constraints;
     if (this.processor) {
       const processor = this.processor;
       await this.setProcessor(processor);

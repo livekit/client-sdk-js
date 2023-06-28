@@ -468,8 +468,13 @@ export default class LocalParticipant extends Participant {
     if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
       await this.pendingPublishPromises.get(track);
     }
-    let defaultConstraints: MediaTrackConstraints | undefined = undefined;
-    if (track instanceof LocalTrack) {
+    let defaultConstraints: MediaTrackConstraints | undefined;
+    if (track instanceof MediaStreamTrack) {
+      defaultConstraints = track.getConstraints();
+    } else {
+      // we want to access constraints directly as `track.mediaStreamTrack`
+      // might be pointing to a non-device track (e.g. processed track) already
+      defaultConstraints = track.constraints;
       let deviceKind: MediaDeviceKind | undefined = undefined;
       switch (track.source) {
         case Track.Source.Microphone:
@@ -480,8 +485,11 @@ export default class LocalParticipant extends Participant {
         default:
           break;
       }
-      if (deviceKind) {
-        defaultConstraints = { deviceId: this.activeDeviceMap.get(deviceKind) };
+      if (deviceKind && this.activeDeviceMap.has(deviceKind)) {
+        defaultConstraints = {
+          ...defaultConstraints,
+          deviceId: this.activeDeviceMap.get(deviceKind),
+        };
       }
     }
     // convert raw media track into audio or video track

@@ -184,12 +184,12 @@ export default class LocalVideoTrack extends LocalTrack {
 
   async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
     if (
-      this.constraints.deviceId === deviceId &&
+      this._constraints.deviceId === deviceId &&
       this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)
     ) {
       return true;
     }
-    this.constraints.deviceId = deviceId;
+    this._constraints.deviceId = deviceId;
     // when video is muted, underlying media stream track is stopped and
     // will be restarted later
     if (!this.isMuted) {
