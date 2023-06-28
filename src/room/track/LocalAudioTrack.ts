@@ -37,7 +37,9 @@ export default class LocalAudioTrack extends LocalTrack {
     if (!this.isMuted) {
       await this.restartTrack();
     }
-    return unwrapConstraint(deviceId) === this.mediaStreamTrack.getSettings().deviceId;
+    return (
+      this.isMuted || unwrapConstraint(deviceId) === this.mediaStreamTrack.getSettings().deviceId
+    );
   }
 
   async mute(): Promise<LocalAudioTrack> {

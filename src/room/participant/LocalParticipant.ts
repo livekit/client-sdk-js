@@ -50,6 +50,9 @@ export default class LocalParticipant extends Participant {
   /** @internal */
   engine: RTCEngine;
 
+  /** @internal */
+  activeDeviceMap: Map<MediaDeviceKind, string>;
+
   private pendingPublishing = new Set<Track.Source>();
 
   private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
@@ -76,6 +79,7 @@ export default class LocalParticipant extends Participant {
     this.engine = engine;
     this.roomOptions = options;
     this.setupEngine(engine);
+    this.activeDeviceMap = new Map();
   }
 
   get lastCameraError(): Error | undefined {
@@ -464,14 +468,30 @@ export default class LocalParticipant extends Participant {
     if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
       await this.pendingPublishPromises.get(track);
     }
+    let defaultConstraints: MediaTrackConstraints | undefined = undefined;
+    if (track instanceof LocalTrack) {
+      let deviceKind: MediaDeviceKind | undefined = undefined;
+      switch (track.source) {
+        case Track.Source.Microphone:
+          deviceKind = 'audioinput';
+          break;
+        case Track.Source.Camera:
+          deviceKind = 'videoinput';
+        default:
+          break;
+      }
+      if (deviceKind) {
+        defaultConstraints = { deviceId: this.activeDeviceMap.get(deviceKind) };
+      }
+    }
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
         case 'audio':
-          track = new LocalAudioTrack(track, undefined, true);
+          track = new LocalAudioTrack(track, defaultConstraints, true);
           break;
         case 'video':
-          track = new LocalVideoTrack(track, undefined, true);
+          track = new LocalVideoTrack(track, defaultConstraints, true);
           break;
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);

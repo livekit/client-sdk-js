@@ -195,7 +195,9 @@ export default class LocalVideoTrack extends LocalTrack {
     if (!this.isMuted) {
       await this.restartTrack();
     }
-    return unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId;
+    return (
+      this.isMuted || unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId
+    );
   }
 
   async restartTrack(options?: VideoCaptureOptions) {
