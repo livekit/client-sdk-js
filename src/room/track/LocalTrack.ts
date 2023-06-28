@@ -280,7 +280,7 @@ export default abstract class LocalTrack extends Track {
     }
   }
 
-  private handleEnded = () => {
+  protected handleEnded = () => {
     if (this.isInBackground) {
       this.reacquireTrack = true;
     }

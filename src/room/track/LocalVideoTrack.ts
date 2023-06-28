@@ -6,8 +6,9 @@ import { computeBitrate, monitorFrequency } from '../stats';
 import type { VideoSenderStats } from '../stats';
 import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
-import { Track } from './Track';
+import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
+import type { TrackProcessor } from './processor/types';
 import { constraintsForOptions } from './utils';
 
 export class SimulcastTrackInfo {
@@ -210,6 +211,76 @@ export default class LocalVideoTrack extends LocalTrack {
       }
     }
     await this.restart(constraints);
+  }
+
+  async switch(options: {
+    facingMode: 'user' | 'environment';
+    trackProcessor?: TrackProcessor<Track.Kind>;
+  }) {
+    this.constraints = { facingMode: options.facingMode };
+
+    const streamConstraints: MediaStreamConstraints = {
+      audio: false,
+      video: this.constraints,
+    };
+
+    // detach first to avoid black video elements after stopping the track
+    this.attachedElements.forEach((el) => {
+      detachTrack(this.mediaStreamTrack, el);
+    });
+
+    // stop the processor
+    this.processor?.processedTrack?.stop();
+    await this.processor?.destroy();
+    this.processor = undefined;
+    this.processorElement?.remove();
+    this.processorElement = undefined;
+
+    // these steps are duplicated from setMediaStreamTrack because we must stop
+    // the previous tracks before new tracks can be acquired
+    this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+    // on Safari, the old audio track must be stopped before attempting to acquire
+    // the new track, otherwise the new track will stop with
+    // 'A MediaStreamTrack ended due to a capture failure`
+    this._mediaStreamTrack.stop();
+
+    // create new track
+    const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
+    this._mediaStreamTrack = mediaStream.getTracks()[0];
+    this._mediaStreamTrack.addEventListener('ended', this.handleEnded);
+    log.debug('re-acquired MediaStreamTrack');
+
+    // init processor on the new track
+    if (options.trackProcessor) {
+      this.processor = options.trackProcessor;
+      if (this.isSettingUpProcessor) {
+        return;
+      }
+      this.isSettingUpProcessor = true;
+
+      this.processorElement = this.processorElement ?? document.createElement(Track.Kind.Video);
+      this.processorElement.muted = true;
+      this.processorElement.play().catch((e) => log.error(e));
+
+      const processorOptions = {
+        kind: this.kind,
+        track: this._mediaStreamTrack,
+        element: this.processorElement,
+      };
+
+      await this.processor.init(processorOptions);
+      if (this.processor.processedTrack) {
+        for (const el of this.attachedElements) {
+          if (el !== this.processorElement) {
+            attachToElement(this.processor.processedTrack, el);
+          }
+        }
+        await this.sender?.replaceTrack(this.processor.processedTrack);
+      }
+      this.isSettingUpProcessor = false;
+    }
+
+    return this;
   }
 
   addSimulcastTrack(codec: VideoCodec, encodings?: RTCRtpEncodingParameters[]): SimulcastTrackInfo {
