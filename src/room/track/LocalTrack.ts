@@ -31,7 +31,7 @@ export default abstract class LocalTrack extends Track {
 
   protected processor?: TrackProcessor<typeof this.kind>;
 
-  protected isSettingUpProcessor: boolean = false;
+  protected processorLock: Mutex;
 
   /**
    *
@@ -51,6 +51,7 @@ export default abstract class LocalTrack extends Track {
     this.providedByUser = userProvidedTrack;
     this.muteLock = new Mutex();
     this.pauseUpstreamLock = new Mutex();
+    this.processorLock = new Mutex();
     // added to satisfy TS compiler, constraints are synced with MediaStreamTrack
     this.constraints = mediaTrack.getConstraints();
     this.setMediaStreamTrack(mediaTrack);
@@ -357,42 +358,43 @@ export default abstract class LocalTrack extends Track {
     processor: TrackProcessor<typeof this.kind>,
     showProcessedStreamLocally = true,
   ) {
-    if (this.isSettingUpProcessor) {
-      log.warn('already trying to set up a processor');
-      return;
-    }
-    log.debug('setting up processor');
-    this.isSettingUpProcessor = true;
-    if (this.processor) {
-      await this.stopProcessor();
-    }
-    if (this.kind === 'unknown') {
-      throw TypeError('cannot set processor on track of unknown kind');
-    }
-    this.processorElement = this.processorElement ?? document.createElement(this.kind);
-    this.processorElement.muted = true;
-
-    attachToElement(this._mediaStreamTrack, this.processorElement);
-    this.processorElement.play().catch((e) => log.error(e));
-
-    const processorOptions = {
-      kind: this.kind,
-      track: this._mediaStreamTrack,
-      element: this.processorElement,
-    };
-
-    await processor.init(processorOptions);
-    this.processor = processor;
-    if (this.processor.processedTrack) {
-      for (const el of this.attachedElements) {
-        if (el !== this.processorElement && showProcessedStreamLocally) {
-          detachTrack(this._mediaStreamTrack, el);
-          attachToElement(this.processor.processedTrack, el);
-        }
+    const unlock = await this.processorLock.lock();
+    try {
+      log.debug('setting up processor');
+      if (this.processor) {
+        await this.stopProcessor();
       }
-      await this.sender?.replaceTrack(this.processor.processedTrack);
+      if (this.kind === 'unknown') {
+        throw TypeError('cannot set processor on track of unknown kind');
+      }
+      this.processorElement = this.processorElement ?? document.createElement(this.kind);
+      this.processorElement.muted = true;
+
+      attachToElement(this._mediaStreamTrack, this.processorElement);
+      this.processorElement
+        .play()
+        .catch((error) => log.error('failed to play processor element', { error }));
+
+      const processorOptions = {
+        kind: this.kind,
+        track: this._mediaStreamTrack,
+        element: this.processorElement,
+      };
+
+      await processor.init(processorOptions);
+      this.processor = processor;
+      if (this.processor.processedTrack) {
+        for (const el of this.attachedElements) {
+          if (el !== this.processorElement && showProcessedStreamLocally) {
+            detachTrack(this._mediaStreamTrack, el);
+            attachToElement(this.processor.processedTrack, el);
+          }
+        }
+        await this.sender?.replaceTrack(this.processor.processedTrack);
+      }
+    } finally {
+      unlock();
     }
-    this.isSettingUpProcessor = false;
   }
 
   getProcessor() {
