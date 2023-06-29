@@ -4,6 +4,7 @@ import type { DetectableBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
+import { VideoCodec, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
 import type { LiveKitReactNativeInfo } from './types';
 
@@ -454,6 +455,10 @@ export class Mutex {
 
     return willUnlock;
   }
+}
+
+export function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec {
+  return videoCodecs.includes(maybeCodec as VideoCodec);
 }
 
 export function unwrapConstraint(constraint: ConstrainDOMString): string {

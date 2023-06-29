@@ -25,6 +25,7 @@ const startBitrateForSVC = 0.7;
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
+  RTPVideoPayloadTypes: 'rtpVideoPayloadTypes',
 } as const;
 
 /** @internal */
@@ -136,6 +137,14 @@ export default class PCTransport extends EventEmitter {
       this.createAndSendOffer();
     } else if (sd.type === 'answer') {
       this.emit(PCEvents.NegotiationComplete);
+      if (sd.sdp) {
+        const sdpParsed = parse(sd.sdp);
+        sdpParsed.media.forEach((media) => {
+          if (media.type === 'video') {
+            this.emit(PCEvents.RTPVideoPayloadTypes, media.rtp);
+          }
+        });
+      }
     }
   }
 

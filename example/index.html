@@ -32,6 +32,12 @@
             <div>
               <input type="text" class="form-control" id="token" />
             </div>
+            <div>
+              <b>E2EE key</b>
+            </div>
+            <div>
+              <input type="text" class="form-control" id="crypto-key" />
+            </div>
           </div>
 
           <!-- connect options -->
@@ -113,6 +119,24 @@
                 onclick="appActions.shareScreen()"
               >
                 Share Screen
+              </button>
+              <button
+                id="toggle-e2ee-button"
+                class="btn btn-secondary mt-1"
+                disabled
+                type="button"
+                onclick="appActions.toggleE2EE()"
+              >
+                Enable E2EE
+              </button>
+              <button
+                id="e2ee-ratchet-button"
+                class="btn btn-secondary mt-1"
+                disabled
+                type="button"
+                onclick="appActions.ratchetE2EEKey()"
+              >
+                Ratchet Key
               </button>
               <select
                 id="simulate-scenario"

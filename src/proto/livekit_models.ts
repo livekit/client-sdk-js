@@ -378,7 +378,7 @@ export function disconnectReasonToJSON(object: DisconnectReason): string {
 }
 
 export enum ReconnectReason {
-  RR_UNKOWN = 0,
+  RR_UNKNOWN = 0,
   RR_SIGNAL_DISCONNECTED = 1,
   RR_PUBLISHER_FAILED = 2,
   RR_SUBSCRIBER_FAILED = 3,
@@ -389,8 +389,8 @@ export enum ReconnectReason {
 export function reconnectReasonFromJSON(object: any): ReconnectReason {
   switch (object) {
     case 0:
-    case "RR_UNKOWN":
-      return ReconnectReason.RR_UNKOWN;
+    case "RR_UNKNOWN":
+      return ReconnectReason.RR_UNKNOWN;
     case 1:
     case "RR_SIGNAL_DISCONNECTED":
       return ReconnectReason.RR_SIGNAL_DISCONNECTED;
@@ -412,8 +412,8 @@ export function reconnectReasonFromJSON(object: any): ReconnectReason {
 
 export function reconnectReasonToJSON(object: ReconnectReason): string {
   switch (object) {
-    case ReconnectReason.RR_UNKOWN:
-      return "RR_UNKOWN";
+    case ReconnectReason.RR_UNKNOWN:
+      return "RR_UNKNOWN";
     case ReconnectReason.RR_SIGNAL_DISCONNECTED:
       return "RR_SIGNAL_DISCONNECTED";
     case ReconnectReason.RR_PUBLISHER_FAILED:
@@ -429,7 +429,7 @@ export function reconnectReasonToJSON(object: ReconnectReason): string {
 }
 
 export enum SubscriptionError {
-  SE_UNKOWN = 0,
+  SE_UNKNOWN = 0,
   SE_CODEC_UNSUPPORTED = 1,
   SE_TRACK_NOTFOUND = 2,
   UNRECOGNIZED = -1,
@@ -438,8 +438,8 @@ export enum SubscriptionError {
 export function subscriptionErrorFromJSON(object: any): SubscriptionError {
   switch (object) {
     case 0:
-    case "SE_UNKOWN":
-      return SubscriptionError.SE_UNKOWN;
+    case "SE_UNKNOWN":
+      return SubscriptionError.SE_UNKNOWN;
     case 1:
     case "SE_CODEC_UNSUPPORTED":
       return SubscriptionError.SE_CODEC_UNSUPPORTED;
@@ -455,8 +455,8 @@ export function subscriptionErrorFromJSON(object: any): SubscriptionError {
 
 export function subscriptionErrorToJSON(object: SubscriptionError): string {
   switch (object) {
-    case SubscriptionError.SE_UNKOWN:
-      return "SE_UNKOWN";
+    case SubscriptionError.SE_UNKNOWN:
+      return "SE_UNKNOWN";
     case SubscriptionError.SE_CODEC_UNSUPPORTED:
       return "SE_CODEC_UNSUPPORTED";
     case SubscriptionError.SE_TRACK_NOTFOUND:
@@ -3970,8 +3970,8 @@ function toTimestamp(date: Date): Timestamp {
 }
 
 function fromTimestamp(t: Timestamp): Date {
-  let millis = t.seconds * 1_000;
-  millis += t.nanos / 1_000_000;
+  let millis = (t.seconds || 0) * 1_000;
+  millis += (t.nanos || 0) / 1_000_000;
   return new Date(millis);
 }
 

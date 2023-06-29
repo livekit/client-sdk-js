@@ -273,6 +273,9 @@ export enum RoomEvent {
    */
   RecordingStatusChanged = 'recordingStatusChanged',
 
+  ParticipantEncryptionStatusChanged = 'participantEncryptionStatusChanged',
+
+  EncryptionError = 'encryptionError',
   /**
    * Emits whenever the current buffer status of a data channel changes
    * args: (isLow: boolean, kind: [[DataPacket_Kind]])
@@ -443,6 +446,9 @@ export enum ParticipantEvent {
    * args: (prevPermissions: [[ParticipantPermission]])
    */
   ParticipantPermissionsChanged = 'participantPermissionsChanged',
+
+  /** @internal */
+  PCTrackAdded = 'pcTrackAdded',
 }
 
 /** @internal */
@@ -460,6 +466,7 @@ export enum EngineEvent {
   MediaTrackAdded = 'mediaTrackAdded',
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
   DataPacketReceived = 'dataPacketReceived',
+  RTPVideoMapUpdate = 'rtpVideoMapUpdate',
   DCBufferStatusChanged = 'dcBufferStatusChanged',
 }
 

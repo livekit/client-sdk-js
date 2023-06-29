@@ -1,4 +1,5 @@
 import EventEmitter from 'eventemitter3';
+import type { MediaAttributes } from 'sdp-transform';
 import { SignalClient } from '../api/SignalClient';
 import type { SignalOptions } from '../api/SignalClient';
 import log from '../logger';
@@ -43,6 +44,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import {
   Mutex,
   isCloud,
+  isVideoCodec,
   isWeb,
   sleep,
   supportsAddTrack,
@@ -313,6 +315,14 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     this.participantSid = joinResponse.participant?.sid;
 
     const rtcConfig = this.makeRTCConfiguration(joinResponse);
+
+    if (this.signalOpts?.e2eeEnabled) {
+      log.debug('E2EE - setting up transports with insertable streams');
+      //  this makes sure that no data is sent before the transforms are ready
+      // @ts-ignore
+      rtcConfig.encodedInsertableStreams = true;
+    }
+
     const googConstraints = { optional: [{ googDscp: true }] };
     this.publisher = new PCTransport(rtcConfig, googConstraints);
     this.subscriber = new PCTransport(rtcConfig);
@@ -646,11 +656,13 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     encodings?: RTCRtpEncodingParameters[],
   ) {
     if (supportsTransceiver()) {
-      return this.createTransceiverRTCRtpSender(track, opts, encodings);
+      const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
+      return sender;
     }
     if (supportsAddTrack()) {
-      log.debug('using add-track fallback');
-      return this.createRTCRtpSender(track.mediaStreamTrack);
+      log.warn('using add-track fallback');
+      const sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+      return sender;
     }
     throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
   }
@@ -662,7 +674,6 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     encodings?: RTCRtpEncodingParameters[],
   ) {
     // store RTCRtpSender
-    // @ts-ignore
     if (supportsTransceiver()) {
       return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
     }
@@ -683,7 +694,13 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       throw new UnexpectedConnectionState('publisher is closed');
     }
 
-    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+    const streams: MediaStream[] = [];
+
+    if (track.mediaStream) {
+      streams.push(track.mediaStream);
+    }
+
+    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly', streams };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
     }
@@ -692,6 +709,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       track.mediaStreamTrack,
       transceiverInit,
     );
+
     if (track.kind === Track.Kind.Video && opts.videoCodec) {
       this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
       track.codec = opts.videoCodec;
@@ -819,7 +837,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       }
 
       if (recoverable) {
-        this.handleDisconnect('reconnect', ReconnectReason.RR_UNKOWN);
+        this.handleDisconnect('reconnect', ReconnectReason.RR_UNKNOWN);
       } else {
         log.info(
           `could not recover connection after ${this.reconnectAttempts} attempts, ${
@@ -1197,13 +1215,24 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
         });
       });
 
+      this.publisher.once(PCEvents.RTPVideoPayloadTypes, (rtpTypes: MediaAttributes['rtp']) => {
+        const rtpMap = new Map<number, VideoCodec>();
+        rtpTypes.forEach((rtp) => {
+          const codec = rtp.codec.toLowerCase();
+          if (isVideoCodec(codec)) {
+            rtpMap.set(rtp.payload, codec);
+          }
+        });
+        this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
+      });
+
       this.publisher.negotiate((e) => {
         cleanup();
         reject(e);
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
-        this.handleDisconnect('negotiation', ReconnectReason.RR_UNKOWN);
+        this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
       });
     });
   }
@@ -1318,5 +1347,8 @@ export type EngineEventCallbacks = {
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
+  /** @internal */
+  trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;
+  rtpVideoMapUpdate: (rtpMap: Map<number, VideoCodec>) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
 };

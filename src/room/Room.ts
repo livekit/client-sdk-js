@@ -1,6 +1,8 @@
 import EventEmitter from 'eventemitter3';
 import 'webrtc-adapter';
 import { toProtoSessionDescription } from '../api/SignalClient';
+import { EncryptionEvent } from '../e2ee';
+import { E2EEManager } from '../e2ee/E2eeManager';
 import log from '../logger';
 import type {
   InternalRoomConnectOptions,
@@ -112,6 +114,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   /** options of room */
   options: InternalRoomOptions;
 
+  /** reflects the sender encryption status of the local participant */
+  isE2EEEnabled: boolean = false;
+
   private roomInfo?: RoomModel;
 
   private identityToSid: Map<string, string>;
@@ -130,6 +135,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   private connectFuture?: Future<void>;
 
   private disconnectLock: Mutex;
+
+  private e2eeManager: E2EEManager | undefined;
 
   private cachedParticipantSids: Array<string>;
 
@@ -179,6 +186,40 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
     if (this.options.audioOutput?.deviceId) {
       this.switchActiveDevice('audiooutput', unwrapConstraint(this.options.audioOutput.deviceId));
+    }
+
+    if (this.options.e2ee) {
+      this.setupE2EE();
+    }
+  }
+
+  async setE2EEEnabled(enabled: boolean) {
+    if (this.e2eeManager) {
+      await Promise.all([
+        this.localParticipant.setE2EEEnabled(enabled),
+        this.e2eeManager.setParticipantCryptorEnabled(enabled),
+      ]);
+    } else {
+      throw Error('e2ee not configured, please set e2ee settings within the room options');
+    }
+  }
+
+  private setupE2EE() {
+    if (this.options.e2ee) {
+      this.e2eeManager = new E2EEManager(this.options.e2ee);
+      this.e2eeManager.on(
+        EncryptionEvent.ParticipantEncryptionStatusChanged,
+        (enabled, participant) => {
+          if (participant instanceof LocalParticipant) {
+            this.isE2EEEnabled = enabled;
+          }
+          this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
+        },
+      );
+      this.e2eeManager.on(EncryptionEvent.Error, (error) =>
+        this.emit(RoomEvent.EncryptionError, error),
+      );
+      this.e2eeManager?.setup(this);
     }
   }
 
@@ -272,6 +313,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
     if (this.localParticipant) {
       this.localParticipant.setupEngine(this.engine);
+    }
+    if (this.e2eeManager) {
+      this.e2eeManager.setupEngine(this.engine);
     }
   }
 
@@ -392,6 +436,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
         maxRetries: connectOptions.maxRetries,
+        e2eeEnabled: !!this.e2eeManager,
       },
       abortController.signal,
     );
@@ -1595,7 +1640,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         }),
         new LocalVideoTrack(
           publishOptions.useRealTracks
-            ? (await navigator.mediaDevices.getUserMedia({ video: true })).getVideoTracks()[0]
+            ? (
+                await window.navigator.mediaDevices.getUserMedia({ video: true })
+              ).getVideoTracks()[0]
             : createDummyVideoStreamTrack(
                 160 * participantOptions.aspectRatios[0] ?? 1,
                 160,
@@ -1758,6 +1805,8 @@ export type RoomEventCallbacks = {
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
+  participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;
+  encryptionError: (error: Error) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
 };

@@ -1,5 +1,6 @@
 import EventEmitter from 'eventemitter3';
 import log from '../../logger';
+import { Encryption_Type } from '../../proto/livekit_models';
 import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
@@ -35,6 +36,8 @@ export class TrackPublication extends EventEmitter<PublicationEventCallbacks> {
 
   protected metadataMuted: boolean = false;
 
+  protected encryption: Encryption_Type = Encryption_Type.NONE;
+
   constructor(kind: Track.Kind, id: string, name: string) {
     super();
     this.kind = kind;
@@ -69,6 +72,10 @@ export class TrackPublication extends EventEmitter<PublicationEventCallbacks> {
 
   get isSubscribed(): boolean {
     return this.track !== undefined;
+  }
+
+  get isEncrypted(): boolean {
+    return this.encryption !== Encryption_Type.NONE;
   }
 
   /**
@@ -110,8 +117,9 @@ export class TrackPublication extends EventEmitter<PublicationEventCallbacks> {
       };
       this.simulcasted = info.simulcast;
     }
+    this.encryption = info.encryption;
     this.trackInfo = info;
-    log.trace('update publication info', { info });
+    log.debug('update publication info', { info });
   }
 }
 

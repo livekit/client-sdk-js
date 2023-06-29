@@ -41,6 +41,7 @@ export { facingModeFromDeviceLabel, facingModeFromLocalTrack } from './room/trac
 export * from './room/track/types';
 export type { DataPublishOptions, SimulationScenario } from './room/types';
 export * from './version';
+export * from './e2ee';
 export * from './room/track/processor/types';
 export {
   setLogLevel,

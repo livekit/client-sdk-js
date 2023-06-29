@@ -4,10 +4,11 @@
     "src/**/*.ts",
     "src/**/*.js",
     "example/**/*.ts",
-    ".eslintrc.js",
+    ".eslintrc.cjs",
+    ".eslintrc.dist.cjs",
     "jest.config.js",
     "rollup.config.js",
-    "rollup.config.dev.js"
+    "rollup.config.worker.js"
   ],
   "exclude": ["dist/**"]
 }
