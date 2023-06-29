@@ -135,8 +135,6 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
-  private activeDeviceMap: Map<MediaDeviceKind, string>;
-
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -164,15 +162,17 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
-    this.activeDeviceMap = new Map();
+
+    this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
+
     if (this.options.videoCaptureDefaults.deviceId) {
-      this.activeDeviceMap.set(
+      this.localParticipant.activeDeviceMap.set(
         'videoinput',
         unwrapConstraint(this.options.videoCaptureDefaults.deviceId),
       );
     }
     if (this.options.audioCaptureDefaults.deviceId) {
-      this.activeDeviceMap.set(
+      this.localParticipant.activeDeviceMap.set(
         'audioinput',
         unwrapConstraint(this.options.audioCaptureDefaults.deviceId),
       );
@@ -180,8 +180,6 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (this.options.audioOutput?.deviceId) {
       this.switchActiveDevice('audiooutput', unwrapConstraint(this.options.audioOutput.deviceId));
     }
-
-    this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
   }
 
   /**
@@ -744,7 +742,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   }
 
   getActiveDevice(kind: MediaDeviceKind): string | undefined {
-    return this.activeDeviceMap.get(kind);
+    return this.localParticipant.activeDeviceMap.get(kind);
   }
 
   /**
@@ -818,7 +816,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       }
     }
     if (deviceHasChanged && success) {
-      this.activeDeviceMap.set(kind, deviceId);
+      this.localParticipant.activeDeviceMap.set(kind, deviceId);
       this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
     }
 
