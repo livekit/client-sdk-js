@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import EventEmitter from 'eventemitter3';
 import { parse, write } from 'sdp-transform';
 import type { MediaDescription } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
@@ -8,10 +8,19 @@ import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
-  sid: string;
+  cid?: string;
+  transceiver?: RTCRtpTransceiver;
   codec: string;
   maxbr: number;
 }
+
+/* The svc codec (av1/vp9) would use a very low bitrate at the begining and
+increase slowly by the bandwidth estimator until it reach the target bitrate. The
+process commonly cost more than 10 seconds cause subscriber will get blur video at 
+the first few seconds. So we use a 70% of target bitrate here as the start bitrate to
+eliminate this issue.
+*/
+const startBitrateForSVC = 0.7;
 
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
@@ -57,12 +66,65 @@ export default class PCTransport extends EventEmitter {
   }
 
   async setRemoteDescription(sd: RTCSessionDescriptionInit): Promise<void> {
+    let mungedSDP: string | undefined = undefined;
     if (sd.type === 'offer') {
       let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
       this.remoteStereoMids = stereoMids;
       this.remoteNackMids = nackMids;
+    } else if (sd.type === 'answer') {
+      const sdpParsed = parse(sd.sdp ?? '');
+      sdpParsed.media.forEach((media) => {
+        if (media.type === 'audio') {
+          // mung sdp for opus bitrate settings
+          this.trackBitrates.some((trackbr): boolean => {
+            if (!trackbr.transceiver || media.mid != trackbr.transceiver.mid) {
+              return false;
+            }
+
+            let codecPayload = 0;
+            media.rtp.some((rtp): boolean => {
+              if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
+                codecPayload = rtp.payload;
+                return true;
+              }
+              return false;
+            });
+
+            if (codecPayload === 0) {
+              return true;
+            }
+
+            let fmtpFound = false;
+            for (const fmtp of media.fmtp) {
+              if (fmtp.payload === codecPayload) {
+                fmtp.config = fmtp.config
+                  .split(';')
+                  .filter((attr) => !attr.includes('maxaveragebitrate'))
+                  .join(';');
+                if (trackbr.maxbr > 0) {
+                  fmtp.config += `;maxaveragebitrate=${trackbr.maxbr * 1000}`;
+                }
+                fmtpFound = true;
+                break;
+              }
+            }
+
+            if (!fmtpFound) {
+              if (trackbr.maxbr > 0) {
+                media.fmtp.push({
+                  payload: codecPayload,
+                  config: `maxaveragebitrate=${trackbr.maxbr * 1000}`,
+                });
+              }
+            }
+
+            return true;
+          });
+        }
+      });
+      mungedSDP = write(sdpParsed);
     }
-    await this.pc.setRemoteDescription(sd);
+    await this.setMungedSDP(sd, mungedSDP, true);
 
     this.pendingCandidates.forEach((candidate) => {
       this.pc.addIceCandidate(candidate);
@@ -139,7 +201,7 @@ export default class PCTransport extends EventEmitter {
         ensureVideoDDExtensionForSVC(media);
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
-          if (!media.msid || !media.msid.includes(trackbr.sid)) {
+          if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
             return false;
           }
 
@@ -152,29 +214,31 @@ export default class PCTransport extends EventEmitter {
             return false;
           });
 
-          // add x-google-max-bitrate to fmtp line if not exist
-          if (codecPayload > 0) {
-            if (
-              !media.fmtp.some((fmtp): boolean => {
-                if (fmtp.payload === codecPayload) {
-                  if (!fmtp.config.includes('x-google-start-bitrate')) {
-                    fmtp.config += `;x-google-start-bitrate=${trackbr.maxbr * 0.7}`;
-                  }
-                  if (!fmtp.config.includes('x-google-max-bitrate')) {
-                    fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
-                  }
-                  return true;
-                }
-                return false;
-              })
-            ) {
-              media.fmtp.push({
-                payload: codecPayload,
-                config: `x-google-start-bitrate=${trackbr.maxbr * 0.7};x-google-max-bitrate=${
-                  trackbr.maxbr
-                }`,
-              });
+          if (codecPayload === 0) {
+            return true;
+          }
+
+          let fmtpFound = false;
+          for (const fmtp of media.fmtp) {
+            if (fmtp.payload === codecPayload) {
+              if (!fmtp.config.includes('x-google-start-bitrate')) {
+                fmtp.config += `;x-google-start-bitrate=${trackbr.maxbr * startBitrateForSVC}`;
+              }
+              if (!fmtp.config.includes('x-google-max-bitrate')) {
+                fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
+              }
+              fmtpFound = true;
+              break;
             }
+          }
+
+          if (!fmtpFound) {
+            media.fmtp.push({
+              payload: codecPayload,
+              config: `x-google-start-bitrate=${
+                trackbr.maxbr * startBitrateForSVC
+              };x-google-max-bitrate=${trackbr.maxbr}`,
+            });
           }
 
           return true;
@@ -182,9 +246,7 @@ export default class PCTransport extends EventEmitter {
       }
     });
 
-    this.trackBitrates = [];
-
-    await this.setMungedLocalDescription(offer, write(sdpParsed));
+    await this.setMungedSDP(offer, write(sdpParsed));
     this.onOffer(offer);
   }
 
@@ -196,17 +258,12 @@ export default class PCTransport extends EventEmitter {
         ensureAudioNackAndStereo(media, this.remoteStereoMids, this.remoteNackMids);
       }
     });
-    await this.setMungedLocalDescription(answer, write(sdpParsed));
-
+    await this.setMungedSDP(answer, write(sdpParsed));
     return answer;
   }
 
-  setTrackCodecBitrate(sid: string, codec: string, maxbr: number) {
-    this.trackBitrates.push({
-      sid,
-      codec,
-      maxbr,
-    });
+  setTrackCodecBitrate(info: TrackBitrateInfo) {
+    this.trackBitrates.push(info);
   }
 
   close() {
@@ -215,26 +272,32 @@ export default class PCTransport extends EventEmitter {
     this.pc.close();
   }
 
-  private async setMungedLocalDescription(
-    sd: RTCSessionDescriptionInit,
-    munged: string,
-  ): Promise<boolean> {
-    const originalSdp = sd.sdp;
-    sd.sdp = munged;
-    try {
-      log.debug('setting munged local description');
-      await this.pc.setLocalDescription(sd);
-      return true;
-    } catch (e) {
-      log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
-        error: e,
-      });
-      sd.sdp = originalSdp;
+  private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {
+    if (munged) {
+      const originalSdp = sd.sdp;
+      sd.sdp = munged;
+      try {
+        log.debug(`setting munged ${remote ? 'remote' : 'local'} description`);
+        if (remote) {
+          await this.pc.setRemoteDescription(sd);
+        } else {
+          await this.pc.setLocalDescription(sd);
+        }
+        return;
+      } catch (e) {
+        log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
+          error: e,
+        });
+        sd.sdp = originalSdp;
+      }
     }
 
     try {
-      await this.pc.setLocalDescription(sd);
-      return false;
+      if (remote) {
+        await this.pc.setRemoteDescription(sd);
+      } else {
+        await this.pc.setLocalDescription(sd);
+      }
     } catch (e) {
       // this error cannot always be caught.
       // If the local description has a setCodecPreferences error, this error will be uncaught

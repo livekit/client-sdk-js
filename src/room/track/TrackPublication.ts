@@ -1,8 +1,7 @@
-import { EventEmitter } from 'events';
-import type TypedEventEmitter from 'typed-emitter';
+import EventEmitter from 'eventemitter3';
 import log from '../../logger';
-import type { TrackInfo } from '../../proto/livekit_models';
 import { Encryption_Type } from '../../proto/livekit_models';
+import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
@@ -12,7 +11,7 @@ import type RemoteTrack from './RemoteTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
 
-export class TrackPublication extends (EventEmitter as new () => TypedEventEmitter<PublicationEventCallbacks>) {
+export class TrackPublication extends EventEmitter<PublicationEventCallbacks> {
   kind: Track.Kind;
 
   trackName: string;
@@ -41,7 +40,6 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
 
   constructor(kind: Track.Kind, id: string, name: string) {
     super();
-    this.setMaxListeners(100);
     this.kind = kind;
     this.trackSid = id;
     this.trackName = name;
@@ -154,4 +152,5 @@ export type PublicationEventCallbacks = {
     status: TrackPublication.SubscriptionStatus,
     prevStatus: TrackPublication.SubscriptionStatus,
   ) => void;
+  subscriptionFailed: (error: SubscriptionError) => void;
 };

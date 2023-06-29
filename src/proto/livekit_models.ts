@@ -378,7 +378,7 @@ export function disconnectReasonToJSON(object: DisconnectReason): string {
 }
 
 export enum ReconnectReason {
-  RR_UNKOWN = 0,
+  RR_UNKNOWN = 0,
   RR_SIGNAL_DISCONNECTED = 1,
   RR_PUBLISHER_FAILED = 2,
   RR_SUBSCRIBER_FAILED = 3,
@@ -389,8 +389,8 @@ export enum ReconnectReason {
 export function reconnectReasonFromJSON(object: any): ReconnectReason {
   switch (object) {
     case 0:
-    case "RR_UNKOWN":
-      return ReconnectReason.RR_UNKOWN;
+    case "RR_UNKNOWN":
+      return ReconnectReason.RR_UNKNOWN;
     case 1:
     case "RR_SIGNAL_DISCONNECTED":
       return ReconnectReason.RR_SIGNAL_DISCONNECTED;
@@ -412,8 +412,8 @@ export function reconnectReasonFromJSON(object: any): ReconnectReason {
 
 export function reconnectReasonToJSON(object: ReconnectReason): string {
   switch (object) {
-    case ReconnectReason.RR_UNKOWN:
-      return "RR_UNKOWN";
+    case ReconnectReason.RR_UNKNOWN:
+      return "RR_UNKNOWN";
     case ReconnectReason.RR_SIGNAL_DISCONNECTED:
       return "RR_SIGNAL_DISCONNECTED";
     case ReconnectReason.RR_PUBLISHER_FAILED:
@@ -423,6 +423,45 @@ export function reconnectReasonToJSON(object: ReconnectReason): string {
     case ReconnectReason.RR_SWITCH_CANDIDATE:
       return "RR_SWITCH_CANDIDATE";
     case ReconnectReason.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
+export enum SubscriptionError {
+  SE_UNKNOWN = 0,
+  SE_CODEC_UNSUPPORTED = 1,
+  SE_TRACK_NOTFOUND = 2,
+  UNRECOGNIZED = -1,
+}
+
+export function subscriptionErrorFromJSON(object: any): SubscriptionError {
+  switch (object) {
+    case 0:
+    case "SE_UNKNOWN":
+      return SubscriptionError.SE_UNKNOWN;
+    case 1:
+    case "SE_CODEC_UNSUPPORTED":
+      return SubscriptionError.SE_CODEC_UNSUPPORTED;
+    case 2:
+    case "SE_TRACK_NOTFOUND":
+      return SubscriptionError.SE_TRACK_NOTFOUND;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return SubscriptionError.UNRECOGNIZED;
+  }
+}
+
+export function subscriptionErrorToJSON(object: SubscriptionError): string {
+  switch (object) {
+    case SubscriptionError.SE_UNKNOWN:
+      return "SE_UNKNOWN";
+    case SubscriptionError.SE_CODEC_UNSUPPORTED:
+      return "SE_CODEC_UNSUPPORTED";
+    case SubscriptionError.SE_TRACK_NOTFOUND:
+      return "SE_TRACK_NOTFOUND";
+    case SubscriptionError.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
   }
@@ -837,7 +876,10 @@ export interface VideoConfiguration {
 }
 
 export interface DisabledCodecs {
+  /** disabled for both publish and subscribe */
   codecs: Codec[];
+  /** only disable for publish */
+  publish: Codec[];
 }
 
 export interface RTPStats {
@@ -882,6 +924,9 @@ export interface RTPStats {
   lastKeyFrame?: Date;
   layerLockPlis: number;
   lastLayerLockPli?: Date;
+  sampleRate: number;
+  /** NEXT_ID: 44 */
+  driftMs: number;
 }
 
 export interface RTPStats_GapHistogramEntry {
@@ -2976,13 +3021,16 @@ export const VideoConfiguration = {
 };
 
 function createBaseDisabledCodecs(): DisabledCodecs {
-  return { codecs: [] };
+  return { codecs: [], publish: [] };
 }
 
 export const DisabledCodecs = {
   encode(message: DisabledCodecs, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     for (const v of message.codecs) {
       Codec.encode(v!, writer.uint32(10).fork()).ldelim();
+    }
+    for (const v of message.publish) {
+      Codec.encode(v!, writer.uint32(18).fork()).ldelim();
     }
     return writer;
   },
@@ -3001,6 +3049,13 @@ export const DisabledCodecs = {
 
           message.codecs.push(Codec.decode(reader, reader.uint32()));
           continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.publish.push(Codec.decode(reader, reader.uint32()));
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -3011,7 +3066,10 @@ export const DisabledCodecs = {
   },
 
   fromJSON(object: any): DisabledCodecs {
-    return { codecs: Array.isArray(object?.codecs) ? object.codecs.map((e: any) => Codec.fromJSON(e)) : [] };
+    return {
+      codecs: Array.isArray(object?.codecs) ? object.codecs.map((e: any) => Codec.fromJSON(e)) : [],
+      publish: Array.isArray(object?.publish) ? object.publish.map((e: any) => Codec.fromJSON(e)) : [],
+    };
   },
 
   toJSON(message: DisabledCodecs): unknown {
@@ -3020,6 +3078,11 @@ export const DisabledCodecs = {
       obj.codecs = message.codecs.map((e) => e ? Codec.toJSON(e) : undefined);
     } else {
       obj.codecs = [];
+    }
+    if (message.publish) {
+      obj.publish = message.publish.map((e) => e ? Codec.toJSON(e) : undefined);
+    } else {
+      obj.publish = [];
     }
     return obj;
   },
@@ -3031,6 +3094,7 @@ export const DisabledCodecs = {
   fromPartial<I extends Exact<DeepPartial<DisabledCodecs>, I>>(object: I): DisabledCodecs {
     const message = createBaseDisabledCodecs();
     message.codecs = object.codecs?.map((e) => Codec.fromPartial(e)) || [];
+    message.publish = object.publish?.map((e) => Codec.fromPartial(e)) || [];
     return message;
   },
 };
@@ -3078,6 +3142,8 @@ function createBaseRTPStats(): RTPStats {
     lastKeyFrame: undefined,
     layerLockPlis: 0,
     lastLayerLockPli: undefined,
+    sampleRate: 0,
+    driftMs: 0,
   };
 }
 
@@ -3205,6 +3271,12 @@ export const RTPStats = {
     }
     if (message.lastLayerLockPli !== undefined) {
       Timestamp.encode(toTimestamp(message.lastLayerLockPli), writer.uint32(290).fork()).ldelim();
+    }
+    if (message.sampleRate !== 0) {
+      writer.uint32(337).double(message.sampleRate);
+    }
+    if (message.driftMs !== 0) {
+      writer.uint32(345).double(message.driftMs);
     }
     return writer;
   },
@@ -3506,6 +3578,20 @@ export const RTPStats = {
 
           message.lastLayerLockPli = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
           continue;
+        case 42:
+          if (tag !== 337) {
+            break;
+          }
+
+          message.sampleRate = reader.double();
+          continue;
+        case 43:
+          if (tag !== 345) {
+            break;
+          }
+
+          message.driftMs = reader.double();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -3563,6 +3649,8 @@ export const RTPStats = {
       lastKeyFrame: isSet(object.lastKeyFrame) ? fromJsonTimestamp(object.lastKeyFrame) : undefined,
       layerLockPlis: isSet(object.layerLockPlis) ? Number(object.layerLockPlis) : 0,
       lastLayerLockPli: isSet(object.lastLayerLockPli) ? fromJsonTimestamp(object.lastLayerLockPli) : undefined,
+      sampleRate: isSet(object.sampleRate) ? Number(object.sampleRate) : 0,
+      driftMs: isSet(object.driftMs) ? Number(object.driftMs) : 0,
     };
   },
 
@@ -3614,6 +3702,8 @@ export const RTPStats = {
     message.lastKeyFrame !== undefined && (obj.lastKeyFrame = message.lastKeyFrame.toISOString());
     message.layerLockPlis !== undefined && (obj.layerLockPlis = Math.round(message.layerLockPlis));
     message.lastLayerLockPli !== undefined && (obj.lastLayerLockPli = message.lastLayerLockPli.toISOString());
+    message.sampleRate !== undefined && (obj.sampleRate = message.sampleRate);
+    message.driftMs !== undefined && (obj.driftMs = message.driftMs);
     return obj;
   },
 
@@ -3672,6 +3762,8 @@ export const RTPStats = {
     message.lastKeyFrame = object.lastKeyFrame ?? undefined;
     message.layerLockPlis = object.layerLockPlis ?? 0;
     message.lastLayerLockPli = object.lastLayerLockPli ?? undefined;
+    message.sampleRate = object.sampleRate ?? 0;
+    message.driftMs = object.driftMs ?? 0;
     return message;
   },
 };
@@ -3878,8 +3970,8 @@ function toTimestamp(date: Date): Timestamp {
 }
 
 function fromTimestamp(t: Timestamp): Date {
-  let millis = t.seconds * 1_000;
-  millis += t.nanos / 1_000_000;
+  let millis = (t.seconds || 0) * 1_000;
+  millis += (t.nanos || 0) / 1_000_000;
   return new Date(millis);
 }
 

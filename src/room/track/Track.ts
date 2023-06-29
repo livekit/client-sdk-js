@@ -1,5 +1,4 @@
-import { EventEmitter } from 'events';
-import type TypedEventEmitter from 'typed-emitter';
+import EventEmitter from 'eventemitter3';
 import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
@@ -13,7 +12,7 @@ const BACKGROUND_REACTION_DELAY = 5000;
 // Safari tracks which audio elements have been "blessed" by the user.
 const recycledElements: Array<HTMLAudioElement> = [];
 
-export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
+export abstract class Track extends EventEmitter<TrackEventCallbacks> {
   kind: Track.Kind;
 
   attachedElements: HTMLMediaElement[] = [];
@@ -52,7 +51,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
   protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
     super();
-    this.setMaxListeners(100);
     this.kind = kind;
     this._mediaStreamTrack = mediaTrack;
     this._mediaStreamID = mediaTrack.id;
@@ -118,7 +116,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     // even if we believe it's already attached to the element, it's possible
     // the element's srcObject was set to something else out of band.
     // we'll want to re-attach it in that case
-    attachToElement(this._mediaStreamTrack, element);
+    attachToElement(this.mediaStreamTrack, element);
 
     // handle auto playback failures
     const allMediaStreamTracks = (element.srcObject as MediaStream).getTracks();
@@ -167,7 +165,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     try {
       // detach from a single element
       if (element) {
-        detachTrack(this._mediaStreamTrack, element);
+        detachTrack(this.mediaStreamTrack, element);
         const idx = this.attachedElements.indexOf(element);
         if (idx >= 0) {
           this.attachedElements.splice(idx, 1);
@@ -179,7 +177,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
       const detached: HTMLMediaElement[] = [];
       this.attachedElements.forEach((elm) => {
-        detachTrack(this._mediaStreamTrack, elm);
+        detachTrack(this.mediaStreamTrack, elm);
         detached.push(elm);
         this.recycleElement(elm);
         this.emit(TrackEvent.ElementDetached, elm);

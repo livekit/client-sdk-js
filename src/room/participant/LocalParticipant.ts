@@ -56,6 +56,9 @@ export default class LocalParticipant extends Participant {
   /** @internal */
   engine: RTCEngine;
 
+  /** @internal */
+  activeDeviceMap: Map<MediaDeviceKind, string>;
+
   private pendingPublishing = new Set<Track.Source>();
 
   private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
@@ -84,6 +87,7 @@ export default class LocalParticipant extends Participant {
     this.engine = engine;
     this.roomOptions = options;
     this.setupEngine(engine);
+    this.activeDeviceMap = new Map();
   }
 
   get lastCameraError(): Error | undefined {
@@ -151,8 +155,11 @@ export default class LocalParticipant extends Participant {
   };
 
   private handleDisconnected = () => {
-    this.reconnectFuture?.reject?.('Got disconnected during publishing attempt');
-    this.reconnectFuture = undefined;
+    if (this.reconnectFuture) {
+      this.reconnectFuture.promise.catch((e) => log.warn(e));
+      this.reconnectFuture?.reject?.('Got disconnected during reconnection attempt');
+      this.reconnectFuture = undefined;
+    }
   };
 
   /**
@@ -485,14 +492,38 @@ export default class LocalParticipant extends Participant {
     if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
       await this.pendingPublishPromises.get(track);
     }
+    let defaultConstraints: MediaTrackConstraints | undefined;
+    if (track instanceof MediaStreamTrack) {
+      defaultConstraints = track.getConstraints();
+    } else {
+      // we want to access constraints directly as `track.mediaStreamTrack`
+      // might be pointing to a non-device track (e.g. processed track) already
+      defaultConstraints = track.constraints;
+      let deviceKind: MediaDeviceKind | undefined = undefined;
+      switch (track.source) {
+        case Track.Source.Microphone:
+          deviceKind = 'audioinput';
+          break;
+        case Track.Source.Camera:
+          deviceKind = 'videoinput';
+        default:
+          break;
+      }
+      if (deviceKind && this.activeDeviceMap.has(deviceKind)) {
+        defaultConstraints = {
+          ...defaultConstraints,
+          deviceId: this.activeDeviceMap.get(deviceKind),
+        };
+      }
+    }
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
         case 'audio':
-          track = new LocalAudioTrack(track, undefined, true);
+          track = new LocalAudioTrack(track, defaultConstraints, true);
           break;
         case 'video':
-          track = new LocalVideoTrack(track, undefined, true);
+          track = new LocalVideoTrack(track, defaultConstraints, true);
           break;
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
@@ -515,12 +546,12 @@ export default class LocalParticipant extends Participant {
       return existingPublication;
     }
 
-    const isStereo =
-      options?.forceStereo ||
+    const isStereoInput =
       ('channelCount' in track.mediaStreamTrack.getSettings() &&
         // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
         track.mediaStreamTrack.getSettings().channelCount === 2) ||
       track.mediaStreamTrack.getConstraints().channelCount === 2;
+    const isStereo = options?.forceStereo ?? isStereoInput;
 
     // disable dtx for stereo track if not enabled explicitly
     if (isStereo) {
@@ -656,8 +687,8 @@ export default class LocalParticipant extends Participant {
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
         if (isSVCCodec(opts.videoCodec)) {
-          // set scalabilityMode to 'L3T3' by default
-          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3';
+          // set scalabilityMode to 'L3T3_KEY' by default
+          opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
         }
 
         // set up backup
@@ -678,6 +709,16 @@ export default class LocalParticipant extends Participant {
               enableSimulcastLayers: true,
             },
           ];
+        } else if (opts.videoCodec) {
+          // pass codec info to sfu so it can prefer codec for the client which don't support
+          // setCodecPreferences
+          req.simulcastCodecs = [
+            {
+              codec: opts.videoCodec,
+              cid: track.mediaStreamTrack.id,
+              enableSimulcastLayers: opts.simulcast ?? false,
+            },
+          ];
         }
       }
 
@@ -687,7 +728,12 @@ export default class LocalParticipant extends Participant {
         dims.height,
         opts,
       );
-      req.layers = videoLayersFromEncodings(req.width, req.height, simEncodings ?? encodings);
+      req.layers = videoLayersFromEncodings(
+        req.width,
+        req.height,
+        encodings,
+        isSVCCodec(opts.videoCodec),
+      );
     } else if (track.kind === Track.Kind.Audio) {
       encodings = [
         {
@@ -743,12 +789,36 @@ export default class LocalParticipant extends Participant {
     // store RTPSender
     track.sender = await this.engine.createSender(track, opts, encodings);
 
-    if (track.codec && isSVCCodec(track.codec) && encodings && encodings[0]?.maxBitrate) {
-      this.engine.publisher.setTrackCodecBitrate(
-        req.cid,
-        track.codec,
-        encodings[0].maxBitrate / 1000,
-      );
+    if (encodings) {
+      if (isFireFox() && track.kind === Track.Kind.Audio) {
+        /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1, 
+           livekit-server uses maxaveragebitrate=510000in the answer sdp to permit client to
+           publish high quality audio track. But firefox always uses this value as the actual 
+           bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
+           So the client need to modify maxaverragebitrates in answer sdp to user provided value to 
+           fix the issue.
+         */
+        let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
+        for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
+          if (transceiver.sender === track.sender) {
+            trackTransceiver = transceiver;
+            break;
+          }
+        }
+        if (trackTransceiver) {
+          this.engine.publisher.setTrackCodecBitrate({
+            transceiver: trackTransceiver,
+            codec: 'opus',
+            maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
+          });
+        }
+      } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
+        this.engine.publisher.setTrackCodecBitrate({
+          cid: req.cid,
+          codec: track.codec,
+          maxbr: encodings[0].maxBitrate / 1000,
+        });
+      }
     }
 
     this.engine.negotiate();
@@ -881,6 +951,16 @@ export default class LocalParticipant extends Participant {
       trackSender
     ) {
       try {
+        for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
+          // if sender is not currently sending (after replaceTrack(null))
+          // removeTrack would have no effect.
+          // to ensure we end up successfully removing the track, manually set
+          // the transceiver to inactive
+          if (transceiver.sender === trackSender) {
+            transceiver.direction = 'inactive';
+            negotiationNeeded = true;
+          }
+        }
         if (this.engine.removeTrack(trackSender)) {
           negotiationNeeded = true;
         }

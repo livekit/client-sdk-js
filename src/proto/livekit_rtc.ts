@@ -17,6 +17,9 @@ import {
   Room,
   ServerInfo,
   SpeakerInfo,
+  SubscriptionError,
+  subscriptionErrorFromJSON,
+  subscriptionErrorToJSON,
   TrackInfo,
   TrackSource,
   trackSourceFromJSON,
@@ -176,7 +179,8 @@ export interface SignalResponse {
     | { $case: "trackUnpublished"; trackUnpublished: TrackUnpublishedResponse }
     | { $case: "pong"; pong: number }
     | { $case: "reconnect"; reconnect: ReconnectResponse }
-    | { $case: "pongResp"; pongResp: Pong };
+    | { $case: "pongResp"; pongResp: Pong }
+    | { $case: "subscriptionResponse"; subscriptionResponse: SubscriptionResponse };
 }
 
 export interface SimulcastCodec {
@@ -238,6 +242,8 @@ export interface JoinResponse {
   pingTimeout: number;
   pingInterval: number;
   serverInfo?: ServerInfo;
+  /** Server-Injected-Frame byte trailer, used to identify unencrypted frames when e2ee is enabled */
+  sifTrailer: Uint8Array;
 }
 
 export interface ReconnectResponse {
@@ -428,6 +434,11 @@ export interface RegionInfo {
   region: string;
   url: string;
   distance: number;
+}
+
+export interface SubscriptionResponse {
+  trackSid: string;
+  err: SubscriptionError;
 }
 
 function createBaseSignalRequest(): SignalRequest {
@@ -866,6 +877,9 @@ export const SignalResponse = {
       case "pongResp":
         Pong.encode(message.message.pongResp, writer.uint32(162).fork()).ldelim();
         break;
+      case "subscriptionResponse":
+        SubscriptionResponse.encode(message.message.subscriptionResponse, writer.uint32(170).fork()).ldelim();
+        break;
     }
     return writer;
   },
@@ -1031,6 +1045,16 @@ export const SignalResponse = {
 
           message.message = { $case: "pongResp", pongResp: Pong.decode(reader, reader.uint32()) };
           continue;
+        case 21:
+          if (tag !== 170) {
+            break;
+          }
+
+          message.message = {
+            $case: "subscriptionResponse",
+            subscriptionResponse: SubscriptionResponse.decode(reader, reader.uint32()),
+          };
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1086,6 +1110,11 @@ export const SignalResponse = {
         ? { $case: "reconnect", reconnect: ReconnectResponse.fromJSON(object.reconnect) }
         : isSet(object.pongResp)
         ? { $case: "pongResp", pongResp: Pong.fromJSON(object.pongResp) }
+        : isSet(object.subscriptionResponse)
+        ? {
+          $case: "subscriptionResponse",
+          subscriptionResponse: SubscriptionResponse.fromJSON(object.subscriptionResponse),
+        }
         : undefined,
     };
   },
@@ -1137,6 +1166,10 @@ export const SignalResponse = {
       (obj.reconnect = message.message?.reconnect ? ReconnectResponse.toJSON(message.message?.reconnect) : undefined);
     message.message?.$case === "pongResp" &&
       (obj.pongResp = message.message?.pongResp ? Pong.toJSON(message.message?.pongResp) : undefined);
+    message.message?.$case === "subscriptionResponse" &&
+      (obj.subscriptionResponse = message.message?.subscriptionResponse
+        ? SubscriptionResponse.toJSON(message.message?.subscriptionResponse)
+        : undefined);
     return obj;
   },
 
@@ -1271,6 +1304,16 @@ export const SignalResponse = {
       object.message?.pongResp !== null
     ) {
       message.message = { $case: "pongResp", pongResp: Pong.fromPartial(object.message.pongResp) };
+    }
+    if (
+      object.message?.$case === "subscriptionResponse" &&
+      object.message?.subscriptionResponse !== undefined &&
+      object.message?.subscriptionResponse !== null
+    ) {
+      message.message = {
+        $case: "subscriptionResponse",
+        subscriptionResponse: SubscriptionResponse.fromPartial(object.message.subscriptionResponse),
+      };
     }
     return message;
   },
@@ -1768,6 +1811,7 @@ function createBaseJoinResponse(): JoinResponse {
     pingTimeout: 0,
     pingInterval: 0,
     serverInfo: undefined,
+    sifTrailer: new Uint8Array(),
   };
 }
 
@@ -1808,6 +1852,9 @@ export const JoinResponse = {
     }
     if (message.serverInfo !== undefined) {
       ServerInfo.encode(message.serverInfo, writer.uint32(98).fork()).ldelim();
+    }
+    if (message.sifTrailer.length !== 0) {
+      writer.uint32(106).bytes(message.sifTrailer);
     }
     return writer;
   },
@@ -1903,6 +1950,13 @@ export const JoinResponse = {
 
           message.serverInfo = ServerInfo.decode(reader, reader.uint32());
           continue;
+        case 13:
+          if (tag !== 106) {
+            break;
+          }
+
+          message.sifTrailer = reader.bytes();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1930,6 +1984,7 @@ export const JoinResponse = {
       pingTimeout: isSet(object.pingTimeout) ? Number(object.pingTimeout) : 0,
       pingInterval: isSet(object.pingInterval) ? Number(object.pingInterval) : 0,
       serverInfo: isSet(object.serverInfo) ? ServerInfo.fromJSON(object.serverInfo) : undefined,
+      sifTrailer: isSet(object.sifTrailer) ? bytesFromBase64(object.sifTrailer) : new Uint8Array(),
     };
   },
 
@@ -1959,6 +2014,8 @@ export const JoinResponse = {
     message.pingInterval !== undefined && (obj.pingInterval = Math.round(message.pingInterval));
     message.serverInfo !== undefined &&
       (obj.serverInfo = message.serverInfo ? ServerInfo.toJSON(message.serverInfo) : undefined);
+    message.sifTrailer !== undefined &&
+      (obj.sifTrailer = base64FromBytes(message.sifTrailer !== undefined ? message.sifTrailer : new Uint8Array()));
     return obj;
   },
 
@@ -1986,6 +2043,7 @@ export const JoinResponse = {
     message.serverInfo = (object.serverInfo !== undefined && object.serverInfo !== null)
       ? ServerInfo.fromPartial(object.serverInfo)
       : undefined;
+    message.sifTrailer = object.sifTrailer ?? new Uint8Array();
     return message;
   },
 };
@@ -4470,6 +4528,77 @@ export const RegionInfo = {
   },
 };
 
+function createBaseSubscriptionResponse(): SubscriptionResponse {
+  return { trackSid: "", err: 0 };
+}
+
+export const SubscriptionResponse = {
+  encode(message: SubscriptionResponse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.trackSid !== "") {
+      writer.uint32(10).string(message.trackSid);
+    }
+    if (message.err !== 0) {
+      writer.uint32(16).int32(message.err);
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): SubscriptionResponse {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSubscriptionResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.trackSid = reader.string();
+          continue;
+        case 2:
+          if (tag !== 16) {
+            break;
+          }
+
+          message.err = reader.int32() as any;
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SubscriptionResponse {
+    return {
+      trackSid: isSet(object.trackSid) ? String(object.trackSid) : "",
+      err: isSet(object.err) ? subscriptionErrorFromJSON(object.err) : 0,
+    };
+  },
+
+  toJSON(message: SubscriptionResponse): unknown {
+    const obj: any = {};
+    message.trackSid !== undefined && (obj.trackSid = message.trackSid);
+    message.err !== undefined && (obj.err = subscriptionErrorToJSON(message.err));
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SubscriptionResponse>, I>>(base?: I): SubscriptionResponse {
+    return SubscriptionResponse.fromPartial(base ?? {});
+  },
+
+  fromPartial<I extends Exact<DeepPartial<SubscriptionResponse>, I>>(object: I): SubscriptionResponse {
+    const message = createBaseSubscriptionResponse();
+    message.trackSid = object.trackSid ?? "";
+    message.err = object.err ?? 0;
+    return message;
+  },
+};
+
 declare var self: any | undefined;
 declare var window: any | undefined;
 declare var global: any | undefined;
@@ -4488,6 +4617,31 @@ var tsProtoGlobalThis: any = (() => {
   }
   throw "Unable to locate global object";
 })();
+
+function bytesFromBase64(b64: string): Uint8Array {
+  if (tsProtoGlobalThis.Buffer) {
+    return Uint8Array.from(tsProtoGlobalThis.Buffer.from(b64, "base64"));
+  } else {
+    const bin = tsProtoGlobalThis.atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; ++i) {
+      arr[i] = bin.charCodeAt(i);
+    }
+    return arr;
+  }
+}
+
+function base64FromBytes(arr: Uint8Array): string {
+  if (tsProtoGlobalThis.Buffer) {
+    return tsProtoGlobalThis.Buffer.from(arr).toString("base64");
+  } else {
+    const bin: string[] = [];
+    arr.forEach((byte) => {
+      bin.push(String.fromCharCode(byte));
+    });
+    return tsProtoGlobalThis.btoa(bin.join(""));
+  }
+}
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 

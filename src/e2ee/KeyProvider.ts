@@ -1,10 +1,9 @@
-import { EventEmitter } from 'events';
-import type TypedEmitter from 'typed-emitter';
+import EventEmitter from 'eventemitter3';
 import { KEY_PROVIDER_DEFAULTS } from './constants';
 import type { KeyInfo, KeyProviderCallbacks, KeyProviderOptions } from './types';
 import { createKeyMaterialFromString } from './utils';
 
-export class BaseKeyProvider extends (EventEmitter as new () => TypedEmitter<KeyProviderCallbacks>) {
+export class BaseKeyProvider extends EventEmitter<KeyProviderCallbacks> {
   private keyInfoMap: Map<string, KeyInfo>;
 
   private options: KeyProviderOptions;

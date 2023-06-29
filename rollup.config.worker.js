@@ -1,5 +1,4 @@
 import terser from '@rollup/plugin-terser';
-import filesize from 'rollup-plugin-filesize';
 import typescript from 'rollup-plugin-typescript2';
 import packageJson from './package.json';
 import { commonPlugins, kebabCaseToPascalCase } from './rollup.config';
@@ -22,9 +21,5 @@ export default {
       plugins: [terser()],
     },
   ],
-  plugins: [
-    typescript({ tsconfig: './src/e2ee/worker/tsconfig.json' }),
-    ...commonPlugins,
-    filesize(),
-  ],
+  plugins: [typescript({ tsconfig: './src/e2ee/worker/tsconfig.json' }), ...commonPlugins],
 };

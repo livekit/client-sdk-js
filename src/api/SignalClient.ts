@@ -22,6 +22,7 @@ import {
   StreamStateUpdate,
   SubscribedQualityUpdate,
   SubscriptionPermissionUpdate,
+  SubscriptionResponse,
   SyncState,
   TrackPermission,
   TrackPublishedResponse,
@@ -128,6 +129,8 @@ export class SignalClient {
 
   onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
 
+  onSubscriptionError?: (update: SubscriptionResponse) => void;
+
   onLocalTrackUnpublished?: (res: TrackUnpublishedResponse) => void;
 
   onTokenRefresh?: (token: string) => void;
@@ -215,7 +218,7 @@ export class SignalClient {
 
     return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
       const abortHandler = async () => {
-        await this.close();
+        this.close();
         reject(new ConnectionError('room connection has been cancelled (signal)'));
       };
 
@@ -593,6 +596,10 @@ export class SignalClient {
     } else if (msg.$case === 'trackUnpublished') {
       if (this.onLocalTrackUnpublished) {
         this.onLocalTrackUnpublished(msg.trackUnpublished);
+      }
+    } else if (msg.$case === 'subscriptionResponse') {
+      if (this.onSubscriptionError) {
+        this.onSubscriptionError(msg.subscriptionResponse);
       }
     } else if (msg.$case === 'pong') {
       this.resetPingTimeout();

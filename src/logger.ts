@@ -44,10 +44,10 @@ export type LogExtension = (level: LogLevel, msg: string, context?: object) => v
 export function setLogExtension(extension: LogExtension) {
   const originalFactory = livekitLogger.methodFactory;
 
-  livekitLogger.methodFactory = (methodName, logLevel, loggerName) => {
-    const rawMethod = originalFactory(methodName, logLevel, loggerName);
+  livekitLogger.methodFactory = (methodName, configLevel, loggerName) => {
+    const rawMethod = originalFactory(methodName, configLevel, loggerName);
 
-    const configLevel = livekitLogger.getLevel();
+    const logLevel = LogLevel[methodName as LogLevelString];
     const needLog = logLevel >= configLevel && logLevel < LogLevel.silent;
 
     return (msg, context?: [msg: string, context: object]) => {

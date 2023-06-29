@@ -281,6 +281,12 @@ export enum RoomEvent {
    * args: (isLow: boolean, kind: [[DataPacket_Kind]])
    */
   DCBufferStatusChanged = 'dcBufferStatusChanged',
+
+  /**
+   * Triggered by a call to room.switchActiveDevice
+   * args: (kind: MediaDeviceKind, deviceId: string)
+   */
+  ActiveDeviceChanged = 'activeDeviceChanged',
 }
 
 export enum ParticipantEvent {
@@ -515,4 +521,8 @@ export enum TrackEvent {
    * Fires on RemoteTrackPublication
    */
   SubscriptionStatusChanged = 'subscriptionStatusChanged',
+  /**
+   * Fires on RemoteTrackPublication
+   */
+  SubscriptionFailed = 'subscriptionFailed',
 }
