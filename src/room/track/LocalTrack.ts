@@ -366,7 +366,7 @@ export default abstract class LocalTrack extends Track {
     try {
       log.debug('setting up processor');
       if (this.processor) {
-        await this.stopProcessor();
+        await this.stopProcessor(false);
       }
       if (this.kind === 'unknown') {
         throw TypeError('cannot set processor on track of unknown kind');
@@ -412,7 +412,7 @@ export default abstract class LocalTrack extends Track {
    * @experimental
    * @returns
    */
-  async stopProcessor() {
+  async stopProcessor(restartTrack = true) {
     if (!this.processor) return;
 
     log.debug('stopping processor');
@@ -421,8 +421,9 @@ export default abstract class LocalTrack extends Track {
     this.processor = undefined;
     this.processorElement?.remove();
     this.processorElement = undefined;
-
-    await this.restart();
+    if (restartTrack) {
+      await this.restart();
+    }
   }
 
   protected abstract monitorSender(): void;
