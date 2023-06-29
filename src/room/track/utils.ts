@@ -1,4 +1,5 @@
 import { sleep } from '../utils';
+import { Track } from './Track';
 import type { AudioCaptureOptions, CreateLocalTracksOptions, VideoCaptureOptions } from './options';
 import type { AudioTrack } from './types';
 
@@ -110,5 +111,31 @@ export function getNewAudioContext(): AudioContext | void {
     typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
   if (AudioContext) {
     return new AudioContext({ latencyHint: 'interactive' });
+  }
+}
+
+/**
+ * @internal
+ */
+export function kindToSource(kind: MediaDeviceKind) {
+  if (kind === 'audioinput') {
+    return Track.Source.Microphone;
+  } else if (kind === 'videoinput') {
+    return Track.Source.Camera;
+  } else {
+    return Track.Source.Unknown;
+  }
+}
+
+/**
+ * @internal
+ */
+export function sourceToKind(source: Track.Source): MediaDeviceKind | undefined {
+  if (source === Track.Source.Microphone) {
+    return 'audioinput';
+  } else if (source === Track.Source.Camera) {
+    return 'videoinput';
+  } else {
+    return undefined;
   }
 }
