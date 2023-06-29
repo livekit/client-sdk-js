@@ -1,5 +1,15 @@
 # Change Log
 
+## 1.11.4
+
+### Patch Changes
+
+- Use mutex lock for queueing calls to setProcessor - [#756](https://github.com/livekit/client-sdk-js/pull/756) ([@lukasIO](https://github.com/lukasIO))
+
+- Use active device when publishing a new track - [#757](https://github.com/livekit/client-sdk-js/pull/757) ([@lukasIO](https://github.com/lukasIO))
+
+- expose facingMode functions - [#753](https://github.com/livekit/client-sdk-js/pull/753) ([@Ocupe](https://github.com/Ocupe))
+
 ## 1.11.3
 
 ### Patch Changes
