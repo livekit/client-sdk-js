@@ -124,10 +124,11 @@ export default abstract class LocalTrack extends Track {
     if (this.sender) {
       await this.sender.replaceTrack(newTrack);
     }
+    const previousMuteState = this._mediaStreamTrack.muted;
     this._mediaStreamTrack = newTrack;
     if (newTrack) {
       // sync muted state with the enabled state of the newly provided track
-      this._mediaStreamTrack.enabled = !this.isMuted;
+      this._mediaStreamTrack.enabled = !previousMuteState;
       // when a valid track is replace, we'd want to start producing
       await this.resumeUpstream();
       this.attachedElements.forEach((el) => {
