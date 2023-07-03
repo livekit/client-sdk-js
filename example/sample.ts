@@ -31,6 +31,7 @@ import {
   supportsVP9,
 } from '../src/index';
 import type { SimulationScenario } from '../src/room/types';
+import { isFireFox } from '../src/room/utils';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -93,7 +94,9 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
-      e2ee: { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() },
+      e2ee: isFireFox()
+        ? undefined
+        : { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() },
     };
 
     const connectOpts: RoomConnectOptions = {
@@ -204,7 +207,9 @@ const appActions = {
       // read and set current key from input
       const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
       state.e2eeKeyProvider.setKey(cryptoKey);
-      await room.setE2EEEnabled(true);
+      if ((<HTMLInputElement>$('e2ee')).checked) {
+        await room.setE2EEEnabled(true);
+      }
 
       await room.connect(url, token, connectOptions);
       const elapsed = Date.now() - startTime;
