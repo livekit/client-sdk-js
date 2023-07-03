@@ -210,6 +210,11 @@ export interface AddTrackRequest {
   /** true if RED (Redundant Encoding) is disabled for audio */
   disableRed: boolean;
   encryption: Encryption_Type;
+  /**
+   * which stream the track belongs to, used to group tracks together.
+   * if not specified, server will infer it from track source to bundle camera/microphone, screenshare/audio together
+   */
+  stream: string;
 }
 
 export interface TrickleRequest {
@@ -1419,6 +1424,7 @@ function createBaseAddTrackRequest(): AddTrackRequest {
     stereo: false,
     disableRed: false,
     encryption: 0,
+    stream: "",
   };
 }
 
@@ -1465,6 +1471,9 @@ export const AddTrackRequest = {
     }
     if (message.encryption !== 0) {
       writer.uint32(112).int32(message.encryption);
+    }
+    if (message.stream !== "") {
+      writer.uint32(122).string(message.stream);
     }
     return writer;
   },
@@ -1574,6 +1583,13 @@ export const AddTrackRequest = {
 
           message.encryption = reader.int32() as any;
           continue;
+        case 15:
+          if (tag !== 122) {
+            break;
+          }
+
+          message.stream = reader.string();
+          continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1601,6 +1617,7 @@ export const AddTrackRequest = {
       stereo: isSet(object.stereo) ? Boolean(object.stereo) : false,
       disableRed: isSet(object.disableRed) ? Boolean(object.disableRed) : false,
       encryption: isSet(object.encryption) ? encryption_TypeFromJSON(object.encryption) : 0,
+      stream: isSet(object.stream) ? String(object.stream) : "",
     };
   },
 
@@ -1628,6 +1645,7 @@ export const AddTrackRequest = {
     message.stereo !== undefined && (obj.stereo = message.stereo);
     message.disableRed !== undefined && (obj.disableRed = message.disableRed);
     message.encryption !== undefined && (obj.encryption = encryption_TypeToJSON(message.encryption));
+    message.stream !== undefined && (obj.stream = message.stream);
     return obj;
   },
 
@@ -1651,6 +1669,7 @@ export const AddTrackRequest = {
     message.stereo = object.stereo ?? false;
     message.disableRed = object.disableRed ?? false;
     message.encryption = object.encryption ?? 0;
+    message.stream = object.stream ?? "";
     return message;
   },
 };
