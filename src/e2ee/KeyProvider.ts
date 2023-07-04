@@ -56,6 +56,7 @@ export class BaseKeyProvider extends EventEmitter<KeyProviderCallbacks> {
 /**
  * A basic KeyProvider implementation intended for a single shared
  * passphrase between all participants
+ * @experimental
  */
 export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   ratchetInterval: number | undefined;
