@@ -787,11 +787,11 @@ export default class LocalParticipant extends Participant {
     log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
 
     // store RTPSender
-    track.sender = await this.engine.createSender(track, opts, encodings);
+    // track.sender = await this.engine.createSender(track, opts, encodings);
 
     if (encodings) {
       if (isFireFox() && track.kind === Track.Kind.Audio) {
-        this.engine.publisher.setBitrateForSender(track.sender, encodings[0]);
+        // this.engine.publisher.setBitrateForSender(track.sender, encodings[0]);
       } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
         this.engine.publisher.setTrackCodecBitrate({
           cid: req.cid,

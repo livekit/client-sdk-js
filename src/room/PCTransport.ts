@@ -252,7 +252,7 @@ export default class PCTransport extends EventEmitter {
     });
 
     await this.setMungedSDP(offer, write(sdpParsed));
-    this.onOffer(offer);
+    this.onOffer({ sdp: offer.sdp, type: offer.type });
   }
 
   async createAndSetAnswer(): Promise<RTCSessionDescriptionInit> {
@@ -308,8 +308,12 @@ export default class PCTransport extends EventEmitter {
       this._pc.ondatachannel = null;
       this._pc.ontrack = null;
     }
-    this.trackBitrates.map(() => null);
+    this.trackBitrates.map((tr) => {
+      tr.transceiver?.stop();
+      tr.transceiver = undefined;
+    });
     this.trackBitrates = [];
+    this.pendingCandidates = [];
     this._pc = null;
     log.warn('closed peer connection');
   }

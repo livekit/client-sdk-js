@@ -378,7 +378,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       // in subscriber primary mode, server side opens sub data channels.
       this.subscriber.pc.ondatachannel = this.handleDataChannel;
     }
-    this.primaryPC = primaryPC;
+    // this.primaryPC = primaryPC;
     primaryPC.onconnectionstatechange = async () => {
       log.debug(`primary PC state changed ${primaryPC.connectionState.toString()}`);
       if (primaryPC.connectionState === 'connected') {
@@ -730,16 +730,16 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.publisher.pc.addTransceiver(
-      track.mediaStreamTrack,
-      transceiverInit,
-    );
+    // const transceiver = await this.publisher.pc.addTransceiver(
+    //   track.mediaStreamTrack,
+    //   transceiverInit,
+    // );
 
-    if (track.kind === Track.Kind.Video && opts.videoCodec) {
-      this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
-      track.codec = opts.videoCodec;
-    }
-    return transceiver.sender;
+    // if (track.kind === Track.Kind.Video && opts.videoCodec) {
+    //   this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
+    //   track.codec = opts.videoCodec;
+    // }
+    // return transceiver.sender;
   }
 
   private async createSimulcastTransceiverSender(
