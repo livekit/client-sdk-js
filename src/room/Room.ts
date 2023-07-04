@@ -58,7 +58,7 @@ import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
-import { getNewAudioContext } from './track/utils';
+import { getNewAudioContext, sourceToKind } from './track/utils';
 import type { SimulationOptions, SimulationScenario } from './types';
 import {
   Future,
@@ -1566,6 +1566,16 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       if (trackIsSilent) {
         this.emit(RoomEvent.LocalAudioSilenceDetected, pub);
       }
+    }
+    const deviceId = await pub.track?.getDeviceId();
+    const deviceKind = sourceToKind(pub.source);
+    if (
+      deviceKind &&
+      deviceId &&
+      deviceId !== this.localParticipant.activeDeviceMap.get(deviceKind)
+    ) {
+      this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
+      this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
     }
   };
 
