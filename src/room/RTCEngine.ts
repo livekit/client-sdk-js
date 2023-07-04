@@ -439,7 +439,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       }
       log.debug('received server answer', {
         RTCSdpType: sd.type,
-        signalingState: this.publisher.pc.signalingState.toString(),
+        signalingState: this.publisher.pc.signalingState.toString(), // TODO maybe
       });
       await this.publisher.setRemoteDescription(sd);
     };
@@ -464,7 +464,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       }
       log.debug('received server offer', {
         RTCSdpType: sd.type,
-        signalingState: this.subscriber.pc.signalingState.toString(),
+        signalingState: this.subscriber.pc.signalingState.toString(), // TODO maybe
       });
       await this.subscriber.setRemoteDescription(sd);
 
@@ -500,6 +500,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
         this.handleDisconnect(leaveReconnect);
       } else {
         this.emit(EngineEvent.Disconnected, leave?.reason);
+        this.primaryPC = undefined;
         this.close();
       }
       log.trace('leave request', { leave });
