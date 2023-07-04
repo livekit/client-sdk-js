@@ -1437,8 +1437,12 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     ) {
       return;
     }
-    const previousAnswer = this.engine.subscriber.pc.localDescription;
-    const previousOffer = this.engine.subscriber.pc.remoteDescription;
+    const previousAnswer = JSON.parse(
+      this.engine.subscriber.pc.localDescription.toJSON(),
+    ) as RTCSessionDescription;
+    const previousOffer = JSON.parse(
+      this.engine.subscriber.pc.remoteDescription?.toJSON(),
+    ) as RTCSessionDescription | null;
 
     /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
           in this case, we send unsub tracks, so server add all tracks to this

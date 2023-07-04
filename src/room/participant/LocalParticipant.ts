@@ -791,27 +791,7 @@ export default class LocalParticipant extends Participant {
 
     if (encodings) {
       if (isFireFox() && track.kind === Track.Kind.Audio) {
-        /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1, 
-           livekit-server uses maxaveragebitrate=510000in the answer sdp to permit client to
-           publish high quality audio track. But firefox always uses this value as the actual 
-           bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
-           So the client need to modify maxaverragebitrates in answer sdp to user provided value to 
-           fix the issue.
-         */
-        let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
-        for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
-          if (transceiver.sender === track.sender) {
-            trackTransceiver = transceiver;
-            break;
-          }
-        }
-        if (trackTransceiver) {
-          this.engine.publisher.setTrackCodecBitrate({
-            transceiver: trackTransceiver,
-            codec: 'opus',
-            maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
-          });
-        }
+        this.engine.publisher.setBitrateForSender(track.sender, encodings[0]);
       } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
         this.engine.publisher.setTrackCodecBitrate({
           cid: req.cid,

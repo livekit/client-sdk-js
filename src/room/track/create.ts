@@ -23,6 +23,7 @@ import { constraintsForOptions, mergeDefaultOptions } from './utils';
  */
 export async function createLocalTracks(
   options?: CreateLocalTracksOptions,
+  abortSignal?: AbortSignal,
 ): Promise<Array<LocalTrack>> {
   // set default options to true
   options ??= {};
@@ -46,6 +47,10 @@ export async function createLocalTracks(
   }
 
   const stream = await mediaPromise;
+  if (abortSignal?.aborted) {
+    stream.getTracks().forEach((track) => track.stop());
+    return [];
+  }
   return stream.getTracks().map((mediaStreamTrack) => {
     const isAudio = mediaStreamTrack.kind === 'audio';
     let trackOptions = isAudio ? options!.audio : options!.video;

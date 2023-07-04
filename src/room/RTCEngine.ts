@@ -227,7 +227,9 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
               this.publisher?.pc.removeTrack(sender);
             }
           } catch (e) {
-            log.warn('could not removeTrack', { error: e });
+            if (e instanceof ErrorEvent) {
+              log.warn('could not removeTrack', { error: e.error });
+            }
           }
         });
         this.publisher.close();
@@ -286,7 +288,9 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       this.publisher?.pc.removeTrack(sender);
       return true;
     } catch (e: unknown) {
-      log.warn('failed to remove track', { error: e, method: 'removeTrack' });
+      if (e instanceof ErrorEvent) {
+        log.warn('failed to remove track', { error: e.error, method: 'removeTrack' });
+      }
     }
     return false;
   }
@@ -355,7 +359,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     }
     this.primaryPC = primaryPC;
     primaryPC.onconnectionstatechange = async () => {
-      log.debug(`primary PC state changed ${primaryPC.connectionState}`);
+      log.debug(`primary PC state changed ${primaryPC.connectionState.toString()}`);
       if (primaryPC.connectionState === 'connected') {
         const shouldEmit = this.pcState === PCState.New;
         this.pcState = PCState.Connected;
@@ -377,7 +381,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       }
     };
     secondaryPC.onconnectionstatechange = async () => {
-      log.debug(`secondary PC state changed ${secondaryPC.connectionState}`);
+      log.debug(`secondary PC state changed ${secondaryPC.connectionState.toString()}`);
       // also reconnect if secondary peerconnection fails
       if (secondaryPC.connectionState === 'failed') {
         this.handleDisconnect(
@@ -402,7 +406,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       }
       log.debug('received server answer', {
         RTCSdpType: sd.type,
-        signalingState: this.publisher.pc.signalingState,
+        signalingState: this.publisher.pc.signalingState.toString(),
       });
       await this.publisher.setRemoteDescription(sd);
     };
@@ -427,7 +431,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       }
       log.debug('received server offer', {
         RTCSdpType: sd.type,
-        signalingState: this.subscriber.pc.signalingState,
+        signalingState: this.subscriber.pc.signalingState.toString(),
       });
       await this.subscriber.setRemoteDescription(sd);
 
@@ -594,7 +598,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       const { error } = event.error;
       log.error(`DataChannel error on ${channelKind}: ${event.message}`, error);
     } else {
-      log.error(`Unknown DataChannel Error on ${channelKind}`, event);
+      log.error(`Unknown DataChannel Error on ${channelKind}`);
     }
   };
 

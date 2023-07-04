@@ -3,7 +3,7 @@ import { parse, write } from 'sdp-transform';
 import type { MediaDescription } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
-import { NegotiationError } from './errors';
+import { NegotiationError, UnexpectedConnectionState } from './errors';
 import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
@@ -30,7 +30,12 @@ export const PCEvents = {
 
 /** @internal */
 export default class PCTransport extends EventEmitter {
-  pc: RTCPeerConnection;
+  private _pc: RTCPeerConnection | null;
+
+  public get pc() {
+    if (this._pc) return this._pc;
+    throw new UnexpectedConnectionState('Expected peer connection to be available');
+  }
 
   pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -48,7 +53,7 @@ export default class PCTransport extends EventEmitter {
 
   constructor(config?: RTCConfiguration, mediaConstraints: Record<string, unknown> = {}) {
     super();
-    this.pc = isChromiumBased()
+    this._pc = isChromiumBased()
       ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
         new RTCPeerConnection(config, mediaConstraints)
       : new RTCPeerConnection(config);
@@ -266,10 +271,43 @@ export default class PCTransport extends EventEmitter {
     this.trackBitrates.push(info);
   }
 
+  setBitrateForSender(sender: RTCRtpSender, params?: RTCRtpEncodingParameters) {
+    /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1, 
+           livekit-server uses maxaveragebitrate=510000in the answer sdp to permit client to
+           publish high quality audio track. But firefox always uses this value as the actual 
+           bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
+           So the client need to modify maxaverragebitrates in answer sdp to user provided value to 
+           fix the issue.
+         */
+    let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
+    for (const transceiver of this.pc.getTransceivers()) {
+      if (transceiver.sender === sender) {
+        trackTransceiver = transceiver;
+        break;
+      }
+    }
+    if (trackTransceiver) {
+      this.setTrackCodecBitrate({
+        transceiver: trackTransceiver,
+        codec: 'opus',
+        maxbr: params?.maxBitrate ? params.maxBitrate / 1000 : 0,
+      });
+    }
+  }
+
   close() {
-    this.pc.onconnectionstatechange = null;
-    this.pc.oniceconnectionstatechange = null;
-    this.pc.close();
+    if (this._pc) {
+      this._pc.onconnectionstatechange = null;
+      this._pc.oniceconnectionstatechange = null;
+      this._pc.onicecandidate = null;
+      this._pc.ondatachannel = null;
+      this._pc.ontrack = null;
+    }
+    this.trackBitrates.map(() => null);
+    this.trackBitrates = [];
+    this._pc?.close();
+    this._pc = null;
+    log.warn('closed peer connection');
   }
 
   private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {
