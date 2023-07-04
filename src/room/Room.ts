@@ -193,6 +193,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
   }
 
+  /**
+   * @experimental
+   */
   async setE2EEEnabled(enabled: boolean) {
     if (this.e2eeManager) {
       await Promise.all([

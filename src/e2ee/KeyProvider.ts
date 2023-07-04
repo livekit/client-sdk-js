@@ -3,6 +3,9 @@ import { KEY_PROVIDER_DEFAULTS } from './constants';
 import type { KeyInfo, KeyProviderCallbacks, KeyProviderOptions } from './types';
 import { createKeyMaterialFromString } from './utils';
 
+/**
+ * @experimental
+ */
 export class BaseKeyProvider extends EventEmitter<KeyProviderCallbacks> {
   private keyInfoMap: Map<string, KeyInfo>;
 
