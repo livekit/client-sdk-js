@@ -3,6 +3,7 @@ import log from '../logger';
 import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
+import { ConnectionState } from '../room/Room';
 import { DeviceUnsupportedError } from '../room/errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import LocalTrack from '../room/track/LocalTrack';
@@ -145,6 +146,19 @@ export class E2EEManager extends EventEmitter<E2EEManagerCallbacks> {
         participant.identity,
       ),
     );
+    room.on(RoomEvent.ConnectionStateChanged, (state) => {
+      if (state === ConnectionState.Connected) {
+        room.participants.forEach((participant) => {
+          participant.tracks.forEach((pub) => {
+            this.setParticipantCryptorEnabled(
+              pub.trackInfo!.encryption !== Encryption_Type.NONE,
+              participant.identity,
+            );
+          });
+        });
+      }
+    });
+
     room.on(RoomEvent.TrackUnsubscribed, (track, _, participant) => {
       const msg: RemoveTransformMessage = {
         kind: 'removeTransform',
