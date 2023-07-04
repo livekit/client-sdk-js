@@ -1,5 +1,5 @@
 import EventEmitter from 'eventemitter3';
-import 'webrtc-adapter';
+// import 'webrtc-adapter';
 import { toProtoSessionDescription } from '../api/SignalClient';
 import { EncryptionEvent } from '../e2ee';
 import { E2EEManager } from '../e2ee/E2eeManager';

@@ -297,15 +297,19 @@ export default class PCTransport extends EventEmitter {
 
   close() {
     if (this._pc) {
+      this._pc.close();
       this._pc.onconnectionstatechange = null;
       this._pc.oniceconnectionstatechange = null;
+      this._pc.onicegatheringstatechange = null;
+      this._pc.ondatachannel = null;
+      this._pc.onnegotiationneeded = null;
+      this._pc.onsignalingstatechange = null;
       this._pc.onicecandidate = null;
       this._pc.ondatachannel = null;
       this._pc.ontrack = null;
     }
     this.trackBitrates.map(() => null);
     this.trackBitrates = [];
-    this._pc?.close();
     this._pc = null;
     log.warn('closed peer connection');
   }

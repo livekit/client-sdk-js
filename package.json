@@ -56,6 +56,7 @@
     "loglevel": "^1.8.0",
     "protobufjs": "^7.0.0",
     "sdp-transform": "^2.14.1",
+    "simple-peer": "^9.11.1",
     "ts-debounce": "^4.0.0",
     "webrtc-adapter": "^8.1.1"
   },
