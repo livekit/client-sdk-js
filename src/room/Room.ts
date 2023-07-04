@@ -598,7 +598,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       }
       this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
       /* @ts-ignore */
-      this.engine = undefined;
+      this.engine = null;
     } finally {
       unlock();
     }

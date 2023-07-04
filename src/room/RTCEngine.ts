@@ -260,7 +260,19 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       this.reliableDC = undefined;
       this.reliableDCSub = undefined;
 
+      // queueMicrotask(() => {
+      //   // || >> requestIdleCallback
+      //   let img: HTMLImageElement | null = document.createElement('img');
+      //   img.src = window.URL.createObjectURL(new Blob([new ArrayBuffer(5e7)])); // 50Mo
+      //   img.onerror = function () {
+      //     window.URL.revokeObjectURL(this.src);
+      //     img = null;
+      //   };
+      // });
+
       await this.client.close();
+      // @ts-ignore
+      this.client = null;
     } finally {
       unlock();
     }
