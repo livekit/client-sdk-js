@@ -76,6 +76,7 @@ const appActions = {
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
+    const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
 
     setLogLevel(LogLevel.info);
     updateSearchParams(url, token, cryptoKey);
@@ -93,7 +94,9 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
-      e2ee: { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() },
+      e2ee: e2eeEnabled
+        ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
+        : undefined,
     };
 
     const connectOpts: RoomConnectOptions = {
@@ -204,7 +207,9 @@ const appActions = {
       // read and set current key from input
       const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
       state.e2eeKeyProvider.setKey(cryptoKey);
-      await room.setE2EEEnabled(true);
+      if ((<HTMLInputElement>$('e2ee')).checked) {
+        await room.setE2EEEnabled(true);
+      }
 
       await room.connect(url, token, connectOptions);
       const elapsed = Date.now() - startTime;
@@ -233,8 +238,9 @@ const appActions = {
   },
 
   toggleE2EE: async () => {
-    if (!currentRoom) return;
-
+    if (!currentRoom || !currentRoom.options.e2ee) {
+      return;
+    }
     // read and set current key from input
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
     state.e2eeKeyProvider.setKey(cryptoKey);
@@ -243,7 +249,7 @@ const appActions = {
   },
 
   ratchetE2EEKey: async () => {
-    if (!currentRoom) {
+    if (!currentRoom || !currentRoom.options.e2ee) {
       return;
     }
     await state.e2eeKeyProvider.ratchetKey();
@@ -768,9 +774,10 @@ function setButtonsForState(connected: boolean) {
     'disconnect-room-button',
     'flip-video-button',
     'send-button',
-    'toggle-e2ee-button',
-    'e2ee-ratchet-button',
   ];
+  if (currentRoom && currentRoom.options.e2ee) {
+    connectedSet.push('toggle-e2ee-button', 'e2ee-ratchet-button');
+  }
   const disconnectedSet = ['connect-button'];
 
   const toRemove = connected ? connectedSet : disconnectedSet;
