@@ -3,6 +3,9 @@ import { KEY_PROVIDER_DEFAULTS } from './constants';
 import type { KeyInfo, KeyProviderCallbacks, KeyProviderOptions } from './types';
 import { createKeyMaterialFromString } from './utils';
 
+/**
+ * @experimental
+ */
 export class BaseKeyProvider extends EventEmitter<KeyProviderCallbacks> {
   private keyInfoMap: Map<string, KeyInfo>;
 
@@ -53,6 +56,7 @@ export class BaseKeyProvider extends EventEmitter<KeyProviderCallbacks> {
 /**
  * A basic KeyProvider implementation intended for a single shared
  * passphrase between all participants
+ * @experimental
  */
 export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   ratchetInterval: number | undefined;

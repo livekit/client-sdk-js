@@ -29,6 +29,9 @@ import type {
 import { EncryptionEvent } from './types';
 import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
 
+/**
+ * @experimental
+ */
 export class E2EEManager extends EventEmitter<E2EEManagerCallbacks> {
   protected worker: Worker;
 
