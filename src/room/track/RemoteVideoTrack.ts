@@ -198,7 +198,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
     for (const info of stopElementInfos) {
       this.stopObservingElementInfo(info);
     }
-    this.elementInfos = this.elementInfos.filter((info) => info.element !== element);
   }
 
   protected async handleAppVisibilityChanged() {
