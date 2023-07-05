@@ -334,6 +334,7 @@ export class SignalClient {
     this.onAnswer = undefined;
     this.onClose = undefined;
     this.onConnectionQuality = undefined;
+    this.onLeave = undefined;
     this.onLocalTrackPublished = undefined;
     this.onLocalTrackUnpublished = undefined;
     this.onNegotiateRequested = undefined;
@@ -355,6 +356,8 @@ export class SignalClient {
     try {
       this.isConnected = false;
       this.clearHandlers();
+      this.queuedRequests = [];
+      // this.track;
       if (this.ws) {
         this.ws.onclose = null;
         this.ws.onmessage = null;

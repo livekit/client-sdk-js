@@ -260,8 +260,6 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       this.reliableDCSub = undefined;
 
       await this.client.close();
-      // @ts-ignore
-      this.client = null;
     } finally {
       unlock();
     }
