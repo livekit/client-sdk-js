@@ -357,7 +357,6 @@ export class SignalClient {
       this.isConnected = false;
       this.clearHandlers();
       this.queuedRequests = [];
-      // this.track;
       if (this.ws) {
         this.ws.onclose = null;
         this.ws.onmessage = null;
