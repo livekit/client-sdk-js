@@ -123,7 +123,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     }
     this.elementInfos = this.elementInfos.filter((info) => info !== elementInfo);
     this.updateVisibility();
-    this.updateDimensions()
+    this.updateDimensions();
   }
 
   detach(): HTMLMediaElement[];
