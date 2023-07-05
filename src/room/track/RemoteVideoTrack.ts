@@ -123,6 +123,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     }
     this.elementInfos = this.elementInfos.filter((info) => info !== elementInfo);
     this.updateVisibility();
+    this.updateDimensions()
   }
 
   detach(): HTMLMediaElement[];
@@ -131,7 +132,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
     let detachedElements: HTMLMediaElement[] = [];
     if (element) {
       this.stopObservingElement(element);
-      this.updateDimensions();
       return super.detach(element);
     }
     detachedElements = super.detach();
@@ -139,7 +139,6 @@ export default class RemoteVideoTrack extends RemoteTrack {
     for (const e of detachedElements) {
       this.stopObservingElement(e);
     }
-    this.updateDimensions();
 
     return detachedElements;
   }
@@ -197,7 +196,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
   private stopObservingElement(element: HTMLMediaElement) {
     const stopElementInfos = this.elementInfos.filter((info) => info.element === element);
     for (const info of stopElementInfos) {
-      info.stopObserving();
+      this.stopObservingElementInfo(info);
     }
     this.elementInfos = this.elementInfos.filter((info) => info.element !== element);
   }
