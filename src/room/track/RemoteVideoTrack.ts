@@ -131,6 +131,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     let detachedElements: HTMLMediaElement[] = [];
     if (element) {
       this.stopObservingElement(element);
+      this.updateDimensions();
       return super.detach(element);
     }
     detachedElements = super.detach();
@@ -138,6 +139,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     for (const e of detachedElements) {
       this.stopObservingElement(e);
     }
+    this.updateDimensions();
 
     return detachedElements;
   }
