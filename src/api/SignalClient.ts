@@ -330,7 +330,7 @@ export class SignalClient {
     });
   }
 
-  private clearHandlers() {
+  private clearCallbacks = () => {
     this.onAnswer = undefined;
     this.onClose = undefined;
     this.onConnectionQuality = undefined;
@@ -349,13 +349,13 @@ export class SignalClient {
     this.onSubscriptionPermissionUpdate = undefined;
     this.onTokenRefresh = undefined;
     this.onTrickle = undefined;
-  }
+  };
 
   async close() {
     const unlock = await this.closingLock.lock();
     try {
       this.isConnected = false;
-      this.clearHandlers();
+      this.clearCallbacks();
       this.queuedRequests = [];
       if (this.ws) {
         this.ws.onclose = null;
