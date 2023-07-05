@@ -3,7 +3,7 @@ import { parse, write } from 'sdp-transform';
 import type { MediaDescription } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
-import { NegotiationError } from './errors';
+import { NegotiationError, UnexpectedConnectionState } from './errors';
 import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
@@ -30,7 +30,12 @@ export const PCEvents = {
 
 /** @internal */
 export default class PCTransport extends EventEmitter {
-  pc: RTCPeerConnection;
+  private _pc: RTCPeerConnection | null;
+
+  public get pc() {
+    if (this._pc) return this._pc;
+    throw new UnexpectedConnectionState('Expected peer connection to be available');
+  }
 
   pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -48,7 +53,7 @@ export default class PCTransport extends EventEmitter {
 
   constructor(config?: RTCConfiguration, mediaConstraints: Record<string, unknown> = {}) {
     super();
-    this.pc = isChromiumBased()
+    this._pc = isChromiumBased()
       ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
         new RTCPeerConnection(config, mediaConstraints)
       : new RTCPeerConnection(config);
@@ -267,9 +272,22 @@ export default class PCTransport extends EventEmitter {
   }
 
   close() {
-    this.pc.onconnectionstatechange = null;
-    this.pc.oniceconnectionstatechange = null;
-    this.pc.close();
+    if (!this._pc) {
+      return;
+    }
+    this._pc.close();
+    this._pc.onconnectionstatechange = null;
+    this._pc.oniceconnectionstatechange = null;
+    this._pc.onicegatheringstatechange = null;
+    this._pc.ondatachannel = null;
+    this._pc.onnegotiationneeded = null;
+    this._pc.onsignalingstatechange = null;
+    this._pc.onicecandidate = null;
+    this._pc.ondatachannel = null;
+    this._pc.ontrack = null;
+    this._pc.onconnectionstatechange = null;
+    this._pc.oniceconnectionstatechange = null;
+    this._pc = null;
   }
 
   private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {

@@ -237,7 +237,31 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
         this.subscriber.close();
         this.subscriber = undefined;
       }
+
+      this.primaryPC = undefined;
+
+      const dcCleanup = (dc: RTCDataChannel | undefined) => {
+        if (!dc) return;
+        dc.close();
+        dc.onbufferedamountlow = null;
+        dc.onclose = null;
+        dc.onclosing = null;
+        dc.onerror = null;
+        dc.onmessage = null;
+        dc.onopen = null;
+      };
+      dcCleanup(this.lossyDC);
+      dcCleanup(this.lossyDCSub);
+      dcCleanup(this.reliableDC);
+      dcCleanup(this.reliableDCSub);
+      this.lossyDC = undefined;
+      this.lossyDCSub = undefined;
+      this.reliableDC = undefined;
+      this.reliableDCSub = undefined;
+
       await this.client.close();
+      // @ts-ignore
+      this.client = null;
     } finally {
       unlock();
     }
