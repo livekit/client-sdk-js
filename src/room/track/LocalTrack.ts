@@ -56,9 +56,10 @@ export default abstract class LocalTrack extends Track {
     this.muteLock = new Mutex();
     this.pauseUpstreamLock = new Mutex();
     this.processorLock = new Mutex();
+    this.setMediaStreamTrack(mediaTrack, true);
+
     // added to satisfy TS compiler, constraints are synced with MediaStreamTrack
     this._constraints = mediaTrack.getConstraints();
-    this.setMediaStreamTrack(mediaTrack, true);
     if (constraints) {
       this._constraints = constraints;
     }
@@ -109,7 +110,7 @@ export default abstract class LocalTrack extends Track {
       this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
       this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
       this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
-      if (!this.providedByUser) {
+      if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
         this._mediaStreamTrack.stop();
       }
     }
