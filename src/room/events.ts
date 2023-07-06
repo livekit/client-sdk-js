@@ -468,6 +468,13 @@ export enum EngineEvent {
   DataPacketReceived = 'dataPacketReceived',
   RTPVideoMapUpdate = 'rtpVideoMapUpdate',
   DCBufferStatusChanged = 'dcBufferStatusChanged',
+  ParticipantUpdate = 'participantUpdate',
+  RoomUpdate = 'roomUpdate',
+  SpeakersChanged = 'speakersChanged',
+  StreamStateChanged = 'streamStateChanged',
+  ConnectionQualityUpdate = 'connectionQualityUpdate',
+  SubscriptionError = 'subscriptionError',
+  SubscriptionPermissionUpdate = 'subscriptionPermissionUpdate',
 }
 
 export enum TrackEvent {

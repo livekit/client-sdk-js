@@ -60,7 +60,10 @@ export default class PCTransport extends EventEmitter {
   }
 
   get isICEConnected(): boolean {
-    return this.pc.iceConnectionState === 'connected' || this.pc.iceConnectionState === 'completed';
+    return (
+      this._pc !== null &&
+      (this.pc.iceConnectionState === 'connected' || this.pc.iceConnectionState === 'completed')
+    );
   }
 
   async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
@@ -177,7 +180,7 @@ export default class PCTransport extends EventEmitter {
       this.restartingIce = true;
     }
 
-    if (this.pc.signalingState === 'have-local-offer') {
+    if (this._pc && this._pc.signalingState === 'have-local-offer') {
       // we're waiting for the peer to accept our offer, so we'll just wait
       // the only exception to this is when ICE restart is needed
       const currentSD = this.pc.remoteDescription;
@@ -189,7 +192,7 @@ export default class PCTransport extends EventEmitter {
         this.renegotiate = true;
         return;
       }
-    } else if (this.pc.signalingState === 'closed') {
+    } else if (!this._pc || this._pc.signalingState === 'closed') {
       log.warn('could not createOffer with closed peer connection');
       return;
     }
