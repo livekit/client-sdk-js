@@ -57,6 +57,15 @@ export async function createLocalTracks(
     if (typeof conOrBool !== 'boolean') {
       trackConstraints = conOrBool;
     }
+
+    // update the constraints with the device id the user gave permissions to in the permission prompt
+    // otherwise each track restart (e.g. mute - unmute) will try to initialize the device again -> causing additional permission prompts
+    if (trackConstraints) {
+      trackConstraints.deviceId = mediaStreamTrack.getSettings().deviceId;
+    } else {
+      trackConstraints = { deviceId: mediaStreamTrack.getSettings().deviceId };
+    }
+
     const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
     if (track.kind === Track.Kind.Video) {
       track.source = Track.Source.Camera;
