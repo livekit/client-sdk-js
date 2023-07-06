@@ -330,10 +330,33 @@ export class SignalClient {
     });
   }
 
+  private clearCallbacks = () => {
+    this.onAnswer = undefined;
+    this.onClose = undefined;
+    this.onConnectionQuality = undefined;
+    this.onLeave = undefined;
+    this.onLocalTrackPublished = undefined;
+    this.onLocalTrackUnpublished = undefined;
+    this.onNegotiateRequested = undefined;
+    this.onOffer = undefined;
+    this.onParticipantUpdate = undefined;
+    this.onRemoteMuteChanged = undefined;
+    this.onRoomUpdate = undefined;
+    this.onSpeakersChanged = undefined;
+    this.onStreamStateUpdate = undefined;
+    this.onSubscribedQualityUpdate = undefined;
+    this.onSubscriptionError = undefined;
+    this.onSubscriptionPermissionUpdate = undefined;
+    this.onTokenRefresh = undefined;
+    this.onTrickle = undefined;
+  };
+
   async close() {
     const unlock = await this.closingLock.lock();
     try {
       this.isConnected = false;
+      this.clearCallbacks();
+      this.queuedRequests = [];
       if (this.ws) {
         this.ws.onclose = null;
         this.ws.onmessage = null;
