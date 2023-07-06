@@ -90,6 +90,7 @@ const appActions = {
         videoCodec: preferredCodec || 'vp8',
         dtx: true,
         red: true,
+        forceStereo: false,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -201,6 +202,13 @@ const appActions = {
       })
       .on(RoomEvent.ParticipantEncryptionStatusChanged, () => {
         updateButtonsForPublishState();
+      })
+      .on(RoomEvent.TrackStreamStateChanged, (pub, streamState, participant) => {
+        appendLog(
+          `stream state changed for ${pub.trackSid} (${
+            participant.identity
+          }) to ${streamState.toString()}`,
+        );
       });
 
     try {
