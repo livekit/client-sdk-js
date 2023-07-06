@@ -263,15 +263,14 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
     this.engine = new RTCEngine(this.options);
 
-    this.engine.client.onParticipantUpdate = this.handleParticipantUpdates;
-    this.engine.client.onRoomUpdate = this.handleRoomUpdate;
-    this.engine.client.onSpeakersChanged = this.handleSpeakersChanged;
-    this.engine.client.onStreamStateUpdate = this.handleStreamStateUpdate;
-    this.engine.client.onSubscriptionPermissionUpdate = this.handleSubscriptionPermissionUpdate;
-    this.engine.client.onConnectionQuality = this.handleConnectionQualityUpdate;
-    this.engine.client.onSubscriptionError = this.handleSubscriptionError;
-
     this.engine
+      .on(EngineEvent.ParticipantUpdate, this.handleParticipantUpdates)
+      .on(EngineEvent.RoomUpdate, this.handleRoomUpdate)
+      .on(EngineEvent.SpeakersChanged, this.handleSpeakersChanged)
+      .on(EngineEvent.StreamStateChanged, this.handleStreamStateUpdate)
+      .on(EngineEvent.ConnectionQualityUpdate, this.handleConnectionQualityUpdate)
+      .on(EngineEvent.SubscriptionError, this.handleSubscriptionError)
+      .on(EngineEvent.SubscriptionPermissionUpdate, this.handleSubscriptionPermissionUpdate)
       .on(
         EngineEvent.MediaTrackAdded,
         (mediaTrack: MediaStreamTrack, stream: MediaStream, receiver?: RTCRtpReceiver) => {
@@ -284,6 +283,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
+        console.log('resuming');
         this.clearConnectionReconcile();
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
@@ -634,10 +634,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     let req: SimulateScenario | undefined;
     switch (scenario) {
       case 'signal-reconnect':
-        await this.engine.client.close();
-        if (this.engine.client.onClose) {
-          this.engine.client.onClose('simulate disconnect');
-        }
+        // @ts-expect-error function is private
+        await this.engine.client.handleOnClose('simulate disconnect');
         break;
       case 'speaker':
         req = SimulateScenario.fromPartial({
@@ -673,17 +671,13 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         break;
       case 'resume-reconnect':
         this.engine.failNext();
-        await this.engine.client.close();
-        if (this.engine.client.onClose) {
-          this.engine.client.onClose('simulate resume-reconnect');
-        }
+        // @ts-expect-error function is private
+        await this.engine.client.handleOnClose('simulate resume-disconnect');
         break;
       case 'full-reconnect':
         this.engine.fullReconnectOnNext = true;
-        await this.engine.client.close();
-        if (this.engine.client.onClose) {
-          this.engine.client.onClose('simulate full-reconnect');
-        }
+        // @ts-expect-error function is private
+        await this.engine.client.handleOnClose('simulate full-reconnect');
         break;
       case 'force-tcp':
       case 'force-tls':
@@ -956,6 +950,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   }
 
   private handleRestarting = () => {
+    console.log('restarting');
     this.clearConnectionReconcile();
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {

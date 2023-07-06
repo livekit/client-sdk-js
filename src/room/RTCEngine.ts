@@ -10,17 +10,23 @@ import {
   DataPacket,
   DataPacket_Kind,
   DisconnectReason,
+  ParticipantInfo,
   ReconnectReason,
+  Room as RoomModel,
   SpeakerInfo,
   TrackInfo,
   UserPacket,
 } from '../proto/livekit_models';
 import {
   AddTrackRequest,
+  ConnectionQualityUpdate,
   JoinResponse,
   LeaveRequest,
   ReconnectResponse,
   SignalTarget,
+  StreamStateUpdate,
+  SubscriptionPermissionUpdate,
+  SubscriptionResponse,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
 import PCTransport, { PCEvents } from './PCTransport';
@@ -163,6 +169,17 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       [DataPacket_Kind.LOSSY, true],
       [DataPacket_Kind.RELIABLE, true],
     ]);
+
+    this.client.onParticipantUpdate = (updates) =>
+      this.emit(EngineEvent.ParticipantUpdate, updates);
+    this.client.onConnectionQuality = (update) =>
+      this.emit(EngineEvent.ConnectionQualityUpdate, update);
+    this.client.onRoomUpdate = (update) => this.emit(EngineEvent.RoomUpdate, update);
+    this.client.onSubscriptionError = (resp) => this.emit(EngineEvent.SubscriptionError, resp);
+    this.client.onSubscriptionPermissionUpdate = (update) =>
+      this.emit(EngineEvent.SubscriptionPermissionUpdate, update);
+    this.client.onSpeakersChanged = (update) => this.emit(EngineEvent.SpeakersChanged, update);
+    this.client.onStreamStateUpdate = (update) => this.emit(EngineEvent.StreamStateChanged, update);
   }
 
   async join(
@@ -219,50 +236,59 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       this.removeAllListeners();
       this.deregisterOnLineListener();
       this.clearPendingReconnect();
-      if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
-        this.publisher.pc.getSenders().forEach((sender) => {
-          try {
-            // TODO: react-native-webrtc doesn't have removeTrack yet.
-            if (this.publisher?.pc.removeTrack) {
-              this.publisher?.pc.removeTrack(sender);
-            }
-          } catch (e) {
-            log.warn('could not removeTrack', { error: e });
-          }
-        });
-        this.publisher.close();
-        this.publisher = undefined;
-      }
-      if (this.subscriber) {
-        this.subscriber.close();
-        this.subscriber = undefined;
-      }
-
-      this.primaryPC = undefined;
-
-      const dcCleanup = (dc: RTCDataChannel | undefined) => {
-        if (!dc) return;
-        dc.close();
-        dc.onbufferedamountlow = null;
-        dc.onclose = null;
-        dc.onclosing = null;
-        dc.onerror = null;
-        dc.onmessage = null;
-        dc.onopen = null;
-      };
-      dcCleanup(this.lossyDC);
-      dcCleanup(this.lossyDCSub);
-      dcCleanup(this.reliableDC);
-      dcCleanup(this.reliableDCSub);
-      this.lossyDC = undefined;
-      this.lossyDCSub = undefined;
-      this.reliableDC = undefined;
-      this.reliableDCSub = undefined;
-
-      await this.client.close();
+      await this.cleanupPeerConnections();
+      await this.cleanupClient();
     } finally {
       unlock();
     }
+  }
+
+  async cleanupPeerConnections() {
+    if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
+      this.publisher.pc.getSenders().forEach((sender) => {
+        try {
+          // TODO: react-native-webrtc doesn't have removeTrack yet.
+          if (this.publisher?.pc.removeTrack) {
+            this.publisher?.pc.removeTrack(sender);
+          }
+        } catch (e) {
+          log.warn('could not removeTrack', { error: e });
+        }
+      });
+      this.publisher.close();
+      this.publisher = undefined;
+    }
+    if (this.subscriber) {
+      this.subscriber.close();
+      this.subscriber = undefined;
+    }
+
+    this.primaryPC = undefined;
+
+    const dcCleanup = (dc: RTCDataChannel | undefined) => {
+      if (!dc) return;
+      dc.close();
+      dc.onbufferedamountlow = null;
+      dc.onclose = null;
+      dc.onclosing = null;
+      dc.onerror = null;
+      dc.onmessage = null;
+      dc.onopen = null;
+    };
+    dcCleanup(this.lossyDC);
+    dcCleanup(this.lossyDCSub);
+    dcCleanup(this.reliableDC);
+    dcCleanup(this.reliableDCSub);
+
+    this.lossyDC = undefined;
+    this.lossyDCSub = undefined;
+    this.reliableDC = undefined;
+    this.reliableDCSub = undefined;
+  }
+
+  async cleanupClient() {
+    await this.client.close();
+    this.client.resetCallbacks();
   }
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {
@@ -898,12 +924,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       if (this.client.isConnected) {
         await this.client.sendLeave();
       }
-      await this.client.close();
-      this.primaryPC = undefined;
-      this.publisher?.close();
-      this.publisher = undefined;
-      this.subscriber?.close();
-      this.subscriber = undefined;
+      await this.cleanupPeerConnections();
+      await this.cleanupClient();
 
       let joinResponse: JoinResponse;
       try {
@@ -1373,4 +1395,11 @@ export type EngineEventCallbacks = {
   trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;
   rtpVideoMapUpdate: (rtpMap: Map<number, VideoCodec>) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
+  participantUpdate: (infos: ParticipantInfo[]) => void;
+  roomUpdate: (room: RoomModel) => void;
+  connectionQualityUpdate: (update: ConnectionQualityUpdate) => void;
+  speakersChanged: (speakerUpdates: SpeakerInfo[]) => void;
+  streamStateChanged: (update: StreamStateUpdate) => void;
+  subscriptionError: (resp: SubscriptionResponse) => void;
+  subscriptionPermissionUpdate: (update: SubscriptionPermissionUpdate) => void;
 };
