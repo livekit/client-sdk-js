@@ -283,7 +283,6 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
-        console.log('resuming');
         this.clearConnectionReconcile();
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
@@ -950,7 +949,6 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   }
 
   private handleRestarting = () => {
-    console.log('restarting');
     this.clearConnectionReconcile();
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {
