@@ -1,5 +1,23 @@
 # Change Log
 
+## 1.12.0
+
+### Minor Changes
+
+- Experimental end-to-end encryption support - [#557](https://github.com/livekit/client-sdk-js/pull/557) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Update adaptive stream dimensions when a remote track is being detached - [#766](https://github.com/livekit/client-sdk-js/pull/766) ([@burzomir](https://github.com/burzomir))
+
+- Fixed missed event listeners on MediaStreamTrack - [#768](https://github.com/livekit/client-sdk-js/pull/768) ([@davidzhao](https://github.com/davidzhao))
+
+- Forward signal events through engine - [#772](https://github.com/livekit/client-sdk-js/pull/772) ([@lukasIO](https://github.com/lukasIO))
+
+- Emit activeDeviceChanged when publishing local track - [#759](https://github.com/livekit/client-sdk-js/pull/759) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix peer connections leak - [#767](https://github.com/livekit/client-sdk-js/pull/767) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.11.4
 
 ### Patch Changes
