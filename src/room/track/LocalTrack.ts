@@ -101,7 +101,7 @@ export default abstract class LocalTrack extends Track {
     if (newTrack === this._mediaStreamTrack && !force) {
       return;
     }
-    if (this._mediaStreamTrack) {
+    if (this._mediaStreamTrack && this.mediaTrackSetBy === 'localtrack') {
       // detach
       this.attachedElements.forEach((el) => {
         detachTrack(this._mediaStreamTrack, el);
@@ -130,6 +130,7 @@ export default abstract class LocalTrack extends Track {
       await this.sender.replaceTrack(newTrack);
     }
     this._mediaStreamTrack = newTrack;
+    this.mediaTrackSetBy = 'localtrack';
     if (newTrack) {
       // sync muted state with the enabled state of the newly provided track
       this._mediaStreamTrack.enabled = !this.isMuted;

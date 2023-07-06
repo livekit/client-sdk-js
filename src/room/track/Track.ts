@@ -49,10 +49,13 @@ export abstract class Track extends EventEmitter<TrackEventCallbacks> {
 
   protected monitorInterval?: ReturnType<typeof setInterval>;
 
+  protected mediaTrackSetBy: 'track' | 'localtrack' = 'track';
+
   protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
     super();
     this.kind = kind;
     this._mediaStreamTrack = mediaTrack;
+    this.mediaTrackSetBy = 'track';
     this._mediaStreamID = mediaTrack.id;
     this.source = Track.Source.Unknown;
   }
