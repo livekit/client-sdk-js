@@ -58,7 +58,7 @@ export default abstract class LocalTrack extends Track {
     this.processorLock = new Mutex();
     // added to satisfy TS compiler, constraints are synced with MediaStreamTrack
     this._constraints = mediaTrack.getConstraints();
-    this.setMediaStreamTrack(mediaTrack);
+    this.setMediaStreamTrack(mediaTrack, true);
     if (constraints) {
       this._constraints = constraints;
     }
@@ -97,8 +97,8 @@ export default abstract class LocalTrack extends Track {
     return this.processor?.processedTrack ?? this._mediaStreamTrack;
   }
 
-  private async setMediaStreamTrack(newTrack: MediaStreamTrack) {
-    if (newTrack === this._mediaStreamTrack) {
+  private async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean) {
+    if (newTrack === this._mediaStreamTrack && !force) {
       return;
     }
     if (this._mediaStreamTrack) {
