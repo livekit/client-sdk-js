@@ -206,6 +206,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       if (!this.subscriberPrimary) {
         this.negotiate();
       }
+      this.setupSignalClientCallbacks();
+
       this.clientConfiguration = joinResponse.clientConfiguration;
 
       return joinResponse;
@@ -255,6 +257,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
           log.warn('could not removeTrack', { error: e });
         }
       });
+    }
+    if (this.publisher) {
       this.publisher.close();
       this.publisher = undefined;
     }
@@ -442,7 +446,9 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     };
 
     this.createDataChannels();
+  }
 
+  private setupSignalClientCallbacks() {
     // configure signaling client
     this.client.onAnswer = async (sd) => {
       if (!this.publisher) {
@@ -450,7 +456,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       }
       log.debug('received server answer', {
         RTCSdpType: sd.type,
-        signalingState: this.publisher.pc.signalingState,
+        signalingState: this.publisher.pc.signalingState.toString(),
       });
       await this.publisher.setRemoteDescription(sd);
     };
@@ -475,7 +481,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       }
       log.debug('received server offer', {
         RTCSdpType: sd.type,
-        signalingState: this.subscriber.pc.signalingState,
+        signalingState: this.subscriber.pc.signalingState.toString(),
       });
       await this.subscriber.setRemoteDescription(sd);
 
@@ -981,6 +987,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     this.emit(EngineEvent.Resuming);
 
     try {
+      this.setupSignalClientCallbacks();
       const res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
       if (res) {
         const rtcConfig = this.makeRTCConfiguration(res);
@@ -1240,6 +1247,9 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
         return;
       };
 
+      if (this.isClosed) {
+        reject('cannot negotiate on closed engine');
+      }
       this.on(EngineEvent.Closing, handleClosed);
 
       const negotiationTimeout = setTimeout(() => {

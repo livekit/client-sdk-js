@@ -821,7 +821,7 @@ export default class LocalParticipant extends Participant {
       }
     }
 
-    this.engine.negotiate();
+    await this.engine.negotiate();
 
     if (track instanceof LocalVideoTrack) {
       track.startMonitor(this.engine.client);
@@ -907,7 +907,7 @@ export default class LocalParticipant extends Participant {
     }
     await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
 
-    this.engine.negotiate();
+    await this.engine.negotiate();
     log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
   }
 

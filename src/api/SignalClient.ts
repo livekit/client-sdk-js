@@ -199,7 +199,7 @@ export class SignalClient {
     return res;
   }
 
-  connect(
+  private connect(
     url: string,
     token: string,
     opts: ConnectOpts,
@@ -342,14 +342,7 @@ export class SignalClient {
     this.onSubscribedQualityUpdate = undefined;
     this.onTokenRefresh = undefined;
     this.onTrickle = undefined;
-
-    // this.onParticipantUpdate = undefined;
-    // this.onConnectionQuality = undefined;
-    // this.onRoomUpdate = undefined;
-    // this.onSubscriptionError = undefined;
-    // this.onSubscriptionPermissionUpdate = undefined;
-    // this.onSpeakersChanged = undefined;
-    // this.onStreamStateUpdate = undefined;
+    this.onClose = undefined;
   };
 
   async close() {
@@ -647,11 +640,11 @@ export class SignalClient {
 
   private async handleOnClose(reason: string) {
     if (!this.isConnected) return;
+    const onCloseCallback = this.onClose;
     await this.close();
     log.debug(`websocket connection closed: ${reason}`);
-    if (this.onClose) {
-      this.onClose(reason);
-      this.onClose = undefined;
+    if (onCloseCallback) {
+      onCloseCallback(reason);
     }
   }
 
