@@ -17,8 +17,7 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "importsNotUsedAsValues": "error",
-    "ignoreDeprecations": "5.0",
-    "experimentalDecorators": true
+    "ignoreDeprecations": "5.0"
   },
   "exclude": ["dist", "**/*.test.ts"],
   "include": ["src/**/*"],

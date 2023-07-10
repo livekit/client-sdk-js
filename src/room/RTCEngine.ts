@@ -2,7 +2,7 @@ import EventEmitter from 'eventemitter3';
 import type { MediaAttributes } from 'sdp-transform';
 import { SignalClient } from '../api/SignalClient';
 import type { SignalOptions } from '../api/SignalClient';
-import log, { recordException } from '../logger';
+import log, { loggedMethod } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import {
   ClientConfigSetting,
@@ -704,12 +704,13 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     }
   }
 
-  @recordException
+  @loggedMethod
   async createSender(
     track: LocalTrack,
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
+
     if (supportsTransceiver()) {
       const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
       return sender;
