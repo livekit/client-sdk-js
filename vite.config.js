@@ -1,8 +1,9 @@
-import { resolve } from 'path';
-import { defineConfig } from 'vite';
 import { babel } from '@rollup/plugin-babel';
-import replace from 'rollup-plugin-re';
 import dns from 'dns';
+import { resolve } from 'path';
+import replace from 'rollup-plugin-re';
+import { defineConfig } from 'vite';
+import viteBabel from 'vite-plugin-babel';
 
 dns.setDefaultResultOrder('verbatim');
 
@@ -11,6 +12,24 @@ export default defineConfig({
     port: 8080,
     open: true,
   },
+
+  plugins: [
+    // use babel decorator plugin during serve until esbuild (which vite uses for the dev server) supports downlevelling decorators natively
+    // see https://github.com/evanw/esbuild/issues/104
+    viteBabel({
+      filter: /\.ts?$/,
+      apply: 'serve',
+      babelConfig: {
+        babelrc: false,
+        configFile: false,
+        plugins: [
+          ['@babel/plugin-proposal-decorators', { loose: true, version: '2023-05' }],
+          '@babel/plugin-transform-typescript',
+        ],
+      },
+    }),
+  ],
+
   build: {
     minify: 'esbuild',
     target: 'es2019',
