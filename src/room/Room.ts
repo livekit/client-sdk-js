@@ -732,6 +732,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       let dummyAudioEl = document.getElementById(audioId) as HTMLAudioElement | null;
       if (!dummyAudioEl) {
         dummyAudioEl = document.createElement('audio');
+        dummyAudioEl.id = audioId;
         dummyAudioEl.autoplay = true;
         dummyAudioEl.hidden = true;
         const track = getEmptyAudioStreamTrack();
