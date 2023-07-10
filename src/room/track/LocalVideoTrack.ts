@@ -2,9 +2,10 @@ import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import type { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc';
+import { ScalabilityMode } from '../participant/publishUtils';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { VideoSenderStats } from '../stats';
-import { Mutex, isFireFox, isMobile, isWeb } from '../utils';
+import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
@@ -182,16 +183,22 @@ export default class LocalVideoTrack extends LocalTrack {
     this.setPublishingLayers(qualities);
   }
 
-  async setDeviceId(deviceId: ConstrainDOMString) {
-    if (this.constraints.deviceId === deviceId) {
-      return;
+  async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
+    if (
+      this._constraints.deviceId === deviceId &&
+      this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)
+    ) {
+      return true;
     }
-    this.constraints.deviceId = deviceId;
+    this._constraints.deviceId = deviceId;
     // when video is muted, underlying media stream track is stopped and
     // will be restarted later
     if (!this.isMuted) {
       await this.restartTrack();
     }
+    return (
+      this.isMuted || unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId
+    );
   }
 
   async restartTrack(options?: VideoCaptureOptions) {
@@ -350,45 +357,90 @@ async function setPublishingLayersForSender(
     }
 
     let hasChanged = false;
-    encodings.forEach((encoding, idx) => {
-      let rid = encoding.rid ?? '';
-      if (rid === '') {
-        rid = 'q';
-      }
-      const quality = videoQualityForRid(rid);
-      const subscribedQuality = qualities.find((q) => q.quality === quality);
-      if (!subscribedQuality) {
-        return;
-      }
-      if (encoding.active !== subscribedQuality.enabled) {
-        hasChanged = true;
-        encoding.active = subscribedQuality.enabled;
-        log.debug(
-          `setting layer ${subscribedQuality.quality} to ${
-            encoding.active ? 'enabled' : 'disabled'
-          }`,
-        );
 
-        // FireFox does not support setting encoding.active to false, so we
-        // have a workaround of lowering its bitrate and resolution to the min.
-        if (isFireFox()) {
-          if (subscribedQuality.enabled) {
-            encoding.scaleResolutionDownBy = senderEncodings[idx].scaleResolutionDownBy;
-            encoding.maxBitrate = senderEncodings[idx].maxBitrate;
-            /* @ts-ignore */
-            encoding.maxFrameRate = senderEncodings[idx].maxFrameRate;
-          } else {
-            encoding.scaleResolutionDownBy = 4;
-            encoding.maxBitrate = 10;
-            /* @ts-ignore */
-            encoding.maxFrameRate = 2;
+    /* disable closable spatial layer as it has video blur / frozen issue with current server / client
+    1. chrome 113: when switching to up layer with scalability Mode change, it will generate a 
+          low resolution frame and recover very quickly, but noticable
+    2. livekit sfu: additional pli request cause video frozen for a few frames, also noticable */
+    const closableSpatial = false;
+    /* @ts-ignore */
+    if (closableSpatial && encodings[0].scalabilityMode) {
+      // svc dynacast encodings
+      const encoding = encodings[0];
+      /* @ts-ignore */
+      // const mode = new ScalabilityMode(encoding.scalabilityMode);
+      let maxQuality = VideoQuality.OFF;
+      qualities.forEach((q) => {
+        if (q.enabled && (maxQuality === VideoQuality.OFF || q.quality > maxQuality)) {
+          maxQuality = q.quality;
+        }
+      });
+
+      if (maxQuality === VideoQuality.OFF) {
+        if (encoding.active) {
+          encoding.active = false;
+          hasChanged = true;
+        }
+      } else if (!encoding.active /* || mode.spatial !== maxQuality + 1*/) {
+        hasChanged = true;
+        encoding.active = true;
+        /*
+        @ts-ignore
+        const originalMode = new ScalabilityMode(senderEncodings[0].scalabilityMode)
+        mode.spatial = maxQuality + 1;
+        mode.suffix = originalMode.suffix;
+        if (mode.spatial === 1) {
+          // no suffix for L1Tx
+          mode.suffix = undefined;
+        }
+        @ts-ignore
+        encoding.scalabilityMode = mode.toString();
+        encoding.scaleResolutionDownBy = 2 ** (2 - maxQuality);
+      */
+      }
+    } else {
+      // simulcast dynacast encodings
+      encodings.forEach((encoding, idx) => {
+        let rid = encoding.rid ?? '';
+        if (rid === '') {
+          rid = 'q';
+        }
+        const quality = videoQualityForRid(rid);
+        const subscribedQuality = qualities.find((q) => q.quality === quality);
+        if (!subscribedQuality) {
+          return;
+        }
+        if (encoding.active !== subscribedQuality.enabled) {
+          hasChanged = true;
+          encoding.active = subscribedQuality.enabled;
+          log.debug(
+            `setting layer ${subscribedQuality.quality} to ${
+              encoding.active ? 'enabled' : 'disabled'
+            }`,
+          );
+
+          // FireFox does not support setting encoding.active to false, so we
+          // have a workaround of lowering its bitrate and resolution to the min.
+          if (isFireFox()) {
+            if (subscribedQuality.enabled) {
+              encoding.scaleResolutionDownBy = senderEncodings[idx].scaleResolutionDownBy;
+              encoding.maxBitrate = senderEncodings[idx].maxBitrate;
+              /* @ts-ignore */
+              encoding.maxFrameRate = senderEncodings[idx].maxFrameRate;
+            } else {
+              encoding.scaleResolutionDownBy = 4;
+              encoding.maxBitrate = 10;
+              /* @ts-ignore */
+              encoding.maxFrameRate = 2;
+            }
           }
         }
-      }
-    });
+      });
+    }
 
     if (hasChanged) {
       params.encodings = encodings;
+      log.debug(`setting encodings`, params.encodings);
       await sender.setParameters(params);
     }
   } finally {
@@ -413,6 +465,7 @@ export function videoLayersFromEncodings(
   width: number,
   height: number,
   encodings?: RTCRtpEncodingParameters[],
+  svc?: boolean,
 ): VideoLayer[] {
   // default to a single layer, HQ
   if (!encodings) {
@@ -426,6 +479,24 @@ export function videoLayersFromEncodings(
       },
     ];
   }
+
+  if (svc) {
+    // svc layers
+    /* @ts-ignore */
+    const sm = new ScalabilityMode(encodings[0].scalabilityMode);
+    const layers = [];
+    for (let i = 0; i < sm.spatial; i += 1) {
+      layers.push({
+        quality: VideoQuality.HIGH - i,
+        width: width / 2 ** i,
+        height: height / 2 ** i,
+        bitrate: encodings[0].maxBitrate ? encodings[0].maxBitrate / 3 ** i : 0,
+        ssrc: 0,
+      });
+    }
+    return layers;
+  }
+
   return encodings.map((encoding) => {
     const scale = encoding.scaleResolutionDownBy ?? 1;
     let quality = videoQualityForRid(encoding.rid ?? '');

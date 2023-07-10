@@ -2,7 +2,7 @@ import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
-import { isWeb } from '../utils';
+import { isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 import type { AudioCaptureOptions } from './options';
@@ -29,14 +29,17 @@ export default class LocalAudioTrack extends LocalTrack {
     this.checkForSilence();
   }
 
-  async setDeviceId(deviceId: ConstrainDOMString) {
-    if (this.constraints.deviceId === deviceId) {
-      return;
+  async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
+    if (this._constraints.deviceId === deviceId) {
+      return true;
     }
-    this.constraints.deviceId = deviceId;
+    this._constraints.deviceId = deviceId;
     if (!this.isMuted) {
       await this.restartTrack();
     }
+    return (
+      this.isMuted || unwrapConstraint(deviceId) === this.mediaStreamTrack.getSettings().deviceId
+    );
   }
 
   async mute(): Promise<LocalAudioTrack> {
@@ -58,9 +61,14 @@ export default class LocalAudioTrack extends LocalTrack {
   async unmute(): Promise<LocalAudioTrack> {
     const unlock = await this.muteLock.lock();
     try {
+      const deviceHasChanged =
+        this._constraints.deviceId &&
+        this._mediaStreamTrack.getSettings().deviceId !==
+          unwrapConstraint(this._constraints.deviceId);
+
       if (
         this.source === Track.Source.Microphone &&
-        (this.stopOnMute || this._mediaStreamTrack.readyState === 'ended') &&
+        (this.stopOnMute || this._mediaStreamTrack.readyState === 'ended' || deviceHasChanged) &&
         !this.isUserProvided
       ) {
         log.debug('reacquiring mic track');

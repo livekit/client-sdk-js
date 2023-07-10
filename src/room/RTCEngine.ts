@@ -1,5 +1,5 @@
-import { EventEmitter } from 'events';
-import type TypedEventEmitter from 'typed-emitter';
+import EventEmitter from 'eventemitter3';
+import type { MediaAttributes } from 'sdp-transform';
 import { SignalClient } from '../api/SignalClient';
 import type { SignalOptions } from '../api/SignalClient';
 import log, { recordException } from '../logger';
@@ -10,17 +10,23 @@ import {
   DataPacket,
   DataPacket_Kind,
   DisconnectReason,
+  ParticipantInfo,
   ReconnectReason,
+  Room as RoomModel,
   SpeakerInfo,
   TrackInfo,
   UserPacket,
 } from '../proto/livekit_models';
 import {
   AddTrackRequest,
+  ConnectionQualityUpdate,
   JoinResponse,
   LeaveRequest,
   ReconnectResponse,
   SignalTarget,
+  StreamStateUpdate,
+  SubscriptionPermissionUpdate,
+  SubscriptionResponse,
   TrackPublishedResponse,
 } from '../proto/livekit_rtc';
 import PCTransport, { PCEvents } from './PCTransport';
@@ -44,6 +50,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import {
   Mutex,
   isCloud,
+  isVideoCodec,
   isWeb,
   sleep,
   supportsAddTrack,
@@ -65,7 +72,7 @@ enum PCState {
 }
 
 /** @internal */
-export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
+export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
   publisher?: PCTransport;
 
   subscriber?: PCTransport;
@@ -162,6 +169,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       [DataPacket_Kind.LOSSY, true],
       [DataPacket_Kind.RELIABLE, true],
     ]);
+
+    this.client.onParticipantUpdate = (updates) =>
+      this.emit(EngineEvent.ParticipantUpdate, updates);
+    this.client.onConnectionQuality = (update) =>
+      this.emit(EngineEvent.ConnectionQualityUpdate, update);
+    this.client.onRoomUpdate = (update) => this.emit(EngineEvent.RoomUpdate, update);
+    this.client.onSubscriptionError = (resp) => this.emit(EngineEvent.SubscriptionError, resp);
+    this.client.onSubscriptionPermissionUpdate = (update) =>
+      this.emit(EngineEvent.SubscriptionPermissionUpdate, update);
+    this.client.onSpeakersChanged = (update) => this.emit(EngineEvent.SpeakersChanged, update);
+    this.client.onStreamStateUpdate = (update) => this.emit(EngineEvent.StreamStateChanged, update);
   }
 
   async join(
@@ -188,6 +206,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.subscriberPrimary) {
         this.negotiate();
       }
+      this.setupSignalClientCallbacks();
+
       this.clientConfiguration = joinResponse.clientConfiguration;
 
       return joinResponse;
@@ -218,28 +238,61 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.removeAllListeners();
       this.deregisterOnLineListener();
       this.clearPendingReconnect();
-      if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
-        this.publisher.pc.getSenders().forEach((sender) => {
-          try {
-            // TODO: react-native-webrtc doesn't have removeTrack yet.
-            if (this.publisher?.pc.removeTrack) {
-              this.publisher?.pc.removeTrack(sender);
-            }
-          } catch (e) {
-            log.warn('could not removeTrack', { error: e });
-          }
-        });
-        this.publisher.close();
-        this.publisher = undefined;
-      }
-      if (this.subscriber) {
-        this.subscriber.close();
-        this.subscriber = undefined;
-      }
-      await this.client.close();
+      await this.cleanupPeerConnections();
+      await this.cleanupClient();
     } finally {
       unlock();
     }
+  }
+
+  async cleanupPeerConnections() {
+    if (this.publisher && this.publisher.pc.signalingState !== 'closed') {
+      this.publisher.pc.getSenders().forEach((sender) => {
+        try {
+          // TODO: react-native-webrtc doesn't have removeTrack yet.
+          if (this.publisher?.pc.removeTrack) {
+            this.publisher?.pc.removeTrack(sender);
+          }
+        } catch (e) {
+          log.warn('could not removeTrack', { error: e });
+        }
+      });
+    }
+    if (this.publisher) {
+      this.publisher.close();
+      this.publisher = undefined;
+    }
+    if (this.subscriber) {
+      this.subscriber.close();
+      this.subscriber = undefined;
+    }
+
+    this.primaryPC = undefined;
+
+    const dcCleanup = (dc: RTCDataChannel | undefined) => {
+      if (!dc) return;
+      dc.close();
+      dc.onbufferedamountlow = null;
+      dc.onclose = null;
+      dc.onclosing = null;
+      dc.onerror = null;
+      dc.onmessage = null;
+      dc.onopen = null;
+    };
+    dcCleanup(this.lossyDC);
+    dcCleanup(this.lossyDCSub);
+    dcCleanup(this.reliableDC);
+    dcCleanup(this.reliableDCSub);
+
+    this.lossyDC = undefined;
+    this.lossyDCSub = undefined;
+    this.reliableDC = undefined;
+    this.reliableDCSub = undefined;
+  }
+
+  async cleanupClient() {
+    await this.client.close();
+    this.client.resetCallbacks();
   }
 
   addTrack(req: AddTrackRequest): Promise<TrackInfo> {
@@ -314,6 +367,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.participantSid = joinResponse.participant?.sid;
 
     const rtcConfig = this.makeRTCConfiguration(joinResponse);
+
+    if (this.signalOpts?.e2eeEnabled) {
+      log.debug('E2EE - setting up transports with insertable streams');
+      //  this makes sure that no data is sent before the transforms are ready
+      // @ts-ignore
+      rtcConfig.encodedInsertableStreams = true;
+    }
+
     const googConstraints = { optional: [{ googDscp: true }] };
     this.publisher = new PCTransport(rtcConfig, googConstraints);
     this.subscriber = new PCTransport(rtcConfig);
@@ -385,7 +446,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.createDataChannels();
+  }
 
+  private setupSignalClientCallbacks() {
     // configure signaling client
     this.client.onAnswer = async (sd) => {
       if (!this.publisher) {
@@ -393,7 +456,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       log.debug('received server answer', {
         RTCSdpType: sd.type,
-        signalingState: this.publisher.pc.signalingState,
+        signalingState: this.publisher.pc.signalingState.toString(),
       });
       await this.publisher.setRemoteDescription(sd);
     };
@@ -418,7 +481,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       log.debug('received server offer', {
         RTCSdpType: sd.type,
-        signalingState: this.subscriber.pc.signalingState,
+        signalingState: this.subscriber.pc.signalingState.toString(),
       });
       await this.subscriber.setRemoteDescription(sd);
 
@@ -648,11 +711,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     encodings?: RTCRtpEncodingParameters[],
   ) {
     if (supportsTransceiver()) {
-      return this.createTransceiverRTCRtpSender(track, opts, encodings);
+      const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
+      return sender;
     }
     if (supportsAddTrack()) {
-      log.debug('using add-track fallback');
-      return this.createRTCRtpSender(track.mediaStreamTrack);
+      log.warn('using add-track fallback');
+      const sender = await this.createRTCRtpSender(track.mediaStreamTrack);
+      return sender;
     }
     throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
   }
@@ -664,7 +729,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     encodings?: RTCRtpEncodingParameters[],
   ) {
     // store RTCRtpSender
-    // @ts-ignore
     if (supportsTransceiver()) {
       return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
     }
@@ -685,7 +749,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('publisher is closed');
     }
 
-    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+    const streams: MediaStream[] = [];
+
+    if (track.mediaStream) {
+      streams.push(track.mediaStream);
+    }
+
+    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly', streams };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
     }
@@ -694,6 +764,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       track.mediaStreamTrack,
       transceiverInit,
     );
+
     if (track.kind === Track.Kind.Video && opts.videoCodec) {
       this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
       track.codec = opts.videoCodec;
@@ -821,7 +892,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       if (recoverable) {
-        this.handleDisconnect('reconnect', ReconnectReason.RR_UNKOWN);
+        this.handleDisconnect('reconnect', ReconnectReason.RR_UNKNOWN);
       } else {
         log.info(
           `could not recover connection after ${this.reconnectAttempts} attempts, ${
@@ -860,12 +931,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (this.client.isConnected) {
         await this.client.sendLeave();
       }
-      await this.client.close();
-      this.primaryPC = undefined;
-      this.publisher?.close();
-      this.publisher = undefined;
-      this.subscriber?.close();
-      this.subscriber = undefined;
+      await this.cleanupPeerConnections();
+      await this.cleanupClient();
 
       let joinResponse: JoinResponse;
       try {
@@ -921,6 +988,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.emit(EngineEvent.Resuming);
 
     try {
+      this.setupSignalClientCallbacks();
       const res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
       if (res) {
         const rtcConfig = this.makeRTCConfiguration(res);
@@ -1047,6 +1115,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       };
       this.once(EngineEvent.Restarted, onRestarted);
       this.once(EngineEvent.Disconnected, onDisconnected);
+      this.once(EngineEvent.Closing, onDisconnected);
     });
   };
 
@@ -1173,12 +1242,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.hasPublished = true;
 
       const handleClosed = () => {
-        log.debug('engine disconnected while negotiation was ongoing');
+        log.warn('engine disconnected while negotiation was ongoing');
         cleanup();
         resolve();
         return;
       };
 
+      if (this.isClosed) {
+        reject('cannot negotiate on closed engine');
+      }
       this.on(EngineEvent.Closing, handleClosed);
 
       const negotiationTimeout = setTimeout(() => {
@@ -1198,13 +1270,24 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         });
       });
 
+      this.publisher.once(PCEvents.RTPVideoPayloadTypes, (rtpTypes: MediaAttributes['rtp']) => {
+        const rtpMap = new Map<number, VideoCodec>();
+        rtpTypes.forEach((rtp) => {
+          const codec = rtp.codec.toLowerCase();
+          if (isVideoCodec(codec)) {
+            rtpMap.set(rtp.payload, codec);
+          }
+        });
+        this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
+      });
+
       this.publisher.negotiate((e) => {
         cleanup();
         reject(e);
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
-        this.handleDisconnect('negotiation', ReconnectReason.RR_UNKOWN);
+        this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
       });
     });
   }
@@ -1319,5 +1402,15 @@ export type EngineEventCallbacks = {
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
+  /** @internal */
+  trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;
+  rtpVideoMapUpdate: (rtpMap: Map<number, VideoCodec>) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
+  participantUpdate: (infos: ParticipantInfo[]) => void;
+  roomUpdate: (room: RoomModel) => void;
+  connectionQualityUpdate: (update: ConnectionQualityUpdate) => void;
+  speakersChanged: (speakerUpdates: SpeakerInfo[]) => void;
+  streamStateChanged: (update: StreamStateUpdate) => void;
+  subscriptionError: (resp: SubscriptionResponse) => void;
+  subscriptionPermissionUpdate: (update: SubscriptionPermissionUpdate) => void;
 };

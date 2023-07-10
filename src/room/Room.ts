@@ -1,6 +1,8 @@
-import { EventEmitter } from 'events';
-import type TypedEmitter from 'typed-emitter';
+import EventEmitter from 'eventemitter3';
+import 'webrtc-adapter';
 import { toProtoSessionDescription } from '../api/SignalClient';
+import { EncryptionEvent } from '../e2ee';
+import { E2EEManager } from '../e2ee/E2eeManager';
 import log from '../logger';
 import type {
   InternalRoomConnectOptions,
@@ -17,6 +19,7 @@ import {
   Room as RoomModel,
   ServerInfo,
   SpeakerInfo,
+  SubscriptionError,
   TrackInfo,
   TrackSource,
   TrackType,
@@ -28,6 +31,7 @@ import {
   SimulateScenario,
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
+  SubscriptionResponse,
 } from '../proto/livekit_rtc';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
@@ -54,7 +58,7 @@ import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
-import { getNewAudioContext } from './track/utils';
+import { getNewAudioContext, sourceToKind } from './track/utils';
 import type { SimulationOptions, SimulationScenario } from './types';
 import {
   Future,
@@ -62,9 +66,11 @@ import {
   createDummyVideoStreamTrack,
   getEmptyAudioStreamTrack,
   isCloud,
+  isSafari,
   isWeb,
   supportsSetSinkId,
   unpackStreamId,
+  unwrapConstraint,
 } from './utils';
 
 export enum ConnectionState {
@@ -87,7 +93,7 @@ export const RoomState = ConnectionState;
  *
  * @noInheritDoc
  */
-class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
+class Room extends EventEmitter<RoomEventCallbacks> {
   state: ConnectionState = ConnectionState.Disconnected;
 
   /** map of sid: [[RemoteParticipant]] */
@@ -108,6 +114,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** options of room */
   options: InternalRoomOptions;
 
+  /** reflects the sender encryption status of the local participant */
+  isE2EEEnabled: boolean = false;
+
   private roomInfo?: RoomModel;
 
   private identityToSid: Map<string, string>;
@@ -127,6 +136,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private disconnectLock: Mutex;
 
+  private e2eeManager: E2EEManager | undefined;
+
   private cachedParticipantSids: Array<string>;
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
@@ -137,7 +148,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   constructor(options?: RoomOptions) {
     super();
-    this.setMaxListeners(100);
     this.participants = new Map();
     this.cachedParticipantSids = [];
     this.identityToSid = new Map();
@@ -161,6 +171,59 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.disconnectLock = new Mutex();
 
     this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
+
+    if (this.options.videoCaptureDefaults.deviceId) {
+      this.localParticipant.activeDeviceMap.set(
+        'videoinput',
+        unwrapConstraint(this.options.videoCaptureDefaults.deviceId),
+      );
+    }
+    if (this.options.audioCaptureDefaults.deviceId) {
+      this.localParticipant.activeDeviceMap.set(
+        'audioinput',
+        unwrapConstraint(this.options.audioCaptureDefaults.deviceId),
+      );
+    }
+    if (this.options.audioOutput?.deviceId) {
+      this.switchActiveDevice('audiooutput', unwrapConstraint(this.options.audioOutput.deviceId));
+    }
+
+    if (this.options.e2ee) {
+      this.setupE2EE();
+    }
+  }
+
+  /**
+   * @experimental
+   */
+  async setE2EEEnabled(enabled: boolean) {
+    if (this.e2eeManager) {
+      await Promise.all([
+        this.localParticipant.setE2EEEnabled(enabled),
+        this.e2eeManager.setParticipantCryptorEnabled(enabled),
+      ]);
+    } else {
+      throw Error('e2ee not configured, please set e2ee settings within the room options');
+    }
+  }
+
+  private setupE2EE() {
+    if (this.options.e2ee) {
+      this.e2eeManager = new E2EEManager(this.options.e2ee);
+      this.e2eeManager.on(
+        EncryptionEvent.ParticipantEncryptionStatusChanged,
+        (enabled, participant) => {
+          if (participant instanceof LocalParticipant) {
+            this.isE2EEEnabled = enabled;
+          }
+          this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
+        },
+      );
+      this.e2eeManager.on(EncryptionEvent.Error, (error) =>
+        this.emit(RoomEvent.EncryptionError, error),
+      );
+      this.e2eeManager?.setup(this);
+    }
   }
 
   /**
@@ -200,14 +263,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.engine = new RTCEngine(this.options);
 
-    this.engine.client.onParticipantUpdate = this.handleParticipantUpdates;
-    this.engine.client.onRoomUpdate = this.handleRoomUpdate;
-    this.engine.client.onSpeakersChanged = this.handleSpeakersChanged;
-    this.engine.client.onStreamStateUpdate = this.handleStreamStateUpdate;
-    this.engine.client.onSubscriptionPermissionUpdate = this.handleSubscriptionPermissionUpdate;
-    this.engine.client.onConnectionQuality = this.handleConnectionQualityUpdate;
-
     this.engine
+      .on(EngineEvent.ParticipantUpdate, this.handleParticipantUpdates)
+      .on(EngineEvent.RoomUpdate, this.handleRoomUpdate)
+      .on(EngineEvent.SpeakersChanged, this.handleSpeakersChanged)
+      .on(EngineEvent.StreamStateChanged, this.handleStreamStateUpdate)
+      .on(EngineEvent.ConnectionQualityUpdate, this.handleConnectionQualityUpdate)
+      .on(EngineEvent.SubscriptionError, this.handleSubscriptionError)
+      .on(EngineEvent.SubscriptionPermissionUpdate, this.handleSubscriptionPermissionUpdate)
       .on(
         EngineEvent.MediaTrackAdded,
         (mediaTrack: MediaStreamTrack, stream: MediaStream, receiver?: RTCRtpReceiver) => {
@@ -252,6 +315,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (this.localParticipant) {
       this.localParticipant.setupEngine(this.engine);
+    }
+    if (this.e2eeManager) {
+      this.e2eeManager.setupEngine(this.engine);
     }
   }
 
@@ -372,6 +438,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
         maxRetries: connectOptions.maxRetries,
+        e2eeEnabled: !!this.e2eeManager,
       },
       abortController.signal,
     );
@@ -491,6 +558,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       // capturing both 'pagehide' and 'beforeunload' to capture broadest set of browser behaviors
       window.addEventListener('pagehide', this.onPageLeave);
       window.addEventListener('beforeunload', this.onPageLeave);
+    }
+    if (isWeb()) {
+      document.addEventListener('freeze', this.onPageLeave);
       navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
@@ -563,10 +633,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     let req: SimulateScenario | undefined;
     switch (scenario) {
       case 'signal-reconnect':
-        await this.engine.client.close();
-        if (this.engine.client.onClose) {
-          this.engine.client.onClose('simulate disconnect');
-        }
+        // @ts-expect-error function is private
+        await this.engine.client.handleOnClose('simulate disconnect');
         break;
       case 'speaker':
         req = SimulateScenario.fromPartial({
@@ -602,17 +670,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         break;
       case 'resume-reconnect':
         this.engine.failNext();
-        await this.engine.client.close();
-        if (this.engine.client.onClose) {
-          this.engine.client.onClose('simulate resume-reconnect');
-        }
+        // @ts-expect-error function is private
+        await this.engine.client.handleOnClose('simulate resume-disconnect');
         break;
       case 'full-reconnect':
         this.engine.fullReconnectOnNext = true;
-        await this.engine.client.close();
-        if (this.engine.client.onClose) {
-          this.engine.client.onClose('simulate full-reconnect');
-        }
+        // @ts-expect-error function is private
+        await this.engine.client.handleOnClose('simulate full-reconnect');
         break;
       case 'force-tcp':
       case 'force-tls':
@@ -653,8 +717,31 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   async startAudio() {
     await this.acquireAudioContext();
-
     const elements: Array<HTMLMediaElement> = [];
+
+    if (isSafari()) {
+      /**
+       * iOS Safari blocks audio element playback if
+       * - user is not publishing audio themselves and
+       * - no other audio source is playing
+       *
+       * as a workaround, we create an audio element with an empty track, so that
+       * silent audio is always playing
+       */
+      const audioId = 'livekit-dummy-audio-el';
+      let dummyAudioEl = document.getElementById(audioId) as HTMLAudioElement | null;
+      if (!dummyAudioEl) {
+        dummyAudioEl = document.createElement('audio');
+        dummyAudioEl.autoplay = true;
+        dummyAudioEl.hidden = true;
+        const track = getEmptyAudioStreamTrack();
+        track.enabled = true;
+        dummyAudioEl.srcObject = new MediaStream([track]);
+        document.body.append(dummyAudioEl);
+      }
+      elements.push(dummyAudioEl);
+    }
+
     this.participants.forEach((p) => {
       p.audioTracks.forEach((t) => {
         if (t.track) {
@@ -688,13 +775,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /**
    * Returns the active audio output device used in this room.
-   *
-   * Note: to get the active `audioinput` or `videoinput` use [[LocalTrack.getDeviceId()]]
-   *
    * @return the previously successfully set audio output device ID or an empty string if the default device is used.
+   * @deprecated use `getActiveDevice('audiooutput')` instead
    */
   getActiveAudioOutputDevice(): string {
     return this.options.audioOutput?.deviceId ?? '';
+  }
+
+  getActiveDevice(kind: MediaDeviceKind): string | undefined {
+    return this.localParticipant.activeDeviceMap.get(kind);
   }
 
   /**
@@ -708,15 +797,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @param deviceId
    */
   async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = false) {
+    let deviceHasChanged = false;
+    let success = true;
     const deviceConstraint = exact ? { exact: deviceId } : deviceId;
     if (kind === 'audioinput') {
       const prevDeviceId = this.options.audioCaptureDefaults!.deviceId;
       this.options.audioCaptureDefaults!.deviceId = deviceConstraint;
+      deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.audioTracks.values()).filter(
         (track) => track.source === Track.Source.Microphone,
       );
       try {
-        await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceConstraint)));
+        success = (
+          await Promise.all(tracks.map((t) => t.audioTrack?.setDeviceId(deviceConstraint)))
+        ).every((val) => val === true);
       } catch (e) {
         this.options.audioCaptureDefaults!.deviceId = prevDeviceId;
         throw e;
@@ -724,32 +818,50 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } else if (kind === 'videoinput') {
       const prevDeviceId = this.options.videoCaptureDefaults!.deviceId;
       this.options.videoCaptureDefaults!.deviceId = deviceConstraint;
+      deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.videoTracks.values()).filter(
         (track) => track.source === Track.Source.Camera,
       );
       try {
-        await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceConstraint)));
+        success = (
+          await Promise.all(tracks.map((t) => t.videoTrack?.setDeviceId(deviceConstraint)))
+        ).every((val) => val === true);
       } catch (e) {
         this.options.videoCaptureDefaults!.deviceId = prevDeviceId;
         throw e;
       }
     } else if (kind === 'audiooutput') {
-      // TODO add support for webaudio mix once the API becomes available https://github.com/WebAudio/web-audio-api/pull/2498
-      if (!supportsSetSinkId()) {
+      if (
+        (!supportsSetSinkId() && !this.options.expWebAudioMix) ||
+        (this.audioContext && !('setSinkId' in this.audioContext))
+      ) {
         throw new Error('cannot switch audio output, setSinkId not supported');
       }
       this.options.audioOutput ??= {};
       const prevDeviceId = this.options.audioOutput.deviceId;
       this.options.audioOutput.deviceId = deviceId;
+      deviceHasChanged = prevDeviceId !== deviceConstraint;
+
       try {
-        await Promise.all(
-          Array.from(this.participants.values()).map((p) => p.setAudioOutput({ deviceId })),
-        );
+        if (this.options.expWebAudioMix) {
+          // @ts-expect-error setSinkId is not yet in the typescript type of AudioContext
+          this.audioContext?.setSinkId(deviceId);
+        } else {
+          await Promise.all(
+            Array.from(this.participants.values()).map((p) => p.setAudioOutput({ deviceId })),
+          );
+        }
       } catch (e) {
         this.options.audioOutput.deviceId = prevDeviceId;
         throw e;
       }
     }
+    if (deviceHasChanged && success) {
+      this.localParticipant.activeDeviceMap.set(kind, deviceId);
+      this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
+    }
+
+    return success;
   }
 
   private setupLocalParticipantEvents() {
@@ -961,6 +1073,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (isWeb()) {
         window.removeEventListener('beforeunload', this.onPageLeave);
         window.removeEventListener('pagehide', this.onPageLeave);
+        window.removeEventListener('freeze', this.onPageLeave);
         navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
       }
     } finally {
@@ -1111,6 +1224,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     pub.setAllowed(update.allowed);
+  };
+
+  private handleSubscriptionError = (update: SubscriptionResponse) => {
+    const participant = Array.from(this.participants.values()).find((p) =>
+      p.tracks.has(update.trackSid),
+    );
+    if (!participant) {
+      return;
+    }
+    const pub = participant.getTrackPublication(update.trackSid);
+    if (!pub) {
+      return;
+    }
+
+    pub.setSubscriptionError(update.err);
   };
 
   private handleDataPacket = (userPacket: UserPacket, kind: DataPacket_Kind) => {
@@ -1279,6 +1407,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(ParticipantEvent.TrackSubscriptionStatusChanged, (pub, status) => {
         this.emitWhenConnected(RoomEvent.TrackSubscriptionStatusChanged, pub, status, participant);
       })
+      .on(ParticipantEvent.TrackSubscriptionFailed, (trackSid, error) => {
+        this.emit(RoomEvent.TrackSubscriptionFailed, trackSid, participant, error);
+      })
       .on(ParticipantEvent.TrackSubscriptionPermissionChanged, (pub, status) => {
         this.emitWhenConnected(
           RoomEvent.TrackSubscriptionPermissionChanged,
@@ -1369,11 +1500,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ) {
         consecutiveFailures++;
         log.warn('detected connection state mismatch', { numFailures: consecutiveFailures });
-        if (consecutiveFailures >= 3)
+        if (consecutiveFailures >= 3) {
+          this.recreateEngine();
           this.handleDisconnect(
             this.options.stopLocalTrackOnUnpublish,
-            DisconnectReason.UNKNOWN_REASON,
+            DisconnectReason.STATE_MISMATCH,
           );
+        }
       } else {
         consecutiveFailures = 0;
       }
@@ -1396,9 +1529,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     return true;
   }
 
-  private emitWhenConnected<E extends keyof RoomEventCallbacks>(
-    event: E,
-    ...args: Parameters<RoomEventCallbacks[E]>
+  private emitWhenConnected<T extends EventEmitter.EventNames<RoomEventCallbacks>>(
+    event: T,
+    ...args: EventEmitter.EventArgs<RoomEventCallbacks, T>
   ): boolean {
     if (this.state === ConnectionState.Connected) {
       return this.emit(event, ...args);
@@ -1429,6 +1562,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (trackIsSilent) {
         this.emit(RoomEvent.LocalAudioSilenceDetected, pub);
       }
+    }
+    const deviceId = await pub.track?.getDeviceId();
+    const deviceKind = sourceToKind(pub.source);
+    if (
+      deviceKind &&
+      deviceId &&
+      deviceId !== this.localParticipant.activeDeviceMap.get(deviceKind)
+    ) {
+      this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
+      this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
     }
   };
 
@@ -1503,7 +1646,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }),
         new LocalVideoTrack(
           publishOptions.useRealTracks
-            ? (await navigator.mediaDevices.getUserMedia({ video: true })).getVideoTracks()[0]
+            ? (
+                await window.navigator.mediaDevices.getUserMedia({ video: true })
+              ).getVideoTracks()[0]
             : createDummyVideoStreamTrack(
                 160 * participantOptions.aspectRatios[0] ?? 1,
                 160,
@@ -1575,10 +1720,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   // /** @internal */
-  emit<E extends keyof RoomEventCallbacks>(
-    event: E,
-    ...args: Parameters<RoomEventCallbacks[E]>
+  emit<T extends EventEmitter.EventNames<RoomEventCallbacks>>(
+    event: T,
+    ...args: EventEmitter.EventArgs<RoomEventCallbacks, T>
   ): boolean {
+    // emit<E extends keyof RoomEventCallbacks>(
+    //   event: E,
+    //   ...args: Parameters<RoomEventCallbacks[E]>
+    // ): boolean {
     // active speaker updates are too spammy
     if (event !== RoomEvent.ActiveSpeakersChanged) {
       log.debug(`room event ${event}`, { event, args });
@@ -1606,7 +1755,11 @@ export type RoomEventCallbacks = {
     publication: RemoteTrackPublication,
     participant: RemoteParticipant,
   ) => void;
-  trackSubscriptionFailed: (trackSid: string, participant: RemoteParticipant) => void;
+  trackSubscriptionFailed: (
+    trackSid: string,
+    participant: RemoteParticipant,
+    reason?: SubscriptionError,
+  ) => void;
   trackUnpublished: (publication: RemoteTrackPublication, participant: RemoteParticipant) => void;
   trackUnsubscribed: (
     track: RemoteTrack,
@@ -1658,5 +1811,8 @@ export type RoomEventCallbacks = {
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
+  participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;
+  encryptionError: (error: Error) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
+  activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
 };

@@ -1,5 +1,3 @@
-import Queue from 'async-await-queue';
-import 'webrtc-adapter';
 import log from '../logger';
 import {
   ClientInfo,
@@ -24,6 +22,7 @@ import {
   StreamStateUpdate,
   SubscribedQualityUpdate,
   SubscriptionPermissionUpdate,
+  SubscriptionResponse,
   SyncState,
   TrackPermission,
   TrackPublishedResponse,
@@ -34,6 +33,7 @@ import {
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import { Mutex, getClientInfo, isReactNative, sleep } from '../room/utils';
+import { AsyncQueue } from '../utils/AsyncQueue';
 
 // internal options
 interface ConnectOpts {
@@ -60,6 +60,7 @@ export interface SignalOptions {
   publishOnly?: string;
   adaptiveStream?: boolean;
   maxRetries: number;
+  e2eeEnabled: boolean;
 }
 
 type SignalMessage = SignalRequest['message'];
@@ -76,7 +77,7 @@ const passThroughQueueSignals: Array<SignalKind> = [
 ];
 
 function canPassThroughQueue(req: SignalMessage): boolean {
-  const canPass = passThroughQueueSignals.includes(req!.$case);
+  const canPass = passThroughQueueSignals.indexOf(req!.$case) >= 0;
   log.trace('request allowed to bypass queue:', { canPass, req });
   return canPass;
 }
@@ -87,7 +88,7 @@ export class SignalClient {
 
   isReconnecting: boolean;
 
-  requestQueue: Queue;
+  requestQueue: AsyncQueue;
 
   queuedRequests: Array<() => Promise<void>>;
 
@@ -128,6 +129,8 @@ export class SignalClient {
 
   onSubscriptionPermissionUpdate?: (update: SubscriptionPermissionUpdate) => void;
 
+  onSubscriptionError?: (update: SubscriptionResponse) => void;
+
   onLocalTrackUnpublished?: (res: TrackUnpublishedResponse) => void;
 
   onTokenRefresh?: (token: string) => void;
@@ -154,7 +157,7 @@ export class SignalClient {
     this.isConnected = false;
     this.isReconnecting = false;
     this.useJSON = useJSON;
-    this.requestQueue = new Queue();
+    this.requestQueue = new AsyncQueue();
     this.queuedRequests = [];
     this.closingLock = new Mutex();
   }
@@ -196,7 +199,7 @@ export class SignalClient {
     return res;
   }
 
-  connect(
+  private connect(
     url: string,
     token: string,
     opts: ConnectOpts,
@@ -215,7 +218,7 @@ export class SignalClient {
 
     return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
       const abortHandler = async () => {
-        await this.close();
+        this.close();
         reject(new ConnectionError('room connection has been cancelled (signal)'));
       };
 
@@ -327,21 +330,38 @@ export class SignalClient {
     });
   }
 
+  /** @internal */
+  resetCallbacks = () => {
+    this.onAnswer = undefined;
+    this.onLeave = undefined;
+    this.onLocalTrackPublished = undefined;
+    this.onLocalTrackUnpublished = undefined;
+    this.onNegotiateRequested = undefined;
+    this.onOffer = undefined;
+    this.onRemoteMuteChanged = undefined;
+    this.onSubscribedQualityUpdate = undefined;
+    this.onTokenRefresh = undefined;
+    this.onTrickle = undefined;
+    this.onClose = undefined;
+  };
+
   async close() {
     const unlock = await this.closingLock.lock();
     try {
       this.isConnected = false;
       if (this.ws) {
-        this.ws.onclose = null;
         this.ws.onmessage = null;
         this.ws.onopen = null;
+        this.ws.onclose = null;
 
         // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-        const closePromise = new Promise((resolve) => {
+        const closePromise = new Promise<void>((resolve) => {
           if (this.ws) {
-            this.ws.onclose = resolve;
+            this.ws.onclose = () => {
+              resolve();
+            };
           } else {
-            resolve(true);
+            resolve();
           }
         });
 
@@ -351,9 +371,9 @@ export class SignalClient {
           await Promise.race([closePromise, sleep(250)]);
         }
         this.ws = undefined;
-        this.clearPingInterval();
       }
     } finally {
+      this.clearPingInterval();
       unlock();
     }
   }
@@ -400,7 +420,7 @@ export class SignalClient {
   sendAddTrack(req: AddTrackRequest) {
     return this.sendRequest({
       $case: 'addTrack',
-      addTrack: AddTrackRequest.fromPartial(req),
+      addTrack: req,
     });
   }
 
@@ -594,6 +614,10 @@ export class SignalClient {
       if (this.onLocalTrackUnpublished) {
         this.onLocalTrackUnpublished(msg.trackUnpublished);
       }
+    } else if (msg.$case === 'subscriptionResponse') {
+      if (this.onSubscriptionError) {
+        this.onSubscriptionError(msg.subscriptionResponse);
+      }
     } else if (msg.$case === 'pong') {
       this.resetPingTimeout();
     } else if (msg.$case === 'pongResp') {
@@ -616,10 +640,11 @@ export class SignalClient {
 
   private async handleOnClose(reason: string) {
     if (!this.isConnected) return;
+    const onCloseCallback = this.onClose;
     await this.close();
     log.debug(`websocket connection closed: ${reason}`);
-    if (this.onClose) {
-      this.onClose(reason);
+    if (onCloseCallback) {
+      onCloseCallback(reason);
     }
   }
 

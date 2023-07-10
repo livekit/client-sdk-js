@@ -273,11 +273,20 @@ export enum RoomEvent {
    */
   RecordingStatusChanged = 'recordingStatusChanged',
 
+  ParticipantEncryptionStatusChanged = 'participantEncryptionStatusChanged',
+
+  EncryptionError = 'encryptionError',
   /**
    * Emits whenever the current buffer status of a data channel changes
    * args: (isLow: boolean, kind: [[DataPacket_Kind]])
    */
   DCBufferStatusChanged = 'dcBufferStatusChanged',
+
+  /**
+   * Triggered by a call to room.switchActiveDevice
+   * args: (kind: MediaDeviceKind, deviceId: string)
+   */
+  ActiveDeviceChanged = 'activeDeviceChanged',
 }
 
 export enum ParticipantEvent {
@@ -437,6 +446,9 @@ export enum ParticipantEvent {
    * args: (prevPermissions: [[ParticipantPermission]])
    */
   ParticipantPermissionsChanged = 'participantPermissionsChanged',
+
+  /** @internal */
+  PCTrackAdded = 'pcTrackAdded',
 }
 
 /** @internal */
@@ -454,7 +466,15 @@ export enum EngineEvent {
   MediaTrackAdded = 'mediaTrackAdded',
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
   DataPacketReceived = 'dataPacketReceived',
+  RTPVideoMapUpdate = 'rtpVideoMapUpdate',
   DCBufferStatusChanged = 'dcBufferStatusChanged',
+  ParticipantUpdate = 'participantUpdate',
+  RoomUpdate = 'roomUpdate',
+  SpeakersChanged = 'speakersChanged',
+  StreamStateChanged = 'streamStateChanged',
+  ConnectionQualityUpdate = 'connectionQualityUpdate',
+  SubscriptionError = 'subscriptionError',
+  SubscriptionPermissionUpdate = 'subscriptionPermissionUpdate',
 }
 
 export enum TrackEvent {
@@ -508,4 +528,8 @@ export enum TrackEvent {
    * Fires on RemoteTrackPublication
    */
   SubscriptionStatusChanged = 'subscriptionStatusChanged',
+  /**
+   * Fires on RemoteTrackPublication
+   */
+  SubscriptionFailed = 'subscriptionFailed',
 }

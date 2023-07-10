@@ -1,0 +1,12 @@
+safari >= 11.1
+ios_saf >= 11.3
+chrome >= 64
+and_chr >= 64
+android >= 64
+firefox >= 58
+and_ff >= 58
+edge >= 79
+Opera >= 52
+Samsung >= 9.2
+not IE 11
+not dead

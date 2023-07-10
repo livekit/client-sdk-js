@@ -1,11 +1,11 @@
-import { EventEmitter } from 'events';
-import type TypedEmitter from 'typed-emitter';
+import EventEmitter from 'eventemitter3';
 import log from '../../logger';
 import {
   DataPacket_Kind,
   ParticipantInfo,
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
+  SubscriptionError,
 } from '../../proto/livekit_models';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
@@ -34,7 +34,7 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
   }
 }
 
-export default class Participant extends (EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>) {
+export default class Participant extends EventEmitter<ParticipantEventCallbacks> {
   protected participantInfo?: ParticipantInfo;
 
   audioTracks: Map<string, TrackPublication>;
@@ -68,10 +68,13 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
+  get isEncrypted() {
+    return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
+  }
+
   /** @internal */
   constructor(sid: string, identity: string, name?: string, metadata?: string) {
     super();
-    this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
     this.name = name;
@@ -265,7 +268,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 export type ParticipantEventCallbacks = {
   trackPublished: (publication: RemoteTrackPublication) => void;
   trackSubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
-  trackSubscriptionFailed: (trackSid: string) => void;
+  trackSubscriptionFailed: (trackSid: string, reason?: SubscriptionError) => void;
   trackUnpublished: (publication: RemoteTrackPublication) => void;
   trackUnsubscribed: (track: RemoteTrack, publication: RemoteTrackPublication) => void;
   trackMuted: (publication: TrackPublication) => void;

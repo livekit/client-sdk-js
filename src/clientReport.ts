@@ -76,9 +76,10 @@ export function createWebClientReporter(room: Room) {
         (room.localParticipant.getTracks() as LocalTrackPublication[]).map(publicationToReport),
       ),
       subscriptions: await Promise.all(
-        Array.from(room.participants.values()).flatMap((p) =>
-          (p.getTracks() as RemoteTrackPublication[]).map(subscriptionToReport),
-        ),
+        Array.from(room.participants.values()).reduce((acc, p) => {
+          acc.push(...(p.getTracks() as RemoteTrackPublication[]).map(subscriptionToReport));
+          return acc;
+        }, [] as Promise<SubscriptionReport>[]),
       ),
       events,
       errors,
