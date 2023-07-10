@@ -61,32 +61,4 @@ export function setLogExtension(extension: LogExtension) {
   livekitLogger.setLevel(livekitLogger.getLevel()); // Be sure to call setLevel method in order to apply plugin
 }
 
-// // eslint-disable-next-line @typescript-eslint/no-unused-vars
-// export function recordException(originalMethod: any, _context: ClassMethodDecoratorContext) {
-//   function replacementMethod(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-//     try {
-//       return originalMethod.call(this, ...args).then((result: any) => {
-//         log.error('decorator works!');
-//         return result;
-//       });
-//     } catch (e: any) {
-//       log.error('custom decorator logger', e);
-//       throw e;
-//     }
-//   }
-
-//   return replacementMethod;
-// }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function loggedMethod(originalMethod: any, _context: any) {
-  function replacementMethod(this: any, ...args: any[]) {
-    console.log('LOG: Entering method.');
-    const result = originalMethod.call(this, ...args);
-    console.log('LOG: Exiting method.');
-    return result;
-  }
-
-  return replacementMethod;
-}
-
 export const workerLogger = log.getLogger('lk-e2ee') as StructuredLogger;

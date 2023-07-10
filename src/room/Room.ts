@@ -72,6 +72,7 @@ import {
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
+import { recordException, recordExceptionAsync } from '../decorators/recordException';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -196,6 +197,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   /**
    * @experimental
    */
+  @recordExceptionAsync
   async setE2EEEnabled(enabled: boolean) {
     if (this.e2eeManager) {
       await Promise.all([
@@ -344,11 +346,12 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    * throws an error if server is not reachable after the request timeout
    * @experimental
    */
+  @recordExceptionAsync
   async prepareConnection(url: string) {
     await fetch(`http${url.substring(2)}`, { method: 'HEAD' });
   }
 
-  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+  @recordExceptionAsync connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
     // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
     const unlockDisconnect = await this.disconnectLock.lock();
 

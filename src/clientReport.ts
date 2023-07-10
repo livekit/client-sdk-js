@@ -37,9 +37,11 @@ interface SubscriptionReport {
   subscriptionStatus: TrackPublication.SubscriptionStatus;
 }
 
-interface ApiError {
-  code: number;
+export interface ApiError {
   timestamp: number;
+  message: string;
+  name?: string;
+  stackTrace?: string;
 }
 
 interface DeviceInfo {
