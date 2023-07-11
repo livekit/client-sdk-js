@@ -1304,11 +1304,20 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     ) {
       // override audio context with custom audio context if supplied by user
       this.audioContext = this.options.expWebAudioMix.audioContext;
-      await this.audioContext.resume();
     } else {
       // by using an AudioContext, it reduces lag on audio elements
       // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
       this.audioContext = getNewAudioContext() ?? undefined;
+    }
+
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      // for iOS a newly created AudioContext is always in `suspended` state.
+      // we try our best to resume the context here, if that doesn't work, we just continue with regular processing
+      try {
+        await this.audioContext.resume();
+      } catch (e: any) {
+        log.warn(e);
+      }
     }
 
     if (this.options.expWebAudioMix) {
