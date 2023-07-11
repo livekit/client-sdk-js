@@ -1,3 +1,4 @@
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
@@ -280,7 +281,8 @@ export default abstract class LocalTrack extends Track {
     }
   }
 
-  private handleEnded = () => {
+  @bound
+  private handleEnded() {
     if (this.isInBackground) {
       this.reacquireTrack = true;
     }
@@ -329,7 +331,8 @@ export default abstract class LocalTrack extends Track {
     }
   };
 
-  resumeUpstream = async () => {
+  @bound
+  async resumeUpstream() {
     const unlock = await this.pauseUpstreamLock.lock();
     try {
       if (this._isUpstreamPaused === false) {

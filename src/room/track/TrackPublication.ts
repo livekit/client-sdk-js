@@ -10,6 +10,7 @@ import RemoteAudioTrack from './RemoteAudioTrack';
 import type RemoteTrack from './RemoteTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
+import { bound } from '../../decorators/autoBind';
 
 export class TrackPublication extends EventEmitter<PublicationEventCallbacks> {
   kind: Track.Kind;
@@ -96,11 +97,13 @@ export class TrackPublication extends EventEmitter<PublicationEventCallbacks> {
     }
   }
 
-  handleMuted = () => {
+  @bound
+  handleMuted() {
     this.emit(TrackEvent.Muted);
   };
 
-  handleUnmuted = () => {
+  @bound
+  handleUnmuted() {
     this.emit(TrackEvent.Unmuted);
   };
 

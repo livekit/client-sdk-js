@@ -1,3 +1,4 @@
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { SubscriptionError, TrackInfo, VideoQuality } from '../../proto/livekit_models';
 import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
@@ -259,7 +260,8 @@ export default class RemoteTrackPublication extends TrackPublication {
     return true;
   }
 
-  protected handleEnded = (track: RemoteTrack) => {
+  @bound
+  protected handleEnded(track: RemoteTrack) {
     this.setTrack(undefined);
     this.emit(TrackEvent.Ended, track);
   };
@@ -268,7 +270,8 @@ export default class RemoteTrackPublication extends TrackPublication {
     return this.track instanceof RemoteVideoTrack && this.track.isAdaptiveStream;
   }
 
-  protected handleVisibilityChange = (visible: boolean) => {
+  @bound
+  protected handleVisibilityChange(visible: boolean) {
     log.debug(`adaptivestream video visibility ${this.trackSid}, visible=${visible}`, {
       trackSid: this.trackSid,
     });
@@ -276,7 +279,8 @@ export default class RemoteTrackPublication extends TrackPublication {
     this.emitTrackUpdate();
   };
 
-  protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
+  @bound
+  protected handleVideoDimensionsChange(dimensions: Track.Dimensions) {
     log.debug(`adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`, {
       trackSid: this.trackSid,
     });
