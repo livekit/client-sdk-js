@@ -85,5 +85,5 @@ export default class LocalTrackPublication extends TrackPublication {
   @bound
   handleTrackEnded() {
     this.emit(TrackEvent.Ended);
-  };
+  }
 }

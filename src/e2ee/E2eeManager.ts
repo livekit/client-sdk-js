@@ -1,4 +1,5 @@
 import EventEmitter from 'eventemitter3';
+import { bound } from '../decorators/autoBind';
 import log from '../logger';
 import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
 import type RTCEngine from '../room/RTCEngine';
@@ -28,7 +29,6 @@ import type {
 } from './types';
 import { EncryptionEvent } from './types';
 import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
-import { bound } from '../decorators/autoBind';
 
 /**
  * @experimental
@@ -136,7 +136,7 @@ export class E2EEManager extends EventEmitter<E2EEManagerCallbacks> {
   private onWorkerError(ev: ErrorEvent) {
     log.error('e2ee worker encountered an error:', { error: ev.error });
     this.emit(EncryptionEvent.Error, ev.error);
-  };
+  }
 
   public setupEngine(engine: RTCEngine) {
     engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {

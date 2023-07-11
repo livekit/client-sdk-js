@@ -220,7 +220,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     }
 
     this.prevStats = stats;
-  };
+  }
 
   /**
    * @internal

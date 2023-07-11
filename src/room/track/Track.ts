@@ -1,11 +1,11 @@
 import EventEmitter from 'eventemitter3';
 import type { SignalClient } from '../../api/SignalClient';
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
 import { TrackEvent } from '../events';
 import { isFireFox, isSafari, isWeb } from '../utils';
-import { bound } from '../../decorators/autoBind';
 
 const BACKGROUND_REACTION_DELAY = 5000;
 
@@ -248,7 +248,7 @@ export abstract class Track extends EventEmitter<TrackEventCallbacks> {
     } else {
       this.handleAppVisibilityChanged();
     }
-  };
+  }
 
   protected async handleAppVisibilityChanged() {
     this.isInBackground = document.visibilityState === 'hidden';
