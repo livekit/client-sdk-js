@@ -2,6 +2,7 @@ import EventEmitter from 'eventemitter3';
 import type { MediaAttributes } from 'sdp-transform';
 import { SignalClient } from '../api/SignalClient';
 import type { SignalOptions } from '../api/SignalClient';
+import { bound } from '../decorators/autoBind';
 import log from '../logger';
 import type { InternalRoomOptions } from '../options';
 import {
@@ -57,7 +58,6 @@ import {
   supportsSetCodecPreferences,
   supportsTransceiver,
 } from './utils';
-import { bound } from '../decorators/autoBind';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -614,7 +614,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     }
     log.debug(`on data channel ${channel.id}, ${channel.label}`);
     channel.onmessage = this.handleDataMessage;
-  };
+  }
 
   @bound
   private async handleDataMessage(message: MessageEvent) {
@@ -641,7 +641,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     } finally {
       unlock();
     }
-  };
+  }
 
   @bound
   private handleDataError(event: Event) {
@@ -654,7 +654,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     } else {
       log.error(`Unknown DataChannel Error on ${channelKind}`, event);
     }
-  };
+  }
 
   @bound
   private handleBufferedAmountLow(event: Event) {
@@ -663,7 +663,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       channel.maxRetransmits === 0 ? DataPacket_Kind.LOSSY : DataPacket_Kind.RELIABLE;
 
     this.updateAndEmitDCBufferStatus(channelKind);
-  };
+  }
 
   private setPreferredCodec(
     transceiver: RTCRtpTransceiver,
@@ -716,8 +716,6 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
   ) {
     if (supportsTransceiver()) {
       const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
-      throw new UnexpectedConnectionState('Required webRTC APIs not supported on this device');
-
       return sender;
     }
     if (supportsAddTrack()) {
@@ -858,7 +856,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       () => this.attemptReconnect(disconnectReason),
       delay,
     );
-  };
+  }
 
   private async attemptReconnect(reason?: ReconnectReason) {
     if (this._isClosed) {
@@ -1125,7 +1123,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       this.once(EngineEvent.Disconnected, onDisconnected);
       this.once(EngineEvent.Closing, onDisconnected);
     });
-  };
+  }
 
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
@@ -1149,7 +1147,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       this.dcBufferStatus.set(kind, status);
       this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
     }
-  };
+  }
 
   @bound
   private isBufferStatusLow(kind: DataPacket_Kind): boolean | undefined {
@@ -1157,7 +1155,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     if (dc) {
       return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
     }
-  };
+  }
 
   /**
    * @internal
@@ -1344,7 +1342,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       this.clearReconnectTimeout();
       this.attemptReconnect(ReconnectReason.RR_SIGNAL_DISCONNECTED);
     }
-  };
+  }
 
   private registerOnLineListener() {
     if (isWeb()) {

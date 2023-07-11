@@ -1,4 +1,5 @@
 import EventEmitter from 'eventemitter3';
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { Encryption_Type } from '../../proto/livekit_models';
 import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models';
@@ -10,7 +11,6 @@ import RemoteAudioTrack from './RemoteAudioTrack';
 import type RemoteTrack from './RemoteTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
-import { bound } from '../../decorators/autoBind';
 
 export class TrackPublication extends EventEmitter<PublicationEventCallbacks> {
   kind: Track.Kind;
@@ -100,12 +100,12 @@ export class TrackPublication extends EventEmitter<PublicationEventCallbacks> {
   @bound
   handleMuted() {
     this.emit(TrackEvent.Muted);
-  };
+  }
 
   @bound
   handleUnmuted() {
     this.emit(TrackEvent.Unmuted);
-  };
+  }
 
   /** @internal */
   updateInfo(info: TrackInfo) {

@@ -327,7 +327,7 @@ export default class LocalVideoTrack extends LocalTrack {
     }
 
     this.prevStats = statsMap;
-  };
+  }
 
   protected async handleAppVisibilityChanged() {
     await super.handleAppVisibilityChanged();
