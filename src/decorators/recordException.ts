@@ -1,7 +1,7 @@
 import type { ApiError } from '../clientReport';
 
 export function recordExceptionAsync(
-  originalMethod: ((...args: any) => Promise<any>) | undefined | Promise<any>,
+  originalMethod: (...args: any) => Promise<any>,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _context: DecoratorContext,
 ) {
@@ -9,11 +9,8 @@ export function recordExceptionAsync(
     return function (this: any, ...args: any[]) {
       return originalMethod.call(this, ...args).catch(recordAndThrow);
     };
-  } else if (_context.kind === 'field' && originalMethod === undefined) {
-    return function (initialValue: any) {
-      console.log('field', originalMethod, initialValue);
-      return initialValue().catch(recordAndThrow);
-    };
+  } else {
+    throw new TypeError('can only record exceptions on methods');
   }
 }
 

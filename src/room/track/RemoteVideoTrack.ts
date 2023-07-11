@@ -9,6 +9,7 @@ import { getDevicePixelRatio, getIntersectionObserver, getResizeObserver, isWeb 
 import RemoteTrack from './RemoteTrack';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { AdaptiveStreamSettings } from './types';
+import { bound } from '../../decorators/autoBind';
 
 const REACTION_DELAY = 100;
 
@@ -362,12 +363,14 @@ class HTMLElementInfo implements ElementInfo {
     }
   };
 
-  private onEnterPiP = () => {
+  @bound
+  private onEnterPiP() {
     this.isPiP = true;
     this.handleVisibilityChanged?.();
   };
 
-  private onLeavePiP = () => {
+  @bound
+  private onLeavePiP() {
     this.isPiP = false;
     this.handleVisibilityChanged?.();
   };

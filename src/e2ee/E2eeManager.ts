@@ -28,6 +28,7 @@ import type {
 } from './types';
 import { EncryptionEvent } from './types';
 import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
+import { bound } from '../decorators/autoBind';
 
 /**
  * @experimental
@@ -131,7 +132,8 @@ export class E2EEManager extends EventEmitter<E2EEManagerCallbacks> {
     }
   };
 
-  private onWorkerError = (ev: ErrorEvent) => {
+  @bound
+  private onWorkerError(ev: ErrorEvent) {
     log.error('e2ee worker encountered an error:', { error: ev.error });
     this.emit(EncryptionEvent.Error, ev.error);
   };

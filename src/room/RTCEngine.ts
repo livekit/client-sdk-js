@@ -57,6 +57,7 @@ import {
   supportsSetCodecPreferences,
   supportsTransceiver,
 } from './utils';
+import { bound } from '../decorators/autoBind';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -599,7 +600,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
   }
 
-  private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
+  @bound
+  private async handleDataChannel({ channel }: RTCDataChannelEvent) {
     if (!channel) {
       return;
     }
@@ -614,7 +616,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     channel.onmessage = this.handleDataMessage;
   };
 
-  private handleDataMessage = async (message: MessageEvent) => {
+  @bound
+  private async handleDataMessage(message: MessageEvent) {
     // make sure to respect incoming data message order by processing message events one after the other
     const unlock = await this.dataProcessLock.lock();
     try {
@@ -640,7 +643,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     }
   };
 
-  private handleDataError = (event: Event) => {
+  @bound
+  private handleDataError(event: Event) {
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind = channel.maxRetransmits === 0 ? 'lossy' : 'reliable';
 
@@ -652,7 +656,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     }
   };
 
-  private handleBufferedAmountLow = (event: Event) => {
+  @bound
+  private handleBufferedAmountLow(event: Event) {
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind =
       channel.maxRetransmits === 0 ? DataPacket_Kind.LOSSY : DataPacket_Kind.RELIABLE;
@@ -809,7 +814,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
   // continues to work, we can reconnect to websocket to continue the session
   // after a number of retries, we'll close and give up permanently
-  private handleDisconnect = (connection: string, disconnectReason?: ReconnectReason) => {
+  @bound
+  private handleDisconnect(connection: string, disconnectReason?: ReconnectReason) {
     if (this._isClosed) {
       return;
     }
@@ -1101,7 +1107,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     throw new ConnectionError('could not establish PC connection');
   }
 
-  waitForRestarted = () => {
+  @bound
+  waitForRestarted() {
     return new Promise<void>((resolve, reject) => {
       if (this.pcState === PCState.Connected) {
         resolve();
@@ -1135,7 +1142,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     this.updateAndEmitDCBufferStatus(kind);
   }
 
-  private updateAndEmitDCBufferStatus = (kind: DataPacket_Kind) => {
+  @bound
+  private updateAndEmitDCBufferStatus(kind: DataPacket_Kind) {
     const status = this.isBufferStatusLow(kind);
     if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
       this.dcBufferStatus.set(kind, status);
@@ -1143,7 +1151,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     }
   };
 
-  private isBufferStatusLow = (kind: DataPacket_Kind): boolean | undefined => {
+  @bound
+  private isBufferStatusLow(kind: DataPacket_Kind): boolean | undefined {
     const dc = this.dataChannelForKind(kind);
     if (dc) {
       return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
@@ -1328,7 +1337,8 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     this.reconnectAttempts = 0;
   }
 
-  private handleBrowserOnLine = () => {
+  @bound
+  private handleBrowserOnLine() {
     // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
     if (this.client.isReconnecting) {
       this.clearReconnectTimeout();

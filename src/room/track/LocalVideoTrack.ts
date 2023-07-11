@@ -1,4 +1,5 @@
 import type { SignalClient } from '../../api/SignalClient';
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
 import type { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc';
@@ -300,7 +301,8 @@ export default class LocalVideoTrack extends LocalTrack {
     await setPublishingLayersForSender(this.sender, this.encodings, qualities, this.senderLock);
   }
 
-  protected monitorSender = async () => {
+  @bound
+  protected async monitorSender() {
     if (!this.sender) {
       this._currentBitrate = 0;
       return;

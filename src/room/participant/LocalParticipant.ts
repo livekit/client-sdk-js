@@ -1,3 +1,4 @@
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import type { InternalRoomOptions } from '../../options';
 import {
@@ -142,19 +143,22 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.Disconnected, this.handleDisconnected);
   }
 
-  private handleReconnecting = () => {
+  @bound
+  private handleReconnecting() {
     if (!this.reconnectFuture) {
       this.reconnectFuture = new Future<void>();
     }
   };
 
-  private handleReconnected = () => {
+  @bound
+  private handleReconnected() {
     this.reconnectFuture?.resolve?.();
     this.reconnectFuture = undefined;
     this.updateTrackSubscriptionPermissions();
   };
 
-  private handleDisconnected = () => {
+  @bound
+  private handleDisconnected() {
     if (this.reconnectFuture) {
       this.reconnectFuture.promise.catch((e) => log.warn(e));
       this.reconnectFuture?.reject?.('Got disconnected during reconnection attempt');
@@ -1174,7 +1178,8 @@ export default class LocalParticipant extends Participant {
     return true;
   }
 
-  private updateTrackSubscriptionPermissions = () => {
+  @bound
+  private updateTrackSubscriptionPermissions() {
     log.debug('updating track subscription permissions', {
       allParticipantsAllowed: this.allParticipantsAllowedToSubscribe,
       participantTrackPermissions: this.participantTrackPermissions,
@@ -1186,13 +1191,15 @@ export default class LocalParticipant extends Participant {
   };
 
   /** @internal */
-  private onTrackUnmuted = (track: LocalTrack) => {
+  @bound
+  private onTrackUnmuted(track: LocalTrack) {
     this.onTrackMuted(track, track.isUpstreamPaused);
   };
 
   // when the local track changes in mute status, we'll notify server as such
   /** @internal */
-  private onTrackMuted = (track: LocalTrack, muted?: boolean) => {
+  @bound
+  private onTrackMuted(track: LocalTrack, muted?: boolean) {
     if (muted === undefined) {
       muted = true;
     }
@@ -1205,17 +1212,20 @@ export default class LocalParticipant extends Participant {
     this.engine.updateMuteStatus(track.sid, muted);
   };
 
-  private onTrackUpstreamPaused = (track: LocalTrack) => {
+  @bound
+  private onTrackUpstreamPaused(track: LocalTrack) {
     log.debug('upstream paused');
     this.onTrackMuted(track, true);
   };
 
-  private onTrackUpstreamResumed = (track: LocalTrack) => {
+  @bound
+  private onTrackUpstreamResumed(track: LocalTrack) {
     log.debug('upstream resumed');
     this.onTrackMuted(track, track.isMuted);
   };
 
-  private handleSubscribedQualityUpdate = async (update: SubscribedQualityUpdate) => {
+  @bound
+  private async handleSubscribedQualityUpdate(update: SubscribedQualityUpdate) {
     if (!this.roomOptions?.dynacast) {
       return;
     }
@@ -1243,7 +1253,8 @@ export default class LocalParticipant extends Participant {
     }
   };
 
-  private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {
+  @bound
+  private handleLocalTrackUnpublished(unpublished: TrackUnpublishedResponse) {
     const track = this.tracks.get(unpublished.trackSid);
     if (!track) {
       log.warn('received unpublished event for unknown track', {
@@ -1255,7 +1266,8 @@ export default class LocalParticipant extends Participant {
     this.unpublishTrack(track.track!);
   };
 
-  private handleTrackEnded = async (track: LocalTrack) => {
+  @bound
+  private async handleTrackEnded(track: LocalTrack) {
     if (
       track.source === Track.Source.ScreenShare ||
       track.source === Track.Source.ScreenShareAudio
