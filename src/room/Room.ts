@@ -143,7 +143,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
-  private urlProvider?: RegionUrlProvider;
+  private regionUrlProvider?: RegionUrlProvider;
 
   private regionUrl?: string;
 
@@ -353,9 +353,10 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   async prepareConnection(url: string, token: string) {
     log.debug(`prepareConnection to ${url}`);
     try {
-      this.urlProvider = new RegionUrlProvider(url, token);
-      if (this.urlProvider.isCloud()) {
-        const regionUrl = await this.urlProvider.getNextBestRegionUrl();
+      const regionUrlProvider = new RegionUrlProvider(url, token);
+      if (regionUrlProvider.isCloud()) {
+        this.regionUrlProvider = regionUrlProvider;
+        const regionUrl = await this.regionUrlProvider.getNextBestRegionUrl();
         if (regionUrl) {
           this.regionUrl = regionUrl;
           await fetch(toHttpUrl(regionUrl), { method: 'HEAD' });
@@ -386,11 +387,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
-
-    let urlProvider = this.urlProvider;
-    if (urlProvider) {
-      urlProvider.updateToken(token);
-    }
+    this.regionUrlProvider?.updateToken(token);
 
     const connectFn = async (
       resolve: () => void,
@@ -400,8 +397,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       if (this.abortController) {
         this.abortController.abort();
       }
-      if (urlProvider === undefined) {
-        urlProvider = new RegionUrlProvider(url, token);
+      if (this.regionUrlProvider === undefined && isCloud(new URL(url))) {
+        this.regionUrlProvider = new RegionUrlProvider(url, token);
       }
       this.abortController = new AbortController();
 
@@ -414,13 +411,15 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         resolve();
       } catch (e) {
         if (
-          isCloud(new URL(url)) &&
+          this.regionUrlProvider &&
           e instanceof ConnectionError &&
           e.reason !== ConnectionErrorReason.Cancelled
         ) {
           let nextUrl: string | null = null;
           try {
-            nextUrl = await urlProvider.getNextBestRegionUrl(this.abortController?.signal);
+            nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(
+              this.abortController?.signal,
+            );
           } catch (error) {
             if (
               error instanceof ConnectionError &&
@@ -529,6 +528,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     } else {
       // create engine if previously disconnected
       this.maybeCreateEngine();
+    }
+    if (this.regionUrlProvider?.isCloud()) {
+      this.engine.setRegionUrlProvider(this.regionUrlProvider);
     }
 
     this.acquireAudioContext();
