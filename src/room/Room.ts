@@ -69,6 +69,7 @@ import {
   isSafari,
   isWeb,
   supportsSetSinkId,
+  toHttpUrl,
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
@@ -141,6 +142,10 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   private cachedParticipantSids: Array<string>;
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
+
+  private urlProvider?: RegionUrlProvider;
+
+  private regionUrl?: string;
 
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
@@ -337,15 +342,31 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   }
 
   /**
-   * prepares the connection to the livekit server by sending a HEAD request in order to
-   * 1. speed up DNS resolution
-   * 2. speed up TLS setup
-   * on the actual connection request
-   * throws an error if server is not reachable after the request timeout
-   * @experimental
+   * prepareConnection should be called as soon as the page is loaded, in order
+   * to speed up the connection attempt. This function will
+   * - perform DNS resolution and pre-warm the DNS cache
+   * - establish TLS connection and cache TLS keys
+   *
+   * With LiveKit Cloud, it will also determine the best edge data center for
+   * the current client to connect to.
    */
-  async prepareConnection(url: string) {
-    await fetch(`http${url.substring(2)}`, { method: 'HEAD' });
+  async prepareConnection(url: string, token: string) {
+    log.debug(`prepareConnection to ${url}`);
+    try {
+      this.urlProvider = new RegionUrlProvider(url, token);
+      if (this.urlProvider.isCloud()) {
+        const regionUrl = await this.urlProvider.getNextBestRegionUrl();
+        if (regionUrl) {
+          this.regionUrl = regionUrl;
+          await fetch(toHttpUrl(regionUrl), { method: 'HEAD' });
+          log.debug(`prepared connection to ${regionUrl}`);
+        }
+      } else {
+        await fetch(toHttpUrl(url), { method: 'HEAD' });
+      }
+    } catch (e) {
+      log.warn('could not prepare connection', { error: e });
+    }
   }
 
   connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
@@ -366,7 +387,10 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
 
-    const urlProvider = new RegionUrlProvider(url, token);
+    let urlProvider = this.urlProvider;
+    if (urlProvider) {
+      urlProvider.updateToken(token);
+    }
 
     const connectFn = async (
       resolve: () => void,
@@ -375,6 +399,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     ) => {
       if (this.abortController) {
         this.abortController.abort();
+      }
+      if (urlProvider === undefined) {
+        urlProvider = new RegionUrlProvider(url, token);
       }
       this.abortController = new AbortController();
 
@@ -414,9 +441,17 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         }
       }
     };
-    this.connectFuture = new Future(connectFn, () => {
-      this.clearConnectionFutures();
-    });
+
+    const regionUrl = this.regionUrl;
+    this.regionUrl = undefined;
+    this.connectFuture = new Future(
+      (resolve, reject) => {
+        connectFn(resolve, reject, regionUrl);
+      },
+      () => {
+        this.clearConnectionFutures();
+      },
+    );
 
     return this.connectFuture.promise;
   };

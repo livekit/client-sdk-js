@@ -1,6 +1,6 @@
 import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models';
-import { getBrowser } from '../utils/browserParser';
 import type { DetectableBrowser } from '../utils/browserParser';
+import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
@@ -482,4 +482,18 @@ export function unwrapConstraint(constraint: ConstrainDOMString): string {
     return constraint.ideal;
   }
   throw Error('could not unwrap constraint');
+}
+
+export function toWebsocketUrl(url: string): string {
+  if (url.startsWith('http')) {
+    return url.replace('http', 'ws');
+  }
+  return url;
+}
+
+export function toHttpUrl(url: string): string {
+  if (url.startsWith('ws')) {
+    return url.replace('ws', 'http');
+  }
+  return url;
 }

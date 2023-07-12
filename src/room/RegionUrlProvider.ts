@@ -21,6 +21,10 @@ export class RegionUrlProvider {
     this.token = token;
   }
 
+  updateToken(token: string) {
+    this.token = token;
+  }
+
   isCloud() {
     return isCloud(this.serverUrl);
   }

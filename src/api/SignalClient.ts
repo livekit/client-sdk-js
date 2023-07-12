@@ -32,7 +32,7 @@ import {
 } from '../proto/livekit_rtc';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
-import { Mutex, getClientInfo, isReactNative, sleep } from '../room/utils';
+import { Mutex, getClientInfo, isReactNative, sleep, toWebsocketUrl } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
 
 // internal options
@@ -206,9 +206,7 @@ export class SignalClient {
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse | ReconnectResponse | void> {
     this.connectOptions = opts;
-    if (url.startsWith('http')) {
-      url = url.replace('http', 'ws');
-    }
+    url = toWebsocketUrl(url);
     // strip trailing slash
     url = url.replace(/\/$/, '');
     url += '/rtc';
