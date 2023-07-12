@@ -206,12 +206,8 @@ export default class RemoteParticipant extends Participant {
     track.start();
 
     publication.setTrack(track);
-    // set participant volume on new microphone tracks
-    if (
-      this.volumeMap.has(publication.source) &&
-      track instanceof RemoteAudioTrack &&
-      track.source === Track.Source.Microphone
-    ) {
+    // set participant volumes on new audio tracks
+    if (this.volumeMap.has(publication.source) && track instanceof RemoteAudioTrack) {
       track.setVolume(this.volumeMap.get(publication.source)!);
     }
 
