@@ -53,7 +53,8 @@ export class RegionUrlProvider {
     this.attemptedRegions = [];
   }
 
-  private async fetchRegionSettings(signal?: AbortSignal) {
+  /* @internal */
+  async fetchRegionSettings(signal?: AbortSignal) {
     const regionSettingsResponse = await fetch(`${getCloudConfigUrl(this.serverUrl)}/regions`, {
       headers: { authorization: `Bearer ${this.token}` },
       signal,

@@ -350,12 +350,11 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    * With LiveKit Cloud, it will also determine the best edge data center for
    * the current client to connect to.
    */
-  async prepareConnection(url: string, token: string) {
+  async prepareConnection(url: string, token?: string) {
     log.debug(`prepareConnection to ${url}`);
     try {
-      const regionUrlProvider = new RegionUrlProvider(url, token);
-      if (regionUrlProvider.isCloud()) {
-        this.regionUrlProvider = regionUrlProvider;
+      if (isCloud(new URL(url)) && token) {
+        this.regionUrlProvider = new RegionUrlProvider(url, token);
         const regionUrl = await this.regionUrlProvider.getNextBestRegionUrl();
         if (regionUrl) {
           this.regionUrl = regionUrl;
@@ -387,7 +386,19 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
-    this.regionUrlProvider?.updateToken(token);
+    if (isCloud(new URL(url))) {
+      if (this.regionUrlProvider === undefined) {
+        this.regionUrlProvider = new RegionUrlProvider(url, token);
+        // trigger the first fetch without waiting for a response
+        // if initial connection fails, this will speed up picking regional url
+        // on subsequent runs
+        this.regionUrlProvider.fetchRegionSettings().catch((e) => {
+          log.warn('could not fetch region settings', { error: e });
+        });
+      } else {
+        this.regionUrlProvider.updateToken(token);
+      }
+    }
 
     const connectFn = async (
       resolve: () => void,
@@ -397,9 +408,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       if (this.abortController) {
         this.abortController.abort();
       }
-      if (this.regionUrlProvider === undefined && isCloud(new URL(url))) {
-        this.regionUrlProvider = new RegionUrlProvider(url, token);
-      }
+
       this.abortController = new AbortController();
 
       // at this point the intention to connect has been signalled so we can allow cancelling of the connection via disconnect() again
