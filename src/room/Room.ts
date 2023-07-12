@@ -67,7 +67,6 @@ import {
   createDummyVideoStreamTrack,
   getEmptyAudioStreamTrack,
   isCloud,
-  isSafari,
   isWeb,
   supportsSetSinkId,
   unpackStreamId,
