@@ -7,6 +7,7 @@ import type {
   ErrorMessage,
   KeyProviderOptions,
   RatchetMessage,
+  RatchetRequestMessage,
 } from '../types';
 import { FrameCryptor } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
@@ -92,12 +93,17 @@ onmessage = (ev) => {
       });
       break;
     case 'ratchetRequest':
-      getParticipantKeyHandler(data.participantId).ratchetKey(data.keyIndex);
-
+      handleRatchetRequest(data);
     default:
       break;
   }
 };
+
+function handleRatchetRequest(data: RatchetRequestMessage['data']) {
+  const keyHandler = getParticipantKeyHandler(data.participantId);
+  keyHandler.ratchetKey(data.keyIndex);
+  keyHandler.hasValidKey = true;
+}
 
 function getTrackCryptor(participantId: string, trackId: string) {
   let cryptor = participantCryptors.find((c) => c.getTrackId() === trackId);
