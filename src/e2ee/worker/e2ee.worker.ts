@@ -99,9 +99,9 @@ onmessage = (ev) => {
   }
 };
 
-function handleRatchetRequest(data: RatchetRequestMessage['data']) {
+async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
   const keyHandler = getParticipantKeyHandler(data.participantId);
-  keyHandler.ratchetKey(data.keyIndex);
+  await keyHandler.ratchetKey(data.keyIndex);
   keyHandler.hasValidKey = true;
 }
 
