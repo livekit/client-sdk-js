@@ -834,7 +834,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     } else if (kind === 'audiooutput') {
       if (
         (!supportsSetSinkId() && !this.options.expWebAudioMix) ||
-        (this.audioContext && !('setSinkId' in this.audioContext))
+        (this.options.expWebAudioMix && this.audioContext && !('setSinkId' in this.audioContext))
       ) {
         throw new Error('cannot switch audio output, setSinkId not supported');
       }
