@@ -33,6 +33,7 @@ import {
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
 } from '../proto/livekit_rtc';
+import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
@@ -66,7 +67,6 @@ import {
   createDummyVideoStreamTrack,
   getEmptyAudioStreamTrack,
   isCloud,
-  isSafari,
   isWeb,
   supportsSetSinkId,
   toHttpUrl,
@@ -764,10 +764,10 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   async startAudio() {
     await this.acquireAudioContext();
     const elements: Array<HTMLMediaElement> = [];
-
-    if (isSafari()) {
+    const browser = getBrowser();
+    if (browser && browser.os === 'iOS') {
       /**
-       * iOS Safari blocks audio element playback if
+       * iOS blocks audio element playback if
        * - user is not publishing audio themselves and
        * - no other audio source is playing
        *
@@ -880,7 +880,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     } else if (kind === 'audiooutput') {
       if (
         (!supportsSetSinkId() && !this.options.expWebAudioMix) ||
-        (this.audioContext && !('setSinkId' in this.audioContext))
+        (this.options.expWebAudioMix && this.audioContext && !('setSinkId' in this.audioContext))
       ) {
         throw new Error('cannot switch audio output, setSinkId not supported');
       }

@@ -49,8 +49,6 @@ export class BaseFrameCryptor extends EventEmitter<CryptorCallbacks> {
 export class FrameCryptor extends BaseFrameCryptor {
   private sendCounts: Map<number, number>;
 
-  private isKeyInvalid = false;
-
   private participantId: string | undefined;
 
   private trackId: string | undefined;
@@ -270,16 +268,15 @@ export class FrameCryptor extends BaseFrameCryptor {
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
 
-    if (this.keys.getKeySet(keyIndex)) {
+    if (this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
       try {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
         if (decodedFrame) {
           return controller.enqueue(decodedFrame);
         }
-        this.isKeyInvalid = false;
       } catch (error) {
         if (error instanceof CryptorError && error.reason === CryptorErrorReason.InvalidKey) {
-          if (!this.isKeyInvalid) {
+          if (this.keys.hasValidKey) {
             workerLogger.warn('invalid key');
             this.emit(
               CryptorEvent.Error,
@@ -288,20 +285,12 @@ export class FrameCryptor extends BaseFrameCryptor {
                 CryptorErrorReason.InvalidKey,
               ),
             );
-            this.isKeyInvalid = true;
+            this.keys.hasValidKey = false;
           }
         } else {
           workerLogger.warn('decoding frame failed', { error });
         }
       }
-    } else {
-      this.emit(
-        CryptorEvent.Error,
-        new CryptorError(
-          `key missing for participant ${this.participantId}`,
-          CryptorErrorReason.MissingKey,
-        ),
-      );
     }
 
     return controller.enqueue(encodedFrame);
@@ -406,7 +395,16 @@ export class FrameCryptor extends BaseFrameCryptor {
             this.keys.setKeyFromMaterial(initialMaterial.material, keyIndex);
           }
 
+          this.keys.hasValidKey = false;
+
           workerLogger.warn('maximum ratchet attempts exceeded, resetting key');
+          this.emit(
+            CryptorEvent.Error,
+            new CryptorError(
+              `valid key missing for participant ${this.participantId}`,
+              CryptorErrorReason.MissingKey,
+            ),
+          );
         }
       } else {
         throw new CryptorError(
