@@ -1,5 +1,23 @@
 # Change Log
 
+## 1.12.1
+
+### Patch Changes
+
+- Allow specifying audio source for participant.setVolume API - [#780](https://github.com/livekit/client-sdk-js/pull/780) ([@lukasIO](https://github.com/lukasIO))
+
+- Add iOS detection to browser parser and only use audio element workar… - [#785](https://github.com/livekit/client-sdk-js/pull/785) ([@lukasIO](https://github.com/lukasIO))
+
+- Skip decryption if maximum ratchet accounts have exceeded until a new key is set - [#786](https://github.com/livekit/client-sdk-js/pull/786) ([@lukasIO](https://github.com/lukasIO))
+
+- Set element Id for dummy audio element - [#778](https://github.com/livekit/client-sdk-js/pull/778) ([@lukasIO](https://github.com/lukasIO))
+
+- Update constraints with actually selected deviceId on track creation - [#773](https://github.com/livekit/client-sdk-js/pull/773) ([@toger5](https://github.com/toger5))
+
+- Always resume AudioContext if in suspended state - [#779](https://github.com/livekit/client-sdk-js/pull/779) ([@lukasIO](https://github.com/lukasIO))
+
+- Only check for setSinkId support on AudioContext if webaudiomix is enabled - [#787](https://github.com/livekit/client-sdk-js/pull/787) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.12.0
 
 ### Minor Changes
