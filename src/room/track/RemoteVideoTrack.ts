@@ -1,4 +1,5 @@
 import { debounce } from 'ts-debounce';
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
@@ -9,7 +10,6 @@ import { getDevicePixelRatio, getIntersectionObserver, getResizeObserver, isWeb 
 import RemoteTrack from './RemoteTrack';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { AdaptiveStreamSettings } from './types';
-import { bound } from '../../decorators/autoBind';
 
 const REACTION_DELAY = 100;
 
@@ -364,13 +364,13 @@ class HTMLElementInfo implements ElementInfo {
   private onEnterPiP() {
     this.isPiP = true;
     this.handleVisibilityChanged?.();
-  };
+  }
 
   @bound
   private onLeavePiP() {
     this.isPiP = false;
     this.handleVisibilityChanged?.();
-  };
+  }
 
   stopObserving() {
     getIntersectionObserver()?.unobserve(this.element);

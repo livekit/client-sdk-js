@@ -264,7 +264,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   protected handleEnded(track: RemoteTrack) {
     this.setTrack(undefined);
     this.emit(TrackEvent.Ended, track);
-  };
+  }
 
   protected get isAdaptiveStream(): boolean {
     return this.track instanceof RemoteVideoTrack && this.track.isAdaptiveStream;
@@ -277,7 +277,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     });
     this.disabled = !visible;
     this.emitTrackUpdate();
-  };
+  }
 
   @bound
   protected handleVideoDimensionsChange(dimensions: Track.Dimensions) {
@@ -286,7 +286,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     });
     this.videoDimensions = dimensions;
     this.emitTrackUpdate();
-  };
+  }
 
   /* @internal */
   emitTrackUpdate() {

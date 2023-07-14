@@ -1,6 +1,7 @@
 import EventEmitter from 'eventemitter3';
 import 'webrtc-adapter';
 import { toProtoSessionDescription } from '../api/SignalClient';
+import { bound } from '../decorators/autoBind';
 import { EncryptionEvent } from '../e2ee';
 import { E2EEManager } from '../e2ee/E2eeManager';
 import log from '../logger';
@@ -72,7 +73,6 @@ import {
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
-import { bound } from '../decorators/autoBind';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -421,8 +421,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     });
 
     return this.connectFuture.promise;
-  };
-  
+  }
+
   @bound
   private async connectSignal(
     url: string,
@@ -468,7 +468,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     return joinResponse;
-  };
+  }
 
   private applyJoinResponse = (joinResponse: JoinResponse) => {
     const pi = joinResponse.participant!;
@@ -570,7 +570,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Connected);
     this.registerConnectionReconcile();
-  };
+  }
 
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
@@ -964,7 +964,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
       this.emit(RoomEvent.Reconnecting);
     }
-  };
+  }
 
   @bound
   private async handleSignalRestarted(joinResponse: JoinResponse) {
@@ -1028,7 +1028,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     this.participants.forEach((participant) => {
       this.emit(RoomEvent.ParticipantConnected, participant);
     });
-  };
+  }
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
     this.clearConnectionReconcile();
@@ -1120,7 +1120,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         }
       }
     });
-  };
+  }
 
   private handleParticipantDisconnected(sid: string, participant?: RemoteParticipant) {
     // remove and send event
@@ -1170,7 +1170,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
     this.activeSpeakers = activeSpeakers;
     this.emitWhenConnected(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
-  };
+  }
 
   // process list of changed speakers
   @bound
@@ -1200,7 +1200,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     activeSpeakers.sort((a, b) => b.audioLevel - a.audioLevel);
     this.activeSpeakers = activeSpeakers;
     this.emitWhenConnected(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
-  };
+  }
 
   @bound
   private handleStreamStateUpdate(streamStateUpdate: StreamStateUpdate) {
@@ -1222,7 +1222,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         participant,
       );
     });
-  };
+  }
 
   @bound
   private handleSubscriptionPermissionUpdate(update: SubscriptionPermissionUpdate) {
@@ -1236,8 +1236,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     pub.setAllowed(update.allowed);
-  };
-
+  }
 
   @bound
   private handleSubscriptionError(update: SubscriptionResponse) {
@@ -1253,7 +1252,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     pub.setSubscriptionError(update.err);
-  };
+  }
 
   @bound
   private handleDataPacket(userPacket: UserPacket, kind: DataPacket_Kind) {
@@ -1264,7 +1263,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
     // also emit on the participant
     participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
-  };
+  }
 
   @bound
   private handleAudioPlaybackStarted() {
@@ -1273,7 +1272,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
     this.audioEnabled = true;
     this.emit(RoomEvent.AudioPlaybackStatusChanged, true);
-  };
+  }
 
   @bound
   private handleAudioPlaybackFailed(e: any) {
@@ -1283,12 +1282,12 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
     this.audioEnabled = false;
     this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
-  };
+  }
 
   @bound
   private handleDeviceChange() {
     this.emit(RoomEvent.MediaDevicesChanged);
-  };
+  }
 
   @bound
   private handleRoomUpdate(room: RoomModel) {
@@ -1300,7 +1299,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (oldRoom?.activeRecording !== room.activeRecording) {
       this.emitWhenConnected(RoomEvent.RecordingStatusChanged, room.activeRecording);
     }
-  };
+  }
 
   @bound
   private handleConnectionQualityUpdate(update: ConnectionQualityUpdate) {
@@ -1314,7 +1313,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         participant.setConnectionQuality(info.quality);
       }
     });
-  };
+  }
 
   private async acquireAudioContext() {
     if (
@@ -1571,22 +1570,22 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   @bound
   private onLocalParticipantMetadataChanged(metadata: string | undefined) {
     this.emit(RoomEvent.ParticipantMetadataChanged, metadata, this.localParticipant);
-  };
+  }
 
   @bound
   private onLocalParticipantNameChanged(name: string) {
     this.emit(RoomEvent.ParticipantNameChanged, name, this.localParticipant);
-  };
+  }
 
   @bound
   private onLocalTrackMuted(pub: TrackPublication) {
     this.emit(RoomEvent.TrackMuted, pub, this.localParticipant);
-  };
+  }
 
   @bound
   private onLocalTrackUnmuted(pub: TrackPublication) {
     this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
-  };
+  }
 
   @bound
   private async onLocalTrackPublished(pub: LocalTrackPublication) {
@@ -1607,27 +1606,27 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
       this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
     }
-  };
+  }
 
   @bound
   private onLocalTrackUnpublished(pub: LocalTrackPublication) {
     this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
-  };
+  }
 
   @bound
   private onLocalConnectionQualityChanged(quality: ConnectionQuality) {
     this.emit(RoomEvent.ConnectionQualityChanged, quality, this.localParticipant);
-  };
+  }
 
   @bound
   private onMediaDevicesError(e: Error) {
     this.emit(RoomEvent.MediaDevicesError, e);
-  };
+  }
 
   @bound
   private onLocalParticipantPermissionsChanged(prevPermissions?: ParticipantPermission) {
     this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, this.localParticipant);
-  };
+  }
 
   /**
    * Allows to populate a room with simulated participants.

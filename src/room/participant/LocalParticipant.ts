@@ -148,14 +148,14 @@ export default class LocalParticipant extends Participant {
     if (!this.reconnectFuture) {
       this.reconnectFuture = new Future<void>();
     }
-  };
+  }
 
   @bound
   private handleReconnected() {
     this.reconnectFuture?.resolve?.();
     this.reconnectFuture = undefined;
     this.updateTrackSubscriptionPermissions();
-  };
+  }
 
   @bound
   private handleDisconnected() {
@@ -164,7 +164,7 @@ export default class LocalParticipant extends Participant {
       this.reconnectFuture?.reject?.('Got disconnected during reconnection attempt');
       this.reconnectFuture = undefined;
     }
-  };
+  }
 
   /**
    * Sets and updates the metadata of the local participant.
@@ -1188,13 +1188,13 @@ export default class LocalParticipant extends Participant {
       this.allParticipantsAllowedToSubscribe,
       this.participantTrackPermissions.map((p) => trackPermissionToProto(p)),
     );
-  };
+  }
 
   /** @internal */
   @bound
   private onTrackUnmuted(track: LocalTrack) {
     this.onTrackMuted(track, track.isUpstreamPaused);
-  };
+  }
 
   // when the local track changes in mute status, we'll notify server as such
   /** @internal */
@@ -1210,19 +1210,19 @@ export default class LocalParticipant extends Participant {
     }
 
     this.engine.updateMuteStatus(track.sid, muted);
-  };
+  }
 
   @bound
   private onTrackUpstreamPaused(track: LocalTrack) {
     log.debug('upstream paused');
     this.onTrackMuted(track, true);
-  };
+  }
 
   @bound
   private onTrackUpstreamResumed(track: LocalTrack) {
     log.debug('upstream resumed');
     this.onTrackMuted(track, track.isMuted);
-  };
+  }
 
   @bound
   private async handleSubscribedQualityUpdate(update: SubscribedQualityUpdate) {
@@ -1251,7 +1251,7 @@ export default class LocalParticipant extends Participant {
     } else if (update.subscribedQualities.length > 0) {
       await pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
     }
-  };
+  }
 
   @bound
   private handleLocalTrackUnpublished(unpublished: TrackUnpublishedResponse) {
@@ -1264,7 +1264,7 @@ export default class LocalParticipant extends Participant {
       return;
     }
     this.unpublishTrack(track.track!);
-  };
+  }
 
   @bound
   private async handleTrackEnded(track: LocalTrack) {
@@ -1314,7 +1314,7 @@ export default class LocalParticipant extends Participant {
         await track.mute();
       }
     }
-  };
+  }
 
   private getPublicationForTrack(
     track: LocalTrack | MediaStreamTrack,

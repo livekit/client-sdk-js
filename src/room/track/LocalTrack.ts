@@ -289,7 +289,7 @@ export default abstract class LocalTrack extends Track {
     this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
     this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
     this.emit(TrackEvent.Ended, this);
-  };
+  }
 
   stop() {
     super.stop();
@@ -350,7 +350,7 @@ export default abstract class LocalTrack extends Track {
     } finally {
       unlock();
     }
-  };
+  }
 
   /**
    * Sets a processor on this track.
