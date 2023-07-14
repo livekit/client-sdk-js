@@ -167,6 +167,9 @@ export interface ScreenShareCaptureOptions {
    * local speakers when the tab is captured.
    */
   suppressLocalAudioPlayback?: boolean;
+
+  /** a string that hints at the type of content the track contain. */
+  contentHint?: '' | 'motion' | 'detail' | 'text';
 }
 
 export interface AudioCaptureOptions {

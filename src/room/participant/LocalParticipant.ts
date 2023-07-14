@@ -468,6 +468,9 @@ export default class LocalParticipant extends Participant {
     if (tracks.length === 0) {
       throw new TrackInvalidError('no video track found');
     }
+    if (options.contentHint !== undefined) {
+      tracks[0].contentHint = options.contentHint;
+    }
     const screenVideo = new LocalVideoTrack(tracks[0], undefined, false);
     screenVideo.source = Track.Source.ScreenShare;
     const localTracks: Array<LocalTrack> = [screenVideo];
