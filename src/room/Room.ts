@@ -470,7 +470,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     return joinResponse;
   }
 
-  private applyJoinResponse = (joinResponse: JoinResponse) => {
+  @bound
+  private applyJoinResponse(joinResponse: JoinResponse) {
     const pi = joinResponse.participant!;
 
     this.localParticipant.sid = pi.sid;
@@ -482,7 +483,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (joinResponse.room) {
       this.handleRoomUpdate(joinResponse.room);
     }
-  };
+  }
 
   @bound
   private async attemptConnection(
@@ -575,7 +576,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
-  disconnect = async (stopTracks = true) => {
+  @bound
+  async disconnect(stopTracks = true) {
     const unlock = await this.disconnectLock.lock();
     try {
       if (this.state === ConnectionState.Disconnected) {
@@ -608,7 +610,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     } finally {
       unlock();
     }
-  };
+  }
 
   /**
    * retrieves a participant by identity
