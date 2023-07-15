@@ -123,7 +123,7 @@ const appActions = {
     const room = new Room(roomOptions);
 
     startTime = Date.now();
-    await room.prepareConnection(url);
+    await room.prepareConnection(url, token);
     const prewarmTime = Date.now() - startTime;
     appendLog(`prewarmed connection in ${prewarmTime}ms`);
 
