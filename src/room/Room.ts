@@ -348,7 +348,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    * - establish TLS connection and cache TLS keys
    *
    * With LiveKit Cloud, it will also determine the best edge data center for
-   * the current client to connect to.
+   * the current client to connect to if a token is provided.
    */
   async prepareConnection(url: string, token?: string) {
     log.debug(`prepareConnection to ${url}`);
@@ -386,18 +386,22 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
+    if (this.regionUrlProvider?.getServerUrl().toString() !== url) {
+      this.regionUrl = undefined;
+      this.regionUrlProvider = undefined;
+    }
     if (isCloud(new URL(url))) {
       if (this.regionUrlProvider === undefined) {
         this.regionUrlProvider = new RegionUrlProvider(url, token);
-        // trigger the first fetch without waiting for a response
-        // if initial connection fails, this will speed up picking regional url
-        // on subsequent runs
-        this.regionUrlProvider.fetchRegionSettings().catch((e) => {
-          log.warn('could not fetch region settings', { error: e });
-        });
       } else {
         this.regionUrlProvider.updateToken(token);
       }
+      // trigger the first fetch without waiting for a response
+      // if initial connection fails, this will speed up picking regional url
+      // on subsequent runs
+      this.regionUrlProvider.fetchRegionSettings().catch((e) => {
+        log.warn('could not fetch region settings', { error: e });
+      });
     }
 
     const connectFn = async (
@@ -439,7 +443,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
             }
           }
           if (nextUrl) {
-            log.debug('initial connection failed, retrying with another region');
+            log.info('initial connection failed, retrying with another region', {
+              nextUrl,
+            });
             await connectFn(resolve, reject, nextUrl);
           } else {
             reject(e);
@@ -1075,6 +1081,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
+
+    this.regionUrl = undefined;
 
     try {
       this.participants.forEach((p) => {

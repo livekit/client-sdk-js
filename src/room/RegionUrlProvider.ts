@@ -29,6 +29,10 @@ export class RegionUrlProvider {
     return isCloud(this.serverUrl);
   }
 
+  getServerUrl() {
+    return this.serverUrl;
+  }
+
   async getNextBestRegionUrl(abortSignal?: AbortSignal) {
     if (!this.isCloud()) {
       throw Error('region availability is only supported for LiveKit Cloud domains');

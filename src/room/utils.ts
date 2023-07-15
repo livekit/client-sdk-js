@@ -148,7 +148,9 @@ export function isReactNative(): boolean {
 }
 
 export function isCloud(serverUrl: URL) {
-  return serverUrl.hostname.endsWith('.livekit.cloud');
+  return (
+    serverUrl.hostname.endsWith('.livekit.cloud') || serverUrl.hostname.endsWith('.livekit.run')
+  );
 }
 
 function getLKReactNativeInfo(): LiveKitReactNativeInfo | undefined {
