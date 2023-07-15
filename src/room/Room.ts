@@ -351,12 +351,17 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    * the current client to connect to if a token is provided.
    */
   async prepareConnection(url: string, token?: string) {
+    if (this.state !== 'disconnected') {
+      return;
+    }
     log.debug(`prepareConnection to ${url}`);
     try {
       if (isCloud(new URL(url)) && token) {
         this.regionUrlProvider = new RegionUrlProvider(url, token);
         const regionUrl = await this.regionUrlProvider.getNextBestRegionUrl();
-        if (regionUrl) {
+        // we will not replace the regionUrl if an attempt had already started
+        // to avoid overriding regionUrl after a new connection attempt had started
+        if (regionUrl && this.state === 'disconnected') {
           this.regionUrl = regionUrl;
           await fetch(toHttpUrl(regionUrl), { method: 'HEAD' });
           log.debug(`prepared connection to ${regionUrl}`);
