@@ -70,6 +70,7 @@ import {
   isCloud,
   isWeb,
   supportsSetSinkId,
+  toHttpUrl,
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
@@ -142,6 +143,10 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   private cachedParticipantSids: Array<string>;
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
+
+  private regionUrlProvider?: RegionUrlProvider;
+
+  private regionUrl?: string;
 
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
@@ -338,15 +343,36 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   }
 
   /**
-   * prepares the connection to the livekit server by sending a HEAD request in order to
-   * 1. speed up DNS resolution
-   * 2. speed up TLS setup
-   * on the actual connection request
-   * throws an error if server is not reachable after the request timeout
-   * @experimental
+   * prepareConnection should be called as soon as the page is loaded, in order
+   * to speed up the connection attempt. This function will
+   * - perform DNS resolution and pre-warm the DNS cache
+   * - establish TLS connection and cache TLS keys
+   *
+   * With LiveKit Cloud, it will also determine the best edge data center for
+   * the current client to connect to if a token is provided.
    */
-  async prepareConnection(url: string) {
-    await fetch(`http${url.substring(2)}`, { method: 'HEAD' });
+  async prepareConnection(url: string, token?: string) {
+    if (this.state !== ConnectionState.Disconnected) {
+      return;
+    }
+    log.debug(`prepareConnection to ${url}`);
+    try {
+      if (isCloud(new URL(url)) && token) {
+        this.regionUrlProvider = new RegionUrlProvider(url, token);
+        const regionUrl = await this.regionUrlProvider.getNextBestRegionUrl();
+        // we will not replace the regionUrl if an attempt had already started
+        // to avoid overriding regionUrl after a new connection attempt had started
+        if (regionUrl && this.state === ConnectionState.Disconnected) {
+          this.regionUrl = regionUrl;
+          await fetch(toHttpUrl(regionUrl), { method: 'HEAD' });
+          log.debug(`prepared connection to ${regionUrl}`);
+        }
+      } else {
+        await fetch(toHttpUrl(url), { method: 'HEAD' });
+      }
+    } catch (e) {
+      log.warn('could not prepare connection', { error: e });
+    }
   }
 
   @bound
@@ -367,8 +393,23 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
-
-    const urlProvider = new RegionUrlProvider(url, token);
+    if (this.regionUrlProvider?.getServerUrl().toString() !== url) {
+      this.regionUrl = undefined;
+      this.regionUrlProvider = undefined;
+    }
+    if (isCloud(new URL(url))) {
+      if (this.regionUrlProvider === undefined) {
+        this.regionUrlProvider = new RegionUrlProvider(url, token);
+      } else {
+        this.regionUrlProvider.updateToken(token);
+      }
+      // trigger the first fetch without waiting for a response
+      // if initial connection fails, this will speed up picking regional url
+      // on subsequent runs
+      this.regionUrlProvider.fetchRegionSettings().catch((e) => {
+        log.warn('could not fetch region settings', { error: e });
+      });
+    }
 
     const connectFn = async (
       resolve: () => void,
@@ -378,6 +419,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       if (this.abortController) {
         this.abortController.abort();
       }
+
       this.abortController = new AbortController();
 
       // at this point the intention to connect has been signalled so we can allow cancelling of the connection via disconnect() again
@@ -389,13 +431,15 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         resolve();
       } catch (e) {
         if (
-          isCloud(new URL(url)) &&
+          this.regionUrlProvider &&
           e instanceof ConnectionError &&
           e.reason !== ConnectionErrorReason.Cancelled
         ) {
           let nextUrl: string | null = null;
           try {
-            nextUrl = await urlProvider.getNextBestRegionUrl(this.abortController?.signal);
+            nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(
+              this.abortController?.signal,
+            );
           } catch (error) {
             if (
               error instanceof ConnectionError &&
@@ -406,7 +450,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
             }
           }
           if (nextUrl) {
-            log.debug('initial connection failed, retrying with another region');
+            log.info('initial connection failed, retrying with another region', {
+              nextUrl,
+            });
             await connectFn(resolve, reject, nextUrl);
           } else {
             reject(e);
@@ -416,9 +462,17 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         }
       }
     };
-    this.connectFuture = new Future(connectFn, () => {
-      this.clearConnectionFutures();
-    });
+
+    const regionUrl = this.regionUrl;
+    this.regionUrl = undefined;
+    this.connectFuture = new Future(
+      (resolve, reject) => {
+        connectFn(resolve, reject, regionUrl);
+      },
+      () => {
+        this.clearConnectionFutures();
+      },
+    );
 
     return this.connectFuture.promise;
   }
@@ -499,6 +553,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     } else {
       // create engine if previously disconnected
       this.maybeCreateEngine();
+    }
+    if (this.regionUrlProvider?.isCloud()) {
+      this.engine.setRegionUrlProvider(this.regionUrlProvider);
     }
 
     this.acquireAudioContext();
@@ -1037,6 +1094,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
+
+    this.regionUrl = undefined;
 
     try {
       this.participants.forEach((p) => {

@@ -50,6 +50,9 @@ Examples below are in TypeScript, if using JS/CommonJS imports replace import wi
 const livekit = require('livekit-client');
 
 const room = new livekit.Room(...);
+
+room.prepareConnection(url, token);
+
 await room.connect(...);
 ```
 
@@ -78,6 +81,9 @@ const room = new Room({
     resolution: VideoPresets.h720.resolution,
   },
 });
+
+// pre-warm connection, this can be called as early as your page is loaded
+room.prepareConnection(url, token);
 
 // set up event listeners
 room
