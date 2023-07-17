@@ -147,6 +147,12 @@ export interface ScreenShareCaptureOptions {
    */
   audio?: boolean | AudioCaptureOptions;
 
+  /**
+   * only allows for 'true' and chrome allows for additional options to be passed in
+   * https://developer.chrome.com/docs/web-platform/screen-sharing-controls/#displaySurface
+   */
+  video?: true | { displaySurface: 'window' | 'browser' | 'monitor' };
+
   /** capture resolution, defaults to full HD */
   resolution?: VideoResolution;
 
