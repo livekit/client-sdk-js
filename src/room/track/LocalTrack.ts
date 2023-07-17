@@ -17,7 +17,11 @@ export default abstract class LocalTrack extends Track {
   /** @internal */
   codec?: VideoCodec;
 
-  protected constraints: MediaTrackConstraints;
+  get constraints() {
+    return this._constraints;
+  }
+
+  protected _constraints: MediaTrackConstraints;
 
   protected reacquireTrack: boolean;
 
@@ -31,7 +35,7 @@ export default abstract class LocalTrack extends Track {
 
   protected processor?: TrackProcessor<typeof this.kind>;
 
-  protected isSettingUpProcessor: boolean = false;
+  protected processorLock: Mutex;
 
   /**
    *
@@ -51,11 +55,13 @@ export default abstract class LocalTrack extends Track {
     this.providedByUser = userProvidedTrack;
     this.muteLock = new Mutex();
     this.pauseUpstreamLock = new Mutex();
+    this.processorLock = new Mutex();
+    this.setMediaStreamTrack(mediaTrack, true);
+
     // added to satisfy TS compiler, constraints are synced with MediaStreamTrack
-    this.constraints = mediaTrack.getConstraints();
-    this.setMediaStreamTrack(mediaTrack);
+    this._constraints = mediaTrack.getConstraints();
     if (constraints) {
-      this.constraints = constraints;
+      this._constraints = constraints;
     }
   }
 
@@ -92,8 +98,8 @@ export default abstract class LocalTrack extends Track {
     return this.processor?.processedTrack ?? this._mediaStreamTrack;
   }
 
-  private async setMediaStreamTrack(newTrack: MediaStreamTrack) {
-    if (newTrack === this._mediaStreamTrack) {
+  private async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean) {
+    if (newTrack === this._mediaStreamTrack && !force) {
       return;
     }
     if (this._mediaStreamTrack) {
@@ -104,7 +110,7 @@ export default abstract class LocalTrack extends Track {
       this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
       this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
       this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
-      if (!this.providedByUser) {
+      if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
         this._mediaStreamTrack.stop();
       }
     }
@@ -119,7 +125,7 @@ export default abstract class LocalTrack extends Track {
       // touch MediaStreamTrack.enabled
       newTrack.addEventListener('mute', this.pauseUpstream);
       newTrack.addEventListener('unmute', this.resumeUpstream);
-      this.constraints = newTrack.getConstraints();
+      this._constraints = newTrack.getConstraints();
     }
     if (this.sender) {
       await this.sender.replaceTrack(newTrack);
@@ -182,7 +188,7 @@ export default abstract class LocalTrack extends Track {
     }
 
     log.debug('replace MediaStreamTrack');
-    this.setMediaStreamTrack(track);
+    await this.setMediaStreamTrack(track);
     // this must be synced *after* setting mediaStreamTrack above, since it relies
     // on the previous state in order to cleanup
     this.providedByUser = userProvidedTrack;
@@ -195,7 +201,7 @@ export default abstract class LocalTrack extends Track {
 
   protected async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {
     if (!constraints) {
-      constraints = this.constraints;
+      constraints = this._constraints;
     }
     log.debug('restarting track with constraints', constraints);
 
@@ -227,8 +233,8 @@ export default abstract class LocalTrack extends Track {
     newTrack.addEventListener('ended', this.handleEnded);
     log.debug('re-acquired MediaStreamTrack');
 
-    this.setMediaStreamTrack(newTrack);
-    this.constraints = constraints;
+    await this.setMediaStreamTrack(newTrack);
+    this._constraints = constraints;
     if (this.processor) {
       const processor = this.processor;
       await this.setProcessor(processor);
@@ -357,42 +363,43 @@ export default abstract class LocalTrack extends Track {
     processor: TrackProcessor<typeof this.kind>,
     showProcessedStreamLocally = true,
   ) {
-    if (this.isSettingUpProcessor) {
-      log.warn('already trying to set up a processor');
-      return;
-    }
-    log.debug('setting up processor');
-    this.isSettingUpProcessor = true;
-    if (this.processor) {
-      await this.stopProcessor();
-    }
-    if (this.kind === 'unknown') {
-      throw TypeError('cannot set processor on track of unknown kind');
-    }
-    this.processorElement = this.processorElement ?? document.createElement(this.kind);
-    this.processorElement.muted = true;
-
-    attachToElement(this._mediaStreamTrack, this.processorElement);
-    this.processorElement.play().catch((e) => log.error(e));
-
-    const processorOptions = {
-      kind: this.kind,
-      track: this._mediaStreamTrack,
-      element: this.processorElement,
-    };
-
-    await processor.init(processorOptions);
-    this.processor = processor;
-    if (this.processor.processedTrack) {
-      for (const el of this.attachedElements) {
-        if (el !== this.processorElement && showProcessedStreamLocally) {
-          detachTrack(this._mediaStreamTrack, el);
-          attachToElement(this.processor.processedTrack, el);
-        }
+    const unlock = await this.processorLock.lock();
+    try {
+      log.debug('setting up processor');
+      if (this.processor) {
+        await this.stopProcessor();
       }
-      await this.sender?.replaceTrack(this.processor.processedTrack);
+      if (this.kind === 'unknown') {
+        throw TypeError('cannot set processor on track of unknown kind');
+      }
+      this.processorElement = this.processorElement ?? document.createElement(this.kind);
+      this.processorElement.muted = true;
+
+      attachToElement(this._mediaStreamTrack, this.processorElement);
+      this.processorElement
+        .play()
+        .catch((error) => log.error('failed to play processor element', { error }));
+
+      const processorOptions = {
+        kind: this.kind,
+        track: this._mediaStreamTrack,
+        element: this.processorElement,
+      };
+
+      await processor.init(processorOptions);
+      this.processor = processor;
+      if (this.processor.processedTrack) {
+        for (const el of this.attachedElements) {
+          if (el !== this.processorElement && showProcessedStreamLocally) {
+            detachTrack(this._mediaStreamTrack, el);
+            attachToElement(this.processor.processedTrack, el);
+          }
+        }
+        await this.sender?.replaceTrack(this.processor.processedTrack);
+      }
+    } finally {
+      unlock();
     }
-    this.isSettingUpProcessor = false;
   }
 
   getProcessor() {

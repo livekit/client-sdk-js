@@ -3,7 +3,9 @@ import type { InternalRoomOptions } from '../../options';
 import {
   DataPacket,
   DataPacket_Kind,
+  Encryption_Type,
   ParticipantInfo,
+  ParticipantPermission,
   UserPacket,
 } from '../../proto/livekit_models_pb';
 import {
@@ -56,6 +58,9 @@ export default class LocalParticipant extends Participant {
   /** @internal */
   engine: RTCEngine;
 
+  /** @internal */
+  activeDeviceMap: Map<MediaDeviceKind, string>;
+
   private pendingPublishing = new Set<Track.Source>();
 
   private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
@@ -71,6 +76,8 @@ export default class LocalParticipant extends Participant {
   // keep a pointer to room options
   private roomOptions: InternalRoomOptions;
 
+  private encryptionType: Encryption_Type = Encryption_Type.NONE;
+
   private reconnectFuture?: Future<void>;
 
   /** @internal */
@@ -82,6 +89,7 @@ export default class LocalParticipant extends Participant {
     this.engine = engine;
     this.roomOptions = options;
     this.setupEngine(engine);
+    this.activeDeviceMap = new Map();
   }
 
   get lastCameraError(): Error | undefined {
@@ -214,6 +222,22 @@ export default class LocalParticipant extends Participant {
     publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined> {
     return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options, publishOptions);
+  }
+
+  /** @internal */
+  setPermissions(permissions: ParticipantPermission): boolean {
+    const prevPermissions = this.permissions;
+    const changed = super.setPermissions(permissions);
+    if (changed && prevPermissions) {
+      this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
+    }
+    return changed;
+  }
+
+  /** @internal */
+  async setE2EEEnabled(enabled: boolean) {
+    this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
+    await this.republishAllTracks(undefined, false);
   }
 
   /**
@@ -470,14 +494,38 @@ export default class LocalParticipant extends Participant {
     if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
       await this.pendingPublishPromises.get(track);
     }
+    let defaultConstraints: MediaTrackConstraints | undefined;
+    if (track instanceof MediaStreamTrack) {
+      defaultConstraints = track.getConstraints();
+    } else {
+      // we want to access constraints directly as `track.mediaStreamTrack`
+      // might be pointing to a non-device track (e.g. processed track) already
+      defaultConstraints = track.constraints;
+      let deviceKind: MediaDeviceKind | undefined = undefined;
+      switch (track.source) {
+        case Track.Source.Microphone:
+          deviceKind = 'audioinput';
+          break;
+        case Track.Source.Camera:
+          deviceKind = 'videoinput';
+        default:
+          break;
+      }
+      if (deviceKind && this.activeDeviceMap.has(deviceKind)) {
+        defaultConstraints = {
+          ...defaultConstraints,
+          deviceId: this.activeDeviceMap.get(deviceKind),
+        };
+      }
+    }
     // convert raw media track into audio or video track
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
         case 'audio':
-          track = new LocalAudioTrack(track, undefined, true);
+          track = new LocalAudioTrack(track, defaultConstraints, true);
           break;
         case 'video':
-          track = new LocalVideoTrack(track, undefined, true);
+          track = new LocalVideoTrack(track, defaultConstraints, true);
           break;
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
@@ -500,12 +548,12 @@ export default class LocalParticipant extends Participant {
       return existingPublication;
     }
 
-    const isStereo =
-      options?.forceStereo ||
+    const isStereoInput =
       ('channelCount' in track.mediaStreamTrack.getSettings() &&
         // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
         track.mediaStreamTrack.getSettings().channelCount === 2) ||
       track.mediaStreamTrack.getConstraints().channelCount === 2;
+    const isStereo = options?.forceStereo ?? isStereoInput;
 
     // disable dtx for stereo track if not enabled explicitly
     if (isStereo) {
@@ -529,6 +577,12 @@ export default class LocalParticipant extends Participant {
       ...this.roomOptions.publishDefaults,
       ...options,
     };
+
+    // disable simulcast if e2ee is set on safari
+    if (isSafari() && this.roomOptions.e2ee) {
+      log.info(`End-to-end encryption is set up, simulcast publishing will be disabled on Safari`);
+      opts.simulcast = false;
+    }
 
     if (opts.source) {
       track.source = opts.source;
@@ -602,8 +656,9 @@ export default class LocalParticipant extends Participant {
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
       disableDtx: !(opts.dtx ?? true),
+      encryption: this.encryptionType,
       stereo: isStereo,
-      disableRed: !(opts.red ?? true),
+      // disableRed: !(opts.red ?? true),
     });
 
     // compute encodings and layers for video
@@ -736,15 +791,39 @@ export default class LocalParticipant extends Participant {
     // store RTPSender
     track.sender = await this.engine.createSender(track, opts, encodings);
 
-    if (track.codec && isSVCCodec(track.codec) && encodings && encodings[0]?.maxBitrate) {
-      this.engine.publisher.setTrackCodecBitrate(
-        req.cid,
-        track.codec,
-        encodings[0].maxBitrate / 1000,
-      );
+    if (encodings) {
+      if (isFireFox() && track.kind === Track.Kind.Audio) {
+        /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
+           livekit-server uses maxaveragebitrate=510000in the answer sdp to permit client to
+           publish high quality audio track. But firefox always uses this value as the actual
+           bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
+           So the client need to modify maxaverragebitrates in answer sdp to user provided value to
+           fix the issue.
+         */
+        let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
+        for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
+          if (transceiver.sender === track.sender) {
+            trackTransceiver = transceiver;
+            break;
+          }
+        }
+        if (trackTransceiver) {
+          this.engine.publisher.setTrackCodecBitrate({
+            transceiver: trackTransceiver,
+            codec: 'opus',
+            maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
+          });
+        }
+      } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
+        this.engine.publisher.setTrackCodecBitrate({
+          cid: req.cid,
+          codec: track.codec,
+          maxbr: encodings[0].maxBitrate / 1000,
+        });
+      }
     }
 
-    this.engine.negotiate();
+    await this.engine.negotiate();
 
     if (track instanceof LocalVideoTrack) {
       track.startMonitor(this.engine.client);
@@ -830,7 +909,7 @@ export default class LocalParticipant extends Participant {
     }
     await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
 
-    this.engine.negotiate();
+    await this.engine.negotiate();
     log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
   }
 
@@ -934,7 +1013,7 @@ export default class LocalParticipant extends Participant {
     ) as LocalTrackPublication[];
   }
 
-  async republishAllTracks(options?: TrackPublishOptions) {
+  async republishAllTracks(options?: TrackPublishOptions, restartTracks: boolean = true) {
     const localPubs: LocalTrackPublication[] = [];
     this.tracks.forEach((pub) => {
       if (pub.track) {
@@ -949,6 +1028,19 @@ export default class LocalParticipant extends Participant {
       localPubs.map(async (pub) => {
         const track = pub.track!;
         await this.unpublishTrack(track, false);
+        if (
+          restartTracks &&
+          !track.isMuted &&
+          (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
+          !track.isUserProvided
+        ) {
+          // generally we need to restart the track before publishing, often a full reconnect
+          // is necessary because computer had gone to sleep.
+          log.debug('restarting existing track', {
+            track: pub.trackSid,
+          });
+          await track.restartTrack();
+        }
         await this.publishTrack(track, pub.options);
       }),
     );

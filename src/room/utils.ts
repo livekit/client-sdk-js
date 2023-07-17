@@ -1,9 +1,10 @@
 import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models_pb';
-import { getBrowser } from '../utils/browserParser';
 import type { DetectableBrowser } from '../utils/browserParser';
+import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
+import { VideoCodec, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
 import type { LiveKitReactNativeInfo } from './types';
 
@@ -147,7 +148,9 @@ export function isReactNative(): boolean {
 }
 
 export function isCloud(serverUrl: URL) {
-  return serverUrl.hostname.endsWith('.livekit.cloud');
+  return (
+    serverUrl.hostname.endsWith('.livekit.cloud') || serverUrl.hostname.endsWith('.livekit.run')
+  );
 }
 
 function getLKReactNativeInfo(): LiveKitReactNativeInfo | undefined {
@@ -456,6 +459,10 @@ export class Mutex {
   }
 }
 
+export function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec {
+  return videoCodecs.includes(maybeCodec as VideoCodec);
+}
+
 export function unwrapConstraint(constraint: ConstrainDOMString): string {
   if (typeof constraint === 'string') {
     return constraint;
@@ -477,4 +484,18 @@ export function unwrapConstraint(constraint: ConstrainDOMString): string {
     return constraint.ideal;
   }
   throw Error('could not unwrap constraint');
+}
+
+export function toWebsocketUrl(url: string): string {
+  if (url.startsWith('http')) {
+    return url.replace('http', 'ws');
+  }
+  return url;
+}
+
+export function toHttpUrl(url: string): string {
+  if (url.startsWith('ws')) {
+    return url.replace('ws', 'http');
+  }
+  return url;
 }

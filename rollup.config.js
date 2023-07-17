@@ -9,18 +9,37 @@ import replace from 'rollup-plugin-re';
 import typescript from 'rollup-plugin-typescript2';
 import packageJson from './package.json';
 
-function kebabCaseToPascalCase(string = '') {
+export function kebabCaseToPascalCase(string = '') {
   return string.replace(/(^\w|-\w)/g, (replaceString) =>
     replaceString.replace(/-/, '').toUpperCase(),
   );
 }
 
+/**
+ * @type {import('rollup').InputPluginOption}
+ */
+export const commonPlugins = [
+  nodeResolve({ browser: true, preferBuiltins: false }),
+  commonjs(),
+  json(),
+  babel({
+    babelHelpers: 'bundled',
+    plugins: ['@babel/plugin-transform-object-rest-spread'],
+    presets: ['@babel/preset-env'],
+    extensions: ['.js', '.ts', '.mjs'],
+    babelrc: false,
+  }),
+];
+
+/**
+ * @type {import('rollup').RollupOptions}
+ */
 export default {
   input: 'src/index.ts',
   output: [
     {
       file: `dist/${packageJson.name}.esm.mjs`,
-      format: 'esm',
+      format: 'es',
       strict: true,
       sourcemap: true,
     },
@@ -35,16 +54,8 @@ export default {
   ],
   plugins: [
     del({ targets: 'dist/*' }),
-    nodeResolve({ browser: true, preferBuiltins: false }),
-    json(),
-    commonjs(),
     typescript({ tsconfig: './tsconfig.json' }),
-    babel({
-      babelHelpers: 'bundled',
-      plugins: ['@babel/plugin-transform-object-rest-spread'],
-      presets: ['@babel/preset-env'],
-      extensions: ['.js', '.ts', '.mjs'],
-    }),
+    ...commonPlugins,
     replace({
       patterns: [
         {

@@ -39,7 +39,7 @@ import {
 } from '../proto/livekit_rtc_pb';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
-import { Mutex, getClientInfo, isReactNative, sleep } from '../room/utils';
+import { Mutex, getClientInfo, isReactNative, sleep, toWebsocketUrl } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
 
 // internal options
@@ -67,6 +67,7 @@ export interface SignalOptions {
   publishOnly?: string;
   adaptiveStream?: boolean;
   maxRetries: number;
+  e2eeEnabled: boolean;
 }
 
 type SignalMessage = SignalRequest['message'];
@@ -205,16 +206,14 @@ export class SignalClient {
     return res;
   }
 
-  connect(
+  private connect(
     url: string,
     token: string,
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse | ReconnectResponse | void> {
     this.connectOptions = opts;
-    if (url.startsWith('http')) {
-      url = url.replace('http', 'ws');
-    }
+    url = toWebsocketUrl(url);
     // strip trailing slash
     url = url.replace(/\/$/, '');
     url += '/rtc';
@@ -336,21 +335,38 @@ export class SignalClient {
     });
   }
 
+  /** @internal */
+  resetCallbacks = () => {
+    this.onAnswer = undefined;
+    this.onLeave = undefined;
+    this.onLocalTrackPublished = undefined;
+    this.onLocalTrackUnpublished = undefined;
+    this.onNegotiateRequested = undefined;
+    this.onOffer = undefined;
+    this.onRemoteMuteChanged = undefined;
+    this.onSubscribedQualityUpdate = undefined;
+    this.onTokenRefresh = undefined;
+    this.onTrickle = undefined;
+    this.onClose = undefined;
+  };
+
   async close() {
     const unlock = await this.closingLock.lock();
     try {
       this.isConnected = false;
       if (this.ws) {
-        this.ws.onclose = null;
         this.ws.onmessage = null;
         this.ws.onopen = null;
+        this.ws.onclose = null;
 
         // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-        const closePromise = new Promise((resolve) => {
+        const closePromise = new Promise<void>((resolve) => {
           if (this.ws) {
-            this.ws.onclose = resolve;
+            this.ws.onclose = () => {
+              resolve();
+            };
           } else {
-            resolve(true);
+            resolve();
           }
         });
 
@@ -360,9 +376,9 @@ export class SignalClient {
           await Promise.race([closePromise, sleep(250)]);
         }
         this.ws = undefined;
-        this.clearPingInterval();
       }
     } finally {
+      this.clearPingInterval();
       unlock();
     }
   }
@@ -627,10 +643,11 @@ export class SignalClient {
 
   private async handleOnClose(reason: string) {
     if (!this.isConnected) return;
+    const onCloseCallback = this.onClose;
     await this.close();
     log.debug(`websocket connection closed: ${reason}`);
-    if (this.onClose) {
-      this.onClose(reason);
+    if (onCloseCallback) {
+      onCloseCallback(reason);
     }
   }
 

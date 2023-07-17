@@ -2,6 +2,8 @@ import { protoInt64 } from '@bufbuild/protobuf';
 import EventEmitter from 'eventemitter3';
 import 'webrtc-adapter';
 import { toProtoSessionDescription } from '../api/SignalClient';
+import { EncryptionEvent } from '../e2ee';
+import { E2EEManager } from '../e2ee/E2eeManager';
 import log from '../logger';
 import type {
   InternalRoomConnectOptions,
@@ -35,6 +37,7 @@ import {
   SyncState,
   UpdateSubscription,
 } from '../proto/livekit_rtc_pb';
+import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
@@ -60,7 +63,7 @@ import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { AdaptiveStreamSettings } from './track/types';
-import { getNewAudioContext } from './track/utils';
+import { getNewAudioContext, sourceToKind } from './track/utils';
 import type { SimulationOptions, SimulationScenario } from './types';
 import {
   Future,
@@ -68,9 +71,9 @@ import {
   createDummyVideoStreamTrack,
   getEmptyAudioStreamTrack,
   isCloud,
-  isSafari,
   isWeb,
   supportsSetSinkId,
+  toHttpUrl,
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
@@ -116,6 +119,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   /** options of room */
   options: InternalRoomOptions;
 
+  /** reflects the sender encryption status of the local participant */
+  isE2EEEnabled: boolean = false;
+
   private roomInfo?: RoomModel;
 
   private identityToSid: Map<string, string>;
@@ -135,11 +141,15 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
   private disconnectLock: Mutex;
 
+  private e2eeManager: E2EEManager | undefined;
+
   private cachedParticipantSids: Array<string>;
 
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
-  private activeDeviceMap: Map<MediaDeviceKind, string>;
+  private regionUrlProvider?: RegionUrlProvider;
+
+  private regionUrl?: string;
 
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
@@ -168,15 +178,17 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     this.maybeCreateEngine();
 
     this.disconnectLock = new Mutex();
-    this.activeDeviceMap = new Map();
+
+    this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
+
     if (this.options.videoCaptureDefaults.deviceId) {
-      this.activeDeviceMap.set(
+      this.localParticipant.activeDeviceMap.set(
         'videoinput',
         unwrapConstraint(this.options.videoCaptureDefaults.deviceId),
       );
     }
     if (this.options.audioCaptureDefaults.deviceId) {
-      this.activeDeviceMap.set(
+      this.localParticipant.activeDeviceMap.set(
         'audioinput',
         unwrapConstraint(this.options.audioCaptureDefaults.deviceId),
       );
@@ -185,7 +197,42 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       this.switchActiveDevice('audiooutput', unwrapConstraint(this.options.audioOutput.deviceId));
     }
 
-    this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
+    if (this.options.e2ee) {
+      this.setupE2EE();
+    }
+  }
+
+  /**
+   * @experimental
+   */
+  async setE2EEEnabled(enabled: boolean) {
+    if (this.e2eeManager) {
+      await Promise.all([
+        this.localParticipant.setE2EEEnabled(enabled),
+        this.e2eeManager.setParticipantCryptorEnabled(enabled),
+      ]);
+    } else {
+      throw Error('e2ee not configured, please set e2ee settings within the room options');
+    }
+  }
+
+  private setupE2EE() {
+    if (this.options.e2ee) {
+      this.e2eeManager = new E2EEManager(this.options.e2ee);
+      this.e2eeManager.on(
+        EncryptionEvent.ParticipantEncryptionStatusChanged,
+        (enabled, participant) => {
+          if (participant instanceof LocalParticipant) {
+            this.isE2EEEnabled = enabled;
+          }
+          this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
+        },
+      );
+      this.e2eeManager.on(EncryptionEvent.Error, (error) =>
+        this.emit(RoomEvent.EncryptionError, error),
+      );
+      this.e2eeManager?.setup(this);
+    }
   }
 
   /**
@@ -225,15 +272,14 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
     this.engine = new RTCEngine(this.options);
 
-    this.engine.client.onParticipantUpdate = this.handleParticipantUpdates;
-    this.engine.client.onRoomUpdate = this.handleRoomUpdate;
-    this.engine.client.onSpeakersChanged = this.handleSpeakersChanged;
-    this.engine.client.onStreamStateUpdate = this.handleStreamStateUpdate;
-    this.engine.client.onSubscriptionPermissionUpdate = this.handleSubscriptionPermissionUpdate;
-    this.engine.client.onConnectionQuality = this.handleConnectionQualityUpdate;
-    this.engine.client.onSubscriptionError = this.handleSubscriptionError;
-
     this.engine
+      .on(EngineEvent.ParticipantUpdate, this.handleParticipantUpdates)
+      .on(EngineEvent.RoomUpdate, this.handleRoomUpdate)
+      .on(EngineEvent.SpeakersChanged, this.handleSpeakersChanged)
+      .on(EngineEvent.StreamStateChanged, this.handleStreamStateUpdate)
+      .on(EngineEvent.ConnectionQualityUpdate, this.handleConnectionQualityUpdate)
+      .on(EngineEvent.SubscriptionError, this.handleSubscriptionError)
+      .on(EngineEvent.SubscriptionPermissionUpdate, this.handleSubscriptionPermissionUpdate)
       .on(
         EngineEvent.MediaTrackAdded,
         (mediaTrack: MediaStreamTrack, stream: MediaStream, receiver?: RTCRtpReceiver) => {
@@ -279,6 +325,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (this.localParticipant) {
       this.localParticipant.setupEngine(this.engine);
     }
+    if (this.e2eeManager) {
+      this.e2eeManager.setupEngine(this.engine);
+    }
   }
 
   /**
@@ -297,15 +346,36 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   }
 
   /**
-   * prepares the connection to the livekit server by sending a HEAD request in order to
-   * 1. speed up DNS resolution
-   * 2. speed up TLS setup
-   * on the actual connection request
-   * throws an error if server is not reachable after the request timeout
-   * @experimental
+   * prepareConnection should be called as soon as the page is loaded, in order
+   * to speed up the connection attempt. This function will
+   * - perform DNS resolution and pre-warm the DNS cache
+   * - establish TLS connection and cache TLS keys
+   *
+   * With LiveKit Cloud, it will also determine the best edge data center for
+   * the current client to connect to if a token is provided.
    */
-  async prepareConnection(url: string) {
-    await fetch(`http${url.substring(2)}`, { method: 'HEAD' });
+  async prepareConnection(url: string, token?: string) {
+    if (this.state !== ConnectionState.Disconnected) {
+      return;
+    }
+    log.debug(`prepareConnection to ${url}`);
+    try {
+      if (isCloud(new URL(url)) && token) {
+        this.regionUrlProvider = new RegionUrlProvider(url, token);
+        const regionUrl = await this.regionUrlProvider.getNextBestRegionUrl();
+        // we will not replace the regionUrl if an attempt had already started
+        // to avoid overriding regionUrl after a new connection attempt had started
+        if (regionUrl && this.state === ConnectionState.Disconnected) {
+          this.regionUrl = regionUrl;
+          await fetch(toHttpUrl(regionUrl), { method: 'HEAD' });
+          log.debug(`prepared connection to ${regionUrl}`);
+        }
+      } else {
+        await fetch(toHttpUrl(url), { method: 'HEAD' });
+      }
+    } catch (e) {
+      log.warn('could not prepare connection', { error: e });
+    }
   }
 
   connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
@@ -325,8 +395,23 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
-
-    const urlProvider = new RegionUrlProvider(url, token);
+    if (this.regionUrlProvider?.getServerUrl().toString() !== url) {
+      this.regionUrl = undefined;
+      this.regionUrlProvider = undefined;
+    }
+    if (isCloud(new URL(url))) {
+      if (this.regionUrlProvider === undefined) {
+        this.regionUrlProvider = new RegionUrlProvider(url, token);
+      } else {
+        this.regionUrlProvider.updateToken(token);
+      }
+      // trigger the first fetch without waiting for a response
+      // if initial connection fails, this will speed up picking regional url
+      // on subsequent runs
+      this.regionUrlProvider.fetchRegionSettings().catch((e) => {
+        log.warn('could not fetch region settings', { error: e });
+      });
+    }
 
     const connectFn = async (
       resolve: () => void,
@@ -336,6 +421,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       if (this.abortController) {
         this.abortController.abort();
       }
+
       this.abortController = new AbortController();
 
       // at this point the intention to connect has been signalled so we can allow cancelling of the connection via disconnect() again
@@ -347,13 +433,15 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         resolve();
       } catch (e) {
         if (
-          isCloud(new URL(url)) &&
+          this.regionUrlProvider &&
           e instanceof ConnectionError &&
           e.reason !== ConnectionErrorReason.Cancelled
         ) {
           let nextUrl: string | null = null;
           try {
-            nextUrl = await urlProvider.getNextBestRegionUrl(this.abortController?.signal);
+            nextUrl = await this.regionUrlProvider.getNextBestRegionUrl(
+              this.abortController?.signal,
+            );
           } catch (error) {
             if (
               error instanceof ConnectionError &&
@@ -364,7 +452,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
             }
           }
           if (nextUrl) {
-            log.debug('initial connection failed, retrying with another region');
+            log.info('initial connection failed, retrying with another region', {
+              nextUrl,
+            });
             await connectFn(resolve, reject, nextUrl);
           } else {
             reject(e);
@@ -374,9 +464,17 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         }
       }
     };
-    this.connectFuture = new Future(connectFn, () => {
-      this.clearConnectionFutures();
-    });
+
+    const regionUrl = this.regionUrl;
+    this.regionUrl = undefined;
+    this.connectFuture = new Future(
+      (resolve, reject) => {
+        connectFn(resolve, reject, regionUrl);
+      },
+      () => {
+        this.clearConnectionFutures();
+      },
+    );
 
     return this.connectFuture.promise;
   };
@@ -398,6 +496,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
         maxRetries: connectOptions.maxRetries,
+        e2eeEnabled: !!this.e2eeManager,
       },
       abortController.signal,
     );
@@ -453,6 +552,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     } else {
       // create engine if previously disconnected
       this.maybeCreateEngine();
+    }
+    if (this.regionUrlProvider?.isCloud()) {
+      this.engine.setRegionUrlProvider(this.regionUrlProvider);
     }
 
     this.acquireAudioContext();
@@ -592,10 +694,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     let req: SimulateScenario | undefined;
     switch (scenario) {
       case 'signal-reconnect':
-        await this.engine.client.close();
-        if (this.engine.client.onClose) {
-          this.engine.client.onClose('simulate disconnect');
-        }
+        // @ts-expect-error function is private
+        await this.engine.client.handleOnClose('simulate disconnect');
         break;
       case 'speaker':
         req = new SimulateScenario({
@@ -631,17 +731,13 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         break;
       case 'resume-reconnect':
         this.engine.failNext();
-        await this.engine.client.close();
-        if (this.engine.client.onClose) {
-          this.engine.client.onClose('simulate resume-reconnect');
-        }
+        // @ts-expect-error function is private
+        await this.engine.client.handleOnClose('simulate resume-disconnect');
         break;
       case 'full-reconnect':
         this.engine.fullReconnectOnNext = true;
-        await this.engine.client.close();
-        if (this.engine.client.onClose) {
-          this.engine.client.onClose('simulate full-reconnect');
-        }
+        // @ts-expect-error function is private
+        await this.engine.client.handleOnClose('simulate full-reconnect');
         break;
       case 'force-tcp':
       case 'force-tls':
@@ -685,10 +781,10 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   async startAudio() {
     await this.acquireAudioContext();
     const elements: Array<HTMLMediaElement> = [];
-
-    if (isSafari()) {
+    const browser = getBrowser();
+    if (browser && browser.os === 'iOS') {
       /**
-       * iOS Safari blocks audio element playback if
+       * iOS blocks audio element playback if
        * - user is not publishing audio themselves and
        * - no other audio source is playing
        *
@@ -699,6 +795,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       let dummyAudioEl = document.getElementById(audioId) as HTMLAudioElement | null;
       if (!dummyAudioEl) {
         dummyAudioEl = document.createElement('audio');
+        dummyAudioEl.id = audioId;
         dummyAudioEl.autoplay = true;
         dummyAudioEl.hidden = true;
         const track = getEmptyAudioStreamTrack();
@@ -750,7 +847,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   }
 
   getActiveDevice(kind: MediaDeviceKind): string | undefined {
-    return this.activeDeviceMap.get(kind);
+    return this.localParticipant.activeDeviceMap.get(kind);
   }
 
   /**
@@ -800,7 +897,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     } else if (kind === 'audiooutput') {
       if (
         (!supportsSetSinkId() && !this.options.expWebAudioMix) ||
-        (this.audioContext && !('setSinkId' in this.audioContext))
+        (this.options.expWebAudioMix && this.audioContext && !('setSinkId' in this.audioContext))
       ) {
         throw new Error('cannot switch audio output, setSinkId not supported');
       }
@@ -824,7 +921,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       }
     }
     if (deviceHasChanged && success) {
-      this.activeDeviceMap.set(kind, deviceId);
+      this.localParticipant.activeDeviceMap.set(kind, deviceId);
       this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
     }
 
@@ -995,6 +1092,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
+
+    this.regionUrl = undefined;
 
     try {
       this.participants.forEach((p) => {
@@ -1270,11 +1369,20 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     ) {
       // override audio context with custom audio context if supplied by user
       this.audioContext = this.options.expWebAudioMix.audioContext;
-      await this.audioContext.resume();
-    } else {
+    } else if (!this.audioContext || this.audioContext.state === 'closed') {
       // by using an AudioContext, it reduces lag on audio elements
       // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
       this.audioContext = getNewAudioContext() ?? undefined;
+    }
+
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      // for iOS a newly created AudioContext is always in `suspended` state.
+      // we try our best to resume the context here, if that doesn't work, we just continue with regular processing
+      try {
+        await this.audioContext.resume();
+      } catch (e: any) {
+        log.warn(e);
+      }
     }
 
     if (this.options.expWebAudioMix) {
@@ -1532,6 +1640,16 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         this.emit(RoomEvent.LocalAudioSilenceDetected, pub);
       }
     }
+    const deviceId = await pub.track?.getDeviceId();
+    const deviceKind = sourceToKind(pub.source);
+    if (
+      deviceKind &&
+      deviceId &&
+      deviceId !== this.localParticipant.activeDeviceMap.get(deviceKind)
+    ) {
+      this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
+      this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
+    }
   };
 
   private onLocalTrackUnpublished = (pub: LocalTrackPublication) => {
@@ -1605,7 +1723,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         }),
         new LocalVideoTrack(
           publishOptions.useRealTracks
-            ? (await navigator.mediaDevices.getUserMedia({ video: true })).getVideoTracks()[0]
+            ? (
+                await window.navigator.mediaDevices.getUserMedia({ video: true })
+              ).getVideoTracks()[0]
             : createDummyVideoStreamTrack(
                 160 * participantOptions.aspectRatios[0] ?? 1,
                 160,
@@ -1768,6 +1888,8 @@ export type RoomEventCallbacks = {
   audioPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
+  participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;
+  encryptionError: (error: Error) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
 };

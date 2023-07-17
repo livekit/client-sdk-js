@@ -45,7 +45,7 @@ export interface TrackPublishDefaults {
   red?: boolean;
 
   /**
-   * stereo audio track. defaults determined by capture channel count.
+   * publish track in stereo mode (or set to false to disable). defaults determined by capture channel count.
    */
   forceStereo?: boolean;
 
@@ -272,10 +272,11 @@ export interface AudioPreset {
   priority?: RTCPriorityType;
 }
 
-const codecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
 const backupCodecs = ['vp8', 'h264'] as const;
 
-export type VideoCodec = (typeof codecs)[number];
+export const videoCodecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
+
+export type VideoCodec = (typeof videoCodecs)[number];
 
 export type BackupVideoCodec = (typeof backupCodecs)[number];
 

@@ -1,5 +1,74 @@
 # Change Log
 
+## 1.12.1
+
+### Patch Changes
+
+- Allow specifying audio source for participant.setVolume API - [#780](https://github.com/livekit/client-sdk-js/pull/780) ([@lukasIO](https://github.com/lukasIO))
+
+- Add iOS detection to browser parser and only use audio element workar… - [#785](https://github.com/livekit/client-sdk-js/pull/785) ([@lukasIO](https://github.com/lukasIO))
+
+- Skip decryption if maximum ratchet accounts have exceeded until a new key is set - [#786](https://github.com/livekit/client-sdk-js/pull/786) ([@lukasIO](https://github.com/lukasIO))
+
+- Set element Id for dummy audio element - [#778](https://github.com/livekit/client-sdk-js/pull/778) ([@lukasIO](https://github.com/lukasIO))
+
+- Update constraints with actually selected deviceId on track creation - [#773](https://github.com/livekit/client-sdk-js/pull/773) ([@toger5](https://github.com/toger5))
+
+- Always resume AudioContext if in suspended state - [#779](https://github.com/livekit/client-sdk-js/pull/779) ([@lukasIO](https://github.com/lukasIO))
+
+- Only check for setSinkId support on AudioContext if webaudiomix is enabled - [#787](https://github.com/livekit/client-sdk-js/pull/787) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.12.0
+
+### Minor Changes
+
+- Experimental end-to-end encryption support - [#557](https://github.com/livekit/client-sdk-js/pull/557) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Update adaptive stream dimensions when a remote track is being detached - [#766](https://github.com/livekit/client-sdk-js/pull/766) ([@burzomir](https://github.com/burzomir))
+
+- Fixed missed event listeners on MediaStreamTrack - [#768](https://github.com/livekit/client-sdk-js/pull/768) ([@davidzhao](https://github.com/davidzhao))
+
+- Forward signal events through engine - [#772](https://github.com/livekit/client-sdk-js/pull/772) ([@lukasIO](https://github.com/lukasIO))
+
+- Emit activeDeviceChanged when publishing local track - [#759](https://github.com/livekit/client-sdk-js/pull/759) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix peer connections leak - [#767](https://github.com/livekit/client-sdk-js/pull/767) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.11.4
+
+### Patch Changes
+
+- Use mutex lock for queueing calls to setProcessor - [#756](https://github.com/livekit/client-sdk-js/pull/756) ([@lukasIO](https://github.com/lukasIO))
+
+- Use active device when publishing a new track - [#757](https://github.com/livekit/client-sdk-js/pull/757) ([@lukasIO](https://github.com/lukasIO))
+
+- expose facingMode functions - [#753](https://github.com/livekit/client-sdk-js/pull/753) ([@Ocupe](https://github.com/Ocupe))
+
+## 1.11.3
+
+### Patch Changes
+
+- Apply user setting bitrate to maxaveragebitrates for firefox - [#752](https://github.com/livekit/client-sdk-js/pull/752) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Do not override forceStereo=false when publishing stereo input - [#748](https://github.com/livekit/client-sdk-js/pull/748) ([@davidzhao](https://github.com/davidzhao))
+
+- Add helper function to detect camera `facingMode`. - [#738](https://github.com/livekit/client-sdk-js/pull/738) ([@Ocupe](https://github.com/Ocupe))
+
+- Only set priority on Firefox - [#750](https://github.com/livekit/client-sdk-js/pull/750) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.11.2
+
+### Patch Changes
+
+- Fix missing await for async setMediaStreamTrack calls - [#747](https://github.com/livekit/client-sdk-js/pull/747) ([@boris-graeff](https://github.com/boris-graeff))
+
+- Emit RoomEvent.ActiveDeviceChanged when `room.switchActiveDevice` has been called. - [#743](https://github.com/livekit/client-sdk-js/pull/743) ([@lukasIO](https://github.com/lukasIO))
+  Add room.getActiveDevice(kind) method.
+
+- Use JSdocs instead of warning for mediastreamtrack access - [#742](https://github.com/livekit/client-sdk-js/pull/742) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.11.1
 
 ### Patch Changes
