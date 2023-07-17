@@ -23,10 +23,8 @@ export default defineConfig({
       babelConfig: {
         babelrc: false,
         configFile: false,
-        plugins: [
-          ['@babel/plugin-proposal-decorators', { loose: true, version: '2023-05' }],
-          '@babel/plugin-transform-typescript',
-        ],
+        presets: ['@babel/preset-typescript', ['@babel/preset-env', { modules: false }]],
+        plugins: [['@babel/plugin-proposal-decorators', { loose: true, version: '2023-05' }]],
       },
     }),
   ],
