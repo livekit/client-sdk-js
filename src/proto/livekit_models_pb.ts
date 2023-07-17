@@ -397,6 +397,11 @@ export class Room extends Message<Room> {
    */
   activeRecording = false;
 
+  /**
+   * @generated from field: livekit.PlayoutDelay playout_delay = 12;
+   */
+  playoutDelay?: PlayoutDelay;
+
   constructor(data?: PartialMessage<Room>) {
     super();
     proto3.util.initPartial(data, this);
@@ -416,6 +421,7 @@ export class Room extends Message<Room> {
     { no: 9, name: "num_participants", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
     { no: 11, name: "num_publishers", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
     { no: 10, name: "active_recording", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 12, name: "playout_delay", kind: "message", T: PlayoutDelay },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Room {
@@ -475,6 +481,55 @@ export class Codec extends Message<Codec> {
 
   static equals(a: Codec | PlainMessage<Codec> | undefined, b: Codec | PlainMessage<Codec> | undefined): boolean {
     return proto3.util.equals(Codec, a, b);
+  }
+}
+
+/**
+ * @generated from message livekit.PlayoutDelay
+ */
+export class PlayoutDelay extends Message<PlayoutDelay> {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled = false;
+
+  /**
+   * @generated from field: uint32 min = 2;
+   */
+  min = 0;
+
+  /**
+   * @generated from field: uint32 max = 3;
+   */
+  max = 0;
+
+  constructor(data?: PartialMessage<PlayoutDelay>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "livekit.PlayoutDelay";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "enabled", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "min", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 3, name: "max", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PlayoutDelay {
+    return new PlayoutDelay().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PlayoutDelay {
+    return new PlayoutDelay().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PlayoutDelay {
+    return new PlayoutDelay().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: PlayoutDelay | PlainMessage<PlayoutDelay> | undefined, b: PlayoutDelay | PlainMessage<PlayoutDelay> | undefined): boolean {
+    return proto3.util.equals(PlayoutDelay, a, b);
   }
 }
 
@@ -918,6 +973,11 @@ export class TrackInfo extends Message<TrackInfo> {
    */
   encryption = Encryption_Type.NONE;
 
+  /**
+   * @generated from field: string stream = 17;
+   */
+  stream = "";
+
   constructor(data?: PartialMessage<TrackInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -942,6 +1002,7 @@ export class TrackInfo extends Message<TrackInfo> {
     { no: 14, name: "stereo", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 15, name: "disable_red", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 16, name: "encryption", kind: "enum", T: proto3.getEnumType(Encryption_Type) },
+    { no: 17, name: "stream", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TrackInfo {

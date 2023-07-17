@@ -594,6 +594,14 @@ export class AddTrackRequest extends Message<AddTrackRequest> {
    */
   encryption = Encryption_Type.NONE;
 
+  /**
+   * which stream the track belongs to, used to group tracks together.
+   * if not specified, server will infer it from track source to bundle camera/microphone, screenshare/audio together
+   *
+   * @generated from field: string stream = 15;
+   */
+  stream = "";
+
   constructor(data?: PartialMessage<AddTrackRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -616,6 +624,7 @@ export class AddTrackRequest extends Message<AddTrackRequest> {
     { no: 12, name: "stereo", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 13, name: "disable_red", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 14, name: "encryption", kind: "enum", T: proto3.getEnumType(Encryption_Type) },
+    { no: 15, name: "stream", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AddTrackRequest {

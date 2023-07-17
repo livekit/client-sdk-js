@@ -819,7 +819,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       }
 
       if (recoverable) {
-        this.handleDisconnect('reconnect', ReconnectReason.RR_UNKOWN);
+        this.handleDisconnect('reconnect', ReconnectReason.RR_UNKNOWN);
       } else {
         log.info(
           `could not recover connection after ${this.reconnectAttempts} attempts, ${
@@ -1203,7 +1203,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
-        this.handleDisconnect('negotiation', ReconnectReason.RR_UNKOWN);
+        this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
       });
     });
   }
