@@ -9,12 +9,11 @@ module.exports = {
   plugins: ['ecmascript-compat'],
   rules: {
     'ecmascript-compat/compat': [
-      'error',
+      'warn',
       {
         polyfills: [
           // rollup-common-js and tsproto have environment checks using `globalThis` which causes the compat check to fail on the output
           'globalThis',
-          'BigInt',
         ],
       },
     ],
