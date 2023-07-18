@@ -28,6 +28,8 @@ export class ParticipantKeyHandler extends EventEmitter<ParticipantKeyHandlerCal
 
   private participantId: string | undefined;
 
+  hasValidKey: boolean;
+
   constructor(
     participantId: string | undefined,
     isEnabled: boolean,
@@ -40,6 +42,7 @@ export class ParticipantKeyHandler extends EventEmitter<ParticipantKeyHandlerCal
     this.keyProviderOptions = keyProviderOptions;
     this.ratchetPromiseMap = new Map();
     this.participantId = participantId;
+    this.hasValidKey = false;
   }
 
   setEnabled(enabled: boolean) {
@@ -88,6 +91,17 @@ export class ParticipantKeyHandler extends EventEmitter<ParticipantKeyHandlerCal
    * takes in a key material with `deriveBits` and `deriveKey` set as key usages
    * and derives encryption keys from the material and sets it on the key ring buffer
    * together with the material
+   * also resets the valid key property and updates the currentKeyIndex
+   */
+  async setKey(material: CryptoKey, keyIndex = 0) {
+    await this.setKeyFromMaterial(material, keyIndex);
+    this.hasValidKey = true;
+  }
+
+  /**
+   * takes in a key material with `deriveBits` and `deriveKey` set as key usages
+   * and derives encryption keys from the material and sets it on the key ring buffer
+   * together with the material
    * also updates the currentKeyIndex
    */
   async setKeyFromMaterial(material: CryptoKey, keyIndex = 0, emitRatchetEvent = false) {
@@ -108,6 +122,7 @@ export class ParticipantKeyHandler extends EventEmitter<ParticipantKeyHandlerCal
 
   async setCurrentKeyIndex(index: number) {
     this.currentKeyIndex = index % this.cryptoKeyRing.length;
+    this.hasValidKey = true;
   }
 
   isEnabled() {

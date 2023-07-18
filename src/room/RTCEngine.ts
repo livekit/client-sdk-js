@@ -1,7 +1,7 @@
 import EventEmitter from 'eventemitter3';
 import type { MediaAttributes } from 'sdp-transform';
-import { SignalClient } from '../api/SignalClient';
 import type { SignalOptions } from '../api/SignalClient';
+import { SignalClient } from '../api/SignalClient';
 import { bound } from '../decorators/autoBind';
 import log from '../logger';
 import type { InternalRoomOptions } from '../options';
@@ -17,7 +17,7 @@ import {
   SpeakerInfo,
   TrackInfo,
   UserPacket,
-} from '../proto/livekit_models';
+} from '../proto/livekit_models_pb';
 import {
   AddTrackRequest,
   ConnectionQualityUpdate,
@@ -29,10 +29,10 @@ import {
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
   TrackPublishedResponse,
-} from '../proto/livekit_rtc';
+} from '../proto/livekit_rtc_pb';
 import PCTransport, { PCEvents } from './PCTransport';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
-import { RegionUrlProvider } from './RegionUrlProvider';
+import type { RegionUrlProvider } from './RegionUrlProvider';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -50,7 +50,6 @@ import { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 import {
   Mutex,
-  isCloud,
   isVideoCodec,
   isWeb,
   sleep,
@@ -123,7 +122,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
   // this is helpful to know if we need to restart ICE on the publisher connection
   private hasPublished: boolean = false;
 
-  // keep join info around for reconnect
+  // keep join info around for reconnect, this could be a region url
   private url?: string;
 
   private token?: string;
@@ -357,6 +356,11 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       return undefined;
     }
     return getConnectedAddress(this.primaryPC);
+  }
+
+  /* @internal */
+  setRegionUrlProvider(provider: RegionUrlProvider) {
+    this.regionUrlProvider = provider;
   }
 
   private configure(joinResponse: JoinResponse) {
@@ -631,12 +635,12 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
         log.error('unsupported data type', message.data);
         return;
       }
-      const dp = DataPacket.decode(new Uint8Array(buffer));
-      if (dp.value?.$case === 'speaker') {
+      const dp = DataPacket.fromBinary(new Uint8Array(buffer));
+      if (dp.value?.case === 'speaker') {
         // dispatch speaker updates
-        this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.speaker.speakers);
-      } else if (dp.value?.$case === 'user') {
-        this.emit(EngineEvent.DataPacketReceived, dp.value.user, dp.kind);
+        this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
+      } else if (dp.value?.case === 'user') {
+        this.emit(EngineEvent.DataPacketReceived, dp.value.value, dp.kind);
       }
     } finally {
       unlock();
@@ -849,8 +853,10 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     log.debug(`reconnecting in ${delay}ms`);
 
     this.clearReconnectTimeout();
-    if (this.url && this.token && isCloud(new URL(this.url))) {
-      this.regionUrlProvider = new RegionUrlProvider(this.url, this.token);
+    if (this.token && this.regionUrlProvider) {
+      // token may have been refreshed, we do not want to recreate the regionUrlProvider
+      // since the current engine may have inherited a regional url
+      this.regionUrlProvider.updateToken(this.token);
     }
     this.reconnectTimeout = CriticalTimers.setTimeout(
       () => this.attemptReconnect(disconnectReason),
@@ -1127,7 +1133,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
 
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
-    const msg = DataPacket.encode(packet).finish();
+    const msg = packet.toBinary();
 
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);

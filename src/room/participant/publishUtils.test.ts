@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import {
   computeDefaultScreenShareSimulcastPresets,
