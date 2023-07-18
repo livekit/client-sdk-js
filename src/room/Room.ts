@@ -796,6 +796,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         track.enabled = true;
         dummyAudioEl.srcObject = new MediaStream([track]);
         document.body.append(dummyAudioEl);
+        this.once(RoomEvent.Disconnected, () => {
+          dummyAudioEl?.remove();
+        });
       }
       elements.push(dummyAudioEl);
     }
