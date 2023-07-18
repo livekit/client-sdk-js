@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /**
  * Note: Vite is only used as a (fast) dev server.
  * For building the library we invoke rollup directly.
@@ -6,13 +5,6 @@
 import dns from 'dns';
 import { defineConfig } from 'vite';
 import viteBabel from 'vite-plugin-babel';
-=======
-import { babel } from '@rollup/plugin-babel';
-import dns from 'dns';
-import { resolve } from 'path';
-import replace from 'rollup-plugin-re';
-import { defineConfig } from 'vite';
->>>>>>> main
 
 dns.setDefaultResultOrder('verbatim');
 
