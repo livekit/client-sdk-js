@@ -1,8 +1,8 @@
 import EventEmitter from 'eventemitter3';
 import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
-import { TrackSource, TrackType } from '../../proto/livekit_models';
-import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
+import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
+import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import { isFireFox, isSafari, isWeb } from '../utils';
 
@@ -368,7 +368,8 @@ export namespace Track {
       case Kind.Video:
         return TrackType.VIDEO;
       default:
-        return TrackType.UNRECOGNIZED;
+        // FIXME this was UNRECOGNIZED before
+        return TrackType.DATA;
     }
   }
 
@@ -396,7 +397,7 @@ export namespace Track {
       case Source.ScreenShareAudio:
         return TrackSource.SCREEN_SHARE_AUDIO;
       default:
-        return TrackSource.UNRECOGNIZED;
+        return TrackSource.UNKNOWN;
     }
   }
 

@@ -1,3 +1,4 @@
+import { protoInt64 } from '@bufbuild/protobuf';
 import log from '../logger';
 import {
   ClientInfo,
@@ -7,12 +8,14 @@ import {
   Room,
   SpeakerInfo,
   VideoLayer,
-} from '../proto/livekit_models';
+} from '../proto/livekit_models_pb';
 import {
   AddTrackRequest,
   ConnectionQualityUpdate,
   JoinResponse,
   LeaveRequest,
+  MuteTrackRequest,
+  Ping,
   ReconnectResponse,
   SessionDescription,
   SignalRequest,
@@ -21,15 +24,19 @@ import {
   SimulateScenario,
   StreamStateUpdate,
   SubscribedQualityUpdate,
+  SubscriptionPermission,
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
   SyncState,
   TrackPermission,
   TrackPublishedResponse,
   TrackUnpublishedResponse,
+  TrickleRequest,
+  UpdateParticipantMetadata,
   UpdateSubscription,
   UpdateTrackSettings,
-} from '../proto/livekit_rtc';
+  UpdateVideoLayers,
+} from '../proto/livekit_rtc_pb';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import { Mutex, getClientInfo, isReactNative, sleep, toWebsocketUrl } from '../room/utils';
@@ -65,7 +72,7 @@ export interface SignalOptions {
 
 type SignalMessage = SignalRequest['message'];
 
-type SignalKind = NonNullable<SignalMessage>['$case'];
+type SignalKind = NonNullable<SignalMessage>['case'];
 
 const passThroughQueueSignals: Array<SignalKind> = [
   'syncState',
@@ -77,7 +84,7 @@ const passThroughQueueSignals: Array<SignalKind> = [
 ];
 
 function canPassThroughQueue(req: SignalMessage): boolean {
-  const canPass = passThroughQueueSignals.indexOf(req!.$case) >= 0;
+  const canPass = passThroughQueueSignals.indexOf(req!.case) >= 0;
   log.trace('request allowed to bypass queue:', { canPass, req });
   return canPass;
 }
@@ -266,9 +273,9 @@ export class SignalClient {
         let resp: SignalResponse;
         if (typeof ev.data === 'string') {
           const json = JSON.parse(ev.data);
-          resp = SignalResponse.fromJSON(json);
+          resp = SignalResponse.fromJson(json);
         } else if (ev.data instanceof ArrayBuffer) {
-          resp = SignalResponse.decode(new Uint8Array(ev.data));
+          resp = SignalResponse.fromBinary(new Uint8Array(ev.data));
         } else {
           log.error(`could not decode websocket message: ${typeof ev.data}`);
           return;
@@ -277,11 +284,11 @@ export class SignalClient {
         if (!this.isConnected) {
           let shouldProcessMessage = false;
           // handle join message only
-          if (resp.message?.$case === 'join') {
+          if (resp.message?.case === 'join') {
             this.isConnected = true;
             abortSignal?.removeEventListener('abort', abortHandler);
-            this.pingTimeoutDuration = resp.message.join.pingTimeout;
-            this.pingIntervalDuration = resp.message.join.pingInterval;
+            this.pingTimeoutDuration = resp.message.value.pingTimeout;
+            this.pingIntervalDuration = resp.message.value.pingInterval;
 
             if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
               log.debug('ping config', {
@@ -290,14 +297,14 @@ export class SignalClient {
               });
               this.startPingInterval();
             }
-            resolve(resp.message.join);
+            resolve(resp.message.value);
           } else if (opts.reconnect) {
             // in reconnecting, any message received means signal reconnected
             this.isConnected = true;
             abortSignal?.removeEventListener('abort', abortHandler);
             this.startPingInterval();
-            if (resp.message?.$case === 'reconnect') {
-              resolve(resp.message?.reconnect);
+            if (resp.message?.case === 'reconnect') {
+              resolve(resp.message?.value);
             } else {
               resolve();
               shouldProcessMessage = true;
@@ -306,7 +313,7 @@ export class SignalClient {
             // non-reconnect case, should receive join response first
             reject(
               new ConnectionError(
-                `did not receive join response, got ${resp.message?.$case} instead`,
+                `did not receive join response, got ${resp.message?.case} instead`,
               ),
             );
           }
@@ -380,8 +387,8 @@ export class SignalClient {
   sendOffer(offer: RTCSessionDescriptionInit) {
     log.debug('sending offer', offer);
     this.sendRequest({
-      $case: 'offer',
-      offer: toProtoSessionDescription(offer),
+      case: 'offer',
+      value: toProtoSessionDescription(offer),
     });
   }
 
@@ -389,94 +396,94 @@ export class SignalClient {
   sendAnswer(answer: RTCSessionDescriptionInit) {
     log.debug('sending answer');
     return this.sendRequest({
-      $case: 'answer',
-      answer: toProtoSessionDescription(answer),
+      case: 'answer',
+      value: toProtoSessionDescription(answer),
     });
   }
 
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
     log.trace('sending ice candidate', candidate);
     return this.sendRequest({
-      $case: 'trickle',
-      trickle: {
+      case: 'trickle',
+      value: new TrickleRequest({
         candidateInit: JSON.stringify(candidate),
         target,
-      },
+      }),
     });
   }
 
   sendMuteTrack(trackSid: string, muted: boolean) {
     return this.sendRequest({
-      $case: 'mute',
-      mute: {
+      case: 'mute',
+      value: new MuteTrackRequest({
         sid: trackSid,
         muted,
-      },
+      }),
     });
   }
 
   sendAddTrack(req: AddTrackRequest) {
     return this.sendRequest({
-      $case: 'addTrack',
-      addTrack: req,
+      case: 'addTrack',
+      value: req,
     });
   }
 
   sendUpdateLocalMetadata(metadata: string, name: string) {
     return this.sendRequest({
-      $case: 'updateMetadata',
-      updateMetadata: {
+      case: 'updateMetadata',
+      value: new UpdateParticipantMetadata({
         metadata,
         name,
-      },
+      }),
     });
   }
 
   sendUpdateTrackSettings(settings: UpdateTrackSettings) {
     this.sendRequest({
-      $case: 'trackSetting',
-      trackSetting: settings,
+      case: 'trackSetting',
+      value: settings,
     });
   }
 
   sendUpdateSubscription(sub: UpdateSubscription) {
     return this.sendRequest({
-      $case: 'subscription',
-      subscription: sub,
+      case: 'subscription',
+      value: sub,
     });
   }
 
   sendSyncState(sync: SyncState) {
     return this.sendRequest({
-      $case: 'syncState',
-      syncState: sync,
+      case: 'syncState',
+      value: sync,
     });
   }
 
   sendUpdateVideoLayers(trackSid: string, layers: VideoLayer[]) {
     return this.sendRequest({
-      $case: 'updateLayers',
-      updateLayers: {
+      case: 'updateLayers',
+      value: new UpdateVideoLayers({
         trackSid,
         layers,
-      },
+      }),
     });
   }
 
   sendUpdateSubscriptionPermissions(allParticipants: boolean, trackPermissions: TrackPermission[]) {
     return this.sendRequest({
-      $case: 'subscriptionPermission',
-      subscriptionPermission: {
+      case: 'subscriptionPermission',
+      value: new SubscriptionPermission({
         allParticipants,
         trackPermissions,
-      },
+      }),
     });
   }
 
   sendSimulateScenario(scenario: SimulateScenario) {
     return this.sendRequest({
-      $case: 'simulate',
-      simulate: scenario,
+      case: 'simulate',
+      value: scenario,
     });
   }
 
@@ -484,26 +491,26 @@ export class SignalClient {
     /** send both of ping and pingReq for compatibility to old and new server */
     return Promise.all([
       this.sendRequest({
-        $case: 'ping',
-        ping: Date.now(),
+        case: 'ping',
+        value: protoInt64.parse(Date.now()),
       }),
       this.sendRequest({
-        $case: 'pingReq',
-        pingReq: {
-          timestamp: Date.now(),
-          rtt: this.rtt,
-        },
+        case: 'pingReq',
+        value: new Ping({
+          timestamp: protoInt64.parse(Date.now()),
+          rtt: protoInt64.parse(this.rtt),
+        }),
       }),
     ]);
   }
 
   sendLeave() {
     return this.sendRequest({
-      $case: 'leave',
-      leave: {
+      case: 'leave',
+      value: new LeaveRequest({
         canReconnect: false,
         reason: DisconnectReason.CLIENT_INITIATED,
-      },
+      }),
     });
   }
 
@@ -525,18 +532,16 @@ export class SignalClient {
       await sleep(this.signalLatency);
     }
     if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
-      log.error(`cannot send signal request before connected, type: ${message?.$case}`);
+      log.error(`cannot send signal request before connected, type: ${message?.case}`);
       return;
     }
+    const req = new SignalRequest({ message });
 
-    const req = {
-      message,
-    };
     try {
       if (this.useJSON) {
-        this.ws.send(JSON.stringify(SignalRequest.toJSON(req)));
+        this.ws.send(req.toJsonString());
       } else {
-        this.ws.send(SignalRequest.encode(req).finish());
+        this.ws.send(req.toBinary());
       }
     } catch (e) {
       log.error('error sending signal message', { error: e });
@@ -549,77 +554,77 @@ export class SignalClient {
       log.debug('received unsupported message');
       return;
     }
-    if (msg.$case === 'answer') {
-      const sd = fromProtoSessionDescription(msg.answer);
+    if (msg.case === 'answer') {
+      const sd = fromProtoSessionDescription(msg.value);
       if (this.onAnswer) {
         this.onAnswer(sd);
       }
-    } else if (msg.$case === 'offer') {
-      const sd = fromProtoSessionDescription(msg.offer);
+    } else if (msg.case === 'offer') {
+      const sd = fromProtoSessionDescription(msg.value);
       if (this.onOffer) {
         this.onOffer(sd);
       }
-    } else if (msg.$case === 'trickle') {
-      const candidate: RTCIceCandidateInit = JSON.parse(msg.trickle.candidateInit!);
+    } else if (msg.case === 'trickle') {
+      const candidate: RTCIceCandidateInit = JSON.parse(msg.value.candidateInit!);
       if (this.onTrickle) {
-        this.onTrickle(candidate, msg.trickle.target);
+        this.onTrickle(candidate, msg.value.target);
       }
-    } else if (msg.$case === 'update') {
+    } else if (msg.case === 'update') {
       if (this.onParticipantUpdate) {
-        this.onParticipantUpdate(msg.update.participants ?? []);
+        this.onParticipantUpdate(msg.value.participants ?? []);
       }
-    } else if (msg.$case === 'trackPublished') {
+    } else if (msg.case === 'trackPublished') {
       if (this.onLocalTrackPublished) {
-        this.onLocalTrackPublished(msg.trackPublished);
+        this.onLocalTrackPublished(msg.value);
       }
-    } else if (msg.$case === 'speakersChanged') {
+    } else if (msg.case === 'speakersChanged') {
       if (this.onSpeakersChanged) {
-        this.onSpeakersChanged(msg.speakersChanged.speakers ?? []);
+        this.onSpeakersChanged(msg.value.speakers ?? []);
       }
-    } else if (msg.$case === 'leave') {
+    } else if (msg.case === 'leave') {
       if (this.onLeave) {
-        this.onLeave(msg.leave);
+        this.onLeave(msg.value);
       }
-    } else if (msg.$case === 'mute') {
+    } else if (msg.case === 'mute') {
       if (this.onRemoteMuteChanged) {
-        this.onRemoteMuteChanged(msg.mute.sid, msg.mute.muted);
+        this.onRemoteMuteChanged(msg.value.sid, msg.value.muted);
       }
-    } else if (msg.$case === 'roomUpdate') {
-      if (this.onRoomUpdate && msg.roomUpdate.room) {
-        this.onRoomUpdate(msg.roomUpdate.room);
+    } else if (msg.case === 'roomUpdate') {
+      if (this.onRoomUpdate && msg.value.room) {
+        this.onRoomUpdate(msg.value.room);
       }
-    } else if (msg.$case === 'connectionQuality') {
+    } else if (msg.case === 'connectionQuality') {
       if (this.onConnectionQuality) {
-        this.onConnectionQuality(msg.connectionQuality);
+        this.onConnectionQuality(msg.value);
       }
-    } else if (msg.$case === 'streamStateUpdate') {
+    } else if (msg.case === 'streamStateUpdate') {
       if (this.onStreamStateUpdate) {
-        this.onStreamStateUpdate(msg.streamStateUpdate);
+        this.onStreamStateUpdate(msg.value);
       }
-    } else if (msg.$case === 'subscribedQualityUpdate') {
+    } else if (msg.case === 'subscribedQualityUpdate') {
       if (this.onSubscribedQualityUpdate) {
-        this.onSubscribedQualityUpdate(msg.subscribedQualityUpdate);
+        this.onSubscribedQualityUpdate(msg.value);
       }
-    } else if (msg.$case === 'subscriptionPermissionUpdate') {
+    } else if (msg.case === 'subscriptionPermissionUpdate') {
       if (this.onSubscriptionPermissionUpdate) {
-        this.onSubscriptionPermissionUpdate(msg.subscriptionPermissionUpdate);
+        this.onSubscriptionPermissionUpdate(msg.value);
       }
-    } else if (msg.$case === 'refreshToken') {
+    } else if (msg.case === 'refreshToken') {
       if (this.onTokenRefresh) {
-        this.onTokenRefresh(msg.refreshToken);
+        this.onTokenRefresh(msg.value);
       }
-    } else if (msg.$case === 'trackUnpublished') {
+    } else if (msg.case === 'trackUnpublished') {
       if (this.onLocalTrackUnpublished) {
-        this.onLocalTrackUnpublished(msg.trackUnpublished);
+        this.onLocalTrackUnpublished(msg.value);
       }
-    } else if (msg.$case === 'subscriptionResponse') {
+    } else if (msg.case === 'subscriptionResponse') {
       if (this.onSubscriptionError) {
-        this.onSubscriptionError(msg.subscriptionResponse);
+        this.onSubscriptionError(msg.value);
       }
-    } else if (msg.$case === 'pong') {
+    } else if (msg.case === 'pong') {
       this.resetPingTimeout();
-    } else if (msg.$case === 'pongResp') {
-      this.rtt = Date.now() - msg.pongResp.lastPingTimestamp;
+    } else if (msg.case === 'pongResp') {
+      this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
       this.resetPingTimeout();
     } else {
       log.debug('unsupported message', msg);
@@ -722,10 +727,10 @@ function fromProtoSessionDescription(sd: SessionDescription): RTCSessionDescript
 export function toProtoSessionDescription(
   rsd: RTCSessionDescription | RTCSessionDescriptionInit,
 ): SessionDescription {
-  const sd: SessionDescription = {
+  const sd = new SessionDescription({
     sdp: rsd.sdp!,
     type: rsd.type!,
-  };
+  });
   return sd;
 }
 

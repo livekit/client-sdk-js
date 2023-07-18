@@ -1,5 +1,5 @@
 import { LogLevel, setLogExtension, setLogLevel } from './logger';
-import { DataPacket_Kind, DisconnectReason, VideoQuality } from './proto/livekit_models';
+import { DataPacket_Kind, DisconnectReason, VideoQuality } from './proto/livekit_models_pb';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import Room, { ConnectionState, RoomState } from './room/Room';
 import LocalParticipant from './room/participant/LocalParticipant';

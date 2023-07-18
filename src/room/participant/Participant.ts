@@ -6,7 +6,7 @@ import {
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
   SubscriptionError,
-} from '../../proto/livekit_models';
+} from '../../proto/livekit_models_pb';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
 import type RemoteTrack from '../track/RemoteTrack';
@@ -141,7 +141,7 @@ export default class Participant extends EventEmitter<ParticipantEventCallbacks>
   /** when participant joined the room */
   get joinedAt(): Date | undefined {
     if (this.participantInfo) {
-      return new Date(this.participantInfo.joinedAt * 1000);
+      return new Date(Number.parseInt(this.participantInfo.joinedAt.toString()) * 1000);
     }
     return new Date();
   }
