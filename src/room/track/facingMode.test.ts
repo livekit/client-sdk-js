@@ -1,3 +1,4 @@
+import { describe, expect, test } from 'vitest';
 import { facingModeFromDeviceLabel } from './facingMode';
 
 describe('Test facingMode detection', () => {

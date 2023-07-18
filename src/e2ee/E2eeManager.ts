@@ -1,7 +1,7 @@
 import EventEmitter from 'eventemitter3';
 import { bound } from '../decorators/autoBind';
 import log from '../logger';
-import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
+import { Encryption_Type, TrackInfo } from '../proto/livekit_models_pb';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';

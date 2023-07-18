@@ -1,4 +1,4 @@
-import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models';
+import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models_pb';
 import type { DetectableBrowser } from '../utils/browserParser';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
@@ -246,7 +246,7 @@ export interface ObservableMediaElement extends HTMLMediaElement {
 }
 
 export function getClientInfo(): ClientInfo {
-  const info = ClientInfo.fromPartial({
+  const info = new ClientInfo({
     sdk: ClientInfo_SDK.JS,
     protocol: protocolVersion,
     version,

@@ -17,7 +17,7 @@ import {
   SpeakerInfo,
   TrackInfo,
   UserPacket,
-} from '../proto/livekit_models';
+} from '../proto/livekit_models_pb';
 import {
   AddTrackRequest,
   ConnectionQualityUpdate,
@@ -29,7 +29,7 @@ import {
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
   TrackPublishedResponse,
-} from '../proto/livekit_rtc';
+} from '../proto/livekit_rtc_pb';
 import PCTransport, { PCEvents } from './PCTransport';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import type { RegionUrlProvider } from './RegionUrlProvider';
@@ -635,12 +635,12 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
         log.error('unsupported data type', message.data);
         return;
       }
-      const dp = DataPacket.decode(new Uint8Array(buffer));
-      if (dp.value?.$case === 'speaker') {
+      const dp = DataPacket.fromBinary(new Uint8Array(buffer));
+      if (dp.value?.case === 'speaker') {
         // dispatch speaker updates
-        this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.speaker.speakers);
-      } else if (dp.value?.$case === 'user') {
-        this.emit(EngineEvent.DataPacketReceived, dp.value.user, dp.kind);
+        this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
+      } else if (dp.value?.case === 'user') {
+        this.emit(EngineEvent.DataPacketReceived, dp.value.value, dp.kind);
       }
     } finally {
       unlock();
@@ -1133,7 +1133,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
 
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
-    const msg = DataPacket.encode(packet).finish();
+    const msg = packet.toBinary();
 
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);

@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { compareVersions } from '../room/utils';
 import { getBrowser } from './browserParser';
 
