@@ -1,9 +1,9 @@
 import type { ApiError } from '../clientReport';
 
-export function recordExceptionAsync(
+export function recordExceptionAsync<T extends Object>(
   originalMethod: (...args: any) => Promise<any>,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _context: DecoratorContext,
+  _context: ClassMethodDecoratorContext<T>,
 ) {
   if (_context.kind === 'method' && typeof originalMethod === 'function') {
     return function (this: any, ...args: any[]) {
@@ -14,10 +14,10 @@ export function recordExceptionAsync(
   }
 }
 
-export function recordException(
-  originalMethod: (...args: any) => Exclude<any, Promise<unknown>>,
+export function recordException<T extends Object>(
+  originalMethod: any,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _context: DecoratorContext,
+  _context: ClassMethodDecoratorContext<T>,
 ) {
   function replacementMethod(this: any, ...args: any[]) {
     try {

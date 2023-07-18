@@ -1,4 +1,5 @@
 import { bound } from '../../decorators/autoBind';
+import { recordExceptionAsync } from '../../decorators/recordException';
 import log from '../../logger';
 import type { InternalRoomOptions } from '../../options';
 import {
@@ -267,6 +268,7 @@ export default class LocalParticipant extends Participant {
     options?: ScreenShareCaptureOptions,
     publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
+  @recordExceptionAsync
   private async setTrackEnabled(
     source: Track.Source,
     enabled: true,
@@ -490,6 +492,7 @@ export default class LocalParticipant extends Participant {
    * @param track
    * @param options
    */
+  @recordExceptionAsync
   async publishTrack(
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
@@ -846,7 +849,8 @@ export default class LocalParticipant extends Participant {
     return true;
   }
 
-  /** @internal
+  /**
+   * @internal
    * publish additional codec to existing track
    */
   async publishAdditionalCodecForTrack(
@@ -917,6 +921,7 @@ export default class LocalParticipant extends Participant {
     log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
   }
 
+  @recordExceptionAsync
   async unpublishTrack(
     track: LocalTrack | MediaStreamTrack,
     stopOnUnpublish?: boolean,
@@ -1083,6 +1088,7 @@ export default class LocalParticipant extends Participant {
     destination?: RemoteParticipant[] | string[],
   ): Promise<void>;
 
+  @recordExceptionAsync
   async publishData(
     data: Uint8Array,
     kind: DataPacket_Kind,

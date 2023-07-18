@@ -208,7 +208,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    * @experimental
    */
   @recordExceptionAsync
-  async setE2EEEnabled(enabled: boolean) {
+  async setE2EEEnabled(enabled: boolean): Promise<void> {
     if (this.e2eeManager) {
       await Promise.all([
         this.localParticipant.setE2EEEnabled(enabled),
@@ -381,6 +381,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
   }
 
+  @recordExceptionAsync
   @bound
   async connect(url: string, token: string, opts?: RoomConnectOptions): Promise<void> {
     // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
@@ -639,6 +640,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
+  @recordExceptionAsync
   @bound
   async disconnect(stopTracks = true) {
     const unlock = await this.disconnectLock.lock();
@@ -786,6 +788,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    * - `startAudio`
    * - `getUserMedia`
    */
+  @recordExceptionAsync
   async startAudio() {
     await this.acquireAudioContext();
     const elements: Array<HTMLMediaElement> = [];
@@ -868,6 +871,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    *  `audiooutput` to set speaker for all incoming audio tracks
    * @param deviceId
    */
+  @recordExceptionAsync
   async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = false) {
     let deviceHasChanged = false;
     let success = true;
