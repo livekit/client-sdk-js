@@ -587,7 +587,7 @@ export default class LocalParticipant extends Participant {
     if (opts.source) {
       track.source = opts.source;
     }
-    const publishPromise = this.publish(track, opts, options, isStereo);
+    const publishPromise = this.publish(track, opts, isStereo);
     this.pendingPublishPromises.set(track, publishPromise);
     try {
       const publication = await publishPromise;
@@ -599,12 +599,7 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-  private async publish(
-    track: LocalTrack,
-    opts: TrackPublishOptions,
-    options: TrackPublishOptions | undefined,
-    isStereo: boolean,
-  ) {
+  private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
     const existingTrackOfSource = Array.from(this.tracks.values()).find(
       (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
     );
@@ -651,7 +646,7 @@ export default class LocalParticipant extends Participant {
     const req = new AddTrackRequest({
       // get local track id for use during publishing
       cid: track.mediaStreamTrack.id,
-      name: options?.name,
+      name: opts.name,
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
