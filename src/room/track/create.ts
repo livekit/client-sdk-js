@@ -7,7 +7,7 @@ import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
-import { ScreenSharePresets, VideoPresets } from './options';
+import { ScreenSharePresets } from './options';
 import type {
   AudioCaptureOptions,
   CreateLocalTracksOptions,
