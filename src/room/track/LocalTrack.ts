@@ -1,3 +1,4 @@
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
@@ -280,14 +281,15 @@ export default abstract class LocalTrack extends Track {
     }
   }
 
-  private handleEnded = () => {
+  @bound
+  private handleEnded() {
     if (this.isInBackground) {
       this.reacquireTrack = true;
     }
     this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
     this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
     this.emit(TrackEvent.Ended, this);
-  };
+  }
 
   stop() {
     super.stop();
@@ -329,7 +331,8 @@ export default abstract class LocalTrack extends Track {
     }
   };
 
-  resumeUpstream = async () => {
+  @bound
+  async resumeUpstream() {
     const unlock = await this.pauseUpstreamLock.lock();
     try {
       if (this._isUpstreamPaused === false) {
@@ -347,7 +350,7 @@ export default abstract class LocalTrack extends Track {
     } finally {
       unlock();
     }
-  };
+  }
 
   /**
    * Sets a processor on this track.

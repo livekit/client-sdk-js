@@ -1,5 +1,6 @@
 import EventEmitter from 'eventemitter3';
 import type { SignalClient } from '../../api/SignalClient';
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
@@ -232,7 +233,8 @@ export abstract class Track extends EventEmitter<TrackEventCallbacks> {
     }
   }
 
-  protected appVisibilityChangedListener = () => {
+  @bound
+  protected appVisibilityChangedListener() {
     if (this.backgroundTimeout) {
       clearTimeout(this.backgroundTimeout);
     }
@@ -246,7 +248,7 @@ export abstract class Track extends EventEmitter<TrackEventCallbacks> {
     } else {
       this.handleAppVisibilityChanged();
     }
-  };
+  }
 
   protected async handleAppVisibilityChanged() {
     this.isInBackground = document.visibilityState === 'hidden';
