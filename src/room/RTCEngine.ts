@@ -2,7 +2,6 @@ import EventEmitter from 'eventemitter3';
 import type { MediaAttributes } from 'sdp-transform';
 import type { SignalOptions } from '../api/SignalClient';
 import { SignalClient } from '../api/SignalClient';
-import { bound } from '../decorators/autoBind';
 import log from '../logger';
 import type { InternalRoomOptions } from '../options';
 import {
@@ -604,8 +603,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
   }
 
-  @bound
-  private async handleDataChannel({ channel }: RTCDataChannelEvent) {
+  private handleDataChannel = async ({ channel }: RTCDataChannelEvent) => {
     if (!channel) {
       return;
     }
@@ -618,10 +616,9 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     }
     log.debug(`on data channel ${channel.id}, ${channel.label}`);
     channel.onmessage = this.handleDataMessage;
-  }
+  };
 
-  @bound
-  private async handleDataMessage(message: MessageEvent) {
+  private handleDataMessage = async (message: MessageEvent) => {
     // make sure to respect incoming data message order by processing message events one after the other
     const unlock = await this.dataProcessLock.lock();
     try {
@@ -645,10 +642,9 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     } finally {
       unlock();
     }
-  }
+  };
 
-  @bound
-  private handleDataError(event: Event) {
+  private handleDataError = (event: Event) => {
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind = channel.maxRetransmits === 0 ? 'lossy' : 'reliable';
 
@@ -658,16 +654,15 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     } else {
       log.error(`Unknown DataChannel Error on ${channelKind}`, event);
     }
-  }
+  };
 
-  @bound
-  private handleBufferedAmountLow(event: Event) {
+  private handleBufferedAmountLow = (event: Event) => {
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind =
       channel.maxRetransmits === 0 ? DataPacket_Kind.LOSSY : DataPacket_Kind.RELIABLE;
 
     this.updateAndEmitDCBufferStatus(channelKind);
-  }
+  };
 
   private setPreferredCodec(
     transceiver: RTCRtpTransceiver,
@@ -816,8 +811,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
   // continues to work, we can reconnect to websocket to continue the session
   // after a number of retries, we'll close and give up permanently
-  @bound
-  private handleDisconnect(connection: string, disconnectReason?: ReconnectReason) {
+  private handleDisconnect = (connection: string, disconnectReason?: ReconnectReason) => {
     if (this._isClosed) {
       return;
     }
@@ -862,7 +856,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       () => this.attemptReconnect(disconnectReason),
       delay,
     );
-  }
+  };
 
   private async attemptReconnect(reason?: ReconnectReason) {
     if (this._isClosed) {
@@ -1111,8 +1105,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     throw new ConnectionError('could not establish PC connection');
   }
 
-  @bound
-  waitForRestarted() {
+  waitForRestarted = () => {
     return new Promise<void>((resolve, reject) => {
       if (this.pcState === PCState.Connected) {
         resolve();
@@ -1129,7 +1122,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       this.once(EngineEvent.Disconnected, onDisconnected);
       this.once(EngineEvent.Closing, onDisconnected);
     });
-  }
+  };
 
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
@@ -1146,22 +1139,20 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     this.updateAndEmitDCBufferStatus(kind);
   }
 
-  @bound
-  private updateAndEmitDCBufferStatus(kind: DataPacket_Kind) {
+  private updateAndEmitDCBufferStatus = (kind: DataPacket_Kind) => {
     const status = this.isBufferStatusLow(kind);
     if (typeof status !== 'undefined' && status !== this.dcBufferStatus.get(kind)) {
       this.dcBufferStatus.set(kind, status);
       this.emit(EngineEvent.DCBufferStatusChanged, status, kind);
     }
-  }
+  };
 
-  @bound
-  private isBufferStatusLow(kind: DataPacket_Kind): boolean | undefined {
+  private isBufferStatusLow = (kind: DataPacket_Kind): boolean | undefined => {
     const dc = this.dataChannelForKind(kind);
     if (dc) {
       return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
     }
-  }
+  };
 
   /**
    * @internal
@@ -1341,14 +1332,13 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     this.reconnectAttempts = 0;
   }
 
-  @bound
-  private handleBrowserOnLine() {
+  private handleBrowserOnLine = () => {
     // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
     if (this.client.isReconnecting) {
       this.clearReconnectTimeout();
       this.attemptReconnect(ReconnectReason.RR_SIGNAL_DISCONNECTED);
     }
-  }
+  };
 
   private registerOnLineListener() {
     if (isWeb()) {

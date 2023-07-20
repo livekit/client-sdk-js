@@ -1,4 +1,3 @@
-import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate } from '../stats';
@@ -207,8 +206,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     this.sourceNode = undefined;
   }
 
-  @bound
-  protected async monitorReceiver() {
+  protected monitorReceiver = async () => {
     if (!this.receiver) {
       this._currentBitrate = 0;
       return;
@@ -220,7 +218,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     }
 
     this.prevStats = stats;
-  }
+  };
 
   protected async getReceiverStats(): Promise<AudioReceiverStats | undefined> {
     if (!this.receiver || !this.receiver.getStats) {

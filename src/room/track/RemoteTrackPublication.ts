@@ -1,4 +1,3 @@
-import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import {
   ParticipantTracks,
@@ -265,33 +264,30 @@ export default class RemoteTrackPublication extends TrackPublication {
     return true;
   }
 
-  @bound
-  protected handleEnded(track: RemoteTrack) {
+  protected handleEnded = (track: RemoteTrack) => {
     this.setTrack(undefined);
     this.emit(TrackEvent.Ended, track);
-  }
+  };
 
   protected get isAdaptiveStream(): boolean {
     return this.track instanceof RemoteVideoTrack && this.track.isAdaptiveStream;
   }
 
-  @bound
-  protected handleVisibilityChange(visible: boolean) {
+  protected handleVisibilityChange = (visible: boolean) => {
     log.debug(`adaptivestream video visibility ${this.trackSid}, visible=${visible}`, {
       trackSid: this.trackSid,
     });
     this.disabled = !visible;
     this.emitTrackUpdate();
-  }
+  };
 
-  @bound
-  protected handleVideoDimensionsChange(dimensions: Track.Dimensions) {
+  protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
     log.debug(`adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`, {
       trackSid: this.trackSid,
     });
     this.videoDimensions = dimensions;
     this.emitTrackUpdate();
-  }
+  };
 
   /* @internal */
   emitTrackUpdate() {

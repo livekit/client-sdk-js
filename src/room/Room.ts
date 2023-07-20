@@ -2,7 +2,6 @@ import { protoInt64 } from '@bufbuild/protobuf';
 import EventEmitter from 'eventemitter3';
 import 'webrtc-adapter';
 import { toProtoSessionDescription } from '../api/SignalClient';
-import { bound } from '../decorators/autoBind';
 import { EncryptionEvent } from '../e2ee';
 import { E2EEManager } from '../e2ee/E2eeManager';
 import log from '../logger';
@@ -379,8 +378,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
   }
 
-  @bound
-  async connect(url: string, token: string, opts?: RoomConnectOptions): Promise<void> {
+  connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
     // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
     const unlockDisconnect = await this.disconnectLock.lock();
 
@@ -479,17 +477,16 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     );
 
     return this.connectFuture.promise;
-  }
+  };
 
-  @bound
-  private async connectSignal(
+  private connectSignal = async (
     url: string,
     token: string,
     engine: RTCEngine,
     connectOptions: InternalRoomConnectOptions,
     roomOptions: InternalRoomOptions,
     abortController: AbortController,
-  ): Promise<JoinResponse> {
+  ): Promise<JoinResponse> => {
     const joinResponse = await engine.join(
       url,
       token,
@@ -526,10 +523,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     return joinResponse;
-  }
+  };
 
-  @bound
-  private applyJoinResponse(joinResponse: JoinResponse) {
+  private applyJoinResponse = (joinResponse: JoinResponse) => {
     const pi = joinResponse.participant!;
 
     this.localParticipant.sid = pi.sid;
@@ -541,15 +537,14 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (joinResponse.room) {
       this.handleRoomUpdate(joinResponse.room);
     }
-  }
+  };
 
-  @bound
-  private async attemptConnection(
+  private attemptConnection = async (
     url: string,
     token: string,
     opts: RoomConnectOptions | undefined,
     abortController: AbortController,
-  ) {
+  ) => {
     if (this.state === ConnectionState.Reconnecting) {
       log.info('Reconnection attempt replaced by new connection attempt');
       // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
@@ -632,13 +627,12 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Connected);
     this.registerConnectionReconcile();
-  }
+  };
 
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
-  @bound
-  async disconnect(stopTracks = true) {
+  disconnect = async (stopTracks = true) => {
     const unlock = await this.disconnectLock.lock();
     try {
       if (this.state === ConnectionState.Disconnected) {
@@ -671,7 +665,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     } finally {
       unlock();
     }
-  }
+  };
 
   /**
    * retrieves a participant by identity
@@ -1021,8 +1015,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     );
   }
 
-  @bound
-  private handleRestarting() {
+  private handleRestarting = () => {
     this.clearConnectionReconcile();
     // also unwind existing participants & existing subscriptions
     for (const p of this.participants.values()) {
@@ -1032,10 +1025,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
       this.emit(RoomEvent.Reconnecting);
     }
-  }
+  };
 
-  @bound
-  private async handleSignalRestarted(joinResponse: JoinResponse) {
+  private handleSignalRestarted = async (joinResponse: JoinResponse) => {
     log.debug(`signal reconnected to server`, {
       region: joinResponse.serverRegion,
     });
@@ -1096,7 +1088,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     this.participants.forEach((participant) => {
       this.emit(RoomEvent.ParticipantConnected, participant);
     });
-  }
+  };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
     this.clearConnectionReconcile();
@@ -1159,8 +1151,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
   }
 
-  @bound
-  private handleParticipantUpdates(participantInfos: ParticipantInfo[]) {
+  private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
       if (info.identity === this.localParticipant.identity) {
@@ -1190,7 +1181,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         }
       }
     });
-  }
+  };
 
   private handleParticipantDisconnected(sid: string, participant?: RemoteParticipant) {
     // remove and send event
@@ -1207,8 +1198,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   }
 
   // updates are sent only when there's a change to speaker ordering
-  @bound
-  private handleActiveSpeakersUpdate(speakers: SpeakerInfo[]) {
+  private handleActiveSpeakersUpdate = (speakers: SpeakerInfo[]) => {
     const activeSpeakers: Participant[] = [];
     const seenSids: any = {};
     speakers.forEach((speaker) => {
@@ -1240,11 +1230,10 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
     this.activeSpeakers = activeSpeakers;
     this.emitWhenConnected(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
-  }
+  };
 
   // process list of changed speakers
-  @bound
-  private handleSpeakersChanged(speakerUpdates: SpeakerInfo[]) {
+  private handleSpeakersChanged = (speakerUpdates: SpeakerInfo[]) => {
     const lastSpeakers = new Map<string, Participant>();
     this.activeSpeakers.forEach((p) => {
       lastSpeakers.set(p.sid, p);
@@ -1270,10 +1259,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     activeSpeakers.sort((a, b) => b.audioLevel - a.audioLevel);
     this.activeSpeakers = activeSpeakers;
     this.emitWhenConnected(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
-  }
+  };
 
-  @bound
-  private handleStreamStateUpdate(streamStateUpdate: StreamStateUpdate) {
+  private handleStreamStateUpdate = (streamStateUpdate: StreamStateUpdate) => {
     streamStateUpdate.streamStates.forEach((streamState) => {
       const participant = this.participants.get(streamState.participantSid);
       if (!participant) {
@@ -1292,10 +1280,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         participant,
       );
     });
-  }
+  };
 
-  @bound
-  private handleSubscriptionPermissionUpdate(update: SubscriptionPermissionUpdate) {
+  private handleSubscriptionPermissionUpdate = (update: SubscriptionPermissionUpdate) => {
     const participant = this.participants.get(update.participantSid);
     if (!participant) {
       return;
@@ -1306,10 +1293,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     pub.setAllowed(update.allowed);
-  }
+  };
 
-  @bound
-  private handleSubscriptionError(update: SubscriptionResponse) {
+  private handleSubscriptionError = (update: SubscriptionResponse) => {
     const participant = Array.from(this.participants.values()).find((p) =>
       p.tracks.has(update.trackSid),
     );
@@ -1322,10 +1308,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     }
 
     pub.setSubscriptionError(update.err);
-  }
+  };
 
-  @bound
-  private handleDataPacket(userPacket: UserPacket, kind: DataPacket_Kind) {
+  private handleDataPacket = (userPacket: UserPacket, kind: DataPacket_Kind) => {
     // find the participant
     const participant = this.participants.get(userPacket.participantSid);
 
@@ -1333,34 +1318,30 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
     // also emit on the participant
     participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
-  }
+  };
 
-  @bound
-  private handleAudioPlaybackStarted() {
+  private handleAudioPlaybackStarted = () => {
     if (this.canPlaybackAudio) {
       return;
     }
     this.audioEnabled = true;
     this.emit(RoomEvent.AudioPlaybackStatusChanged, true);
-  }
+  };
 
-  @bound
-  private handleAudioPlaybackFailed(e: any) {
+  private handleAudioPlaybackFailed = (e: any) => {
     log.warn('could not playback audio', e);
     if (!this.canPlaybackAudio) {
       return;
     }
     this.audioEnabled = false;
     this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
-  }
+  };
 
-  @bound
-  private handleDeviceChange() {
+  private handleDeviceChange = async () => {
     this.emit(RoomEvent.MediaDevicesChanged);
-  }
+  };
 
-  @bound
-  private handleRoomUpdate(room: RoomModel) {
+  private handleRoomUpdate = (room: RoomModel) => {
     const oldRoom = this.roomInfo;
     this.roomInfo = room;
     if (oldRoom && oldRoom.metadata !== room.metadata) {
@@ -1369,10 +1350,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     if (oldRoom?.activeRecording !== room.activeRecording) {
       this.emitWhenConnected(RoomEvent.RecordingStatusChanged, room.activeRecording);
     }
-  }
+  };
 
-  @bound
-  private handleConnectionQualityUpdate(update: ConnectionQualityUpdate) {
+  private handleConnectionQualityUpdate = (update: ConnectionQualityUpdate) => {
     update.updates.forEach((info) => {
       if (info.participantSid === this.localParticipant.sid) {
         this.localParticipant.setConnectionQuality(info.quality);
@@ -1383,7 +1363,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         participant.setConnectionQuality(info.quality);
       }
     });
-  }
+  };
 
   private async acquireAudioContext() {
     if (
@@ -1639,28 +1619,23 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     return false;
   }
 
-  @bound
-  private onLocalParticipantMetadataChanged(metadata: string | undefined) {
+  private onLocalParticipantMetadataChanged = (metadata: string | undefined) => {
     this.emit(RoomEvent.ParticipantMetadataChanged, metadata, this.localParticipant);
-  }
+  };
 
-  @bound
-  private onLocalParticipantNameChanged(name: string) {
+  private onLocalParticipantNameChanged = (name: string) => {
     this.emit(RoomEvent.ParticipantNameChanged, name, this.localParticipant);
-  }
+  };
 
-  @bound
-  private onLocalTrackMuted(pub: TrackPublication) {
+  private onLocalTrackMuted = (pub: TrackPublication) => {
     this.emit(RoomEvent.TrackMuted, pub, this.localParticipant);
-  }
+  };
 
-  @bound
-  private onLocalTrackUnmuted(pub: TrackPublication) {
+  private onLocalTrackUnmuted = (pub: TrackPublication) => {
     this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
-  }
+  };
 
-  @bound
-  private async onLocalTrackPublished(pub: LocalTrackPublication) {
+  private onLocalTrackPublished = async (pub: LocalTrackPublication) => {
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
     if (pub.track instanceof LocalAudioTrack) {
       const trackIsSilent = await pub.track.checkForSilence();
@@ -1678,27 +1653,23 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
       this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
     }
-  }
+  };
 
-  @bound
-  private onLocalTrackUnpublished(pub: LocalTrackPublication) {
+  private onLocalTrackUnpublished = (pub: LocalTrackPublication) => {
     this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
-  }
+  };
 
-  @bound
-  private onLocalConnectionQualityChanged(quality: ConnectionQuality) {
+  private onLocalConnectionQualityChanged = (quality: ConnectionQuality) => {
     this.emit(RoomEvent.ConnectionQualityChanged, quality, this.localParticipant);
-  }
+  };
 
-  @bound
-  private onMediaDevicesError(e: Error) {
+  private onMediaDevicesError = (e: Error) => {
     this.emit(RoomEvent.MediaDevicesError, e);
-  }
+  };
 
-  @bound
-  private onLocalParticipantPermissionsChanged(prevPermissions?: ParticipantPermission) {
+  private onLocalParticipantPermissionsChanged = (prevPermissions?: ParticipantPermission) => {
     this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, this.localParticipant);
-  }
+  };
 
   /**
    * Allows to populate a room with simulated participants.

@@ -1,5 +1,4 @@
 import EventEmitter from 'eventemitter3';
-import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { Encryption_Type } from '../../proto/livekit_models_pb';
 import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models_pb';
@@ -97,15 +96,13 @@ export class TrackPublication extends EventEmitter<PublicationEventCallbacks> {
     }
   }
 
-  @bound
-  handleMuted() {
+  handleMuted = () => {
     this.emit(TrackEvent.Muted);
-  }
+  };
 
-  @bound
-  handleUnmuted() {
+  handleUnmuted = () => {
     this.emit(TrackEvent.Unmuted);
-  }
+  };
 
   /** @internal */
   updateInfo(info: TrackInfo) {
