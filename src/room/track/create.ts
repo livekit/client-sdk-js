@@ -2,7 +2,6 @@ import DeviceManager from '../DeviceManager';
 import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
-import { isSafari } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
@@ -14,7 +13,11 @@ import type {
   ScreenShareCaptureOptions,
   VideoCaptureOptions,
 } from './options';
-import { constraintsForOptions, mergeDefaultOptions } from './utils';
+import {
+  constraintsForOptions,
+  mergeDefaultOptions,
+  screenCaptureToDisplayMediaStreamOptions,
+} from './utils';
 
 /**
  * Creates a local video and audio track at the same time. When acquiring both
@@ -117,36 +120,12 @@ export async function createLocalScreenTracks(
     options.resolution = ScreenSharePresets.h1080fps15.resolution;
   }
 
-  let videoConstraints: MediaTrackConstraints | boolean = true;
-  if (options.resolution) {
-    if (isSafari()) {
-      videoConstraints = {
-        width: { max: options.resolution.width },
-        height: { max: options.resolution.height },
-        frameRate: options.resolution.frameRate,
-      };
-    } else {
-      videoConstraints = {
-        width: { ideal: options.resolution.width },
-        height: { ideal: options.resolution.height },
-        frameRate: options.resolution.frameRate,
-      };
-    }
-  }
-
   if (navigator.mediaDevices.getDisplayMedia === undefined) {
     throw new DeviceUnsupportedError('getDisplayMedia not supported');
   }
 
-  const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
-    audio: options.audio ?? false,
-    video: videoConstraints,
-    // @ts-expect-error support for experimental display media features
-    controller: options.controller,
-    selfBrowserSurface: options.selfBrowserSurface,
-    surfaceSwitching: options.surfaceSwitching,
-    systemAudio: options.systemAudio,
-  });
+  const constraints = screenCaptureToDisplayMediaStreamOptions(options);
+  const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia(constraints);
 
   const tracks = stream.getVideoTracks();
   if (tracks.length === 0) {

@@ -1,6 +1,11 @@
-import { sleep } from '../utils';
+import { isSafari, sleep } from '../utils';
 import { Track } from './Track';
-import type { AudioCaptureOptions, CreateLocalTracksOptions, VideoCaptureOptions } from './options';
+import type {
+  AudioCaptureOptions,
+  CreateLocalTracksOptions,
+  ScreenShareCaptureOptions,
+  VideoCaptureOptions,
+} from './options';
 import type { AudioTrack } from './types';
 
 export function mergeDefaultOptions(
@@ -138,4 +143,41 @@ export function sourceToKind(source: Track.Source): MediaDeviceKind | undefined 
   } else {
     return undefined;
   }
+}
+
+/**
+ * @internal
+ */
+export function screenCaptureToDisplayMediaStreamOptions(
+  options: ScreenShareCaptureOptions,
+): DisplayMediaStreamOptions {
+  let videoConstraints: MediaTrackConstraints | boolean = options.video ?? true;
+  if (options.resolution) {
+    videoConstraints = typeof videoConstraints === 'boolean' ? {} : videoConstraints;
+    if (isSafari()) {
+      videoConstraints = {
+        ...videoConstraints,
+        width: { max: options.resolution.width },
+        height: { max: options.resolution.height },
+        frameRate: options.resolution.frameRate,
+      };
+    } else {
+      videoConstraints = {
+        ...videoConstraints,
+        width: { ideal: options.resolution.width },
+        height: { ideal: options.resolution.height },
+        frameRate: options.resolution.frameRate,
+      };
+    }
+  }
+
+  return {
+    audio: options.audio ?? false,
+    video: videoConstraints,
+    // @ts-expect-error support for experimental display media features
+    controller: options.controller,
+    selfBrowserSurface: options.selfBrowserSurface,
+    surfaceSwitching: options.surfaceSwitching,
+    systemAudio: options.systemAudio,
+  };
 }
