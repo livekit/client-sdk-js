@@ -3,8 +3,12 @@ import { compareVersions } from '../room/utils';
 import { getBrowser } from './browserParser';
 
 describe('browser parser', () => {
-  const safariUA =
+  const macOSSafariUA =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15';
+
+  const iOSSafariUA =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1';
+
   const firefoxUA =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/112.0';
 
@@ -14,10 +18,17 @@ describe('browser parser', () => {
   const braveUA =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36';
 
-  it('parses Safari correctly', () => {
-    const details = getBrowser(safariUA, true);
+  it('parses Safari macOS correctly', () => {
+    const details = getBrowser(macOSSafariUA, true);
     expect(details?.name).toBe('Safari');
     expect(details?.version).toBe('16.3');
+    expect(details?.os).toBe('macOS');
+  });
+  it('parses Safari iOS correctly', () => {
+    const details = getBrowser(iOSSafariUA, true);
+    expect(details?.name).toBe('Safari');
+    expect(details?.version).toBe('16.5');
+    expect(details?.os).toBe('iOS');
   });
   it('parses Firefox correctly', () => {
     const details = getBrowser(firefoxUA, true);
