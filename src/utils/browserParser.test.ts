@@ -12,8 +12,14 @@ describe('browser parser', () => {
   const firefoxUA =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/112.0';
 
+  const iOSFirefoxUA =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 13_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/115.0 Mobile/15E148 Safari/605.1.15';
+
   const chromeUA =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36';
+
+  const iOSChromeUA =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/115.0.5790.130 Mobile/15E148 Safari/604.11';
 
   const braveUA =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36';
@@ -35,10 +41,22 @@ describe('browser parser', () => {
     expect(details?.name).toBe('Firefox');
     expect(details?.version).toBe('112.0');
   });
+  it('parses iOS Firefox correctly', () => {
+    const details = getBrowser(iOSFirefoxUA, true);
+    expect(details?.name).toBe('Firefox');
+    expect(details?.version).toBe('115.0');
+    expect(details?.os).toBe('iOS');
+  });
   it('parses Chrome correctly', () => {
     const details = getBrowser(chromeUA, true);
     expect(details?.name).toBe('Chrome');
     expect(details?.version).toBe('112.0.0.0');
+  });
+  it('parses iOS Chrome correctly', () => {
+    const details = getBrowser(iOSChromeUA, true);
+    expect(details?.name).toBe('Chrome');
+    expect(details?.version).toBe('115.0.5790.130');
+    expect(details?.os).toBe('iOS');
   });
   it('detects brave as chromium based', () => {
     const details = getBrowser(braveUA, true);
