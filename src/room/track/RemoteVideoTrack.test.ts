@@ -1,9 +1,10 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import MockMediaStreamTrack from '../../test/MockMediaStreamTrack';
 import { TrackEvent } from '../events';
 import RemoteVideoTrack, { ElementInfo } from './RemoteVideoTrack';
 import type { Track } from './Track';
 
-jest.useFakeTimers();
+vi.useFakeTimers();
 
 describe('RemoteVideoTrack', () => {
   let track: RemoteVideoTrack;
@@ -73,7 +74,7 @@ describe('RemoteVideoTrack', () => {
       elementInfo.setDimensions(100, 100);
 
       track.observeElementInfo(elementInfo);
-      jest.runAllTimers();
+      vi.runAllTimers();
 
       expect(events).toHaveLength(1);
       expect(events[0].width).toBe(100);
@@ -85,10 +86,10 @@ describe('RemoteVideoTrack', () => {
       elementInfo.setDimensions(100, 100);
 
       track.observeElementInfo(elementInfo);
-      jest.runAllTimers();
+      vi.runAllTimers();
 
       elementInfo.setDimensions(200, 200);
-      jest.runAllTimers();
+      vi.runAllTimers();
 
       expect(events).toHaveLength(2);
       expect(events[1].width).toBe(200);

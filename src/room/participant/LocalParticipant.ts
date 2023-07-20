@@ -6,15 +6,17 @@ import {
   Encryption_Type,
   ParticipantInfo,
   ParticipantPermission,
-} from '../../proto/livekit_models';
+  UserPacket,
+} from '../../proto/livekit_models_pb';
 import {
   AddTrackRequest,
   DataChannelInfo,
   SignalTarget,
+  SimulcastCodec,
   SubscribedQualityUpdate,
   TrackPublishedResponse,
   TrackUnpublishedResponse,
-} from '../../proto/livekit_rtc';
+} from '../../proto/livekit_rtc_pb';
 import type RTCEngine from '../RTCEngine';
 import { DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
@@ -585,7 +587,7 @@ export default class LocalParticipant extends Participant {
     if (opts.source) {
       track.source = opts.source;
     }
-    const publishPromise = this.publish(track, opts, options, isStereo);
+    const publishPromise = this.publish(track, opts, isStereo);
     this.pendingPublishPromises.set(track, publishPromise);
     try {
       const publication = await publishPromise;
@@ -597,12 +599,7 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-  private async publish(
-    track: LocalTrack,
-    opts: TrackPublishOptions,
-    options: TrackPublishOptions | undefined,
-    isStereo: boolean,
-  ) {
+  private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
     const existingTrackOfSource = Array.from(this.tracks.values()).find(
       (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
     );
@@ -646,10 +643,10 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
 
     // create track publication from track
-    const req = AddTrackRequest.fromPartial({
+    const req = new AddTrackRequest({
       // get local track id for use during publishing
       cid: track.mediaStreamTrack.id,
-      name: options?.name,
+      name: opts.name,
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
@@ -698,26 +695,26 @@ export default class LocalParticipant extends Participant {
           simEncodings = computeTrackBackupEncodings(track, opts.backupCodec.codec, simOpts);
 
           req.simulcastCodecs = [
-            {
+            new SimulcastCodec({
               codec: opts.videoCodec,
               cid: track.mediaStreamTrack.id,
               enableSimulcastLayers: true,
-            },
-            {
+            }),
+            new SimulcastCodec({
               codec: opts.backupCodec.codec,
               cid: '',
               enableSimulcastLayers: true,
-            },
+            }),
           ];
         } else if (opts.videoCodec) {
           // pass codec info to sfu so it can prefer codec for the client which don't support
           // setCodecPreferences
           req.simulcastCodecs = [
-            {
+            new SimulcastCodec({
               codec: opts.videoCodec,
               cid: track.mediaStreamTrack.id,
               enableSimulcastLayers: opts.simulcast ?? false,
-            },
+            }),
           ];
         }
       }
@@ -879,7 +876,7 @@ export default class LocalParticipant extends Participant {
       return;
     }
     const simulcastTrack = track.addSimulcastTrack(videoCodec, encodings);
-    const req = AddTrackRequest.fromPartial({
+    const req = new AddTrackRequest({
       cid: simulcastTrack.mediaStreamTrack.id,
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
@@ -1099,18 +1096,18 @@ export default class LocalParticipant extends Participant {
       });
     }
 
-    const packet: DataPacket = {
+    const packet = new DataPacket({
       kind,
       value: {
-        $case: 'user',
-        user: {
+        case: 'user',
+        value: new UserPacket({
           participantSid: this.sid,
           payload: data,
           destinationSids: destinationSids,
           topic,
-        },
+        }),
       },
-    };
+    });
 
     await this.engine.sendDataPacket(packet, kind);
   }
@@ -1333,10 +1330,12 @@ export default class LocalParticipant extends Participant {
     const infos: TrackPublishedResponse[] = [];
     this.tracks.forEach((track: LocalTrackPublication) => {
       if (track.track !== undefined) {
-        infos.push({
-          cid: track.track.mediaStreamID,
-          track: track.trackInfo,
-        });
+        infos.push(
+          new TrackPublishedResponse({
+            cid: track.track.mediaStreamID,
+            track: track.trackInfo,
+          }),
+        );
       }
     });
     return infos;
@@ -1347,11 +1346,13 @@ export default class LocalParticipant extends Participant {
     const infos: DataChannelInfo[] = [];
     const getInfo = (dc: RTCDataChannel | undefined, target: SignalTarget) => {
       if (dc?.id !== undefined && dc.id !== null) {
-        infos.push({
-          label: dc.label,
-          id: dc.id,
-          target,
-        });
+        infos.push(
+          new DataChannelInfo({
+            label: dc.label,
+            id: dc.id,
+            target,
+          }),
+        );
       }
     };
     getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);

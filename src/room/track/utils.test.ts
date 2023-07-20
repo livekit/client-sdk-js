@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { AudioCaptureOptions, VideoCaptureOptions, VideoPresets } from './options';
 import { constraintsForOptions, mergeDefaultOptions } from './utils';
 

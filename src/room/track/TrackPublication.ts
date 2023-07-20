@@ -1,8 +1,8 @@
 import EventEmitter from 'eventemitter3';
 import log from '../../logger';
-import { Encryption_Type } from '../../proto/livekit_models';
-import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models';
-import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc';
+import { Encryption_Type } from '../../proto/livekit_models_pb';
+import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models_pb';
+import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalVideoTrack from './LocalVideoTrack';

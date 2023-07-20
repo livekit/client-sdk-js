@@ -2,11 +2,12 @@ import DeviceManager from '../DeviceManager';
 import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
+import { isSafari } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
-import { VideoPresets } from './options';
+import { ScreenSharePresets } from './options';
 import type {
   AudioCaptureOptions,
   CreateLocalTracksOptions,
@@ -113,26 +114,38 @@ export async function createLocalScreenTracks(
     options = {};
   }
   if (options.resolution === undefined) {
-    options.resolution = VideoPresets.h1080.resolution;
+    options.resolution = ScreenSharePresets.h1080fps15.resolution;
   }
 
   let videoConstraints: MediaTrackConstraints | boolean = true;
   if (options.resolution) {
-    videoConstraints = {
-      width: options.resolution.width,
-      height: options.resolution.height,
-    };
+    if (isSafari()) {
+      videoConstraints = {
+        width: { max: options.resolution.width },
+        height: { max: options.resolution.height },
+        frameRate: options.resolution.frameRate,
+      };
+    } else {
+      videoConstraints = {
+        width: { ideal: options.resolution.width },
+        height: { ideal: options.resolution.height },
+        frameRate: options.resolution.frameRate,
+      };
+    }
   }
 
   if (navigator.mediaDevices.getDisplayMedia === undefined) {
     throw new DeviceUnsupportedError('getDisplayMedia not supported');
   }
 
-  // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
-  // @ts-ignore
   const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
     audio: options.audio ?? false,
     video: videoConstraints,
+    // @ts-expect-error support for experimental display media features
+    controller: options.controller,
+    selfBrowserSurface: options.selfBrowserSurface,
+    surfaceSwitching: options.surfaceSwitching,
+    systemAudio: options.systemAudio,
   });
 
   const tracks = stream.getVideoTracks();
