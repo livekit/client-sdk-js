@@ -321,6 +321,9 @@ export default class LocalParticipant extends Participant {
           // revisit if we want to return an array of tracks instead for v2
           [track] = publishedTracks;
         } catch (e) {
+          localTracks?.forEach((tr) => {
+            tr.stop();
+          });
           if (e instanceof Error && !(e instanceof TrackInvalidError)) {
             this.emit(ParticipantEvent.MediaDevicesError, e);
           }
