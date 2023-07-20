@@ -1051,6 +1051,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
           if (!track.isMuted) {
             if (
               (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
+              track.source !== Track.Source.ScreenShare &&
+              track.source !== Track.Source.ScreenShareAudio &&
               !track.isUserProvided
             ) {
               // we need to restart the track before publishing, often a full reconnect
