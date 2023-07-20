@@ -800,7 +800,6 @@ class Room extends EventEmitter<RoomEventCallbacks> {
       const audioId = 'livekit-dummy-audio-el';
       let dummyAudioEl = document.getElementById(audioId) as HTMLAudioElement | null;
       if (!dummyAudioEl) {
-        alert('created audio element');
         dummyAudioEl = document.createElement('audio');
         dummyAudioEl.id = audioId;
         dummyAudioEl.autoplay = true;
