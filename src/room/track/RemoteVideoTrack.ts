@@ -1,5 +1,4 @@
 import { debounce } from 'ts-debounce';
-import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
@@ -360,17 +359,15 @@ class HTMLElementInfo implements ElementInfo {
     }
   };
 
-  @bound
-  private onEnterPiP() {
+  private onEnterPiP = () => {
     this.isPiP = true;
     this.handleVisibilityChanged?.();
-  }
+  };
 
-  @bound
-  private onLeavePiP() {
+  private onLeavePiP = () => {
     this.isPiP = false;
     this.handleVisibilityChanged?.();
-  }
+  };
 
   stopObserving() {
     getIntersectionObserver()?.unobserve(this.element);

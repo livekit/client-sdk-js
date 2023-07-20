@@ -1,4 +1,3 @@
-import { bound } from '../../decorators/autoBind';
 import type { TrackInfo } from '../../proto/livekit_models_pb';
 import { TrackEvent } from '../events';
 import type LocalAudioTrack from './LocalAudioTrack';
@@ -82,8 +81,7 @@ export default class LocalTrackPublication extends TrackPublication {
     await this.track?.resumeUpstream();
   }
 
-  @bound
-  handleTrackEnded() {
+  handleTrackEnded = () => {
     this.emit(TrackEvent.Ended);
-  }
+  };
 }
