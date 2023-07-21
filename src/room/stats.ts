@@ -27,6 +27,8 @@ export interface AudioSenderStats extends SenderStats {
   type: 'audio';
 }
 
+export type QualityLimitationReason = 'bandwidth' | 'cpu' | 'other' | 'none';
+
 export interface VideoSenderStats extends SenderStats {
   type: 'video';
 
@@ -45,7 +47,9 @@ export interface VideoSenderStats extends SenderStats {
   framesSent: number;
 
   // bandwidth, cpu, other, none
-  qualityLimitationReason: string;
+  qualityLimitationReason: QualityLimitationReason;
+
+  qualityLimitationDurations: Record<QualityLimitationReason, number>;
 
   qualityLimitationResolutionChanges: number;
 
@@ -106,6 +110,10 @@ export interface VideoReceiverStats extends ReceiverStats {
   nackCount?: number;
 
   decoderImplementation?: string;
+
+  freezeCount?: number;
+
+  totalFreezeDuration?: number;
 }
 
 export function computeBitrate<T extends ReceiverStats | SenderStats>(

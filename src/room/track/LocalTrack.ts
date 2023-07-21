@@ -1,8 +1,10 @@
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
+import type { AudioSenderStats, VideoSenderStats } from '../stats';
 import { Mutex, compareVersions, isMobile, sleep } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
@@ -280,14 +282,15 @@ export default abstract class LocalTrack extends Track {
     }
   }
 
-  private handleEnded = () => {
+  @bound
+  private handleEnded() {
     if (this.isInBackground) {
       this.reacquireTrack = true;
     }
     this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
     this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
     this.emit(TrackEvent.Ended, this);
-  };
+  }
 
   stop() {
     super.stop();
@@ -329,7 +332,8 @@ export default abstract class LocalTrack extends Track {
     }
   };
 
-  resumeUpstream = async () => {
+  @bound
+  async resumeUpstream() {
     const unlock = await this.pauseUpstreamLock.lock();
     try {
       if (this._isUpstreamPaused === false) {
@@ -347,7 +351,7 @@ export default abstract class LocalTrack extends Track {
     } finally {
       unlock();
     }
-  };
+  }
 
   /**
    * Sets a processor on this track.
@@ -427,4 +431,6 @@ export default abstract class LocalTrack extends Track {
   }
 
   protected abstract monitorSender(): void;
+
+  public abstract getSenderStats(): Promise<AudioSenderStats | VideoSenderStats[] | undefined>;
 }

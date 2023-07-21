@@ -1,3 +1,5 @@
+import { bound } from '../../decorators/autoBind';
+import { recordExceptionAsync } from '../../decorators/recordException';
 import log from '../../logger';
 import type { InternalRoomOptions } from '../../options';
 import {
@@ -148,25 +150,28 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.Disconnected, this.handleDisconnected);
   }
 
-  private handleReconnecting = () => {
+  @bound
+  private handleReconnecting() {
     if (!this.reconnectFuture) {
       this.reconnectFuture = new Future<void>();
     }
-  };
+  }
 
-  private handleReconnected = () => {
+  @bound
+  private handleReconnected() {
     this.reconnectFuture?.resolve?.();
     this.reconnectFuture = undefined;
     this.updateTrackSubscriptionPermissions();
-  };
+  }
 
-  private handleDisconnected = () => {
+  @bound
+  private handleDisconnected() {
     if (this.reconnectFuture) {
       this.reconnectFuture.promise.catch((e) => log.warn(e));
       this.reconnectFuture?.reject?.('Got disconnected during reconnection attempt');
       this.reconnectFuture = undefined;
     }
-  };
+  }
 
   /**
    * Sets and updates the metadata of the local participant.
@@ -267,6 +272,7 @@ export default class LocalParticipant extends Participant {
     options?: ScreenShareCaptureOptions,
     publishOptions?: TrackPublishOptions,
   ): Promise<LocalTrackPublication | undefined>;
+  @recordExceptionAsync
   private async setTrackEnabled(
     source: Track.Source,
     enabled: true,
@@ -469,6 +475,7 @@ export default class LocalParticipant extends Participant {
    * @param track
    * @param options
    */
+  @recordExceptionAsync
   async publishTrack(
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
@@ -820,7 +827,8 @@ export default class LocalParticipant extends Participant {
     return true;
   }
 
-  /** @internal
+  /**
+   * @internal
    * publish additional codec to existing track
    */
   async publishAdditionalCodecForTrack(
@@ -891,6 +899,7 @@ export default class LocalParticipant extends Participant {
     log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
   }
 
+  @recordExceptionAsync
   async unpublishTrack(
     track: LocalTrack | MediaStreamTrack,
     stopOnUnpublish?: boolean,
@@ -1057,6 +1066,7 @@ export default class LocalParticipant extends Participant {
     destination?: RemoteParticipant[] | string[],
   ): Promise<void>;
 
+  @recordExceptionAsync
   async publishData(
     data: Uint8Array,
     kind: DataPacket_Kind,
@@ -1154,7 +1164,8 @@ export default class LocalParticipant extends Participant {
     return true;
   }
 
-  private updateTrackSubscriptionPermissions = () => {
+  @bound
+  private updateTrackSubscriptionPermissions() {
     log.debug('updating track subscription permissions', {
       allParticipantsAllowed: this.allParticipantsAllowedToSubscribe,
       participantTrackPermissions: this.participantTrackPermissions,
@@ -1163,16 +1174,18 @@ export default class LocalParticipant extends Participant {
       this.allParticipantsAllowedToSubscribe,
       this.participantTrackPermissions.map((p) => trackPermissionToProto(p)),
     );
-  };
+  }
 
   /** @internal */
-  private onTrackUnmuted = (track: LocalTrack) => {
+  @bound
+  private onTrackUnmuted(track: LocalTrack) {
     this.onTrackMuted(track, track.isUpstreamPaused);
-  };
+  }
 
   // when the local track changes in mute status, we'll notify server as such
   /** @internal */
-  private onTrackMuted = (track: LocalTrack, muted?: boolean) => {
+  @bound
+  private onTrackMuted(track: LocalTrack, muted?: boolean) {
     if (muted === undefined) {
       muted = true;
     }
@@ -1183,19 +1196,22 @@ export default class LocalParticipant extends Participant {
     }
 
     this.engine.updateMuteStatus(track.sid, muted);
-  };
+  }
 
-  private onTrackUpstreamPaused = (track: LocalTrack) => {
+  @bound
+  private onTrackUpstreamPaused(track: LocalTrack) {
     log.debug('upstream paused');
     this.onTrackMuted(track, true);
-  };
+  }
 
-  private onTrackUpstreamResumed = (track: LocalTrack) => {
+  @bound
+  private onTrackUpstreamResumed(track: LocalTrack) {
     log.debug('upstream resumed');
     this.onTrackMuted(track, track.isMuted);
-  };
+  }
 
-  private handleSubscribedQualityUpdate = async (update: SubscribedQualityUpdate) => {
+  @bound
+  private async handleSubscribedQualityUpdate(update: SubscribedQualityUpdate) {
     if (!this.roomOptions?.dynacast) {
       return;
     }
@@ -1221,9 +1237,10 @@ export default class LocalParticipant extends Participant {
     } else if (update.subscribedQualities.length > 0) {
       await pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
     }
-  };
+  }
 
-  private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {
+  @bound
+  private handleLocalTrackUnpublished(unpublished: TrackUnpublishedResponse) {
     const track = this.tracks.get(unpublished.trackSid);
     if (!track) {
       log.warn('received unpublished event for unknown track', {
@@ -1233,9 +1250,10 @@ export default class LocalParticipant extends Participant {
       return;
     }
     this.unpublishTrack(track.track!);
-  };
+  }
 
-  private handleTrackEnded = async (track: LocalTrack) => {
+  @bound
+  private async handleTrackEnded(track: LocalTrack) {
     if (
       track.source === Track.Source.ScreenShare ||
       track.source === Track.Source.ScreenShareAudio
@@ -1282,7 +1300,7 @@ export default class LocalParticipant extends Participant {
         await track.mute();
       }
     }
-  };
+  }
 
   private getPublicationForTrack(
     track: LocalTrack | MediaStreamTrack,

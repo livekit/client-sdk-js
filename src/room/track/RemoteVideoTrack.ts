@@ -1,4 +1,5 @@
 import { debounce } from 'ts-debounce';
+import { bound } from '../../decorators/autoBind';
 import log from '../../logger';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
@@ -162,7 +163,10 @@ export default class RemoteVideoTrack extends RemoteTrack {
     this.prevStats = stats;
   };
 
-  private async getReceiverStats(): Promise<VideoReceiverStats | undefined> {
+  /**
+   * @internal
+   */
+  async getReceiverStats(): Promise<VideoReceiverStats | undefined> {
     if (!this.receiver || !this.receiver.getStats) {
       return;
     }
@@ -359,15 +363,17 @@ class HTMLElementInfo implements ElementInfo {
     }
   };
 
-  private onEnterPiP = () => {
+  @bound
+  private onEnterPiP() {
     this.isPiP = true;
     this.handleVisibilityChanged?.();
-  };
+  }
 
-  private onLeavePiP = () => {
+  @bound
+  private onLeavePiP() {
     this.isPiP = false;
     this.handleVisibilityChanged?.();
-  };
+  }
 
   stopObserving() {
     getIntersectionObserver()?.unobserve(this.element);
