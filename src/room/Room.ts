@@ -800,7 +800,15 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         dummyAudioEl.hidden = true;
         const track = getEmptyAudioStreamTrack();
         track.enabled = true;
-        dummyAudioEl.srcObject = new MediaStream([track]);
+        const stream = new MediaStream([track]);
+        dummyAudioEl.srcObject = stream;
+        document.addEventListener('visibilitychange', () => {
+          if (!dummyAudioEl) {
+            return;
+          }
+          // set the srcObject to null on page hide in order to prevent lock screen controls to show up for it
+          dummyAudioEl.srcObject = document.hidden ? null : stream;
+        });
         document.body.append(dummyAudioEl);
         this.once(RoomEvent.Disconnected, () => {
           dummyAudioEl?.remove();

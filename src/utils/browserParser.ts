@@ -60,7 +60,7 @@ const browsersList = [
       const browser: BrowserDetails = {
         name: 'Safari',
         version: getMatch(commonVersionIdentifier, ua),
-        os: ua.includes('Mobile/') ? 'iOS' : 'macOS',
+        os: ua.includes('mobile/') ? 'iOS' : 'macOS',
       };
 
       return browser;
