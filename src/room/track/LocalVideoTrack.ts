@@ -8,6 +8,7 @@ import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
+import type { TrackProcessor } from './processor/types';
 import { constraintsForOptions } from './utils';
 
 export class SimulcastTrackInfo {
@@ -201,7 +202,7 @@ export default class LocalVideoTrack extends LocalTrack {
     );
   }
 
-  async restartTrack(options?: VideoCaptureOptions) {
+  async restartTrack(options?: VideoCaptureOptions, processor?: TrackProcessor<typeof this.kind>) {
     let constraints: MediaTrackConstraints | undefined;
     if (options) {
       const streamConstraints = constraintsForOptions({ video: options });
@@ -209,7 +210,7 @@ export default class LocalVideoTrack extends LocalTrack {
         constraints = streamConstraints.video;
       }
     }
-    await this.restart(constraints);
+    await this.restart(constraints, processor);
   }
 
   addSimulcastTrack(codec: VideoCodec, encodings?: RTCRtpEncodingParameters[]): SimulcastTrackInfo {

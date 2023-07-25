@@ -37,6 +37,8 @@ export default abstract class LocalTrack extends Track {
 
   protected processorLock: Mutex;
 
+  protected resumeUpstreamWithProcessedTrack = false;
+
   /**
    *
    * @param mediaTrack
@@ -98,7 +100,7 @@ export default abstract class LocalTrack extends Track {
     return this.processor?.processedTrack ?? this._mediaStreamTrack;
   }
 
-  private async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean) {
+  private async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean, replace = true) {
     if (newTrack === this._mediaStreamTrack && !force) {
       return;
     }
@@ -127,18 +129,20 @@ export default abstract class LocalTrack extends Track {
       newTrack.addEventListener('unmute', this.resumeUpstream);
       this._constraints = newTrack.getConstraints();
     }
-    if (this.sender) {
+    if (this.sender && replace) {
       await this.sender.replaceTrack(newTrack);
     }
     this._mediaStreamTrack = newTrack;
     if (newTrack) {
       // sync muted state with the enabled state of the newly provided track
       this._mediaStreamTrack.enabled = !this.isMuted;
-      // when a valid track is replace, we'd want to start producing
-      await this.resumeUpstream();
-      this.attachedElements.forEach((el) => {
-        attachToElement(newTrack, el);
-      });
+      if (replace) {
+        // when a valid track is replace, we'd want to start producing
+        await this.resumeUpstream();
+        this.attachedElements.forEach((el) => {
+          attachToElement(newTrack, el);
+        });
+      }
     }
   }
 
@@ -199,7 +203,10 @@ export default abstract class LocalTrack extends Track {
     return this;
   }
 
-  protected async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {
+  protected async restart(
+    constraints?: MediaTrackConstraints,
+    processor?: TrackProcessor<typeof this.kind>,
+  ): Promise<LocalTrack> {
     if (!constraints) {
       constraints = this._constraints;
     }
@@ -233,11 +240,24 @@ export default abstract class LocalTrack extends Track {
     newTrack.addEventListener('ended', this.handleEnded);
     log.debug('re-acquired MediaStreamTrack');
 
-    await this.setMediaStreamTrack(newTrack);
+    if (!processor) {
+      processor = this.processor;
+    }
+    if (processor) {
+      log.debug('restarting track with processor', processor);
+    }
+
+    await this.setMediaStreamTrack(newTrack, false, !processor);
+
     this._constraints = constraints;
-    if (this.processor) {
-      const processor = this.processor;
-      await this.setProcessor(processor);
+
+    if (processor) {
+      await this.setProcessor(processor, true, false, false);
+      if (processor.processedTrack) {
+        await this.sender?.replaceTrack(processor.processedTrack);
+      }
+      this.resumeUpstreamWithProcessedTrack = true;
+      await this.resumeUpstream();
     } else {
       this.attachedElements.forEach((el) => {
         attachToElement(this._mediaStreamTrack, el);
@@ -342,8 +362,16 @@ export default abstract class LocalTrack extends Track {
       this._isUpstreamPaused = false;
       this.emit(TrackEvent.UpstreamResumed, this);
 
+      const track = this.resumeUpstreamWithProcessedTrack
+        ? this.processor?.processedTrack
+        : this._mediaStreamTrack;
+      this.resumeUpstreamWithProcessedTrack = false;
+      if (!track) {
+        log.warn('unable to resume upstream with no track');
+        return;
+      }
       // this operation is noop if mediastreamtrack is already being sent
-      await this.sender.replaceTrack(this._mediaStreamTrack);
+      await this.sender.replaceTrack(track);
     } finally {
       unlock();
     }
@@ -362,12 +390,14 @@ export default abstract class LocalTrack extends Track {
   async setProcessor(
     processor: TrackProcessor<typeof this.kind>,
     showProcessedStreamLocally = true,
+    restart = true,
+    replace = true,
   ) {
     const unlock = await this.processorLock.lock();
     try {
       log.debug('setting up processor');
       if (this.processor) {
-        await this.stopProcessor();
+        await this.stopProcessor(restart);
       }
       if (this.kind === 'unknown') {
         throw TypeError('cannot set processor on track of unknown kind');
@@ -395,7 +425,9 @@ export default abstract class LocalTrack extends Track {
             attachToElement(this.processor.processedTrack, el);
           }
         }
-        await this.sender?.replaceTrack(this.processor.processedTrack);
+        if (replace) {
+          await this.sender?.replaceTrack(this.processor.processedTrack);
+        }
       }
     } finally {
       unlock();
@@ -413,7 +445,7 @@ export default abstract class LocalTrack extends Track {
    * @experimental
    * @returns
    */
-  async stopProcessor() {
+  async stopProcessor(restart = true) {
     if (!this.processor) return;
 
     log.debug('stopping processor');
@@ -422,8 +454,9 @@ export default abstract class LocalTrack extends Track {
     this.processor = undefined;
     this.processorElement?.remove();
     this.processorElement = undefined;
-
-    await this.restart();
+    if (restart) {
+      await this.restart();
+    }
   }
 
   protected abstract monitorSender(): void;
