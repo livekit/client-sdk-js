@@ -435,7 +435,8 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         if (
           this.regionUrlProvider &&
           e instanceof ConnectionError &&
-          e.reason !== ConnectionErrorReason.Cancelled
+          e.reason !== ConnectionErrorReason.Cancelled &&
+          e.reason !== ConnectionErrorReason.NotAllowed
         ) {
           let nextUrl: string | null = null;
           try {
