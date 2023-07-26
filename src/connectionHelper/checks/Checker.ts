@@ -67,7 +67,6 @@ export abstract class Checker extends EventEmitter<CheckerCallbacks> {
       throw Error('check is running already');
     }
     this.setStatus(CheckStatus.RUNNING);
-    this.appendMessage(`${this.name} started.`);
 
     try {
       await this.perform();
