@@ -1,6 +1,6 @@
 import EventEmitter from 'eventemitter3';
 import { workerLogger } from '../../logger';
-import { DECRYPTION_FAILURE_TOLERANCE, KEYRING_SIZE } from '../constants';
+import { KEYRING_SIZE } from '../constants';
 import type { KeyProviderOptions, KeySet, ParticipantKeyHandlerCallbacks } from '../types';
 import { deriveKeys, importKey, ratchet } from '../utils';
 
