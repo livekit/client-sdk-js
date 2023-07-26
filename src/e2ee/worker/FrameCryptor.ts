@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
@@ -26,7 +27,7 @@ export interface TransformerInfo {
   abortController: AbortController;
 }
 
-export class BaseFrameCryptor extends EventEmitter<CryptorCallbacks> {
+export class BaseFrameCryptor extends (EventEmitter as new () => TypedEventEmitter<CryptorCallbacks>) {
   encodeFunction(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,

@@ -1,5 +1,6 @@
 import { protoInt64 } from '@bufbuild/protobuf';
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
 import { toProtoSessionDescription } from '../api/SignalClient';
 import { EncryptionEvent } from '../e2ee';
@@ -98,7 +99,7 @@ export const RoomState = ConnectionState;
  *
  * @noInheritDoc
  */
-class Room extends EventEmitter<RoomEventCallbacks> {
+class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
   /** map of sid: [[RemoteParticipant]] */
@@ -157,6 +158,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    */
   constructor(options?: RoomOptions) {
     super();
+    this.setMaxListeners(100);
     this.participants = new Map();
     this.cachedParticipantSids = [];
     this.identityToSid = new Map();
@@ -1620,9 +1622,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     return true;
   }
 
-  private emitWhenConnected<T extends EventEmitter.EventNames<RoomEventCallbacks>>(
-    event: T,
-    ...args: EventEmitter.EventArgs<RoomEventCallbacks, T>
+  private emitWhenConnected<E extends keyof RoomEventCallbacks>(
+    event: E,
+    ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
     if (this.state === ConnectionState.Connected) {
       return this.emit(event, ...args);
@@ -1811,14 +1813,10 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   }
 
   // /** @internal */
-  emit<T extends EventEmitter.EventNames<RoomEventCallbacks>>(
-    event: T,
-    ...args: EventEmitter.EventArgs<RoomEventCallbacks, T>
+  emit<E extends keyof RoomEventCallbacks>(
+    event: E,
+    ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
-    // emit<E extends keyof RoomEventCallbacks>(
-    //   event: E,
-    //   ...args: Parameters<RoomEventCallbacks[E]>
-    // ): boolean {
     // active speaker updates are too spammy
     if (event !== RoomEvent.ActiveSpeakersChanged) {
       log.debug(`room event ${event}`, { event, args });

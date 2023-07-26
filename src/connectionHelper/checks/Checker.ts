@@ -1,4 +1,5 @@
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import type { RoomConnectOptions, RoomOptions } from '../../options';
 import type RTCEngine from '../../room/RTCEngine';
 import Room, { ConnectionState } from '../../room/Room';
@@ -29,7 +30,7 @@ export interface CheckerOptions {
   connectOptions?: RoomConnectOptions;
 }
 
-export abstract class Checker extends EventEmitter<CheckerCallbacks> {
+export abstract class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCallbacks>) {
   protected url: string;
 
   protected token: string;
