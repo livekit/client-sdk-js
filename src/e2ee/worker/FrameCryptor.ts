@@ -271,6 +271,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
       try {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
+        this.keys.decryptionSuccess();
         if (decodedFrame) {
           return controller.enqueue(decodedFrame);
         }
@@ -285,7 +286,7 @@ export class FrameCryptor extends BaseFrameCryptor {
                 CryptorErrorReason.InvalidKey,
               ),
             );
-            this.keys.hasValidKey = false;
+            this.keys.decryptionFailure();
           }
         } else {
           workerLogger.warn('decoding frame failed', { error });
@@ -394,8 +395,6 @@ export class FrameCryptor extends BaseFrameCryptor {
             workerLogger.debug('resetting to initial material');
             this.keys.setKeyFromMaterial(initialMaterial.material, keyIndex);
           }
-
-          this.keys.hasValidKey = false;
 
           workerLogger.warn('maximum ratchet attempts exceeded, resetting key');
           this.emit(

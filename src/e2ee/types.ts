@@ -110,6 +110,7 @@ export type KeyProviderOptions = {
   sharedKey: boolean;
   ratchetSalt: string;
   ratchetWindowSize: number;
+  failureTolerance: number;
 };
 
 export type KeyProviderCallbacks = {
