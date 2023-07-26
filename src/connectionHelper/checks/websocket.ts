@@ -1,4 +1,5 @@
 import { SignalClient } from '../../api/SignalClient';
+import { ServerInfo_Edition } from '../../proto/livekit_models_pb';
 import { Checker } from './Checker';
 
 export class WebSocketCheck extends Checker {
@@ -18,6 +19,9 @@ export class WebSocketCheck extends Checker {
       e2eeEnabled: false,
     });
     this.appendMessage(`Connected to server, version ${joinRes.serverVersion}.`);
+    if (joinRes.serverInfo?.edition === ServerInfo_Edition.Cloud && joinRes.serverInfo?.region) {
+      this.appendMessage(`LiveKit Cloud: ${joinRes.serverInfo?.region}`);
+    }
     await signalClient.close();
   }
 }
