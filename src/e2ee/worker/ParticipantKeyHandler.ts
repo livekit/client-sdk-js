@@ -1,4 +1,5 @@
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import { KEYRING_SIZE } from '../constants';
 import type { KeyProviderOptions, KeySet, ParticipantKeyHandlerCallbacks } from '../types';
@@ -15,7 +16,7 @@ import { deriveKeys, importKey, ratchet } from '../utils';
  * if decryption fails or can be triggered manually on both sender and receiver side.
  *
  */
-export class ParticipantKeyHandler extends EventEmitter<ParticipantKeyHandlerCallbacks> {
+export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEventEmitter<ParticipantKeyHandlerCallbacks>) {
   private currentKeyIndex: number;
 
   private cryptoKeyRing: Array<KeySet>;
