@@ -620,8 +620,5 @@ export function isFrameServerInjected(frameData: ArrayBuffer, trailerBytes: Uint
   const frameTrailer = new Uint8Array(
     frameData.slice(frameData.byteLength - trailerBytes.byteLength),
   );
-  if (trailerBytes.every((value, index) => value === frameTrailer[index])) {
-    workerLogger.info('frame is server injected');
-  }
   return trailerBytes.every((value, index) => value === frameTrailer[index]);
 }
