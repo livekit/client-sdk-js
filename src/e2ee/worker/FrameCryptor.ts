@@ -129,7 +129,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     codec?: VideoCodec,
   ) {
     if (codec) {
-      console.info('setting codec on cryptor to', codec);
+      workerLogger.info('setting codec on cryptor to', { codec });
       this.videoCodec = codec;
     }
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
@@ -141,7 +141,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       .pipeThrough(transformStream)
       .pipeTo(writable)
       .catch((e) => {
-        console.error(e);
+        workerLogger.warn(e);
         this.emit('cryptorError', e instanceof CryptorError ? e : new CryptorError(e.message));
       });
     this.trackId = trackId;
@@ -397,12 +397,9 @@ export class FrameCryptor extends BaseFrameCryptor {
           }
 
           workerLogger.warn('maximum ratchet attempts exceeded, resetting key');
-          this.emit(
-            CryptorEvent.Error,
-            new CryptorError(
-              `valid key missing for participant ${this.participantId}`,
-              CryptorErrorReason.MissingKey,
-            ),
+          throw new CryptorError(
+            `valid key missing for participant ${this.participantId}`,
+            CryptorErrorReason.InvalidKey,
           );
         }
       } else {
@@ -611,5 +608,8 @@ export function isFrameServerInjected(frameData: ArrayBuffer, trailerBytes: Uint
   const frameTrailer = new Uint8Array(
     frameData.slice(frameData.byteLength - trailerBytes.byteLength),
   );
+  if (trailerBytes.every((value, index) => value === frameTrailer[index])) {
+    workerLogger.info('frame is server injected');
+  }
   return trailerBytes.every((value, index) => value === frameTrailer[index]);
 }
