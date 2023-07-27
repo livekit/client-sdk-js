@@ -1,5 +1,39 @@
 # Change Log
 
+## 1.12.2
+
+### Patch Changes
+
+- Set a default resolution for createLocalScreenTracks - [#796](https://github.com/livekit/client-sdk-js/pull/796) ([@lukasIO](https://github.com/lukasIO))
+
+- Debounce reacting to mediastreamtrack mute events - [#809](https://github.com/livekit/client-sdk-js/pull/809) ([@lukasIO](https://github.com/lukasIO))
+
+- Remove duplicate options being passed to publish - [#794](https://github.com/livekit/client-sdk-js/pull/794) ([@lukasIO](https://github.com/lukasIO))
+
+- Replace ts-proto with protobuf-es - [#700](https://github.com/livekit/client-sdk-js/pull/700) ([@lukasIO](https://github.com/lukasIO))
+
+- Do not attempt to restart screen share tracks when re-publishing after reconnect - [#802](https://github.com/livekit/client-sdk-js/pull/802) ([@lukasIO](https://github.com/lukasIO))
+
+- Add failureTolerance to KeyProvider options (E2EE) - [#810](https://github.com/livekit/client-sdk-js/pull/810) ([@lukasIO](https://github.com/lukasIO))
+
+- Remove dummy audio element on disconnect - [#793](https://github.com/livekit/client-sdk-js/pull/793) ([@lukasIO](https://github.com/lukasIO))
+
+- Add video options to ScreenShareCaptureOptions - [#792](https://github.com/livekit/client-sdk-js/pull/792) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix iOS browser parser check, add more test cases - [#798](https://github.com/livekit/client-sdk-js/pull/798) ([@lukasIO](https://github.com/lukasIO))
+
+- Improved connection checker with more details about ICE candidates - [#806](https://github.com/livekit/client-sdk-js/pull/806) ([@davidzhao](https://github.com/davidzhao))
+
+- Throw connection error immediately if unauthorized instead of trying alternative URLs - [#804](https://github.com/livekit/client-sdk-js/pull/804) ([@lukasIO](https://github.com/lukasIO))
+
+- Revert event emitter lib usage to 'events' - [#807](https://github.com/livekit/client-sdk-js/pull/807) ([@lukasIO](https://github.com/lukasIO))
+
+- Support for region pinning with LiveKit Cloud using prepareConnection - [#783](https://github.com/livekit/client-sdk-js/pull/783) ([@davidzhao](https://github.com/davidzhao))
+
+- Ensure we do not replace http unless it's in the scheme - [#805](https://github.com/livekit/client-sdk-js/pull/805) ([@davidzhao](https://github.com/davidzhao))
+
+- Stop tracks if publishing fails with `setTrackEnabled` - [#799](https://github.com/livekit/client-sdk-js/pull/799) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.12.1
 
 ### Patch Changes
