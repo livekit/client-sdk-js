@@ -263,6 +263,8 @@ export class FrameCryptor extends BaseFrameCryptor {
       // skip decryption if frame is server injected
       isFrameServerInjected(encodedFrame.data, this.sifTrailer)
     ) {
+      // TODO when a frame is detected as being server injected, it would be preferable to construct
+      // an empty frame client-side instead of just passing it to the controller
       return controller.enqueue(encodedFrame);
     }
     const data = new Uint8Array(encodedFrame.data);
@@ -292,9 +294,16 @@ export class FrameCryptor extends BaseFrameCryptor {
           workerLogger.warn('decoding frame failed', { error });
         }
       }
+    } else {
+      workerLogger.warn('skipping decryption due to missing key');
+      this.emit(
+        CryptorEvent.Error,
+        new CryptorError(
+          `missing key for participant ${this.participantId}`,
+          CryptorErrorReason.MissingKey,
+        ),
+      );
     }
-
-    return controller.enqueue(encodedFrame);
   }
 
   /**
