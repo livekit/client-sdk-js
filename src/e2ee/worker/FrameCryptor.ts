@@ -605,6 +605,9 @@ export enum NALUType {
  * @internal
  */
 export function isFrameServerInjected(frameData: ArrayBuffer, trailerBytes: Uint8Array): boolean {
+  if (trailerBytes.length === 0) {
+    return false;
+  }
   const frameTrailer = new Uint8Array(
     frameData.slice(frameData.byteLength - trailerBytes.byteLength),
   );
