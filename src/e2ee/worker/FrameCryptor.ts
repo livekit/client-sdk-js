@@ -259,12 +259,17 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (
       !this.keys.isEnabled() ||
       // skip for decryption for empty dtx frames
-      encodedFrame.data.byteLength === 0 ||
-      // skip decryption if frame is server injected
-      isFrameServerInjected(encodedFrame.data, this.sifTrailer)
+      encodedFrame.data.byteLength === 0
     ) {
       // TODO when a frame is detected as being server injected, it would be preferable to construct
       // an empty frame client-side instead of just passing it to the controller
+      return controller.enqueue(encodedFrame);
+    }
+    if (
+      // replace frame data with empty data if frame is server injected
+      isFrameServerInjected(encodedFrame.data, this.sifTrailer)
+    ) {
+      encodedFrame.data = new ArrayBuffer(encodedFrame.data.byteLength);
       return controller.enqueue(encodedFrame);
     }
     const data = new Uint8Array(encodedFrame.data);
