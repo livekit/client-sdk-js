@@ -25,6 +25,7 @@ import type {
   RatchetRequestMessage,
   RemoveTransformMessage,
   SetKeyMessage,
+  SifTrailerMessage,
   UpdateCodecMessage,
 } from './types';
 import { EncryptionEvent } from './types';
@@ -97,6 +98,13 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     } else {
       throw new ReferenceError('failed to enable e2ee, worker is not ready');
     }
+  }
+
+  /**
+   * @internal
+   */
+  setSifTrailer(trailer: Uint8Array) {
+    this.postSifTrailer(trailer);
   }
 
   private onWorkerMessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
@@ -228,6 +236,19 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       kind: 'setRTPMap',
       data: {
         map,
+      },
+    };
+    this.worker.postMessage(msg);
+  }
+
+  private postSifTrailer(trailer: Uint8Array) {
+    if (!this.worker) {
+      throw Error('could not post SIF trailer, worker is missing');
+    }
+    const msg: SifTrailerMessage = {
+      kind: 'setSifTrailer',
+      data: {
+        trailer,
       },
     };
     this.worker.postMessage(msg);

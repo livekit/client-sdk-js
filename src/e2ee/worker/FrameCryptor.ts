@@ -65,13 +65,13 @@ export class FrameCryptor extends BaseFrameCryptor {
   /**
    * used for detecting server injected unencrypted frames
    */
-  private unencryptedFrameByteTrailer: Uint8Array;
+  private sifTrailer: Uint8Array;
 
   constructor(opts: {
     keys: ParticipantKeyHandler;
     participantId: string;
     keyProviderOptions: KeyProviderOptions;
-    unencryptedFrameBytes?: Uint8Array;
+    sifTrailer?: Uint8Array;
   }) {
     super();
     this.sendCounts = new Map();
@@ -79,8 +79,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.participantId = opts.participantId;
     this.rtpMap = new Map();
     this.keyProviderOptions = opts.keyProviderOptions;
-    this.unencryptedFrameByteTrailer =
-      opts.unencryptedFrameBytes ?? new TextEncoder().encode('LKROCKS');
+    this.sifTrailer = opts.sifTrailer ?? new TextEncoder().encode('LKROCKS');
   }
 
   /**
@@ -262,7 +261,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       // skip for decryption for empty dtx frames
       encodedFrame.data.byteLength === 0 ||
       // skip decryption if frame is server injected
-      isFrameServerInjected(encodedFrame.data, this.unencryptedFrameByteTrailer)
+      isFrameServerInjected(encodedFrame.data, this.sifTrailer)
     ) {
       return controller.enqueue(encodedFrame);
     }
@@ -512,6 +511,10 @@ export class FrameCryptor extends BaseFrameCryptor {
     const payloadType = frame.getMetadata().payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;
+  }
+
+  setSifTrailer(trailer: Uint8Array) {
+    this.sifTrailer = trailer;
   }
 }
 

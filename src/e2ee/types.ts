@@ -31,6 +31,13 @@ export interface RTPVideoMapMessage extends BaseMessage {
   };
 }
 
+export interface SifTrailerMessage extends BaseMessage {
+  kind: 'setSifTrailer';
+  data: {
+    trailer: Uint8Array;
+  };
+}
+
 export interface EncodeMessage extends BaseMessage {
   kind: 'decode' | 'encode';
   data: {
@@ -102,7 +109,8 @@ export type E2EEWorkerMessage =
   | RTPVideoMapMessage
   | UpdateCodecMessage
   | RatchetRequestMessage
-  | RatchetMessage;
+  | RatchetMessage
+  | SifTrailerMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
