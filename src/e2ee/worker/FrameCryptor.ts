@@ -261,8 +261,6 @@ export class FrameCryptor extends BaseFrameCryptor {
       // skip for decryption for empty dtx frames
       encodedFrame.data.byteLength === 0
     ) {
-      // TODO when a frame is detected as being server injected, it would be preferable to construct
-      // an empty frame client-side instead of just passing it to the controller
       return controller.enqueue(encodedFrame);
     }
     if (
