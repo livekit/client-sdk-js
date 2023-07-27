@@ -294,12 +294,13 @@ export class FrameCryptor extends BaseFrameCryptor {
           workerLogger.warn('decoding frame failed', { error });
         }
       }
-    } else {
-      workerLogger.warn('skipping decryption due to missing key');
+    } else if (!this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
+      // emit an error in case the key index is out of bounds but the key handler thinks we still have a valid key
+      workerLogger.warn('skipping decryption due to missing key at index');
       this.emit(
         CryptorEvent.Error,
         new CryptorError(
-          `missing key for participant ${this.participantId}`,
+          `missing key at index for participant ${this.participantId}`,
           CryptorErrorReason.MissingKey,
         ),
       );
