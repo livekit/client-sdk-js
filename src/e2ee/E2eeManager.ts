@@ -104,7 +104,11 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
    * @internal
    */
   setSifTrailer(trailer: Uint8Array) {
-    this.postSifTrailer(trailer);
+    if (!trailer || trailer.length === 0) {
+      log.warn("ignoring server sent trailer as it's empty");
+    } else {
+      this.postSifTrailer(trailer);
+    }
   }
 
   private onWorkerMessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
@@ -363,7 +367,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     }
 
     if (isScriptTransformSupported()) {
-      log.warn('initialize script transform');
+      log.info('initialize script transform');
 
       const options = {
         kind: 'encode',
@@ -374,7 +378,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
-      log.warn('initialize encoded streams');
+      log.info('initialize encoded streams');
       // @ts-ignore
       const senderStreams = sender.createEncodedStreams();
       const msg: EncodeMessage = {
