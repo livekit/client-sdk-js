@@ -7,6 +7,9 @@ export const ENCRYPTION_ALGORITHM = 'AES-GCM';
 // in the frame trailer.
 export const KEYRING_SIZE = 16;
 
+// How many consecutive frames can fail decrypting before a particular key gets marked as invalid
+export const DECRYPTION_FAILURE_TOLERANCE = 10;
+
 // We copy the first bytes of the VP8 payload unencrypted.
 // For keyframes this is 10 bytes, for non-keyframes (delta) 3. See
 //   https://tools.ietf.org/html/rfc6386#section-9.1
@@ -37,4 +40,5 @@ export const KEY_PROVIDER_DEFAULTS: KeyProviderOptions = {
   sharedKey: false,
   ratchetSalt: SALT,
   ratchetWindowSize: 8,
+  failureTolerance: DECRYPTION_FAILURE_TOLERANCE,
 } as const;

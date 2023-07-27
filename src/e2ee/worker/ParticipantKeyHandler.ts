@@ -29,7 +29,13 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   private participantId: string | undefined;
 
-  hasValidKey: boolean;
+  private decryptionFailureCount = 0;
+
+  private _hasValidKey: boolean = true;
+
+  get hasValidKey() {
+    return this._hasValidKey;
+  }
 
   constructor(
     participantId: string | undefined,
@@ -43,11 +49,35 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     this.keyProviderOptions = keyProviderOptions;
     this.ratchetPromiseMap = new Map();
     this.participantId = participantId;
-    this.hasValidKey = false;
+    this.resetKeyStatus();
   }
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled;
+  }
+
+  decryptionFailure() {
+    if (this.keyProviderOptions.failureTolerance < 0) {
+      return;
+    }
+    this.decryptionFailureCount += 1;
+
+    if (this.decryptionFailureCount > this.keyProviderOptions.failureTolerance) {
+      this._hasValidKey = false;
+    }
+  }
+
+  decryptionSuccess() {
+    this.resetKeyStatus();
+  }
+
+  /**
+   * Call this after user initiated ratchet or a new key has been set in order to make sure to mark potentially
+   * invalid keys as valid again
+   */
+  resetKeyStatus() {
+    this.decryptionFailureCount = 0;
+    this._hasValidKey = true;
   }
 
   /**
@@ -96,7 +126,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
    */
   async setKey(material: CryptoKey, keyIndex = 0) {
     await this.setKeyFromMaterial(material, keyIndex);
-    this.hasValidKey = true;
+    this.resetKeyStatus();
   }
 
   /**
@@ -123,7 +153,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   async setCurrentKeyIndex(index: number) {
     this.currentKeyIndex = index % this.cryptoKeyRing.length;
-    this.hasValidKey = true;
+    this.resetKeyStatus();
   }
 
   isEnabled() {
