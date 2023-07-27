@@ -267,7 +267,9 @@ export class FrameCryptor extends BaseFrameCryptor {
       // replace frame data with empty data if frame is server injected
       isFrameServerInjected(encodedFrame.data, this.sifTrailer)
     ) {
-      encodedFrame.data = new ArrayBuffer(encodedFrame.data.byteLength);
+      encodedFrame.data = new ArrayBuffer(
+        encodedFrame.data.byteLength - this.sifTrailer.byteLength,
+      );
       return controller.enqueue(encodedFrame);
     }
     const data = new Uint8Array(encodedFrame.data);
