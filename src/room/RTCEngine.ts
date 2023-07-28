@@ -497,11 +497,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
       log.debug('received trackPublishedResponse', res);
-      const { resolve } = this.pendingTrackResolvers[res.cid];
-      if (!resolve) {
+      if (!this.pendingTrackResolvers[res.cid]) {
         log.error(`missing track resolver for ${res.cid}`);
         return;
       }
+      const { resolve } = this.pendingTrackResolvers[res.cid];
       delete this.pendingTrackResolvers[res.cid];
       resolve(res.track!);
     };
@@ -649,11 +649,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind = channel.maxRetransmits === 0 ? 'lossy' : 'reliable';
 
-    if (event instanceof ErrorEvent) {
+    if (event instanceof ErrorEvent && event.error) {
       const { error } = event.error;
       log.error(`DataChannel error on ${channelKind}: ${event.message}`, error);
     } else {
-      log.error(`Unknown DataChannel Error on ${channelKind}`, event);
+      log.error(`Unknown DataChannel error on ${channelKind}`, event);
     }
   };
 
