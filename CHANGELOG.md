@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.12.3
+
+### Patch Changes
+
+- Fix missing ScalabilityMode import when using SVC - [#816](https://github.com/livekit/client-sdk-js/pull/816) ([@davidzhao](https://github.com/davidzhao))
+
+- Adjust default bitrates according to VMAF results - [#817](https://github.com/livekit/client-sdk-js/pull/817) ([@davidzhao](https://github.com/davidzhao))
+
 ## 1.12.2
 
 ### Patch Changes
