@@ -491,9 +491,9 @@ export function videoLayersFromEncodings(
       layers.push(
         new VideoLayer({
           quality: VideoQuality.HIGH - i,
-          width: width / 2 ** i,
-          height: height / 2 ** i,
-          bitrate: encodings[0].maxBitrate ? Math.round(encodings[0].maxBitrate / 3 ** i) : 0,
+          width: Math.ceil(width / 2 ** i),
+          height: Math.ceil(height / 2 ** i),
+          bitrate: encodings[0].maxBitrate ? Math.ceil(encodings[0].maxBitrate / 3 ** i) : 0,
           ssrc: 0,
         }),
       );
@@ -506,8 +506,8 @@ export function videoLayersFromEncodings(
     let quality = videoQualityForRid(encoding.rid ?? '');
     return new VideoLayer({
       quality,
-      width: width / scale,
-      height: height / scale,
+      width: Math.ceil(width / scale),
+      height: Math.ceil(height / scale),
       bitrate: encoding.maxBitrate ?? 0,
       ssrc: 0,
     });
