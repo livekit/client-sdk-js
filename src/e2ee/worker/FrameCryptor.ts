@@ -267,10 +267,17 @@ export class FrameCryptor extends BaseFrameCryptor {
       // replace frame data with empty data if frame is server injected
       isFrameServerInjected(encodedFrame.data, this.sifTrailer)
     ) {
-      encodedFrame.data = new ArrayBuffer(
-        encodedFrame.data.byteLength - this.sifTrailer.byteLength,
+      const instructionSet = extractTrailerInstruction(
+        encodedFrame.data.slice(0, encodedFrame.data.byteLength - this.sifTrailer.byteLength),
       );
-      return controller.enqueue(encodedFrame);
+      if (instructionSet) {
+        workerLogger.info(`inserting blank frame for codec ${TrailerCodec[instructionSet.codec]}`);
+        const frameData = getBlankFrame(instructionSet.codec, instructionSet.payloadType);
+        if (frameData) {
+          encodedFrame.data = frameData;
+          return controller.enqueue(encodedFrame);
+        }
+      }
     }
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
@@ -616,7 +623,7 @@ export enum NALUType {
 
 /**
  * we use a magic frame trailer to detect whether a frame is injected
- * by the livekit server and thus to be treated as unencrypted
+ * by the livekit server and thus to be replaced with a blank frame
  * @internal
  */
 export function isFrameServerInjected(frameData: ArrayBuffer, trailerBytes: Uint8Array): boolean {
@@ -627,4 +634,79 @@ export function isFrameServerInjected(frameData: ArrayBuffer, trailerBytes: Uint
     frameData.slice(frameData.byteLength - trailerBytes.byteLength),
   );
   return trailerBytes.every((value, index) => value === frameTrailer[index]);
+}
+
+/**
+ * @internal
+ */
+export function extractTrailerInstruction(frameData: ArrayBuffer) {
+  const version = new Uint8Array(frameData.slice(frameData.byteLength - 1))[0];
+  workerLogger.info(`instruction trailer version: ${version}`);
+  if (version === 1) {
+    const [payloadType, instruction, codec] = new Uint8Array(
+      frameData.slice(frameData.byteLength - trailerV1Size, frameData.byteLength - 1),
+    );
+    workerLogger.info(`instruction trailer:`, { payloadType, instruction, codec, version });
+    return { payloadType, instruction, codec };
+  } else {
+    workerLogger.warn(
+      `Version ${version} is not supported on this version, please update livekit-client`,
+    );
+    return undefined;
+  }
+}
+
+enum TrailerCodec {
+  opus,
+  opusRed,
+  vp8,
+  h264,
+}
+
+const trailerV1Size = 4;
+
+const opusSilentFrame = Uint8Array.from([
+  0xf8, 0xff, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+]);
+
+const vp8KeyFrame8x8 = Uint8Array.from([
+  0x10, 0x02, 0x00, 0x9d, 0x01, 0x2a, 0x08, 0x00, 0x08, 0x00, 0x00, 0x47, 0x08, 0x85, 0x85, 0x88,
+  0x85, 0x84, 0x88, 0x02, 0x02, 0x00, 0x0c, 0x0d, 0x60, 0x00, 0xfe, 0xff, 0xab, 0x50, 0x80,
+]);
+
+const h264KeyFrame2x2 = Uint8Array.from([
+  0x67, 0x42, 0xc0, 0x1f, 0x0f, 0xd9, 0x1f, 0x88, 0x88, 0x84, 0x00, 0x00, 0x03, 0x00, 0x04, 0x00,
+  0x00, 0x03, 0x00, 0xc8, 0x3c, 0x60, 0xc9, 0x20, 0x68, 0x87, 0xcb, 0x83, 0xcb, 0x20, 0x65, 0x88,
+  0x84, 0x0a, 0xf2, 0x62, 0x80, 0x00, 0xa7, 0xbe,
+]);
+
+function getBlankFrame(codec: number, payloadType: number) {
+  let blankFrame: Uint8Array | undefined;
+  switch (codec) {
+    case TrailerCodec.opus:
+      blankFrame = opusSilentFrame;
+      break;
+    case TrailerCodec.opusRed:
+      blankFrame = new Uint8Array(opusSilentFrame.byteLength + 1);
+      blankFrame.set([payloadType, ...opusSilentFrame], 0);
+      break;
+    case TrailerCodec.h264:
+      blankFrame = h264KeyFrame2x2;
+      break;
+    case TrailerCodec.vp8:
+      blankFrame = vp8KeyFrame8x8;
+    default:
+      break;
+  }
+
+  if (!blankFrame) {
+    workerLogger.warn(`no blank frame supported for codec id ${codec}`);
+    return;
+  }
+
+  return blankFrame.buffer;
 }

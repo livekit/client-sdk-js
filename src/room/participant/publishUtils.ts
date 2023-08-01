@@ -135,7 +135,6 @@ export function computeVideoEncodings(
       encodings.push({
         rid: videoRids[2 - i],
         maxBitrate: videoEncoding.maxBitrate / 3 ** i,
-        /* @ts-ignore */
         maxFramerate: original.encoding.maxFramerate,
       });
     }
