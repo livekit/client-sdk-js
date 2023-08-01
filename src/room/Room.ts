@@ -424,13 +424,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.abortController.abort();
       }
 
-      this.abortController = new AbortController();
+      // explicit creation as local var needed to satisfy TS compiler when passing it to `attemptConnection` further down
+      const abortController = new AbortController();
+      this.abortController = abortController;
 
       // at this point the intention to connect has been signalled so we can allow cancelling of the connection via disconnect() again
       unlockDisconnect?.();
 
       try {
-        await this.attemptConnection(regionUrl ?? url, token, opts, this.abortController);
+        await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
         this.abortController = undefined;
         resolve();
       } catch (e) {
