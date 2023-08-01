@@ -5396,7 +5396,7 @@ sdp-transform@^2.14.1:
 
 sdp@^3.2.0:
   version "3.2.0"
-  resolved "https://registry.npmjs.org/sdp/-/sdp-3.2.0.tgz"
+  resolved "https://registry.yarnpkg.com/sdp/-/sdp-3.2.0.tgz#8961420552b36663b4d13ddba6f478d1461896a5"
   integrity sha512-d7wDPgDV3DDiqulJjKiV2865wKsJ34YI+NDREbm+FySq6WuKOikwyNQcm+doLAZ1O6ltdO0SeKle2xMpN3Brgw==
 
 "semver@2 || 3 || 4 || 5", semver@^5.4.1:
@@ -6228,9 +6228,9 @@ webpack@^5.75.0:
     webpack-sources "^3.2.3"
 
 webrtc-adapter@^8.1.1:
-  version "8.2.2"
-  resolved "https://registry.npmjs.org/webrtc-adapter/-/webrtc-adapter-8.2.2.tgz"
-  integrity sha512-jQWwqiAEAFZamWliJo0Q+dIC6ZMJ8BgCFvW/oXWVFby1Nw14dOUfPwZ3lVe4nafDXdTyCUT7xfLt5xXiioXUCQ==
+  version "8.2.3"
+  resolved "https://registry.yarnpkg.com/webrtc-adapter/-/webrtc-adapter-8.2.3.tgz#85e5e52ea68e808be8d6db85e338aa5c95e80022"
+  integrity sha512-gnmRz++suzmvxtp3ehQts6s2JtAGPuDPjA1F3a9ckNpG1kYdYuHWYpazoAnL9FS5/B21tKlhkorbdCXat0+4xQ==
   dependencies:
     sdp "^3.2.0"
 
