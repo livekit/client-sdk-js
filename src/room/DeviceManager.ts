@@ -37,9 +37,8 @@ export default class DeviceManager {
 
     if (
       requestPermissions &&
-      kind &&
       // for safari we need to skip this check, as otherwise it will re-acquire user media and fail on iOS https://bugs.webkit.org/show_bug.cgi?id=179363
-      (!DeviceManager.userMediaPromiseMap.get(kind) || !isSafari())
+      !(isSafari() && this.hasDeviceInUse(kind))
     ) {
       const isDummyDeviceOrEmpty =
         devices.length === 0 ||
@@ -84,5 +83,11 @@ export default class DeviceManager {
     const device = devices.find((d) => d.groupId === groupId && d.deviceId !== defaultId);
 
     return device?.deviceId;
+  }
+
+  private hasDeviceInUse(kind?: MediaDeviceKind): boolean {
+    return kind
+      ? DeviceManager.userMediaPromiseMap.has(kind)
+      : DeviceManager.userMediaPromiseMap.size > 0;
   }
 }
