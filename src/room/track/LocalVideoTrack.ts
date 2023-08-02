@@ -1,10 +1,10 @@
 import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
-import { VideoLayer, VideoQuality } from '../../proto/livekit_models';
-import type { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc';
+import { VideoLayer, VideoQuality } from '../../proto/livekit_models_pb';
+import { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc_pb';
 import { ScalabilityMode } from '../participant/publishUtils';
-import { computeBitrate, monitorFrequency } from '../stats';
 import type { VideoSenderStats } from '../stats';
+import { computeBitrate, monitorFrequency } from '../stats';
 import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
@@ -173,10 +173,12 @@ export default class LocalVideoTrack extends LocalTrack {
   setPublishingQuality(maxQuality: VideoQuality) {
     const qualities: SubscribedQuality[] = [];
     for (let q = VideoQuality.LOW; q <= VideoQuality.HIGH; q += 1) {
-      qualities.push({
-        quality: q,
-        enabled: q <= maxQuality,
-      });
+      qualities.push(
+        new SubscribedQuality({
+          quality: q,
+          enabled: q <= maxQuality,
+        }),
+      );
     }
     log.debug(`setting publishing quality. max quality ${maxQuality}`);
     this.setPublishingLayers(qualities);
@@ -358,7 +360,7 @@ async function setPublishingLayersForSender(
     let hasChanged = false;
 
     /* disable closable spatial layer as it has video blur / frozen issue with current server / client
-    1. chrome 113: when switching to up layer with scalability Mode change, it will generate a 
+    1. chrome 113: when switching to up layer with scalability Mode change, it will generate a
           low resolution frame and recover very quickly, but noticable
     2. livekit sfu: additional pli request cause video frozen for a few frames, also noticable */
     const closableSpatial = false;
@@ -456,7 +458,7 @@ export function videoQualityForRid(rid: string): VideoQuality {
     case 'q':
       return VideoQuality.LOW;
     default:
-      return VideoQuality.UNRECOGNIZED;
+      return VideoQuality.HIGH;
   }
 }
 
@@ -469,29 +471,32 @@ export function videoLayersFromEncodings(
   // default to a single layer, HQ
   if (!encodings) {
     return [
-      {
+      new VideoLayer({
         quality: VideoQuality.HIGH,
         width,
         height,
         bitrate: 0,
         ssrc: 0,
-      },
+      }),
     ];
   }
 
   if (svc) {
     // svc layers
     /* @ts-ignore */
-    const sm = new ScalabilityMode(encodings[0].scalabilityMode);
+    const encodingSM = encodings[0].scalabilityMode as string;
+    const sm = new ScalabilityMode(encodingSM);
     const layers = [];
     for (let i = 0; i < sm.spatial; i += 1) {
-      layers.push({
-        quality: VideoQuality.HIGH - i,
-        width: width / 2 ** i,
-        height: height / 2 ** i,
-        bitrate: encodings[0].maxBitrate ? encodings[0].maxBitrate / 3 ** i : 0,
-        ssrc: 0,
-      });
+      layers.push(
+        new VideoLayer({
+          quality: VideoQuality.HIGH - i,
+          width: Math.ceil(width / 2 ** i),
+          height: Math.ceil(height / 2 ** i),
+          bitrate: encodings[0].maxBitrate ? Math.ceil(encodings[0].maxBitrate / 3 ** i) : 0,
+          ssrc: 0,
+        }),
+      );
     }
     return layers;
   }
@@ -499,15 +504,12 @@ export function videoLayersFromEncodings(
   return encodings.map((encoding) => {
     const scale = encoding.scaleResolutionDownBy ?? 1;
     let quality = videoQualityForRid(encoding.rid ?? '');
-    if (quality === VideoQuality.UNRECOGNIZED && encodings.length === 1) {
-      quality = VideoQuality.HIGH;
-    }
-    return {
+    return new VideoLayer({
       quality,
-      width: width / scale,
-      height: height / scale,
+      width: Math.ceil(width / scale),
+      height: Math.ceil(height / scale),
       bitrate: encoding.maxBitrate ?? 0,
       ssrc: 0,
-    };
+    });
   });
 }

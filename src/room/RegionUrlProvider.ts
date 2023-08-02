@@ -1,5 +1,5 @@
 import log from '../logger';
-import type { RegionInfo, RegionSettings } from '../proto/livekit_rtc';
+import type { RegionInfo, RegionSettings } from '../proto/livekit_rtc_pb';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import { isCloud } from './utils';
 
@@ -21,8 +21,16 @@ export class RegionUrlProvider {
     this.token = token;
   }
 
+  updateToken(token: string) {
+    this.token = token;
+  }
+
   isCloud() {
     return isCloud(this.serverUrl);
+  }
+
+  getServerUrl() {
+    return this.serverUrl;
   }
 
   async getNextBestRegionUrl(abortSignal?: AbortSignal) {
@@ -49,7 +57,8 @@ export class RegionUrlProvider {
     this.attemptedRegions = [];
   }
 
-  private async fetchRegionSettings(signal?: AbortSignal) {
+  /* @internal */
+  async fetchRegionSettings(signal?: AbortSignal) {
     const regionSettingsResponse = await fetch(`${getCloudConfigUrl(this.serverUrl)}/regions`, {
       headers: { authorization: `Bearer ${this.token}` },
       signal,

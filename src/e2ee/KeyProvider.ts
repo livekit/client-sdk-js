@@ -1,9 +1,13 @@
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEventEmitter from 'typed-emitter';
 import { KEY_PROVIDER_DEFAULTS } from './constants';
 import type { KeyInfo, KeyProviderCallbacks, KeyProviderOptions } from './types';
 import { createKeyMaterialFromString } from './utils';
 
-export class BaseKeyProvider extends EventEmitter<KeyProviderCallbacks> {
+/**
+ * @experimental
+ */
+export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitter<KeyProviderCallbacks>) {
   private keyInfoMap: Map<string, KeyInfo>;
 
   private options: KeyProviderOptions;
@@ -53,6 +57,7 @@ export class BaseKeyProvider extends EventEmitter<KeyProviderCallbacks> {
 /**
  * A basic KeyProvider implementation intended for a single shared
  * passphrase between all participants
+ * @experimental
  */
 export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   ratchetInterval: number | undefined;

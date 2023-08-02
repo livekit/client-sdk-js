@@ -123,6 +123,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
     }
     this.elementInfos = this.elementInfos.filter((info) => info !== elementInfo);
     this.updateVisibility();
+    this.debouncedHandleResize();
   }
 
   detach(): HTMLMediaElement[];
@@ -195,9 +196,8 @@ export default class RemoteVideoTrack extends RemoteTrack {
   private stopObservingElement(element: HTMLMediaElement) {
     const stopElementInfos = this.elementInfos.filter((info) => info.element === element);
     for (const info of stopElementInfos) {
-      info.stopObserving();
+      this.stopObservingElementInfo(info);
     }
-    this.elementInfos = this.elementInfos.filter((info) => info.element !== element);
   }
 
   protected async handleAppVisibilityChanged() {

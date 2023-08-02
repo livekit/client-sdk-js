@@ -1,6 +1,7 @@
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEventEmitter from 'typed-emitter';
 import log from '../logger';
-import { Encryption_Type, TrackInfo } from '../proto/livekit_models';
+import { Encryption_Type, TrackInfo } from '../proto/livekit_models_pb';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
@@ -29,7 +30,10 @@ import type {
 import { EncryptionEvent } from './types';
 import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
 
-export class E2EEManager extends EventEmitter<E2EEManagerCallbacks> {
+/**
+ * @experimental
+ */
+export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2EEManagerCallbacks>) {
   protected worker: Worker;
 
   protected room?: Room;

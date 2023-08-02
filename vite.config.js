@@ -1,8 +1,8 @@
-import { resolve } from 'path';
-import { defineConfig } from 'vite';
 import { babel } from '@rollup/plugin-babel';
-import replace from 'rollup-plugin-re';
 import dns from 'dns';
+import { resolve } from 'path';
+import replace from 'rollup-plugin-re';
+import { defineConfig } from 'vite';
 
 dns.setDefaultResultOrder('verbatim');
 
@@ -47,5 +47,8 @@ export default defineConfig({
         }),
       ],
     },
+  },
+  test: {
+    environment: 'jsdom',
   },
 });

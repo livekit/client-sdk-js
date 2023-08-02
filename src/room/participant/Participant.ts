@@ -1,4 +1,5 @@
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import log from '../../logger';
 import {
   DataPacket_Kind,
@@ -6,7 +7,7 @@ import {
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
   SubscriptionError,
-} from '../../proto/livekit_models';
+} from '../../proto/livekit_models_pb';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
 import type RemoteTrack from '../track/RemoteTrack';
@@ -34,7 +35,7 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
   }
 }
 
-export default class Participant extends EventEmitter<ParticipantEventCallbacks> {
+export default class Participant extends (EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>) {
   protected participantInfo?: ParticipantInfo;
 
   audioTracks: Map<string, TrackPublication>;
@@ -75,6 +76,7 @@ export default class Participant extends EventEmitter<ParticipantEventCallbacks>
   /** @internal */
   constructor(sid: string, identity: string, name?: string, metadata?: string) {
     super();
+    this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
     this.name = name;
@@ -141,7 +143,7 @@ export default class Participant extends EventEmitter<ParticipantEventCallbacks>
   /** when participant joined the room */
   get joinedAt(): Date | undefined {
     if (this.participantInfo) {
-      return new Date(this.participantInfo.joinedAt * 1000);
+      return new Date(Number.parseInt(this.participantInfo.joinedAt.toString()) * 1000);
     }
     return new Date();
   }

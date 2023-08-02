@@ -4,10 +4,12 @@
 const commonVersionIdentifier = /version\/(\d+(\.?_?\d+)+)/i;
 
 export type DetectableBrowser = 'Chrome' | 'Firefox' | 'Safari';
+export type DetectableOS = 'iOS' | 'macOS';
 
 export type BrowserDetails = {
   name: DetectableBrowser;
   version: string;
+  os?: DetectableOS;
 };
 
 let browserDetails: BrowserDetails | undefined;
@@ -34,6 +36,7 @@ const browsersList = [
       const browser: BrowserDetails = {
         name: 'Firefox',
         version: getMatch(/(?:firefox|iceweasel|fxios)[\s/](\d+(\.?_?\d+)+)/i, ua),
+        os: ua.toLowerCase().includes('fxios') ? 'iOS' : undefined,
       };
       return browser;
     },
@@ -44,6 +47,7 @@ const browsersList = [
       const browser: BrowserDetails = {
         name: 'Chrome',
         version: getMatch(/(?:chrome|chromium|crios|crmo)\/(\d+(\.?_?\d+)+)/i, ua),
+        os: ua.toLowerCase().includes('crios') ? 'iOS' : undefined,
       };
 
       return browser;
@@ -56,6 +60,7 @@ const browsersList = [
       const browser: BrowserDetails = {
         name: 'Safari',
         version: getMatch(commonVersionIdentifier, ua),
+        os: ua.includes('mobile/') ? 'iOS' : 'macOS',
       };
 
       return browser;

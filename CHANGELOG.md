@@ -1,5 +1,83 @@
 # Change Log
 
+## 1.12.3
+
+### Patch Changes
+
+- Fix missing ScalabilityMode import when using SVC - [#816](https://github.com/livekit/client-sdk-js/pull/816) ([@davidzhao](https://github.com/davidzhao))
+
+- Adjust default bitrates according to VMAF results - [#817](https://github.com/livekit/client-sdk-js/pull/817) ([@davidzhao](https://github.com/davidzhao))
+
+## 1.12.2
+
+### Patch Changes
+
+- Set a default resolution for createLocalScreenTracks - [#796](https://github.com/livekit/client-sdk-js/pull/796) ([@lukasIO](https://github.com/lukasIO))
+
+- Debounce reacting to mediastreamtrack mute events - [#809](https://github.com/livekit/client-sdk-js/pull/809) ([@lukasIO](https://github.com/lukasIO))
+
+- Remove duplicate options being passed to publish - [#794](https://github.com/livekit/client-sdk-js/pull/794) ([@lukasIO](https://github.com/lukasIO))
+
+- Replace ts-proto with protobuf-es - [#700](https://github.com/livekit/client-sdk-js/pull/700) ([@lukasIO](https://github.com/lukasIO))
+
+- Do not attempt to restart screen share tracks when re-publishing after reconnect - [#802](https://github.com/livekit/client-sdk-js/pull/802) ([@lukasIO](https://github.com/lukasIO))
+
+- Add failureTolerance to KeyProvider options (E2EE) - [#810](https://github.com/livekit/client-sdk-js/pull/810) ([@lukasIO](https://github.com/lukasIO))
+
+- Remove dummy audio element on disconnect - [#793](https://github.com/livekit/client-sdk-js/pull/793) ([@lukasIO](https://github.com/lukasIO))
+
+- Add video options to ScreenShareCaptureOptions - [#792](https://github.com/livekit/client-sdk-js/pull/792) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix iOS browser parser check, add more test cases - [#798](https://github.com/livekit/client-sdk-js/pull/798) ([@lukasIO](https://github.com/lukasIO))
+
+- Improved connection checker with more details about ICE candidates - [#806](https://github.com/livekit/client-sdk-js/pull/806) ([@davidzhao](https://github.com/davidzhao))
+
+- Throw connection error immediately if unauthorized instead of trying alternative URLs - [#804](https://github.com/livekit/client-sdk-js/pull/804) ([@lukasIO](https://github.com/lukasIO))
+
+- Revert event emitter lib usage to 'events' - [#807](https://github.com/livekit/client-sdk-js/pull/807) ([@lukasIO](https://github.com/lukasIO))
+
+- Support for region pinning with LiveKit Cloud using prepareConnection - [#783](https://github.com/livekit/client-sdk-js/pull/783) ([@davidzhao](https://github.com/davidzhao))
+
+- Ensure we do not replace http unless it's in the scheme - [#805](https://github.com/livekit/client-sdk-js/pull/805) ([@davidzhao](https://github.com/davidzhao))
+
+- Stop tracks if publishing fails with `setTrackEnabled` - [#799](https://github.com/livekit/client-sdk-js/pull/799) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.12.1
+
+### Patch Changes
+
+- Allow specifying audio source for participant.setVolume API - [#780](https://github.com/livekit/client-sdk-js/pull/780) ([@lukasIO](https://github.com/lukasIO))
+
+- Add iOS detection to browser parser and only use audio element workar… - [#785](https://github.com/livekit/client-sdk-js/pull/785) ([@lukasIO](https://github.com/lukasIO))
+
+- Skip decryption if maximum ratchet accounts have exceeded until a new key is set - [#786](https://github.com/livekit/client-sdk-js/pull/786) ([@lukasIO](https://github.com/lukasIO))
+
+- Set element Id for dummy audio element - [#778](https://github.com/livekit/client-sdk-js/pull/778) ([@lukasIO](https://github.com/lukasIO))
+
+- Update constraints with actually selected deviceId on track creation - [#773](https://github.com/livekit/client-sdk-js/pull/773) ([@toger5](https://github.com/toger5))
+
+- Always resume AudioContext if in suspended state - [#779](https://github.com/livekit/client-sdk-js/pull/779) ([@lukasIO](https://github.com/lukasIO))
+
+- Only check for setSinkId support on AudioContext if webaudiomix is enabled - [#787](https://github.com/livekit/client-sdk-js/pull/787) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.12.0
+
+### Minor Changes
+
+- Experimental end-to-end encryption support - [#557](https://github.com/livekit/client-sdk-js/pull/557) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Update adaptive stream dimensions when a remote track is being detached - [#766](https://github.com/livekit/client-sdk-js/pull/766) ([@burzomir](https://github.com/burzomir))
+
+- Fixed missed event listeners on MediaStreamTrack - [#768](https://github.com/livekit/client-sdk-js/pull/768) ([@davidzhao](https://github.com/davidzhao))
+
+- Forward signal events through engine - [#772](https://github.com/livekit/client-sdk-js/pull/772) ([@lukasIO](https://github.com/lukasIO))
+
+- Emit activeDeviceChanged when publishing local track - [#759](https://github.com/livekit/client-sdk-js/pull/759) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix peer connections leak - [#767](https://github.com/livekit/client-sdk-js/pull/767) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.11.4
 
 ### Patch Changes

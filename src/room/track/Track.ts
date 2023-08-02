@@ -1,8 +1,9 @@
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
-import { TrackSource, TrackType } from '../../proto/livekit_models';
-import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc';
+import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
+import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import { isFireFox, isSafari, isWeb } from '../utils';
 
@@ -12,7 +13,7 @@ const BACKGROUND_REACTION_DELAY = 5000;
 // Safari tracks which audio elements have been "blessed" by the user.
 const recycledElements: Array<HTMLAudioElement> = [];
 
-export abstract class Track extends EventEmitter<TrackEventCallbacks> {
+export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
   kind: Track.Kind;
 
   attachedElements: HTMLMediaElement[] = [];
@@ -51,6 +52,7 @@ export abstract class Track extends EventEmitter<TrackEventCallbacks> {
 
   protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
     super();
+    this.setMaxListeners(100);
     this.kind = kind;
     this._mediaStreamTrack = mediaTrack;
     this._mediaStreamID = mediaTrack.id;
@@ -368,7 +370,8 @@ export namespace Track {
       case Kind.Video:
         return TrackType.VIDEO;
       default:
-        return TrackType.UNRECOGNIZED;
+        // FIXME this was UNRECOGNIZED before
+        return TrackType.DATA;
     }
   }
 
@@ -396,7 +399,7 @@ export namespace Track {
       case Source.ScreenShareAudio:
         return TrackSource.SCREEN_SHARE_AUDIO;
       default:
-        return TrackSource.UNRECOGNIZED;
+        return TrackSource.UNKNOWN;
     }
   }
 

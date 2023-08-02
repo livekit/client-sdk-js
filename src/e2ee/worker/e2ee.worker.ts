@@ -7,6 +7,7 @@ import type {
   ErrorMessage,
   KeyProviderOptions,
   RatchetMessage,
+  RatchetRequestMessage,
 } from '../types';
 import { FrameCryptor } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
@@ -75,7 +76,7 @@ onmessage = (ev) => {
         workerLogger.debug('set shared key');
         setSharedKey(data.key, data.keyIndex);
       } else if (data.participantId) {
-        getParticipantKeyHandler(data.participantId).setKeyFromMaterial(data.key, data.keyIndex);
+        getParticipantKeyHandler(data.participantId).setKey(data.key, data.keyIndex);
       } else {
         workerLogger.error('no participant Id was provided and shared key usage is disabled');
       }
@@ -92,12 +93,17 @@ onmessage = (ev) => {
       });
       break;
     case 'ratchetRequest':
-      getParticipantKeyHandler(data.participantId).ratchetKey(data.keyIndex);
-
+      handleRatchetRequest(data);
     default:
       break;
   }
 };
+
+async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
+  const keyHandler = getParticipantKeyHandler(data.participantId);
+  await keyHandler.ratchetKey(data.keyIndex);
+  keyHandler.resetKeyStatus();
+}
 
 function getTrackCryptor(participantId: string, trackId: string) {
   let cryptor = participantCryptors.find((c) => c.getTrackId() === trackId);
@@ -131,7 +137,7 @@ function getParticipantKeyHandler(participantId?: string) {
   if (!keys) {
     keys = new ParticipantKeyHandler(participantId, true, keyProviderOptions);
     if (sharedKey) {
-      keys.setKeyFromMaterial(sharedKey);
+      keys.setKey(sharedKey);
     }
     participantKeys.set(participantId, keys);
   }
@@ -171,9 +177,9 @@ function setEncryptionEnabled(enable: boolean, participantId?: string) {
 function setSharedKey(key: CryptoKey, index?: number) {
   workerLogger.debug('setting shared key');
   sharedKey = key;
-  publisherKeys?.setKeyFromMaterial(key, index);
+  publisherKeys?.setKey(key, index);
   for (const [, keyHandler] of participantKeys) {
-    keyHandler.setKeyFromMaterial(key, index);
+    keyHandler.setKey(key, index);
   }
 }
 

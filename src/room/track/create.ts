@@ -6,14 +6,18 @@ import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
-import { VideoPresets } from './options';
+import { ScreenSharePresets } from './options';
 import type {
   AudioCaptureOptions,
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
   VideoCaptureOptions,
 } from './options';
-import { constraintsForOptions, mergeDefaultOptions } from './utils';
+import {
+  constraintsForOptions,
+  mergeDefaultOptions,
+  screenCaptureToDisplayMediaStreamOptions,
+} from './utils';
 
 /**
  * Creates a local video and audio track at the same time. When acquiring both
@@ -57,6 +61,15 @@ export async function createLocalTracks(
     if (typeof conOrBool !== 'boolean') {
       trackConstraints = conOrBool;
     }
+
+    // update the constraints with the device id the user gave permissions to in the permission prompt
+    // otherwise each track restart (e.g. mute - unmute) will try to initialize the device again -> causing additional permission prompts
+    if (trackConstraints) {
+      trackConstraints.deviceId = mediaStreamTrack.getSettings().deviceId;
+    } else {
+      trackConstraints = { deviceId: mediaStreamTrack.getSettings().deviceId };
+    }
+
     const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
     if (track.kind === Track.Kind.Video) {
       track.source = Track.Source.Camera;
@@ -104,27 +117,15 @@ export async function createLocalScreenTracks(
     options = {};
   }
   if (options.resolution === undefined) {
-    options.resolution = VideoPresets.h1080.resolution;
-  }
-
-  let videoConstraints: MediaTrackConstraints | boolean = true;
-  if (options.resolution) {
-    videoConstraints = {
-      width: options.resolution.width,
-      height: options.resolution.height,
-    };
+    options.resolution = ScreenSharePresets.h1080fps15.resolution;
   }
 
   if (navigator.mediaDevices.getDisplayMedia === undefined) {
     throw new DeviceUnsupportedError('getDisplayMedia not supported');
   }
 
-  // typescript definition is missing getDisplayMedia: https://github.com/microsoft/TypeScript/issues/33232
-  // @ts-ignore
-  const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia({
-    audio: options.audio ?? false,
-    video: videoConstraints,
-  });
+  const constraints = screenCaptureToDisplayMediaStreamOptions(options);
+  const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia(constraints);
 
   const tracks = stream.getVideoTracks();
   if (tracks.length === 0) {
