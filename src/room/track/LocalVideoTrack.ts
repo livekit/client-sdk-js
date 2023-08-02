@@ -2,8 +2,9 @@ import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
 import { VideoLayer, VideoQuality } from '../../proto/livekit_models_pb';
 import { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc_pb';
-import { computeBitrate, monitorFrequency } from '../stats';
+import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
+import { computeBitrate, monitorFrequency } from '../stats';
 import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
@@ -359,7 +360,7 @@ async function setPublishingLayersForSender(
     let hasChanged = false;
 
     /* disable closable spatial layer as it has video blur / frozen issue with current server / client
-    1. chrome 113: when switching to up layer with scalability Mode change, it will generate a 
+    1. chrome 113: when switching to up layer with scalability Mode change, it will generate a
           low resolution frame and recover very quickly, but noticable
     2. livekit sfu: additional pli request cause video frozen for a few frames, also noticable */
     const closableSpatial = false;
@@ -483,15 +484,16 @@ export function videoLayersFromEncodings(
   if (svc) {
     // svc layers
     /* @ts-ignore */
-    const sm = new ScalabilityMode(encodings[0].scalabilityMode);
+    const encodingSM = encodings[0].scalabilityMode as string;
+    const sm = new ScalabilityMode(encodingSM);
     const layers = [];
     for (let i = 0; i < sm.spatial; i += 1) {
       layers.push(
         new VideoLayer({
           quality: VideoQuality.HIGH - i,
-          width: width / 2 ** i,
-          height: height / 2 ** i,
-          bitrate: encodings[0].maxBitrate ? encodings[0].maxBitrate / 3 ** i : 0,
+          width: Math.ceil(width / 2 ** i),
+          height: Math.ceil(height / 2 ** i),
+          bitrate: encodings[0].maxBitrate ? Math.ceil(encodings[0].maxBitrate / 3 ** i) : 0,
           ssrc: 0,
         }),
       );
@@ -504,8 +506,8 @@ export function videoLayersFromEncodings(
     let quality = videoQualityForRid(encoding.rid ?? '');
     return new VideoLayer({
       quality,
-      width: width / scale,
-      height: height / scale,
+      width: Math.ceil(width / scale),
+      height: Math.ceil(height / scale),
       bitrate: encoding.maxBitrate ?? 0,
       ssrc: 0,
     });

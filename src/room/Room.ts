@@ -1,5 +1,6 @@
 import { protoInt64 } from '@bufbuild/protobuf';
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
 import { toProtoSessionDescription } from '../api/SignalClient';
 import { EncryptionEvent } from '../e2ee';
@@ -98,7 +99,7 @@ export const RoomState = ConnectionState;
  *
  * @noInheritDoc
  */
-class Room extends EventEmitter<RoomEventCallbacks> {
+class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
   /** map of sid: [[RemoteParticipant]] */
@@ -157,6 +158,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
    */
   constructor(options?: RoomOptions) {
     super();
+    this.setMaxListeners(100);
     this.participants = new Map();
     this.cachedParticipantSids = [];
     this.identityToSid = new Map();
@@ -422,13 +424,15 @@ class Room extends EventEmitter<RoomEventCallbacks> {
         this.abortController.abort();
       }
 
-      this.abortController = new AbortController();
+      // explicit creation as local var needed to satisfy TS compiler when passing it to `attemptConnection` further down
+      const abortController = new AbortController();
+      this.abortController = abortController;
 
       // at this point the intention to connect has been signalled so we can allow cancelling of the connection via disconnect() again
       unlockDisconnect?.();
 
       try {
-        await this.attemptConnection(regionUrl ?? url, token, opts, this.abortController);
+        await this.attemptConnection(regionUrl ?? url, token, opts, abortController);
         this.abortController = undefined;
         resolve();
       } catch (e) {
@@ -1401,6 +1405,7 @@ class Room extends EventEmitter<RoomEventCallbacks> {
 
     if (this.options.expWebAudioMix) {
       this.participants.forEach((participant) => participant.setAudioContext(this.audioContext));
+      this.localParticipant.setAudioContext(this.audioContext);
     }
 
     const newContextIsRunning = this.audioContext?.state === 'running';
@@ -1620,9 +1625,9 @@ class Room extends EventEmitter<RoomEventCallbacks> {
     return true;
   }
 
-  private emitWhenConnected<T extends EventEmitter.EventNames<RoomEventCallbacks>>(
-    event: T,
-    ...args: EventEmitter.EventArgs<RoomEventCallbacks, T>
+  private emitWhenConnected<E extends keyof RoomEventCallbacks>(
+    event: E,
+    ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
     if (this.state === ConnectionState.Connected) {
       return this.emit(event, ...args);
@@ -1811,14 +1816,10 @@ class Room extends EventEmitter<RoomEventCallbacks> {
   }
 
   // /** @internal */
-  emit<T extends EventEmitter.EventNames<RoomEventCallbacks>>(
-    event: T,
-    ...args: EventEmitter.EventArgs<RoomEventCallbacks, T>
+  emit<E extends keyof RoomEventCallbacks>(
+    event: E,
+    ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
-    // emit<E extends keyof RoomEventCallbacks>(
-    //   event: E,
-    //   ...args: Parameters<RoomEventCallbacks[E]>
-    // ): boolean {
     // active speaker updates are too spammy
     if (event !== RoomEvent.ActiveSpeakersChanged) {
       log.debug(`room event ${event}`, { event, args });

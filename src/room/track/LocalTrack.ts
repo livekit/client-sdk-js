@@ -1,3 +1,4 @@
+import { debounce } from 'ts-debounce';
 import log from '../../logger';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
@@ -108,8 +109,8 @@ export default abstract class LocalTrack extends Track {
         detachTrack(this._mediaStreamTrack, el);
       });
       this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
-      this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
-      this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
+      this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
+      this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
       if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
         this._mediaStreamTrack.stop();
       }
@@ -123,8 +124,8 @@ export default abstract class LocalTrack extends Track {
       // the track is "muted"
       // note this is different from LocalTrack.mute because we do not want to
       // touch MediaStreamTrack.enabled
-      newTrack.addEventListener('mute', this.pauseUpstream);
-      newTrack.addEventListener('unmute', this.resumeUpstream);
+      newTrack.addEventListener('mute', this.handleTrackMuteEvent);
+      newTrack.addEventListener('unmute', this.handleTrackUnmuteEvent);
       this._constraints = newTrack.getConstraints();
     }
     if (this.sender) {
@@ -274,18 +275,32 @@ export default abstract class LocalTrack extends Track {
     log.debug(`visibility changed, is in Background: ${this.isInBackground}`);
 
     if (!this.isInBackground && this.needsReAcquisition && !this.isUserProvided && !this.isMuted) {
-      log.debug(`track needs to be reaquired, restarting ${this.source}`);
+      log.debug(`track needs to be reacquired, restarting ${this.source}`);
       await this.restart();
       this.reacquireTrack = false;
     }
   }
 
+  private handleTrackMuteEvent = () =>
+    this.debouncedTrackMuteHandler().catch(() =>
+      log.debug('track mute bounce got cancelled by an unmute event'),
+    );
+
+  private debouncedTrackMuteHandler = debounce(async () => {
+    await this.pauseUpstream();
+  }, 5000);
+
+  private handleTrackUnmuteEvent = async () => {
+    this.debouncedTrackMuteHandler.cancel('unmute');
+    await this.resumeUpstream();
+  };
+
   private handleEnded = () => {
     if (this.isInBackground) {
       this.reacquireTrack = true;
     }
-    this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
-    this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
+    this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
+    this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
     this.emit(TrackEvent.Ended, this);
   };
 
@@ -293,8 +308,8 @@ export default abstract class LocalTrack extends Track {
     super.stop();
 
     this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
-    this._mediaStreamTrack.removeEventListener('mute', this.pauseUpstream);
-    this._mediaStreamTrack.removeEventListener('unmute', this.resumeUpstream);
+    this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
+    this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
     this.processor?.destroy();
     this.processor = undefined;
   }

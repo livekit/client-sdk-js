@@ -1,5 +1,6 @@
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
 import type { MediaAttributes } from 'sdp-transform';
+import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
 import { SignalClient } from '../api/SignalClient';
 import log from '../logger';
@@ -71,7 +72,7 @@ enum PCState {
 }
 
 /** @internal */
-export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
+export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
   publisher?: PCTransport;
 
   subscriber?: PCTransport;
@@ -496,11 +497,11 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
 
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
       log.debug('received trackPublishedResponse', res);
-      const { resolve } = this.pendingTrackResolvers[res.cid];
-      if (!resolve) {
+      if (!this.pendingTrackResolvers[res.cid]) {
         log.error(`missing track resolver for ${res.cid}`);
         return;
       }
+      const { resolve } = this.pendingTrackResolvers[res.cid];
       delete this.pendingTrackResolvers[res.cid];
       resolve(res.track!);
     };
@@ -648,11 +649,11 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind = channel.maxRetransmits === 0 ? 'lossy' : 'reliable';
 
-    if (event instanceof ErrorEvent) {
+    if (event instanceof ErrorEvent && event.error) {
       const { error } = event.error;
       log.error(`DataChannel error on ${channelKind}: ${event.message}`, error);
     } else {
-      log.error(`Unknown DataChannel Error on ${channelKind}`, event);
+      log.error(`Unknown DataChannel error on ${channelKind}`, event);
     }
   };
 
@@ -1120,7 +1121,6 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       };
       this.once(EngineEvent.Restarted, onRestarted);
       this.once(EngineEvent.Disconnected, onDisconnected);
-      this.once(EngineEvent.Closing, onDisconnected);
     });
   };
 
@@ -1247,7 +1247,7 @@ export default class RTCEngine extends EventEmitter<EngineEventCallbacks> {
       this.hasPublished = true;
 
       const handleClosed = () => {
-        log.warn('engine disconnected while negotiation was ongoing');
+        log.debug('engine disconnected while negotiation was ongoing');
         cleanup();
         resolve();
         return;

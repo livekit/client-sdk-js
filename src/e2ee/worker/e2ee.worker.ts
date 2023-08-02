@@ -102,7 +102,7 @@ onmessage = (ev) => {
 async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
   const keyHandler = getParticipantKeyHandler(data.participantId);
   await keyHandler.ratchetKey(data.keyIndex);
-  keyHandler.hasValidKey = true;
+  keyHandler.resetKeyStatus();
 }
 
 function getTrackCryptor(participantId: string, trackId: string) {

@@ -457,7 +457,12 @@ export default class LocalParticipant extends Participant {
     screenVideo.source = Track.Source.ScreenShare;
     const localTracks: Array<LocalTrack> = [screenVideo];
     if (stream.getAudioTracks().length > 0) {
-      const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0], undefined, false);
+      const screenAudio = new LocalAudioTrack(
+        stream.getAudioTracks()[0],
+        undefined,
+        false,
+        this.audioContext,
+      );
       screenAudio.source = Track.Source.ScreenShareAudio;
       localTracks.push(screenAudio);
     }
@@ -505,7 +510,7 @@ export default class LocalParticipant extends Participant {
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
         case 'audio':
-          track = new LocalAudioTrack(track, defaultConstraints, true);
+          track = new LocalAudioTrack(track, defaultConstraints, true, this.audioContext);
           break;
         case 'video':
           track = new LocalVideoTrack(track, defaultConstraints, true);
@@ -513,6 +518,10 @@ export default class LocalParticipant extends Participant {
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
       }
+    }
+
+    if (track instanceof LocalAudioTrack) {
+      track.setAudioContext(this.audioContext);
     }
 
     // is it already published? if so skip

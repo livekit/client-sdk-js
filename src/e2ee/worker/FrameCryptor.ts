@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
@@ -26,7 +27,7 @@ export interface TransformerInfo {
   abortController: AbortController;
 }
 
-export class BaseFrameCryptor extends EventEmitter<CryptorCallbacks> {
+export class BaseFrameCryptor extends (EventEmitter as new () => TypedEventEmitter<CryptorCallbacks>) {
   encodeFunction(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
@@ -271,6 +272,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
       try {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
+        this.keys.decryptionSuccess();
         if (decodedFrame) {
           return controller.enqueue(decodedFrame);
         }
@@ -285,7 +287,7 @@ export class FrameCryptor extends BaseFrameCryptor {
                 CryptorErrorReason.InvalidKey,
               ),
             );
-            this.keys.hasValidKey = false;
+            this.keys.decryptionFailure();
           }
         } else {
           workerLogger.warn('decoding frame failed', { error });
@@ -394,8 +396,6 @@ export class FrameCryptor extends BaseFrameCryptor {
             workerLogger.debug('resetting to initial material');
             this.keys.setKeyFromMaterial(initialMaterial.material, keyIndex);
           }
-
-          this.keys.hasValidKey = false;
 
           workerLogger.warn('maximum ratchet attempts exceeded, resetting key');
           this.emit(

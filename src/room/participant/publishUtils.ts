@@ -3,13 +3,13 @@ import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
-import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import type {
   BackupVideoCodec,
   TrackPublishOptions,
   VideoCodec,
   VideoEncoding,
 } from '../track/options';
+import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import { getReactNativeOs, isFireFox, isReactNative, isSVCCodec } from '../utils';
 
 /** @internal */
@@ -240,7 +240,9 @@ export function determineAppropriateEncoding(
   }
   // presets are based on the assumption of vp8 as a codec
   // for other codecs we adjust the maxBitrate if no specific videoEncoding has been provided
-  // TODO make the bitrate multipliers configurable per codec
+  // users should override these with ones that are optimized for their use case
+  // NOTE: SVC codec bitrates are inclusive of all scalability layers. while
+  // bitrate for non-SVC codecs does not include other simulcast layers.
   if (codec) {
     switch (codec) {
       case 'av1':

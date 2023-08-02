@@ -1,4 +1,5 @@
-import EventEmitter from 'eventemitter3';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
 import log from '../../logger';
 import {
   DataPacket_Kind,
@@ -8,7 +9,9 @@ import {
   SubscriptionError,
 } from '../../proto/livekit_models_pb';
 import { ParticipantEvent, TrackEvent } from '../events';
+import LocalAudioTrack from '../track/LocalAudioTrack';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
+import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
@@ -34,7 +37,7 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
   }
 }
 
-export default class Participant extends EventEmitter<ParticipantEventCallbacks> {
+export default class Participant extends (EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>) {
   protected participantInfo?: ParticipantInfo;
 
   audioTracks: Map<string, TrackPublication>;
@@ -68,6 +71,8 @@ export default class Participant extends EventEmitter<ParticipantEventCallbacks>
 
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
+  protected audioContext?: AudioContext;
+
   get isEncrypted() {
     return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
   }
@@ -75,6 +80,7 @@ export default class Participant extends EventEmitter<ParticipantEventCallbacks>
   /** @internal */
   constructor(sid: string, identity: string, name?: string, metadata?: string) {
     super();
+    this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
     this.name = name;
@@ -234,6 +240,18 @@ export default class Participant extends EventEmitter<ParticipantEventCallbacks>
     if (prevQuality !== this._connectionQuality) {
       this.emit(ParticipantEvent.ConnectionQualityChanged, this._connectionQuality);
     }
+  }
+
+  /**
+   * @internal
+   */
+  setAudioContext(ctx: AudioContext | undefined) {
+    this.audioContext = ctx;
+    this.audioTracks.forEach(
+      (track) =>
+        (track.track instanceof RemoteAudioTrack || track.track instanceof LocalAudioTrack) &&
+        track.track.setAudioContext(ctx),
+    );
   }
 
   protected addTrackPublication(publication: TrackPublication) {
