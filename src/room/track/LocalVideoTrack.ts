@@ -211,6 +211,13 @@ export default class LocalVideoTrack extends LocalTrack {
       }
     }
     await this.restart(constraints);
+
+    this.simulcastCodecs.forEach((sc) => {
+      if (sc.sender) {
+        sc.mediaStreamTrack = this.mediaStreamTrack.clone();
+        sc.sender.replaceTrack(sc.mediaStreamTrack);
+      }
+    });
   }
 
   addSimulcastTrack(codec: VideoCodec, encodings?: RTCRtpEncodingParameters[]): SimulcastTrackInfo {
