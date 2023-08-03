@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
-import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
+import { ENCRYPTION_ALGORITHM, IV_LENGTH, MAX_SIF_COUNT, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import {
   CryptorCallbacks,
@@ -66,6 +66,8 @@ export class FrameCryptor extends BaseFrameCryptor {
    * used for detecting server injected unencrypted frames
    */
   private sifTrailer: Uint8Array;
+
+  private consecutiveSifCount = 0;
 
   constructor(opts: {
     keys: ParticipantKeyHandler;
@@ -259,13 +261,21 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (
       !this.keys.isEnabled() ||
       // skip for decryption for empty dtx frames
-      encodedFrame.data.byteLength === 0 ||
-      // skip decryption if frame is server injected
-      isFrameServerInjected(encodedFrame.data, this.sifTrailer)
+      encodedFrame.data.byteLength === 0
     ) {
-      // TODO when a frame is detected as being server injected, it would be preferable to construct
-      // an empty frame client-side instead of just passing it to the controller
       return controller.enqueue(encodedFrame);
+    }
+
+    if (isFrameServerInjected(encodedFrame.data, this.sifTrailer)) {
+      this.consecutiveSifCount += 1;
+      if (this.consecutiveSifCount < MAX_SIF_COUNT) {
+        return controller.enqueue(encodedFrame);
+      } else {
+        // drop frame if we are above MAX_SIF_COUNT
+        return;
+      }
+    } else {
+      this.consecutiveSifCount = 0;
     }
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
