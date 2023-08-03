@@ -146,7 +146,6 @@ export default class LocalAudioTrack extends LocalTrack {
           'Audio context needs to be set on LocalAudioTrack in order to enable processors',
         );
       }
-      log.debug('setting up processor');
       if (this.processor) {
         await this.stopProcessor();
       }
@@ -159,10 +158,9 @@ export default class LocalAudioTrack extends LocalTrack {
         track: this._mediaStreamTrack,
         audioContext: this.audioContext,
       };
-      console.debug('init processor', processorOptions, processor);
+      log.debug(`setting up audio processor ${processor.name}`);
 
       await processor.init(processorOptions);
-      log.debug('replace track');
       this.processor = processor;
       if (this.processor.processedTrack) {
         await this.sender?.replaceTrack(this.processor.processedTrack);
