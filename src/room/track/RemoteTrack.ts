@@ -58,7 +58,7 @@ export default abstract class RemoteTrack extends Track {
    * @returns Promise<RTCStatsReport> | undefined
    */
   async getRTCStatsReport(): Promise<RTCStatsReport | undefined> {
-    if (!this.receiver || !this.receiver.getStats) {
+    if (!this.receiver?.getStats) {
       return;
     }
     const statsReport = await this.receiver.getStats();

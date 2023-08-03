@@ -371,7 +371,7 @@ export default abstract class LocalTrack extends Track {
    * @returns Promise<RTCStatsReport> | undefined
    */
   async getRTCStatsReport(): Promise<RTCStatsReport | undefined> {
-    if (!this.sender || !this.sender.getStats) {
+    if (!this.sender?.getStats) {
       return;
     }
     const statsReport = await this.sender.getStats();
