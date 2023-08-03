@@ -271,7 +271,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       if (this.consecutiveSifCount < MAX_SIF_COUNT) {
         return controller.enqueue(encodedFrame);
       } else {
-        // drop frame if we are above MAX_SIF_COUNT
+        workerLogger.warn('SIF limit reached, dropping frame');
         return;
       }
     } else {
