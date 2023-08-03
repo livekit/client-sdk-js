@@ -365,6 +365,20 @@ export default abstract class LocalTrack extends Track {
   };
 
   /**
+   * Gets the RTCStatsReport for the LocalTrack's underlying RTCRtpSender
+   * See https://developer.mozilla.org/en-US/docs/Web/API/RTCStatsReport
+   *
+   * @returns Promise<RTCStatsReport> | undefined
+   */
+  async getRTCStatsReport(): Promise<RTCStatsReport | undefined> {
+    if (!this.sender || !this.sender.getStats) {
+      return;
+    }
+    const statsReport = await this.sender.getStats();
+    return statsReport;
+  }
+
+  /**
    * Sets a processor on this track.
    * See https://github.com/livekit/track-processors-js for example usage
    *
