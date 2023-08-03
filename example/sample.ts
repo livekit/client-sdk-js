@@ -99,6 +99,12 @@ const appActions = {
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
     };
+    if (
+      roomOpts.publishDefaults?.videoCodec === 'av1' ||
+      roomOpts.publishDefaults?.videoCodec === 'vp9'
+    ) {
+      roomOpts.publishDefaults.backupCodec = { codec: 'vp8', encoding: VideoPresets.h720.encoding };
+    }
 
     const connectOpts: RoomConnectOptions = {
       autoSubscribe: autoSubscribe,
