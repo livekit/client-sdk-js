@@ -127,6 +127,13 @@ export default class LocalVideoTrack extends LocalTrack {
     }
   }
 
+  protected setTrackMuted(muted: boolean) {
+    super.setTrackMuted(muted);
+    for (const sc of this.simulcastCodecs.values()) {
+      sc.mediaStreamTrack.enabled = !muted;
+    }
+  }
+
   async getSenderStats(): Promise<VideoSenderStats[]> {
     if (!this.sender?.getStats) {
       return [];
@@ -212,12 +219,12 @@ export default class LocalVideoTrack extends LocalTrack {
     }
     await this.restart(constraints);
 
-    this.simulcastCodecs.forEach((sc) => {
+    for await (const sc of this.simulcastCodecs.values()) {
       if (sc.sender) {
         sc.mediaStreamTrack = this.mediaStreamTrack.clone();
-        sc.sender.replaceTrack(sc.mediaStreamTrack);
+        await sc.sender.replaceTrack(sc.mediaStreamTrack);
       }
-    });
+    }
   }
 
   addSimulcastTrack(codec: VideoCodec, encodings?: RTCRtpEncodingParameters[]): SimulcastTrackInfo {
