@@ -128,7 +128,7 @@ export default class LocalVideoTrack extends LocalTrack {
   }
 
   protected setTrackMuted(muted: boolean) {
-    super.setTrackMuted(muted)
+    super.setTrackMuted(muted);
     for (const sc of this.simulcastCodecs.values()) {
       sc.mediaStreamTrack.enabled = !muted;
     }
