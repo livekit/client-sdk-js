@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
-import { ENCRYPTION_ALGORITHM, IV_LENGTH, MAX_SIF_COUNT, UNENCRYPTED_BYTES } from '../constants';
+import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import {
   CryptorCallbacks,
@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { deriveKeys, isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
+import { SifGuard } from './SifGuard';
 
 export interface FrameCryptorConstructor {
   new (opts?: unknown): BaseFrameCryptor;
@@ -67,7 +68,7 @@ export class FrameCryptor extends BaseFrameCryptor {
    */
   private sifTrailer: Uint8Array;
 
-  private consecutiveSifCount = 0;
+  private sifGuard: SifGuard;
 
   constructor(opts: {
     keys: ParticipantKeyHandler;
@@ -82,6 +83,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.rtpMap = new Map();
     this.keyProviderOptions = opts.keyProviderOptions;
     this.sifTrailer = opts.sifTrailer ?? new TextEncoder().encode('LKROCKS');
+    this.sifGuard = new SifGuard();
   }
 
   /**
@@ -93,6 +95,7 @@ export class FrameCryptor extends BaseFrameCryptor {
   setParticipant(id: string, keys: ParticipantKeyHandler) {
     this.participantId = id;
     this.keys = keys;
+    this.sifGuard.reset();
   }
 
   unsetParticipant() {
@@ -134,6 +137,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       workerLogger.info('setting codec on cryptor to', { codec });
       this.videoCodec = codec;
     }
+
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
       transform: transformFn.bind(this),
@@ -263,19 +267,21 @@ export class FrameCryptor extends BaseFrameCryptor {
       // skip for decryption for empty dtx frames
       encodedFrame.data.byteLength === 0
     ) {
+      this.sifGuard.recordUserFrame();
       return controller.enqueue(encodedFrame);
     }
 
     if (isFrameServerInjected(encodedFrame.data, this.sifTrailer)) {
-      this.consecutiveSifCount += 1;
-      if (this.consecutiveSifCount < MAX_SIF_COUNT) {
+      this.sifGuard.recordSif();
+
+      if (this.sifGuard.isSifAllowed()) {
         return controller.enqueue(encodedFrame);
       } else {
         workerLogger.warn('SIF limit reached, dropping frame');
         return;
       }
     } else {
-      this.consecutiveSifCount = 0;
+      this.sifGuard.recordUserFrame();
     }
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];

@@ -44,3 +44,4 @@ export const KEY_PROVIDER_DEFAULTS: KeyProviderOptions = {
 } as const;
 
 export const MAX_SIF_COUNT = 100;
+export const MAX_SIF_DURATION = 2000;
