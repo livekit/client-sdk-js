@@ -1,3 +1,4 @@
+import log from '../../logger';
 import { RoomEvent } from '../../room/events';
 import { Checker } from './Checker';
 
@@ -14,19 +15,20 @@ export class WebRTCCheck extends Checker {
 
       const candidates: RTCIceCandidate[] = [];
       this.room.engine.client.onTrickle = (sd, target) => {
-        console.log('got candidate', sd);
         if (sd.candidate) {
           const candidate = new RTCIceCandidate(sd);
           candidates.push(candidate);
           let str = `${candidate.protocol} ${candidate.address}:${candidate.port} ${candidate.type}`;
-          if (candidate.protocol === 'tcp' && candidate.tcpType === 'passive') {
-            hasTcp = true;
-            str += ' (active)';
-          } else if (candidate.protocol === 'udp' && candidate.address) {
+          if (candidate.address) {
             if (isIPPrivate(candidate.address)) {
               str += ' (private)';
             } else {
-              hasIpv4Udp = true;
+              if (candidate.protocol === 'tcp' && candidate.tcpType === 'passive') {
+                hasTcp = true;
+                str += ' (passive)';
+              } else if (candidate.protocol === 'udp') {
+                hasIpv4Udp = true;
+              }
             }
           }
           this.appendMessage(str);
@@ -48,7 +50,7 @@ export class WebRTCCheck extends Checker {
     });
     try {
       await this.connect();
-      console.log('now the room is connected');
+      log.info('now the room is connected');
     } catch (err) {
       this.appendWarning('ports need to be open on firewall in order to connect.');
       throw err;
