@@ -9,7 +9,9 @@ import {
   SubscriptionError,
 } from '../../proto/livekit_models_pb';
 import { ParticipantEvent, TrackEvent } from '../events';
+import LocalAudioTrack from '../track/LocalAudioTrack';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
+import RemoteAudioTrack from '../track/RemoteAudioTrack';
 import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
@@ -68,6 +70,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   permissions?: ParticipantPermission;
 
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
+
+  protected audioContext?: AudioContext;
 
   get isEncrypted() {
     return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
@@ -236,6 +240,18 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     if (prevQuality !== this._connectionQuality) {
       this.emit(ParticipantEvent.ConnectionQualityChanged, this._connectionQuality);
     }
+  }
+
+  /**
+   * @internal
+   */
+  setAudioContext(ctx: AudioContext | undefined) {
+    this.audioContext = ctx;
+    this.audioTracks.forEach(
+      (track) =>
+        (track.track instanceof RemoteAudioTrack || track.track instanceof LocalAudioTrack) &&
+        track.track.setAudioContext(ctx),
+    );
   }
 
   protected addTrackPublication(publication: TrackPublication) {

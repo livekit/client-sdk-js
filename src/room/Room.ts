@@ -1407,6 +1407,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.participants.forEach((participant) => participant.setAudioContext(this.audioContext));
     }
 
+    this.localParticipant.setAudioContext(this.audioContext);
+
     const newContextIsRunning = this.audioContext?.state === 'running';
     if (newContextIsRunning !== this.canPlaybackAudio) {
       this.audioEnabled = newContextIsRunning;
