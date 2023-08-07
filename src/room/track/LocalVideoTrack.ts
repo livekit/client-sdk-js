@@ -9,6 +9,7 @@ import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
+import type { TrackProcessor } from './processor/types';
 import { constraintsForOptions } from './utils';
 
 export class SimulcastTrackInfo {
@@ -97,6 +98,20 @@ export default class LocalVideoTrack extends LocalTrack {
     });
     super.stop();
   }
+
+  pauseUpstream = async () => {
+    await super.pauseUpstream();
+    for await (const sc of this.simulcastCodecs.values()) {
+      await sc.sender?.replaceTrack(null);
+    }
+  };
+
+  resumeUpstream = async () => {
+    await super.resumeUpstream();
+    for await (const sc of this.simulcastCodecs.values()) {
+      await sc.sender?.replaceTrack(sc.mediaStreamTrack);
+    }
+  };
 
   async mute(): Promise<LocalVideoTrack> {
     const unlock = await this.muteLock.lock();
@@ -223,6 +238,16 @@ export default class LocalVideoTrack extends LocalTrack {
       if (sc.sender) {
         sc.mediaStreamTrack = this.mediaStreamTrack.clone();
         await sc.sender.replaceTrack(sc.mediaStreamTrack);
+      }
+    }
+  }
+
+  async setProcessor(processor: TrackProcessor<Track.Kind>, showProcessedStreamLocally = true) {
+    await super.setProcessor(processor, showProcessedStreamLocally);
+
+    if (this.processor?.processedTrack) {
+      for await (const sc of this.simulcastCodecs.values()) {
+        await sc.sender?.replaceTrack(this.processor.processedTrack);
       }
     }
   }
