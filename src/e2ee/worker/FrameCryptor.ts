@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { deriveKeys, isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
+import { SifGuard } from './SifGuard';
 
 export interface FrameCryptorConstructor {
   new (opts?: unknown): BaseFrameCryptor;
@@ -67,6 +68,8 @@ export class FrameCryptor extends BaseFrameCryptor {
    */
   private sifTrailer: Uint8Array;
 
+  private sifGuard: SifGuard;
+
   constructor(opts: {
     keys: ParticipantKeyHandler;
     participantId: string;
@@ -80,6 +83,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.rtpMap = new Map();
     this.keyProviderOptions = opts.keyProviderOptions;
     this.sifTrailer = opts.sifTrailer ?? new TextEncoder().encode('LKROCKS');
+    this.sifGuard = new SifGuard();
   }
 
   /**
@@ -91,6 +95,7 @@ export class FrameCryptor extends BaseFrameCryptor {
   setParticipant(id: string, keys: ParticipantKeyHandler) {
     this.participantId = id;
     this.keys = keys;
+    this.sifGuard.reset();
   }
 
   unsetParticipant() {
@@ -132,6 +137,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       workerLogger.info('setting codec on cryptor to', { codec });
       this.videoCodec = codec;
     }
+
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
       transform: transformFn.bind(this),
@@ -259,13 +265,23 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (
       !this.keys.isEnabled() ||
       // skip for decryption for empty dtx frames
-      encodedFrame.data.byteLength === 0 ||
-      // skip decryption if frame is server injected
-      isFrameServerInjected(encodedFrame.data, this.sifTrailer)
+      encodedFrame.data.byteLength === 0
     ) {
-      // TODO when a frame is detected as being server injected, it would be preferable to construct
-      // an empty frame client-side instead of just passing it to the controller
+      this.sifGuard.recordUserFrame();
       return controller.enqueue(encodedFrame);
+    }
+
+    if (isFrameServerInjected(encodedFrame.data, this.sifTrailer)) {
+      this.sifGuard.recordSif();
+
+      if (this.sifGuard.isSifAllowed()) {
+        return controller.enqueue(encodedFrame);
+      } else {
+        workerLogger.warn('SIF limit reached, dropping frame');
+        return;
+      }
+    } else {
+      this.sifGuard.recordUserFrame();
     }
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];

@@ -42,3 +42,6 @@ export const KEY_PROVIDER_DEFAULTS: KeyProviderOptions = {
   ratchetWindowSize: 8,
   failureTolerance: DECRYPTION_FAILURE_TOLERANCE,
 } as const;
+
+export const MAX_SIF_COUNT = 100;
+export const MAX_SIF_DURATION = 2000;
