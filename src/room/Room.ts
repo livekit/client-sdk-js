@@ -542,6 +542,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (joinResponse.room) {
       this.handleRoomUpdate(joinResponse.room);
     }
+
+    if (this.options.e2ee && this.e2eeManager) {
+      this.e2eeManager.setSifTrailer(joinResponse.sifTrailer);
+    }
   };
 
   private attemptConnection = async (
@@ -1406,6 +1410,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.options.expWebAudioMix) {
       this.participants.forEach((participant) => participant.setAudioContext(this.audioContext));
     }
+
+    this.localParticipant.setAudioContext(this.audioContext);
 
     const newContextIsRunning = this.audioContext?.state === 'running';
     if (newContextIsRunning !== this.canPlaybackAudio) {

@@ -25,8 +25,6 @@ export default class RemoteParticipant extends Participant {
 
   private volumeMap: Map<Track.Source, number>;
 
-  private audioContext?: AudioContext;
-
   private audioOutput?: AudioOutputOptions;
 
   /** @internal */
@@ -322,16 +320,6 @@ export default class RemoteParticipant extends Participant {
     if (sendUnpublish) {
       this.emit(ParticipantEvent.TrackUnpublished, publication);
     }
-  }
-
-  /**
-   * @internal
-   */
-  setAudioContext(ctx: AudioContext | undefined) {
-    this.audioContext = ctx;
-    this.audioTracks.forEach(
-      (track) => track.track instanceof RemoteAudioTrack && track.track.setAudioContext(ctx),
-    );
   }
 
   /**

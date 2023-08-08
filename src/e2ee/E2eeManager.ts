@@ -25,6 +25,7 @@ import type {
   RatchetRequestMessage,
   RemoveTransformMessage,
   SetKeyMessage,
+  SifTrailerMessage,
   UpdateCodecMessage,
 } from './types';
 import { EncryptionEvent } from './types';
@@ -96,6 +97,17 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       this.worker.postMessage(enableMsg);
     } else {
       throw new ReferenceError('failed to enable e2ee, worker is not ready');
+    }
+  }
+
+  /**
+   * @internal
+   */
+  setSifTrailer(trailer: Uint8Array) {
+    if (!trailer || trailer.length === 0) {
+      log.warn("ignoring server sent trailer as it's empty");
+    } else {
+      this.postSifTrailer(trailer);
     }
   }
 
@@ -233,6 +245,19 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     this.worker.postMessage(msg);
   }
 
+  private postSifTrailer(trailer: Uint8Array) {
+    if (!this.worker) {
+      throw Error('could not post SIF trailer, worker is missing');
+    }
+    const msg: SifTrailerMessage = {
+      kind: 'setSifTrailer',
+      data: {
+        trailer,
+      },
+    };
+    this.worker.postMessage(msg);
+  }
+
   private setupE2EEReceiver(track: RemoteTrack, remoteId: string, trackInfo?: TrackInfo) {
     if (!track.receiver) {
       return;
@@ -342,7 +367,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     }
 
     if (isScriptTransformSupported()) {
-      log.warn('initialize script transform');
+      log.info('initialize script transform');
 
       const options = {
         kind: 'encode',
@@ -353,7 +378,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       // @ts-ignore
       sender.transform = new RTCRtpScriptTransform(this.worker, options);
     } else {
-      log.warn('initialize encoded streams');
+      log.info('initialize encoded streams');
       // @ts-ignore
       const senderStreams = sender.createEncodedStreams();
       const msg: EncodeMessage = {
