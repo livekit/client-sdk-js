@@ -320,7 +320,7 @@ export default abstract class LocalTrack extends Track {
    * the server.
    * this API is unsupported on Safari < 12 due to a bug
    **/
-  pauseUpstream = async () => {
+  async pauseUpstream() {
     const unlock = await this.pauseUpstreamLock.lock();
     try {
       if (this._isUpstreamPaused === true) {
@@ -342,9 +342,9 @@ export default abstract class LocalTrack extends Track {
     } finally {
       unlock();
     }
-  };
+  }
 
-  resumeUpstream = async () => {
+  async resumeUpstream() {
     const unlock = await this.pauseUpstreamLock.lock();
     try {
       if (this._isUpstreamPaused === false) {
@@ -362,7 +362,7 @@ export default abstract class LocalTrack extends Track {
     } finally {
       unlock();
     }
-  };
+  }
 
   /**
    * Sets a processor on this track.
