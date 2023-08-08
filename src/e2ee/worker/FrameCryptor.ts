@@ -82,7 +82,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.participantId = opts.participantId;
     this.rtpMap = new Map();
     this.keyProviderOptions = opts.keyProviderOptions;
-    this.sifTrailer = opts.sifTrailer ?? new TextEncoder().encode('LKROCKS');
+    this.sifTrailer = opts.sifTrailer ?? Uint8Array.from([]);
     this.sifGuard = new SifGuard();
   }
 
