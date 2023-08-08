@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { deriveKeys, isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
+import { SifGuard } from './SifGuard';
 
 export interface FrameCryptorConstructor {
   new (opts?: unknown): BaseFrameCryptor;
@@ -65,13 +66,15 @@ export class FrameCryptor extends BaseFrameCryptor {
   /**
    * used for detecting server injected unencrypted frames
    */
-  private unencryptedFrameByteTrailer: Uint8Array;
+  private sifTrailer: Uint8Array;
+
+  private sifGuard: SifGuard;
 
   constructor(opts: {
     keys: ParticipantKeyHandler;
     participantId: string;
     keyProviderOptions: KeyProviderOptions;
-    unencryptedFrameBytes?: Uint8Array;
+    sifTrailer?: Uint8Array;
   }) {
     super();
     this.sendCounts = new Map();
@@ -79,8 +82,8 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.participantId = opts.participantId;
     this.rtpMap = new Map();
     this.keyProviderOptions = opts.keyProviderOptions;
-    this.unencryptedFrameByteTrailer =
-      opts.unencryptedFrameBytes ?? new TextEncoder().encode('LKROCKS');
+    this.sifTrailer = opts.sifTrailer ?? Uint8Array.from([]);
+    this.sifGuard = new SifGuard();
   }
 
   /**
@@ -92,6 +95,7 @@ export class FrameCryptor extends BaseFrameCryptor {
   setParticipant(id: string, keys: ParticipantKeyHandler) {
     this.participantId = id;
     this.keys = keys;
+    this.sifGuard.reset();
   }
 
   unsetParticipant() {
@@ -130,9 +134,10 @@ export class FrameCryptor extends BaseFrameCryptor {
     codec?: VideoCodec,
   ) {
     if (codec) {
-      console.info('setting codec on cryptor to', codec);
+      workerLogger.info('setting codec on cryptor to', { codec });
       this.videoCodec = codec;
     }
+
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
       transform: transformFn.bind(this),
@@ -142,7 +147,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       .pipeThrough(transformStream)
       .pipeTo(writable)
       .catch((e) => {
-        console.error(e);
+        workerLogger.warn(e);
         this.emit('cryptorError', e instanceof CryptorError ? e : new CryptorError(e.message));
       });
     this.trackId = trackId;
@@ -260,11 +265,23 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (
       !this.keys.isEnabled() ||
       // skip for decryption for empty dtx frames
-      encodedFrame.data.byteLength === 0 ||
-      // skip decryption if frame is server injected
-      isFrameServerInjected(encodedFrame.data, this.unencryptedFrameByteTrailer)
+      encodedFrame.data.byteLength === 0
     ) {
+      this.sifGuard.recordUserFrame();
       return controller.enqueue(encodedFrame);
+    }
+
+    if (isFrameServerInjected(encodedFrame.data, this.sifTrailer)) {
+      this.sifGuard.recordSif();
+
+      if (this.sifGuard.isSifAllowed()) {
+        return controller.enqueue(encodedFrame);
+      } else {
+        workerLogger.warn('SIF limit reached, dropping frame');
+        return;
+      }
+    } else {
+      this.sifGuard.recordUserFrame();
     }
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
@@ -293,9 +310,17 @@ export class FrameCryptor extends BaseFrameCryptor {
           workerLogger.warn('decoding frame failed', { error });
         }
       }
+    } else if (!this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
+      // emit an error in case the key index is out of bounds but the key handler thinks we still have a valid key
+      workerLogger.warn('skipping decryption due to missing key at index');
+      this.emit(
+        CryptorEvent.Error,
+        new CryptorError(
+          `missing key at index for participant ${this.participantId}`,
+          CryptorErrorReason.MissingKey,
+        ),
+      );
     }
-
-    return controller.enqueue(encodedFrame);
   }
 
   /**
@@ -398,12 +423,9 @@ export class FrameCryptor extends BaseFrameCryptor {
           }
 
           workerLogger.warn('maximum ratchet attempts exceeded, resetting key');
-          this.emit(
-            CryptorEvent.Error,
-            new CryptorError(
-              `valid key missing for participant ${this.participantId}`,
-              CryptorErrorReason.MissingKey,
-            ),
+          throw new CryptorError(
+            `valid key missing for participant ${this.participantId}`,
+            CryptorErrorReason.InvalidKey,
           );
         }
       } else {
@@ -513,6 +535,10 @@ export class FrameCryptor extends BaseFrameCryptor {
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;
   }
+
+  setSifTrailer(trailer: Uint8Array) {
+    this.sifTrailer = trailer;
+  }
 }
 
 /**
@@ -605,6 +631,9 @@ export enum NALUType {
  * @internal
  */
 export function isFrameServerInjected(frameData: ArrayBuffer, trailerBytes: Uint8Array): boolean {
+  if (trailerBytes.byteLength === 0) {
+    return false;
+  }
   const frameTrailer = new Uint8Array(
     frameData.slice(frameData.byteLength - trailerBytes.byteLength),
   );

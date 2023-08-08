@@ -63,6 +63,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     this.decryptionFailureCount += 1;
 
     if (this.decryptionFailureCount > this.keyProviderOptions.failureTolerance) {
+      workerLogger.warn(`key for ${this.participantId} is being marked as invalid`);
       this._hasValidKey = false;
     }
   }

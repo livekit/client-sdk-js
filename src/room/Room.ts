@@ -542,6 +542,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (joinResponse.room) {
       this.handleRoomUpdate(joinResponse.room);
     }
+
+    if (this.options.e2ee && this.e2eeManager) {
+      this.e2eeManager.setSifTrailer(joinResponse.sifTrailer);
+    }
   };
 
   private attemptConnection = async (

@@ -24,6 +24,8 @@ let useSharedKey: boolean = false;
 
 let sharedKey: CryptoKey | undefined;
 
+let sifTrailer: Uint8Array | undefined;
+
 let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
 workerLogger.setDefaultLevel('info');
@@ -94,6 +96,10 @@ onmessage = (ev) => {
       break;
     case 'ratchetRequest':
       handleRatchetRequest(data);
+      break;
+    case 'setSifTrailer':
+      handleSifTrailer(data.trailer);
+      break;
     default:
       break;
   }
@@ -116,6 +122,7 @@ function getTrackCryptor(participantId: string, trackId: string) {
       participantId,
       keys: getParticipantKeyHandler(participantId),
       keyProviderOptions,
+      sifTrailer,
     });
 
     setupCryptorErrorEvents(cryptor);
@@ -203,6 +210,13 @@ function emitRatchetedKeys(material: CryptoKey, keyIndex?: number) {
     },
   };
   postMessage(msg);
+}
+
+function handleSifTrailer(trailer: Uint8Array) {
+  sifTrailer = trailer;
+  participantCryptors.forEach((c) => {
+    c.setSifTrailer(trailer);
+  });
 }
 
 // Operations using RTCRtpScriptTransform.
