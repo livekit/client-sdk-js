@@ -99,14 +99,14 @@ export default class LocalVideoTrack extends LocalTrack {
     super.stop();
   }
 
-  pauseUpstream = async () => {
+  async pauseUpstream() {
     await super.pauseUpstream();
     for await (const sc of this.simulcastCodecs.values()) {
       await sc.sender?.replaceTrack(null);
     }
   };
 
-  resumeUpstream = async () => {
+  async resumeUpstream() {
     await super.resumeUpstream();
     for await (const sc of this.simulcastCodecs.values()) {
       await sc.sender?.replaceTrack(sc.mediaStreamTrack);
