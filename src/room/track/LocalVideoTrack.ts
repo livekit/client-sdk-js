@@ -104,14 +104,14 @@ export default class LocalVideoTrack extends LocalTrack {
     for await (const sc of this.simulcastCodecs.values()) {
       await sc.sender?.replaceTrack(null);
     }
-  };
+  }
 
   async resumeUpstream() {
     await super.resumeUpstream();
     for await (const sc of this.simulcastCodecs.values()) {
       await sc.sender?.replaceTrack(sc.mediaStreamTrack);
     }
-  };
+  }
 
   async mute(): Promise<LocalVideoTrack> {
     const unlock = await this.muteLock.lock();
