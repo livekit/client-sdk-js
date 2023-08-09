@@ -50,7 +50,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     }
     if (isReactNative()) {
       // @ts-ignore
-      this._mediaStreamTrack._setVolume(volume)
+      this._mediaStreamTrack._setVolume(volume);
     }
     this.elementVolume = volume;
   }
@@ -64,7 +64,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     }
     if (isReactNative()) {
       // RN volume value defaults to 1.0 if hasn't been changed.
-      return 1.0
+      return 1.0;
     }
     let highestVolume = 0;
     this.attachedElements.forEach((element) => {
