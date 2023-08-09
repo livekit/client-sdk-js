@@ -2,7 +2,7 @@ import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate } from '../stats';
 import type { AudioReceiverStats } from '../stats';
-import { supportsSetSinkId } from '../utils';
+import { isReactNative, supportsSetSinkId } from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { Track } from './Track';
 import type { AudioOutputOptions } from './options';
@@ -49,6 +49,10 @@ export default class RemoteAudioTrack extends RemoteTrack {
       }
     }
     this.elementVolume = volume;
+    if(isReactNative()) {
+      // @ts-ignore
+      this._mediaStreamTrack._setVolume(volume)
+    }
   }
 
   /**
