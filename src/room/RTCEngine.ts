@@ -193,6 +193,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.signalOpts = opts;
     try {
       this.joinAttempts += 1;
+
+      this.setupSignalClientCallbacks();
       const joinResponse = await this.client.join(url, token, opts, abortSignal);
       this._isClosed = false;
       this.latestJoinResponse = joinResponse;
@@ -206,7 +208,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.subscriberPrimary) {
         this.negotiate();
       }
-      this.setupSignalClientCallbacks();
 
       this.clientConfiguration = joinResponse.clientConfiguration;
 
