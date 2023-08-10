@@ -119,6 +119,9 @@ export interface InternalRoomConnectOptions {
 
   /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
   maxRetries: number;
+
+  /** amount of time for Websocket connection to be established, defaults to 15s */
+  websocketTimeout: number;
 }
 
 /**
