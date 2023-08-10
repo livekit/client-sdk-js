@@ -221,6 +221,7 @@ export class SignalClient {
         reject(new ConnectionError('room connection has been cancelled (signal)'));
       };
 
+      console.log('timeout', opts.websocketTimeout);
       const wsTimeout = setTimeout(() => {
         this.close();
         reject(new ConnectionError('room connection has timed out (signal)'));
