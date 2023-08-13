@@ -36,4 +36,8 @@ export type SimulationScenario =
   | 'resume-reconnect'
   | 'force-tcp'
   | 'force-tls'
-  | 'full-reconnect';
+  | 'full-reconnect'
+  // overrides server-side bandwidth estimator with set bandwidth
+  // this can be used to test application behavior when congested or
+  // to disable congestion control entirely (by setting bandwidth to 100Mbps)
+  | 'subscriber-bandwidth';

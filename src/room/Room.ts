@@ -698,7 +698,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /**
    * @internal for testing
    */
-  async simulateScenario(scenario: SimulationScenario) {
+  async simulateScenario(scenario: SimulationScenario, arg?: any) {
     let postAction = () => {};
     let req: SimulateScenario | undefined;
     switch (scenario) {
@@ -767,6 +767,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             );
           }
         };
+        break;
+      case 'subscriber-bandwidth':
+        if (arg === undefined || typeof arg !== 'number') {
+          throw new Error('subscriber-bandwidth requires a number as argument');
+        }
+        req = new SimulateScenario({
+          scenario: {
+            case: 'subscriberBandwidth',
+            value: BigInt(arg),
+          },
+        });
         break;
       default:
     }
