@@ -1,4 +1,5 @@
 import { workerLogger } from '../../logger';
+import type { VideoCodec } from '../../room/track/options';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';
 import type {
@@ -27,6 +28,8 @@ let sharedKey: CryptoKey | undefined;
 let sifTrailer: Uint8Array | undefined;
 
 let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
+
+let rtpMap: Map<number, VideoCodec> = new Map();
 
 workerLogger.setDefaultLevel('info');
 
@@ -90,6 +93,7 @@ onmessage = (ev) => {
       getTrackCryptor(data.participantId, data.trackId).setVideoCodec(data.codec);
       break;
     case 'setRTPMap':
+      rtpMap = data.map;
       publishCryptors.forEach((cr) => {
         cr.setRtpMap(data.map);
       });
@@ -166,6 +170,7 @@ function getPublisherCryptor(trackId: string) {
       participantId: 'publisher',
       keyProviderOptions,
     });
+    publishCryptor.setRtpMap(rtpMap);
     setupCryptorErrorEvents(publishCryptor);
     publishCryptors.push(publishCryptor);
   }

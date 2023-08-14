@@ -481,12 +481,14 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (isVideoFrame(frame)) {
       let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
 
-      if (detectedCodec === 'av1' || detectedCodec === 'vp9') {
+      if (detectedCodec === 'av1') {
         throw new Error(`${detectedCodec} is not yet supported for end to end encryption`);
       }
 
       if (detectedCodec === 'vp8') {
         return UNENCRYPTED_BYTES[frame.type];
+      } else if (detectedCodec === 'vp9') {
+        return 0;
       }
 
       const data = new Uint8Array(frame.data);
