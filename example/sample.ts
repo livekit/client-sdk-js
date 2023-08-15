@@ -346,6 +346,18 @@ const appActions = {
     }
   },
 
+  unpublishAllTracks: (shouldStopTracks: boolean) => {
+    currentRoom?.localParticipant.tracks.forEach((pub) => {
+      if (pub.track) {
+        currentRoom?.localParticipant.unpublishTrack(pub.track, shouldStopTracks);
+      }
+      if (shouldStopTracks) {
+        pub.track?.detach();
+        pub.track?.stop();
+      }
+    });
+  },
+
   disconnectRoom: () => {
     if (currentRoom) {
       currentRoom.disconnect();
@@ -788,6 +800,7 @@ function setButtonsForState(connected: boolean) {
     'disconnect-room-button',
     'flip-video-button',
     'send-button',
+    'unsubscribe-all-button',
   ];
   if (currentRoom && currentRoom.options.e2ee) {
     connectedSet.push('toggle-e2ee-button', 'e2ee-ratchet-button');
