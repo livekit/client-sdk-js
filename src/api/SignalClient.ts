@@ -43,21 +43,13 @@ import { Mutex, getClientInfo, isReactNative, sleep, toWebsocketUrl } from '../r
 import { AsyncQueue } from '../utils/AsyncQueue';
 
 // internal options
-interface ConnectOpts {
-  autoSubscribe: boolean;
+interface ConnectOpts extends SignalOptions {
   /** internal */
   reconnect?: boolean;
-
   /** internal */
   reconnectReason?: number;
-
   /** internal */
   sid?: string;
-
-  /** @deprecated */
-  publishOnly?: string;
-
-  adaptiveStream?: boolean;
 }
 
 // public options
@@ -68,6 +60,7 @@ export interface SignalOptions {
   adaptiveStream?: boolean;
   maxRetries: number;
   e2eeEnabled: boolean;
+  websocketTimeout: number;
 }
 
 type SignalMessage = SignalRequest['message'];
@@ -224,8 +217,14 @@ export class SignalClient {
     return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
       const abortHandler = async () => {
         this.close();
+        clearTimeout(wsTimeout);
         reject(new ConnectionError('room connection has been cancelled (signal)'));
       };
+
+      const wsTimeout = setTimeout(() => {
+        this.close();
+        reject(new ConnectionError('room connection has timed out (signal)'));
+      }, opts.websocketTimeout);
 
       if (abortSignal?.aborted) {
         abortHandler();
@@ -238,8 +237,13 @@ export class SignalClient {
       this.ws = new WebSocket(url + params);
       this.ws.binaryType = 'arraybuffer';
 
+      this.ws.onopen = () => {
+        clearTimeout(wsTimeout);
+      };
+
       this.ws.onerror = async (ev: Event) => {
         if (!this.isConnected) {
+          clearTimeout(wsTimeout);
           try {
             const resp = await fetch(`http${url.substring(2)}/validate${params}`);
             if (resp.status.toFixed(0).startsWith('4')) {
