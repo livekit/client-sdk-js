@@ -191,6 +191,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.url = url;
     this.token = token;
     this.signalOpts = opts;
+    this.maxJoinAttempts = opts.maxRetries;
     try {
       this.joinAttempts += 1;
 
