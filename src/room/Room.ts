@@ -1194,7 +1194,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const sid = this.identityToSid.get(info.identity);
       if (sid && sid !== info.sid) {
         // sid had changed, need to remove previous participant
+        console.warn(
+          this.localParticipant.sid,
+          `SID of ${info.identity} changed from ${sid} to ${info.sid} with state ${info.state}`,
+        );
+
         this.handleParticipantDisconnected(sid, this.participants.get(sid));
+      } else {
+        console.log(
+          this.localParticipant.sid,
+          `participant update for ${info.sid} with state ${info.state}`,
+        );
       }
 
       let remoteParticipant = this.participants.get(info.sid);
@@ -1202,13 +1212,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
+        console.warn(this.localParticipant.sid, 'participant disconnected', info.sid);
+
         this.handleParticipantDisconnected(info.sid, remoteParticipant);
       } else {
-        console.log('received participant update', info.sid);
+        console.log(this.localParticipant.sid, 'received participant update', info.sid);
         // create participant if doesn't exist
         remoteParticipant = this.getOrCreateParticipant(info.sid, info);
         if (!isNewParticipant) {
           console.log(
+            this.localParticipant.sid,
             'actually updating participant info',
             JSON.parse(JSON.stringify({ sid: info.sid, info })),
           );
