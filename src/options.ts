@@ -31,6 +31,9 @@ export interface InternalRoomOptions {
    * enable Dynacast, off by default. With Dynacast dynamically pauses
    * video layers that are not being consumed by any subscribers, significantly
    * reducing publishing CPU and bandwidth usage.
+   *
+   * Dynacast will be enabled if SVC codecs (VP9/AV1) are used. Multi-codec simulcast
+   * requires dynacast
    */
   dynacast: boolean;
 
