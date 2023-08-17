@@ -1453,7 +1453,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // it's possible for the RTC track to arrive before signaling data
     // when this happens, we'll create the participant and make the track work
     const participant = this.createParticipant(id, info);
-    console.log('creating participant', id, participant.identity);
     this.participants.set(id, participant);
     if (info) {
       this.identityToSid.set(info.identity, info.sid);
