@@ -682,6 +682,9 @@ export default class LocalParticipant extends Participant {
 
         // set up backup
         if (opts.videoCodec && opts.backupCodec && opts.videoCodec !== opts.backupCodec.codec) {
+          if (!this.roomOptions.dynacast) {
+            this.roomOptions.dynacast = true;
+          }
           const simOpts = { ...opts };
           simOpts.simulcast = true;
           simEncodings = computeTrackBackupEncodings(track, opts.backupCodec.codec, simOpts);
