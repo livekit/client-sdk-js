@@ -1198,7 +1198,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
 
       let remoteParticipant = this.participants.get(info.sid);
-      const isNewParticipant = !remoteParticipant;
 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
@@ -1206,10 +1205,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       } else {
         // create participant if doesn't exist
         remoteParticipant = this.getOrCreateParticipant(info.sid, info);
-        if (!isNewParticipant) {
-          // just update, no events
-          remoteParticipant.updateInfo(info);
-        }
+        // just update, no events
+        remoteParticipant.updateInfo(info);
       }
     });
   };
@@ -1447,11 +1444,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private getOrCreateParticipant(id: string, info?: ParticipantInfo): RemoteParticipant {
     if (this.participants.has(id)) {
-      return this.participants.get(id) as RemoteParticipant;
+      const participant = this.participants.get(id) as RemoteParticipant;
+      if (info) {
+        this.identityToSid.set(info.identity, info.sid);
+      }
+      return participant;
     }
     // it's possible for the RTC track to arrive before signaling data
     // when this happens, we'll create the participant and make the track work
     const participant = this.createParticipant(id, info);
+    console.log('creating participant', id, participant.identity);
     this.participants.set(id, participant);
     if (info) {
       this.identityToSid.set(info.identity, info.sid);
