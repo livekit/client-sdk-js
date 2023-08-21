@@ -800,7 +800,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * - `getUserMedia`
    */
   async startAudio() {
-    await this.acquireAudioContext();
     const elements: Array<HTMLMediaElement> = [];
     const browser = getBrowser();
     if (browser && browser.os === 'iOS') {
@@ -849,12 +848,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
 
     try {
-      await Promise.all(
-        elements.map((e) => {
+      await Promise.all([
+        this.acquireAudioContext(),
+        ...elements.map((e) => {
           e.muted = false;
           return e.play();
         }),
-      );
+      ]);
       this.handleAudioPlaybackStarted();
     } catch (err) {
       this.handleAudioPlaybackFailed(err);
