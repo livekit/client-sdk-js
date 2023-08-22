@@ -56,6 +56,15 @@ export async function createKeyMaterialFromString(password: string) {
   return keyMaterial;
 }
 
+export async function createKeyMaterialFromBuffer(cryptoBuffer: ArrayBuffer) {
+  const keyMaterial = await crypto.subtle.importKey('raw', cryptoBuffer, 'HKDF', false, [
+    'deriveBits',
+    'deriveKey',
+  ]);
+
+  return keyMaterial;
+}
+
 function getAlgoOptions(algorithmName: string, salt: string) {
   const textEncoder = new TextEncoder();
   const encodedSalt = textEncoder.encode(salt);
