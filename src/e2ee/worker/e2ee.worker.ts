@@ -77,10 +77,8 @@ onmessage = (ev) => {
       if (useSharedKey) {
         workerLogger.debug('set shared key');
         setSharedKey(data.key, data.keyIndex);
-      } else if (data.participantId) {
-        getParticipantKeyHandler(data.participantId).setKey(data.key, data.keyIndex);
       } else {
-        workerLogger.error('no participant Id was provided and shared key usage is disabled');
+        getParticipantKeyHandler(data.participantId).setKey(data.key, data.keyIndex);
       }
       break;
     case 'removeTransform':
