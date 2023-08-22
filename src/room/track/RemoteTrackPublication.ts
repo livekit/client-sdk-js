@@ -297,8 +297,8 @@ export default class RemoteTrackPublication extends TrackPublication {
       fps: this.fps,
     });
     if (this.videoDimensions) {
-      settings.width = this.videoDimensions.width;
-      settings.height = this.videoDimensions.height;
+      settings.width = Math.ceil(this.videoDimensions.width);
+      settings.height = Math.ceil(this.videoDimensions.height);
     } else if (this.currentVideoQuality !== undefined) {
       settings.quality = this.currentVideoQuality;
     } else {
