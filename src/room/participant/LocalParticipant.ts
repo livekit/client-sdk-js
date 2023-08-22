@@ -645,6 +645,7 @@ export default class LocalParticipant extends Participant {
       disableDtx: !(opts.dtx ?? true),
       encryption: this.encryptionType,
       stereo: isStereo,
+      stream: opts?.stream,
       // disableRed: !(opts.red ?? true),
     });
 
