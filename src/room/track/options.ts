@@ -109,6 +109,13 @@ export interface TrackPublishOptions extends TrackPublishDefaults {
    * Source of track, camera, microphone, or screen
    */
   source?: Track.Source;
+
+  /**
+   * set stream name of the track belongs to, a/v tracks belong to a same stream
+   * will be synchronized better than standalone tracks. if left empty, the server
+   * will try infer it from the track source.
+   */
+  stream?: string;
 }
 
 export interface CreateLocalTracksOptions {
