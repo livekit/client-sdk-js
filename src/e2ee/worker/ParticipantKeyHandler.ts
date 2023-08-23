@@ -87,10 +87,6 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     }
     const ratchetPromise = new Promise<CryptoKey>(async (resolve, reject) => {
       try {
-        console.log(
-          `accessing key set for ${this.participantId}: at index ${currentKeyIndex}`,
-          this.cryptoKeyRing[currentKeyIndex],
-        );
         const keySet = this.getKeySet(currentKeyIndex);
         if (!keySet) {
           throw new TypeError(
@@ -147,7 +143,6 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   setKeySet(keySet: KeySet, keyIndex: number, emitRatchetEvent = false) {
     this.cryptoKeyRing[keyIndex % this.cryptoKeyRing.length] = keySet;
-    console.log('set kexy', this.cryptoKeyRing[keyIndex]);
 
     if (emitRatchetEvent) {
       this.emit(KeyHandlerEvent.KeyRatcheted, keySet.material, this.participantId, keyIndex);

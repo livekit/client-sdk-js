@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
+import log from '../logger';
 import { KEY_PROVIDER_DEFAULTS } from './constants';
 import { type KeyProviderCallbacks, KeyProviderEvent } from './events';
 import type { KeyInfo, KeyProviderOptions } from './types';
@@ -39,7 +40,7 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
    * @param keyIndex
    */
   protected onKeyRatcheted = (material: CryptoKey, keyIndex?: number) => {
-    console.debug('key ratcheted event received', material, keyIndex);
+    log.debug('key ratcheted event received', material, keyIndex);
   };
 
   getKeys() {
@@ -69,6 +70,7 @@ export class ExternalE2EEKeyProvider extends BaseKeyProvider {
       sharedKey: true,
       // for a shared key provider failing to decrypt for a specific participant
       // should not mark the key as invalid, so we accept wrong keys forever
+      // and won't try to auto-ratchet
       ratchetWindowSize: 0,
       failureTolerance: -1,
     };
