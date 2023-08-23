@@ -1,7 +1,5 @@
-import type Participant from '../room/participant/Participant';
 import type { VideoCodec } from '../room/track/options';
 import type { BaseKeyProvider } from './KeyProvider';
-import type { CryptorError } from './errors';
 
 export interface BaseMessage {
   kind: string;
@@ -19,6 +17,7 @@ export interface SetKeyMessage extends BaseMessage {
   kind: 'setKey';
   data: {
     participantId?: string;
+    isPublisher: boolean;
     key: CryptoKey;
     keyIndex?: number;
   };
@@ -28,6 +27,7 @@ export interface RTPVideoMapMessage extends BaseMessage {
   kind: 'setRTPMap';
   data: {
     map: Map<number, VideoCodec>;
+    participantId: string;
   };
 }
 
@@ -69,7 +69,7 @@ export interface UpdateCodecMessage extends BaseMessage {
 export interface RatchetRequestMessage extends BaseMessage {
   kind: 'ratchetRequest';
   data: {
-    participantId: string | undefined;
+    participantId?: string;
     keyIndex?: number;
   };
 }
@@ -77,7 +77,7 @@ export interface RatchetRequestMessage extends BaseMessage {
 export interface RatchetMessage extends BaseMessage {
   kind: 'ratchetKey';
   data: {
-    // participantId: string | undefined;
+    participantId: string;
     keyIndex?: number;
     material: CryptoKey;
   };
@@ -93,8 +93,14 @@ export interface ErrorMessage extends BaseMessage {
 export interface EnableMessage extends BaseMessage {
   kind: 'enable';
   data: {
-    // if no participant id is set it indicates publisher encryption enable/disable
-    participantId?: string;
+    participantId: string;
+    enabled: boolean;
+  };
+}
+
+export interface InitAck extends BaseMessage {
+  kind: 'initAck';
+  data: {
     enabled: boolean;
   };
 }
@@ -110,7 +116,8 @@ export type E2EEWorkerMessage =
   | UpdateCodecMessage
   | RatchetRequestMessage
   | RatchetMessage
-  | SifTrailerMessage;
+  | SifTrailerMessage
+  | InitAck;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
@@ -120,35 +127,6 @@ export type KeyProviderOptions = {
   ratchetWindowSize: number;
   failureTolerance: number;
 };
-
-export type KeyProviderCallbacks = {
-  setKey: (keyInfo: KeyInfo) => void;
-  ratchetRequest: (participantId?: string, keyIndex?: number) => void;
-  /** currently only emitted for local participant */
-  keyRatcheted: (material: CryptoKey, keyIndex?: number) => void;
-};
-
-export type ParticipantKeyHandlerCallbacks = {
-  keyRatcheted: (material: CryptoKey, keyIndex?: number, participantId?: string) => void;
-};
-
-export type E2EEManagerCallbacks = {
-  participantEncryptionStatusChanged: (enabled: boolean, participant?: Participant) => void;
-  encryptionError: (error: Error) => void;
-};
-
-export const EncryptionEvent = {
-  ParticipantEncryptionStatusChanged: 'participantEncryptionStatusChanged',
-  Error: 'encryptionError',
-} as const;
-
-export type CryptorCallbacks = {
-  cryptorError: (error: CryptorError) => void;
-};
-
-export const CryptorEvent = {
-  Error: 'cryptorError',
-} as const;
 
 export type KeyInfo = {
   key: CryptoKey;

@@ -211,7 +211,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.clientConfiguration = joinResponse.clientConfiguration;
-
+      console.log('joinresp', joinResponse);
       return joinResponse;
     } catch (e) {
       if (e instanceof ConnectionError) {

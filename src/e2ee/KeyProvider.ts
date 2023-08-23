@@ -1,7 +1,8 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { KEY_PROVIDER_DEFAULTS } from './constants';
-import type { KeyInfo, KeyProviderCallbacks, KeyProviderOptions } from './types';
+import { type KeyProviderCallbacks, KeyProviderEvent } from './events';
+import type { KeyInfo, KeyProviderOptions } from './types';
 import { createKeyMaterialFromString } from './utils';
 
 /**
@@ -16,7 +17,7 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
     super();
     this.keyInfoMap = new Map();
     this.options = { ...KEY_PROVIDER_DEFAULTS, ...options };
-    this.on('keyRatcheted', this.onKeyRatcheted);
+    this.on(KeyProviderEvent.KeyRatcheted, this.onKeyRatcheted);
   }
 
   /**
@@ -28,11 +29,11 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
   protected onSetEncryptionKey(key: CryptoKey, participantId?: string, keyIndex?: number) {
     const keyInfo: KeyInfo = { key, participantId, keyIndex };
     this.keyInfoMap.set(`${participantId ?? 'shared'}-${keyIndex ?? 0}`, keyInfo);
-    this.emit('setKey', keyInfo);
+    this.emit(KeyProviderEvent.SetKey, keyInfo);
   }
 
   /**
-   * callback being invoked after a ratchet request has been performed on the local participant
+   * callback being invoked after a ratchet request has been performed on a participant
    * that surfaces the new key material.
    * @param material
    * @param keyIndex
@@ -50,7 +51,7 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
   }
 
   ratchetKey(participantId?: string, keyIndex?: number) {
-    this.emit('ratchetRequest', participantId, keyIndex);
+    this.emit(KeyProviderEvent.RatchetRequest, participantId, keyIndex);
   }
 }
 
@@ -63,7 +64,14 @@ export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   ratchetInterval: number | undefined;
 
   constructor(options: Partial<Omit<KeyProviderOptions, 'sharedKey'>> = {}) {
-    const opts: Partial<KeyProviderOptions> = { ...options, sharedKey: true };
+    const opts: Partial<KeyProviderOptions> = {
+      ...options,
+      sharedKey: true,
+      // for a shared key provider failing to decrypt for a specific participant
+      // should not mark the key as invalid, so we accept wrong keys forever
+      ratchetWindowSize: 0,
+      failureTolerance: -1,
+    };
     super(opts);
   }
 

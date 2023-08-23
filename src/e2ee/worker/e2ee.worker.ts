@@ -1,22 +1,21 @@
 import { workerLogger } from '../../logger';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';
+import { CryptorEvent, KeyHandlerEvent } from '../events';
 import type {
   E2EEWorkerMessage,
-  EnableMessage,
   ErrorMessage,
+  InitAck,
   KeyProviderOptions,
   RatchetMessage,
   RatchetRequestMessage,
 } from '../types';
-import { FrameCryptor } from './FrameCryptor';
+import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 const participantCryptors: FrameCryptor[] = [];
 const participantKeys: Map<string, ParticipantKeyHandler> = new Map();
-
-let publishCryptors: FrameCryptor[] = [];
-let publisherKeys: ParticipantKeyHandler;
+let sharedKeyHandler: ParticipantKeyHandler | undefined;
 
 let isEncryptionEnabled: boolean = false;
 
@@ -39,13 +38,11 @@ onmessage = (ev) => {
       keyProviderOptions = data.keyProviderOptions;
       useSharedKey = !!data.keyProviderOptions.sharedKey;
       // acknowledge init successful
-      const enableMsg: EnableMessage = {
-        kind: 'enable',
+      const ackMsg: InitAck = {
+        kind: 'initAck',
         data: { enabled: isEncryptionEnabled },
       };
-      publisherKeys = new ParticipantKeyHandler(undefined, isEncryptionEnabled, keyProviderOptions);
-      publisherKeys.on('keyRatcheted', emitRatchetedKeys);
-      postMessage(enableMsg);
+      postMessage(ackMsg);
       break;
     case 'enable':
       setEncryptionEnabled(data.enabled, data.participantId);
@@ -64,7 +61,7 @@ onmessage = (ev) => {
       );
       break;
     case 'encode':
-      let pubCryptor = getPublisherCryptor(data.trackId);
+      let pubCryptor = getTrackCryptor(data.participantId, data.trackId);
       pubCryptor.setupTransform(
         kind,
         data.readableStream,
@@ -75,10 +72,13 @@ onmessage = (ev) => {
       break;
     case 'setKey':
       if (useSharedKey) {
-        workerLogger.debug('set shared key');
+        workerLogger.warn('set shared key');
         setSharedKey(data.key, data.keyIndex);
-      } else {
+      } else if (data.participantId) {
+        workerLogger.warn(`set participant sender key ${data.participantId}`);
         getParticipantKeyHandler(data.participantId).setKey(data.key, data.keyIndex);
+      } else {
+        workerLogger.error('no participant Id was provided and shared key usage is disabled');
       }
       break;
     case 'removeTransform':
@@ -88,8 +88,11 @@ onmessage = (ev) => {
       getTrackCryptor(data.participantId, data.trackId).setVideoCodec(data.codec);
       break;
     case 'setRTPMap':
-      publishCryptors.forEach((cr) => {
-        cr.setRtpMap(data.map);
+      // this is only used for the local participant
+      participantCryptors.forEach((cr) => {
+        if (cr.getParticipantId() === data.participantId) {
+          cr.setRtpMap(data.map);
+        }
       });
       break;
     case 'ratchetRequest':
@@ -104,9 +107,19 @@ onmessage = (ev) => {
 };
 
 async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
-  const keyHandler = getParticipantKeyHandler(data.participantId);
-  await keyHandler.ratchetKey(data.keyIndex);
-  keyHandler.resetKeyStatus();
+  if (useSharedKey) {
+    const keyHandler = getSharedKeyHandler();
+    await keyHandler.ratchetKey(data.keyIndex);
+    keyHandler.resetKeyStatus();
+  } else if (data.participantId) {
+    const keyHandler = getParticipantKeyHandler(data.participantId);
+    await keyHandler.ratchetKey(data.keyIndex);
+    keyHandler.resetKeyStatus();
+  } else {
+    workerLogger.error(
+      'no participant Id was provided for ratchet request and shared key usage is disabled',
+    );
+  }
 }
 
 function getTrackCryptor(participantId: string, trackId: string) {
@@ -134,62 +147,45 @@ function getTrackCryptor(participantId: string, trackId: string) {
   return cryptor;
 }
 
-function getParticipantKeyHandler(participantId?: string) {
-  if (!participantId) {
-    return publisherKeys!;
+function getParticipantKeyHandler(participantId: string) {
+  if (useSharedKey) {
+    return getSharedKeyHandler();
   }
   let keys = participantKeys.get(participantId);
   if (!keys) {
-    keys = new ParticipantKeyHandler(participantId, true, keyProviderOptions);
+    keys = new ParticipantKeyHandler(participantId, keyProviderOptions);
     if (sharedKey) {
       keys.setKey(sharedKey);
     }
+    keys.on(KeyHandlerEvent.KeyRatcheted, emitRatchetedKeys);
     participantKeys.set(participantId, keys);
   }
   return keys;
+}
+
+function getSharedKeyHandler() {
+  if (!sharedKeyHandler) {
+    sharedKeyHandler = new ParticipantKeyHandler('shared-key', keyProviderOptions);
+  }
+  return sharedKeyHandler;
 }
 
 function unsetCryptorParticipant(trackId: string) {
   participantCryptors.find((c) => c.getTrackId() === trackId)?.unsetParticipant();
 }
 
-function getPublisherCryptor(trackId: string) {
-  let publishCryptor = publishCryptors.find((cryptor) => cryptor.getTrackId() === trackId);
-  if (!publishCryptor) {
-    if (!keyProviderOptions) {
-      throw new TypeError('Missing keyProvider options');
-    }
-    publishCryptor = new FrameCryptor({
-      keys: publisherKeys!,
-      participantId: 'publisher',
-      keyProviderOptions,
-    });
-    setupCryptorErrorEvents(publishCryptor);
-    publishCryptors.push(publishCryptor);
-  }
-  return publishCryptor;
-}
-
-function setEncryptionEnabled(enable: boolean, participantId?: string) {
-  if (!participantId) {
-    isEncryptionEnabled = enable;
-    publisherKeys.setEnabled(enable);
-  } else {
-    getParticipantKeyHandler(participantId).setEnabled(enable);
-  }
+function setEncryptionEnabled(enable: boolean, participantId: string) {
+  encryptionEnabledMap.set(participantId, enable);
 }
 
 function setSharedKey(key: CryptoKey, index?: number) {
   workerLogger.debug('setting shared key');
   sharedKey = key;
-  publisherKeys?.setKey(key, index);
-  for (const [, keyHandler] of participantKeys) {
-    keyHandler.setKey(key, index);
-  }
+  getSharedKeyHandler().setKey(key, index);
 }
 
 function setupCryptorErrorEvents(cryptor: FrameCryptor) {
-  cryptor.on('cryptorError', (error) => {
+  cryptor.on(CryptorEvent.Error, (error) => {
     const msg: ErrorMessage = {
       kind: 'error',
       data: { error: new Error(`${CryptorErrorReason[error.reason]}: ${error.message}`) },
@@ -198,11 +194,11 @@ function setupCryptorErrorEvents(cryptor: FrameCryptor) {
   });
 }
 
-function emitRatchetedKeys(material: CryptoKey, keyIndex?: number) {
+function emitRatchetedKeys(material: CryptoKey, participantId: string, keyIndex?: number) {
   const msg: RatchetMessage = {
     kind: `ratchetKey`,
     data: {
-      // participantId,
+      participantId,
       keyIndex,
       material,
     },
@@ -227,8 +223,7 @@ if (self.RTCTransformEvent) {
     workerLogger.debug('transformer', transformer);
     transformer.handled = true;
     const { kind, participantId, trackId, codec } = transformer.options;
-    const cryptor =
-      kind === 'encode' ? getPublisherCryptor(trackId) : getTrackCryptor(participantId, trackId);
+    const cryptor = getTrackCryptor(participantId, trackId);
     workerLogger.debug('transform', { codec });
     cryptor.setupTransform(kind, transformer.readable, transformer.writable, trackId, codec);
   };

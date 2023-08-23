@@ -13,8 +13,8 @@ import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
+import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
 import type {
-  E2EEManagerCallbacks,
   E2EEOptions,
   E2EEWorkerMessage,
   EnableMessage,
@@ -28,7 +28,6 @@ import type {
   SifTrailerMessage,
   UpdateCodecMessage,
 } from './types';
-import { EncryptionEvent } from './types';
 import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
 
 /**
@@ -42,10 +41,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
   private encryptionEnabled: boolean;
 
   private keyProvider: BaseKeyProvider;
-
-  get isEnabled() {
-    return this.encryptionEnabled;
-  }
 
   constructor(options: E2EEOptions) {
     super();
@@ -86,18 +81,9 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
   /**
    * @internal
    */
-  async setParticipantCryptorEnabled(enabled: boolean, participantId?: string) {
-    log.info(`set e2ee to ${enabled}`);
-
-    if (this.worker) {
-      const enableMsg: EnableMessage = {
-        kind: 'enable',
-        data: { enabled, participantId },
-      };
-      this.worker.postMessage(enableMsg);
-    } else {
-      throw new ReferenceError('failed to enable e2ee, worker is not ready');
-    }
+  setParticipantCryptorEnabled(enabled: boolean, participantId: string) {
+    log.debug(`set e2ee to ${enabled} for participant ${participantId}`);
+    this.postEnable(enabled, participantId);
   }
 
   /**
@@ -115,19 +101,35 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     const { kind, data } = ev.data;
     switch (kind) {
       case 'error':
-        console.error('error in worker', { data });
-        this.emit(EncryptionEvent.Error, data.error);
+        log.error(data.error.message);
+        this.emit(EncryptionEvent.EncryptionError, data.error);
         break;
+      case 'initAck':
+        if (data.enabled) {
+          this.keyProvider.getKeys().forEach((keyInfo) => {
+            this.postKey(keyInfo);
+          });
+        }
+        break;
+
       case 'enable':
-        if (this.encryptionEnabled !== data.enabled && !data.participantId) {
+        if (
+          this.encryptionEnabled !== data.enabled &&
+          data.participantId === this.room?.localParticipant.identity
+        ) {
           this.emit(
             EncryptionEvent.ParticipantEncryptionStatusChanged,
             data.enabled,
-            this.room?.localParticipant,
+            this.room!.localParticipant,
           );
           this.encryptionEnabled = data.enabled;
         } else if (data.participantId) {
           const participant = this.room?.getParticipantByIdentity(data.participantId);
+          if (!participant) {
+            throw TypeError(
+              `couldn't set encryption status, participant not found${data.participantId}`,
+            );
+          }
           this.emit(EncryptionEvent.ParticipantEncryptionStatusChanged, data.enabled, participant);
         }
         if (this.encryptionEnabled) {
@@ -137,7 +139,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
         }
         break;
       case 'ratchetKey':
-        this.keyProvider.emit('keyRatcheted', data.material, data.keyIndex);
+        this.keyProvider.emit(KeyProviderEvent.KeyRatcheted, data.material, data.keyIndex);
         break;
       default:
         break;
@@ -146,7 +148,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
 
   private onWorkerError = (ev: ErrorEvent) => {
     log.error('e2ee worker encountered an error:', { error: ev.error });
-    this.emit(EncryptionEvent.Error, ev.error);
+    this.emit(EncryptionEvent.EncryptionError, ev.error);
   };
 
   public setupEngine(engine: RTCEngine) {
@@ -162,43 +164,51 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
         participant.identity,
       ),
     );
-    room.on(RoomEvent.ConnectionStateChanged, (state) => {
-      if (state === ConnectionState.Connected) {
-        room.participants.forEach((participant) => {
-          participant.tracks.forEach((pub) => {
-            this.setParticipantCryptorEnabled(
-              pub.trackInfo!.encryption !== Encryption_Type.NONE,
-              participant.identity,
-            );
+    room
+      .on(RoomEvent.ConnectionStateChanged, (state) => {
+        if (state === ConnectionState.Connected) {
+          room.participants.forEach((participant) => {
+            participant.tracks.forEach((pub) => {
+              this.setParticipantCryptorEnabled(
+                pub.trackInfo!.encryption !== Encryption_Type.NONE,
+                participant.identity,
+              );
+            });
           });
+        }
+      })
+      .on(RoomEvent.TrackUnsubscribed, (track, _, participant) => {
+        const msg: RemoveTransformMessage = {
+          kind: 'removeTransform',
+          data: {
+            participantId: participant.identity,
+            trackId: track.mediaStreamID,
+          },
+        };
+        this.worker?.postMessage(msg);
+      })
+      .on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+        this.setupE2EEReceiver(track, participant.identity, pub.trackInfo);
+      })
+      .on(RoomEvent.SignalConnected, () => {
+        if (!this.room) {
+          throw new TypeError(`expected room to be present on signal connect`);
+        }
+        this.setParticipantCryptorEnabled(
+          this.room.localParticipant.isE2EEEnabled,
+          this.room.localParticipant.identity,
+        );
+        keyProvider.getKeys().forEach((keyInfo) => {
+          this.postKey(keyInfo);
         });
-      }
-    });
-
-    room.on(RoomEvent.TrackUnsubscribed, (track, _, participant) => {
-      const msg: RemoveTransformMessage = {
-        kind: 'removeTransform',
-        data: {
-          participantId: participant.identity,
-          trackId: track.mediaStreamID,
-        },
-      };
-      this.worker?.postMessage(msg);
-    });
-    room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
-      this.setupE2EEReceiver(track, participant.identity, pub.trackInfo);
-    });
+      });
     room.localParticipant.on(ParticipantEvent.LocalTrackPublished, async (publication) => {
-      this.setupE2EESender(
-        publication.track!,
-        publication.track!.sender!,
-        room.localParticipant.identity,
-      );
+      this.setupE2EESender(publication.track!, publication.track!.sender!);
     });
 
     keyProvider
-      .on('setKey', (keyInfo) => this.postKey(keyInfo))
-      .on('ratchetRequest', (participantId, keyIndex) =>
+      .on(KeyProviderEvent.SetKey, (keyInfo) => this.postKey(keyInfo))
+      .on(KeyProviderEvent.RatchetRequest, (participantId, keyIndex) =>
         this.postRatchetRequest(participantId, keyIndex),
       );
   }
@@ -225,6 +235,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       kind: 'setKey',
       data: {
         participantId,
+        isPublisher: participantId === this.room?.localParticipant.identity,
         key,
         keyIndex,
       },
@@ -232,14 +243,33 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     this.worker.postMessage(msg);
   }
 
+  private postEnable(enabled: boolean, participantId: string) {
+    if (this.worker) {
+      const enableMsg: EnableMessage = {
+        kind: 'enable',
+        data: {
+          enabled,
+          participantId,
+        },
+      };
+      this.worker.postMessage(enableMsg);
+    } else {
+      throw new ReferenceError('failed to enable e2ee, worker is not ready');
+    }
+  }
+
   private postRTPMap(map: Map<number, VideoCodec>) {
     if (!this.worker) {
-      throw Error('could not post rtp map, worker is missing');
+      throw TypeError('could not post rtp map, worker is missing');
+    }
+    if (!this.room?.localParticipant.identity) {
+      throw TypeError('could not post rtp map, local participant identity is missing');
     }
     const msg: RTPVideoMapMessage = {
       kind: 'setRTPMap',
       data: {
         map,
+        participantId: this.room.localParticipant.identity,
       },
     };
     this.worker.postMessage(msg);
@@ -273,12 +303,12 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     );
   }
 
-  private setupE2EESender(track: Track, sender: RTCRtpSender, localId: string) {
+  private setupE2EESender(track: Track, sender: RTCRtpSender) {
     if (!(track instanceof LocalTrack) || !sender) {
       if (!sender) log.warn('early return because sender is not ready');
       return;
     }
-    this.handleSender(sender, track.mediaStreamID, localId, undefined);
+    this.handleSender(sender, track.mediaStreamID, undefined);
   }
 
   /**
@@ -356,22 +386,20 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
    * a frame encoder.
    *
    */
-  private handleSender(
-    sender: RTCRtpSender,
-    trackId: string,
-    participantId: string,
-    codec?: VideoCodec,
-  ) {
+  private handleSender(sender: RTCRtpSender, trackId: string, codec?: VideoCodec) {
     if (E2EE_FLAG in sender || !this.worker) {
       return;
     }
 
+    if (!this.room?.localParticipant.identity || this.room.localParticipant.identity === '') {
+      throw TypeError('local identity needs to be known in order to set up encrypted sender');
+    }
+
     if (isScriptTransformSupported()) {
       log.info('initialize script transform');
-
       const options = {
         kind: 'encode',
-        participantId,
+        participantId: this.room.localParticipant.identity,
         trackId,
         codec,
       };
@@ -388,7 +416,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
           writableStream: senderStreams.writable,
           codec,
           trackId,
-          participantId,
+          participantId: this.room.localParticipant.identity,
         },
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);

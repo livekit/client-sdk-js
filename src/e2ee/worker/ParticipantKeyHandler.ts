@@ -2,7 +2,8 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import { KEYRING_SIZE } from '../constants';
-import type { KeyProviderOptions, KeySet, ParticipantKeyHandlerCallbacks } from '../types';
+import { KeyHandlerEvent, type ParticipantKeyHandlerCallbacks } from '../events';
+import type { KeyProviderOptions, KeySet } from '../types';
 import { deriveKeys, importKey, ratchet } from '../utils';
 
 // TODO ParticipantKeyHandlers currently don't get destroyed on participant disconnect
@@ -19,15 +20,13 @@ import { deriveKeys, importKey, ratchet } from '../utils';
 export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEventEmitter<ParticipantKeyHandlerCallbacks>) {
   private currentKeyIndex: number;
 
-  private cryptoKeyRing: Array<KeySet>;
-
-  private enabled: boolean;
+  private cryptoKeyRing: Array<KeySet | undefined>;
 
   private keyProviderOptions: KeyProviderOptions;
 
   private ratchetPromiseMap: Map<number, Promise<CryptoKey>>;
 
-  private participantId: string | undefined;
+  private participantId: string;
 
   private decryptionFailureCount = 0;
 
@@ -37,23 +36,14 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     return this._hasValidKey;
   }
 
-  constructor(
-    participantId: string | undefined,
-    isEnabled: boolean,
-    keyProviderOptions: KeyProviderOptions,
-  ) {
+  constructor(participantId: string, keyProviderOptions: KeyProviderOptions) {
     super();
     this.currentKeyIndex = 0;
-    this.cryptoKeyRing = new Array(KEYRING_SIZE);
-    this.enabled = isEnabled;
+    this.cryptoKeyRing = new Array(KEYRING_SIZE).fill(undefined);
     this.keyProviderOptions = keyProviderOptions;
     this.ratchetPromiseMap = new Map();
     this.participantId = participantId;
     this.resetKeyStatus();
-  }
-
-  setEnabled(enabled: boolean) {
-    this.enabled = enabled;
   }
 
   decryptionFailure() {
@@ -89,7 +79,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
    * @param setKey
    */
   ratchetKey(keyIndex?: number, setKey = true): Promise<CryptoKey> {
-    const currentKeyIndex = (keyIndex ??= this.getCurrentKeyIndex());
+    const currentKeyIndex = keyIndex ?? this.getCurrentKeyIndex();
 
     const existingPromise = this.ratchetPromiseMap.get(currentKeyIndex);
     if (typeof existingPromise !== 'undefined') {
@@ -97,7 +87,17 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     }
     const ratchetPromise = new Promise<CryptoKey>(async (resolve, reject) => {
       try {
-        const currentMaterial = this.getKeySet(currentKeyIndex).material;
+        console.log(
+          `accessing key set for ${this.participantId}: at index ${currentKeyIndex}`,
+          this.cryptoKeyRing[currentKeyIndex],
+        );
+        const keySet = this.getKeySet(currentKeyIndex);
+        if (!keySet) {
+          throw new TypeError(
+            `Cannot ratchet key without a valid keyset of participant ${this.participantId}`,
+          );
+        }
+        const currentMaterial = keySet.material;
         const newMaterial = await importKey(
           await ratchet(currentMaterial, this.keyProviderOptions.ratchetSalt),
           currentMaterial.algorithm.name,
@@ -106,8 +106,8 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
         if (setKey) {
           this.setKeyFromMaterial(newMaterial, currentKeyIndex, true);
+          this.emit(KeyHandlerEvent.KeyRatcheted, newMaterial, this.participantId, currentKeyIndex);
         }
-        this.emit('keyRatcheted', newMaterial, keyIndex, this.participantId);
         resolve(newMaterial);
       } catch (e) {
         reject(e);
@@ -145,20 +145,18 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     this.setKeySet(keySet, this.currentKeyIndex, emitRatchetEvent);
   }
 
-  async setKeySet(keySet: KeySet, keyIndex: number, emitRatchetEvent = false) {
+  setKeySet(keySet: KeySet, keyIndex: number, emitRatchetEvent = false) {
     this.cryptoKeyRing[keyIndex % this.cryptoKeyRing.length] = keySet;
+    console.log('set kexy', this.cryptoKeyRing[keyIndex]);
+
     if (emitRatchetEvent) {
-      this.emit('keyRatcheted', keySet.material, keyIndex, this.participantId);
+      this.emit(KeyHandlerEvent.KeyRatcheted, keySet.material, this.participantId, keyIndex);
     }
   }
 
   async setCurrentKeyIndex(index: number) {
     this.currentKeyIndex = index % this.cryptoKeyRing.length;
     this.resetKeyStatus();
-  }
-
-  isEnabled() {
-    return this.enabled;
   }
 
   getCurrentKeyIndex() {
