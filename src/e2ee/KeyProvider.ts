@@ -4,7 +4,7 @@ import log from '../logger';
 import { KEY_PROVIDER_DEFAULTS } from './constants';
 import { type KeyProviderCallbacks, KeyProviderEvent } from './events';
 import type { KeyInfo, KeyProviderOptions } from './types';
-import { createKeyMaterialFromString } from './utils';
+import { createKeyMaterialFromBuffer, createKeyMaterialFromString } from './utils';
 
 /**
  * @experimental
@@ -78,11 +78,16 @@ export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   }
 
   /**
-   * Accepts a passphrase that's used to create the crypto keys
+   * Accepts a passphrase that's used to create the crypto keys.
+   * When passing in a string, PBKDF2 is used.
+   * Also accepts an Array buffer of cryptographically random numbers that uses HKDF.
    * @param key
    */
-  async setKey(key: string) {
-    const derivedKey = await createKeyMaterialFromString(key);
+  async setKey(key: string | ArrayBuffer) {
+    const derivedKey =
+      typeof key === 'string'
+        ? await createKeyMaterialFromString(key)
+        : await createKeyMaterialFromBuffer(key);
     this.onSetEncryptionKey(derivedKey);
   }
 }

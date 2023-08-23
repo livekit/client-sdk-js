@@ -1018,11 +1018,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     const parts = unpackStreamId(stream.id);
     const participantId = parts[0];
-    let streamId = parts[1];
-    let trackId = mediaTrack.id;
-    // firefox will get streamId (pID|trackId) instead of (pID|streamId) as it doesn't support sync tracks by stream
-    // and generates its own track id instead of infer from sdp track id.
-    if (streamId && streamId.startsWith('TR') && !trackId.startsWith('TR')) trackId = streamId;
+    let trackId = parts[1];
+    if (!trackId || trackId === '') trackId = mediaTrack.id;
 
     if (participantId === this.localParticipant.sid) {
       log.warn('tried to create RemoteParticipant for local participant');
