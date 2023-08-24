@@ -24,12 +24,12 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
   /**
    * callback to invoke once a key has been set for a participant
    * @param key
-   * @param participantId
+   * @param participantIdentity
    * @param keyIndex
    */
-  protected onSetEncryptionKey(key: CryptoKey, participantId?: string, keyIndex?: number) {
-    const keyInfo: KeyInfo = { key, participantId, keyIndex };
-    this.keyInfoMap.set(`${participantId ?? 'shared'}-${keyIndex ?? 0}`, keyInfo);
+  protected onSetEncryptionKey(key: CryptoKey, participantIdentity?: string, keyIndex?: number) {
+    const keyInfo: KeyInfo = { key, participantIdentity, keyIndex };
+    this.keyInfoMap.set(`${participantIdentity ?? 'shared'}-${keyIndex ?? 0}`, keyInfo);
     this.emit(KeyProviderEvent.SetKey, keyInfo);
   }
 
@@ -51,8 +51,8 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
     return this.options;
   }
 
-  ratchetKey(participantId?: string, keyIndex?: number) {
-    this.emit(KeyProviderEvent.RatchetRequest, participantId, keyIndex);
+  ratchetKey(participantIdentity?: string, keyIndex?: number) {
+    this.emit(KeyProviderEvent.RatchetRequest, participantIdentity, keyIndex);
   }
 }
 
@@ -80,7 +80,7 @@ export class ExternalE2EEKeyProvider extends BaseKeyProvider {
   /**
    * Accepts a passphrase that's used to create the crypto keys.
    * When passing in a string, PBKDF2 is used.
-   * Also accepts an Array buffer of cryptographically random numbers that uses HKDF.
+   * When passing in an Array buffer of cryptographically random numbers, HKDF is being used. (recommended)
    * @param key
    */
   async setKey(key: string | ArrayBuffer) {

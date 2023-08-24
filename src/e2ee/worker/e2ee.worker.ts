@@ -45,13 +45,13 @@ onmessage = (ev) => {
       postMessage(ackMsg);
       break;
     case 'enable':
-      setEncryptionEnabled(data.enabled, data.participantId);
+      setEncryptionEnabled(data.enabled, data.participantIdentity);
       workerLogger.info('updated e2ee enabled status');
       // acknowledge enable call successful
       postMessage(ev.data);
       break;
     case 'decode':
-      let cryptor = getTrackCryptor(data.participantId, data.trackId);
+      let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
       cryptor.setupTransform(
         kind,
         data.readableStream,
@@ -61,7 +61,7 @@ onmessage = (ev) => {
       );
       break;
     case 'encode':
-      let pubCryptor = getTrackCryptor(data.participantId, data.trackId);
+      let pubCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
       pubCryptor.setupTransform(
         kind,
         data.readableStream,
@@ -74,9 +74,9 @@ onmessage = (ev) => {
       if (useSharedKey) {
         workerLogger.warn('set shared key');
         setSharedKey(data.key, data.keyIndex);
-      } else if (data.participantId) {
-        workerLogger.warn(`set participant sender key ${data.participantId}`);
-        getParticipantKeyHandler(data.participantId).setKey(data.key, data.keyIndex);
+      } else if (data.participantIdentity) {
+        workerLogger.warn(`set participant sender key ${data.participantIdentity}`);
+        getParticipantKeyHandler(data.participantIdentity).setKey(data.key, data.keyIndex);
       } else {
         workerLogger.error('no participant Id was provided and shared key usage is disabled');
       }
@@ -85,12 +85,12 @@ onmessage = (ev) => {
       unsetCryptorParticipant(data.trackId);
       break;
     case 'updateCodec':
-      getTrackCryptor(data.participantId, data.trackId).setVideoCodec(data.codec);
+      getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
       break;
     case 'setRTPMap':
       // this is only used for the local participant
       participantCryptors.forEach((cr) => {
-        if (cr.getParticipantId() === data.participantId) {
+        if (cr.getParticipantIdentity() === data.participantIdentity) {
           cr.setRtpMap(data.map);
         }
       });
@@ -111,8 +111,8 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
     const keyHandler = getSharedKeyHandler();
     await keyHandler.ratchetKey(data.keyIndex);
     keyHandler.resetKeyStatus();
-  } else if (data.participantId) {
-    const keyHandler = getParticipantKeyHandler(data.participantId);
+  } else if (data.participantIdentity) {
+    const keyHandler = getParticipantKeyHandler(data.participantIdentity);
     await keyHandler.ratchetKey(data.keyIndex);
     keyHandler.resetKeyStatus();
   } else {
@@ -122,43 +122,43 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
   }
 }
 
-function getTrackCryptor(participantId: string, trackId: string) {
+function getTrackCryptor(participantIdentity: string, trackId: string) {
   let cryptor = participantCryptors.find((c) => c.getTrackId() === trackId);
   if (!cryptor) {
-    workerLogger.info('creating new cryptor for', { participantId });
+    workerLogger.info('creating new cryptor for', { participantIdentity });
     if (!keyProviderOptions) {
       throw Error('Missing keyProvider options');
     }
     cryptor = new FrameCryptor({
-      participantId,
-      keys: getParticipantKeyHandler(participantId),
+      participantIdentity,
+      keys: getParticipantKeyHandler(participantIdentity),
       keyProviderOptions,
       sifTrailer,
     });
 
     setupCryptorErrorEvents(cryptor);
     participantCryptors.push(cryptor);
-  } else if (participantId !== cryptor.getParticipantId()) {
+  } else if (participantIdentity !== cryptor.getParticipantIdentity()) {
     // assign new participant id to track cryptor and pass in correct key handler
-    cryptor.setParticipant(participantId, getParticipantKeyHandler(participantId));
+    cryptor.setParticipant(participantIdentity, getParticipantKeyHandler(participantIdentity));
   }
   if (sharedKey) {
   }
   return cryptor;
 }
 
-function getParticipantKeyHandler(participantId: string) {
+function getParticipantKeyHandler(participantIdentity: string) {
   if (useSharedKey) {
     return getSharedKeyHandler();
   }
-  let keys = participantKeys.get(participantId);
+  let keys = participantKeys.get(participantIdentity);
   if (!keys) {
-    keys = new ParticipantKeyHandler(participantId, keyProviderOptions);
+    keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
     if (sharedKey) {
       keys.setKey(sharedKey);
     }
     keys.on(KeyHandlerEvent.KeyRatcheted, emitRatchetedKeys);
-    participantKeys.set(participantId, keys);
+    participantKeys.set(participantIdentity, keys);
   }
   return keys;
 }
@@ -174,8 +174,8 @@ function unsetCryptorParticipant(trackId: string) {
   participantCryptors.find((c) => c.getTrackId() === trackId)?.unsetParticipant();
 }
 
-function setEncryptionEnabled(enable: boolean, participantId: string) {
-  encryptionEnabledMap.set(participantId, enable);
+function setEncryptionEnabled(enable: boolean, participantIdentity: string) {
+  encryptionEnabledMap.set(participantIdentity, enable);
 }
 
 function setSharedKey(key: CryptoKey, index?: number) {
@@ -194,11 +194,11 @@ function setupCryptorErrorEvents(cryptor: FrameCryptor) {
   });
 }
 
-function emitRatchetedKeys(material: CryptoKey, participantId: string, keyIndex?: number) {
+function emitRatchetedKeys(material: CryptoKey, participantIdentity: string, keyIndex?: number) {
   const msg: RatchetMessage = {
     kind: `ratchetKey`,
     data: {
-      participantId,
+      participantIdentity,
       keyIndex,
       material,
     },
@@ -222,8 +222,8 @@ if (self.RTCTransformEvent) {
     const transformer = event.transformer;
     workerLogger.debug('transformer', transformer);
     transformer.handled = true;
-    const { kind, participantId, trackId, codec } = transformer.options;
-    const cryptor = getTrackCryptor(participantId, trackId);
+    const { kind, participantIdentity, trackId, codec } = transformer.options;
+    const cryptor = getTrackCryptor(participantIdentity, trackId);
     workerLogger.debug('transform', { codec });
     cryptor.setupTransform(kind, transformer.readable, transformer.writable, trackId, codec);
   };

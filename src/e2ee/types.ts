@@ -16,7 +16,7 @@ export interface InitMessage extends BaseMessage {
 export interface SetKeyMessage extends BaseMessage {
   kind: 'setKey';
   data: {
-    participantId?: string;
+    participantIdentity?: string;
     isPublisher: boolean;
     key: CryptoKey;
     keyIndex?: number;
@@ -27,7 +27,7 @@ export interface RTPVideoMapMessage extends BaseMessage {
   kind: 'setRTPMap';
   data: {
     map: Map<number, VideoCodec>;
-    participantId: string;
+    participantIdentity: string;
   };
 }
 
@@ -41,7 +41,7 @@ export interface SifTrailerMessage extends BaseMessage {
 export interface EncodeMessage extends BaseMessage {
   kind: 'decode' | 'encode';
   data: {
-    participantId: string;
+    participantIdentity: string;
     readableStream: ReadableStream;
     writableStream: WritableStream;
     trackId: string;
@@ -52,7 +52,7 @@ export interface EncodeMessage extends BaseMessage {
 export interface RemoveTransformMessage extends BaseMessage {
   kind: 'removeTransform';
   data: {
-    participantId: string;
+    participantIdentity: string;
     trackId: string;
   };
 }
@@ -60,7 +60,7 @@ export interface RemoveTransformMessage extends BaseMessage {
 export interface UpdateCodecMessage extends BaseMessage {
   kind: 'updateCodec';
   data: {
-    participantId: string;
+    participantIdentity: string;
     trackId: string;
     codec: VideoCodec;
   };
@@ -69,7 +69,7 @@ export interface UpdateCodecMessage extends BaseMessage {
 export interface RatchetRequestMessage extends BaseMessage {
   kind: 'ratchetRequest';
   data: {
-    participantId?: string;
+    participantIdentity?: string;
     keyIndex?: number;
   };
 }
@@ -77,7 +77,7 @@ export interface RatchetRequestMessage extends BaseMessage {
 export interface RatchetMessage extends BaseMessage {
   kind: 'ratchetKey';
   data: {
-    participantId: string;
+    participantIdentity: string;
     keyIndex?: number;
     material: CryptoKey;
   };
@@ -93,7 +93,7 @@ export interface ErrorMessage extends BaseMessage {
 export interface EnableMessage extends BaseMessage {
   kind: 'enable';
   data: {
-    participantId: string;
+    participantIdentity: string;
     enabled: boolean;
   };
 }
@@ -130,7 +130,7 @@ export type KeyProviderOptions = {
 
 export type KeyInfo = {
   key: CryptoKey;
-  participantId?: string;
+  participantIdentity?: string;
   keyIndex?: number;
 };
 

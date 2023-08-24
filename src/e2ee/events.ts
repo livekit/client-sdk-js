@@ -10,7 +10,7 @@ export enum KeyProviderEvent {
 
 export type KeyProviderCallbacks = {
   [KeyProviderEvent.SetKey]: (keyInfo: KeyInfo) => void;
-  [KeyProviderEvent.RatchetRequest]: (participantId?: string, keyIndex?: number) => void;
+  [KeyProviderEvent.RatchetRequest]: (participantIdentity?: string, keyIndex?: number) => void;
   [KeyProviderEvent.KeyRatcheted]: (material: CryptoKey, keyIndex?: number) => void;
 };
 
@@ -21,7 +21,7 @@ export enum KeyHandlerEvent {
 export type ParticipantKeyHandlerCallbacks = {
   [KeyHandlerEvent.KeyRatcheted]: (
     material: CryptoKey,
-    participantId: string,
+    participantIdentity: string,
     keyIndex?: number,
   ) => void;
 };

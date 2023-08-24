@@ -48,7 +48,7 @@ export class BaseFrameCryptor extends (EventEmitter as new () => TypedEventEmitt
 export class FrameCryptor extends BaseFrameCryptor {
   private sendCounts: Map<number, number>;
 
-  private participantId: string | undefined;
+  private participantIdentity: string | undefined;
 
   private trackId: string | undefined;
 
@@ -69,14 +69,14 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   constructor(opts: {
     keys: ParticipantKeyHandler;
-    participantId: string;
+    participantIdentity: string;
     keyProviderOptions: KeyProviderOptions;
     sifTrailer?: Uint8Array;
   }) {
     super();
     this.sendCounts = new Map();
     this.keys = opts.keys;
-    this.participantId = opts.participantId;
+    this.participantIdentity = opts.participantIdentity;
     this.rtpMap = new Map();
     this.keyProviderOptions = opts.keyProviderOptions;
     this.sifTrailer = opts.sifTrailer ?? Uint8Array.from([]);
@@ -90,25 +90,25 @@ export class FrameCryptor extends BaseFrameCryptor {
    * @param keys
    */
   setParticipant(id: string, keys: ParticipantKeyHandler) {
-    this.participantId = id;
+    this.participantIdentity = id;
     this.keys = keys;
     this.sifGuard.reset();
   }
 
   unsetParticipant() {
-    this.participantId = undefined;
+    this.participantIdentity = undefined;
   }
 
   isEnabled() {
-    if (this.participantId) {
-      return encryptionEnabledMap.get(this.participantId);
+    if (this.participantIdentity) {
+      return encryptionEnabledMap.get(this.participantIdentity);
     } else {
       return undefined;
     }
   }
 
-  getParticipantId() {
-    return this.participantId;
+  getParticipantIdentity() {
+    return this.participantIdentity;
   }
 
   getTrackId() {
@@ -198,7 +198,9 @@ export class FrameCryptor extends BaseFrameCryptor {
     const keySet = this.keys.getKeySet();
     if (!keySet) {
       throw new TypeError(
-        `key set not found for ${this.participantId} at index ${this.keys.getCurrentKeyIndex()}`,
+        `key set not found for ${
+          this.participantIdentity
+        } at index ${this.keys.getCurrentKeyIndex()}`,
       );
     }
     const { encryptionKey } = keySet;
@@ -313,7 +315,7 @@ export class FrameCryptor extends BaseFrameCryptor {
             this.emit(
               CryptorEvent.Error,
               new CryptorError(
-                `invalid key for participant ${this.participantId}`,
+                `invalid key for participant ${this.participantIdentity}`,
                 CryptorErrorReason.InvalidKey,
               ),
             );
@@ -329,7 +331,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       this.emit(
         CryptorEvent.Error,
         new CryptorError(
-          `missing key at index for participant ${this.participantId}`,
+          `missing key at index for participant ${this.participantIdentity}`,
           CryptorErrorReason.MissingKey,
         ),
       );
@@ -348,7 +350,7 @@ export class FrameCryptor extends BaseFrameCryptor {
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
     const keySet = this.keys.getKeySet(keyIndex);
     if (!ratchetOpts.encryptionKey && !keySet) {
-      throw new TypeError(`no encryption key found for decryption of ${this.participantId}`);
+      throw new TypeError(`no encryption key found for decryption of ${this.participantIdentity}`);
     }
 
     // Construct frame trailer. Similar to the frame header described in
@@ -440,7 +442,7 @@ export class FrameCryptor extends BaseFrameCryptor {
 
           workerLogger.warn('maximum ratchet attempts exceeded');
           throw new CryptorError(
-            `valid key missing for participant ${this.participantId}`,
+            `valid key missing for participant ${this.participantIdentity}`,
             CryptorErrorReason.InvalidKey,
           );
         }

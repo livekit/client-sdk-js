@@ -26,7 +26,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   private ratchetPromiseMap: Map<number, Promise<CryptoKey>>;
 
-  private participantId: string;
+  private participantIdentity: string;
 
   private decryptionFailureCount = 0;
 
@@ -36,13 +36,13 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     return this._hasValidKey;
   }
 
-  constructor(participantId: string, keyProviderOptions: KeyProviderOptions) {
+  constructor(participantIdentity: string, keyProviderOptions: KeyProviderOptions) {
     super();
     this.currentKeyIndex = 0;
     this.cryptoKeyRing = new Array(KEYRING_SIZE).fill(undefined);
     this.keyProviderOptions = keyProviderOptions;
     this.ratchetPromiseMap = new Map();
-    this.participantId = participantId;
+    this.participantIdentity = participantIdentity;
     this.resetKeyStatus();
   }
 
@@ -53,7 +53,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     this.decryptionFailureCount += 1;
 
     if (this.decryptionFailureCount > this.keyProviderOptions.failureTolerance) {
-      workerLogger.warn(`key for ${this.participantId} is being marked as invalid`);
+      workerLogger.warn(`key for ${this.participantIdentity} is being marked as invalid`);
       this._hasValidKey = false;
     }
   }
@@ -90,7 +90,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
         const keySet = this.getKeySet(currentKeyIndex);
         if (!keySet) {
           throw new TypeError(
-            `Cannot ratchet key without a valid keyset of participant ${this.participantId}`,
+            `Cannot ratchet key without a valid keyset of participant ${this.participantIdentity}`,
           );
         }
         const currentMaterial = keySet.material;
@@ -102,7 +102,12 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
         if (setKey) {
           this.setKeyFromMaterial(newMaterial, currentKeyIndex, true);
-          this.emit(KeyHandlerEvent.KeyRatcheted, newMaterial, this.participantId, currentKeyIndex);
+          this.emit(
+            KeyHandlerEvent.KeyRatcheted,
+            newMaterial,
+            this.participantIdentity,
+            currentKeyIndex,
+          );
         }
         resolve(newMaterial);
       } catch (e) {
@@ -145,7 +150,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
     this.cryptoKeyRing[keyIndex % this.cryptoKeyRing.length] = keySet;
 
     if (emitRatchetEvent) {
-      this.emit(KeyHandlerEvent.KeyRatcheted, keySet.material, this.participantId, keyIndex);
+      this.emit(KeyHandlerEvent.KeyRatcheted, keySet.material, this.participantIdentity, keyIndex);
     }
   }
 
