@@ -104,6 +104,10 @@ export default class LocalParticipant extends Participant {
     return this.microphoneError;
   }
 
+  get isE2EEEnabled(): boolean {
+    return this.encryptionType !== Encryption_Type.NONE;
+  }
+
   getTrack(source: Track.Source): LocalTrackPublication | undefined {
     const track = super.getTrack(source);
     if (track) {

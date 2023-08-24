@@ -209,10 +209,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   async setE2EEEnabled(enabled: boolean) {
     if (this.e2eeManager) {
-      await Promise.all([
-        this.localParticipant.setE2EEEnabled(enabled),
-        this.e2eeManager.setParticipantCryptorEnabled(enabled),
-      ]);
+      await Promise.all([this.localParticipant.setE2EEEnabled(enabled)]);
+      if (this.localParticipant.identity !== '') {
+        this.e2eeManager.setParticipantCryptorEnabled(enabled, this.localParticipant.identity);
+      }
     } else {
       throw Error('e2ee not configured, please set e2ee settings within the room options');
     }
@@ -230,7 +230,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
         },
       );
-      this.e2eeManager.on(EncryptionEvent.Error, (error) =>
+      this.e2eeManager.on(EncryptionEvent.EncryptionError, (error) =>
         this.emit(RoomEvent.EncryptionError, error),
       );
       this.e2eeManager?.setup(this);
