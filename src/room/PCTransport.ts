@@ -334,9 +334,8 @@ export default class PCTransport extends EventEmitter {
         error: msg,
         sdp: sd.sdp,
       };
-      if (!remote && this.pc.currentLocalDescription) {
-        // also include the last local description
-        fields.previousLocal = this.pc.currentLocalDescription;
+      if (!remote && this.pc.remoteDescription) {
+        fields.remoteSdp = this.pc.remoteDescription;
       }
       log.error(`unable to set ${sd.type}`, fields);
       throw new NegotiationError(msg);
