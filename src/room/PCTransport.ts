@@ -329,10 +329,16 @@ export default class PCTransport extends EventEmitter {
       } else if (typeof e === 'string') {
         msg = e;
       }
-      log.error(`unable to set unmunged ${sd.type}`, {
+
+      const fields: any = {
         error: msg,
         sdp: sd.sdp,
-      });
+      };
+      if (!remote && this.pc.currentLocalDescription) {
+        // also include the last local description
+        fields.previousLocal = this.pc.currentLocalDescription;
+      }
+      log.error(`unable to set ${sd.type}`, fields);
       throw new NegotiationError(msg);
     }
   }
