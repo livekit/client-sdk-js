@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
-import { parse, write } from 'sdp-transform';
 import type { MediaDescription } from 'sdp-transform';
+import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
@@ -16,7 +16,7 @@ interface TrackBitrateInfo {
 
 /* The svc codec (av1/vp9) would use a very low bitrate at the begining and
 increase slowly by the bandwidth estimator until it reach the target bitrate. The
-process commonly cost more than 10 seconds cause subscriber will get blur video at 
+process commonly cost more than 10 seconds cause subscriber will get blur video at
 the first few seconds. So we use a 70% of target bitrate here as the start bitrate to
 eliminate this issue.
 */
@@ -308,6 +308,7 @@ export default class PCTransport extends EventEmitter {
       } catch (e) {
         log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
           error: e,
+          sdp: munged,
         });
         sd.sdp = originalSdp;
       }
@@ -328,6 +329,15 @@ export default class PCTransport extends EventEmitter {
       } else if (typeof e === 'string') {
         msg = e;
       }
+
+      const fields: any = {
+        error: msg,
+        sdp: sd.sdp,
+      };
+      if (!remote && this.pc.remoteDescription) {
+        fields.remoteSdp = this.pc.remoteDescription;
+      }
+      log.error(`unable to set ${sd.type}`, fields);
       throw new NegotiationError(msg);
     }
   }
