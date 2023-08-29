@@ -1029,9 +1029,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const participant = this.participants.get(participantId) as RemoteParticipant | undefined;
 
     if (!participant) {
-      throw new TypeError(
+      log.error(
         `Tried to add a track for a participant, that's not present. Sid: ${participantId}`,
       );
+      return;
     }
 
     let adaptiveStreamSettings: AdaptiveStreamSettings | undefined;
