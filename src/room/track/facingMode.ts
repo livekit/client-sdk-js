@@ -1,4 +1,4 @@
-import log from 'loglevel';
+import log from '../../logger';
 import LocalTrack from './LocalTrack';
 import type { VideoCaptureOptions } from './options';
 
