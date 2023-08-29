@@ -85,6 +85,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   fullReconnectOnNext: boolean = false;
 
+  dataMessageTransform?: ({
+    buffer,
+    participantSid,
+    timestamp,
+  }: {
+    buffer: ArrayBuffer;
+    timestamp: number;
+    participantSid: string;
+  }) => PromiseLike<ArrayBuffer>;
+
   /**
    * @internal
    */
@@ -634,11 +644,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         log.error('unsupported data type', message.data);
         return;
       }
+
       const dp = DataPacket.fromBinary(new Uint8Array(buffer));
+
       if (dp.value?.case === 'speaker') {
         // dispatch speaker updates
         this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
       } else if (dp.value?.case === 'user') {
+        if (this.dataMessageTransform) {
+          const { payload, participantSid } = dp.value.value;
+          buffer = await this.dataMessageTransform({
+            buffer: payload.buffer,
+            participantSid,
+            timestamp: message.timeStamp,
+          });
+        }
         this.emit(EngineEvent.DataPacketReceived, dp.value.value, dp.kind);
       }
     } finally {

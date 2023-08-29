@@ -3,6 +3,8 @@ import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';
 import { CryptorEvent, KeyHandlerEvent } from '../events';
 import type {
+  DataMessageDecrypt,
+  DataMessageEncrypt,
   E2EEWorkerMessage,
   ErrorMessage,
   InitAck,
@@ -10,6 +12,7 @@ import type {
   RatchetMessage,
   RatchetRequestMessage,
 } from '../types';
+import { getLastByte } from '../utils';
 import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
@@ -101,6 +104,12 @@ onmessage = (ev) => {
     case 'setSifTrailer':
       handleSifTrailer(data.trailer);
       break;
+    case 'dataMsgEncrypt':
+      handleDataMessageEncrypt(data);
+      break;
+    case 'dataMsgDecrypt':
+      handleDataMessageDecrypt(data);
+      break;
     default:
       break;
   }
@@ -120,6 +129,35 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
       'no participant Id was provided for ratchet request and shared key usage is disabled',
     );
   }
+}
+
+async function handleDataMessageEncrypt(data: DataMessageEncrypt['data']) {
+  const cryptor = getTrackCryptor(data.participantIdentity, data.dcId.toString());
+  const encryptedData = await cryptor.encryptData(data.payload, {
+    timestamp: data.timestamp,
+    ssrc: data.dcId,
+  });
+  const msg: DataMessageEncrypt = {
+    kind: 'dataMsgEncrypt',
+    data: {
+      ...data,
+      payload: encryptedData,
+    },
+  };
+  postMessage(msg);
+}
+
+async function handleDataMessageDecrypt(data: DataMessageDecrypt['data']) {
+  const cryptor = getTrackCryptor(data.participantIdentity, data.dcId.toString());
+  const encryptedData = await cryptor.decryptData(data.payload, getLastByte(data.payload));
+  const msg: DataMessageDecrypt = {
+    kind: 'dataMsgDecrypt',
+    data: {
+      ...data,
+      payload: encryptedData,
+    },
+  };
+  postMessage(msg);
 }
 
 function getTrackCryptor(participantIdentity: string, trackId: string) {

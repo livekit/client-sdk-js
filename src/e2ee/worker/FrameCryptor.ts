@@ -8,7 +8,7 @@ import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { CryptorCallbacks, CryptorEvent } from '../events';
 import type { DecodeRatchetOptions, KeyProviderOptions, KeySet } from '../types';
-import { deriveKeys, isVideoFrame } from '../utils';
+import { deriveKeys, getLastByte, isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { SifGuard } from './SifGuard';
 
@@ -195,6 +195,29 @@ export class FrameCryptor extends BaseFrameCryptor {
     ) {
       return controller.enqueue(encodedFrame);
     }
+
+    try {
+      const encryptedData = await this.encryptData(
+        encodedFrame.data,
+        {
+          ssrc: encodedFrame.getMetadata().synchronizationSource ?? -1,
+          timestamp: encodedFrame.timestamp,
+        },
+        this.getUnencryptedBytes(encodedFrame),
+      );
+      encodedFrame.data = encryptedData;
+    } catch (e) {
+      this.emit(CryptorEvent.Error, e as CryptorError);
+      return;
+    }
+    return controller.enqueue(encodedFrame);
+  }
+
+  async encryptData(
+    data: ArrayBuffer,
+    { timestamp, ssrc }: { timestamp: number; ssrc: number },
+    unencryptedHeaderBytes = 0,
+  ): Promise<ArrayBuffer> {
     const keySet = this.keys.getKeySet();
     if (!keySet) {
       throw new TypeError(
@@ -207,17 +230,10 @@ export class FrameCryptor extends BaseFrameCryptor {
     const keyIndex = this.keys.getCurrentKeyIndex();
 
     if (encryptionKey) {
-      const iv = this.makeIV(
-        encodedFrame.getMetadata().synchronizationSource ?? -1,
-        encodedFrame.timestamp,
-      );
+      const iv = this.makeIV(timestamp, ssrc);
 
       // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
-      const frameHeader = new Uint8Array(
-        encodedFrame.data,
-        0,
-        this.getUnencryptedBytes(encodedFrame),
-      );
+      const frameHeader = new Uint8Array(data, 0, unencryptedHeaderBytes);
 
       // Frame trailer contains the R|IV_LENGTH and key index
       const frameTrailer = new Uint8Array(2);
@@ -237,10 +253,10 @@ export class FrameCryptor extends BaseFrameCryptor {
           {
             name: ENCRYPTION_ALGORITHM,
             iv,
-            additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
+            additionalData: new Uint8Array(data, 0, frameHeader.byteLength),
           },
           encryptionKey,
-          new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)),
+          new Uint8Array(data, unencryptedHeaderBytes),
         );
 
         const newData = new ArrayBuffer(
@@ -253,18 +269,12 @@ export class FrameCryptor extends BaseFrameCryptor {
         newUint8.set(new Uint8Array(iv), frameHeader.byteLength + cipherText.byteLength); // append IV.
         newUint8.set(frameTrailer, frameHeader.byteLength + cipherText.byteLength + iv.byteLength); // append frame trailer.
 
-        encodedFrame.data = newData;
-
-        return controller.enqueue(encodedFrame);
+        return newData;
       } catch (e: any) {
-        // TODO: surface this to the app.
-        workerLogger.error(e);
+        throw new CryptorError(e.message);
       }
     } else {
-      this.emit(
-        CryptorEvent.Error,
-        new CryptorError(`encryption key missing for encoding`, CryptorErrorReason.MissingKey),
-      );
+      throw new CryptorError(`encryption key missing for encoding`, CryptorErrorReason.MissingKey);
     }
   }
 
@@ -299,16 +309,20 @@ export class FrameCryptor extends BaseFrameCryptor {
     } else {
       this.sifGuard.recordUserFrame();
     }
-    const data = new Uint8Array(encodedFrame.data);
-    const keyIndex = data[encodedFrame.data.byteLength - 1];
+    const keyIndex = getLastByte(encodedFrame.data);
 
     if (this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
       try {
-        const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
+        const unencryptedHeaderBytes = this.getUnencryptedBytes(encodedFrame);
+
+        const decryptedData = await this.decryptData(
+          encodedFrame.data,
+          keyIndex,
+          unencryptedHeaderBytes,
+        );
+        encodedFrame.data = decryptedData;
         this.keys.decryptionSuccess();
-        if (decodedFrame) {
-          return controller.enqueue(decodedFrame);
-        }
+        return controller.enqueue(encodedFrame);
       } catch (error) {
         if (error instanceof CryptorError && error.reason === CryptorErrorReason.InvalidKey) {
           if (this.keys.hasValidKey) {
@@ -342,12 +356,13 @@ export class FrameCryptor extends BaseFrameCryptor {
    * Function that will decrypt the given encoded frame. If the decryption fails, it will
    * ratchet the key for up to RATCHET_WINDOW_SIZE times.
    */
-  private async decryptFrame(
-    encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+  async decryptData(
+    data: ArrayBuffer,
     keyIndex: number,
+    unencryptedHeaderBytes = 0,
     initialMaterial: KeySet | undefined = undefined,
     ratchetOpts: DecodeRatchetOptions = { ratchetCount: 0 },
-  ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
+  ): Promise<ArrayBuffer> {
     const keySet = this.keys.getKeySet(keyIndex);
     if (!ratchetOpts.encryptionKey && !keySet) {
       throw new TypeError(`no encryption key found for decryption of ${this.participantIdentity}`);
@@ -362,51 +377,44 @@ export class FrameCryptor extends BaseFrameCryptor {
     // ---------+-------------------------+-+---------+----
 
     try {
-      const frameHeader = new Uint8Array(
-        encodedFrame.data,
-        0,
-        this.getUnencryptedBytes(encodedFrame),
-      );
-      const frameTrailer = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - 2, 2);
+      const frameHeader = new Uint8Array(data, 0, unencryptedHeaderBytes);
+      const frameTrailer = new Uint8Array(data, data.byteLength - 2, 2);
 
       const ivLength = frameTrailer[0];
       const iv = new Uint8Array(
-        encodedFrame.data,
-        encodedFrame.data.byteLength - ivLength - frameTrailer.byteLength,
+        data,
+        data.byteLength - ivLength - frameTrailer.byteLength,
         ivLength,
       );
 
       const cipherTextStart = frameHeader.byteLength;
       const cipherTextLength =
-        encodedFrame.data.byteLength -
-        (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
+        data.byteLength - (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
 
       const plainText = await crypto.subtle.decrypt(
         {
           name: ENCRYPTION_ALGORITHM,
           iv,
-          additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
+          additionalData: new Uint8Array(data, 0, frameHeader.byteLength),
         },
         ratchetOpts.encryptionKey ?? keySet!.encryptionKey,
-        new Uint8Array(encodedFrame.data, cipherTextStart, cipherTextLength),
+        new Uint8Array(data, cipherTextStart, cipherTextLength),
       );
 
       const newData = new ArrayBuffer(frameHeader.byteLength + plainText.byteLength);
       const newUint8 = new Uint8Array(newData);
 
-      newUint8.set(new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength));
+      newUint8.set(new Uint8Array(data, 0, frameHeader.byteLength));
       newUint8.set(new Uint8Array(plainText), frameHeader.byteLength);
 
-      encodedFrame.data = newData;
-
-      return encodedFrame;
+      return newData;
     } catch (error: any) {
       if (this.keyProviderOptions.ratchetWindowSize > 0) {
         if (ratchetOpts.ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
           workerLogger.debug(
             `ratcheting key attempt ${ratchetOpts.ratchetCount} of ${
               this.keyProviderOptions.ratchetWindowSize
-            }, for kind ${encodedFrame instanceof RTCEncodedAudioFrame ? 'audio' : 'video'}`,
+            }, for kind ${data instanceof RTCEncodedAudioFrame ? 'audio' : 'video'}`,
           );
 
           let ratchetedKeySet: KeySet | undefined;
@@ -418,10 +426,16 @@ export class FrameCryptor extends BaseFrameCryptor {
             ratchetedKeySet = await deriveKeys(newMaterial, this.keyProviderOptions.ratchetSalt);
           }
 
-          const frame = await this.decryptFrame(encodedFrame, keyIndex, initialMaterial || keySet, {
-            ratchetCount: ratchetOpts.ratchetCount + 1,
-            encryptionKey: ratchetedKeySet?.encryptionKey,
-          });
+          const frame = await this.decryptData(
+            data,
+            keyIndex,
+            unencryptedHeaderBytes,
+            initialMaterial || keySet,
+            {
+              ratchetCount: ratchetOpts.ratchetCount + 1,
+              encryptionKey: ratchetedKeySet?.encryptionKey,
+            },
+          );
           if (frame && ratchetedKeySet) {
             this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
             // decryption was successful, set the new key index to reflect the ratcheted key set

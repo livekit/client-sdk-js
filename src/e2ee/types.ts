@@ -105,6 +105,25 @@ export interface InitAck extends BaseMessage {
   };
 }
 
+export interface DataMessageEncrypt extends BaseMessage {
+  kind: 'dataMsgEncrypt';
+  data: {
+    payload: ArrayBuffer;
+    timestamp: number;
+    dcId: number;
+    participantIdentity: string;
+  };
+}
+
+export interface DataMessageDecrypt extends BaseMessage {
+  kind: 'dataMsgDecrypt';
+  data: {
+    payload: ArrayBuffer;
+    dcId: number;
+    participantIdentity: string;
+  };
+}
+
 export type E2EEWorkerMessage =
   | InitMessage
   | SetKeyMessage
@@ -117,7 +136,9 @@ export type E2EEWorkerMessage =
   | RatchetRequestMessage
   | RatchetMessage
   | SifTrailerMessage
-  | InitAck;
+  | InitAck
+  | DataMessageEncrypt
+  | DataMessageDecrypt;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 

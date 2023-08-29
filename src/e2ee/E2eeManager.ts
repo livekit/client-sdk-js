@@ -155,6 +155,13 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {
       this.postRTPMap(rtpMap);
     });
+    engine.dataMessageTransform = (msg) => {
+      // TODO post message
+      // TODO receive message
+      // TODO return message
+      // TODO handle encryption off
+      // TODO
+    };
   }
 
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {

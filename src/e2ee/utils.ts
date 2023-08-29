@@ -134,3 +134,11 @@ export async function ratchet(material: CryptoKey, salt: string): Promise<ArrayB
   // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveBits
   return crypto.subtle.deriveBits(algorithmOptions, material, 256);
 }
+
+/**
+ * Returns the value of the last byte in an array buffer.
+ */
+export function getLastByte(data: ArrayBuffer): number {
+  const arr = new Uint8Array(data.slice(data.byteLength - 1));
+  return arr[0];
+}
