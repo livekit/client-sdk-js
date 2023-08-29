@@ -1025,7 +1025,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       log.warn('tried to create RemoteParticipant for local participant');
       return;
     }
-    const participant = this.getOrCreateParticipant(participantId);
+
+    const participant = this.participants.get(participantId) as RemoteParticipant | undefined;
+
+    if (!participant) {
+      log.error(
+        `Tried to add a track for a participant, that's not present. Sid: ${participantId}`,
+      );
+      return;
+    }
 
     let adaptiveStreamSettings: AdaptiveStreamSettings | undefined;
     if (this.options.adaptiveStream) {
@@ -1445,20 +1453,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     return participant;
   }
 
-  private getOrCreateParticipant(id: string, info?: ParticipantInfo): RemoteParticipant {
+  private getOrCreateParticipant(id: string, info: ParticipantInfo): RemoteParticipant {
     if (this.participants.has(id)) {
       return this.participants.get(id) as RemoteParticipant;
     }
-    // it's possible for the RTC track to arrive before signaling data
-    // when this happens, we'll create the participant and make the track work
     const participant = this.createParticipant(id, info);
     this.participants.set(id, participant);
-    if (info) {
-      this.identityToSid.set(info.identity, info.sid);
-      // if we have valid info and the participant wasn't in the map before, we can assume the participant is new
-      // firing here to make sure that `ParticipantConnected` fires before the initial track events
-      this.emitWhenConnected(RoomEvent.ParticipantConnected, participant);
-    }
+
+    this.identityToSid.set(info.identity, info.sid);
+    // if we have valid info and the participant wasn't in the map before, we can assume the participant is new
+    // firing here to make sure that `ParticipantConnected` fires before the initial track events
+    this.emitWhenConnected(RoomEvent.ParticipantConnected, participant);
 
     // also forward events
     // trackPublished is only fired for tracks added after both local participant
