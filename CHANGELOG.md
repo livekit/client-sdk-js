@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.13.1
+
+### Patch Changes
+
+- Remove legacy code paths for tracks arriving before participant info - [#854](https://github.com/livekit/client-sdk-js/pull/854) ([@lukasIO](https://github.com/lukasIO))
+
+- Make KeyProvider and ParticipantKeyHandler work consistently for shared key and sender key scenarios (e2ee) - [#850](https://github.com/livekit/client-sdk-js/pull/850) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix track processor blips when restarting tracks - [#842](https://github.com/livekit/client-sdk-js/pull/842) ([@lukasIO](https://github.com/lukasIO))
+
+- Correctly import livekit logger in facingMode helper - [#855](https://github.com/livekit/client-sdk-js/pull/855) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.13.0
 
 ### Minor Changes
