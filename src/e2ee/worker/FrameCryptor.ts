@@ -312,13 +312,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       } catch (error) {
         if (error instanceof CryptorError && error.reason === CryptorErrorReason.InvalidKey) {
           if (this.keys.hasValidKey) {
-            this.emit(
-              CryptorEvent.Error,
-              new CryptorError(
-                `invalid key for participant ${this.participantIdentity}`,
-                CryptorErrorReason.InvalidKey,
-              ),
-            );
+            this.emit(CryptorEvent.Error, error);
             this.keys.decryptionFailure();
           }
         } else {
@@ -448,7 +442,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         }
       } else {
         throw new CryptorError(
-          'Decryption failed, most likely because of an invalid key',
+          `Decryption failed: ${error.message}`,
           CryptorErrorReason.InvalidKey,
         );
       }
