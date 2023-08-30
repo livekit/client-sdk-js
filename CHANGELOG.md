@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.13.2
+
+### Patch Changes
+
+- Fix opus RED publishing option not taking effect - [#856](https://github.com/livekit/client-sdk-js/pull/856) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.13.1
 
 ### Patch Changes
