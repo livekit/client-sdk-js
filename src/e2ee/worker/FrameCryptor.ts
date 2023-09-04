@@ -236,106 +236,49 @@ export class FrameCryptor extends BaseFrameCryptor {
       try {
         // @ts-expect-error not supported in safari
         if (encodedFrame.getMetadata().payloadType === 63) {
-          const opusRedFrame = red.split(encodedFrame.data);
+          const { primaryBlock, redundancyBlocks } = red.split(encodedFrame.data);
 
-          const primaryFrameCipher = await crypto.subtle.encrypt(
-            {
-              name: ENCRYPTION_ALGORITHM,
-              iv,
-              additionalData: Uint8Array.from(opusRedFrame.primaryBlock.data.slice(0, 1)),
-            },
+          const primaryBlockEncrypted = await this.encrypt(
+            primaryBlock.data.slice(1),
+            primaryBlock.data.slice(0, 1),
+            frameTrailer,
+            iv,
             encryptionKey,
-            Uint8Array.from(opusRedFrame.primaryBlock.data.slice(1)),
           );
-          const primaryBuffer = new ArrayBuffer(primaryFrameCipher.byteLength + 1);
-          const primaryData = new Uint8Array(primaryBuffer);
-          primaryData.set(opusRedFrame.primaryBlock.data.slice(0, 1), 0);
-          primaryData.set(new Uint8Array(primaryFrameCipher), 1);
-          opusRedFrame.primaryBlock.data = primaryData;
+          primaryBlock.data = primaryBlockEncrypted;
+
           const redundancyBlocksEncrypted = await Promise.all(
-            opusRedFrame.redundancyBlocks.map(async (block) => {
-              const cipherText = await crypto.subtle.encrypt(
-                {
-                  name: ENCRYPTION_ALGORITHM,
-                  iv,
-                  additionalData: block.data.slice(0, 1),
-                },
-                encryptionKey,
+            redundancyBlocks.map(async (block) => {
+              const blockEncrypted = await this.encrypt(
                 block.data.slice(1),
+                block.data.slice(0, 1),
+                frameTrailer,
+                iv,
+                encryptionKey,
               );
-              block.data = new Uint8Array(cipherText);
-              block.header.blockLength = cipherText.byteLength;
+              block.data = blockEncrypted;
+              block.header.blockLength = blockEncrypted.length;
               return block;
             }),
           );
 
-          console.log(
-            'encrypting opus red',
-            {
-              primary: opusRedFrame.primaryBlock,
-              redundancyBlocksEncrypted,
-            },
-            iv,
-          );
-
           const encryptedRed = red.join({
-            primaryBlock: opusRedFrame.primaryBlock,
+            primaryBlock,
             redundancyBlocks: redundancyBlocksEncrypted,
           });
 
-          const newData = new ArrayBuffer(
-            encryptedRed.byteLength + iv.byteLength + frameTrailer.byteLength,
-          );
-          const newUint8 = new Uint8Array(newData);
-          newUint8.set(opusRedFrame.primaryBlock.data.slice(0, 1), 0); // add ciphertext.
-          newUint8.set(new Uint8Array(encryptedRed), 1); // add ciphertext.
-          newUint8.set(new Uint8Array(iv), encryptedRed.byteLength); // append IV.
-          newUint8.set(frameTrailer, encryptedRed.byteLength + iv.byteLength); // append frame trailer.
-
-          //*** DEBUG DECRYPT DIRECTLY */
-
-          console.log('split before decrypt', opusRedFrame, iv);
-          const primaryDecrypted = await crypto.subtle.decrypt(
-            {
-              name: ENCRYPTION_ALGORITHM,
-              iv,
-              additionalData: Uint8Array.from(opusRedFrame.primaryBlock.data.slice(0, 1)),
-            },
-            keySet!.encryptionKey,
-            Uint8Array.from(opusRedFrame.primaryBlock.data.slice(1)),
-          );
-          console.log('Decrypted primary');
-
-          encodedFrame.data = newData;
+          encodedFrame.data = encryptedRed;
           return controller.enqueue(encodedFrame);
         } else {
-          const cipherText = await crypto.subtle.encrypt(
-            {
-              name: ENCRYPTION_ALGORITHM,
-              iv,
-              additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
-            },
-            encryptionKey,
+          const encryptedFrame = await this.encrypt(
             new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)),
-          );
-
-          const newData = new ArrayBuffer(
-            frameHeader.byteLength +
-              cipherText.byteLength +
-              iv.byteLength +
-              frameTrailer.byteLength,
-          );
-          const newUint8 = new Uint8Array(newData);
-
-          newUint8.set(frameHeader); // copy first bytes.
-          newUint8.set(new Uint8Array(cipherText), frameHeader.byteLength); // add ciphertext.
-          newUint8.set(new Uint8Array(iv), frameHeader.byteLength + cipherText.byteLength); // append IV.
-          newUint8.set(
+            new Uint8Array(encodedFrame.data, 0, this.getUnencryptedBytes(encodedFrame)),
             frameTrailer,
-            frameHeader.byteLength + cipherText.byteLength + iv.byteLength,
-          ); // append frame trailer.
+            iv,
+            encryptionKey,
+          );
 
-          encodedFrame.data = newData;
+          encodedFrame.data = encryptedFrame.buffer;
 
           return controller.enqueue(encodedFrame);
         }
@@ -349,6 +292,43 @@ export class FrameCryptor extends BaseFrameCryptor {
         new CryptorError(`encryption key missing for encoding`, CryptorErrorReason.MissingKey),
       );
     }
+  }
+
+  private async encrypt(
+    payload: Uint8Array,
+    unencryptedHeaderBytes: Uint8Array,
+    frameTrailer: Uint8Array,
+    iv: ArrayBuffer,
+    key: CryptoKey,
+  ) {
+    const cipherText = await crypto.subtle.encrypt(
+      {
+        name: ENCRYPTION_ALGORITHM,
+        iv,
+        additionalData: unencryptedHeaderBytes,
+      },
+      key,
+      payload,
+    );
+    const newData = new ArrayBuffer(
+      unencryptedHeaderBytes.byteLength +
+        cipherText.byteLength +
+        iv.byteLength +
+        frameTrailer.byteLength,
+    );
+    const encryptedBytesWithTrailer = new Uint8Array(newData);
+
+    encryptedBytesWithTrailer.set(unencryptedHeaderBytes); // copy first bytes.
+    encryptedBytesWithTrailer.set(new Uint8Array(cipherText), unencryptedHeaderBytes.byteLength); // add ciphertext.
+    encryptedBytesWithTrailer.set(
+      new Uint8Array(iv),
+      unencryptedHeaderBytes.byteLength + cipherText.byteLength,
+    ); // append IV.
+    encryptedBytesWithTrailer.set(
+      frameTrailer,
+      unencryptedHeaderBytes.byteLength + cipherText.byteLength + iv.byteLength,
+    ); // append frame trailer.
+    return encryptedBytesWithTrailer;
   }
 
   /**
@@ -506,28 +486,18 @@ export class FrameCryptor extends BaseFrameCryptor {
         return encodedFrame;
       }
 
-      const cipherTextStart = frameHeader.byteLength;
       const cipherTextLength =
         encodedFrame.data.byteLength -
         (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
 
-      const plainText = await crypto.subtle.decrypt(
-        {
-          name: ENCRYPTION_ALGORITHM,
-          iv,
-          additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
-        },
-        ratchetOpts.encryptionKey ?? keySet!.encryptionKey,
-        new Uint8Array(encodedFrame.data, cipherTextStart, cipherTextLength),
+      const decryptedData = await this.decrypt(
+        new Uint8Array(encodedFrame.data, frameHeader.byteLength, cipherTextLength),
+        new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
+        iv,
+        ratchetOpts?.encryptionKey ?? keySet!.encryptionKey,
       );
 
-      const newData = new ArrayBuffer(frameHeader.byteLength + plainText.byteLength);
-      const newUint8 = new Uint8Array(newData);
-
-      newUint8.set(new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength));
-      newUint8.set(new Uint8Array(plainText), frameHeader.byteLength);
-
-      encodedFrame.data = newData;
+      encodedFrame.data = decryptedData.buffer;
 
       return encodedFrame;
     } catch (error: any) {
@@ -584,6 +554,29 @@ export class FrameCryptor extends BaseFrameCryptor {
         );
       }
     }
+  }
+
+  private async decrypt(
+    payload: Uint8Array,
+    unencryptedHeaderBytes: Uint8Array,
+    iv: ArrayBuffer,
+    key: CryptoKey,
+  ) {
+    const plainText = await crypto.subtle.decrypt(
+      {
+        name: ENCRYPTION_ALGORITHM,
+        iv,
+        additionalData: unencryptedHeaderBytes,
+      },
+      key,
+      payload,
+    );
+
+    const buffer = new ArrayBuffer(unencryptedHeaderBytes.byteLength + plainText.byteLength);
+    const decryptedBytes = new Uint8Array(buffer);
+    decryptedBytes.set(new Uint8Array(unencryptedHeaderBytes, 0));
+    decryptedBytes.set(new Uint8Array(plainText), unencryptedHeaderBytes.byteLength);
+    return decryptedBytes;
   }
 
   /**
