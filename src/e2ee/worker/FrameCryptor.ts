@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // TODO code inspired by https://github.com/webrtc/samples/blob/gh-pages/src/content/insertable-streams/endtoend-encryption/js/worker.js
 import { EventEmitter } from 'events';
+import * as red from 'opus-red-parser';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
@@ -233,29 +234,111 @@ export class FrameCryptor extends BaseFrameCryptor {
       // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
       // ---------+-------------------------+-+---------+----
       try {
-        const cipherText = await crypto.subtle.encrypt(
-          {
-            name: ENCRYPTION_ALGORITHM,
+        // @ts-expect-error not supported in safari
+        if (encodedFrame.getMetadata().payloadType === 63) {
+          const opusRedFrame = red.split(encodedFrame.data);
+
+          const primaryFrameCipher = await crypto.subtle.encrypt(
+            {
+              name: ENCRYPTION_ALGORITHM,
+              iv,
+              additionalData: Uint8Array.from(opusRedFrame.primaryBlock.data.slice(0, 1)),
+            },
+            encryptionKey,
+            Uint8Array.from(opusRedFrame.primaryBlock.data.slice(1)),
+          );
+          const primaryBuffer = new ArrayBuffer(primaryFrameCipher.byteLength + 1);
+          const primaryData = new Uint8Array(primaryBuffer);
+          primaryData.set(opusRedFrame.primaryBlock.data.slice(0, 1), 0);
+          primaryData.set(new Uint8Array(primaryFrameCipher), 1);
+          opusRedFrame.primaryBlock.data = primaryData;
+          const redundancyBlocksEncrypted = await Promise.all(
+            opusRedFrame.redundancyBlocks.map(async (block) => {
+              const cipherText = await crypto.subtle.encrypt(
+                {
+                  name: ENCRYPTION_ALGORITHM,
+                  iv,
+                  additionalData: block.data.slice(0, 1),
+                },
+                encryptionKey,
+                block.data.slice(1),
+              );
+              block.data = new Uint8Array(cipherText);
+              block.header.blockLength = cipherText.byteLength;
+              return block;
+            }),
+          );
+
+          console.log(
+            'encrypting opus red',
+            {
+              primary: opusRedFrame.primaryBlock,
+              redundancyBlocksEncrypted,
+            },
             iv,
-            additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
-          },
-          encryptionKey,
-          new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)),
-        );
+          );
 
-        const newData = new ArrayBuffer(
-          frameHeader.byteLength + cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
-        );
-        const newUint8 = new Uint8Array(newData);
+          const encryptedRed = red.join({
+            primaryBlock: opusRedFrame.primaryBlock,
+            redundancyBlocks: redundancyBlocksEncrypted,
+          });
 
-        newUint8.set(frameHeader); // copy first bytes.
-        newUint8.set(new Uint8Array(cipherText), frameHeader.byteLength); // add ciphertext.
-        newUint8.set(new Uint8Array(iv), frameHeader.byteLength + cipherText.byteLength); // append IV.
-        newUint8.set(frameTrailer, frameHeader.byteLength + cipherText.byteLength + iv.byteLength); // append frame trailer.
+          const newData = new ArrayBuffer(
+            encryptedRed.byteLength + iv.byteLength + frameTrailer.byteLength,
+          );
+          const newUint8 = new Uint8Array(newData);
+          newUint8.set(opusRedFrame.primaryBlock.data.slice(0, 1), 0); // add ciphertext.
+          newUint8.set(new Uint8Array(encryptedRed), 1); // add ciphertext.
+          newUint8.set(new Uint8Array(iv), encryptedRed.byteLength); // append IV.
+          newUint8.set(frameTrailer, encryptedRed.byteLength + iv.byteLength); // append frame trailer.
 
-        encodedFrame.data = newData;
+          //*** DEBUG DECRYPT DIRECTLY */
 
-        return controller.enqueue(encodedFrame);
+          console.log('split before decrypt', opusRedFrame, iv);
+          const primaryDecrypted = await crypto.subtle.decrypt(
+            {
+              name: ENCRYPTION_ALGORITHM,
+              iv,
+              additionalData: Uint8Array.from(opusRedFrame.primaryBlock.data.slice(0, 1)),
+            },
+            keySet!.encryptionKey,
+            Uint8Array.from(opusRedFrame.primaryBlock.data.slice(1)),
+          );
+          console.log('Decrypted primary');
+
+          encodedFrame.data = newData;
+          return controller.enqueue(encodedFrame);
+        } else {
+          const cipherText = await crypto.subtle.encrypt(
+            {
+              name: ENCRYPTION_ALGORITHM,
+              iv,
+              additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
+            },
+            encryptionKey,
+            new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)),
+          );
+
+          const newData = new ArrayBuffer(
+            frameHeader.byteLength +
+              cipherText.byteLength +
+              iv.byteLength +
+              frameTrailer.byteLength,
+          );
+          const newUint8 = new Uint8Array(newData);
+
+          newUint8.set(frameHeader); // copy first bytes.
+          newUint8.set(new Uint8Array(cipherText), frameHeader.byteLength); // add ciphertext.
+          newUint8.set(new Uint8Array(iv), frameHeader.byteLength + cipherText.byteLength); // append IV.
+          newUint8.set(
+            frameTrailer,
+            frameHeader.byteLength + cipherText.byteLength + iv.byteLength,
+          ); // append frame trailer.
+
+          encodedFrame.data = newData;
+
+          return controller.enqueue(encodedFrame);
+        }
       } catch (e: any) {
         // TODO: surface this to the app.
         workerLogger.error(e);
@@ -301,6 +384,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
+    console.log('key index', keyIndex, data[encodedFrame.data.byteLength - 2]);
 
     if (this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
       try {
@@ -370,6 +454,58 @@ export class FrameCryptor extends BaseFrameCryptor {
         ivLength,
       );
 
+      // @ts-expect-error no support in safari
+      if (encodedFrame.getMetadata().payloadType === 63) {
+        const opusRedFrame = red.split(
+          encodedFrame.data.slice(0, encodedFrame.data.byteLength - frameTrailer.length - ivLength),
+        );
+        console.log('split before decrypt', opusRedFrame, iv);
+        const primaryDecrypted = await crypto.subtle.decrypt(
+          {
+            name: ENCRYPTION_ALGORITHM,
+            iv,
+            additionalData: opusRedFrame.primaryBlock.data.slice(0, 1),
+          },
+          ratchetOpts.encryptionKey ?? keySet!.encryptionKey,
+          opusRedFrame.primaryBlock.data.slice(1),
+        );
+        console.log('Decrypted primary');
+
+        opusRedFrame.primaryBlock.data = new Uint8Array(primaryDecrypted);
+
+        const redundancyDecrypted = await Promise.all(
+          opusRedFrame.redundancyBlocks.map(async (block) => {
+            const plainText = await crypto.subtle.decrypt(
+              {
+                name: ENCRYPTION_ALGORITHM,
+                iv,
+                additionalData: block.data.slice(0, 1),
+              },
+              ratchetOpts.encryptionKey ?? keySet!.encryptionKey,
+              block.data.slice(1),
+            );
+
+            block.data = new Uint8Array(plainText);
+            block.header.blockLength = plainText.byteLength;
+
+            return block;
+          }),
+        );
+
+        console.log('decrypted frame', {
+          primary: opusRedFrame.primaryBlock,
+          redundancyDecrypted,
+        });
+
+        const decryptedFrame = red.join({
+          primaryBlock: opusRedFrame.primaryBlock,
+          redundancyBlocks: redundancyDecrypted,
+        });
+
+        encodedFrame.data = decryptedFrame;
+        return encodedFrame;
+      }
+
       const cipherTextStart = frameHeader.byteLength;
       const cipherTextLength =
         encodedFrame.data.byteLength -
@@ -395,6 +531,7 @@ export class FrameCryptor extends BaseFrameCryptor {
 
       return encodedFrame;
     } catch (error: any) {
+      throw error;
       if (this.keyProviderOptions.ratchetWindowSize > 0) {
         if (ratchetOpts.ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
           workerLogger.debug(
@@ -531,6 +668,10 @@ export class FrameCryptor extends BaseFrameCryptor {
 
       return UNENCRYPTED_BYTES[frame.type];
     } else {
+      // @ts-expect-error payload type not supported on safari
+      if (frame.getMetadata().payloadType === 63) {
+        return UNENCRYPTED_BYTES.red1;
+      }
       return UNENCRYPTED_BYTES.audio;
     }
   }
