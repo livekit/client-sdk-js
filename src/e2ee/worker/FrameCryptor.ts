@@ -267,6 +267,8 @@ export class FrameCryptor extends BaseFrameCryptor {
             redundancyBlocks: redundancyBlocksEncrypted,
           });
 
+          console.log('primary block', primaryBlock.data);
+
           encodedFrame.data = encryptedRed;
           return controller.enqueue(encodedFrame);
         } else {
@@ -420,6 +422,68 @@ export class FrameCryptor extends BaseFrameCryptor {
     // ---------+-------------------------+-+---------+----
 
     try {
+      // @ts-expect-error no support in safari
+      if (encodedFrame.getMetadata().payloadType === 63) {
+        const { primaryBlock, redundancyBlocks } = red.split(encodedFrame.data);
+
+        const primaryFrameTrailer = primaryBlock.data.slice(primaryBlock.data.byteLength - 2);
+        const ivLength = primaryFrameTrailer[0];
+
+        const primaryFramePayload = primaryBlock.data.slice(
+          0,
+          primaryBlock.data.byteLength - 2 - ivLength,
+        );
+
+        console.log('frame trailer', primaryFrameTrailer, primaryBlock.data);
+
+        const primaryKey =
+          ratchetOpts.encryptionKey ?? this.keys.getKeySet(primaryFrameTrailer[1])?.encryptionKey;
+        if (!primaryKey) {
+          throw new TypeError(
+            `key missing for primary opus frame at index ${primaryFrameTrailer[1]}`,
+          );
+        }
+        const iv = primaryBlock.data.slice(
+          primaryBlock.data.byteLength - ivLength - primaryFrameTrailer.byteLength,
+          primaryBlock.data.byteLength - primaryFrameTrailer.byteLength,
+        );
+        const primaryDecrypted = await this.decrypt(
+          primaryFramePayload.slice(1),
+          primaryFramePayload.slice(0, 1),
+          iv,
+          primaryKey,
+        );
+        primaryBlock.data = primaryDecrypted;
+        console.log('Decrypted primary');
+
+        const redundancyDecrypted = await Promise.all(
+          redundancyBlocks.map(async (block) => {
+            const decryptedBlock = await this.decrypt(
+              block.data.slice(1),
+              block.data.slice(0, 1),
+              iv,
+              primaryKey,
+            );
+            block.data = decryptedBlock;
+            block.header.blockLength = decryptedBlock.byteLength;
+
+            return block;
+          }),
+        );
+
+        console.log('decrypted frame', {
+          primary: primaryBlock,
+          redundancyDecrypted,
+        });
+
+        const decryptedFrame = red.join({
+          primaryBlock: primaryBlock,
+          redundancyBlocks: redundancyDecrypted,
+        });
+
+        encodedFrame.data = decryptedFrame;
+        return encodedFrame;
+      }
       const frameHeader = new Uint8Array(
         encodedFrame.data,
         0,
@@ -433,58 +497,6 @@ export class FrameCryptor extends BaseFrameCryptor {
         encodedFrame.data.byteLength - ivLength - frameTrailer.byteLength,
         ivLength,
       );
-
-      // @ts-expect-error no support in safari
-      if (encodedFrame.getMetadata().payloadType === 63) {
-        const opusRedFrame = red.split(
-          encodedFrame.data.slice(0, encodedFrame.data.byteLength - frameTrailer.length - ivLength),
-        );
-        console.log('split before decrypt', opusRedFrame, iv);
-        const primaryDecrypted = await crypto.subtle.decrypt(
-          {
-            name: ENCRYPTION_ALGORITHM,
-            iv,
-            additionalData: opusRedFrame.primaryBlock.data.slice(0, 1),
-          },
-          ratchetOpts.encryptionKey ?? keySet!.encryptionKey,
-          opusRedFrame.primaryBlock.data.slice(1),
-        );
-        console.log('Decrypted primary');
-
-        opusRedFrame.primaryBlock.data = new Uint8Array(primaryDecrypted);
-
-        const redundancyDecrypted = await Promise.all(
-          opusRedFrame.redundancyBlocks.map(async (block) => {
-            const plainText = await crypto.subtle.decrypt(
-              {
-                name: ENCRYPTION_ALGORITHM,
-                iv,
-                additionalData: block.data.slice(0, 1),
-              },
-              ratchetOpts.encryptionKey ?? keySet!.encryptionKey,
-              block.data.slice(1),
-            );
-
-            block.data = new Uint8Array(plainText);
-            block.header.blockLength = plainText.byteLength;
-
-            return block;
-          }),
-        );
-
-        console.log('decrypted frame', {
-          primary: opusRedFrame.primaryBlock,
-          redundancyDecrypted,
-        });
-
-        const decryptedFrame = red.join({
-          primaryBlock: opusRedFrame.primaryBlock,
-          redundancyBlocks: redundancyDecrypted,
-        });
-
-        encodedFrame.data = decryptedFrame;
-        return encodedFrame;
-      }
 
       const cipherTextLength =
         encodedFrame.data.byteLength -
