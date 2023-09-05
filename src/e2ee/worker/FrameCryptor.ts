@@ -5,7 +5,6 @@ import * as red from 'opus-red-parser';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { AudioCodec, VideoCodec } from '../../room/track/options';
-import { isFireFox } from '../../room/utils';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { CryptorCallbacks, CryptorEvent } from '../events';
@@ -489,7 +488,6 @@ export class FrameCryptor extends BaseFrameCryptor {
 
       return encodedFrame;
     } catch (error: any) {
-      throw error;
       if (this.keyProviderOptions.ratchetWindowSize > 0) {
         if (ratchetOpts.ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
           workerLogger.debug(
