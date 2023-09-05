@@ -85,7 +85,7 @@ onmessage = (ev) => {
       unsetCryptorParticipant(data.trackId);
       break;
     case 'updateCodec':
-      getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
+      getTrackCryptor(data.participantIdentity, data.trackId).setCodec(data.codec);
       break;
     case 'setRTPMap':
       // this is only used for the local participant

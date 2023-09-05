@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 import * as red from 'opus-red-parser';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
-import type { VideoCodec } from '../../room/track/options';
+import type { AudioCodec, VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { CryptorCallbacks, CryptorEvent } from '../events';
@@ -55,9 +55,9 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private keys: ParticipantKeyHandler;
 
-  private videoCodec?: VideoCodec;
+  private codec?: VideoCodec | AudioCodec;
 
-  private rtpMap: Map<number, VideoCodec>;
+  private rtpMap: Map<number, VideoCodec | AudioCodec>;
 
   private keyProviderOptions: KeyProviderOptions;
 
@@ -117,18 +117,18 @@ export class FrameCryptor extends BaseFrameCryptor {
   }
 
   /**
-   * Update the video codec used by the mediaStreamTrack
+   * Update the codec used by the mediaStreamTrack
    * @param codec
    */
-  setVideoCodec(codec: VideoCodec) {
-    this.videoCodec = codec;
+  setCodec(codec: VideoCodec | AudioCodec) {
+    this.codec = codec;
   }
 
   /**
    * rtp payload type map used for figuring out codec of payload type when encoding
    * @param map
    */
-  setRtpMap(map: Map<number, VideoCodec>) {
+  setRtpMap(map: Map<number, VideoCodec | AudioCodec>) {
     this.rtpMap = map;
   }
 
@@ -137,11 +137,11 @@ export class FrameCryptor extends BaseFrameCryptor {
     readable: ReadableStream,
     writable: WritableStream,
     trackId: string,
-    codec?: VideoCodec,
+    codec?: VideoCodec | AudioCodec,
   ) {
     if (codec) {
       workerLogger.info('setting codec on cryptor to', { codec });
-      this.videoCodec = codec;
+      this.codec = codec;
     }
 
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
@@ -213,13 +213,6 @@ export class FrameCryptor extends BaseFrameCryptor {
         encodedFrame.timestamp,
       );
 
-      // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
-      const frameHeader = new Uint8Array(
-        encodedFrame.data,
-        0,
-        this.getUnencryptedBytes(encodedFrame),
-      );
-
       // Frame trailer contains the R|IV_LENGTH and key index
       const frameTrailer = new Uint8Array(2);
 
@@ -234,8 +227,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
       // ---------+-------------------------+-+---------+----
       try {
-        // @ts-expect-error not supported in safari
-        if (encodedFrame.getMetadata().payloadType === 63) {
+        if (this.getCodec(encodedFrame) === 'red') {
           const { primaryBlock, redundancyBlocks } = red.split(encodedFrame.data);
 
           const primaryBlockEncrypted = await this.encrypt(
@@ -266,8 +258,6 @@ export class FrameCryptor extends BaseFrameCryptor {
             primaryBlock,
             redundancyBlocks: redundancyBlocksEncrypted,
           });
-
-          console.log('primary block', primaryBlock.data);
 
           encodedFrame.data = encryptedRed;
           return controller.enqueue(encodedFrame);
@@ -366,7 +356,6 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
-    console.log('key index', keyIndex, data[encodedFrame.data.byteLength - 2]);
 
     if (this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
       try {
@@ -422,47 +411,41 @@ export class FrameCryptor extends BaseFrameCryptor {
     // ---------+-------------------------+-+---------+----
 
     try {
-      // @ts-expect-error no support in safari
-      if (encodedFrame.getMetadata().payloadType === 63) {
+      if (this.getCodec(encodedFrame) === 'red') {
         const { primaryBlock, redundancyBlocks } = red.split(encodedFrame.data);
 
-        const primaryFrameTrailer = primaryBlock.data.slice(primaryBlock.data.byteLength - 2);
-        const ivLength = primaryFrameTrailer[0];
-
-        const primaryFramePayload = primaryBlock.data.slice(
-          0,
-          primaryBlock.data.byteLength - 2 - ivLength,
-        );
-
-        console.log('frame trailer', primaryFrameTrailer, primaryBlock.data);
+        const primaryFrame = this.extractFrameInfo(primaryBlock.data);
 
         const primaryKey =
-          ratchetOpts.encryptionKey ?? this.keys.getKeySet(primaryFrameTrailer[1])?.encryptionKey;
+          ratchetOpts.encryptionKey ?? this.keys.getKeySet(primaryFrame.keyIndex)?.encryptionKey;
         if (!primaryKey) {
           throw new TypeError(
-            `key missing for primary opus frame at index ${primaryFrameTrailer[1]}`,
+            `key missing for primary opus frame at index ${primaryFrame.keyIndex}`,
           );
         }
-        const iv = primaryBlock.data.slice(
-          primaryBlock.data.byteLength - ivLength - primaryFrameTrailer.byteLength,
-          primaryBlock.data.byteLength - primaryFrameTrailer.byteLength,
-        );
+
         const primaryDecrypted = await this.decrypt(
-          primaryFramePayload.slice(1),
-          primaryFramePayload.slice(0, 1),
-          iv,
+          primaryFrame.encryptedPayload.slice(1),
+          primaryFrame.encryptedPayload.slice(0, 1),
+          primaryFrame.iv,
           primaryKey,
         );
         primaryBlock.data = primaryDecrypted;
-        console.log('Decrypted primary');
 
         const redundancyDecrypted = await Promise.all(
           redundancyBlocks.map(async (block) => {
+            const redundancyFrame = this.extractFrameInfo(block.data);
+            const key = this.keys.getKeySet(redundancyFrame.keyIndex)?.encryptionKey;
+            if (!key) {
+              throw new TypeError(
+                `key missing for redundancy opus frame at index ${primaryFrame.keyIndex}`,
+              );
+            }
             const decryptedBlock = await this.decrypt(
-              block.data.slice(1),
-              block.data.slice(0, 1),
-              iv,
-              primaryKey,
+              redundancyFrame.encryptedPayload.slice(1),
+              redundancyFrame.encryptedPayload.slice(0, 1),
+              redundancyFrame.iv,
+              key,
             );
             block.data = decryptedBlock;
             block.header.blockLength = decryptedBlock.byteLength;
@@ -470,11 +453,6 @@ export class FrameCryptor extends BaseFrameCryptor {
             return block;
           }),
         );
-
-        console.log('decrypted frame', {
-          primary: primaryBlock,
-          redundancyDecrypted,
-        });
 
         const decryptedFrame = red.join({
           primaryBlock: primaryBlock,
@@ -484,28 +462,14 @@ export class FrameCryptor extends BaseFrameCryptor {
         encodedFrame.data = decryptedFrame;
         return encodedFrame;
       }
-      const frameHeader = new Uint8Array(
-        encodedFrame.data,
-        0,
-        this.getUnencryptedBytes(encodedFrame),
-      );
-      const frameTrailer = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - 2, 2);
 
-      const ivLength = frameTrailer[0];
-      const iv = new Uint8Array(
-        encodedFrame.data,
-        encodedFrame.data.byteLength - ivLength - frameTrailer.byteLength,
-        ivLength,
-      );
-
-      const cipherTextLength =
-        encodedFrame.data.byteLength -
-        (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
+      const frameInfo = this.extractFrameInfo(new Uint8Array(encodedFrame.data));
+      const headerLength = this.getUnencryptedBytes(encodedFrame);
 
       const decryptedData = await this.decrypt(
-        new Uint8Array(encodedFrame.data, frameHeader.byteLength, cipherTextLength),
-        new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
-        iv,
+        frameInfo.encryptedPayload.slice(headerLength),
+        frameInfo.encryptedPayload.slice(0, headerLength),
+        frameInfo.iv,
         ratchetOpts?.encryptionKey ?? keySet!.encryptionKey,
       );
 
@@ -513,7 +477,6 @@ export class FrameCryptor extends BaseFrameCryptor {
 
       return encodedFrame;
     } catch (error: any) {
-      throw error;
       if (this.keyProviderOptions.ratchetWindowSize > 0) {
         if (ratchetOpts.ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
           workerLogger.debug(
@@ -562,7 +525,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       } else {
         throw new CryptorError(
           `Decryption failed: ${error.message}`,
-          CryptorErrorReason.InvalidKey,
+          CryptorErrorReason.InternalError,
         );
       }
     }
@@ -632,9 +595,9 @@ export class FrameCryptor extends BaseFrameCryptor {
   }
 
   private getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): number {
-    if (isVideoFrame(frame)) {
-      let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
+    let detectedCodec = this.getCodec(frame) ?? this.codec;
 
+    if (isVideoFrame(frame)) {
       if (detectedCodec === 'av1' || detectedCodec === 'vp9') {
         throw new Error(`${detectedCodec} is not yet supported for end to end encryption`);
       }
@@ -673,24 +636,42 @@ export class FrameCryptor extends BaseFrameCryptor {
 
       return UNENCRYPTED_BYTES[frame.type];
     } else {
-      // @ts-expect-error payload type not supported on safari
-      if (frame.getMetadata().payloadType === 63) {
+      if (detectedCodec === 'red') {
         return UNENCRYPTED_BYTES.red1;
       }
       return UNENCRYPTED_BYTES.audio;
     }
   }
 
+  private extractFrameInfo(data: Uint8Array) {
+    const frameTrailer = data.slice(data.byteLength - 2);
+    const ivLength = frameTrailer[0];
+
+    const encryptedPayload = data.slice(0, data.byteLength - 2 - ivLength);
+
+    const keyIndex = frameTrailer[1];
+
+    const iv = data.slice(
+      data.byteLength - ivLength - frameTrailer.byteLength,
+      data.byteLength - frameTrailer.byteLength,
+    );
+
+    return { encryptedPayload, keyIndex, iv };
+  }
+
   /**
-   * inspects frame payloadtype if available and maps it to the codec specified in rtpMap
+   * inspects frame payloadtype if available and maps it to the codec specified in rtpMap.
+   * falls back to this.codec
    */
-  private getVideoCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
+  private getCodec(
+    frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
+  ): VideoCodec | AudioCodec | undefined {
     if (this.rtpMap.size === 0) {
       return undefined;
     }
     // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
     const payloadType = frame.getMetadata().payloadType;
-    const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
+    const codec = payloadType ? this.rtpMap.get(payloadType) : this.codec;
     return codec;
   }
 }

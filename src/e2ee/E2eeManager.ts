@@ -10,7 +10,7 @@ import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
 import LocalTrack from '../room/track/LocalTrack';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
-import type { VideoCodec } from '../room/track/options';
+import type { AudioCodec, VideoCodec } from '../room/track/options';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
@@ -21,14 +21,14 @@ import type {
   EncodeMessage,
   InitMessage,
   KeyInfo,
-  RTPVideoMapMessage,
+  RTPMapMessage,
   RatchetRequestMessage,
   RemoveTransformMessage,
   SetKeyMessage,
   SifTrailerMessage,
   UpdateCodecMessage,
 } from './types';
-import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
+import { isE2EESupported, isScriptTransformSupported, mimeTypeToCodecString } from './utils';
 
 /**
  * @experimental
@@ -155,6 +155,9 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {
       this.postRTPMap(rtpMap);
     });
+    engine.on(EngineEvent.RTPAudioMapUpdate, (rtpMap) => {
+      this.postRTPMap(rtpMap);
+    });
   }
 
   private setupEventListeners(room: Room, keyProvider: BaseKeyProvider) {
@@ -258,14 +261,14 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     }
   }
 
-  private postRTPMap(map: Map<number, VideoCodec>) {
+  private postRTPMap(map: Map<number, VideoCodec> | Map<number, AudioCodec>) {
     if (!this.worker) {
       throw TypeError('could not post rtp map, worker is missing');
     }
     if (!this.room?.localParticipant.identity) {
       throw TypeError('could not post rtp map, local participant identity is missing');
     }
-    const msg: RTPVideoMapMessage = {
+    const msg: RTPMapMessage = {
       kind: 'setRTPMap',
       data: {
         map,
@@ -299,7 +302,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       track.receiver,
       track.mediaStreamID,
       remoteId,
-      track.kind === 'video' ? mimeTypeToVideoCodecString(trackInfo.mimeType) : undefined,
+      mimeTypeToCodecString(trackInfo.mimeType),
     );
   }
 
@@ -320,7 +323,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     receiver: RTCRtpReceiver,
     trackId: string,
     participantIdentity: string,
-    codec?: VideoCodec,
+    codec?: VideoCodec | AudioCodec,
   ) {
     if (!this.worker) {
       return;

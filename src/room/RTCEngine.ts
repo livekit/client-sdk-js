@@ -47,9 +47,10 @@ import type LocalTrack from './track/LocalTrack';
 import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import { Track } from './track/Track';
-import type { TrackPublishOptions, VideoCodec } from './track/options';
+import type { AudioCodec, TrackPublishOptions, VideoCodec } from './track/options';
 import {
   Mutex,
+  isAudioCodec,
   isVideoCodec,
   isWeb,
   sleep,
@@ -1287,6 +1288,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
       });
 
+      this.publisher.once(PCEvents.RTPAudioPayloadTypes, (rtpTypes: MediaAttributes['rtp']) => {
+        const rtpMap = new Map<number, AudioCodec>();
+        rtpTypes.forEach((rtp) => {
+          const codec = rtp.codec.toLowerCase();
+          if (isAudioCodec(codec)) {
+            rtpMap.set(rtp.payload, codec);
+          }
+        });
+        this.emit(EngineEvent.RTPAudioMapUpdate, rtpMap);
+      });
+
       this.publisher.negotiate((e) => {
         cleanup();
         reject(e);
@@ -1411,6 +1423,7 @@ export type EngineEventCallbacks = {
   /** @internal */
   trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;
   rtpVideoMapUpdate: (rtpMap: Map<number, VideoCodec>) => void;
+  rtpAudioMapUpdate: (rtpMap: Map<number, AudioCodec>) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
   participantUpdate: (infos: ParticipantInfo[]) => void;
   roomUpdate: (room: RoomModel) => void;

@@ -26,6 +26,7 @@ export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
   RTPVideoPayloadTypes: 'rtpVideoPayloadTypes',
+  RTPAudioPayloadTypes: 'rtpAudioPayloadTypes',
 } as const;
 
 /** @internal */
@@ -150,6 +151,8 @@ export default class PCTransport extends EventEmitter {
         sdpParsed.media.forEach((media) => {
           if (media.type === 'video') {
             this.emit(PCEvents.RTPVideoPayloadTypes, media.rtp);
+          } else if (media.type === 'audio') {
+            this.emit(PCEvents.RTPAudioPayloadTypes, media.rtp);
           }
         });
       }
