@@ -1,6 +1,7 @@
 import { TrackEvent } from '../events';
 import { monitorFrequency } from '../stats';
 import { Track } from './Track';
+import { isWeb } from '../utils';
 
 export default abstract class RemoteTrack extends Track {
   /** @internal */
@@ -36,6 +37,8 @@ export default abstract class RemoteTrack extends Track {
       this.receiver = undefined;
       this._currentBitrate = 0;
       this.emit(TrackEvent.Ended, this);
+      // CosmosVideo hack for removing leack listeners
+      this.stop();
     };
   }
 
@@ -49,6 +52,10 @@ export default abstract class RemoteTrack extends Track {
     this.stopMonitor();
     // use `enabled` of track to enable re-use of transceiver
     super.disable();
+    // CosmosVideo hack for removing leack listeners
+    if (isWeb()) {
+      document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
+    }
   }
 
   /* @internal */
