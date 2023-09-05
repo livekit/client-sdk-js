@@ -5,6 +5,7 @@ import * as red from 'opus-red-parser';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import type { AudioCodec, VideoCodec } from '../../room/track/options';
+import { isFireFox } from '../../room/utils';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { CryptorCallbacks, CryptorEvent } from '../events';
@@ -129,7 +130,9 @@ export class FrameCryptor extends BaseFrameCryptor {
    * @param map
    */
   setRtpMap(map: Map<number, VideoCodec | AudioCodec>) {
-    this.rtpMap = map;
+    for (const [key, val] of map) {
+      this.rtpMap.set(key, val);
+    }
   }
 
   setupTransform(
@@ -229,6 +232,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       try {
         if (this.getCodec(encodedFrame) === 'red') {
           const { primaryBlock, redundancyBlocks } = red.split(encodedFrame.data);
+          console.log({ primaryBlock, redundancyBlocks });
 
           const primaryBlockEncrypted = await this.encrypt(
             primaryBlock.data.slice(1),
@@ -411,7 +415,11 @@ export class FrameCryptor extends BaseFrameCryptor {
     // ---------+-------------------------+-+---------+----
 
     try {
+      if (encodedFrame instanceof RTCEncodedAudioFrame) {
+        console.log('audio info', encodedFrame.getMetadata());
+      }
       if (this.getCodec(encodedFrame) === 'red') {
+        console.log('using red');
         const { primaryBlock, redundancyBlocks } = red.split(encodedFrame.data);
 
         const primaryFrame = this.extractFrameInfo(primaryBlock.data);
@@ -466,6 +474,10 @@ export class FrameCryptor extends BaseFrameCryptor {
       const frameInfo = this.extractFrameInfo(new Uint8Array(encodedFrame.data));
       const headerLength = this.getUnencryptedBytes(encodedFrame);
 
+      if (encodedFrame instanceof RTCEncodedAudioFrame) {
+        console.log('audio info', frameInfo, encodedFrame.getMetadata());
+      }
+
       const decryptedData = await this.decrypt(
         frameInfo.encryptedPayload.slice(headerLength),
         frameInfo.encryptedPayload.slice(0, headerLength),
@@ -477,6 +489,7 @@ export class FrameCryptor extends BaseFrameCryptor {
 
       return encodedFrame;
     } catch (error: any) {
+      throw error;
       if (this.keyProviderOptions.ratchetWindowSize > 0) {
         if (ratchetOpts.ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
           workerLogger.debug(
@@ -666,9 +679,14 @@ export class FrameCryptor extends BaseFrameCryptor {
   private getCodec(
     frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
   ): VideoCodec | AudioCodec | undefined {
+    // console.log('codec info', this.codec, this.rtpMap);
+    // if (isFireFox() || frame instanceof RTCEncodedAudioFrame) {
+    //   return 'opus';
+    // }
     if (this.rtpMap.size === 0) {
-      return undefined;
+      return this.codec;
     }
+
     // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
     const payloadType = frame.getMetadata().payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : this.codec;

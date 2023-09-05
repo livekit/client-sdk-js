@@ -206,6 +206,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
         });
       });
     room.localParticipant.on(ParticipantEvent.LocalTrackPublished, async (publication) => {
+      console.log('sender info', publication.trackInfo);
+
       this.setupE2EESender(publication.track!, publication.track!.sender!);
     });
 
@@ -389,7 +391,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
    * a frame encoder.
    *
    */
-  private handleSender(sender: RTCRtpSender, trackId: string, codec?: VideoCodec) {
+  private handleSender(sender: RTCRtpSender, trackId: string, codec?: VideoCodec | AudioCodec) {
     if (E2EE_FLAG in sender || !this.worker) {
       return;
     }

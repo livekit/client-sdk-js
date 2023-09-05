@@ -452,6 +452,50 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
 
+    this.publisher.once(PCEvents.RTPVideoPayloadTypes, (rtpTypes: MediaAttributes['rtp']) => {
+      const rtpMap = new Map<number, VideoCodec>();
+      rtpTypes.forEach((rtp) => {
+        const codec = rtp.codec.toLowerCase();
+        if (isVideoCodec(codec)) {
+          rtpMap.set(rtp.payload, codec);
+        }
+      });
+      this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
+    });
+
+    this.publisher.once(PCEvents.RTPAudioPayloadTypes, (rtpTypes: MediaAttributes['rtp']) => {
+      const rtpMap = new Map<number, AudioCodec>();
+      rtpTypes.forEach((rtp) => {
+        const codec = rtp.codec.toLowerCase();
+        if (isAudioCodec(codec)) {
+          rtpMap.set(rtp.payload, codec);
+        }
+      });
+      this.emit(EngineEvent.RTPAudioMapUpdate, rtpMap);
+    });
+
+    this.subscriber.once(PCEvents.RTPVideoPayloadTypes, (rtpTypes: MediaAttributes['rtp']) => {
+      const rtpMap = new Map<number, VideoCodec>();
+      rtpTypes.forEach((rtp) => {
+        const codec = rtp.codec.toLowerCase();
+        if (isVideoCodec(codec)) {
+          rtpMap.set(rtp.payload, codec);
+        }
+      });
+      this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
+    });
+
+    this.subscriber.once(PCEvents.RTPAudioPayloadTypes, (rtpTypes: MediaAttributes['rtp']) => {
+      const rtpMap = new Map<number, AudioCodec>();
+      rtpTypes.forEach((rtp) => {
+        const codec = rtp.codec.toLowerCase();
+        if (isAudioCodec(codec)) {
+          rtpMap.set(rtp.payload, codec);
+        }
+      });
+      this.emit(EngineEvent.RTPAudioMapUpdate, rtpMap);
+    });
+
     this.createDataChannels();
   }
 

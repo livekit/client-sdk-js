@@ -1,4 +1,5 @@
 import { workerLogger } from '../../logger';
+import type { AudioCodec, VideoCodec } from '../../room/track/options';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';
 import { CryptorEvent, KeyHandlerEvent } from '../events';
@@ -26,6 +27,8 @@ let sharedKey: CryptoKey | undefined;
 let sifTrailer: Uint8Array | undefined;
 
 let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
+
+const rtpMap = new Map<number, AudioCodec | VideoCodec>();
 
 workerLogger.setDefaultLevel('info');
 
@@ -89,10 +92,11 @@ onmessage = (ev) => {
       break;
     case 'setRTPMap':
       // this is only used for the local participant
+      for (const [key, val] of data.map) {
+        rtpMap.set(key, val);
+      }
       participantCryptors.forEach((cr) => {
-        if (cr.getParticipantIdentity() === data.participantIdentity) {
-          cr.setRtpMap(data.map);
-        }
+        cr.setRtpMap(rtpMap);
       });
       break;
     case 'ratchetRequest':
@@ -135,8 +139,8 @@ function getTrackCryptor(participantIdentity: string, trackId: string) {
       keyProviderOptions,
       sifTrailer,
     });
-
     setupCryptorErrorEvents(cryptor);
+    cryptor.setRtpMap(rtpMap);
     participantCryptors.push(cryptor);
   } else if (participantIdentity !== cryptor.getParticipantIdentity()) {
     // assign new participant id to track cryptor and pass in correct key handler
