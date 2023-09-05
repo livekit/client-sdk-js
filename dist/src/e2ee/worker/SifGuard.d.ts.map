@@ -1,0 +1,1 @@
+{"version":3,"file":"SifGuard.d.ts","sourceRoot":"","sources":["../../../../src/e2ee/worker/SifGuard.ts"],"names":[],"mappings":"AAEA,qBAAa,QAAQ;IACnB,OAAO,CAAC,mBAAmB,CAAK;IAEhC,OAAO,CAAC,oBAAoB,CAAqB;IAEjD,OAAO,CAAC,iBAAiB,CAAa;IAEtC,OAAO,CAAC,kBAAkB,CAAa;IAEvC,SAAS;IAMT,eAAe;IAgBf,YAAY;IAQZ,KAAK;CAKN"}

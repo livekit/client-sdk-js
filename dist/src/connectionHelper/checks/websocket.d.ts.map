@@ -1,0 +1,1 @@
+{"version":3,"file":"websocket.d.ts","sourceRoot":"","sources":["../../../../src/connectionHelper/checks/websocket.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAEpC,qBAAa,cAAe,SAAQ,OAAO;IACzC,IAAI,WAAW,IAAI,MAAM,CAExB;cAEe,OAAO,IAAI,OAAO,CAAC,IAAI,CAAC;CAkBzC"}

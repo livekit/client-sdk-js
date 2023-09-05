@@ -1,0 +1,1 @@
+{"version":3,"file":"webrtc.d.ts","sourceRoot":"","sources":["../../../../src/connectionHelper/checks/webrtc.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAEpC,qBAAa,WAAY,SAAQ,OAAO;IACtC,IAAI,WAAW,IAAI,MAAM,CAExB;cAEe,OAAO,IAAI,OAAO,CAAC,IAAI,CAAC;CAyDzC"}

@@ -1,0 +1,1 @@
+{"version":3,"file":"publishVideo.d.ts","sourceRoot":"","sources":["../../../../src/connectionHelper/checks/publishVideo.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAEpC,qBAAa,iBAAkB,SAAQ,OAAO;IAC5C,IAAI,WAAW,IAAI,MAAM,CAExB;IAEK,OAAO,IAAI,OAAO,CAAC,IAAI,CAAC;CAwB/B"}
