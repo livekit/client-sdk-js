@@ -18352,8 +18352,6 @@ class RemoteTrack extends Track {
       this.receiver = undefined;
       this._currentBitrate = 0;
       this.emit(TrackEvent.Ended, this);
-      // CosmosVideo hack for removing leack listeners
-      this.stop();
     };
   }
   start() {
@@ -18365,10 +18363,6 @@ class RemoteTrack extends Track {
     this.stopMonitor();
     // use `enabled` of track to enable re-use of transceiver
     super.disable();
-    // CosmosVideo hack for removing leack listeners
-    if (isWeb()) {
-      document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
-    }
   }
   /* @internal */
   startMonitor() {
