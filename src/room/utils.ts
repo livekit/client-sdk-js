@@ -414,8 +414,8 @@ export function createAudioAnalyser(
     return volume;
   };
 
-  const cleanup = () => {
-    audioContext.close();
+  const cleanup = async () => {
+    await audioContext.close();
     if (opts.cloneTrack) {
       streamTrack.stop();
     }
