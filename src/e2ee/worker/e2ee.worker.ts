@@ -72,10 +72,10 @@ onmessage = (ev) => {
       break;
     case 'setKey':
       if (useSharedKey) {
-        workerLogger.warn('set shared key');
+        workerLogger.debug('set shared key');
         setSharedKey(data.key, data.keyIndex);
       } else if (data.participantIdentity) {
-        workerLogger.warn(`set participant sender key ${data.participantIdentity}`);
+        workerLogger.debug(`set participant sender key ${data.participantIdentity}`);
         getParticipantKeyHandler(data.participantIdentity).setKey(data.key, data.keyIndex);
       } else {
         workerLogger.error('no participant Id was provided and shared key usage is disabled');

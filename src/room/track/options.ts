@@ -2,9 +2,15 @@ import type { Track } from './Track';
 
 export interface TrackPublishDefaults {
   /**
-   * encoding parameters for camera track
+   * encoding parameters for video track
    */
   videoEncoding?: VideoEncoding;
+
+  /**
+   * force a specific resolution for the video track, even if the source track has a different dimension.
+   * Setting this is only recommended for specific use cases where one has no control over the source dimensions.
+   */
+  forceResolution?: VideoResolution;
 
   /**
    * @experimental
@@ -238,6 +244,7 @@ export interface VideoEncoding {
   maxBitrate: number;
   maxFramerate?: number;
   priority?: RTCPriorityType;
+  scaleResolutionDownBy?: number;
 }
 
 export class VideoPreset {

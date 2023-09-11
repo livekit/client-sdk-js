@@ -661,7 +661,7 @@ export default class LocalParticipant extends Participant {
         height: 0,
       };
       try {
-        dims = await track.waitForDimensions();
+        dims = opts.forceResolution ?? (await track.waitForDimensions());
       } catch (e) {
         // use defaults, it's quite painful for congestion control without simulcast
         // so using default dims according to publish settings

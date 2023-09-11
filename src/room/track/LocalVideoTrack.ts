@@ -509,6 +509,7 @@ export function videoLayersFromEncodings(
 ): VideoLayer[] {
   // default to a single layer, HQ
   if (!encodings) {
+    console.warn({ width, height });
     return [
       new VideoLayer({
         quality: VideoQuality.HIGH,
@@ -543,6 +544,8 @@ export function videoLayersFromEncodings(
   return encodings.map((encoding) => {
     const scale = encoding.scaleResolutionDownBy ?? 1;
     let quality = videoQualityForRid(encoding.rid ?? '');
+    console.warn({ width, height, scale });
+
     return new VideoLayer({
       quality,
       width: Math.ceil(width / scale),
