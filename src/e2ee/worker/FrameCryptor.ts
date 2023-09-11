@@ -291,6 +291,10 @@ export class FrameCryptor extends BaseFrameCryptor {
       this.sifGuard.recordSif();
 
       if (this.sifGuard.isSifAllowed()) {
+        encodedFrame.data = encodedFrame.data.slice(
+          0,
+          encodedFrame.data.byteLength - this.sifTrailer.byteLength,
+        );
         return controller.enqueue(encodedFrame);
       } else {
         workerLogger.warn('SIF limit reached, dropping frame');
