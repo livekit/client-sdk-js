@@ -661,7 +661,7 @@ export default class LocalParticipant extends Participant {
         height: 0,
       };
       try {
-        dims = opts.forceResolution ?? (await track.waitForDimensions());
+        dims = await track.waitForDimensions();
       } catch (e) {
         // use defaults, it's quite painful for congestion control without simulcast
         // so using default dims according to publish settings
@@ -772,9 +772,7 @@ export default class LocalParticipant extends Participant {
       }
     }
 
-    const publication = new LocalTrackPublication(track.kind, ti, track);
-    // save options for when it needs to be republished again
-    publication.options = opts;
+    const publication = new LocalTrackPublication(track.kind, ti, track, opts);
     track.sid = ti.sid;
 
     if (!this.engine.publisher) {
@@ -1235,6 +1233,7 @@ export default class LocalParticipant extends Participant {
         }
       }
     } else if (update.subscribedQualities.length > 0) {
+      console.log('server prompted encoding update', update.subscribedQualities);
       await pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
     }
   };

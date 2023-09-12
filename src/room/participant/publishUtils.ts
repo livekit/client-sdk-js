@@ -100,22 +100,38 @@ export function computeVideoEncodings(
   const useSimulcast = options?.simulcast;
   const scalabilityMode = options?.scalabilityMode;
   const videoCodec = options?.videoCodec;
+  const forceResolution = options?.forceResolution;
+
+  let originalLayerScale = 1;
+  if (forceResolution && height) {
+    originalLayerScale = height / forceResolution.height;
+    console.log('og scale', originalLayerScale);
+  }
 
   if ((!videoEncoding && !useSimulcast && !scalabilityMode) || !width || !height) {
     // when we aren't simulcasting or svc, will need to return a single encoding without
     // capping bandwidth. we always require a encoding for dynacast
-    return [{}];
+    return [{ scaleResolutionDownBy: originalLayerScale }];
   }
+
+  const adjustedWidth = width / originalLayerScale;
+  const adjustedHeight = height / originalLayerScale;
 
   if (!videoEncoding) {
     // find the right encoding based on width/height
-    videoEncoding = determineAppropriateEncoding(isScreenShare, width, height, videoCodec);
+    videoEncoding = determineAppropriateEncoding(
+      isScreenShare,
+      adjustedWidth,
+      adjustedHeight,
+      videoCodec,
+    );
+    videoEncoding.scaleResolutionDownBy = originalLayerScale;
     log.debug('using video encoding', videoEncoding);
   }
 
   const original = new VideoPreset(
-    width,
-    height,
+    adjustedWidth,
+    adjustedHeight,
     videoEncoding.maxBitrate,
     videoEncoding.maxFramerate,
     videoEncoding.priority,

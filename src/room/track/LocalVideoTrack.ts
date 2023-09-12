@@ -8,7 +8,7 @@ import { computeBitrate, monitorFrequency } from '../stats';
 import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
-import type { VideoCaptureOptions, VideoCodec } from './options';
+import type { VideoCaptureOptions, VideoCodec, VideoResolution } from './options';
 import type { TrackProcessor } from './processor/types';
 import { constraintsForOptions } from './utils';
 
@@ -47,6 +47,8 @@ export default class LocalVideoTrack extends LocalTrack {
   // could lead to the browser throwing an exception in `setParameter`, due to
   // a missing `getParameter` call.
   private senderLock: Mutex;
+
+  private forcedResolution?: VideoResolution;
 
   /**
    *
@@ -140,6 +142,11 @@ export default class LocalVideoTrack extends LocalTrack {
     } finally {
       unlock();
     }
+  }
+
+  /** @internal */
+  async setForcedResolution(resolution: VideoResolution) {
+    this.forcedResolution = resolution;
   }
 
   protected setTrackMuted(muted: boolean) {
@@ -340,6 +347,22 @@ export default class LocalVideoTrack extends LocalTrack {
     await setPublishingLayersForSender(this.sender, this.encodings, qualities, this.senderLock);
   }
 
+  protected async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean) {
+    if (this.sender && this.forcedResolution) {
+      const params = this.sender.getParameters();
+      const dims = await this.waitForDimensions(undefined, newTrack);
+      const scaleFactor = Math.max(1, dims.height / this.forcedResolution.height);
+      const originalEncoding = params.encodings[params.encodings.length - 1];
+      params.encodings[params.encodings.length - 1] = {
+        ...originalEncoding,
+        scaleResolutionDownBy: scaleFactor,
+      };
+      await this.sender.setParameters(params);
+    }
+
+    return super.setMediaStreamTrack(newTrack, force);
+  }
+
   protected monitorSender = async () => {
     if (!this.sender) {
       this._currentBitrate = 0;
@@ -509,7 +532,6 @@ export function videoLayersFromEncodings(
 ): VideoLayer[] {
   // default to a single layer, HQ
   if (!encodings) {
-    console.warn({ width, height });
     return [
       new VideoLayer({
         quality: VideoQuality.HIGH,
@@ -544,7 +566,6 @@ export function videoLayersFromEncodings(
   return encodings.map((encoding) => {
     const scale = encoding.scaleResolutionDownBy ?? 1;
     let quality = videoQualityForRid(encoding.rid ?? '');
-    console.warn({ width, height, scale });
 
     return new VideoLayer({
       quality,
