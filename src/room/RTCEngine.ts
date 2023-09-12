@@ -762,7 +762,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly', streams };
     if (encodings) {
-      console.log('setting transceiver send encodings', encodings);
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.

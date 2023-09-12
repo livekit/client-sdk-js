@@ -1233,7 +1233,6 @@ export default class LocalParticipant extends Participant {
         }
       }
     } else if (update.subscribedQualities.length > 0) {
-      console.log('server prompted encoding update', update.subscribedQualities);
       await pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
     }
   };
