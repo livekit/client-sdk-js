@@ -105,7 +105,6 @@ export function computeVideoEncodings(
   let originalLayerScale = 1;
   if (forceResolution && height) {
     originalLayerScale = height / forceResolution.height;
-    console.log('og scale', originalLayerScale);
   }
 
   if ((!videoEncoding && !useSimulcast && !scalabilityMode) || !width || !height) {
