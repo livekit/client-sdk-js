@@ -104,7 +104,7 @@ export function computeVideoEncodings(
 
   let originalLayerScale = 1;
   if (forceResolution && height) {
-    originalLayerScale = height / forceResolution.height;
+    originalLayerScale = Math.max(1, height / forceResolution.height);
   }
 
   if ((!videoEncoding && !useSimulcast && !scalabilityMode) || !width || !height) {
@@ -149,14 +149,15 @@ export function computeVideoEncodings(
     for (let i = 0; i < sm.spatial; i += 1) {
       encodings.push({
         rid: videoRids[2 - i],
-        maxBitrate: videoEncoding.maxBitrate / 3 ** i,
+        maxBitrate: Math.ceil(videoEncoding.maxBitrate / 3 ** i),
         /* @ts-ignore */
         maxFramerate: original.encoding.maxFramerate,
+        scaleResolutionDownBy: 2 ** i * originalLayerScale,
       });
     }
     /* @ts-ignore */
     encodings[0].scalabilityMode = scalabilityMode;
-    log.debug('encodings', encodings);
+    log.info('encodings', encodings);
     return encodings;
   }
 
