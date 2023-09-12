@@ -152,7 +152,7 @@ export function computeVideoEncodings(
         maxBitrate: Math.ceil(videoEncoding.maxBitrate / 3 ** i),
         /* @ts-ignore */
         maxFramerate: original.encoding.maxFramerate,
-        scaleResolutionDownBy: 2 ** i * originalLayerScale,
+        scaleResolutionDownBy: 2 ** i * originalLayerScale, // FIXME this currently freezes the downstream track on the receiver side
       });
     }
     /* @ts-ignore */
