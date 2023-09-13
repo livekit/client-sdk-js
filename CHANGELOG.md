@@ -1,5 +1,19 @@
 # Change Log
 
+## 1.13.3
+
+### Patch Changes
+
+- Disable opus RED when using E2EE - [#858](https://github.com/livekit/client-sdk-js/pull/858) ([@lukasIO](https://github.com/lukasIO))
+
+- Make audio analyser cleanup function async - [#867](https://github.com/livekit/client-sdk-js/pull/867) ([@kand193](https://github.com/kand193))
+
+- Strip SIF trailer before enqueuing it - [#868](https://github.com/livekit/client-sdk-js/pull/868) ([@lukasIO](https://github.com/lukasIO))
+
+- Update h360 video preset - [#872](https://github.com/livekit/client-sdk-js/pull/872) ([@davidzhao](https://github.com/davidzhao))
+
+- Fix infinite metadata loop when canUpdateOwnMetadata is granted - [#871](https://github.com/livekit/client-sdk-js/pull/871) ([@davidzhao](https://github.com/davidzhao))
+
 ## 1.13.2
 
 ### Patch Changes
