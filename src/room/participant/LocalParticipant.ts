@@ -176,7 +176,7 @@ export default class LocalParticipant extends Participant {
    * Sets and updates the metadata of the local participant.
    * The change does not take immediate effect.
    * If successful, a `ParticipantEvent.MetadataChanged` event will be emitted on the local participant.
-   * Note: this requires `canUpdateOwnMetadata` permission encoded in the token.
+   * Note: this requires `canUpdateOwnMetadata` permission.
    * @param metadata
    */
   setMetadata(metadata: string): void {
@@ -186,8 +186,8 @@ export default class LocalParticipant extends Participant {
   /**
    * Sets and updates the name of the local participant.
    * The change does not take immediate effect.
-   * If successful, a `ParticipantEvent.MetadataChanged` event will be emitted on the local participant.
-   * Note: this requires `canUpdateOwnMetadata` permission encoded in the token.
+   * If successful, a `ParticipantEvent.ParticipantNameChanged` event will be emitted on the local participant.
+   * Note: this requires `canUpdateOwnMetadata` permission.
    * @param metadata
    */
   setName(name: string): void {
