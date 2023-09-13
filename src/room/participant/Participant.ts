@@ -183,7 +183,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   /**
    * Updates metadata from server
    **/
-  protected _setMetadata(md: string) {
+  private _setMetadata(md: string) {
     const changed = this.metadata !== md;
     const prevMetadata = this.metadata;
     this.metadata = md;
@@ -193,7 +193,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
   }
 
-  protected _setName(name: string) {
+  private _setName(name: string) {
     const changed = this.name !== name;
     this.name = name;
 
