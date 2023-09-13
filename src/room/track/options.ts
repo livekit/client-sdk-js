@@ -345,7 +345,7 @@ export const VideoPresets43 = {
   h120: new VideoPreset(160, 120, 70_000, 20),
   h180: new VideoPreset(240, 180, 125_000, 20),
   h240: new VideoPreset(320, 240, 140_000, 20),
-  h360: new VideoPreset(480, 360, 225_000, 20),
+  h360: new VideoPreset(480, 360, 330_000, 20),
   h480: new VideoPreset(640, 480, 500_000, 20),
   h540: new VideoPreset(720, 540, 600_000, 25),
   h720: new VideoPreset(960, 720, 1_300_000, 30),
