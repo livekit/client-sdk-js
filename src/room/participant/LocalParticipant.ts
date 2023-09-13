@@ -178,7 +178,7 @@ export default class LocalParticipant extends Participant {
    * @param metadata
    */
   setMetadata(metadata: string): void {
-    super.setMetadata(metadata);
+    this.metadata = metadata;
     this.engine.client.sendUpdateLocalMetadata(metadata, this.name ?? '');
   }
 
@@ -188,7 +188,7 @@ export default class LocalParticipant extends Participant {
    * @param metadata
    */
   setName(name: string): void {
-    super.setName(name);
+    this.name = name;
     this.engine.client.sendUpdateLocalMetadata(this.metadata ?? '', name);
   }
 
