@@ -447,10 +447,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           this.emit(EngineEvent.Connected, joinResponse);
         }
       }
-      log.warn(`secondary PC state changed ${secondaryPC.connectionState}`);
+      log.debug(`secondary PC state changed ${secondaryPC.connectionState}`);
       // also reconnect if secondary peerconnection fails
       if (secondaryPC.connectionState === 'failed') {
-        log.warn('issuing reconnect for secondary PC failed');
         this.handleDisconnect(
           'secondary peerconnection',
           subscriberPrimary
@@ -1099,7 +1098,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     log.debug('waiting for peer connection to reconnect');
     while (now - startTime < this.peerConnectionTimeout) {
       if (this.primaryPC === undefined) {
-        console.warn('primary missing, connection hosed');
         // we can abort early, connection is hosed
         break;
       } else if (
