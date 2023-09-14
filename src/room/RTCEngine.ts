@@ -418,6 +418,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const shouldEmit = this.pcState === PCState.New;
         this.pcState = PCState.Connected;
         if (shouldEmit) {
+          console.warn('primary connected, emitting');
           this.emit(EngineEvent.Connected, joinResponse);
         }
       } else if (primaryPC.connectionState === 'failed') {
@@ -435,9 +436,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     };
     secondaryPC.onconnectionstatechange = async () => {
-      log.debug(`secondary PC state changed ${secondaryPC.connectionState}`);
+      log.warn(`secondary PC state changed ${secondaryPC.connectionState}`);
       // also reconnect if secondary peerconnection fails
       if (secondaryPC.connectionState === 'failed') {
+        log.warn('issuing reconnect for secondary PC failed');
         this.handleDisconnect(
           'secondary peerconnection',
           subscriberPrimary
@@ -1084,7 +1086,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     log.debug('waiting for peer connection to reconnect');
     while (now - startTime < this.peerConnectionTimeout) {
+      const needsPublisherPC = this.hasPublished && this.subscriberPrimary;
+      console.log(
+        'needs publisher',
+        needsPublisherPC,
+        this.hasPublished,
+        this.subscriberPrimary,
+        this.publisher?.pc.connectionState,
+      );
       if (this.primaryPC === undefined) {
+        console.warn('primary missing, connection hosed');
         // we can abort early, connection is hosed
         break;
       } else if (
@@ -1092,11 +1103,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // this means we'd have to check its status manually and update address
         // manually
         now - startTime > minReconnectWait &&
-        this.primaryPC?.connectionState === 'connected'
+        this.primaryPC?.connectionState === 'connected' &&
+        (!needsPublisherPC || this.publisher?.pc.connectionState === 'connected')
       ) {
         this.pcState = PCState.Connected;
-      }
-      if (this.pcState === PCState.Connected) {
         return;
       }
       await sleep(100);
@@ -1205,32 +1215,46 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /* @internal */
   verifyTransport(): boolean {
+    console.log(
+      'verifying transport',
+      this.hasPublished,
+      this.primaryPC?.connectionState,
+      this.publisher?.pc.connectionState,
+    );
     // primary connection
     if (!this.primaryPC) {
+      log.warn('no primary PC');
       return false;
     }
     if (
       this.primaryPC.connectionState === 'closed' ||
       this.primaryPC.connectionState === 'failed'
     ) {
+      log.warn('primary pc connectionState issue', {
+        state: this.primaryPC.connectionState,
+        subPrimary: this.subscriberPrimary,
+      });
       return false;
     }
 
     // also verify publisher connection if it's needed or different
     if (this.hasPublished && this.subscriberPrimary) {
       if (!this.publisher) {
+        log.warn('publisher not present');
         return false;
       }
       if (
         this.publisher.pc.connectionState === 'closed' ||
         this.publisher.pc.connectionState === 'failed'
       ) {
+        log.warn('publisher connection state issue', { state: this.publisher.pc.connectionState });
         return false;
       }
     }
 
     // ensure signal is connected
     if (!this.client.ws || this.client.ws.readyState === WebSocket.CLOSED) {
+      log.warn('signal not connected');
       return false;
     }
     return true;

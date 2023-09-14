@@ -294,6 +294,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
+        console.log("we're resuming");
         this.clearConnectionReconcile();
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
@@ -1119,9 +1120,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       // reconnection failed, handleDisconnect is being invoked already, just return here
       return;
     }
-    this.setAndEmitConnectionState(ConnectionState.Connected);
-    this.emit(RoomEvent.Reconnected);
-    this.registerConnectionReconcile();
+    // only set as connected if _only_ the signal connection had been severed
+    if (this.engine.verifyTransport()) {
+      this.setAndEmitConnectionState(ConnectionState.Connected);
+      this.emit(RoomEvent.Reconnected);
+      this.registerConnectionReconcile();
+    }
 
     // emit participant connected events after connection has been re-established
     this.participants.forEach((participant) => {
@@ -1605,9 +1609,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private registerConnectionReconcile() {
+    let stackError: string | undefined;
+    try {
+      throw new Error();
+    } catch (e) {
+      stackError = (e as Error).stack;
+    }
     this.clearConnectionReconcile();
+    console.log('registering connection reconcile', { stackError });
+
     let consecutiveFailures = 0;
-    this.connectionReconcileInterval = CriticalTimers.setInterval(() => {
+    this.connectionReconcileInterval = setInterval(() => {
       if (
         // ensure we didn't tear it down
         !this.engine ||
@@ -1633,6 +1645,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private clearConnectionReconcile() {
     if (this.connectionReconcileInterval) {
+      console.log('clearing connection reconcile');
       CriticalTimers.clearInterval(this.connectionReconcileInterval);
     }
   }
