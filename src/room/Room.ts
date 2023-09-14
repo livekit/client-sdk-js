@@ -294,7 +294,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
-        console.log("we're resuming");
         this.clearConnectionReconcile();
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
@@ -1609,15 +1608,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private registerConnectionReconcile() {
-    let stackError: string | undefined;
-    try {
-      throw new Error();
-    } catch (e) {
-      stackError = (e as Error).stack;
-    }
     this.clearConnectionReconcile();
-    console.log('registering connection reconcile', { stackError });
-
     let consecutiveFailures = 0;
     this.connectionReconcileInterval = CriticalTimers.setInterval(() => {
       if (
@@ -1645,7 +1636,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private clearConnectionReconcile() {
     if (this.connectionReconcileInterval) {
-      console.log('clearing connection reconcile');
       CriticalTimers.clearInterval(this.connectionReconcileInterval);
     }
   }
