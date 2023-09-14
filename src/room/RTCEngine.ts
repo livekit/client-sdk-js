@@ -120,7 +120,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   // true if publisher connection has already been established.
   // this is helpful to know if we need to restart ICE on the publisher connection
-  private needsPublisher: boolean = false;
+  private hasPublished: boolean = false;
 
   // keep join info around for reconnect, this could be a region url
   private url?: string;
@@ -207,7 +207,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       // create offer
-      if (!this.subscriberPrimary || this.needsPublisher) {
+      if (!this.subscriberPrimary || this.hasPublished) {
         this.negotiate();
       }
 
@@ -419,7 +419,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       log.debug(`primary PC state changed ${primaryPC.connectionState}`);
       if (primaryPC.connectionState === 'connected') {
         const initialFullConnection =
-          (this.pcState === PCState.New && !this.needsPublisher) ||
+          (this.pcState === PCState.New && !this.hasPublished) ||
           this.publisher?.pc.connectionState === 'connected';
         if (initialFullConnection) {
           this.pcState = PCState.Connected;
@@ -1036,7 +1036,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.subscriber.restartingIce = true;
 
     // only restart publisher if it's needed
-    if (this.needsPublisher) {
+    if (this.hasPublished) {
       await this.publisher.createAndSendOffer({ iceRestart: true });
     }
 
@@ -1108,7 +1108,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // manually
         now - startTime > minReconnectWait &&
         this.primaryPC?.connectionState === 'connected' &&
-        (!this.needsPublisher || this.publisher?.pc.connectionState === 'connected')
+        (!this.hasPublished || this.publisher?.pc.connectionState === 'connected')
       ) {
         this.pcState = PCState.Connected;
         return;
@@ -1231,7 +1231,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     // also verify publisher connection if it's needed or different
-    if (this.needsPublisher && this.subscriberPrimary) {
+    if (this.hasPublished && this.subscriberPrimary) {
       if (!this.publisher) {
         return false;
       }
@@ -1259,7 +1259,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
 
-      this.needsPublisher = true;
+      this.hasPublished = true;
 
       const handleClosed = () => {
         log.debug('engine disconnected while negotiation was ongoing');

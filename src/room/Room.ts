@@ -1619,7 +1619,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     console.log('registering connection reconcile', { stackError });
 
     let consecutiveFailures = 0;
-    this.connectionReconcileInterval = setInterval(() => {
+    this.connectionReconcileInterval = CriticalTimers.setInterval(() => {
       if (
         // ensure we didn't tear it down
         !this.engine ||
