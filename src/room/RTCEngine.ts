@@ -63,7 +63,7 @@ const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 
-enum PCState {
+enum EngineState {
   New,
   Connected,
   Disconnected,
@@ -110,7 +110,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private primaryPC?: RTCPeerConnection;
 
-  private pcState: PCState = PCState.New;
+  private engineState: EngineState = EngineState.New;
 
   private _isClosed: boolean = true;
 
@@ -120,7 +120,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   // true if publisher connection has already been established.
   // this is helpful to know if we need to restart ICE on the publisher connection
-  private hasPublished: boolean = false;
+  private needsPublisher: boolean = false;
 
   // keep join info around for reconnect, this could be a region url
   private url?: string;
@@ -200,13 +200,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this._isClosed = false;
       this.latestJoinResponse = joinResponse;
 
+      this.engineState = EngineState.New;
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (!this.publisher) {
+        console.log('configuring publisher');
         this.configure(joinResponse);
       }
 
       // create offer
-      if (!this.subscriberPrimary) {
+      if (!this.subscriberPrimary || this.needsPublisher) {
+        console.log('negotiate');
+
         this.negotiate();
       }
 
@@ -241,6 +245,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.clearPendingReconnect();
       await this.cleanupPeerConnections();
       await this.cleanupClient();
+      this.engineState = EngineState.Closed;
     } finally {
       unlock();
     }
@@ -415,17 +420,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     primaryPC.onconnectionstatechange = async () => {
       log.debug(`primary PC state changed ${primaryPC.connectionState}`);
       if (primaryPC.connectionState === 'connected') {
-        const shouldEmit = this.pcState === PCState.New;
-        this.pcState = PCState.Connected;
-        if (shouldEmit) {
-          console.warn('primary connected, emitting');
+        const initialFullConnection =
+          (this.engineState === EngineState.New && !this.needsPublisher) ||
+          this.publisher?.pc.connectionState === 'connected';
+        if (initialFullConnection) {
+          this.engineState = EngineState.Connected;
           this.emit(EngineEvent.Connected, joinResponse);
         }
       } else if (primaryPC.connectionState === 'failed') {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
-        if (this.pcState === PCState.Connected) {
-          this.pcState = PCState.Disconnected;
-
+        if (this.engineState === EngineState.Connected) {
+          this.engineState = EngineState.Disconnected;
+          console.log('primary failed');
           this.handleDisconnect(
             'primary peerconnection',
             subscriberPrimary
@@ -436,6 +442,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     };
     secondaryPC.onconnectionstatechange = async () => {
+      if (secondaryPC.connectionState === 'connected') {
+        const initialFullConnection =
+          this.engineState === EngineState.New && primaryPC.connectionState === 'connected';
+        if (initialFullConnection) {
+          this.engineState = EngineState.Connected;
+          this.emit(EngineEvent.Connected, joinResponse);
+        }
+      }
       log.warn(`secondary PC state changed ${secondaryPC.connectionState}`);
       // also reconnect if secondary peerconnection fails
       if (secondaryPC.connectionState === 'failed') {
@@ -514,6 +528,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onClose = () => {
+      console.log('signal closed, disconnect engine');
       this.handleDisconnect('signal', ReconnectReason.RR_SIGNAL_DISCONNECTED);
     };
 
@@ -901,6 +916,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       if (recoverable) {
+        console.log('recoverable, disconnect first', e);
         this.handleDisconnect('reconnect', ReconnectReason.RR_UNKNOWN);
       } else {
         log.info(
@@ -941,6 +957,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         await this.client.sendLeave();
       }
       await this.cleanupPeerConnections();
+      this.engineState = EngineState.Closed;
       await this.cleanupClient();
 
       let joinResponse: JoinResponse;
@@ -959,6 +976,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       if (this.shouldFailNext) {
+        console.warn('should fail');
         this.shouldFailNext = false;
         throw new Error('simulated failure');
       }
@@ -966,7 +984,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.client.setReconnected();
       this.emit(EngineEvent.SignalRestarted, joinResponse);
 
-      await this.waitForPCReconnected();
+      await this.waitForPCInitialConnection();
       this.regionUrlProvider?.resetAttempts();
       // reconnect success
       this.emit(EngineEvent.Restarted);
@@ -1015,6 +1033,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new SignalReconnectError(message);
     }
     this.emit(EngineEvent.SignalResumed);
+    console.log('signal resumed');
 
     if (this.shouldFailNext) {
       this.shouldFailNext = false;
@@ -1024,10 +1043,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.subscriber.restartingIce = true;
 
     // only restart publisher if it's needed
-    if (this.hasPublished) {
+    if (this.needsPublisher) {
+      console.warn('needs publisher');
       await this.publisher.createAndSendOffer({ iceRestart: true });
+    } else {
+      console.warn('does not need publisher');
     }
 
+    console.log('waiting for pc reconnect', this.needsPublisher);
     await this.waitForPCReconnected();
     this.client.setReconnected();
 
@@ -1042,10 +1065,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async waitForPCInitialConnection(timeout?: number, abortController?: AbortController) {
-    if (this.pcState === PCState.Connected) {
+    if (this.engineState === EngineState.Connected) {
+      console.log('already connected!!!!!');
       return;
     }
-    if (this.pcState !== PCState.New) {
+    if (this.engineState !== EngineState.New) {
       throw new UnexpectedConnectionState(
         'Expected peer connection to be new on initial connection',
       );
@@ -1082,18 +1106,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private async waitForPCReconnected() {
     const startTime = Date.now();
     let now = startTime;
-    this.pcState = PCState.Reconnecting;
+    this.engineState = EngineState.Reconnecting;
 
     log.debug('waiting for peer connection to reconnect');
     while (now - startTime < this.peerConnectionTimeout) {
-      const needsPublisherPC = this.hasPublished && this.subscriberPrimary;
-      console.log(
-        'needs publisher',
-        needsPublisherPC,
-        this.hasPublished,
-        this.subscriberPrimary,
-        this.publisher?.pc.connectionState,
-      );
+      console.log(this.publisher?.pc);
       if (this.primaryPC === undefined) {
         console.warn('primary missing, connection hosed');
         // we can abort early, connection is hosed
@@ -1104,9 +1121,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // manually
         now - startTime > minReconnectWait &&
         this.primaryPC?.connectionState === 'connected' &&
-        (!needsPublisherPC || this.publisher?.pc.connectionState === 'connected')
+        (!this.needsPublisher || this.publisher?.pc.connectionState === 'connected')
       ) {
-        this.pcState = PCState.Connected;
+        this.engineState = EngineState.Connected;
         return;
       }
       await sleep(100);
@@ -1119,7 +1136,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   waitForRestarted = () => {
     return new Promise<void>((resolve, reject) => {
-      if (this.pcState === PCState.Connected) {
+      if (this.engineState === EngineState.Connected) {
         resolve();
       }
       const onRestarted = () => {
@@ -1217,7 +1234,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   verifyTransport(): boolean {
     console.log(
       'verifying transport',
-      this.hasPublished,
+      this.needsPublisher,
       this.primaryPC?.connectionState,
       this.publisher?.pc.connectionState,
     );
@@ -1238,7 +1255,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     // also verify publisher connection if it's needed or different
-    if (this.hasPublished && this.subscriberPrimary) {
+    if (this.needsPublisher && this.subscriberPrimary) {
       if (!this.publisher) {
         log.warn('publisher not present');
         return false;
@@ -1269,7 +1286,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
 
-      this.hasPublished = true;
+      this.needsPublisher = true;
 
       const handleClosed = () => {
         log.debug('engine disconnected while negotiation was ongoing');
@@ -1285,6 +1302,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       const negotiationTimeout = setTimeout(() => {
         reject('negotiation timed out');
+        console.log('negotiation timeout');
         this.handleDisconnect('negotiation', ReconnectReason.RR_SIGNAL_DISCONNECTED);
       }, this.peerConnectionTimeout);
 
@@ -1317,6 +1335,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
+        console.log('publisher negotiation error');
         this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
       });
     });
