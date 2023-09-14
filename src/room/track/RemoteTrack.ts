@@ -51,6 +51,20 @@ export default abstract class RemoteTrack extends Track {
     super.disable();
   }
 
+  /**
+   * Gets the RTCStatsReport for the RemoteTrack's underlying RTCRtpReceiver
+   * See https://developer.mozilla.org/en-US/docs/Web/API/RTCStatsReport
+   *
+   * @returns Promise<RTCStatsReport> | undefined
+   */
+  async getRTCStatsReport(): Promise<RTCStatsReport | undefined> {
+    if (!this.receiver?.getStats) {
+      return;
+    }
+    const statsReport = await this.receiver.getStats();
+    return statsReport;
+  }
+
   /* @internal */
   startMonitor() {
     if (!this.monitorInterval) {
