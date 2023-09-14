@@ -63,7 +63,7 @@ const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 
-enum EngineState {
+enum PCState {
   New,
   Connected,
   Disconnected,
@@ -110,7 +110,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private primaryPC?: RTCPeerConnection;
 
-  private engineState: EngineState = EngineState.New;
+  private pcState: PCState = PCState.New;
 
   private _isClosed: boolean = true;
 
@@ -200,17 +200,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this._isClosed = false;
       this.latestJoinResponse = joinResponse;
 
-      this.engineState = EngineState.New;
+      this.pcState = PCState.New;
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (!this.publisher) {
-        console.log('configuring publisher');
         this.configure(joinResponse);
       }
 
       // create offer
       if (!this.subscriberPrimary || this.needsPublisher) {
-        console.log('negotiate');
-
         this.negotiate();
       }
 
@@ -245,7 +242,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.clearPendingReconnect();
       await this.cleanupPeerConnections();
       await this.cleanupClient();
-      this.engineState = EngineState.Closed;
+      this.pcState = PCState.Closed;
     } finally {
       unlock();
     }
@@ -274,6 +271,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     this.primaryPC = undefined;
+    this.pcState = PCState.Closed;
 
     const dcCleanup = (dc: RTCDataChannel | undefined) => {
       if (!dc) return;
@@ -421,17 +419,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       log.debug(`primary PC state changed ${primaryPC.connectionState}`);
       if (primaryPC.connectionState === 'connected') {
         const initialFullConnection =
-          (this.engineState === EngineState.New && !this.needsPublisher) ||
+          (this.pcState === PCState.New && !this.needsPublisher) ||
           this.publisher?.pc.connectionState === 'connected';
         if (initialFullConnection) {
-          this.engineState = EngineState.Connected;
+          this.pcState = PCState.Connected;
           this.emit(EngineEvent.Connected, joinResponse);
         }
       } else if (primaryPC.connectionState === 'failed') {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
-        if (this.engineState === EngineState.Connected) {
-          this.engineState = EngineState.Disconnected;
-          console.log('primary failed');
+        if (this.pcState === PCState.Connected) {
+          this.pcState = PCState.Disconnected;
           this.handleDisconnect(
             'primary peerconnection',
             subscriberPrimary
@@ -444,9 +441,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     secondaryPC.onconnectionstatechange = async () => {
       if (secondaryPC.connectionState === 'connected') {
         const initialFullConnection =
-          this.engineState === EngineState.New && primaryPC.connectionState === 'connected';
+          this.pcState === PCState.New && primaryPC.connectionState === 'connected';
         if (initialFullConnection) {
-          this.engineState = EngineState.Connected;
+          this.pcState = PCState.Connected;
           this.emit(EngineEvent.Connected, joinResponse);
         }
       }
@@ -528,7 +525,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onClose = () => {
-      console.log('signal closed, disconnect engine');
       this.handleDisconnect('signal', ReconnectReason.RR_SIGNAL_DISCONNECTED);
     };
 
@@ -916,7 +912,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       if (recoverable) {
-        console.log('recoverable, disconnect first', e);
         this.handleDisconnect('reconnect', ReconnectReason.RR_UNKNOWN);
       } else {
         log.info(
@@ -957,7 +952,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         await this.client.sendLeave();
       }
       await this.cleanupPeerConnections();
-      this.engineState = EngineState.Closed;
+      this.pcState = PCState.Closed;
       await this.cleanupClient();
 
       let joinResponse: JoinResponse;
@@ -976,7 +971,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       if (this.shouldFailNext) {
-        console.warn('should fail');
         this.shouldFailNext = false;
         throw new Error('simulated failure');
       }
@@ -1033,7 +1027,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new SignalReconnectError(message);
     }
     this.emit(EngineEvent.SignalResumed);
-    console.log('signal resumed');
 
     if (this.shouldFailNext) {
       this.shouldFailNext = false;
@@ -1044,13 +1037,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     // only restart publisher if it's needed
     if (this.needsPublisher) {
-      console.warn('needs publisher');
       await this.publisher.createAndSendOffer({ iceRestart: true });
-    } else {
-      console.warn('does not need publisher');
     }
 
-    console.log('waiting for pc reconnect', this.needsPublisher);
     await this.waitForPCReconnected();
     this.client.setReconnected();
 
@@ -1065,11 +1054,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async waitForPCInitialConnection(timeout?: number, abortController?: AbortController) {
-    if (this.engineState === EngineState.Connected) {
-      console.log('already connected!!!!!');
+    if (this.pcState === PCState.Connected) {
       return;
     }
-    if (this.engineState !== EngineState.New) {
+    if (this.pcState !== PCState.New) {
       throw new UnexpectedConnectionState(
         'Expected peer connection to be new on initial connection',
       );
@@ -1106,11 +1094,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private async waitForPCReconnected() {
     const startTime = Date.now();
     let now = startTime;
-    this.engineState = EngineState.Reconnecting;
+    this.pcState = PCState.Reconnecting;
 
     log.debug('waiting for peer connection to reconnect');
     while (now - startTime < this.peerConnectionTimeout) {
-      console.log(this.publisher?.pc);
       if (this.primaryPC === undefined) {
         console.warn('primary missing, connection hosed');
         // we can abort early, connection is hosed
@@ -1123,7 +1110,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.primaryPC?.connectionState === 'connected' &&
         (!this.needsPublisher || this.publisher?.pc.connectionState === 'connected')
       ) {
-        this.engineState = EngineState.Connected;
+        this.pcState = PCState.Connected;
         return;
       }
       await sleep(100);
@@ -1136,7 +1123,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   waitForRestarted = () => {
     return new Promise<void>((resolve, reject) => {
-      if (this.engineState === EngineState.Connected) {
+      if (this.pcState === PCState.Connected) {
         resolve();
       }
       const onRestarted = () => {
@@ -1232,46 +1219,32 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /* @internal */
   verifyTransport(): boolean {
-    console.log(
-      'verifying transport',
-      this.needsPublisher,
-      this.primaryPC?.connectionState,
-      this.publisher?.pc.connectionState,
-    );
     // primary connection
     if (!this.primaryPC) {
-      log.warn('no primary PC');
       return false;
     }
     if (
       this.primaryPC.connectionState === 'closed' ||
       this.primaryPC.connectionState === 'failed'
     ) {
-      log.warn('primary pc connectionState issue', {
-        state: this.primaryPC.connectionState,
-        subPrimary: this.subscriberPrimary,
-      });
       return false;
     }
 
     // also verify publisher connection if it's needed or different
     if (this.needsPublisher && this.subscriberPrimary) {
       if (!this.publisher) {
-        log.warn('publisher not present');
         return false;
       }
       if (
         this.publisher.pc.connectionState === 'closed' ||
         this.publisher.pc.connectionState === 'failed'
       ) {
-        log.warn('publisher connection state issue', { state: this.publisher.pc.connectionState });
         return false;
       }
     }
 
     // ensure signal is connected
     if (!this.client.ws || this.client.ws.readyState === WebSocket.CLOSED) {
-      log.warn('signal not connected');
       return false;
     }
     return true;
@@ -1302,7 +1275,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       const negotiationTimeout = setTimeout(() => {
         reject('negotiation timed out');
-        console.log('negotiation timeout');
         this.handleDisconnect('negotiation', ReconnectReason.RR_SIGNAL_DISCONNECTED);
       }, this.peerConnectionTimeout);
 
@@ -1335,7 +1307,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
-        console.log('publisher negotiation error');
         this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
       });
     });
