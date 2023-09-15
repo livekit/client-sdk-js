@@ -1012,13 +1012,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       throw new SignalReconnectError(message);
     }
-    this.emit(EngineEvent.SignalResumed);
 
     if (this.shouldFailNext) {
       this.shouldFailNext = false;
-      throw new Error('simulated failure');
+      throw new SignalReconnectError('simulated failure');
     }
 
+    this.emit(EngineEvent.SignalResumed);
     this.subscriber.restartingIce = true;
 
     // only restart publisher if it's needed
