@@ -145,8 +145,8 @@ export default class LocalParticipant extends Participant {
 
     this.engine
       .on(EngineEvent.Connected, this.handleReconnected)
-      .on(EngineEvent.Restarted, this.handleReconnected)
-      .on(EngineEvent.Resumed, this.handleReconnected)
+      .on(EngineEvent.SignalRestarted, this.handleReconnected)
+      .on(EngineEvent.SignalResumed, this.handleReconnected)
       .on(EngineEvent.Restarting, this.handleReconnecting)
       .on(EngineEvent.Resuming, this.handleReconnecting)
       .on(EngineEvent.Disconnected, this.handleDisconnected);

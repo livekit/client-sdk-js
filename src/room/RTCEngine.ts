@@ -267,7 +267,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.subscriber.close();
       this.subscriber = undefined;
     }
-
+    this.hasPublished = false;
     this.primaryPC = undefined;
 
     const dcCleanup = (dc: RTCDataChannel | undefined) => {
@@ -1092,7 +1092,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         // this means we'd have to check its status manually and update address
         // manually
         now - startTime > minReconnectWait &&
-        this.primaryPC?.connectionState === 'connected'
+        this.primaryPC?.connectionState === 'connected' &&
+        (!this.hasPublished || this.publisher?.pc.connectionState === 'connected')
       ) {
         this.pcState = PCState.Connected;
       }
