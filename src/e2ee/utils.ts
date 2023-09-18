@@ -134,3 +134,48 @@ export async function ratchet(material: CryptoKey, salt: string): Promise<ArrayB
   // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveBits
   return crypto.subtle.deriveBits(algorithmOptions, material, 256);
 }
+
+export function ParseRbsp(stream: Uint8Array): Uint8Array {
+  const dataOut: number[] = [];
+  var length = stream.length;
+  for (var i = 0; i < stream.length; ) {
+    // Be careful about over/underflow here. byte_length_ - 3 can underflow, and
+    // i + 3 can overflow, but byte_length_ - i can't, because i < byte_length_
+    // above, and that expression will produce the number of bytes left in
+    // the stream including the byte at i.
+    if (length - i >= 3 && !stream[i] && !stream[i + 1] && stream[i + 2] == 3) {
+      // Two rbsp bytes.
+      dataOut.push(stream[i++]);
+      dataOut.push(stream[i++]);
+      // Skip the emulation byte.
+      i++;
+    } else {
+      // Single rbsp byte.
+      dataOut.push(stream[i++]);
+    }
+  }
+  return new Uint8Array(dataOut);
+}
+
+const kZerosInStartSequence = 2;
+const kEmulationByte = 3;
+
+export function WriteRbsp(data_in: Uint8Array): Uint8Array {
+  const dataOut: number[] = [];
+  var numConsecutiveZeros = 0;
+  for (var i = 0; i < data_in.length; ++i) {
+    var byte = data_in[i];
+    if (byte <= kEmulationByte && numConsecutiveZeros >= kZerosInStartSequence) {
+      // Need to escape.
+      dataOut.push(kEmulationByte);
+      numConsecutiveZeros = 0;
+    }
+    dataOut.push(byte);
+    if (byte == 0) {
+      ++numConsecutiveZeros;
+    } else {
+      numConsecutiveZeros = 0;
+    }
+  }
+  return new Uint8Array(dataOut);
+}

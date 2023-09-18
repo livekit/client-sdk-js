@@ -8,7 +8,7 @@ import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { CryptorCallbacks, CryptorEvent } from '../events';
 import type { DecodeRatchetOptions, KeyProviderOptions, KeySet } from '../types';
-import { deriveKeys, isVideoFrame } from '../utils';
+import { ParseRbsp, WriteRbsp, deriveKeys, isVideoFrame } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { SifGuard } from './SifGuard';
 
@@ -211,13 +211,9 @@ export class FrameCryptor extends BaseFrameCryptor {
         encodedFrame.getMetadata().synchronizationSource ?? -1,
         encodedFrame.timestamp,
       );
-
+      let frameInfo = this.getUnencryptedBytes(encodedFrame);
       // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
-      const frameHeader = new Uint8Array(
-        encodedFrame.data,
-        0,
-        this.getUnencryptedBytes(encodedFrame),
-      );
+      const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
 
       // Frame trailer contains the R|IV_LENGTH and key index
       const frameTrailer = new Uint8Array(2);
@@ -240,17 +236,17 @@ export class FrameCryptor extends BaseFrameCryptor {
             additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
           },
           encryptionKey,
-          new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)),
+          new Uint8Array(encodedFrame.data, frameInfo.unencryptedBytes),
         );
 
-        var newDataWithoutHeader = new Uint8Array(
+        let newDataWithoutHeader = new Uint8Array(
           cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
         );
         newDataWithoutHeader.set(new Uint8Array(cipherText)); // add ciphertext.
         newDataWithoutHeader.set(new Uint8Array(iv), cipherText.byteLength); // append IV.
         newDataWithoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
 
-        if (isVideoFrame(encodedFrame) && this.frameIsH264(encodedFrame)) {
+        if (frameInfo.isH264) {
           newDataWithoutHeader = WriteRbsp(newDataWithoutHeader);
         }
 
@@ -355,7 +351,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (!ratchetOpts.encryptionKey && !keySet) {
       throw new TypeError(`no encryption key found for decryption of ${this.participantIdentity}`);
     }
-
+    let frameInfo = this.getUnencryptedBytes(encodedFrame);
     // Construct frame trailer. Similar to the frame header described in
     // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
     // but we put it at the end.
@@ -365,21 +361,13 @@ export class FrameCryptor extends BaseFrameCryptor {
     // ---------+-------------------------+-+---------+----
 
     try {
-      const frameHeader = new Uint8Array(
-        encodedFrame.data,
-        0,
-        this.getUnencryptedBytes(encodedFrame),
-      );
+      const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
       var encryptedData = new Uint8Array(
         encodedFrame.data,
         frameHeader.length,
         encodedFrame.data.byteLength - frameHeader.length,
       );
-      if (
-        isVideoFrame(encodedFrame) &&
-        this.frameIsH264(encodedFrame) &&
-        needsRbspUnescaping(encryptedData)
-      ) {
+      if (frameInfo.isH264 && needsRbspUnescaping(encryptedData)) {
         encryptedData = ParseRbsp(encryptedData);
         const newUint8 = new Uint8Array(frameHeader.byteLength + encryptedData.byteLength);
         newUint8.set(frameHeader);
@@ -515,24 +503,11 @@ export class FrameCryptor extends BaseFrameCryptor {
     return iv;
   }
 
-  private frameIsH264(frame: RTCEncodedVideoFrame): boolean {
-    let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
-    const data = new Uint8Array(frame.data);
-    try {
-      const naluIndices = findNALUIndices(data);
-
-      // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
-      const isH264 =
-        detectedCodec === 'h264' ||
-        naluIndices.some((naluIndex) =>
-          [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
-        );
-      return isH264;
-    } catch (e) {}
-    return false;
-  }
-
-  private getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): number {
+  private getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): {
+    unencryptedBytes: number;
+    isH264: boolean;
+  } {
+    var frameInfo = { unencryptedBytes: 0, isH264: false };
     if (isVideoFrame(frame)) {
       let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
 
@@ -541,7 +516,8 @@ export class FrameCryptor extends BaseFrameCryptor {
       }
 
       if (detectedCodec === 'vp8') {
-        return UNENCRYPTED_BYTES[frame.type];
+        frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
+        return frameInfo;
       }
 
       const data = new Uint8Array(frame.data);
@@ -549,19 +525,20 @@ export class FrameCryptor extends BaseFrameCryptor {
         const naluIndices = findNALUIndices(data);
 
         // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
-        const isH264 =
+        frameInfo.isH264 =
           detectedCodec === 'h264' ||
           naluIndices.some((naluIndex) =>
             [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
           );
 
-        if (isH264) {
+        if (frameInfo.isH264) {
           for (const index of naluIndices) {
             let type = parseNALUType(data[index]);
             switch (type) {
               case NALUType.SLICE_IDR:
               case NALUType.SLICE_NON_IDR:
-                return index + 2;
+                frameInfo.unencryptedBytes = index + 2;
+                return frameInfo;
               default:
                 break;
             }
@@ -572,9 +549,11 @@ export class FrameCryptor extends BaseFrameCryptor {
         // no op, we just continue and fallback to vp8
       }
 
-      return UNENCRYPTED_BYTES[frame.type];
+      frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
+      return frameInfo;
     } else {
-      return UNENCRYPTED_BYTES.audio;
+      frameInfo.unencryptedBytes = UNENCRYPTED_BYTES.audio;
+      return frameInfo;
     }
   }
 
@@ -597,51 +576,6 @@ export function needsRbspUnescaping(frameData: Uint8Array) {
     if (frameData[i] == 0 && frameData[i + 1] == 0 && frameData[i + 2] == 3) return true;
   }
   return false;
-}
-
-export function ParseRbsp(stream: Uint8Array): Uint8Array {
-  const dataOut: number[] = [];
-  var length = stream.length;
-  for (var i = 0; i < stream.length; ) {
-    // Be careful about over/underflow here. byte_length_ - 3 can underflow, and
-    // i + 3 can overflow, but byte_length_ - i can't, because i < byte_length_
-    // above, and that expression will produce the number of bytes left in
-    // the stream including the byte at i.
-    if (length - i >= 3 && !stream[i] && !stream[i + 1] && stream[i + 2] == 3) {
-      // Two rbsp bytes.
-      dataOut.push(stream[i++]);
-      dataOut.push(stream[i++]);
-      // Skip the emulation byte.
-      i++;
-    } else {
-      // Single rbsp byte.
-      dataOut.push(stream[i++]);
-    }
-  }
-  return new Uint8Array(dataOut);
-}
-
-const kZerosInStartSequence = 2;
-const kEmulationByte = 3;
-
-export function WriteRbsp(data_in: Uint8Array): Uint8Array {
-  const dataOut: number[] = [];
-  var numConsecutiveZeros = 0;
-  for (var i = 0; i < data_in.length; ++i) {
-    var byte = data_in[i];
-    if (byte <= kEmulationByte && numConsecutiveZeros >= kZerosInStartSequence) {
-      // Need to escape.
-      dataOut.push(kEmulationByte);
-      numConsecutiveZeros = 0;
-    }
-    dataOut.push(byte);
-    if (byte == 0) {
-      ++numConsecutiveZeros;
-    } else {
-      numConsecutiveZeros = 0;
-    }
-  }
-  return new Uint8Array(dataOut);
 }
 
 /**
