@@ -243,20 +243,20 @@ export class FrameCryptor extends BaseFrameCryptor {
           new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)),
         );
 
-        var newDataWitoutHeader = new Uint8Array(
+        var newDataWithoutHeader = new Uint8Array(
           cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
         );
-        newDataWitoutHeader.set(new Uint8Array(cipherText)); // add ciphertext.
-        newDataWitoutHeader.set(new Uint8Array(iv), cipherText.byteLength); // append IV.
-        newDataWitoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
+        newDataWithoutHeader.set(new Uint8Array(cipherText)); // add ciphertext.
+        newDataWithoutHeader.set(new Uint8Array(iv), cipherText.byteLength); // append IV.
+        newDataWithoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
 
         if (isVideoFrame(encodedFrame) && this.frameIsH264(encodedFrame)) {
-          newDataWitoutHeader = WriteRbsp(newDataWitoutHeader);
+          newDataWithoutHeader = WriteRbsp(newDataWithoutHeader);
         }
 
-        var newData = new Uint8Array(frameHeader.byteLength + newDataWitoutHeader.byteLength);
+        var newData = new Uint8Array(frameHeader.byteLength + newDataWithoutHeader.byteLength);
         newData.set(frameHeader);
-        newData.set(newDataWitoutHeader, frameHeader.byteLength);
+        newData.set(newDataWithoutHeader, frameHeader.byteLength);
 
         encodedFrame.data = newData.buffer;
 
