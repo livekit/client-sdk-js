@@ -592,7 +592,7 @@ export function needsRbspUnescaping(frameData: Uint8Array) {
 }
 
 export function ParseRbsp(stream: Uint8Array): Uint8Array {
-  const data_out: number[] = [];
+  const dataOut: number[] = [];
   var length = stream.length;
   for (var i = 0; i < stream.length;) {
     // Be careful about over/underflow here. byte_length_ - 3 can underflow, and
@@ -601,40 +601,40 @@ export function ParseRbsp(stream: Uint8Array): Uint8Array {
     // the stream including the byte at i.
     if (length - i >= 3 && !stream[i] && !stream[i + 1] && stream[i + 2] == 3) {
       // Two rbsp bytes.
-      data_out.push(stream[i++]);
-      data_out.push(stream[i++]);
+      dataOut.push(stream[i++]);
+      dataOut.push(stream[i++]);
       // Skip the emulation byte.
       i++;
     } else {
       // Single rbsp byte.
-      data_out.push(stream[i++]);
+      dataOut.push(stream[i++]);
     }
   }
-  return new Uint8Array(data_out);
+  return new Uint8Array(dataOut);
 }
 
 const kZerosInStartSequence = 2;
 const kEmulationByte = 3;
 
 export function WriteRbsp(data_in: Uint8Array): Uint8Array {
-  const data_out: number[] = [];
-  var num_consecutive_zeros = 0;
+  const dataOut: number[] = [];
+  var numConsecutiveZeros = 0;
   for (var i = 0; i < data_in.length; ++i) {
     var byte = data_in[i];
     if (byte <= kEmulationByte &&
-        num_consecutive_zeros >= kZerosInStartSequence) {
+        numConsecutiveZeros >= kZerosInStartSequence) {
       // Need to escape.
-      data_out.push(kEmulationByte);
-      num_consecutive_zeros = 0;
+      dataOut.push(kEmulationByte);
+      numConsecutiveZeros = 0;
     }
-    data_out.push(byte);
+    dataOut.push(byte);
     if (byte == 0) {
-      ++num_consecutive_zeros;
+      ++numConsecutiveZeros;
     } else {
-      num_consecutive_zeros = 0;
+      numConsecutiveZeros = 0;
     }
   }
-  return new Uint8Array(data_out);
+  return new Uint8Array(dataOut);
 }
 
 /**
