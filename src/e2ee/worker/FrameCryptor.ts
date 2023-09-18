@@ -243,17 +243,20 @@ export class FrameCryptor extends BaseFrameCryptor {
           new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)),
         );
 
-        const newData = new ArrayBuffer(
-          frameHeader.byteLength + cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
-        );
-        const newUint8 = new Uint8Array(newData);
+        var newDataWitoutHeader = new Uint8Array(cipherText.byteLength + iv.byteLength + frameTrailer.byteLength);
+        newDataWitoutHeader.set(new Uint8Array(cipherText)); // add ciphertext.
+        newDataWitoutHeader.set(new Uint8Array(iv), cipherText.byteLength); // append IV.
+        newDataWitoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
 
-        newUint8.set(frameHeader); // copy first bytes.
-        newUint8.set(new Uint8Array(cipherText), frameHeader.byteLength); // add ciphertext.
-        newUint8.set(new Uint8Array(iv), frameHeader.byteLength + cipherText.byteLength); // append IV.
-        newUint8.set(frameTrailer, frameHeader.byteLength + cipherText.byteLength + iv.byteLength); // append frame trailer.
+        if(isVideoFrame(encodedFrame) && this.frameIsH264(encodedFrame)) {
+          newDataWitoutHeader = WriteRbsp(newDataWitoutHeader);
+        }
 
-        encodedFrame.data = newData;
+        var newData = new Uint8Array(frameHeader.byteLength + newDataWitoutHeader.byteLength);
+        newData.set(frameHeader);
+        newData.set(newDataWitoutHeader, frameHeader.byteLength);
+
+        encodedFrame.data = newData.buffer;
 
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
@@ -365,6 +368,15 @@ export class FrameCryptor extends BaseFrameCryptor {
         0,
         this.getUnencryptedBytes(encodedFrame),
       );
+      var encryptedData = new Uint8Array(encodedFrame.data, frameHeader.length, encodedFrame.data.byteLength - frameHeader.length);
+      if(isVideoFrame(encodedFrame) && this.frameIsH264(encodedFrame) && needsRbspUnescaping(encryptedData)) {
+        encryptedData = ParseRbsp(encryptedData);
+        const newUint8 = new Uint8Array(frameHeader.byteLength + encryptedData.byteLength);
+        newUint8.set(frameHeader);
+        newUint8.set(encryptedData, frameHeader.byteLength);
+        encodedFrame.data = newUint8.buffer;
+      }
+
       const frameTrailer = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - 2, 2);
 
       const ivLength = frameTrailer[0];
@@ -493,6 +505,24 @@ export class FrameCryptor extends BaseFrameCryptor {
     return iv;
   }
 
+  private frameIsH264(frame: RTCEncodedVideoFrame): boolean {
+    let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
+    const data = new Uint8Array(frame.data);
+    try {
+      const naluIndices = findNALUIndices(data);
+
+      // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
+      const isH264 =
+        detectedCodec === 'h264' ||
+        naluIndices.some((naluIndex) =>
+          [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
+        );
+        return isH264;
+    } catch (e) {
+    }
+    return false;
+  }
+
   private getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): number {
     if (isVideoFrame(frame)) {
       let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
@@ -551,6 +581,60 @@ export class FrameCryptor extends BaseFrameCryptor {
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;
   }
+}
+
+export function needsRbspUnescaping(frameData: Uint8Array) {
+  for (var i = 0; i < frameData.length - 3; i++) {
+    if (frameData[i] == 0 && frameData[i + 1] == 0 && frameData[i + 2] == 3)
+      return true;
+  }
+  return false;
+}
+
+export function ParseRbsp(stream: Uint8Array): Uint8Array {
+  const data_out: number[] = [];
+  var length = stream.length;
+  for (var i = 0; i < stream.length;) {
+    // Be careful about over/underflow here. byte_length_ - 3 can underflow, and
+    // i + 3 can overflow, but byte_length_ - i can't, because i < byte_length_
+    // above, and that expression will produce the number of bytes left in
+    // the stream including the byte at i.
+    if (length - i >= 3 && !stream[i] && !stream[i + 1] && stream[i + 2] == 3) {
+      // Two rbsp bytes.
+      data_out.push(stream[i++]);
+      data_out.push(stream[i++]);
+      // Skip the emulation byte.
+      i++;
+    } else {
+      // Single rbsp byte.
+      data_out.push(stream[i++]);
+    }
+  }
+  return new Uint8Array(data_out);
+}
+
+const kZerosInStartSequence = 2;
+const kEmulationByte = 3;
+
+export function WriteRbsp(data_in: Uint8Array): Uint8Array {
+  const data_out: number[] = [];
+  var num_consecutive_zeros = 0;
+  for (var i = 0; i < data_in.length; ++i) {
+    var byte = data_in[i];
+    if (byte <= kEmulationByte &&
+        num_consecutive_zeros >= kZerosInStartSequence) {
+      // Need to escape.
+      data_out.push(kEmulationByte);
+      num_consecutive_zeros = 0;
+    }
+    data_out.push(byte);
+    if (byte == 0) {
+      ++num_consecutive_zeros;
+    } else {
+      num_consecutive_zeros = 0;
+    }
+  }
+  return new Uint8Array(data_out);
 }
 
 /**
