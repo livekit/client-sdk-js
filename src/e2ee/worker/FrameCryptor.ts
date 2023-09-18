@@ -243,12 +243,14 @@ export class FrameCryptor extends BaseFrameCryptor {
           new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)),
         );
 
-        var newDataWitoutHeader = new Uint8Array(cipherText.byteLength + iv.byteLength + frameTrailer.byteLength);
+        var newDataWitoutHeader = new Uint8Array(
+          cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
+        );
         newDataWitoutHeader.set(new Uint8Array(cipherText)); // add ciphertext.
         newDataWitoutHeader.set(new Uint8Array(iv), cipherText.byteLength); // append IV.
         newDataWitoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
 
-        if(isVideoFrame(encodedFrame) && this.frameIsH264(encodedFrame)) {
+        if (isVideoFrame(encodedFrame) && this.frameIsH264(encodedFrame)) {
           newDataWitoutHeader = WriteRbsp(newDataWitoutHeader);
         }
 
@@ -368,8 +370,16 @@ export class FrameCryptor extends BaseFrameCryptor {
         0,
         this.getUnencryptedBytes(encodedFrame),
       );
-      var encryptedData = new Uint8Array(encodedFrame.data, frameHeader.length, encodedFrame.data.byteLength - frameHeader.length);
-      if(isVideoFrame(encodedFrame) && this.frameIsH264(encodedFrame) && needsRbspUnescaping(encryptedData)) {
+      var encryptedData = new Uint8Array(
+        encodedFrame.data,
+        frameHeader.length,
+        encodedFrame.data.byteLength - frameHeader.length,
+      );
+      if (
+        isVideoFrame(encodedFrame) &&
+        this.frameIsH264(encodedFrame) &&
+        needsRbspUnescaping(encryptedData)
+      ) {
         encryptedData = ParseRbsp(encryptedData);
         const newUint8 = new Uint8Array(frameHeader.byteLength + encryptedData.byteLength);
         newUint8.set(frameHeader);
@@ -517,9 +527,8 @@ export class FrameCryptor extends BaseFrameCryptor {
         naluIndices.some((naluIndex) =>
           [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
         );
-        return isH264;
-    } catch (e) {
-    }
+      return isH264;
+    } catch (e) {}
     return false;
   }
 
@@ -585,8 +594,7 @@ export class FrameCryptor extends BaseFrameCryptor {
 
 export function needsRbspUnescaping(frameData: Uint8Array) {
   for (var i = 0; i < frameData.length - 3; i++) {
-    if (frameData[i] == 0 && frameData[i + 1] == 0 && frameData[i + 2] == 3)
-      return true;
+    if (frameData[i] == 0 && frameData[i + 1] == 0 && frameData[i + 2] == 3) return true;
   }
   return false;
 }
@@ -594,7 +602,7 @@ export function needsRbspUnescaping(frameData: Uint8Array) {
 export function ParseRbsp(stream: Uint8Array): Uint8Array {
   const dataOut: number[] = [];
   var length = stream.length;
-  for (var i = 0; i < stream.length;) {
+  for (var i = 0; i < stream.length; ) {
     // Be careful about over/underflow here. byte_length_ - 3 can underflow, and
     // i + 3 can overflow, but byte_length_ - i can't, because i < byte_length_
     // above, and that expression will produce the number of bytes left in
@@ -621,8 +629,7 @@ export function WriteRbsp(data_in: Uint8Array): Uint8Array {
   var numConsecutiveZeros = 0;
   for (var i = 0; i < data_in.length; ++i) {
     var byte = data_in[i];
-    if (byte <= kEmulationByte &&
-        numConsecutiveZeros >= kZerosInStartSequence) {
+    if (byte <= kEmulationByte && numConsecutiveZeros >= kZerosInStartSequence) {
       // Need to escape.
       dataOut.push(kEmulationByte);
       numConsecutiveZeros = 0;
