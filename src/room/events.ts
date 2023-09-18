@@ -467,6 +467,7 @@ export enum EngineEvent {
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
   DataPacketReceived = 'dataPacketReceived',
   RTPVideoMapUpdate = 'rtpVideoMapUpdate',
+  RTPAudioMapUpdate = 'rtpAudioMapUpdate',
   DCBufferStatusChanged = 'dcBufferStatusChanged',
   ParticipantUpdate = 'participantUpdate',
   RoomUpdate = 'roomUpdate',

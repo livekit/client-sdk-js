@@ -24,6 +24,7 @@ export const UNENCRYPTED_BYTES = {
   key: 10,
   delta: 3,
   audio: 1, // frame.type is not set on audio, so this is set manually
+  red1: 5, // opus red with 1 redundancy frame
   empty: 0,
 } as const;
 

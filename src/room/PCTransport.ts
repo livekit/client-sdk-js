@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { MediaDescription } from 'sdp-transform';
+import type { MediaDescription, SessionDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
@@ -26,6 +26,7 @@ export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
   RTPVideoPayloadTypes: 'rtpVideoPayloadTypes',
+  RTPAudioPayloadTypes: 'rtpAudioPayloadTypes',
 } as const;
 
 /** @internal */
@@ -145,14 +146,6 @@ export default class PCTransport extends EventEmitter {
       this.createAndSendOffer();
     } else if (sd.type === 'answer') {
       this.emit(PCEvents.NegotiationComplete);
-      if (sd.sdp) {
-        const sdpParsed = parse(sd.sdp);
-        sdpParsed.media.forEach((media) => {
-          if (media.type === 'video') {
-            this.emit(PCEvents.RTPVideoPayloadTypes, media.rtp);
-          }
-        });
-      }
     }
   }
 
@@ -255,6 +248,7 @@ export default class PCTransport extends EventEmitter {
     });
 
     await this.setMungedSDP(offer, write(sdpParsed));
+    this.emitRTPMaps(sdpParsed);
     this.onOffer(offer);
   }
 
@@ -267,6 +261,8 @@ export default class PCTransport extends EventEmitter {
       }
     });
     await this.setMungedSDP(answer, write(sdpParsed));
+    this.emitRTPMaps(sdpParsed);
+
     return answer;
   }
 
@@ -340,6 +336,16 @@ export default class PCTransport extends EventEmitter {
       log.error(`unable to set ${sd.type}`, fields);
       throw new NegotiationError(msg);
     }
+  }
+
+  emitRTPMaps(sdpParsed: SessionDescription) {
+    sdpParsed.media.forEach((media) => {
+      if (media.type === 'video') {
+        this.emit(PCEvents.RTPVideoPayloadTypes, media.rtp);
+      } else if (media.type === 'audio') {
+        this.emit(PCEvents.RTPAudioPayloadTypes, media.rtp);
+      }
+    });
   }
 }
 

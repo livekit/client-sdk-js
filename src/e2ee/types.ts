@@ -1,4 +1,4 @@
-import type { VideoCodec } from '../room/track/options';
+import type { AudioCodec, VideoCodec } from '../room/track/options';
 import type { BaseKeyProvider } from './KeyProvider';
 
 export interface BaseMessage {
@@ -23,10 +23,10 @@ export interface SetKeyMessage extends BaseMessage {
   };
 }
 
-export interface RTPVideoMapMessage extends BaseMessage {
+export interface RTPMapMessage extends BaseMessage {
   kind: 'setRTPMap';
   data: {
-    map: Map<number, VideoCodec>;
+    map: Map<number, VideoCodec> | Map<number, AudioCodec>;
     participantIdentity: string;
   };
 }
@@ -45,7 +45,7 @@ export interface EncodeMessage extends BaseMessage {
     readableStream: ReadableStream;
     writableStream: WritableStream;
     trackId: string;
-    codec?: VideoCodec;
+    codec?: VideoCodec | AudioCodec;
   };
 }
 
@@ -62,7 +62,7 @@ export interface UpdateCodecMessage extends BaseMessage {
   data: {
     participantIdentity: string;
     trackId: string;
-    codec: VideoCodec;
+    codec: VideoCodec | AudioCodec;
   };
 }
 
@@ -112,7 +112,7 @@ export type E2EEWorkerMessage =
   | ErrorMessage
   | EnableMessage
   | RemoveTransformMessage
-  | RTPVideoMapMessage
+  | RTPMapMessage
   | UpdateCodecMessage
   | RatchetRequestMessage
   | RatchetMessage
