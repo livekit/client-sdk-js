@@ -135,7 +135,14 @@ export async function ratchet(material: CryptoKey, salt: string): Promise<ArrayB
   return crypto.subtle.deriveBits(algorithmOptions, material, 256);
 }
 
-export function ParseRbsp(stream: Uint8Array): Uint8Array {
+export function needsRbspUnescaping(frameData: Uint8Array) {
+  for (var i = 0; i < frameData.length - 3; i++) {
+    if (frameData[i] == 0 && frameData[i + 1] == 0 && frameData[i + 2] == 3) return true;
+  }
+  return false;
+}
+
+export function parseRbsp(stream: Uint8Array): Uint8Array {
   const dataOut: number[] = [];
   var length = stream.length;
   for (var i = 0; i < stream.length; ) {
@@ -160,7 +167,7 @@ export function ParseRbsp(stream: Uint8Array): Uint8Array {
 const kZerosInStartSequence = 2;
 const kEmulationByte = 3;
 
-export function WriteRbsp(data_in: Uint8Array): Uint8Array {
+export function writeRbsp(data_in: Uint8Array): Uint8Array {
   const dataOut: number[] = [];
   var numConsecutiveZeros = 0;
   for (var i = 0; i < data_in.length; ++i) {

@@ -8,7 +8,7 @@ import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { CryptorCallbacks, CryptorEvent } from '../events';
 import type { DecodeRatchetOptions, KeyProviderOptions, KeySet } from '../types';
-import { ParseRbsp, WriteRbsp, deriveKeys, isVideoFrame } from '../utils';
+import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { SifGuard } from './SifGuard';
 
@@ -247,7 +247,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         newDataWithoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
 
         if (frameInfo.isH264) {
-          newDataWithoutHeader = WriteRbsp(newDataWithoutHeader);
+          newDataWithoutHeader = writeRbsp(newDataWithoutHeader);
         }
 
         var newData = new Uint8Array(frameHeader.byteLength + newDataWithoutHeader.byteLength);
@@ -368,7 +368,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         encodedFrame.data.byteLength - frameHeader.length,
       );
       if (frameInfo.isH264 && needsRbspUnescaping(encryptedData)) {
-        encryptedData = ParseRbsp(encryptedData);
+        encryptedData = parseRbsp(encryptedData);
         const newUint8 = new Uint8Array(frameHeader.byteLength + encryptedData.byteLength);
         newUint8.set(frameHeader);
         newUint8.set(encryptedData, frameHeader.byteLength);
@@ -569,13 +569,6 @@ export class FrameCryptor extends BaseFrameCryptor {
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;
   }
-}
-
-export function needsRbspUnescaping(frameData: Uint8Array) {
-  for (var i = 0; i < frameData.length - 3; i++) {
-    if (frameData[i] == 0 && frameData[i + 1] == 0 && frameData[i + 2] == 3) return true;
-  }
-  return false;
 }
 
 /**
