@@ -48,9 +48,8 @@ import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
-import { Mutex, isVideoCodec, isWeb, sleep, supportsSetCodecPreferences } from './utils';
+import { Mutex, isVideoCodec, isWeb } from './utils';
 
-const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
 
 enum PCState {
@@ -279,7 +278,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       delete this.pendingTrackResolvers[sender.track.id];
     }
     try {
-      this.publisher?.pc.removeTrack(sender);
+      this.transportManager?.removeTrack(sender);
       return true;
     } catch (e: unknown) {
       log.warn('failed to remove track', { error: e, method: 'removeTrack' });
@@ -309,7 +308,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private configure(joinResponse: JoinResponse) {
     // already configured
-    if (this.publisher || this.subscriber) {
+    if (this.transportManager) {
       return;
     }
 
@@ -730,14 +729,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new Error('simulated failure');
     }
 
-    this.subscriber.restartingIce = true;
+    await this.transportManager.resumeTransports();
 
-    // only restart publisher if it's needed
-    if (this.hasPublished) {
-      await this.publisher.createAndSendOffer({ iceRestart: true });
-    }
-
-    await this.transportManager?.waitForPCReconnected();
     this.client.setReconnected();
 
     // recreate publish datachannel if it's id is null
@@ -836,80 +829,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
-  /**
-   * @internal
-   */
-  async ensureDataTransportConnected(
-    kind: DataPacket_Kind,
-    subscriber: boolean = this.subscriberPrimary,
-  ) {
-    const transport = subscriber ? this.subscriber : this.publisher;
-    const transportName = subscriber ? 'Subscriber' : 'Publisher';
-    if (!transport) {
-      throw new ConnectionError(`${transportName} connection not set`);
-    }
-
-    if (
-      !subscriber &&
-      !this.publisher?.isICEConnected &&
-      this.publisher?.pc.iceConnectionState !== 'checking'
-    ) {
-      // start negotiation
-      this.negotiate();
-    }
-
-    const targetChannel = this.transportManager?.getDataChannelForKind(kind, subscriber);
-    if (targetChannel?.readyState === 'open') {
-      return;
-    }
-
-    // wait until ICE connected
-    const endTime = new Date().getTime() + this.peerConnectionTimeout;
-    while (new Date().getTime() < endTime) {
-      if (
-        transport.isICEConnected &&
-        this.dataChannelForKind(kind, subscriber)?.readyState === 'open'
-      ) {
-        return;
-      }
-      await sleep(50);
-    }
-
-    throw new ConnectionError(
-      `could not establish ${transportName} connection, state: ${transport.pc.iceConnectionState}`,
-    );
-  }
-
   private async ensurePublisherConnected(kind: DataPacket_Kind) {
     await this.ensureDataTransportConnected(kind, false);
   }
 
   /* @internal */
   verifyTransport(): boolean {
-    // primary connection
-    if (!this.primaryPC) {
+    if (!this.transportManager) {
       return false;
     }
-    if (
-      this.primaryPC.connectionState === 'closed' ||
-      this.primaryPC.connectionState === 'failed'
-    ) {
-      return false;
-    }
-
-    // also verify publisher connection if it's needed or different
-    if (this.hasPublished && this.subscriberPrimary) {
-      if (!this.publisher) {
-        return false;
-      }
-      if (
-        this.publisher.pc.connectionState === 'closed' ||
-        this.publisher.pc.connectionState === 'failed'
-      ) {
-        return false;
-      }
-    }
-
+    this.transportManager.verifyTransport();
     // ensure signal is connected
     if (!this.client.ws || this.client.ws.readyState === WebSocket.CLOSED) {
       return false;

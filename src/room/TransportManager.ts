@@ -1,22 +1,39 @@
+import type { MediaAttributes } from 'sdp-transform';
 import log from '../logger';
 import { DataPacket_Kind } from '../proto/livekit_models_pb';
 import { SignalTarget } from '../proto/livekit_rtc_pb';
-import PCTransport from './PCTransport';
-import { ConnectionError, UnexpectedConnectionState } from './errors';
+import PCTransport, { PCEvents } from './PCTransport';
+import { ConnectionError, NegotiationError, UnexpectedConnectionState } from './errors';
 import type LocalTrack from './track/LocalTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type LocalVideoTrack from './track/LocalVideoTrack';
 import { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
-import { sleep, supportsAddTrack, supportsSetCodecPreferences, supportsTransceiver } from './utils';
+import {
+  isVideoCodec,
+  sleep,
+  supportsAddTrack,
+  supportsSetCodecPreferences,
+  supportsTransceiver,
+} from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 
-export class TransportManager {
-  publisher: PCTransport;
+const minReconnectWait = 2 * 1000;
 
-  subscriber: PCTransport;
+enum PCState {
+  New,
+  Connected,
+  Disconnected,
+  Reconnecting,
+  Closed,
+}
+
+export class TransportManager {
+  publisher?: PCTransport;
+
+  subscriber?: PCTransport;
 
   onICECandidate?: (candidate: RTCIceCandidate, target: SignalTarget) => void;
 
@@ -28,7 +45,11 @@ export class TransportManager {
 
   onBufferedAmountLow?: (kind: DataPacket_Kind) => void;
 
-  private subscriberPrimary: boolean;
+  private pcState: PCState = PCState.New;
+
+  private needsSubscriber: boolean;
+
+  private needsPublisher: boolean;
 
   private lossyDC?: RTCDataChannel;
 
@@ -43,11 +64,22 @@ export class TransportManager {
   // @ts-ignore noUnusedLocals
   private reliableDCSub?: RTCDataChannel;
 
-  constructor(config: RTCConfiguration, subscriberPrimary: boolean, peerConnectionTimeout: number) {
-    this.subscriberPrimary = subscriberPrimary;
+  constructor(
+    config: RTCConfiguration,
+    needsSubscriber: boolean,
+    needsPublisher: boolean,
+    peerConnectionTimeout: number,
+  ) {
+    this.needsSubscriber = needsSubscriber;
+    this.needsPublisher = needsPublisher;
     this.peerConnectionTimeout = peerConnectionTimeout;
-    this.publisher = this.createPublisher(config);
-    this.subscriber = this.createSubscriber(config);
+
+    if (needsPublisher) {
+      this.publisher = this.createPublisher(config);
+    }
+    if (needsSubscriber) {
+      this.subscriber = this.createSubscriber(config);
+    }
   }
 
   async createSender(
@@ -85,7 +117,7 @@ export class TransportManager {
     throw new UnexpectedConnectionState('Cannot stream on this device');
   }
 
-  async waitForDataTransportConnected(kind: DataPacket_Kind, subscriber = this.subscriberPrimary) {
+  async waitForDataTransportConnected(kind: DataPacket_Kind, subscriber = this.needsSubscriber) {
     const transport = subscriber ? this.subscriber : this.publisher;
 
     const targetChannel = this.getDataChannelForKind(kind, subscriber);
@@ -97,7 +129,7 @@ export class TransportManager {
     const endTime = new Date().getTime() + this.peerConnectionTimeout;
     while (new Date().getTime() < endTime) {
       if (
-        transport.isICEConnected &&
+        transport?.isICEConnected &&
         this.getDataChannelForKind(kind, subscriber)?.readyState === 'open'
       ) {
         return;
@@ -107,9 +139,27 @@ export class TransportManager {
 
     throw new ConnectionError(
       `could not establish ${subscriber ? 'subscriber' : 'publisher'} connection, state: ${
-        transport.pc.iceConnectionState
+        transport?.pc.iceConnectionState
       }`,
     );
+  }
+
+  async resumeTransports() {
+    if (this.needsSubscriber) {
+      if (!this.subscriber) {
+        throw new ConnectionError('Could not resume subscriber, missing');
+      }
+      this.subscriber.restartingIce = true;
+    }
+
+    // only restart publisher if it's needed
+    if (this.needsPublisher) {
+      if (!this.publisher) {
+        throw new ConnectionError('Could not resume publisher, missing');
+      }
+      await this.publisher.createAndSendOffer({ iceRestart: true });
+    }
+    await this.waitForPCReconnected();
   }
 
   async waitForPCReconnected() {
@@ -117,9 +167,10 @@ export class TransportManager {
     let now = startTime;
     this.pcState = PCState.Reconnecting;
 
-    log.debug('waiting for peer connection to reconnect');
+    log.debug('waiting for peer connections to reconnect');
     while (now - startTime < this.peerConnectionTimeout) {
-      if (this.primaryPC === undefined) {
+      const requiredTransports = this.getRequiredTransports();
+      if (!requiredTransports) {
         // we can abort early, connection is hosed
         break;
       } else if (
@@ -127,8 +178,7 @@ export class TransportManager {
         // this means we'd have to check its status manually and update address
         // manually
         now - startTime > minReconnectWait &&
-        this.primaryPC?.connectionState === 'connected' &&
-        (!this.hasPublished || this.publisher?.pc.connectionState === 'connected')
+        requiredTransports.every((pc) => pc.pc.connectionState === 'connected')
       ) {
         this.pcState = PCState.Connected;
       }
@@ -159,6 +209,57 @@ export class TransportManager {
         return this.reliableDCSub;
       }
     }
+  }
+
+  /** @internal */
+  negotiate(): Promise<void> {
+    // observe signal state
+    return new Promise<void>((resolve, reject) => {
+      if (!this.publisher) {
+        reject(new NegotiationError('publisher is not defined'));
+        return;
+      }
+
+      this.needsPublisher = true;
+
+      const handleClosed = () => {
+        log.debug('engine disconnected while negotiation was ongoing');
+        cleanup();
+        resolve();
+        return;
+      };
+
+      const negotiationTimeout = setTimeout(() => {
+        reject('negotiation timed out');
+      }, this.peerConnectionTimeout);
+
+      const cleanup = () => {
+        clearTimeout(negotiationTimeout);
+      };
+
+      this.publisher.once(PCEvents.NegotiationStarted, () => {
+        this.publisher?.once(PCEvents.NegotiationComplete, () => {
+          cleanup();
+          resolve();
+        });
+      });
+
+      this.publisher.once(PCEvents.RTPVideoPayloadTypes, (rtpTypes: MediaAttributes['rtp']) => {
+        const rtpMap = new Map<number, VideoCodec>();
+        rtpTypes.forEach((rtp) => {
+          const codec = rtp.codec.toLowerCase();
+          if (isVideoCodec(codec)) {
+            rtpMap.set(rtp.payload, codec);
+          }
+        });
+        // this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
+      });
+
+      this.publisher.negotiate((e) => {
+        cleanup();
+        reject(e);
+      });
+    });
   }
 
   createDataChannels() {
@@ -207,6 +308,50 @@ export class TransportManager {
     this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
   }
 
+  /**
+   * @internal
+   */
+  async ensureDataTransportConnected(
+    kind: DataPacket_Kind,
+    subscriber: boolean = this.needsSubscriber,
+  ) {
+    const transport = subscriber ? this.subscriber : this.publisher;
+    const transportName = subscriber ? 'Subscriber' : 'Publisher';
+    if (!transport) {
+      throw new ConnectionError(`${transportName} connection not set`);
+    }
+
+    if (
+      !subscriber &&
+      !this.publisher?.isICEConnected &&
+      this.publisher?.pc.iceConnectionState !== 'checking'
+    ) {
+      // start negotiation
+      this.negotiate();
+    }
+
+    const targetChannel = this.getDataChannelForKind(kind, subscriber);
+    if (targetChannel?.readyState === 'open') {
+      return;
+    }
+
+    // wait until ICE connected
+    const endTime = new Date().getTime() + this.peerConnectionTimeout;
+    while (new Date().getTime() < endTime) {
+      if (
+        transport.isICEConnected &&
+        this.getDataChannelForKind(kind, subscriber)?.readyState === 'open'
+      ) {
+        return;
+      }
+      await sleep(50);
+    }
+
+    throw new ConnectionError(
+      `could not establish ${transportName} connection, state: ${transport.pc.iceConnectionState}`,
+    );
+  }
+
   private handleBufferedAmountLow = (event: Event) => {
     const channel = event.currentTarget as RTCDataChannel;
     const channelKind =
@@ -221,6 +366,13 @@ export class TransportManager {
     } else {
       this.publisher?.addIceCandidate(candidate);
     }
+  }
+
+  removeTrack(sender: RTCRtpSender) {
+    if (!this.subscriber) {
+      throw new ConnectionError('No subscriber connection set');
+    }
+    this.subscriber.pc.removeTrack(sender);
   }
 
   async setAnswer(sd: RTCSessionDescriptionInit) {
@@ -250,8 +402,8 @@ export class TransportManager {
   }
 
   setConfiguration(rtcConfig: RTCConfiguration) {
-    this.publisher.pc.setConfiguration(rtcConfig);
-    this.subscriber.pc.setConfiguration(rtcConfig);
+    this.publisher?.pc.setConfiguration(rtcConfig);
+    this.subscriber?.pc.setConfiguration(rtcConfig);
   }
 
   async cleanupPeerConnections() {
@@ -295,6 +447,40 @@ export class TransportManager {
     this.reliableDCSub = undefined;
   }
 
+  verifyTransport(): boolean {
+    const requiredTransports = this.getRequiredTransports();
+    if (!requiredTransports) {
+      return false;
+    }
+    if (
+      requiredTransports.some((pc) => pc.pc.connectionState === 'closed') ||
+      requiredTransports.some((pc) => pc.pc.connectionState === 'failed')
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private getRequiredTransports() {
+    const requiredTransports: PCTransport[] = [];
+    if (this.needsPublisher) {
+      if (!this.publisher) {
+        log.warn('publisher required, but missing');
+        return false;
+      }
+      requiredTransports.push(this.publisher);
+    }
+    if (this.needsSubscriber) {
+      if (!this.subscriber) {
+        log.warn('subscriber required, but missing');
+        return false;
+      }
+      requiredTransports.push(this.subscriber);
+    }
+    return requiredTransports;
+  }
+
   private createSubscriber(config: RTCConfiguration) {
     const subscriber = new PCTransport(config);
 
@@ -308,9 +494,7 @@ export class TransportManager {
       this.onRemoteTrack?.(ev);
     };
 
-    if (this.subscriberPrimary) {
-      this.subscriber.pc.ondatachannel = this.handleDataChannel;
-    }
+    subscriber.pc.ondatachannel = this.handleDataChannel;
 
     return subscriber;
   }
