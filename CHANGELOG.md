@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.13.4
+
+### Patch Changes
+
+- Log connection error message on region retries - [#879](https://github.com/livekit/client-sdk-js/pull/879) ([@lukasIO](https://github.com/lukasIO))
+
+- Wait for publisher connection after reconnects - [#875](https://github.com/livekit/client-sdk-js/pull/875) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.13.3
 
 ### Patch Changes
