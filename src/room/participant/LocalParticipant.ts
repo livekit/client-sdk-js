@@ -682,6 +682,10 @@ export default class LocalParticipant extends Participant {
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
         if (isSVCCodec(opts.videoCodec)) {
+          // vp9 svc with screenshare has problem to encode, always use L1T3 here
+          if (track.source === Track.Source.ScreenShare && opts.videoCodec === 'vp9') {
+            opts.scalabilityMode = 'L1T3';
+          }
           // set scalabilityMode to 'L3T3_KEY' by default
           opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
         }
