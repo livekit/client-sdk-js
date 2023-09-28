@@ -121,9 +121,9 @@ function handleTrackUnsubscribed(
   track.detach();
 }
 
-function handleLocalTrackUnpublished(track: LocalTrackPublication, participant: LocalParticipant) {
+function handleLocalTrackUnpublished(publication: LocalTrackPublication, participant: LocalParticipant) {
   // when local tracks are ended, update UI to remove them from rendering
-  track.detach();
+  publication.track.detach();
 }
 
 function handleActiveSpeakerChange(speakers: Participant[]) {

@@ -457,9 +457,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             }
           }
           if (nextUrl) {
-            log.info('initial connection failed, retrying with another region', {
-              nextUrl,
-            });
+            log.info(
+              `Initial connection failed with ConnectionError: ${e.message}. Retrying with another region: ${nextUrl}`,
+            );
             await connectFn(resolve, reject, nextUrl);
           } else {
             reject(e);
