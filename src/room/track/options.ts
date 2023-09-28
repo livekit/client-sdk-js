@@ -298,9 +298,9 @@ export function isCodecEqual(c1: string | undefined, c2: string | undefined): bo
 }
 
 /**
- * scalability modes for svc, only supprot l3t3 now.
+ * scalability modes for svc.
  */
-export type ScalabilityMode = 'L3T3' | 'L3T3_KEY';
+export type ScalabilityMode = 'L1T3' | 'L2T3' | 'L2T3_KEY' | 'L3T3' | 'L3T3_KEY';
 
 export namespace AudioPresets {
   export const telephone: AudioPreset = {
