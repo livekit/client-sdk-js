@@ -1084,7 +1084,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       await Promise.all(
         localPubs.map(async (pub) => {
           const track = pub.track!;
-          this.localParticipant.unpublishTrack(track, false);
+          await this.localParticipant.unpublishTrack(track, false);
           if (!track.isMuted) {
             if (
               (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&

@@ -546,31 +546,28 @@ export default class LocalParticipant extends Participant {
       return existingPublication;
     }
 
-    const isStereoInput =
-      ('channelCount' in track.mediaStreamTrack.getSettings() &&
-        // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
-        track.mediaStreamTrack.getSettings().channelCount === 2) ||
-      track.mediaStreamTrack.getConstraints().channelCount === 2;
-    const isStereo = options?.forceStereo ?? isStereoInput;
+    let isStereo = false;
+    if (track.kind === Track.Kind.Audio) {
+      const isStereoInput =
+        ('channelCount' in track.mediaStreamTrack.getSettings() &&
+          // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
+          track.mediaStreamTrack.getSettings().channelCount === 2) ||
+        track.mediaStreamTrack.getConstraints().channelCount === 2;
+      const forceStereo =
+        options?.forceStereo ?? this.roomOptions.publishDefaults?.forceStereo ?? false;
+      isStereo = forceStereo || isStereoInput;
 
-    // disable dtx for stereo track if not enabled explicitly
-    if (isStereo) {
-      if (!options) {
-        options = {};
+      // disable dtx for stereo track if not enabled explicitly
+      // DTX and RED could both interfere with HQ stereo audio
+      if (isStereo) {
+        if (!options) {
+          options = {};
+        }
+        options.dtx ??= false;
+        options.red ??= false;
       }
-      if (options.dtx === undefined) {
-        log.info(
-          `Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
-        );
-      }
-      if (options.red === undefined) {
-        log.info(
-          `Opus RED will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
-        );
-      }
-      options.dtx ??= false;
-      options.red ??= false;
     }
+
     const opts: TrackPublishOptions = {
       ...this.roomOptions.publishDefaults,
       ...options,

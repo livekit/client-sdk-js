@@ -88,9 +88,9 @@ const appActions = {
         simulcast,
         videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
         videoCodec: preferredCodec || 'vp8',
-        dtx: true,
-        red: true,
-        forceStereo: false,
+        // dtx: true,
+        // red: true,
+        // forceStereo: false,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
