@@ -121,7 +121,10 @@ function handleTrackUnsubscribed(
   track.detach();
 }
 
-function handleLocalTrackUnpublished(publication: LocalTrackPublication, participant: LocalParticipant) {
+function handleLocalTrackUnpublished(
+  publication: LocalTrackPublication,
+  participant: LocalParticipant,
+) {
   // when local tracks are ended, update UI to remove them from rendering
   publication.track.detach();
 }
@@ -254,13 +257,13 @@ You could also retrieve the last error with `LocalParticipant.lastCameraError` a
 
 Browsers can be restrictive with regards to audio playback that is not initiated by user interaction. What each browser considers as user interaction can vary by vendor (for example, Safari on iOS is very restrictive).
 
-LiveKit will attempt to autoplay all audio tracks when you attach them to audio elements. However, if that fails, we'll notify you via `RoomEvent.AudioPlaybackStatusChanged`. `Room.canPlayAudio` will indicate if audio playback is permitted. LiveKit takes an optimistic approach so it's possible for this value to change from `true` to `false` when we encounter a browser error.
+LiveKit will attempt to autoplay all audio tracks when you attach them to audio elements. However, if that fails, we'll notify you via `RoomEvent.AudioPlaybackStatusChanged`. `Room.canPlaybackAudio` will indicate if audio playback is permitted. LiveKit takes an optimistic approach so it's possible for this value to change from `true` to `false` when we encounter a browser error.
 
 In the case user interaction is required, LiveKit provides `Room.startAudio` to start audio playback. This function must be triggered in an onclick or ontap event handler. In the same session, once audio playback is successful, additional audio tracks can be played without further user interactions.
 
 ```typescript
 room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
-  if (!room.canPlayAudio) {
+  if (!room.canPlaybackAudio) {
     // UI is necessary.
     ...
     button.onclick = () => {
@@ -315,7 +318,9 @@ If you are targeting legacy browsers, but still want adaptiveStream functionalit
 Also when targeting legacy browsers, older than the ones specified in our browserslist target, make sure to transpile the library code to your desired target and include required polyfills with babel and/or corejs.
 
 <!--BEGIN_REPO_NAV-->
+
 <br/><table>
+
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>
 <tr><td>Client SDKs</td><td><a href="https://github.com/livekit/components-js">Components</a> · <b>JavaScript</b> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/client-sdk-rust">Rust</a> · <a href="https://github.com/livekit/client-sdk-python">Python</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (web)</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity (beta)</a></td></tr><tr></tr>
