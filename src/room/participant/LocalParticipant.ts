@@ -33,7 +33,7 @@ import type {
   TrackPublishOptions,
   VideoCaptureOptions,
 } from '../track/options';
-import { ScreenSharePresets, VideoPresets, isBackupCodec, isCodecEqual } from '../track/options';
+import { VideoPresets, isBackupCodec, isCodecEqual } from '../track/options';
 import {
   constraintsForOptions,
   mergeDefaultOptions,
@@ -443,9 +443,6 @@ export default class LocalParticipant extends Participant {
   async createScreenTracks(options?: ScreenShareCaptureOptions): Promise<Array<LocalTrack>> {
     if (options === undefined) {
       options = {};
-    }
-    if (options.resolution === undefined) {
-      options.resolution = ScreenSharePresets.h1080fps15.resolution;
     }
 
     if (navigator.mediaDevices.getDisplayMedia === undefined) {
