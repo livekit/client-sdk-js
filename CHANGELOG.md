@@ -1,5 +1,15 @@
 # Change Log
 
+## 1.14.0
+
+### Minor Changes
+
+- Do not constrain screenshare resolution by default - [#889](https://github.com/livekit/client-sdk-js/pull/889) ([@davidzhao](https://github.com/davidzhao))
+
+### Patch Changes
+
+- Fix vp9 svc failed for screenshare - [#882](https://github.com/livekit/client-sdk-js/pull/882) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 1.13.4
 
 ### Patch Changes
