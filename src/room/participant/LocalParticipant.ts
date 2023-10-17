@@ -649,6 +649,7 @@ export default class LocalParticipant extends Participant {
       encryption: this.encryptionType,
       stereo: isStereo,
       disableRed: this.isE2EEEnabled || !(opts.red ?? true),
+      stream: opts?.stream,
     });
 
     // compute encodings and layers for video
