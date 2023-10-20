@@ -447,7 +447,7 @@ export class FrameCryptor extends BaseFrameCryptor {
            * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
            * we come back to the initial key.
            */
-          if (initialMaterial) {
+          if (initialMaterial && keySet === this.keys.getKeySet(keyIndex)) {
             workerLogger.debug('resetting to initial material');
             this.keys.setKeyFromMaterial(initialMaterial.material, keyIndex);
           }
