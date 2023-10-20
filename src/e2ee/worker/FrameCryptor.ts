@@ -431,9 +431,13 @@ export class FrameCryptor extends BaseFrameCryptor {
             encryptionKey: ratchetedKeySet?.encryptionKey,
           });
           if (frame && ratchetedKeySet) {
-            this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
-            // decryption was successful, set the new key index to reflect the ratcheted key set
-            this.keys.setCurrentKeyIndex(keyIndex);
+            // before updating the keys, make sure that the keySet used for this frame is still the same as the currently set key
+            // if it's not, a new key might have been set already, which we don't want to override
+            if (keySet === this.keys.getKeySet(keyIndex)) {
+              this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
+              // decryption was successful, set the new key index to reflect the ratcheted key set
+              this.keys.setCurrentKeyIndex(keyIndex);
+            }
           }
           return frame;
         } else {
