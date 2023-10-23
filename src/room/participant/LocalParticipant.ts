@@ -40,16 +40,7 @@ import {
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
 import type { DataPublishOptions } from '../types';
-import {
-  Future,
-  isFireFox,
-  isSVCCodec,
-  isSafari,
-  isWeb,
-  sleep,
-  supportsAV1,
-  supportsVP9,
-} from '../utils';
+import { Future, isFireFox, isSVCCodec, isSafari, isWeb, supportsAV1, supportsVP9 } from '../utils';
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import { trackPermissionToProto } from './ParticipantTrackPermission';
@@ -670,11 +661,6 @@ export default class LocalParticipant extends Participant {
         height: 0,
       };
       try {
-        if (isSafari()) {
-          // Safari reports wrong initial resolution on iOS.
-          // when slightly delaying the call to .getSettings(), the correct resolution is being reported
-          await sleep(10);
-        }
         dims = await track.waitForDimensions();
       } catch (e) {
         // use defaults, it's quite painful for congestion control without simulcast
