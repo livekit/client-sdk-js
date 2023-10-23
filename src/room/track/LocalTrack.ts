@@ -4,7 +4,7 @@ import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
-import { Mutex, compareVersions, isMobile, isSafari, sleep } from '../utils';
+import { Mutex, compareVersions, isMobile, sleep } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
@@ -163,8 +163,8 @@ export default abstract class LocalTrack extends Track {
       throw new Error('cannot get dimensions for audio tracks');
     }
 
-    if (isSafari()) {
-      // Safari reports wrong initial resolution on iOS.
+    if (getBrowser()?.os === 'iOS') {
+      // browsers report wrong initial resolution on iOS.
       // when slightly delaying the call to .getSettings(), the correct resolution is being reported
       await sleep(10);
     }
