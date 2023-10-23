@@ -163,6 +163,12 @@ export default abstract class LocalTrack extends Track {
       throw new Error('cannot get dimensions for audio tracks');
     }
 
+    if (getBrowser()?.os === 'iOS') {
+      // browsers report wrong initial resolution on iOS.
+      // when slightly delaying the call to .getSettings(), the correct resolution is being reported
+      await sleep(10);
+    }
+
     const started = Date.now();
     while (Date.now() - started < timeout) {
       const dims = this.dimensions;
