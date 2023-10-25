@@ -39,7 +39,7 @@ export class WebRTCCheck extends Checker {
       };
 
       if (this.room.engine.subscriber) {
-        this.room.engine.subscriber.pc.onicecandidateerror = (ev) => {
+        this.room.engine.subscriber.onIceCandidateError = (ev) => {
           if (ev instanceof RTCPeerConnectionIceErrorEvent) {
             this.appendWarning(
               `error with ICE candidate: ${ev.errorCode} ${ev.errorText} ${ev.url}`,

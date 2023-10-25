@@ -53,6 +53,8 @@ export default class PCTransport extends EventEmitter {
 
   onIceCandidate?: (candidate: RTCIceCandidate) => void;
 
+  onIceCandidateError?: (ev: Event) => void;
+
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
 
   onDataChannel?: (ev: RTCDataChannelEvent) => void;
@@ -68,6 +70,9 @@ export default class PCTransport extends EventEmitter {
     this._pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
       this.onIceCandidate?.(ev.candidate);
+    };
+    this._pc.onicecandidateerror = (ev) => {
+      this.onIceCandidateError?.(ev);
     };
     this._pc.onconnectionstatechange = () => {
       this.onConnectionStateChange?.(this._pc?.connectionState ?? 'closed');
