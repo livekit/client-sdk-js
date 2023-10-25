@@ -1,8 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cloneDeep } from './cloneDeep';
 
 describe('cloneDeep', () => {
   beforeEach(() => {
+    global.structuredClone = vi.fn((val) => {
+      return JSON.parse(JSON.stringify(val));
+    });
+  });
+
+  afterEach(() => {
     vi.restoreAllMocks();
   });
 
