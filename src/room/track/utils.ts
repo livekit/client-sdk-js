@@ -181,3 +181,15 @@ export function screenCaptureToDisplayMediaStreamOptions(
     systemAudio: options.systemAudio,
   };
 }
+
+/** @internal */
+export function getTrackDimensions(track: MediaStreamTrack) {
+  const { width, height } = track.getSettings();
+  if (width && height) {
+    return {
+      width,
+      height,
+    };
+  }
+  return undefined;
+}

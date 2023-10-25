@@ -776,9 +776,7 @@ export default class LocalParticipant extends Participant {
       }
     }
 
-    const publication = new LocalTrackPublication(track.kind, ti, track);
-    // save options for when it needs to be republished again
-    publication.options = opts;
+    const publication = new LocalTrackPublication(track.kind, ti, track, opts);
     track.sid = ti.sid;
 
     if (!this.engine.publisher) {

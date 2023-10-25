@@ -42,7 +42,7 @@ describe('computeVideoEncodings', () => {
     const encodings = computeVideoEncodings(false, 640, 480, {
       simulcast: false,
     });
-    expect(encodings).toEqual([{}]);
+    expect(encodings).toEqual([{ scaleResolutionDownBy: 1 }]);
   });
 
   it('respects client defined bitrate', () => {
@@ -114,6 +114,27 @@ describe('computeVideoEncodings', () => {
     expect(encodings![0].rid).toBe('q');
     expect(encodings![0].maxBitrate).toBe(VideoPresets43.h120.encoding.maxBitrate);
     expect(encodings![0].scaleResolutionDownBy).toBe(1);
+  });
+
+  it('respects forced resolution', () => {
+    const encodings = computeVideoEncodings(false, 1280, 720, {
+      simulcast: false,
+      forceResolution: { width: 640, height: 360 },
+    });
+    expect(encodings).toHaveLength(1);
+    expect(encodings![0].scaleResolutionDownBy).toBe(2);
+  });
+
+  it('respects forced resolution also with simulcast', () => {
+    const encodings = computeVideoEncodings(false, 960, 540, {
+      simulcast: true,
+      forceResolution: { width: 480, height: 360 },
+    });
+    expect(encodings).toHaveLength(3);
+    expect(encodings![0].scaleResolutionDownBy).toBe(3);
+    expect(encodings![1].scaleResolutionDownBy).toBe(1.5);
+    expect(encodings![2].scaleResolutionDownBy).toBe(1.5);
+    expect(encodings![2].maxBitrate).toBe(VideoPresets.h360.encoding.maxBitrate);
   });
 
   //   it('respects default backup codec encoding', () => {

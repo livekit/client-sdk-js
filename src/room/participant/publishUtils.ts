@@ -100,22 +100,37 @@ export function computeVideoEncodings(
   const useSimulcast = options?.simulcast;
   const scalabilityMode = options?.scalabilityMode;
   const videoCodec = options?.videoCodec;
+  const forceResolution = options?.forceResolution;
+
+  let originalLayerScale = 1;
+  if (forceResolution && height) {
+    originalLayerScale = Math.max(1, height / forceResolution.height);
+  }
 
   if ((!videoEncoding && !useSimulcast && !scalabilityMode) || !width || !height) {
     // when we aren't simulcasting or svc, will need to return a single encoding without
     // capping bandwidth. we always require a encoding for dynacast
-    return [{}];
+    return [{ scaleResolutionDownBy: originalLayerScale }];
   }
+
+  const adjustedWidth = width / originalLayerScale;
+  const adjustedHeight = height / originalLayerScale;
 
   if (!videoEncoding) {
     // find the right encoding based on width/height
-    videoEncoding = determineAppropriateEncoding(isScreenShare, width, height, videoCodec);
+    videoEncoding = determineAppropriateEncoding(
+      isScreenShare,
+      adjustedWidth,
+      adjustedHeight,
+      videoCodec,
+    );
+    videoEncoding.scaleResolutionDownBy = originalLayerScale;
     log.debug('using video encoding', videoEncoding);
   }
 
   const original = new VideoPreset(
-    width,
-    height,
+    adjustedWidth,
+    adjustedHeight,
     videoEncoding.maxBitrate,
     videoEncoding.maxFramerate,
     videoEncoding.priority,
@@ -134,14 +149,15 @@ export function computeVideoEncodings(
     for (let i = 0; i < sm.spatial; i += 1) {
       encodings.push({
         rid: videoRids[2 - i],
-        maxBitrate: videoEncoding.maxBitrate / 3 ** i,
+        maxBitrate: Math.ceil(videoEncoding.maxBitrate / 3 ** i),
         /* @ts-ignore */
         maxFramerate: original.encoding.maxFramerate,
+        scaleResolutionDownBy: 2 ** i * originalLayerScale, // FIXME this currently freezes the downstream track on the receiver side
       });
     }
     /* @ts-ignore */
     encodings[0].scalabilityMode = scalabilityMode;
-    log.debug('encodings', encodings);
+    log.info('encodings', encodings);
     return encodings;
   }
 

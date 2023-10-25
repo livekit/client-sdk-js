@@ -2,7 +2,7 @@ import type { TrackInfo } from '../../proto/livekit_models_pb';
 import { TrackEvent } from '../events';
 import type LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
-import type LocalVideoTrack from './LocalVideoTrack';
+import LocalVideoTrack from './LocalVideoTrack';
 import type { Track } from './Track';
 import { TrackPublication } from './TrackPublication';
 import type { TrackPublishOptions } from './options';
@@ -16,18 +16,21 @@ export default class LocalTrackPublication extends TrackPublication {
     return this.track?.isUpstreamPaused;
   }
 
-  constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
+  constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack, options?: TrackPublishOptions) {
     super(kind, ti.sid, ti.name);
 
     this.updateInfo(ti);
+    this.options = options;
     this.setTrack(track);
   }
 
-  setTrack(track?: Track) {
+  setTrack(track?: LocalTrack) {
     if (this.track) {
       this.track.off(TrackEvent.Ended, this.handleTrackEnded);
     }
-
+    if (track instanceof LocalVideoTrack && this.options?.forceResolution) {
+      track.setForcedResolution(this.options.forceResolution);
+    }
     super.setTrack(track);
 
     if (track) {

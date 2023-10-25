@@ -8,6 +8,7 @@ import { Mutex, compareVersions, isMobile, sleep } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
+import { getTrackDimensions } from './utils';
 
 const defaultDimensionsTimeout = 1000;
 
@@ -71,18 +72,7 @@ export default abstract class LocalTrack extends Track {
   }
 
   get dimensions(): Track.Dimensions | undefined {
-    if (this.kind !== Track.Kind.Video) {
-      return undefined;
-    }
-
-    const { width, height } = this._mediaStreamTrack.getSettings();
-    if (width && height) {
-      return {
-        width,
-        height,
-      };
-    }
-    return undefined;
+    return getTrackDimensions(this._mediaStreamTrack);
   }
 
   private _isUpstreamPaused: boolean = false;
@@ -99,7 +89,7 @@ export default abstract class LocalTrack extends Track {
     return this.processor?.processedTrack ?? this._mediaStreamTrack;
   }
 
-  private async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean) {
+  protected async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean) {
     if (newTrack === this._mediaStreamTrack && !force) {
       return;
     }
@@ -158,7 +148,10 @@ export default abstract class LocalTrack extends Track {
     }
   }
 
-  async waitForDimensions(timeout = defaultDimensionsTimeout): Promise<Track.Dimensions> {
+  async waitForDimensions(
+    timeout = defaultDimensionsTimeout,
+    track?: MediaStreamTrack,
+  ): Promise<Track.Dimensions> {
     if (this.kind === Track.Kind.Audio) {
       throw new Error('cannot get dimensions for audio tracks');
     }
@@ -171,7 +164,7 @@ export default abstract class LocalTrack extends Track {
 
     const started = Date.now();
     while (Date.now() - started < timeout) {
-      const dims = this.dimensions;
+      const dims = track ? getTrackDimensions(track) : this.dimensions;
       if (dims) {
         return dims;
       }
