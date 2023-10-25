@@ -1,5 +1,5 @@
 export function cloneDeep<T>(value: T) {
-  if (typeof value !== 'undefined') {
+  if (typeof value === 'undefined') {
     return;
   }
 
