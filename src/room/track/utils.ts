@@ -1,3 +1,4 @@
+import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
 import { Track } from './Track';
 import type {
@@ -13,9 +14,7 @@ export function mergeDefaultOptions(
   audioDefaults?: AudioCaptureOptions,
   videoDefaults?: VideoCaptureOptions,
 ): CreateLocalTracksOptions {
-  const opts: CreateLocalTracksOptions = {
-    ...options,
-  };
+  const opts: CreateLocalTracksOptions = cloneDeep(options) ?? {};
   if (opts.audio === true) opts.audio = {};
   if (opts.video === true) opts.video = {};
 
