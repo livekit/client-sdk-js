@@ -1,4 +1,8 @@
 export function cloneDeep<T>(value: T) {
+  if (typeof value !== 'undefined') {
+    return;
+  }
+
   if (typeof structuredClone === 'function') {
     return structuredClone(value);
   } else {
