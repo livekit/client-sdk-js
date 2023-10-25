@@ -34,7 +34,7 @@ export default abstract class LocalTrack extends Track {
 
   protected processorElement?: HTMLMediaElement;
 
-  protected processor?: TrackProcessor<typeof this.kind>;
+  protected processor?: TrackProcessor<this['kind']>;
 
   protected processorLock: Mutex;
 
@@ -403,7 +403,7 @@ export default abstract class LocalTrack extends Track {
    * @returns
    */
   async setProcessor(
-    processor: TrackProcessor<typeof this.kind>,
+    processor: TrackProcessor<this['kind']>,
     showProcessedStreamLocally = true,
   ) {
     const unlock = await this.processorLock.lock();
