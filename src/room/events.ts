@@ -223,7 +223,7 @@ export enum RoomEvent {
    * be emitted.
    *
    * args: (pub: [[RemoteTrackPublication]],
-   *        status: [[TrackPublication.SubscriptionStatus]],
+   *        status: [[TrackPublication.PermissionStatus]],
    *        participant: [[RemoteParticipant]])
    */
   TrackSubscriptionPermissionChanged = 'trackSubscriptionPermissionChanged',
