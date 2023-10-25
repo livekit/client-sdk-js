@@ -886,7 +886,6 @@ export default class LocalParticipant extends Participant {
         {
           codec: opts.videoCodec,
           cid: simulcastTrack.mediaStreamTrack.id,
-          enableSimulcastLayers: opts.simulcast,
         },
       ],
     });
