@@ -32,7 +32,7 @@ export const PCEvents = {
 export default class PCTransport extends EventEmitter {
   private _pc: RTCPeerConnection | null;
 
-  public get pc() {
+  private get pc() {
     if (this._pc) return this._pc;
     throw new UnexpectedConnectionState('Expected peer connection to be available');
   }
@@ -51,12 +51,33 @@ export default class PCTransport extends EventEmitter {
 
   onOffer?: (offer: RTCSessionDescriptionInit) => void;
 
+  onIceCandidate?: (candidate: RTCIceCandidate) => void;
+
+  onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
+
+  onDataChannel?: (ev: RTCDataChannelEvent) => void;
+
+  onTrack?: (ev: RTCTrackEvent) => void;
+
   constructor(config?: RTCConfiguration, mediaConstraints: Record<string, unknown> = {}) {
     super();
     this._pc = isChromiumBased()
       ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
         new RTCPeerConnection(config, mediaConstraints)
       : new RTCPeerConnection(config);
+    this._pc.onicecandidate = (ev) => {
+      if (!ev.candidate) return;
+      this.onIceCandidate?.(ev.candidate);
+    };
+    this._pc.onconnectionstatechange = () => {
+      this.onConnectionStateChange?.(this._pc?.connectionState ?? 'closed');
+    };
+    this._pc.ondatachannel = (ev) => {
+      this.onDataChannel?.(ev);
+    };
+    this._pc.ontrack = (ev) => {
+      this.onTrack?.(ev);
+    };
   }
 
   get isICEConnected(): boolean {
@@ -270,8 +291,97 @@ export default class PCTransport extends EventEmitter {
     return answer;
   }
 
+  createDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
+    return this.pc.createDataChannel(label, dataChannelDict);
+  }
+
+  addTransceiver(mediaStreamTrack: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
+    return this.pc.addTransceiver(mediaStreamTrack, transceiverInit);
+  }
+
+  addTrack(track: MediaStreamTrack) {
+    return this.pc.addTrack(track);
+  }
+
   setTrackCodecBitrate(info: TrackBitrateInfo) {
     this.trackBitrates.push(info);
+  }
+
+  setConfiguration(rtcConfig: RTCConfiguration) {
+    return this.pc.setConfiguration(rtcConfig);
+  }
+
+  canRemoveTrack(): boolean {
+    return !!this.pc.removeTrack;
+  }
+
+  removeTrack(sender: RTCRtpSender) {
+    return this.pc.removeTrack(sender);
+  }
+
+  getConnectionState() {
+    return this.pc.connectionState;
+  }
+
+  getICEConnectionState() {
+    return this.pc.iceConnectionState;
+  }
+
+  getSignallingState() {
+    return this.pc.signalingState;
+  }
+
+  getTransceivers() {
+    return this.pc.getTransceivers();
+  }
+
+  getSenders() {
+    return this.pc.getSenders();
+  }
+
+  getLocalDescription() {
+    return this.pc.localDescription;
+  }
+
+  getRemoteDescription() {
+    return this.pc.remoteDescription;
+  }
+
+  async getConnectedAddress(): Promise<string | undefined> {
+    if (!this._pc) {
+      return;
+    }
+    let selectedCandidatePairId = '';
+    const candidatePairs = new Map<string, RTCIceCandidatePairStats>();
+    // id -> candidate ip
+    const candidates = new Map<string, string>();
+    const stats: RTCStatsReport = await this._pc.getStats();
+    stats.forEach((v) => {
+      switch (v.type) {
+        case 'transport':
+          selectedCandidatePairId = v.selectedCandidatePairId;
+          break;
+        case 'candidate-pair':
+          if (selectedCandidatePairId === '' && v.selected) {
+            selectedCandidatePairId = v.id;
+          }
+          candidatePairs.set(v.id, v);
+          break;
+        case 'remote-candidate':
+          candidates.set(v.id, `${v.address}:${v.port}`);
+          break;
+        default:
+      }
+    });
+
+    if (selectedCandidatePairId === '') {
+      return undefined;
+    }
+    const selectedID = candidatePairs.get(selectedCandidatePairId)?.remoteCandidateId;
+    if (selectedID === undefined) {
+      return undefined;
+    }
+    return candidates.get(selectedID);
   }
 
   close() {
