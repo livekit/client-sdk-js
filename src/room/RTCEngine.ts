@@ -31,6 +31,7 @@ import {
   TrackPublishedResponse,
 } from '../proto/livekit_rtc_pb';
 import PCTransport, { PCEvents } from './PCTransport';
+import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import type { RegionUrlProvider } from './RegionUrlProvider';
 import { roomConnectOptionDefaults } from './defaults';
@@ -84,6 +85,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
 
   fullReconnectOnNext: boolean = false;
+
+  pcManager?: PCTransportManager;
 
   /**
    * @internal
@@ -381,9 +384,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       rtcConfig.encodedInsertableStreams = true;
     }
 
-    const googConstraints = { optional: [{ googDscp: true }] };
-    this.publisher = new PCTransport(rtcConfig, googConstraints);
-    this.subscriber = new PCTransport(rtcConfig);
+    // this.publisher = new PCTransport(rtcConfig, googConstraints);
+    // this.subscriber = new PCTransport(rtcConfig);
+    this.pcManager = new PCTransportManager(rtcConfig);
+    this.publisher = this.pcManager.publisher;
+    this.subscriber = this.pcManager.subscriber;
 
     this.emit(EngineEvent.TransportsCreated, this.publisher, this.subscriber);
 
@@ -401,47 +406,33 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     let primaryTransport = this.publisher;
-    let secondaryTransport = this.subscriber;
     let subscriberPrimary = joinResponse.subscriberPrimary;
     if (subscriberPrimary) {
       primaryTransport = this.subscriber;
-      secondaryTransport = this.publisher;
       // in subscriber primary mode, server side opens sub data channels.
       this.subscriber.onDataChannel = this.handleDataChannel;
     }
     this.primaryTransport = primaryTransport;
-    primaryTransport.onConnectionStateChange = async (connectionState) => {
+    this.pcManager.onStateChange = async (connectionState) => {
       log.debug(`primary PC state changed ${connectionState}`);
-      if (connectionState === 'connected') {
+      if (connectionState === PCTransportState.CONNECTED) {
         const shouldEmit = this.pcState === PCState.New;
         this.pcState = PCState.Connected;
         if (shouldEmit) {
           this.emit(EngineEvent.Connected, joinResponse);
         }
-      } else if (connectionState === 'failed') {
+      } else if (connectionState === PCTransportState.FAILED) {
         // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
         if (this.pcState === PCState.Connected) {
           this.pcState = PCState.Disconnected;
 
           this.handleDisconnect(
-            'primary peerconnection',
-            subscriberPrimary
+            'peerconnection failed',
+            subscriberPrimary // FIXME actually determine which peer connection failed
               ? ReconnectReason.RR_SUBSCRIBER_FAILED
               : ReconnectReason.RR_PUBLISHER_FAILED,
           );
         }
-      }
-    };
-    secondaryTransport.onConnectionStateChange = async (connectionState) => {
-      log.debug(`secondary PC state changed ${connectionState}`);
-      // also reconnect if secondary peerconnection fails
-      if (connectionState === 'failed') {
-        this.handleDisconnect(
-          'secondary peerconnection',
-          subscriberPrimary
-            ? ReconnectReason.RR_PUBLISHER_FAILED
-            : ReconnectReason.RR_SUBSCRIBER_FAILED,
-        );
       }
     };
 

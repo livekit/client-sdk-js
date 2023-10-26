@@ -37,6 +37,10 @@ export default class PCTransport extends EventEmitter {
     throw new UnexpectedConnectionState('Expected peer connection to be available');
   }
 
+  private config?: RTCConfiguration;
+
+  private mediaConstraints: Record<string, unknown>;
+
   pendingCandidates: RTCIceCandidateInit[] = [];
 
   restartingIce: boolean = false;
@@ -57,16 +61,26 @@ export default class PCTransport extends EventEmitter {
 
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
 
+  onIceConnectionStateChange?: () => void;
+
+  onSignalingStatechange?: () => void;
+
   onDataChannel?: (ev: RTCDataChannelEvent) => void;
 
   onTrack?: (ev: RTCTrackEvent) => void;
 
   constructor(config?: RTCConfiguration, mediaConstraints: Record<string, unknown> = {}) {
     super();
+    this.config = config;
+    this.mediaConstraints = mediaConstraints;
+    this.setupPC();
+  }
+
+  private setupPC() {
     this._pc = isChromiumBased()
       ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
-        new RTCPeerConnection(config, mediaConstraints)
-      : new RTCPeerConnection(config);
+        new RTCPeerConnection(this.config, this.mediaConstraints)
+      : new RTCPeerConnection(this.config);
     this._pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
       this.onIceCandidate?.(ev.candidate);
@@ -74,6 +88,15 @@ export default class PCTransport extends EventEmitter {
     this._pc.onicecandidateerror = (ev) => {
       this.onIceCandidateError?.(ev);
     };
+
+    this._pc.oniceconnectionstatechange = () => {
+      this.onIceConnectionStateChange?.();
+    };
+
+    this._pc.onsignalingstatechange = () => {
+      this.onSignalingStatechange?.();
+    };
+
     this._pc.onconnectionstatechange = () => {
       this.onConnectionStateChange?.(this._pc?.connectionState ?? 'closed');
     };
@@ -389,7 +412,7 @@ export default class PCTransport extends EventEmitter {
     return candidates.get(selectedID);
   }
 
-  close() {
+  close = () => {
     if (!this._pc) {
       return;
     }
@@ -406,7 +429,8 @@ export default class PCTransport extends EventEmitter {
     this._pc.onconnectionstatechange = null;
     this._pc.oniceconnectionstatechange = null;
     this._pc = null;
-  }
+    this.setupPC();
+  };
 
   private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {
     if (munged) {
