@@ -630,6 +630,10 @@ export default class LocalParticipant extends Participant {
       opts.videoCodec = undefined;
     }
 
+    if (opts.videoCodec && this.engine.isCodecDisabled(opts.videoCodec, true)) {
+      opts.videoCodec = undefined;
+    }
+
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
     track.on(TrackEvent.Unmuted, this.onTrackUnmuted);

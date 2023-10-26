@@ -710,6 +710,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
+  /* @internal */
+  isCodecDisabled(videoCodec: VideoCodec, publish: boolean): boolean {
+    return (
+      this.clientConfiguration?.disabledCodecs?.codecs.some((c) => c.mime.endsWith(videoCodec)) ||
+      (publish &&
+        this.clientConfiguration?.disabledCodecs?.publish.some((c) =>
+          c.mime.endsWith(videoCodec),
+        )) ||
+      false
+    );
+  }
+
   async createSender(
     track: LocalTrack,
     opts: TrackPublishOptions,
