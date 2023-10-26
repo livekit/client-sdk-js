@@ -452,6 +452,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               error instanceof ConnectionError &&
               (error.status === 401 || error.reason === ConnectionErrorReason.Cancelled)
             ) {
+              this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
               reject(error);
               return;
             }
@@ -462,9 +463,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             );
             await connectFn(resolve, reject, nextUrl);
           } else {
+            this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
             reject(e);
           }
         } else {
+          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
           reject(e);
         }
       }
@@ -593,8 +596,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.setupLocalParticipantEvents();
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
+      await this.engine.close();
       this.recreateEngine();
-      this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       const resultingError = new ConnectionError(`could not establish signal connection`);
       if (err instanceof Error) {
         resultingError.message = `${resultingError.message}: ${err.message}`;
