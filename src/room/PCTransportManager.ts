@@ -1,5 +1,9 @@
 import log from '../logger';
 import PCTransport from './PCTransport';
+import { roomConnectOptionDefaults } from './defaults';
+import { ConnectionError, ConnectionErrorReason } from './errors';
+import CriticalTimers from './timers';
+import { Mutex, sleep } from './utils';
 
 export enum PCTransportState {
   IDLE,
@@ -11,20 +15,32 @@ export enum PCTransportState {
 }
 
 export class PCTransportManager {
-  private isPublisherConnectionRequired: boolean;
-
-  private isSubscriberConnectionRequired: boolean;
-
   public publisher: PCTransport;
 
   public subscriber: PCTransport;
 
+  public get needsPublisher() {
+    return this.isPublisherConnectionRequired;
+  }
+
+  public get needsSubscriber() {
+    return this.isSubscriberConnectionRequired;
+  }
+
+  private isPublisherConnectionRequired: boolean;
+
+  private isSubscriberConnectionRequired: boolean;
+
   private state: PCTransportState;
 
-  onStateChange?: (state: PCTransportState) => void;
+  private peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
+
+  private connectionLock: Mutex;
+
+  public onStateChange?: (state: PCTransportState) => void;
 
   constructor(rtcConfig: RTCConfiguration) {
-    this.isPublisherConnectionRequired = true;
+    this.isPublisherConnectionRequired = false;
     this.isSubscriberConnectionRequired = true;
     const googConstraints = { optional: [{ googDscp: true }] };
     this.publisher = new PCTransport(rtcConfig, googConstraints);
@@ -38,10 +54,35 @@ export class PCTransportManager {
     this.subscriber.onSignalingStatechange = this.handleStateChanged;
 
     this.state = PCTransportState.IDLE;
+
+    this.connectionLock = new Mutex();
   }
 
-  async ensurePCTransportConnection() {
-    return Promise.all(this.requiredTransports?.map(this.ensureTransportConnected));
+  requirePublisher(require = true) {
+    this.isPublisherConnectionRequired = require;
+    this.handleStateChanged();
+  }
+
+  requireSubscriber(require = true) {
+    this.isSubscriberConnectionRequired = require;
+    this.handleStateChanged();
+  }
+
+  createAndSendOffer(options?: RTCOfferOptions) {
+    return this.publisher.createAndSendOffer(options);
+  }
+
+  async ensurePCTransportConnection(abortController?: AbortController, timeout?: number) {
+    const unlock = await this.connectionLock.lock();
+    try {
+      await Promise.all(
+        this.requiredTransports?.map((transport) =>
+          this.ensureTransportConnected(transport, abortController, timeout),
+        ),
+      );
+    } finally {
+      unlock();
+    }
   }
 
   private get requiredTransports() {
@@ -71,18 +112,66 @@ export class PCTransportManager {
 
     if (previousState !== this.state) {
       this.onStateChange?.(this.state);
+      log.info('pc state', {
+        overall: this.state,
+        publisher: getPCState(this.publisher),
+        subscriber: getPCState(this.subscriber),
+      });
     }
-    log.info('pc state', {
-      overall: this.state,
-      publisher: getPCState(this.publisher),
-      subscriber: getPCState(this.subscriber),
-    });
   };
 
-  private async ensureTransportConnected(pcTransport: PCTransport) {
-    if (pcTransport.getConnectionState() === 'connected') {
-      return true;
+  private async ensureTransportConnected(
+    pcTransport: PCTransport,
+    abortController?: AbortController,
+    timeout: number = this.peerConnectionTimeout,
+  ) {
+    const connectionState = pcTransport.getConnectionState();
+    if (connectionState === 'connected') {
+      return;
     }
+    // if (this.pcState !== PCState.New) {
+    //   throw new UnexpectedConnectionState(
+    //     'Expected peer connection to be new on initial connection',
+    //   );
+    // }
+    return new Promise<void>(async (resolve, reject) => {
+      const abortHandler = () => {
+        log.warn('abort transport connection');
+        CriticalTimers.clearTimeout(connectTimeout);
+
+        reject(
+          new ConnectionError(
+            'room connection has been cancelled',
+            ConnectionErrorReason.Cancelled,
+          ),
+        );
+      };
+      if (abortController?.signal.aborted) {
+        abortHandler();
+      }
+      abortController?.signal.addEventListener('abort', abortHandler);
+
+      const connectTimeout = CriticalTimers.setTimeout(() => {
+        abortController?.signal.removeEventListener('abort', abortHandler);
+        reject(new ConnectionError('could not establish pc connection'));
+      }, timeout);
+
+      while (this.state !== PCTransportState.CONNECTED) {
+        await sleep(50); // FIXME we shouldn't rely on `sleep` in the connection paths, as it invokes `setTimeout` which can be drastically throttled by browser implementations
+        if (abortController?.signal.aborted) {
+          reject(
+            new ConnectionError(
+              'room connection has been cancelled',
+              ConnectionErrorReason.Cancelled,
+            ),
+          );
+          return;
+        }
+      }
+      CriticalTimers.clearTimeout(connectTimeout);
+      abortController?.signal.removeEventListener('abort', abortHandler);
+      resolve();
+    });
   }
 }
 

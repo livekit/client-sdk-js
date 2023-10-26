@@ -121,10 +121,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     [key: string]: { resolve: (info: TrackInfo) => void; reject: () => void };
   } = {};
 
-  // true if publisher connection has already been established.
-  // this is helpful to know if we need to restart ICE on the publisher connection
-  private hasPublished: boolean = false;
-
   // keep join info around for reconnect, this could be a region url
   private url?: string;
 
@@ -251,16 +247,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   async cleanupPeerConnections() {
     if (this.publisher && this.publisher.getSignallingState() !== 'closed') {
-      this.publisher.getSenders().forEach((sender) => {
+      const publisher = this.publisher;
+      for (const sender of publisher.getSenders()) {
         try {
           // TODO: react-native-webrtc doesn't have removeTrack yet.
-          if (this.publisher?.canRemoveTrack()) {
-            this.publisher?.removeTrack(sender);
+          if (publisher.canRemoveTrack()) {
+            console.log('removing track');
+            await publisher.removeTrack(sender);
           }
         } catch (e) {
           log.warn('could not removeTrack', { error: e });
         }
-      });
+      }
     }
     if (this.publisher) {
       this.publisher.close();
@@ -270,7 +268,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.subscriber.close();
       this.subscriber = undefined;
     }
-    this.hasPublished = false;
+
     this.primaryTransport = undefined;
 
     const dcCleanup = (dc: RTCDataChannel | undefined) => {
@@ -1011,7 +1009,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.subscriber.restartingIce = true;
 
     // only restart publisher if it's needed
-    if (this.hasPublished) {
+    if (this.pcManager?.needsPublisher) {
       await this.publisher.createAndSendOffer({ iceRestart: true });
     }
 
@@ -1029,72 +1027,58 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async waitForPCInitialConnection(timeout?: number, abortController?: AbortController) {
-    if (this.pcState === PCState.Connected) {
-      return;
-    }
-    if (this.pcState !== PCState.New) {
-      throw new UnexpectedConnectionState(
-        'Expected peer connection to be new on initial connection',
-      );
-    }
-    return new Promise<void>((resolve, reject) => {
-      const abortHandler = () => {
-        log.warn('closing engine');
-        CriticalTimers.clearTimeout(connectTimeout);
+    await this.pcManager?.ensurePCTransportConnection(abortController, timeout);
+    // if (this.pcState === PCState.Connected) {
+    //   return;
+    // }
+    // if (this.pcState !== PCState.New) {
+    //   throw new UnexpectedConnectionState(
+    //     'Expected peer connection to be new on initial connection',
+    //   );
+    // }
+    // return new Promise<void>((resolve, reject) => {
+    //   const abortHandler = () => {
+    //     log.warn('closing engine');
+    //     CriticalTimers.clearTimeout(connectTimeout);
 
-        reject(
-          new ConnectionError(
-            'room connection has been cancelled',
-            ConnectionErrorReason.Cancelled,
-          ),
-        );
-      };
-      if (abortController?.signal.aborted) {
-        abortHandler();
-      }
-      abortController?.signal.addEventListener('abort', abortHandler);
-      const onConnected = () => {
-        CriticalTimers.clearTimeout(connectTimeout);
-        abortController?.signal.removeEventListener('abort', abortHandler);
-        resolve();
-      };
-      const connectTimeout = CriticalTimers.setTimeout(() => {
-        this.off(EngineEvent.Connected, onConnected);
-        reject(new ConnectionError('could not establish pc connection'));
-      }, timeout ?? this.peerConnectionTimeout);
-      this.once(EngineEvent.Connected, onConnected);
-    });
+    //     reject(
+    //       new ConnectionError(
+    //         'room connection has been cancelled',
+    //         ConnectionErrorReason.Cancelled,
+    //       ),
+    //     );
+    //   };
+    //   if (abortController?.signal.aborted) {
+    //     abortHandler();
+    //   }
+    //   abortController?.signal.addEventListener('abort', abortHandler);
+    //   const onConnected = () => {
+    //     CriticalTimers.clearTimeout(connectTimeout);
+    //     abortController?.signal.removeEventListener('abort', abortHandler);
+    //     resolve();
+    //   };
+    //   const connectTimeout = CriticalTimers.setTimeout(() => {
+    //     this.off(EngineEvent.Connected, onConnected);
+    //     reject(new ConnectionError('could not establish pc connection'));
+    //   }, timeout ?? this.peerConnectionTimeout);
+    //   this.once(EngineEvent.Connected, onConnected);
+    // });
   }
 
   private async waitForPCReconnected() {
-    const startTime = Date.now();
-    let now = startTime;
+    // const startTime = Date.now();
+    // let now = startTime;
     this.pcState = PCState.Reconnecting;
 
     log.debug('waiting for peer connection to reconnect');
-    while (now - startTime < this.peerConnectionTimeout) {
-      if (this.primaryTransport === undefined) {
-        // we can abort early, connection is hosed
-        break;
-      } else if (
-        // on Safari, we don't get a connectionstatechanged event during ICE restart
-        // this means we'd have to check its status manually and update address
-        // manually
-        now - startTime > minReconnectWait &&
-        this.primaryTransport?.getConnectionState() === 'connected' &&
-        (!this.hasPublished || this.publisher?.getConnectionState() === 'connected')
-      ) {
-        this.pcState = PCState.Connected;
-      }
-      if (this.pcState === PCState.Connected) {
-        return;
-      }
-      await sleep(100);
-      now = Date.now();
+    try {
+      await sleep(minReconnectWait); // FIXME setTimeout again not ideal for a connection critical path
+      await this.pcManager?.ensurePCTransportConnection(undefined, this.peerConnectionTimeout);
+      this.pcState = PCState.Connected;
+    } catch (e: any) {
+      // TODO do we need a `failed` state here for the PC?
+      throw new ConnectionError(`could not establish PC connection, ${e.message}`);
     }
-
-    // have not reconnected, throw
-    throw new ConnectionError('could not establish PC connection');
   }
 
   waitForRestarted = () => {
@@ -1207,7 +1191,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     // also verify publisher connection if it's needed or different
-    if (this.hasPublished && this.subscriberPrimary) {
+    if (this.pcManager?.needsPublisher && this.subscriberPrimary) {
       if (!this.publisher) {
         return false;
       }
@@ -1235,7 +1219,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
 
-      this.hasPublished = true;
+      this.pcManager?.requirePublisher();
 
       const handleClosed = () => {
         log.debug('engine disconnected while negotiation was ongoing');

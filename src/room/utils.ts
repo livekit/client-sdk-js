@@ -2,6 +2,7 @@ import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models_pb';
 import type { DetectableBrowser } from '../utils/browserParser';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
+import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
 import { VideoCodec, videoCodecs } from './track/options';
@@ -21,7 +22,7 @@ export function unpackStreamId(packed: string): string[] {
 }
 
 export async function sleep(duration: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, duration));
+  return new Promise((resolve) => CriticalTimers.setTimeout(resolve, duration));
 }
 
 /** @internal */
