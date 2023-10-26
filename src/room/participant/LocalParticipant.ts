@@ -701,12 +701,10 @@ export default class LocalParticipant extends Participant {
             new SimulcastCodec({
               codec: opts.videoCodec,
               cid: track.mediaStreamTrack.id,
-              enableSimulcastLayers: true,
             }),
             new SimulcastCodec({
               codec: opts.backupCodec.codec,
               cid: '',
-              enableSimulcastLayers: true,
             }),
           ];
         } else if (opts.videoCodec) {
@@ -716,7 +714,6 @@ export default class LocalParticipant extends Participant {
             new SimulcastCodec({
               codec: opts.videoCodec,
               cid: track.mediaStreamTrack.id,
-              enableSimulcastLayers: opts.simulcast ?? false,
             }),
           ];
         }
@@ -889,7 +886,6 @@ export default class LocalParticipant extends Participant {
         {
           codec: opts.videoCodec,
           cid: simulcastTrack.mediaStreamTrack.id,
-          enableSimulcastLayers: opts.simulcast,
         },
       ],
     });
