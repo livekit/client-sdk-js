@@ -252,7 +252,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         try {
           // TODO: react-native-webrtc doesn't have removeTrack yet.
           if (publisher.canRemoveTrack()) {
-            console.log('removing track');
             await publisher.removeTrack(sender);
           }
         } catch (e) {
@@ -268,7 +267,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.subscriber.close();
       this.subscriber = undefined;
     }
-
     this.primaryTransport = undefined;
 
     const dcCleanup = (dc: RTCDataChannel | undefined) => {
