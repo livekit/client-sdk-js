@@ -1,11 +1,13 @@
 import type { InternalRoomConnectOptions, InternalRoomOptions } from '../options';
 import DefaultReconnectPolicy from './DefaultReconnectPolicy';
-import { AudioPresets, ScreenSharePresets, VideoPresets } from './track/options';
 import type {
   AudioCaptureOptions,
   TrackPublishDefaults,
   VideoCaptureOptions,
 } from './track/options';
+import { AudioPresets, ScreenSharePresets, VideoPresets } from './track/options';
+
+export const defaultVideoCodec = 'vp8';
 
 export const publishDefaults: TrackPublishDefaults = {
   /**
@@ -19,7 +21,7 @@ export const publishDefaults: TrackPublishDefaults = {
   simulcast: true,
   screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
   stopMicTrackOnMute: false,
-  videoCodec: 'vp8',
+  videoCodec: defaultVideoCodec,
   backupCodec: false,
 } as const;
 
