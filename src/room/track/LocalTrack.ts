@@ -402,10 +402,7 @@ export default abstract class LocalTrack extends Track {
    * @param showProcessedStreamLocally
    * @returns
    */
-  async setProcessor(
-    processor: TrackProcessor<this['kind']>,
-    showProcessedStreamLocally = true,
-  ) {
+  async setProcessor(processor: TrackProcessor<this['kind']>, showProcessedStreamLocally = true) {
     const unlock = await this.processorLock.lock();
     try {
       log.debug('setting up processor');
