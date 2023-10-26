@@ -611,8 +611,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     if (abortController.signal.aborted) {
+      await this.engine.close();
       this.recreateEngine();
-      this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       throw new ConnectionError(`Connection attempt aborted`);
     }
 
@@ -622,8 +622,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         abortController,
       );
     } catch (e) {
+      await this.engine.close();
       this.recreateEngine();
-      this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       throw e;
     }
 
