@@ -796,7 +796,7 @@ export default class LocalParticipant extends Participant {
            fix the issue.
          */
         let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
-        for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
+        for (const transceiver of this.engine.publisher.getTransceivers()) {
           if (transceiver.sender === track.sender) {
             trackTransceiver = transceiver;
             break;
@@ -943,11 +943,11 @@ export default class LocalParticipant extends Participant {
     track.sender = undefined;
     if (
       this.engine.publisher &&
-      this.engine.publisher.pc.connectionState !== 'closed' &&
+      this.engine.publisher.getConnectionState() !== 'closed' &&
       trackSender
     ) {
       try {
-        for (const transceiver of this.engine.publisher.pc.getTransceivers()) {
+        for (const transceiver of this.engine.publisher.getTransceivers()) {
           // if sender is not currently sending (after replaceTrack(null))
           // removeTrack would have no effect.
           // to ensure we end up successfully removing the track, manually set

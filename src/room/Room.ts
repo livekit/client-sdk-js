@@ -1546,14 +1546,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private sendSyncState() {
-    if (
-      this.engine.subscriber === undefined ||
-      this.engine.subscriber.pc.localDescription === null
-    ) {
+    const previousAnswer = this.engine.subscriber?.getLocalDescription();
+    const previousOffer = this.engine.subscriber?.getRemoteDescription();
+
+    if (!previousAnswer) {
       return;
     }
-    const previousAnswer = this.engine.subscriber.pc.localDescription;
-    const previousOffer = this.engine.subscriber.pc.remoteDescription;
 
     /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
           in this case, we send unsub tracks, so server add all tracks to this
