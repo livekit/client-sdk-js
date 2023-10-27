@@ -3,7 +3,7 @@ import type { MediaDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
-import { NegotiationError, UnexpectedConnectionState } from './errors';
+import { NegotiationError } from './errors';
 import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
@@ -33,8 +33,10 @@ export default class PCTransport extends EventEmitter {
   private _pc: RTCPeerConnection | null;
 
   private get pc() {
-    if (this._pc) return this._pc;
-    throw new UnexpectedConnectionState('Expected peer connection to be available');
+    if (!this._pc) {
+      this._pc = this.setupPC();
+    }
+    return this._pc;
   }
 
   private config?: RTCConfiguration;
@@ -430,7 +432,7 @@ export default class PCTransport extends EventEmitter {
     this._pc.ontrack = null;
     this._pc.onconnectionstatechange = null;
     this._pc.oniceconnectionstatechange = null;
-    this._pc = this.setupPC();
+    this._pc = null;
   };
 
   private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {

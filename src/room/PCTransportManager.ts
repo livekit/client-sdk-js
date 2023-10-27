@@ -27,6 +27,10 @@ export class PCTransportManager {
     return this.isSubscriberConnectionRequired;
   }
 
+  public get currentState() {
+    return this.state;
+  }
+
   private isPublisherConnectionRequired: boolean;
 
   private isSubscriberConnectionRequired: boolean;
@@ -39,19 +43,19 @@ export class PCTransportManager {
 
   public onStateChange?: (state: PCTransportState) => void;
 
-  constructor(rtcConfig: RTCConfiguration) {
-    this.isPublisherConnectionRequired = false;
-    this.isSubscriberConnectionRequired = true;
+  constructor(rtcConfig: RTCConfiguration, subscriberPrimary: boolean) {
+    this.isPublisherConnectionRequired = !subscriberPrimary;
+    this.isSubscriberConnectionRequired = subscriberPrimary;
     const googConstraints = { optional: [{ googDscp: true }] };
     this.publisher = new PCTransport(rtcConfig, googConstraints);
     this.subscriber = new PCTransport(rtcConfig);
 
-    this.publisher.onConnectionStateChange = this.handleStateChanged;
-    this.subscriber.onConnectionStateChange = this.handleStateChanged;
-    this.publisher.onIceConnectionStateChange = this.handleStateChanged;
-    this.subscriber.onIceConnectionStateChange = this.handleStateChanged;
-    this.publisher.onSignalingStatechange = this.handleStateChanged;
-    this.subscriber.onSignalingStatechange = this.handleStateChanged;
+    this.publisher.onConnectionStateChange = this.updateState;
+    this.subscriber.onConnectionStateChange = this.updateState;
+    this.publisher.onIceConnectionStateChange = this.updateState;
+    this.subscriber.onIceConnectionStateChange = this.updateState;
+    this.publisher.onSignalingStatechange = this.updateState;
+    this.subscriber.onSignalingStatechange = this.updateState;
 
     this.state = PCTransportState.IDLE;
 
@@ -60,16 +64,34 @@ export class PCTransportManager {
 
   requirePublisher(require = true) {
     this.isPublisherConnectionRequired = require;
-    this.handleStateChanged();
+    this.updateState();
   }
 
   requireSubscriber(require = true) {
     this.isSubscriberConnectionRequired = require;
-    this.handleStateChanged();
+    this.updateState();
   }
 
   createAndSendOffer(options?: RTCOfferOptions) {
     return this.publisher.createAndSendOffer(options);
+  }
+
+  close() {
+    this.publisher.close();
+    this.subscriber.close();
+  }
+
+  async triggerIceRestart() {
+    this.subscriber.restartingIce = true;
+    // only restart publisher if it's needed
+    if (this.needsPublisher) {
+      await this.createAndSendOffer({ iceRestart: true });
+    }
+  }
+
+  updateConfiguration(config: RTCConfiguration) {
+    this.publisher.setConfiguration(config);
+    this.subscriber.setConfiguration(config);
   }
 
   async ensurePCTransportConnection(abortController?: AbortController, timeout?: number) {
@@ -96,7 +118,7 @@ export class PCTransportManager {
     return transports;
   }
 
-  private handleStateChanged = () => {
+  private updateState = () => {
     const previousState = this.state;
 
     const connectionStates = this.requiredTransports.map((tr) => tr.getConnectionState());

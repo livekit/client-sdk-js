@@ -382,7 +382,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     // this.publisher = new PCTransport(rtcConfig, googConstraints);
     // this.subscriber = new PCTransport(rtcConfig);
-    this.pcManager = new PCTransportManager(rtcConfig);
+    this.pcManager = new PCTransportManager(rtcConfig, joinResponse.subscriberPrimary);
     this.publisher = this.pcManager.publisher;
     this.subscriber = this.pcManager.subscriber;
 
@@ -972,7 +972,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
     }
     // trigger publisher reconnect
-    if (!this.publisher || !this.subscriber) {
+    if (!this.pcManager) {
       throw new UnexpectedConnectionState('publisher and subscriber connections unset');
     }
 
@@ -984,8 +984,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       const res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
       if (res) {
         const rtcConfig = this.makeRTCConfiguration(res);
-        this.publisher.setConfiguration(rtcConfig);
-        this.subscriber.setConfiguration(rtcConfig);
+        this.pcManager.updateConfiguration(rtcConfig);
       }
     } catch (e) {
       let message = '';
@@ -1004,12 +1003,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new Error('simulated failure');
     }
 
-    this.subscriber.restartingIce = true;
-
-    // only restart publisher if it's needed
-    if (this.pcManager?.needsPublisher) {
-      await this.publisher.createAndSendOffer({ iceRestart: true });
-    }
+    await this.pcManager.triggerIceRestart();
 
     await this.waitForPCReconnected();
     this.client.setReconnected();
@@ -1177,28 +1171,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /* @internal */
   verifyTransport(): boolean {
+    if (!this.pcManager) {
+      return false;
+    }
     // primary connection
-    if (!this.primaryTransport) {
+    if (this.pcManager.currentState !== PCTransportState.CONNECTED) {
       return false;
-    }
-    if (
-      this.primaryTransport.getConnectionState() === 'closed' ||
-      this.primaryTransport.getConnectionState() === 'failed'
-    ) {
-      return false;
-    }
-
-    // also verify publisher connection if it's needed or different
-    if (this.pcManager?.needsPublisher && this.subscriberPrimary) {
-      if (!this.publisher) {
-        return false;
-      }
-      if (
-        this.publisher.getConnectionState() === 'closed' ||
-        this.publisher.getConnectionState() === 'failed'
-      ) {
-        return false;
-      }
     }
 
     // ensure signal is connected
