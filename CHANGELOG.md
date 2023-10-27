@@ -1,5 +1,29 @@
 # Change Log
 
+## 1.14.2
+
+### Patch Changes
+
+- Use a deepClone util function for CreateLocalTrackOptions - [#906](https://github.com/livekit/client-sdk-js/pull/906) ([@vas11yev1work](https://github.com/vas11yev1work))
+
+- Guard against overriding newly set key when auto-ratcheting - [#895](https://github.com/livekit/client-sdk-js/pull/895) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix Safari reporting wrong initial track resolution - [#898](https://github.com/livekit/client-sdk-js/pull/898) ([@lukasIO](https://github.com/lukasIO))
+
+- Make peerconnection private on PCTransport - [#903](https://github.com/livekit/client-sdk-js/pull/903) ([@lukasIO](https://github.com/lukasIO))
+
+- Improve handling of incompatible published codecs - [#911](https://github.com/livekit/client-sdk-js/pull/911) ([@davidzhao](https://github.com/davidzhao))
+
+- Fix a race in setKeyFromMaterial that would cause keys to be set at the wrong index if several keys were set in quick succession. - [#908](https://github.com/livekit/client-sdk-js/pull/908) ([@dbkr](https://github.com/dbkr))
+
+- Update protocol - [#902](https://github.com/livekit/client-sdk-js/pull/902) ([@lukasIO](https://github.com/lukasIO))
+
+- Add key index to e2e worker log lines - [#904](https://github.com/livekit/client-sdk-js/pull/904) ([@dbkr](https://github.com/dbkr))
+
+- Fix Typescript compilation error in angular setups - [#901](https://github.com/livekit/client-sdk-js/pull/901) ([@pabloFuente](https://github.com/pabloFuente))
+
+- Don't disconnect room before retrying new regions - [#910](https://github.com/livekit/client-sdk-js/pull/910) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.14.1
 
 ### Patch Changes
