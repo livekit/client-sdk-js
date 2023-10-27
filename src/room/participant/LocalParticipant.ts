@@ -749,7 +749,7 @@ export default class LocalParticipant extends Participant {
       }
     });
     if (primaryCodecMime && track.kind === Track.Kind.Video) {
-      const updatedCodec = primaryCodecMime.replace(/video\//y, '');
+      const updatedCodec = primaryCodecMime.replace(/video\//y, '').toLowerCase();
       if (updatedCodec !== videoCodec) {
         log.debug('falling back to server selected codec', { codec: updatedCodec });
         /* @ts-ignore */
