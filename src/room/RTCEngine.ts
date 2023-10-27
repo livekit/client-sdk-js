@@ -18,13 +18,12 @@ import {
   TrackInfo,
   UserPacket,
 } from '../proto/livekit_models_pb';
-import {
+import type {
   AddTrackRequest,
   ConnectionQualityUpdate,
   JoinResponse,
   LeaveRequest,
   ReconnectResponse,
-  SignalTarget,
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
@@ -74,7 +73,7 @@ enum PCState {
 
 /** @internal */
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
-  publisher?: PCTransport;
+  // publisher?: PCTransport;
 
   // subscriber?: PCTransport;
 
@@ -200,7 +199,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.latestJoinResponse = joinResponse;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
-      if (!this.publisher) {
+      if (!this.pcManager) {
         await this.configure(joinResponse);
       }
 
@@ -316,7 +315,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       delete this.pendingTrackResolvers[sender.track.id];
     }
     try {
-      this.publisher?.removeTrack(sender);
+      this.pcManager!.removeTrack(sender);
       return true;
     } catch (e: unknown) {
       log.warn('failed to remove track', { error: e, method: 'removeTrack' });
@@ -373,7 +372,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.client.sendIceCandidate(candidate, target);
     };
 
-    this.publisher.onOffer = (offer) => {
+    this.pcManager.onLocalOffer = (offer) => {
       this.client.sendOffer(offer);
     };
 
@@ -512,7 +511,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private createDataChannels() {
-    if (!this.publisher) {
+    if (!this.pcManager) {
       return;
     }
 
@@ -527,12 +526,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     // create data channels
-    this.lossyDC = this.publisher.createDataChannel(lossyDataChannel, {
+    this.lossyDC = this.pcManager.createDataChannel(lossyDataChannel, {
       // will drop older packets that arrive
       ordered: true,
       maxRetransmits: 0,
     });
-    this.reliableDC = this.publisher.createDataChannel(reliableDataChannel, {
+    this.reliableDC = this.pcManager.createDataChannel(reliableDataChannel, {
       ordered: true,
     });
 
@@ -698,7 +697,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
-    if (!this.publisher) {
+    if (!this.pcManager) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
 
@@ -713,7 +712,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.publisher.addTransceiver(
+    const transceiver = await this.pcManager.addTransceiver(
       track.mediaStreamTrack,
       transceiverInit,
     );
@@ -731,7 +730,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     opts: TrackPublishOptions,
     encodings?: RTCRtpEncodingParameters[],
   ) {
-    if (!this.publisher) {
+    if (!this.pcManager) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
@@ -739,7 +738,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.publisher.addTransceiver(
+    const transceiver = await this.pcManager.addTransceiver(
       simulcastTrack.mediaStreamTrack,
       transceiverInit,
     );
@@ -752,10 +751,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private async createRTCRtpSender(track: MediaStreamTrack) {
-    if (!this.publisher) {
+    if (!this.pcManager) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
-    return this.publisher.addTrack(track);
+    return this.pcManager.addTrack(track);
   }
 
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
@@ -1091,7 +1090,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     kind: DataPacket_Kind,
     subscriber: boolean = this.subscriberPrimary,
   ) {
-    const transport = subscriber ? this.pcManager?.subscriber : this.publisher;
+    const transport = subscriber ? this.pcManager?.subscriber : this.pcManager?.publisher;
     const transportName = subscriber ? 'Subscriber' : 'Publisher';
     if (!transport) {
       throw new ConnectionError(`${transportName} connection not set`);

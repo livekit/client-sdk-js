@@ -40,6 +40,8 @@ export class PCTransportManager {
 
   public onTrack?: (ev: RTCTrackEvent) => void;
 
+  public onLocalOffer?: (offer: RTCSessionDescriptionInit) => void;
+
   private isPublisherConnectionRequired: boolean;
 
   private isSubscriberConnectionRequired: boolean;
@@ -74,6 +76,9 @@ export class PCTransportManager {
     this.subscriber.onTrack = (ev) => {
       this.onTrack?.(ev);
     };
+    this.publisher.onOffer = (offer) => {
+      this.onLocalOffer?.(offer);
+    };
 
     this.state = PCTransportState.DISCONNECTED;
 
@@ -92,6 +97,10 @@ export class PCTransportManager {
 
   createAndSendOffer(options?: RTCOfferOptions) {
     return this.publisher.createAndSendOffer(options);
+  }
+
+  removeTrack(sender: RTCRtpSender) {
+    return this.publisher.removeTrack(sender);
   }
 
   async close() {
@@ -159,6 +168,18 @@ export class PCTransportManager {
     } finally {
       unlock();
     }
+  }
+
+  addTransceiver(track: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
+    return this.publisher.addTransceiver(track, transceiverInit);
+  }
+
+  addTrack(track: MediaStreamTrack) {
+    return this.publisher.addTrack(track);
+  }
+
+  createDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
+    return this.publisher.createDataChannel(label, dataChannelDict);
   }
 
   private get requiredTransports() {
