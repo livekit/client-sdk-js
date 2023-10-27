@@ -3,7 +3,7 @@ import type { MediaDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
-import { NegotiationError, UnexpectedConnectionState } from './errors';
+import { NegotiationError } from './errors';
 import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */

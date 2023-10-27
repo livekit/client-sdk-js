@@ -1,4 +1,5 @@
 import log from '../logger';
+import { SignalTarget } from '../proto/livekit_rtc_pb';
 import PCTransport from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
@@ -33,6 +34,12 @@ export class PCTransportManager {
 
   public onStateChange?: (state: PCTransportState) => void;
 
+  public onIceCandidate?: (ev: RTCIceCandidate, target: SignalTarget) => void;
+
+  public onDataChannel?: (ev: RTCDataChannelEvent) => void;
+
+  public onTrack?: (ev: RTCTrackEvent) => void;
+
   private isPublisherConnectionRequired: boolean;
 
   private isSubscriberConnectionRequired: boolean;
@@ -54,6 +61,19 @@ export class PCTransportManager {
     this.subscriber.onIceConnectionStateChange = this.updateState;
     this.publisher.onSignalingStatechange = this.updateState;
     this.subscriber.onSignalingStatechange = this.updateState;
+    this.publisher.onIceCandidate = (candidate) => {
+      this.onIceCandidate?.(candidate, SignalTarget.PUBLISHER);
+    };
+    this.subscriber.onIceCandidate = (candidate) => {
+      this.onIceCandidate?.(candidate, SignalTarget.SUBSCRIBER);
+    };
+    // in subscriber primary mode, server side opens sub data channels.
+    this.subscriber.onDataChannel = (ev) => {
+      this.onDataChannel?.(ev);
+    };
+    this.subscriber.onTrack = (ev) => {
+      this.onTrack?.(ev);
+    };
 
     this.state = PCTransportState.DISCONNECTED;
 
@@ -100,9 +120,32 @@ export class PCTransportManager {
     }
   }
 
-  updateConfiguration(config: RTCConfiguration) {
+  async addIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
+    if (target === SignalTarget.PUBLISHER) {
+      await this.publisher.addIceCandidate(candidate);
+    } else {
+      await this.subscriber.addIceCandidate(candidate);
+    }
+  }
+
+  async createAnswerFromOffer(sd: RTCSessionDescriptionInit) {
+    log.debug('received server offer', {
+      RTCSdpType: sd.type,
+      signalingState: this.subscriber.getSignallingState().toString(),
+    });
+    await this.subscriber.setRemoteDescription(sd);
+
+    // answer the offer
+    const answer = await this.subscriber.createAndSetAnswer();
+    return answer;
+  }
+
+  updateConfiguration(config: RTCConfiguration, iceRestart?: boolean) {
     this.publisher.setConfiguration(config);
     this.subscriber.setConfiguration(config);
+    if (iceRestart) {
+      this.triggerIceRestart();
+    }
   }
 
   async ensurePCTransportConnection(abortController?: AbortController, timeout?: number) {

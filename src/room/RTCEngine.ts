@@ -76,7 +76,7 @@ enum PCState {
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
   publisher?: PCTransport;
 
-  subscriber?: PCTransport;
+  // subscriber?: PCTransport;
 
   client: SignalClient;
 
@@ -346,7 +346,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private async configure(joinResponse: JoinResponse) {
     // already configured
-    if (this.publisher || this.subscriber) {
+    if (this.pcManager && this.pcManager.currentState !== PCTransportState.DISCONNECTED) {
       return;
     }
 
@@ -363,20 +363,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     // this.publisher = new PCTransport(rtcConfig, googConstraints);
     // this.subscriber = new PCTransport(rtcConfig);
-    await this.pcManager?.close();
     this.pcManager = new PCTransportManager(rtcConfig, joinResponse.subscriberPrimary);
     this.publisher = this.pcManager.publisher;
-    this.subscriber = this.pcManager.subscriber;
+    // this.subscriber = this.pcManager.subscriber;
 
-    this.emit(EngineEvent.TransportsCreated, this.publisher, this.subscriber);
+    this.emit(EngineEvent.TransportsCreated, this.pcManager.publisher, this.pcManager.subscriber);
 
-    this.publisher.onIceCandidate = (candidate) => {
-      log.trace('adding ICE candidate for peer', candidate);
-      this.client.sendIceCandidate(candidate, SignalTarget.PUBLISHER);
-    };
-
-    this.subscriber.onIceCandidate = (candidate) => {
-      this.client.sendIceCandidate(candidate, SignalTarget.SUBSCRIBER);
+    this.pcManager.onIceCandidate = (candidate, target) => {
+      this.client.sendIceCandidate(candidate, target);
     };
 
     this.publisher.onOffer = (offer) => {
@@ -386,10 +380,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     let primaryTransport = this.publisher;
     let subscriberPrimary = joinResponse.subscriberPrimary;
     if (subscriberPrimary) {
-      primaryTransport = this.subscriber;
-      // in subscriber primary mode, server side opens sub data channels.
-      this.subscriber.onDataChannel = this.handleDataChannel;
+      primaryTransport = this.pcManager.subscriber;
     }
+    this.pcManager.onDataChannel = this.handleDataChannel;
     this.primaryTransport = primaryTransport;
     this.pcManager.onStateChange = async (connectionState) => {
       log.debug(`primary PC state changed ${connectionState}`);
@@ -413,8 +406,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
       }
     };
-
-    this.subscriber.onTrack = (ev: RTCTrackEvent) => {
+    this.pcManager.onTrack = (ev: RTCTrackEvent) => {
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
 
@@ -436,30 +428,19 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     // add candidate on trickle
     this.client.onTrickle = (candidate, target) => {
-      if (!this.publisher || !this.subscriber) {
+      if (!this.pcManager) {
         return;
       }
       log.trace('got ICE candidate from peer', { candidate, target });
-      if (target === SignalTarget.PUBLISHER) {
-        this.publisher.addIceCandidate(candidate);
-      } else {
-        this.subscriber.addIceCandidate(candidate);
-      }
+      this.pcManager.addIceCandidate(candidate, target);
     };
 
     // when server creates an offer for the client
     this.client.onOffer = async (sd) => {
-      if (!this.subscriber) {
+      if (!this.pcManager) {
         return;
       }
-      log.debug('received server offer', {
-        RTCSdpType: sd.type,
-        signalingState: this.subscriber.getSignallingState().toString(),
-      });
-      await this.subscriber.setRemoteDescription(sd);
-
-      // answer the offer
-      const answer = await this.subscriber.createAndSetAnswer();
+      const answer = await this.pcManager.createAnswerFromOffer(sd);
       this.client.sendAnswer(answer);
     };
 
@@ -1110,7 +1091,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     kind: DataPacket_Kind,
     subscriber: boolean = this.subscriberPrimary,
   ) {
-    const transport = subscriber ? this.subscriber : this.publisher;
+    const transport = subscriber ? this.pcManager?.subscriber : this.publisher;
     const transportName = subscriber ? 'Subscriber' : 'Publisher';
     if (!transport) {
       throw new ConnectionError(`${transportName} connection not set`);
