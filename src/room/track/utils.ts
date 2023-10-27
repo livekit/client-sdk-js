@@ -1,10 +1,12 @@
 import { isSafari, sleep } from '../utils';
 import { Track } from './Track';
-import type {
-  AudioCaptureOptions,
-  CreateLocalTracksOptions,
-  ScreenShareCaptureOptions,
-  VideoCaptureOptions,
+import {
+  type AudioCaptureOptions,
+  type CreateLocalTracksOptions,
+  type ScreenShareCaptureOptions,
+  type VideoCaptureOptions,
+  VideoCodec,
+  videoCodecs,
 } from './options';
 import type { AudioTrack } from './types';
 
@@ -180,4 +182,12 @@ export function screenCaptureToDisplayMediaStreamOptions(
     surfaceSwitching: options.surfaceSwitching,
     systemAudio: options.systemAudio,
   };
+}
+
+export function mimeTypeToVideoCodecString(mimeType: string) {
+  const codec = mimeType.split('/')[1].toLowerCase() as VideoCodec;
+  if (!videoCodecs.includes(codec)) {
+    throw Error(`Video codec not supported: ${codec}`);
+  }
+  return codec;
 }

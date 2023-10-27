@@ -38,6 +38,7 @@ import { VideoPresets, isBackupCodec } from '../track/options';
 import {
   constraintsForOptions,
   mergeDefaultOptions,
+  mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
 import type { DataPublishOptions } from '../types';
@@ -749,7 +750,7 @@ export default class LocalParticipant extends Participant {
       }
     });
     if (primaryCodecMime && track.kind === Track.Kind.Video) {
-      const updatedCodec = primaryCodecMime.replace(/video\//y, '').toLowerCase();
+      const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
       if (updatedCodec !== videoCodec) {
         log.debug('falling back to server selected codec', { codec: updatedCodec });
         /* @ts-ignore */
