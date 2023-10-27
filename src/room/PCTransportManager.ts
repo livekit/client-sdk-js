@@ -6,18 +6,18 @@ import CriticalTimers from './timers';
 import { Mutex, sleep } from './utils';
 
 export enum PCTransportState {
-  IDLE,
+  DISCONNECTED,
   CONNECTING,
   CONNECTED,
-  RECONNECTING,
   FAILED,
-  CLOSED,
 }
 
 export class PCTransportManager {
   public publisher: PCTransport;
 
   public subscriber: PCTransport;
+
+  public peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
 
   public get needsPublisher() {
     return this.isPublisherConnectionRequired;
@@ -31,17 +31,15 @@ export class PCTransportManager {
     return this.state;
   }
 
+  public onStateChange?: (state: PCTransportState) => void;
+
   private isPublisherConnectionRequired: boolean;
 
   private isSubscriberConnectionRequired: boolean;
 
   private state: PCTransportState;
 
-  private peerConnectionTimeout: number = roomConnectOptionDefaults.peerConnectionTimeout;
-
   private connectionLock: Mutex;
-
-  public onStateChange?: (state: PCTransportState) => void;
 
   constructor(rtcConfig: RTCConfiguration, subscriberPrimary: boolean) {
     this.isPublisherConnectionRequired = !subscriberPrimary;
@@ -57,7 +55,7 @@ export class PCTransportManager {
     this.publisher.onSignalingStatechange = this.updateState;
     this.subscriber.onSignalingStatechange = this.updateState;
 
-    this.state = PCTransportState.IDLE;
+    this.state = PCTransportState.DISCONNECTED;
 
     this.connectionLock = new Mutex();
   }
@@ -76,9 +74,22 @@ export class PCTransportManager {
     return this.publisher.createAndSendOffer(options);
   }
 
-  close() {
-    this.publisher.close();
-    this.subscriber.close();
+  async close() {
+    if (this.publisher && this.publisher.getSignallingState() !== 'closed') {
+      const publisher = this.publisher;
+      for (const sender of publisher.getSenders()) {
+        try {
+          // TODO: react-native-webrtc doesn't have removeTrack yet.
+          if (publisher.canRemoveTrack()) {
+            publisher.removeTrack(sender);
+          }
+        } catch (e) {
+          log.warn('could not removeTrack', { error: e });
+        }
+      }
+    }
+    await Promise.all([this.publisher.close(), this.subscriber.close()]);
+    this.updateState();
   }
 
   async triggerIceRestart() {
@@ -128,17 +139,15 @@ export class PCTransportManager {
       this.state = PCTransportState.FAILED;
     } else if (connectionStates.some((st) => st === 'connecting')) {
       this.state = PCTransportState.CONNECTING;
-    } else if (connectionStates.some((st) => st === 'closed')) {
-      this.state = PCTransportState.CLOSED;
+    } else if (connectionStates.every((st) => st === 'closed')) {
+      this.state = PCTransportState.DISCONNECTED;
+    } else if (connectionStates.every((st) => st === 'new')) {
+      this.state = PCTransportState.DISCONNECTED;
     }
 
     if (previousState !== this.state) {
       this.onStateChange?.(this.state);
-      log.info('pc state', {
-        overall: this.state,
-        publisher: getPCState(this.publisher),
-        subscriber: getPCState(this.subscriber),
-      });
+      log.info(`pc state: ${PCTransportState[this.state]}`);
     }
   };
 

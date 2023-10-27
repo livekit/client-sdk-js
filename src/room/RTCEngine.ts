@@ -201,7 +201,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (!this.publisher) {
-        this.configure(joinResponse);
+        await this.configure(joinResponse);
       }
 
       // create offer
@@ -246,27 +246,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async cleanupPeerConnections() {
-    if (this.publisher && this.publisher.getSignallingState() !== 'closed') {
-      const publisher = this.publisher;
-      for (const sender of publisher.getSenders()) {
-        try {
-          // TODO: react-native-webrtc doesn't have removeTrack yet.
-          if (publisher.canRemoveTrack()) {
-            await publisher.removeTrack(sender);
-          }
-        } catch (e) {
-          log.warn('could not removeTrack', { error: e });
-        }
-      }
-    }
-    if (this.publisher) {
-      this.publisher.close();
-      this.publisher = undefined;
-    }
-    if (this.subscriber) {
-      this.subscriber.close();
-      this.subscriber = undefined;
-    }
+    await this.pcManager?.close();
+
     this.primaryTransport = undefined;
 
     const dcCleanup = (dc: RTCDataChannel | undefined) => {
@@ -363,7 +344,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.regionUrlProvider = provider;
   }
 
-  private configure(joinResponse: JoinResponse) {
+  private async configure(joinResponse: JoinResponse) {
     // already configured
     if (this.publisher || this.subscriber) {
       return;
@@ -382,6 +363,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     // this.publisher = new PCTransport(rtcConfig, googConstraints);
     // this.subscriber = new PCTransport(rtcConfig);
+    await this.pcManager?.close();
     this.pcManager = new PCTransportManager(rtcConfig, joinResponse.subscriberPrimary);
     this.publisher = this.pcManager.publisher;
     this.subscriber = this.pcManager.subscriber;

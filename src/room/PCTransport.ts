@@ -3,7 +3,7 @@ import type { MediaDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
-import { NegotiationError } from './errors';
+import { NegotiationError, UnexpectedConnectionState } from './errors';
 import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
@@ -34,7 +34,7 @@ export default class PCTransport extends EventEmitter {
 
   private get pc() {
     if (!this._pc) {
-      this._pc = this.setupPC();
+      this._pc = new RTCPeerConnection(this.config); // FIXME this seems to leak peer connections
     }
     return this._pc;
   }
@@ -75,10 +75,10 @@ export default class PCTransport extends EventEmitter {
     super();
     this.config = config;
     this.mediaConstraints = mediaConstraints;
-    this._pc = this.setupPC();
+    this._pc = this.createPC();
   }
 
-  private setupPC() {
+  private createPC() {
     const pc = isChromiumBased()
       ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
         new RTCPeerConnection(this.config, this.mediaConstraints)
