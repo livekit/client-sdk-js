@@ -715,8 +715,8 @@ export default class LocalParticipant extends Participant {
 
       encodings = computeVideoEncodings(
         track.source === Track.Source.ScreenShare,
-        dims.width,
-        dims.height,
+        req.width,
+        req.height,
         opts,
       );
       req.layers = videoLayersFromEncodings(
@@ -748,11 +748,20 @@ export default class LocalParticipant extends Participant {
         primaryCodecMime = codec.mimeType;
       }
     });
-    if (primaryCodecMime) {
-      const updatedCodec = primaryCodecMime.replace(/audio\/|video\//y, '');
+    if (primaryCodecMime && track.kind === Track.Kind.Video) {
+      const updatedCodec = primaryCodecMime.replace(/video\//y, '');
       if (updatedCodec !== videoCodec) {
+        log.debug('falling back to server selected codec', { codec: updatedCodec });
         /* @ts-ignore */
         opts.videoCodec = updatedCodec;
+
+        // recompute encodings since bitrates/etc could have changed
+        encodings = computeVideoEncodings(
+          track.source === Track.Source.ScreenShare,
+          req.width,
+          req.height,
+          opts,
+        );
       }
     }
 
