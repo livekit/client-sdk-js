@@ -18,6 +18,7 @@ import {
   TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc_pb';
 import type RTCEngine from '../RTCEngine';
+import { defaultVideoCodec } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import LocalAudioTrack from '../track/LocalAudioTrack';
@@ -33,10 +34,11 @@ import type {
   TrackPublishOptions,
   VideoCaptureOptions,
 } from '../track/options';
-import { VideoPresets, isBackupCodec, isCodecEqual } from '../track/options';
+import { VideoPresets, isBackupCodec } from '../track/options';
 import {
   constraintsForOptions,
   mergeDefaultOptions,
+  mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
 import type { DataPublishOptions } from '../types';
@@ -629,6 +631,10 @@ export default class LocalParticipant extends Participant {
     if (opts.videoCodec === 'vp9' && !supportsVP9()) {
       opts.videoCodec = undefined;
     }
+    if (opts.videoCodec === undefined) {
+      opts.videoCodec = defaultVideoCodec;
+    }
+    const videoCodec = opts.videoCodec;
 
     // handle track actions
     track.on(TrackEvent.Muted, this.onTrackMuted);
@@ -654,7 +660,6 @@ export default class LocalParticipant extends Participant {
 
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
-    let simEncodings: RTCRtpEncodingParameters[] | undefined;
     if (track.kind === Track.Kind.Video) {
       let dims: Track.Dimensions = {
         width: 0,
@@ -679,50 +684,40 @@ export default class LocalParticipant extends Participant {
       req.height = dims.height;
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
-        if (isSVCCodec(opts.videoCodec)) {
+        if (isSVCCodec(videoCodec)) {
           // vp9 svc with screenshare has problem to encode, always use L1T3 here
-          if (track.source === Track.Source.ScreenShare && opts.videoCodec === 'vp9') {
+          if (track.source === Track.Source.ScreenShare && videoCodec === 'vp9') {
             opts.scalabilityMode = 'L1T3';
           }
           // set scalabilityMode to 'L3T3_KEY' by default
           opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
         }
 
+        req.simulcastCodecs = [
+          new SimulcastCodec({
+            codec: videoCodec,
+            cid: track.mediaStreamTrack.id,
+          }),
+        ];
+
         // set up backup
-        if (opts.videoCodec && opts.backupCodec && opts.videoCodec !== opts.backupCodec.codec) {
+        if (opts.backupCodec && videoCodec !== opts.backupCodec.codec) {
           if (!this.roomOptions.dynacast) {
             this.roomOptions.dynacast = true;
           }
-          const simOpts = { ...opts };
-          simOpts.simulcast = true;
-          simEncodings = computeTrackBackupEncodings(track, opts.backupCodec.codec, simOpts);
-
-          req.simulcastCodecs = [
-            new SimulcastCodec({
-              codec: opts.videoCodec,
-              cid: track.mediaStreamTrack.id,
-            }),
+          req.simulcastCodecs.push(
             new SimulcastCodec({
               codec: opts.backupCodec.codec,
               cid: '',
             }),
-          ];
-        } else if (opts.videoCodec) {
-          // pass codec info to sfu so it can prefer codec for the client which don't support
-          // setCodecPreferences
-          req.simulcastCodecs = [
-            new SimulcastCodec({
-              codec: opts.videoCodec,
-              cid: track.mediaStreamTrack.id,
-            }),
-          ];
+          );
         }
       }
 
       encodings = computeVideoEncodings(
         track.source === Track.Source.ScreenShare,
-        dims.width,
-        dims.height,
+        req.width,
+        req.height,
         opts,
       );
       req.layers = videoLayersFromEncodings(
@@ -746,30 +741,28 @@ export default class LocalParticipant extends Participant {
     }
 
     const ti = await this.engine.addTrack(req);
-    let primaryCodecSupported = false;
-    let backupCodecSupported = false;
-    ti.codecs.forEach((c) => {
-      if (isCodecEqual(c.mimeType, opts.videoCodec)) {
-        primaryCodecSupported = true;
-      } else if (opts.backupCodec && isCodecEqual(c.mimeType, opts.backupCodec.codec)) {
-        backupCodecSupported = true;
+    // server might not support the codec the client has requested, in that case, fallback
+    // to a supported codec
+    let primaryCodecMime: string | undefined;
+    ti.codecs.forEach((codec) => {
+      if (primaryCodecMime === undefined) {
+        primaryCodecMime = codec.mimeType;
       }
     });
+    if (primaryCodecMime && track.kind === Track.Kind.Video) {
+      const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
+      if (updatedCodec !== videoCodec) {
+        log.debug('falling back to server selected codec', { codec: updatedCodec });
+        /* @ts-ignore */
+        opts.videoCodec = updatedCodec;
 
-    if (req.simulcastCodecs.length > 0) {
-      if (!primaryCodecSupported && !backupCodecSupported) {
-        throw Error('cannot publish track, codec not supported by server');
-      }
-
-      if (!primaryCodecSupported && opts.backupCodec) {
-        const backupCodec = opts.backupCodec;
-        opts = { ...opts };
-        log.debug(
-          `primary codec ${opts.videoCodec} not supported, fallback to ${backupCodec.codec}`,
+        // recompute encodings since bitrates/etc could have changed
+        encodings = computeVideoEncodings(
+          track.source === Track.Source.ScreenShare,
+          req.width,
+          req.height,
+          opts,
         );
-        opts.videoCodec = backupCodec.codec;
-        opts.videoEncoding = backupCodec.encoding;
-        encodings = simEncodings;
       }
     }
 
@@ -783,13 +776,12 @@ export default class LocalParticipant extends Participant {
     }
     log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
 
-    // store RTPSender
     track.sender = await this.engine.createSender(track, opts, encodings);
 
     if (encodings) {
       if (isFireFox() && track.kind === Track.Kind.Audio) {
         /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
-           livekit-server uses maxaveragebitrate=510000in the answer sdp to permit client to
+           livekit-server uses maxaveragebitrate=510000 in the answer sdp to permit client to
            publish high quality audio track. But firefox always uses this value as the actual
            bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
            So the client need to modify maxaverragebitrates in answer sdp to user provided value to

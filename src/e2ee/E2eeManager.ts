@@ -11,6 +11,7 @@ import LocalTrack from '../room/track/LocalTrack';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
+import { mimeTypeToVideoCodecString } from '../room/track/utils';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
@@ -28,7 +29,7 @@ import type {
   SifTrailerMessage,
   UpdateCodecMessage,
 } from './types';
-import { isE2EESupported, isScriptTransformSupported, mimeTypeToVideoCodecString } from './utils';
+import { isE2EESupported, isScriptTransformSupported } from './utils';
 
 /**
  * @experimental

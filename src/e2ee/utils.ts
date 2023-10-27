@@ -1,5 +1,3 @@
-import { videoCodecs } from '../room/track/options';
-import type { VideoCodec } from '../room/track/options';
 import { ENCRYPTION_ALGORITHM } from './constants';
 
 export function isE2EESupported() {
@@ -114,14 +112,6 @@ export async function deriveKeys(material: CryptoKey, salt: string) {
 
 export function createE2EEKey(): Uint8Array {
   return window.crypto.getRandomValues(new Uint8Array(32));
-}
-
-export function mimeTypeToVideoCodecString(mimeType: string) {
-  const codec = mimeType.split('/')[1].toLowerCase() as VideoCodec;
-  if (!videoCodecs.includes(codec)) {
-    throw Error(`Video codec not supported: ${codec}`);
-  }
-  return codec;
 }
 
 /**
