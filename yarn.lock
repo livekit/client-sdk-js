@@ -1189,29 +1189,24 @@
     "@babel/helper-validator-identifier" "^7.19.1"
     to-fast-properties "^2.0.0"
 
-"@bufbuild/protobuf@1.3.3":
-  version "1.3.3"
-  resolved "https://registry.yarnpkg.com/@bufbuild/protobuf/-/protobuf-1.3.3.tgz#814562a5db0233a1ececda97b930c2dde5897de8"
-  integrity sha512-AoHSiIpTFF97SQgmQni4c+Tyr0CDhkaRaR2qGEJTEbauqQwLRpLrd9yVv//wVHOSxr/b4FJcL54VchhY6710xA==
-
-"@bufbuild/protobuf@^1.3.0":
-  version "1.3.1"
-  resolved "https://registry.yarnpkg.com/@bufbuild/protobuf/-/protobuf-1.3.1.tgz#c4de66bacbe7ac97fe054e68314aeba6f45177f9"
-  integrity sha512-BUyJWutgP2S8K/1NphOJokuwDckXS4qI2T1pGZAlkFdZchWae3jm6fCdkcGbLlM1QLOcNFFePd+7Feo4BYGrJQ==
+"@bufbuild/protobuf@1.4.1", "@bufbuild/protobuf@^1.3.0":
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/@bufbuild/protobuf/-/protobuf-1.4.1.tgz#2a827da66aebe904edca21f7085724154aa7868d"
+  integrity sha512-4dthhwBGD9nlpY35ic8dMQC5R0dsND2b2xyeVO3qf+hBk8m7Y9dUs+SmMh6rqO2pGLUTKHefGXLDW+z19hBPdQ==
 
 "@bufbuild/protoc-gen-es@^1.3.0":
-  version "1.3.3"
-  resolved "https://registry.yarnpkg.com/@bufbuild/protoc-gen-es/-/protoc-gen-es-1.3.3.tgz#77f1d9a6f6f93aa06205192138b3d1aafe008306"
-  integrity sha512-waqpvdFyqcrrmoAW9c8VCtDmT4+NYDQg/W8DAsMC2/+rXKGQYy3YbxobOuwVm3g/MJC1Gvv6ON/arxq4gYHXYw==
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/@bufbuild/protoc-gen-es/-/protoc-gen-es-1.4.1.tgz#92ba2b0aad336bb5091dd0d387b448d8363fbb24"
+  integrity sha512-YPEFzLl/RslDJXZoqI505YutOsYGIz1zGrYTltTrdgk0EZkDSAQfq6/Yu36mPkUSypHEaRSoDlrlcpthIwA19w==
   dependencies:
-    "@bufbuild/protoplugin" "1.3.3"
+    "@bufbuild/protoplugin" "1.4.1"
 
-"@bufbuild/protoplugin@1.3.3":
-  version "1.3.3"
-  resolved "https://registry.yarnpkg.com/@bufbuild/protoplugin/-/protoplugin-1.3.3.tgz#64ca3e1db5694992144835b929b21a63d3f80865"
-  integrity sha512-sxalYoj+fWxUakknePKfqRpcGlxz45Gcjpth2M274ZvQN+XKwMLVLevArsZWFzGcPoAkiDWMFHhfeQXfjsu+uA==
+"@bufbuild/protoplugin@1.4.1":
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/@bufbuild/protoplugin/-/protoplugin-1.4.1.tgz#ed09bf07b2cb2669460919a953a3f2f6f1a16adf"
+  integrity sha512-URC4/O5MsM94W7ed8NJMw1mUaFAKr5y0B67PMjhBdhVcDi6p8be76wz9+xW6/B6dMzlO+SpnicFYc9fEhLcQIw==
   dependencies:
-    "@bufbuild/protobuf" "1.3.3"
+    "@bufbuild/protobuf" "1.4.1"
     "@typescript/vfs" "^1.4.0"
     typescript "4.5.2"
 
