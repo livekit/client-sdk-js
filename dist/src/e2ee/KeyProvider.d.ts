@@ -1,5 +1,5 @@
 import type TypedEventEmitter from 'typed-emitter';
-import { type KeyProviderCallbacks } from './events';
+import type { KeyProviderCallbacks } from './events';
 import type { KeyInfo, KeyProviderOptions } from './types';
 declare const BaseKeyProvider_base: new () => TypedEventEmitter<KeyProviderCallbacks>;
 /**
