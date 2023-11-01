@@ -138,12 +138,11 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
    * also updates the currentKeyIndex
    */
   async setKeyFromMaterial(material: CryptoKey, keyIndex = 0, emitRatchetEvent = false) {
-    workerLogger.debug('setting new key');
-    if (keyIndex >= 0) {
-      this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
-    }
+    const newIndex = keyIndex >= 0 ? keyIndex % this.cryptoKeyRing.length : -1;
+    workerLogger.debug(`setting new key with index ${newIndex}`);
     const keySet = await deriveKeys(material, this.keyProviderOptions.ratchetSalt);
-    this.setKeySet(keySet, this.currentKeyIndex, emitRatchetEvent);
+    this.setKeySet(keySet, newIndex >= 0 ? newIndex : this.currentKeyIndex, emitRatchetEvent);
+    if (newIndex >= 0) this.currentKeyIndex = newIndex;
   }
 
   setKeySet(keySet: KeySet, keyIndex: number, emitRatchetEvent = false) {

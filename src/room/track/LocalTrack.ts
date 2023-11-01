@@ -34,7 +34,7 @@ export default abstract class LocalTrack extends Track {
 
   protected processorElement?: HTMLMediaElement;
 
-  protected processor?: TrackProcessor<typeof this.kind>;
+  protected processor?: TrackProcessor<this['kind']>;
 
   protected processorLock: Mutex;
 
@@ -161,6 +161,12 @@ export default abstract class LocalTrack extends Track {
   async waitForDimensions(timeout = defaultDimensionsTimeout): Promise<Track.Dimensions> {
     if (this.kind === Track.Kind.Audio) {
       throw new Error('cannot get dimensions for audio tracks');
+    }
+
+    if (getBrowser()?.os === 'iOS') {
+      // browsers report wrong initial resolution on iOS.
+      // when slightly delaying the call to .getSettings(), the correct resolution is being reported
+      await sleep(10);
     }
 
     const started = Date.now();
@@ -373,6 +379,20 @@ export default abstract class LocalTrack extends Track {
   }
 
   /**
+   * Gets the RTCStatsReport for the LocalTrack's underlying RTCRtpSender
+   * See https://developer.mozilla.org/en-US/docs/Web/API/RTCStatsReport
+   *
+   * @returns Promise<RTCStatsReport> | undefined
+   */
+  async getRTCStatsReport(): Promise<RTCStatsReport | undefined> {
+    if (!this.sender?.getStats) {
+      return;
+    }
+    const statsReport = await this.sender.getStats();
+    return statsReport;
+  }
+
+  /**
    * Sets a processor on this track.
    * See https://github.com/livekit/track-processors-js for example usage
    *
@@ -382,10 +402,7 @@ export default abstract class LocalTrack extends Track {
    * @param showProcessedStreamLocally
    * @returns
    */
-  async setProcessor(
-    processor: TrackProcessor<typeof this.kind>,
-    showProcessedStreamLocally = true,
-  ) {
+  async setProcessor(processor: TrackProcessor<this['kind']>, showProcessedStreamLocally = true) {
     const unlock = await this.processorLock.lock();
     try {
       log.debug('setting up processor');

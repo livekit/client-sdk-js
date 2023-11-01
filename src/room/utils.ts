@@ -61,6 +61,9 @@ export function supportsAV1(): boolean {
 
 export function supportsVP9(): boolean {
   if (!('getCapabilities' in RTCRtpSender)) {
+    return false;
+  }
+  if (isFireFox()) {
     // technically speaking FireFox supports VP9, but SVC publishing is broken
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
     return false;
@@ -414,8 +417,8 @@ export function createAudioAnalyser(
     return volume;
   };
 
-  const cleanup = () => {
-    audioContext.close();
+  const cleanup = async () => {
+    await audioContext.close();
     if (opts.cloneTrack) {
       streamTrack.stop();
     }

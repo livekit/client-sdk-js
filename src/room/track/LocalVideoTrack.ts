@@ -284,7 +284,8 @@ export default class LocalVideoTrack extends LocalTrack {
 
   /**
    * @internal
-   * Sets codecs that should be publishing
+   * Sets codecs that should be publishing, returns new codecs that have not yet
+   * been published
    */
   async setPublishingCodecs(codecs: SubscribedCodec[]): Promise<VideoCodec[]> {
     log.debug('setting publishing codecs', {

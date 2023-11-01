@@ -138,7 +138,7 @@ export default class LocalAudioTrack extends LocalTrack {
     this.prevStats = stats;
   };
 
-  async setProcessor(processor: TrackProcessor<typeof this.kind>) {
+  async setProcessor(processor: TrackProcessor<this['kind']>) {
     const unlock = await this.processorLock.lock();
     try {
       if (!this.audioContext) {

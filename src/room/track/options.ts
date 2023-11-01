@@ -109,6 +109,13 @@ export interface TrackPublishOptions extends TrackPublishDefaults {
    * Source of track, camera, microphone, or screen
    */
   source?: Track.Source;
+
+  /**
+   * Set stream name for the track. Audio and video tracks with the same stream name
+   * will be placed in the same `MediaStream` and offer better synchronization.
+   * By default, camera and microphone will be placed in a stream; as would screen_share and screen_share_audio
+   */
+  stream?: string;
 }
 
 export interface CreateLocalTracksOptions {
@@ -153,7 +160,11 @@ export interface ScreenShareCaptureOptions {
    */
   video?: true | { displaySurface?: 'window' | 'browser' | 'monitor' };
 
-  /** capture resolution, defaults to full HD */
+  /**
+   * capture resolution, defaults to screen resolution
+   * NOTE: In Safari 17, specifying any resolution at all would lead to a low-resolution
+   * capture. https://bugs.webkit.org/show_bug.cgi?id=263015
+   */
   resolution?: VideoResolution;
 
   /** a CaptureController object instance containing methods that can be used to further manipulate the capture session if included. */
@@ -290,17 +301,10 @@ export function isBackupCodec(codec: string): codec is BackupVideoCodec {
   return !!backupCodecs.find((backup) => backup === codec);
 }
 
-export function isCodecEqual(c1: string | undefined, c2: string | undefined): boolean {
-  return (
-    c1?.toLowerCase().replace(/audio\/|video\//y, '') ===
-    c2?.toLowerCase().replace(/audio\/|video\//y, '')
-  );
-}
-
 /**
- * scalability modes for svc, only supprot l3t3 now.
+ * scalability modes for svc.
  */
-export type ScalabilityMode = 'L3T3' | 'L3T3_KEY';
+export type ScalabilityMode = 'L1T3' | 'L2T3' | 'L2T3_KEY' | 'L3T3' | 'L3T3_KEY';
 
 export namespace AudioPresets {
   export const telephone: AudioPreset = {
@@ -345,7 +349,7 @@ export const VideoPresets43 = {
   h120: new VideoPreset(160, 120, 70_000, 20),
   h180: new VideoPreset(240, 180, 125_000, 20),
   h240: new VideoPreset(320, 240, 140_000, 20),
-  h360: new VideoPreset(480, 360, 225_000, 20),
+  h360: new VideoPreset(480, 360, 330_000, 20),
   h480: new VideoPreset(640, 480, 500_000, 20),
   h540: new VideoPreset(720, 540, 600_000, 25),
   h720: new VideoPreset(960, 720, 1_300_000, 30),

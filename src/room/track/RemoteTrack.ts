@@ -29,14 +29,16 @@ export default abstract class RemoteTrack extends Track {
   /** @internal */
   setMediaStream(stream: MediaStream) {
     // this is needed to determine when the track is finished
-    // we send each track down in its own MediaStream, so we can assume the
-    // current track is the only one that can be removed.
     this.mediaStream = stream;
-    stream.onremovetrack = () => {
-      this.receiver = undefined;
-      this._currentBitrate = 0;
-      this.emit(TrackEvent.Ended, this);
+    const onRemoveTrack = (event: MediaStreamTrackEvent) => {
+      if (event.track === this._mediaStreamTrack) {
+        stream.removeEventListener('removetrack', onRemoveTrack);
+        this.receiver = undefined;
+        this._currentBitrate = 0;
+        this.emit(TrackEvent.Ended, this);
+      }
     };
+    stream.addEventListener('removetrack', onRemoveTrack);
   }
 
   start() {
@@ -49,6 +51,20 @@ export default abstract class RemoteTrack extends Track {
     this.stopMonitor();
     // use `enabled` of track to enable re-use of transceiver
     super.disable();
+  }
+
+  /**
+   * Gets the RTCStatsReport for the RemoteTrack's underlying RTCRtpReceiver
+   * See https://developer.mozilla.org/en-US/docs/Web/API/RTCStatsReport
+   *
+   * @returns Promise<RTCStatsReport> | undefined
+   */
+  async getRTCStatsReport(): Promise<RTCStatsReport | undefined> {
+    if (!this.receiver?.getStats) {
+      return;
+    }
+    const statsReport = await this.receiver.getStats();
+    return statsReport;
   }
 
   /* @internal */

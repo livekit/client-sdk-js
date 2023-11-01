@@ -452,19 +452,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               error instanceof ConnectionError &&
               (error.status === 401 || error.reason === ConnectionErrorReason.Cancelled)
             ) {
+              this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
               reject(error);
               return;
             }
           }
           if (nextUrl) {
-            log.info('initial connection failed, retrying with another region', {
-              nextUrl,
-            });
+            log.info(
+              `Initial connection failed with ConnectionError: ${e.message}. Retrying with another region: ${nextUrl}`,
+            );
             await connectFn(resolve, reject, nextUrl);
           } else {
+            this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
             reject(e);
           }
         } else {
+          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
           reject(e);
         }
       }
@@ -593,8 +596,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.setupLocalParticipantEvents();
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
+      await this.engine.close();
       this.recreateEngine();
-      this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       const resultingError = new ConnectionError(`could not establish signal connection`);
       if (err instanceof Error) {
         resultingError.message = `${resultingError.message}: ${err.message}`;
@@ -608,8 +611,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     if (abortController.signal.aborted) {
+      await this.engine.close();
       this.recreateEngine();
-      this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       throw new ConnectionError(`Connection attempt aborted`);
     }
 
@@ -619,8 +622,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         abortController,
       );
     } catch (e) {
+      await this.engine.close();
       this.recreateEngine();
-      this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       throw e;
     }
 
@@ -1018,8 +1021,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     const parts = unpackStreamId(stream.id);
     const participantId = parts[0];
-    let trackId = parts[1];
-    if (!trackId || trackId === '') trackId = mediaTrack.id;
+    let streamId = parts[1];
+    let trackId = mediaTrack.id;
+    // firefox will get streamId (pID|trackId) instead of (pID|streamId) as it doesn't support sync tracks by stream
+    // and generates its own track id instead of infer from sdp track id.
+    if (streamId && streamId.startsWith('TR')) trackId = streamId;
 
     if (participantId === this.localParticipant.sid) {
       log.warn('tried to create RemoteParticipant for local participant');
@@ -1543,14 +1549,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private sendSyncState() {
-    if (
-      this.engine.subscriber === undefined ||
-      this.engine.subscriber.pc.localDescription === null
-    ) {
+    const previousAnswer = this.engine.subscriber?.getLocalDescription();
+    const previousOffer = this.engine.subscriber?.getRemoteDescription();
+
+    if (!previousAnswer) {
       return;
     }
-    const previousAnswer = this.engine.subscriber.pc.localDescription;
-    const previousOffer = this.engine.subscriber.pc.remoteDescription;
 
     /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
           in this case, we send unsub tracks, so server add all tracks to this

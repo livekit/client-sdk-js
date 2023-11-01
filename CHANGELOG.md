@@ -1,5 +1,69 @@
 # Change Log
 
+## 1.14.2
+
+### Patch Changes
+
+- Use a deepClone util function for CreateLocalTrackOptions - [#906](https://github.com/livekit/client-sdk-js/pull/906) ([@vas11yev1work](https://github.com/vas11yev1work))
+
+- Guard against overriding newly set key when auto-ratcheting - [#895](https://github.com/livekit/client-sdk-js/pull/895) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix Safari reporting wrong initial track resolution - [#898](https://github.com/livekit/client-sdk-js/pull/898) ([@lukasIO](https://github.com/lukasIO))
+
+- Make peerconnection private on PCTransport - [#903](https://github.com/livekit/client-sdk-js/pull/903) ([@lukasIO](https://github.com/lukasIO))
+
+- Improve handling of incompatible published codecs - [#911](https://github.com/livekit/client-sdk-js/pull/911) ([@davidzhao](https://github.com/davidzhao))
+
+- Fix a race in setKeyFromMaterial that would cause keys to be set at the wrong index if several keys were set in quick succession. - [#908](https://github.com/livekit/client-sdk-js/pull/908) ([@dbkr](https://github.com/dbkr))
+
+- Update protocol - [#902](https://github.com/livekit/client-sdk-js/pull/902) ([@lukasIO](https://github.com/lukasIO))
+
+- Add key index to e2e worker log lines - [#904](https://github.com/livekit/client-sdk-js/pull/904) ([@dbkr](https://github.com/dbkr))
+
+- Fix Typescript compilation error in angular setups - [#901](https://github.com/livekit/client-sdk-js/pull/901) ([@pabloFuente](https://github.com/pabloFuente))
+
+- Don't disconnect room before retrying new regions - [#910](https://github.com/livekit/client-sdk-js/pull/910) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.14.1
+
+### Patch Changes
+
+- Handle new format streamId to better sync a/v tracks - [#881](https://github.com/livekit/client-sdk-js/pull/881) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Do not support VP9 publishing for FF - [#894](https://github.com/livekit/client-sdk-js/pull/894) ([@davidzhao](https://github.com/davidzhao))
+
+## 1.14.0
+
+### Minor Changes
+
+- Do not constrain screenshare resolution by default - [#889](https://github.com/livekit/client-sdk-js/pull/889) ([@davidzhao](https://github.com/davidzhao))
+
+### Patch Changes
+
+- Fix vp9 svc failed for screenshare - [#882](https://github.com/livekit/client-sdk-js/pull/882) ([@cnderrauber](https://github.com/cnderrauber))
+
+## 1.13.4
+
+### Patch Changes
+
+- Log connection error message on region retries - [#879](https://github.com/livekit/client-sdk-js/pull/879) ([@lukasIO](https://github.com/lukasIO))
+
+- Wait for publisher connection after reconnects - [#875](https://github.com/livekit/client-sdk-js/pull/875) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.13.3
+
+### Patch Changes
+
+- Disable opus RED when using E2EE - [#858](https://github.com/livekit/client-sdk-js/pull/858) ([@lukasIO](https://github.com/lukasIO))
+
+- Make audio analyser cleanup function async - [#867](https://github.com/livekit/client-sdk-js/pull/867) ([@kand193](https://github.com/kand193))
+
+- Strip SIF trailer before enqueuing it - [#868](https://github.com/livekit/client-sdk-js/pull/868) ([@lukasIO](https://github.com/lukasIO))
+
+- Update h360 video preset - [#872](https://github.com/livekit/client-sdk-js/pull/872) ([@davidzhao](https://github.com/davidzhao))
+
+- Fix infinite metadata loop when canUpdateOwnMetadata is granted - [#871](https://github.com/livekit/client-sdk-js/pull/871) ([@davidzhao](https://github.com/davidzhao))
+
 ## 1.13.2
 
 ### Patch Changes
