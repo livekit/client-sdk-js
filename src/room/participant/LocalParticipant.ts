@@ -601,18 +601,7 @@ export default class LocalParticipant extends Participant {
       (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
     );
     if (existingTrackOfSource && track.source !== Track.Source.Unknown) {
-      try {
-        // throw an Error in order to capture the stack trace
-        throw Error(`publishing a second track with the same source: ${track.source}`);
-      } catch (e: unknown) {
-        if (e instanceof Error) {
-          log.warn(e.message, {
-            oldTrack: existingTrackOfSource,
-            newTrack: track,
-            trace: e.stack,
-          });
-        }
-      }
+      log.info(`publishing a second track with the same source: ${track.source}`);
     }
     if (opts.stopMicTrackOnMute && track instanceof LocalAudioTrack) {
       track.stopOnMute = true;
