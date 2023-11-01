@@ -71,7 +71,7 @@
     "@rollup/plugin-json": "6.0.1",
     "@rollup/plugin-node-resolve": "15.2.3",
     "@rollup/plugin-terser": "^0.4.0",
-    "@size-limit/file": "^8.2.4",
+    "@size-limit/file": "^10.0.0",
     "@size-limit/webpack": "^8.2.4",
     "@trivago/prettier-plugin-sort-imports": "^4.1.1",
     "@types/events": "^3.0.0",
