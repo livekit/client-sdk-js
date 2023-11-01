@@ -410,6 +410,7 @@ export default class LocalParticipant extends Participant {
 
     if (constraints.audio) {
       this.microphoneError = undefined;
+      this.emit(ParticipantEvent.AudioStreamAcquired);
     }
     if (constraints.video) {
       this.cameraError = undefined;
@@ -462,6 +463,7 @@ export default class LocalParticipant extends Participant {
     screenVideo.source = Track.Source.ScreenShare;
     const localTracks: Array<LocalTrack> = [screenVideo];
     if (stream.getAudioTracks().length > 0) {
+      this.emit(ParticipantEvent.AudioStreamAcquired);
       const screenAudio = new LocalAudioTrack(
         stream.getAudioTracks()[0],
         undefined,

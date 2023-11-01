@@ -441,6 +441,10 @@ export enum ParticipantEvent {
   /** @internal */
   MediaDevicesError = 'mediaDevicesError',
 
+  // fired only on LocalParticipant
+  /** @internal */
+  AudioStreamAcquired = 'audioStreamAcquired',
+
   /**
    * A participant's permission has changed. Currently only fired on LocalParticipant.
    * args: (prevPermissions: [[ParticipantPermission]])
