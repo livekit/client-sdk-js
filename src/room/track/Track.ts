@@ -293,7 +293,12 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
     mediaStream.addTrack(track);
   }
 
-  element.autoplay = true;
+  if (!isSafari() || !(element instanceof HTMLVideoElement)) {
+    // when in low power mode (applies to both macOS and iOS), Safari will show a play/pause overlay
+    // when a video starts that has the `autoplay` attribute is set.
+    // we work around this by _not_ setting the autoplay attribute on safari and instead call `setTimeout(() => el.play(),0)` further down
+    element.autoplay = true;
+  }
   // In case there are no audio tracks present on the mediastream, we set the element as muted to ensure autoplay works
   element.muted = mediaStream.getAudioTracks().length === 0;
   if (element instanceof HTMLVideoElement) {
