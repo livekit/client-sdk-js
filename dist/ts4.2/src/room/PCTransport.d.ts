@@ -14,7 +14,7 @@ export declare const PCEvents: {
 };
 /** @internal */
 export default class PCTransport extends EventEmitter {
-    private _pc;
+    _pc: RTCPeerConnection | null;
     private get pc();
     pendingCandidates: RTCIceCandidateInit[];
     restartingIce: boolean;

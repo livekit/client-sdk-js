@@ -30,7 +30,7 @@ export const PCEvents = {
 
 /** @internal */
 export default class PCTransport extends EventEmitter {
-  private _pc: RTCPeerConnection | null;
+  _pc: RTCPeerConnection | null;
 
   private get pc() {
     if (this._pc) return this._pc;
