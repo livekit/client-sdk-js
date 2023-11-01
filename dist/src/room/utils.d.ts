@@ -76,7 +76,7 @@ export type AudioAnalyserOptions = {
 export declare function createAudioAnalyser(track: LocalAudioTrack | RemoteAudioTrack, options?: AudioAnalyserOptions): {
     calculateVolume: () => number;
     analyser: AnalyserNode;
-    cleanup: () => void;
+    cleanup: () => Promise<void>;
 };
 export declare class Mutex {
     private _locking;

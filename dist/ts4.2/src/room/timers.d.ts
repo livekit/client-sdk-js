@@ -6,7 +6,7 @@
  */
 export default class CriticalTimers {
     static setTimeout: (callback: (args: void) => void, ms?: number | undefined) => NodeJS.Timeout;
-    static setInterval: (callback: (args: void) => void, ms?: number | undefined) => NodeJS.Timer;
+    static setInterval: (callback: (args: void) => void, ms?: number | undefined) => NodeJS.Timeout;
     static clearTimeout: (timeoutId: string | number | NodeJS.Timeout | undefined) => void;
     static clearInterval: (intervalId: string | number | NodeJS.Timeout | undefined) => void;
 }

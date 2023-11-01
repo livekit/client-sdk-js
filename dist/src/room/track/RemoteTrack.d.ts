@@ -9,6 +9,13 @@ export default abstract class RemoteTrack extends Track {
     setMediaStream(stream: MediaStream): void;
     start(): void;
     stop(): void;
+    /**
+     * Gets the RTCStatsReport for the RemoteTrack's underlying RTCRtpReceiver
+     * See https://developer.mozilla.org/en-US/docs/Web/API/RTCStatsReport
+     *
+     * @returns Promise<RTCStatsReport> | undefined
+     */
+    getRTCStatsReport(): Promise<RTCStatsReport | undefined>;
     startMonitor(): void;
     protected abstract monitorReceiver(): void;
 }

@@ -24,4 +24,5 @@ export declare function sourceToKind(source: Track.Source): MediaDeviceKind | un
  * @internal
  */
 export declare function screenCaptureToDisplayMediaStreamOptions(options: ScreenShareCaptureOptions): DisplayMediaStreamOptions;
+export declare function mimeTypeToVideoCodecString(mimeType: string): "vp8" | "h264" | "vp9" | "av1";
 //# sourceMappingURL=utils.d.ts.map

@@ -96,6 +96,12 @@ export interface TrackPublishOptions extends TrackPublishDefaults {
      * Source of track, camera, microphone, or screen
      */
     source?: Track.Source;
+    /**
+     * Set stream name for the track. Audio and video tracks with the same stream name
+     * will be placed in the same `MediaStream` and offer better synchronization.
+     * By default, camera and microphone will be placed in a stream; as would screen_share and screen_share_audio
+     */
+    stream?: string;
 }
 export interface CreateLocalTracksOptions {
     /**
@@ -134,7 +140,11 @@ export interface ScreenShareCaptureOptions {
     video?: true | {
         displaySurface?: 'window' | 'browser' | 'monitor';
     };
-    /** capture resolution, defaults to full HD */
+    /**
+     * capture resolution, defaults to screen resolution
+     * NOTE: In Safari 17, specifying any resolution at all would lead to a low-resolution
+     * capture. https://bugs.webkit.org/show_bug.cgi?id=263015
+     */
     resolution?: VideoResolution;
     /** a CaptureController object instance containing methods that can be used to further manipulate the capture session if included. */
     controller?: unknown;
@@ -220,11 +230,10 @@ export declare const videoCodecs: readonly ["vp8", "h264", "vp9", "av1"];
 export type VideoCodec = (typeof videoCodecs)[number];
 export type BackupVideoCodec = (typeof backupCodecs)[number];
 export declare function isBackupCodec(codec: string): codec is BackupVideoCodec;
-export declare function isCodecEqual(c1: string | undefined, c2: string | undefined): boolean;
 /**
- * scalability modes for svc, only supprot l3t3 now.
+ * scalability modes for svc.
  */
-export type ScalabilityMode = 'L3T3' | 'L3T3_KEY';
+export type ScalabilityMode = 'L1T3' | 'L2T3' | 'L2T3_KEY' | 'L3T3' | 'L3T3_KEY';
 export declare namespace AudioPresets {
     const telephone: AudioPreset;
     const speech: AudioPreset;

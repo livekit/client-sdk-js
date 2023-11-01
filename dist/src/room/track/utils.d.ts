@@ -1,5 +1,5 @@
 import { Track } from './Track';
-import type { AudioCaptureOptions, CreateLocalTracksOptions, ScreenShareCaptureOptions, VideoCaptureOptions } from './options';
+import { type AudioCaptureOptions, type CreateLocalTracksOptions, type ScreenShareCaptureOptions, type VideoCaptureOptions } from './options';
 import type { AudioTrack } from './types';
 export declare function mergeDefaultOptions(options?: CreateLocalTracksOptions, audioDefaults?: AudioCaptureOptions, videoDefaults?: VideoCaptureOptions): CreateLocalTracksOptions;
 export declare function constraintsForOptions(options: CreateLocalTracksOptions): MediaStreamConstraints;
@@ -24,4 +24,5 @@ export declare function sourceToKind(source: Track.Source): MediaDeviceKind | un
  * @internal
  */
 export declare function screenCaptureToDisplayMediaStreamOptions(options: ScreenShareCaptureOptions): DisplayMediaStreamOptions;
+export declare function mimeTypeToVideoCodecString(mimeType: string): "vp8" | "h264" | "vp9" | "av1";
 //# sourceMappingURL=utils.d.ts.map

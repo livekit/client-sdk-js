@@ -21,7 +21,7 @@ export default class LocalAudioTrack extends LocalTrack {
     protected restart(constraints?: MediaTrackConstraints): Promise<LocalTrack>;
     startMonitor(): void;
     protected monitorSender: () => Promise<void>;
-    setProcessor(processor: TrackProcessor<typeof this.kind>): Promise<void>;
+    setProcessor(processor: TrackProcessor<this['kind']>): Promise<void>;
     /**
      * @internal
      * @experimental

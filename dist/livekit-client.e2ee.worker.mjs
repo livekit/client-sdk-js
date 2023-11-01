@@ -12,7 +12,7 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
 OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 ***************************************************************************** */
-/* global Reflect, Promise */
+/* global Reflect, Promise, SuppressedError, Symbol */
 
 
 function __awaiter(thisArg, _arguments, P, generator) {
@@ -24,6 +24,11 @@ function __awaiter(thisArg, _arguments, P, generator) {
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 }
+
+typeof SuppressedError === "function" ? SuppressedError : function (error, suppressed, message) {
+    var e = new Error(message);
+    return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
+};
 
 var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
 
@@ -793,28 +798,6 @@ function eventTargetAgnosticAddListener(emitter, name, listener, flags) {
 }
 var eventsExports = events.exports;
 
-var AudioPresets;
-(function (AudioPresets) {
-  AudioPresets.telephone = {
-    maxBitrate: 12000
-  };
-  AudioPresets.speech = {
-    maxBitrate: 20000
-  };
-  AudioPresets.music = {
-    maxBitrate: 32000
-  };
-  AudioPresets.musicStereo = {
-    maxBitrate: 48000
-  };
-  AudioPresets.musicHighQuality = {
-    maxBitrate: 64000
-  };
-  AudioPresets.musicHighQualityStereo = {
-    maxBitrate: 96000
-  };
-})(AudioPresets || (AudioPresets = {}));
-
 function isVideoFrame(frame) {
   return 'type' in frame;
 }
@@ -881,6 +864,54 @@ function ratchet(material, salt) {
     // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveBits
     return crypto.subtle.deriveBits(algorithmOptions, material, 256);
   });
+}
+function needsRbspUnescaping(frameData) {
+  for (var i = 0; i < frameData.length - 3; i++) {
+    if (frameData[i] == 0 && frameData[i + 1] == 0 && frameData[i + 2] == 3) return true;
+  }
+  return false;
+}
+function parseRbsp(stream) {
+  const dataOut = [];
+  var length = stream.length;
+  for (var i = 0; i < stream.length;) {
+    // Be careful about over/underflow here. byte_length_ - 3 can underflow, and
+    // i + 3 can overflow, but byte_length_ - i can't, because i < byte_length_
+    // above, and that expression will produce the number of bytes left in
+    // the stream including the byte at i.
+    if (length - i >= 3 && !stream[i] && !stream[i + 1] && stream[i + 2] == 3) {
+      // Two rbsp bytes.
+      dataOut.push(stream[i++]);
+      dataOut.push(stream[i++]);
+      // Skip the emulation byte.
+      i++;
+    } else {
+      // Single rbsp byte.
+      dataOut.push(stream[i++]);
+    }
+  }
+  return new Uint8Array(dataOut);
+}
+const kZerosInStartSequence = 2;
+const kEmulationByte = 3;
+function writeRbsp(data_in) {
+  const dataOut = [];
+  var numConsecutiveZeros = 0;
+  for (var i = 0; i < data_in.length; ++i) {
+    var byte = data_in[i];
+    if (byte <= kEmulationByte && numConsecutiveZeros >= kZerosInStartSequence) {
+      // Need to escape.
+      dataOut.push(kEmulationByte);
+      numConsecutiveZeros = 0;
+    }
+    dataOut.push(byte);
+    if (byte == 0) {
+      ++numConsecutiveZeros;
+    } else {
+      numConsecutiveZeros = 0;
+    }
+  }
+  return new Uint8Array(dataOut);
 }
 
 class SifGuard {
@@ -1045,8 +1076,9 @@ class FrameCryptor extends BaseFrameCryptor {
       const keyIndex = this.keys.getCurrentKeyIndex();
       if (encryptionKey) {
         const iv = this.makeIV((_a = encodedFrame.getMetadata().synchronizationSource) !== null && _a !== void 0 ? _a : -1, encodedFrame.timestamp);
+        let frameInfo = this.getUnencryptedBytes(encodedFrame);
         // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
-        const frameHeader = new Uint8Array(encodedFrame.data, 0, this.getUnencryptedBytes(encodedFrame));
+        const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
         // Frame trailer contains the R|IV_LENGTH and key index
         const frameTrailer = new Uint8Array(2);
         frameTrailer[0] = IV_LENGTH;
@@ -1063,14 +1095,18 @@ class FrameCryptor extends BaseFrameCryptor {
             name: ENCRYPTION_ALGORITHM,
             iv,
             additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength)
-          }, encryptionKey, new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)));
-          const newData = new ArrayBuffer(frameHeader.byteLength + cipherText.byteLength + iv.byteLength + frameTrailer.byteLength);
-          const newUint8 = new Uint8Array(newData);
-          newUint8.set(frameHeader); // copy first bytes.
-          newUint8.set(new Uint8Array(cipherText), frameHeader.byteLength); // add ciphertext.
-          newUint8.set(new Uint8Array(iv), frameHeader.byteLength + cipherText.byteLength); // append IV.
-          newUint8.set(frameTrailer, frameHeader.byteLength + cipherText.byteLength + iv.byteLength); // append frame trailer.
-          encodedFrame.data = newData;
+          }, encryptionKey, new Uint8Array(encodedFrame.data, frameInfo.unencryptedBytes));
+          let newDataWithoutHeader = new Uint8Array(cipherText.byteLength + iv.byteLength + frameTrailer.byteLength);
+          newDataWithoutHeader.set(new Uint8Array(cipherText)); // add ciphertext.
+          newDataWithoutHeader.set(new Uint8Array(iv), cipherText.byteLength); // append IV.
+          newDataWithoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
+          if (frameInfo.isH264) {
+            newDataWithoutHeader = writeRbsp(newDataWithoutHeader);
+          }
+          var newData = new Uint8Array(frameHeader.byteLength + newDataWithoutHeader.byteLength);
+          newData.set(frameHeader);
+          newData.set(newDataWithoutHeader, frameHeader.byteLength);
+          encodedFrame.data = newData.buffer;
           return controller.enqueue(encodedFrame);
         } catch (e) {
           // TODO: surface this to the app.
@@ -1098,6 +1134,7 @@ class FrameCryptor extends BaseFrameCryptor {
       if (isFrameServerInjected(encodedFrame.data, this.sifTrailer)) {
         this.sifGuard.recordSif();
         if (this.sifGuard.isSifAllowed()) {
+          encodedFrame.data = encodedFrame.data.slice(0, encodedFrame.data.byteLength - this.sifTrailer.byteLength);
           return controller.enqueue(encodedFrame);
         } else {
           workerLogger.warn('SIF limit reached, dropping frame');
@@ -1129,8 +1166,8 @@ class FrameCryptor extends BaseFrameCryptor {
         }
       } else if (!this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
         // emit an error in case the key index is out of bounds but the key handler thinks we still have a valid key
-        workerLogger.warn('skipping decryption due to missing key at index');
-        this.emit(CryptorEvent.Error, new CryptorError("missing key at index for participant ".concat(this.participantIdentity), CryptorErrorReason.MissingKey));
+        workerLogger.warn("skipping decryption due to missing key at index ".concat(keyIndex));
+        this.emit(CryptorEvent.Error, new CryptorError("missing key at index ".concat(keyIndex, " for participant ").concat(this.participantIdentity), CryptorErrorReason.MissingKey));
       }
     });
   }
@@ -1149,6 +1186,7 @@ class FrameCryptor extends BaseFrameCryptor {
       if (!ratchetOpts.encryptionKey && !keySet) {
         throw new TypeError("no encryption key found for decryption of ".concat(this.participantIdentity));
       }
+      let frameInfo = this.getUnencryptedBytes(encodedFrame);
       // Construct frame trailer. Similar to the frame header described in
       // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
       // but we put it at the end.
@@ -1157,7 +1195,15 @@ class FrameCryptor extends BaseFrameCryptor {
       // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
       // ---------+-------------------------+-+---------+----
       try {
-        const frameHeader = new Uint8Array(encodedFrame.data, 0, this.getUnencryptedBytes(encodedFrame));
+        const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
+        var encryptedData = new Uint8Array(encodedFrame.data, frameHeader.length, encodedFrame.data.byteLength - frameHeader.length);
+        if (frameInfo.isH264 && needsRbspUnescaping(encryptedData)) {
+          encryptedData = parseRbsp(encryptedData);
+          const newUint8 = new Uint8Array(frameHeader.byteLength + encryptedData.byteLength);
+          newUint8.set(frameHeader);
+          newUint8.set(encryptedData, frameHeader.byteLength);
+          encodedFrame.data = newUint8.buffer;
+        }
         const frameTrailer = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - 2, 2);
         const ivLength = frameTrailer[0];
         const iv = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - ivLength - frameTrailer.byteLength, ivLength);
@@ -1179,7 +1225,7 @@ class FrameCryptor extends BaseFrameCryptor {
           if (ratchetOpts.ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
             workerLogger.debug("ratcheting key attempt ".concat(ratchetOpts.ratchetCount, " of ").concat(this.keyProviderOptions.ratchetWindowSize, ", for kind ").concat(encodedFrame instanceof RTCEncodedAudioFrame ? 'audio' : 'video'));
             let ratchetedKeySet;
-            if (keySet === this.keys.getKeySet(keyIndex)) {
+            if ((initialMaterial !== null && initialMaterial !== void 0 ? initialMaterial : keySet) === this.keys.getKeySet(keyIndex)) {
               // only ratchet if the currently set key is still the same as the one used to decrypt this frame
               // if not, it might be that a different frame has already ratcheted and we try with that one first
               const newMaterial = yield this.keys.ratchetKey(keyIndex, false);
@@ -1190,22 +1236,21 @@ class FrameCryptor extends BaseFrameCryptor {
               encryptionKey: ratchetedKeySet === null || ratchetedKeySet === void 0 ? void 0 : ratchetedKeySet.encryptionKey
             });
             if (frame && ratchetedKeySet) {
-              this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
-              // decryption was successful, set the new key index to reflect the ratcheted key set
-              this.keys.setCurrentKeyIndex(keyIndex);
+              // before updating the keys, make sure that the keySet used for this frame is still the same as the currently set key
+              // if it's not, a new key might have been set already, which we don't want to override
+              if ((initialMaterial !== null && initialMaterial !== void 0 ? initialMaterial : keySet) === this.keys.getKeySet(keyIndex)) {
+                this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
+                // decryption was successful, set the new key index to reflect the ratcheted key set
+                this.keys.setCurrentKeyIndex(keyIndex);
+              }
             }
             return frame;
           } else {
             /**
-             * Since the key it is first send and only afterwards actually used for encrypting, there were
-             * situations when the decrypting failed due to the fact that the received frame was not encrypted
-             * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
-             * we come back to the initial key.
+             * Because we only set a new key once decryption has been successful,
+             * we can be sure that we don't need to reset the key to the initial material at this point
+             * as the key has not been updated on the keyHandler instance
              */
-            if (initialMaterial) {
-              workerLogger.debug('resetting to initial material');
-              this.keys.setKeyFromMaterial(initialMaterial.material, keyIndex);
-            }
             workerLogger.warn('maximum ratchet attempts exceeded');
             throw new CryptorError("valid key missing for participant ".concat(this.participantIdentity), CryptorErrorReason.InvalidKey);
           }
@@ -1252,26 +1297,32 @@ class FrameCryptor extends BaseFrameCryptor {
   }
   getUnencryptedBytes(frame) {
     var _a;
+    var frameInfo = {
+      unencryptedBytes: 0,
+      isH264: false
+    };
     if (isVideoFrame(frame)) {
       let detectedCodec = (_a = this.getVideoCodec(frame)) !== null && _a !== void 0 ? _a : this.videoCodec;
       if (detectedCodec === 'av1' || detectedCodec === 'vp9') {
         throw new Error("".concat(detectedCodec, " is not yet supported for end to end encryption"));
       }
       if (detectedCodec === 'vp8') {
-        return UNENCRYPTED_BYTES[frame.type];
+        frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
+        return frameInfo;
       }
       const data = new Uint8Array(frame.data);
       try {
         const naluIndices = findNALUIndices(data);
         // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
-        const isH264 = detectedCodec === 'h264' || naluIndices.some(naluIndex => [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])));
-        if (isH264) {
+        frameInfo.isH264 = detectedCodec === 'h264' || naluIndices.some(naluIndex => [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])));
+        if (frameInfo.isH264) {
           for (const index of naluIndices) {
             let type = parseNALUType(data[index]);
             switch (type) {
               case NALUType.SLICE_IDR:
               case NALUType.SLICE_NON_IDR:
-                return index + 2;
+                frameInfo.unencryptedBytes = index + 2;
+                return frameInfo;
               default:
                 break;
             }
@@ -1281,9 +1332,11 @@ class FrameCryptor extends BaseFrameCryptor {
       } catch (e) {
         // no op, we just continue and fallback to vp8
       }
-      return UNENCRYPTED_BYTES[frame.type];
+      frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
+      return frameInfo;
     } else {
-      return UNENCRYPTED_BYTES.audio;
+      frameInfo.unencryptedBytes = UNENCRYPTED_BYTES.audio;
+      return frameInfo;
     }
   }
   /**
@@ -1491,12 +1544,11 @@ class ParticipantKeyHandler extends eventsExports.EventEmitter {
     let keyIndex = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
     let emitRatchetEvent = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
     return __awaiter(this, void 0, void 0, function* () {
-      workerLogger.debug('setting new key');
-      if (keyIndex >= 0) {
-        this.currentKeyIndex = keyIndex % this.cryptoKeyRing.length;
-      }
+      const newIndex = keyIndex >= 0 ? keyIndex % this.cryptoKeyRing.length : -1;
+      workerLogger.debug("setting new key with index ".concat(newIndex));
       const keySet = yield deriveKeys(material, this.keyProviderOptions.ratchetSalt);
-      this.setKeySet(keySet, this.currentKeyIndex, emitRatchetEvent);
+      this.setKeySet(keySet, newIndex >= 0 ? newIndex : this.currentKeyIndex, emitRatchetEvent);
+      if (newIndex >= 0) this.currentKeyIndex = newIndex;
     });
   }
   setKeySet(keySet, keyIndex) {
@@ -1572,7 +1624,7 @@ onmessage = ev => {
         workerLogger.warn('set shared key');
         setSharedKey(data.key, data.keyIndex);
       } else if (data.participantIdentity) {
-        workerLogger.warn("set participant sender key ".concat(data.participantIdentity));
+        workerLogger.warn("set participant sender key ".concat(data.participantIdentity, " index ").concat(data.keyIndex));
         getParticipantKeyHandler(data.participantIdentity).setKey(data.key, data.keyIndex);
       } else {
         workerLogger.error('no participant Id was provided and shared key usage is disabled');

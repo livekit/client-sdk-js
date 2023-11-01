@@ -44,7 +44,8 @@ export default class LocalVideoTrack extends LocalTrack {
     setSimulcastTrackSender(codec: VideoCodec, sender: RTCRtpSender): void;
     /**
      * @internal
-     * Sets codecs that should be publishing
+     * Sets codecs that should be publishing, returns new codecs that have not yet
+     * been published
      */
     setPublishingCodecs(codecs: SubscribedCodec[]): Promise<VideoCodec[]>;
     /**

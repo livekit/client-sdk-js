@@ -375,10 +375,6 @@ export declare class SimulcastCodec extends Message<SimulcastCodec> {
      * @generated from field: string cid = 2;
      */
     cid: string;
-    /**
-     * @generated from field: bool enable_simulcast_layers = 3;
-     */
-    enableSimulcastLayers: boolean;
     constructor(data?: PartialMessage<SimulcastCodec>);
     static readonly runtime: typeof proto3;
     static readonly typeName = "livekit.SimulcastCodec";

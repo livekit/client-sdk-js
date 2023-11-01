@@ -43,6 +43,19 @@ export declare enum VideoCodec {
     VP8 = 4
 }
 /**
+ * @generated from enum livekit.ImageCodec
+ */
+export declare enum ImageCodec {
+    /**
+     * @generated from enum value: IC_DEFAULT = 0;
+     */
+    IC_DEFAULT = 0,
+    /**
+     * @generated from enum value: IC_JPEG = 1;
+     */
+    IC_JPEG = 1
+}
+/**
  * @generated from enum livekit.TrackType
  */
 export declare enum TrackType {
@@ -266,10 +279,6 @@ export declare class Room extends Message<Room> {
      * @generated from field: bool active_recording = 10;
      */
     activeRecording: boolean;
-    /**
-     * @generated from field: livekit.PlayoutDelay playout_delay = 12;
-     */
-    playoutDelay?: PlayoutDelay;
     constructor(data?: PartialMessage<Room>);
     static readonly runtime: typeof proto3;
     static readonly typeName = "livekit.Room";
@@ -773,17 +782,27 @@ export declare class UserPacket extends Message<UserPacket> {
      */
     participantSid: string;
     /**
+     * @generated from field: string participant_identity = 5;
+     */
+    participantIdentity: string;
+    /**
      * user defined payload
      *
      * @generated from field: bytes payload = 2;
      */
     payload: Uint8Array;
     /**
-     * the ID of the participants who will receive the message (the message will be sent to all the people in the room if this variable is empty)
+     * the ID of the participants who will receive the message (sent to all by default)
      *
      * @generated from field: repeated string destination_sids = 3;
      */
     destinationSids: string[];
+    /**
+     * identities of participants who will receive the message (sent to all by default)
+     *
+     * @generated from field: repeated string destination_identities = 6;
+     */
+    destinationIdentities: string[];
     /**
      * topic under which the message was published
      *
@@ -972,7 +991,15 @@ export declare enum ClientInfo_SDK {
     /**
      * @generated from enum value: RUST = 8;
      */
-    RUST = 8
+    RUST = 8,
+    /**
+     * @generated from enum value: PYTHON = 9;
+     */
+    PYTHON = 9,
+    /**
+     * @generated from enum value: CPP = 10;
+     */
+    CPP = 10
 }
 /**
  * server provided client configuration
@@ -1050,6 +1077,55 @@ export declare class DisabledCodecs extends Message<DisabledCodecs> {
     static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DisabledCodecs;
     static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DisabledCodecs;
     static equals(a: DisabledCodecs | PlainMessage<DisabledCodecs> | undefined, b: DisabledCodecs | PlainMessage<DisabledCodecs> | undefined): boolean;
+}
+/**
+ * @generated from message livekit.RTPDrift
+ */
+export declare class RTPDrift extends Message<RTPDrift> {
+    /**
+     * @generated from field: google.protobuf.Timestamp start_time = 1;
+     */
+    startTime?: Timestamp;
+    /**
+     * @generated from field: google.protobuf.Timestamp end_time = 2;
+     */
+    endTime?: Timestamp;
+    /**
+     * @generated from field: double duration = 3;
+     */
+    duration: number;
+    /**
+     * @generated from field: uint64 start_timestamp = 4;
+     */
+    startTimestamp: bigint;
+    /**
+     * @generated from field: uint64 end_timestamp = 5;
+     */
+    endTimestamp: bigint;
+    /**
+     * @generated from field: uint64 rtp_clock_ticks = 6;
+     */
+    rtpClockTicks: bigint;
+    /**
+     * @generated from field: int64 drift_samples = 7;
+     */
+    driftSamples: bigint;
+    /**
+     * @generated from field: double drift_ms = 8;
+     */
+    driftMs: number;
+    /**
+     * @generated from field: double clock_rate = 9;
+     */
+    clockRate: number;
+    constructor(data?: PartialMessage<RTPDrift>);
+    static readonly runtime: typeof proto3;
+    static readonly typeName = "livekit.RTPDrift";
+    static readonly fields: FieldList;
+    static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RTPDrift;
+    static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RTPDrift;
+    static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RTPDrift;
+    static equals(a: RTPDrift | PlainMessage<RTPDrift> | undefined, b: RTPDrift | PlainMessage<RTPDrift> | undefined): boolean;
 }
 /**
  * @generated from message livekit.RTPStats
@@ -1222,15 +1298,15 @@ export declare class RTPStats extends Message<RTPStats> {
      */
     lastLayerLockPli?: Timestamp;
     /**
-     * @generated from field: double sample_rate = 42;
+     * @generated from field: livekit.RTPDrift packet_drift = 44;
      */
-    sampleRate: number;
+    packetDrift?: RTPDrift;
     /**
-     * NEXT_ID: 44
+     * NEXT_ID: 46
      *
-     * @generated from field: double drift_ms = 43;
+     * @generated from field: livekit.RTPDrift report_drift = 45;
      */
-    driftMs: number;
+    reportDrift?: RTPDrift;
     constructor(data?: PartialMessage<RTPStats>);
     static readonly runtime: typeof proto3;
     static readonly typeName = "livekit.RTPStats";

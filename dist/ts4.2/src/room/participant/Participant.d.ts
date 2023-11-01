@@ -60,9 +60,11 @@ export default class Participant extends Participant_base {
     get joinedAt(): Date | undefined;
     /** @internal */
     updateInfo(info: ParticipantInfo): boolean;
-    /** @internal */
-    setMetadata(md: string): void;
-    protected setName(name: string): void;
+    /**
+     * Updates metadata from server
+     **/
+    private _setMetadata;
+    private _setName;
     /** @internal */
     setPermissions(permissions: ParticipantPermission): boolean;
     /** @internal */

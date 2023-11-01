@@ -14,7 +14,7 @@ export default abstract class LocalTrack extends Track {
     protected muteLock: Mutex;
     protected pauseUpstreamLock: Mutex;
     protected processorElement?: HTMLMediaElement;
-    protected processor?: TrackProcessor<typeof this.kind>;
+    protected processor?: TrackProcessor<this['kind']>;
     protected processorLock: Mutex;
     /**
      *
@@ -57,6 +57,13 @@ export default abstract class LocalTrack extends Track {
     pauseUpstream(): Promise<void>;
     resumeUpstream(): Promise<void>;
     /**
+     * Gets the RTCStatsReport for the LocalTrack's underlying RTCRtpSender
+     * See https://developer.mozilla.org/en-US/docs/Web/API/RTCStatsReport
+     *
+     * @returns Promise<RTCStatsReport> | undefined
+     */
+    getRTCStatsReport(): Promise<RTCStatsReport | undefined>;
+    /**
      * Sets a processor on this track.
      * See https://github.com/livekit/track-processors-js for example usage
      *
@@ -66,8 +73,8 @@ export default abstract class LocalTrack extends Track {
      * @param showProcessedStreamLocally
      * @returns
      */
-    setProcessor(processor: TrackProcessor<typeof this.kind>, showProcessedStreamLocally?: boolean): Promise<void>;
-    getProcessor(): TrackProcessor<Track.Kind, import("./processor/types").ProcessorOptions<Track.Kind>> | undefined;
+    setProcessor(processor: TrackProcessor<this['kind']>, showProcessedStreamLocally?: boolean): Promise<void>;
+    getProcessor(): TrackProcessor<this["kind"], import("./processor/types").ProcessorOptions<this["kind"]>> | undefined;
     /**
      * Stops the track processor
      * See https://github.com/livekit/track-processors-js for example usage

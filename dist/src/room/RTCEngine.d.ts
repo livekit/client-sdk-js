@@ -32,7 +32,7 @@ export default class RTCEngine extends RTCEngine_base {
     private dcBufferStatus;
     private reliableDCSub?;
     private subscriberPrimary;
-    private primaryPC?;
+    private primaryTransport?;
     private pcState;
     private _isClosed;
     private pendingTrackResolvers;

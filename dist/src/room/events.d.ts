@@ -196,7 +196,7 @@ export declare enum RoomEvent {
      * be emitted.
      *
      * args: (pub: [[RemoteTrackPublication]],
-     *        status: [[TrackPublication.SubscriptionStatus]],
+     *        status: [[TrackPublication.PermissionStatus]],
      *        participant: [[RemoteParticipant]])
      */
     TrackSubscriptionPermissionChanged = "trackSubscriptionPermissionChanged",
@@ -212,7 +212,7 @@ export declare enum RoomEvent {
     /**
      * LiveKit will attempt to autoplay all audio tracks when you attach them to
      * audio elements. However, if that fails, we'll notify you via AudioPlaybackStatusChanged.
-     * `Room.canPlayAudio` will indicate if audio playback is permitted.
+     * `Room.canPlaybackAudio` will indicate if audio playback is permitted.
      */
     AudioPlaybackStatusChanged = "audioPlaybackChanged",
     /**
