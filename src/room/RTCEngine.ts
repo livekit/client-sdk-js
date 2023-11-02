@@ -996,7 +996,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       const res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
       if (res) {
         const rtcConfig = this.makeRTCConfiguration(res);
-
         this.publisher.setConfiguration(rtcConfig);
         this.subscriber.setConfiguration(rtcConfig);
       }
