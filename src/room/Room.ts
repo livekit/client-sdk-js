@@ -802,7 +802,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * - `startAudio`
    * - `getUserMedia`
    */
-  async startAudio() {
+  startAudio = async () => {
     const elements: Array<HTMLMediaElement> = [];
     const browser = getBrowser();
     if (browser && browser.os === 'iOS') {
@@ -863,7 +863,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleAudioPlaybackFailed(err);
       throw err;
     }
-  }
+  };
 
   /**
    * Returns true if audio playback is enabled
@@ -973,6 +973,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
       .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
       .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
+      .on(ParticipantEvent.AudioStreamAcquired, this.startAudio)
       .on(
         ParticipantEvent.ParticipantPermissionsChanged,
         this.onLocalParticipantPermissionsChanged,
@@ -1169,6 +1170,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         .off(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
         .off(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
         .off(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
+        .off(ParticipantEvent.AudioStreamAcquired, this.startAudio)
         .off(
           ParticipantEvent.ParticipantPermissionsChanged,
           this.onLocalParticipantPermissionsChanged,
