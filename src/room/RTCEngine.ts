@@ -523,7 +523,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private makeRTCConfiguration(serverResponse: JoinResponse | ReconnectResponse): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
     if (this.signalOpts?.e2eeEnabled) {
-      log.debug('E2EE - setting up transports with insertable streams for reconnect');
+      log.debug('E2EE - setting up transports with insertable streams');
       //  this makes sure that no data is sent before the transforms are ready
       // @ts-ignore
       rtcConfig.encodedInsertableStreams = true;
