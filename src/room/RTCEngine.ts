@@ -374,13 +374,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const rtcConfig = this.makeRTCConfiguration(joinResponse);
 
-    if (this.signalOpts?.e2eeEnabled) {
-      log.debug('E2EE - setting up transports with insertable streams');
-      //  this makes sure that no data is sent before the transforms are ready
-      // @ts-ignore
-      rtcConfig.encodedInsertableStreams = true;
-    }
-
     const googConstraints = { optional: [{ googDscp: true }] };
     this.publisher = new PCTransport(rtcConfig, googConstraints);
     this.subscriber = new PCTransport(rtcConfig);
@@ -529,6 +522,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private makeRTCConfiguration(serverResponse: JoinResponse | ReconnectResponse): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
+    if (this.signalOpts?.e2eeEnabled) {
+      log.debug('E2EE - setting up transports with insertable streams for reconnect');
+      //  this makes sure that no data is sent before the transforms are ready
+      // @ts-ignore
+      rtcConfig.encodedInsertableStreams = true;
+    }
 
     // update ICE servers before creating PeerConnection
     if (serverResponse.iceServers && !rtcConfig.iceServers) {
@@ -997,12 +996,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       const res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
       if (res) {
         const rtcConfig = this.makeRTCConfiguration(res);
-        if (this.signalOpts?.e2eeEnabled) {
-          log.debug('E2EE - setting up transports with insertable streams for reconnect');
-          //  this makes sure that no data is sent before the transforms are ready
-          // @ts-ignore
-          rtcConfig.encodedInsertableStreams = true;
-        }
+
         this.publisher.setConfiguration(rtcConfig);
         this.subscriber.setConfiguration(rtcConfig);
       }
