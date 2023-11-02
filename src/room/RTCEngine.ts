@@ -374,13 +374,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const rtcConfig = this.makeRTCConfiguration(joinResponse);
 
-    if (this.signalOpts?.e2eeEnabled) {
-      log.debug('E2EE - setting up transports with insertable streams');
-      //  this makes sure that no data is sent before the transforms are ready
-      // @ts-ignore
-      rtcConfig.encodedInsertableStreams = true;
-    }
-
     const googConstraints = { optional: [{ googDscp: true }] };
     this.publisher = new PCTransport(rtcConfig, googConstraints);
     this.subscriber = new PCTransport(rtcConfig);
@@ -529,6 +522,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private makeRTCConfiguration(serverResponse: JoinResponse | ReconnectResponse): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
+    if (this.signalOpts?.e2eeEnabled) {
+      log.debug('E2EE - setting up transports with insertable streams');
+      //  this makes sure that no data is sent before the transforms are ready
+      // @ts-ignore
+      rtcConfig.encodedInsertableStreams = true;
+    }
 
     // update ICE servers before creating PeerConnection
     if (serverResponse.iceServers && !rtcConfig.iceServers) {
@@ -1004,6 +1003,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       let message = '';
       if (e instanceof Error) {
         message = e.message;
+        log.error(e.message);
       }
       if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
         throw new UnexpectedConnectionState('could not reconnect, token might be expired');
