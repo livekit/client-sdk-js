@@ -190,7 +190,12 @@ export function computeTrackBackupEncodings(
   videoCodec: BackupVideoCodec,
   opts: TrackPublishOptions,
 ) {
-  if (!opts.backupCodec || opts.backupCodec.codec === opts.videoCodec) {
+  // backupCodec should not be true anymore, default codec is set in LocalParticipant.publish
+  if (
+    !opts.backupCodec ||
+    opts.backupCodec === true ||
+    opts.backupCodec.codec === opts.videoCodec
+  ) {
     // backup codec publishing is disabled
     return;
   }
