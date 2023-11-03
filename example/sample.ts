@@ -78,7 +78,7 @@ const appActions = {
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
 
-    setLogLevel(LogLevel.info);
+    setLogLevel(LogLevel.debug);
     updateSearchParams(url, token, cryptoKey);
 
     const roomOpts: RoomOptions = {
@@ -103,7 +103,7 @@ const appActions = {
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
       roomOpts.publishDefaults?.videoCodec === 'vp9'
     ) {
-      roomOpts.publishDefaults.backupCodec = { codec: 'vp8', encoding: VideoPresets.h720.encoding };
+      roomOpts.publishDefaults.backupCodec = true;
     }
 
     const connectOpts: RoomConnectOptions = {

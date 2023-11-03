@@ -692,7 +692,11 @@ export default class LocalParticipant extends Participant {
         ];
 
         // set up backup
+        if (opts.backupCodec === true) {
+          opts.backupCodec = { codec: defaultVideoCodec };
+        }
         if (opts.backupCodec && videoCodec !== opts.backupCodec.codec) {
+          // multi-codec simulcast requires dynacast
           if (!this.roomOptions.dynacast) {
             this.roomOptions.dynacast = true;
           }
