@@ -83,6 +83,7 @@ export default class PCTransport extends EventEmitter {
       ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
         new RTCPeerConnection(this.config, this.mediaConstraints)
       : new RTCPeerConnection(this.config);
+
     pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
       this.onIceCandidate?.(ev.candidate);
@@ -235,11 +236,11 @@ export default class PCTransport extends EventEmitter {
     if (this._pc && this._pc.signalingState === 'have-local-offer') {
       // we're waiting for the peer to accept our offer, so we'll just wait
       // the only exception to this is when ICE restart is needed
-      const currentSD = this.pc.remoteDescription;
+      const currentSD = this._pc.remoteDescription;
       if (options?.iceRestart && currentSD) {
         // TODO: handle when ICE restart is needed but we don't have a remote description
         // the best thing to do is to recreate the peerconnection
-        await this.pc.setRemoteDescription(currentSD);
+        await this._pc.setRemoteDescription(currentSD);
       } else {
         this.renegotiate = true;
         return;
