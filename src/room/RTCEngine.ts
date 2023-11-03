@@ -362,14 +362,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.client.sendOffer(offer);
     };
 
-    let subscriberPrimary = joinResponse.subscriberPrimary;
-    if (subscriberPrimary) {
-      this.pcManager.requireSubscriber();
-    } else {
-      this.pcManager.requirePublisher();
-    }
     this.pcManager.onDataChannel = this.handleDataChannel;
-    this.pcManager.onStateChange = async (connectionState) => {
+    this.pcManager.onStateChange = async (connectionState, publisherState, subscriberState) => {
       log.debug(`primary PC state changed ${connectionState}`);
       if (connectionState === PCTransportState.CONNECTED) {
         const shouldEmit = this.pcState === PCState.New;
@@ -384,7 +378,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
           this.handleDisconnect(
             'peerconnection failed',
-            subscriberPrimary // FIXME actually determine which peer connection failed
+            subscriberState === 'failed'
               ? ReconnectReason.RR_SUBSCRIBER_FAILED
               : ReconnectReason.RR_PUBLISHER_FAILED,
           );
@@ -1153,7 +1147,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
 
-      this.pcManager?.requirePublisher();
+      this.pcManager.requirePublisher();
 
       const handleClosed = () => {
         log.debug('engine disconnected while negotiation was ongoing');

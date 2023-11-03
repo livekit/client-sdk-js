@@ -34,7 +34,7 @@ export default class PCTransport extends EventEmitter {
 
   private get pc() {
     if (!this._pc) {
-      this._pc = new RTCPeerConnection(this.config); // FIXME this seems to leak peer connections
+      this._pc = this.createPC(); // FIXME this seems to leak peer connections
     }
     return this._pc;
   }
@@ -194,7 +194,7 @@ export default class PCTransport extends EventEmitter {
 
     if (this.renegotiate) {
       this.renegotiate = false;
-      this.createAndSendOffer();
+      await this.createAndSendOffer();
     } else if (sd.type === 'answer') {
       this.emit(PCEvents.NegotiationComplete);
       if (sd.sdp) {

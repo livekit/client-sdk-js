@@ -32,7 +32,11 @@ export class PCTransportManager {
     return this.state;
   }
 
-  public onStateChange?: (state: PCTransportState) => void;
+  public onStateChange?: (
+    state: PCTransportState,
+    pubState: RTCPeerConnectionState,
+    subState: RTCPeerConnectionState,
+  ) => void;
 
   public onIceCandidate?: (ev: RTCIceCandidate, target: SignalTarget) => void;
 
@@ -159,7 +163,22 @@ export class PCTransportManager {
 
   async ensurePCTransportConnection(abortController?: AbortController, timeout?: number) {
     const unlock = await this.connectionLock.lock();
+
     try {
+      if (
+        this.isPublisherConnectionRequired &&
+        this.publisher.getConnectionState() !== 'connected' &&
+        this.publisher.getConnectionState() !== 'connecting'
+      ) {
+        console.log('negotiation required, start negotiating');
+        this.publisher.negotiate();
+      } else {
+        console.log(
+          'no negotiation required',
+          this.isPublisherConnectionRequired,
+          this.publisher.getConnectionState(),
+        );
+      }
       await Promise.all(
         this.requiredTransports?.map((transport) =>
           this.ensureTransportConnected(transport, abortController, timeout),
@@ -212,10 +231,16 @@ export class PCTransportManager {
     } else if (connectionStates.every((st) => st === 'new')) {
       this.state = PCTransportState.DISCONNECTED;
     }
-
+    log.info(`pc state: ${PCTransportState[this.state]}`, {
+      publisher: this.publisher.getConnectionState(),
+      subscriber: this.subscriber.getConnectionState(),
+    });
     if (previousState !== this.state) {
-      this.onStateChange?.(this.state);
-      log.info(`pc state: ${PCTransportState[this.state]}`);
+      this.onStateChange?.(
+        this.state,
+        this.publisher.getConnectionState(),
+        this.subscriber.getConnectionState(),
+      );
     }
   };
 
