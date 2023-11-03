@@ -110,7 +110,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private subscriberPrimary: boolean = false;
 
-  private primaryTransport?: PCTransport;
+  // private primaryTransport?: PCTransport;
 
   private pcState: PCState = PCState.New;
 
@@ -247,7 +247,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async cleanupPeerConnections() {
     await this.pcManager?.close();
 
-    this.primaryTransport = undefined;
+    // this.primaryTransport = undefined;
 
     const dcCleanup = (dc: RTCDataChannel | undefined) => {
       if (!dc) return;
@@ -332,10 +332,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async getConnectedServerAddress(): Promise<string | undefined> {
-    if (this.primaryTransport === undefined) {
-      return undefined;
-    }
-    return this.primaryTransport.getConnectedAddress();
+    return this.pcManager?.getConnectedAddress();
   }
 
   /* @internal */
@@ -360,11 +357,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       rtcConfig.encodedInsertableStreams = true;
     }
 
-    // this.publisher = new PCTransport(rtcConfig, googConstraints);
-    // this.subscriber = new PCTransport(rtcConfig);
     this.pcManager = new PCTransportManager(rtcConfig, joinResponse.subscriberPrimary);
-    this.publisher = this.pcManager.publisher;
-    // this.subscriber = this.pcManager.subscriber;
 
     this.emit(EngineEvent.TransportsCreated, this.pcManager.publisher, this.pcManager.subscriber);
 
@@ -376,13 +369,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.client.sendOffer(offer);
     };
 
-    let primaryTransport = this.publisher;
     let subscriberPrimary = joinResponse.subscriberPrimary;
     if (subscriberPrimary) {
-      primaryTransport = this.pcManager.subscriber;
+      this.pcManager.requireSubscriber();
+    } else {
+      this.pcManager.requirePublisher();
     }
     this.pcManager.onDataChannel = this.handleDataChannel;
-    this.primaryTransport = primaryTransport;
     this.pcManager.onStateChange = async (connectionState) => {
       log.debug(`primary PC state changed ${connectionState}`);
       if (connectionState === PCTransportState.CONNECTED) {
@@ -415,14 +408,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private setupSignalClientCallbacks() {
     // configure signaling client
     this.client.onAnswer = async (sd) => {
-      if (!this.publisher) {
+      if (!this.pcManager) {
         return;
       }
       log.debug('received server answer', {
         RTCSdpType: sd.type,
-        signalingState: this.publisher.getSignallingState().toString(),
+        signalingState: this.pcManager.publisher.getSignallingState().toString(),
       });
-      await this.publisher.setRemoteDescription(sd);
+      await this.pcManager.publisher.setRemoteDescription(sd);
     };
 
     // add candidate on trickle
@@ -465,7 +458,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onLeave = (leave?: LeaveRequest) => {
       if (leave?.canReconnect) {
         this.fullReconnectOnNext = true;
-        this.primaryTransport = undefined;
         // reconnect immediately instead of waiting for next attempt
         this.handleDisconnect(leaveReconnect);
       } else {
@@ -819,7 +811,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED ||
       // signaling state could change to closed due to hardware sleep
       // those connections cannot be resumed
-      (this.primaryTransport?.getSignallingState() ?? 'closed') === 'closed'
+      (this.pcManager?.currentState ?? PCTransportState.DISCONNECTED) ===
+        PCTransportState.DISCONNECTED
     ) {
       this.fullReconnectOnNext = true;
     }
@@ -1098,8 +1091,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     if (
       !subscriber &&
-      !this.publisher?.isICEConnected &&
-      this.publisher?.getICEConnectionState() !== 'checking'
+      !this.pcManager?.publisher.isICEConnected &&
+      this.pcManager?.publisher.getICEConnectionState() !== 'checking'
     ) {
       // start negotiation
       this.negotiate();
@@ -1138,11 +1131,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     // primary connection
     if (this.pcManager.currentState !== PCTransportState.CONNECTED) {
+      console.log('pc man state', this.pcManager.currentState);
       return false;
     }
 
     // ensure signal is connected
     if (!this.client.ws || this.client.ws.readyState === WebSocket.CLOSED) {
+      console.log('ws state', this.client.ws?.readyState);
+
       return false;
     }
     return true;
@@ -1152,8 +1148,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   negotiate(): Promise<void> {
     // observe signal state
     return new Promise<void>((resolve, reject) => {
-      if (!this.publisher) {
-        reject(new NegotiationError('publisher is not defined'));
+      if (!this.pcManager) {
+        reject(new NegotiationError('pc manager is not defined'));
         return;
       }
 
@@ -1181,25 +1177,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.off(EngineEvent.Closing, handleClosed);
       };
 
-      this.publisher.once(PCEvents.NegotiationStarted, () => {
-        this.publisher?.once(PCEvents.NegotiationComplete, () => {
+      this.pcManager.publisher.once(PCEvents.NegotiationStarted, () => {
+        this.pcManager?.publisher?.once(PCEvents.NegotiationComplete, () => {
           cleanup();
           resolve();
         });
       });
 
-      this.publisher.once(PCEvents.RTPVideoPayloadTypes, (rtpTypes: MediaAttributes['rtp']) => {
-        const rtpMap = new Map<number, VideoCodec>();
-        rtpTypes.forEach((rtp) => {
-          const codec = rtp.codec.toLowerCase();
-          if (isVideoCodec(codec)) {
-            rtpMap.set(rtp.payload, codec);
-          }
-        });
-        this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
-      });
+      this.pcManager.publisher.once(
+        PCEvents.RTPVideoPayloadTypes,
+        (rtpTypes: MediaAttributes['rtp']) => {
+          const rtpMap = new Map<number, VideoCodec>();
+          rtpTypes.forEach((rtp) => {
+            const codec = rtp.codec.toLowerCase();
+            if (isVideoCodec(codec)) {
+              rtpMap.set(rtp.payload, codec);
+            }
+          });
+          this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
+        },
+      );
 
-      this.publisher.negotiate((e) => {
+      this.pcManager.publisher.negotiate((e) => {
         cleanup();
         reject(e);
         if (e instanceof NegotiationError) {

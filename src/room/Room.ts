@@ -1546,8 +1546,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private sendSyncState() {
-    const previousAnswer = this.engine.subscriber?.getLocalDescription();
-    const previousOffer = this.engine.subscriber?.getRemoteDescription();
+    const previousAnswer = this.engine.pcManager?.subscriber.getLocalDescription();
+    const previousOffer = this.engine.pcManager?.subscriber.getRemoteDescription();
 
     if (!previousAnswer) {
       return;

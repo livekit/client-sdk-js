@@ -182,6 +182,10 @@ export class PCTransportManager {
     return this.publisher.createDataChannel(label, dataChannelDict);
   }
 
+  getConnectedAddress() {
+    return this.requiredTransports[0].getConnectedAddress();
+  }
+
   private get requiredTransports() {
     const transports: PCTransport[] = [];
     if (this.isPublisherConnectionRequired) {
@@ -270,10 +274,10 @@ export class PCTransportManager {
   }
 }
 
-function getPCState(pcTransport: PCTransport) {
-  return {
-    connectionState: pcTransport.getConnectionState(),
-    iceState: pcTransport.getICEConnectionState(),
-    signallingState: pcTransport.getSignallingState(),
-  };
-}
+// function getPCState(pcTransport: PCTransport) {
+//   return {
+//     connectionState: pcTransport.getConnectionState(),
+//     iceState: pcTransport.getICEConnectionState(),
+//     signallingState: pcTransport.getSignallingState(),
+//   };
+// }
