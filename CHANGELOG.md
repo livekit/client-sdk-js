@@ -1,5 +1,21 @@
 # Change Log
 
+## 1.14.3
+
+### Patch Changes
+
+- Update dependency @bufbuild/protobuf to v1.4.1 - [#913](https://github.com/livekit/client-sdk-js/pull/913) ([@renovate](https://github.com/apps/renovate))
+
+- Demote duplicate source log to info - [#917](https://github.com/livekit/client-sdk-js/pull/917) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix reconnect when E2EE is enabled - [#921](https://github.com/livekit/client-sdk-js/pull/921) ([@lukasIO](https://github.com/lukasIO))
+
+- Don't set the autoplay attribute on video elements in Safari - [#918](https://github.com/livekit/client-sdk-js/pull/918) ([@lukasIO](https://github.com/lukasIO))
+
+- Call startAudio when an audio track has been acquired in order to update audio playback status - [#919](https://github.com/livekit/client-sdk-js/pull/919) ([@lukasIO](https://github.com/lukasIO))
+
+- Round start bitrate for svc - [#920](https://github.com/livekit/client-sdk-js/pull/920) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 1.14.2
 
 ### Patch Changes
