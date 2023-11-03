@@ -101,9 +101,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     } else {
       super.attach(element);
     }
-    if (this.elementVolume) {
-      element.volume = this.elementVolume;
-    }
+
     if (this.sinkId && supportsSetSinkId(element)) {
       /* @ts-ignore */
       element.setSinkId(this.sinkId);
@@ -114,6 +112,12 @@ export default class RemoteAudioTrack extends RemoteTrack {
       element.volume = 0;
       element.muted = true;
     }
+
+    if (this.elementVolume) {
+      // make sure volume setting is being applied to the newly attached element
+      this.setVolume(this.elementVolume);
+    }
+
     return element;
   }
 
