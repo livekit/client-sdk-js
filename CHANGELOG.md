@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.14.4
+
+### Patch Changes
+
+- Correctly apply elementVolume on attach for webaudioMix - [#922](https://github.com/livekit/client-sdk-js/pull/922) ([@lukasIO](https://github.com/lukasIO))
+
+- Simplify multi-codec simulcast usage, backupCodec: true - [#923](https://github.com/livekit/client-sdk-js/pull/923) ([@davidzhao](https://github.com/davidzhao))
+
 ## 1.14.3
 
 ### Patch Changes
