@@ -283,7 +283,9 @@ export default class PCTransport extends EventEmitter {
           for (const fmtp of media.fmtp) {
             if (fmtp.payload === codecPayload) {
               if (!fmtp.config.includes('x-google-start-bitrate')) {
-                fmtp.config += `;x-google-start-bitrate=${trackbr.maxbr * startBitrateForSVC}`;
+                fmtp.config += `;x-google-start-bitrate=${Math.round(
+                  trackbr.maxbr * startBitrateForSVC,
+                )}`;
               }
               if (!fmtp.config.includes('x-google-max-bitrate')) {
                 fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
@@ -296,9 +298,9 @@ export default class PCTransport extends EventEmitter {
           if (!fmtpFound) {
             media.fmtp.push({
               payload: codecPayload,
-              config: `x-google-start-bitrate=${
-                trackbr.maxbr * startBitrateForSVC
-              };x-google-max-bitrate=${trackbr.maxbr}`,
+              config: `x-google-start-bitrate=${Math.round(
+                trackbr.maxbr * startBitrateForSVC,
+              )};x-google-max-bitrate=${trackbr.maxbr}`,
             });
           }
 

@@ -452,6 +452,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               error instanceof ConnectionError &&
               (error.status === 401 || error.reason === ConnectionErrorReason.Cancelled)
             ) {
+              this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
               reject(error);
               return;
             }
@@ -462,9 +463,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             );
             await connectFn(resolve, reject, nextUrl);
           } else {
+            this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
             reject(e);
           }
         } else {
+          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
           reject(e);
         }
       }
@@ -593,8 +596,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.setupLocalParticipantEvents();
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
+      await this.engine.close();
       this.recreateEngine();
-      this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       const resultingError = new ConnectionError(`could not establish signal connection`);
       if (err instanceof Error) {
         resultingError.message = `${resultingError.message}: ${err.message}`;
@@ -608,8 +611,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     if (abortController.signal.aborted) {
+      await this.engine.close();
       this.recreateEngine();
-      this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       throw new ConnectionError(`Connection attempt aborted`);
     }
 
@@ -619,8 +622,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         abortController,
       );
     } catch (e) {
+      await this.engine.close();
       this.recreateEngine();
-      this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
       throw e;
     }
 
@@ -799,7 +802,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * - `startAudio`
    * - `getUserMedia`
    */
-  async startAudio() {
+  startAudio = async () => {
     const elements: Array<HTMLMediaElement> = [];
     const browser = getBrowser();
     if (browser && browser.os === 'iOS') {
@@ -860,7 +863,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleAudioPlaybackFailed(err);
       throw err;
     }
-  }
+  };
 
   /**
    * Returns true if audio playback is enabled
@@ -970,6 +973,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
       .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
       .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
+      .on(ParticipantEvent.AudioStreamAcquired, this.startAudio)
       .on(
         ParticipantEvent.ParticipantPermissionsChanged,
         this.onLocalParticipantPermissionsChanged,
@@ -1166,6 +1170,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         .off(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished)
         .off(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
         .off(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
+        .off(ParticipantEvent.AudioStreamAcquired, this.startAudio)
         .off(
           ParticipantEvent.ParticipantPermissionsChanged,
           this.onLocalParticipantPermissionsChanged,

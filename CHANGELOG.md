@@ -1,5 +1,53 @@
 # Change Log
 
+## 1.14.4
+
+### Patch Changes
+
+- Correctly apply elementVolume on attach for webaudioMix - [#922](https://github.com/livekit/client-sdk-js/pull/922) ([@lukasIO](https://github.com/lukasIO))
+
+- Simplify multi-codec simulcast usage, backupCodec: true - [#923](https://github.com/livekit/client-sdk-js/pull/923) ([@davidzhao](https://github.com/davidzhao))
+
+## 1.14.3
+
+### Patch Changes
+
+- Update dependency @bufbuild/protobuf to v1.4.1 - [#913](https://github.com/livekit/client-sdk-js/pull/913) ([@renovate](https://github.com/apps/renovate))
+
+- Demote duplicate source log to info - [#917](https://github.com/livekit/client-sdk-js/pull/917) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix reconnect when E2EE is enabled - [#921](https://github.com/livekit/client-sdk-js/pull/921) ([@lukasIO](https://github.com/lukasIO))
+
+- Don't set the autoplay attribute on video elements in Safari - [#918](https://github.com/livekit/client-sdk-js/pull/918) ([@lukasIO](https://github.com/lukasIO))
+
+- Call startAudio when an audio track has been acquired in order to update audio playback status - [#919](https://github.com/livekit/client-sdk-js/pull/919) ([@lukasIO](https://github.com/lukasIO))
+
+- Round start bitrate for svc - [#920](https://github.com/livekit/client-sdk-js/pull/920) ([@cnderrauber](https://github.com/cnderrauber))
+
+## 1.14.2
+
+### Patch Changes
+
+- Use a deepClone util function for CreateLocalTrackOptions - [#906](https://github.com/livekit/client-sdk-js/pull/906) ([@vas11yev1work](https://github.com/vas11yev1work))
+
+- Guard against overriding newly set key when auto-ratcheting - [#895](https://github.com/livekit/client-sdk-js/pull/895) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix Safari reporting wrong initial track resolution - [#898](https://github.com/livekit/client-sdk-js/pull/898) ([@lukasIO](https://github.com/lukasIO))
+
+- Make peerconnection private on PCTransport - [#903](https://github.com/livekit/client-sdk-js/pull/903) ([@lukasIO](https://github.com/lukasIO))
+
+- Improve handling of incompatible published codecs - [#911](https://github.com/livekit/client-sdk-js/pull/911) ([@davidzhao](https://github.com/davidzhao))
+
+- Fix a race in setKeyFromMaterial that would cause keys to be set at the wrong index if several keys were set in quick succession. - [#908](https://github.com/livekit/client-sdk-js/pull/908) ([@dbkr](https://github.com/dbkr))
+
+- Update protocol - [#902](https://github.com/livekit/client-sdk-js/pull/902) ([@lukasIO](https://github.com/lukasIO))
+
+- Add key index to e2e worker log lines - [#904](https://github.com/livekit/client-sdk-js/pull/904) ([@dbkr](https://github.com/dbkr))
+
+- Fix Typescript compilation error in angular setups - [#901](https://github.com/livekit/client-sdk-js/pull/901) ([@pabloFuente](https://github.com/pabloFuente))
+
+- Don't disconnect room before retrying new regions - [#910](https://github.com/livekit/client-sdk-js/pull/910) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.14.1
 
 ### Patch Changes

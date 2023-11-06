@@ -7,9 +7,15 @@ export interface TrackPublishDefaults {
   videoEncoding?: VideoEncoding;
 
   /**
-   * @experimental
+   * Multi-codec Simulcast
+   * VP9 and AV1 are not supported by all browser clients. When backupCodec is
+   * set, when an incompatible client attempts to subscribe to the track, LiveKit
+   * will automatically publish a secondary track encoded with the backup codec.
+   *
+   * You could customize specific encoding parameters of the backup track by
+   * explicitly setting codec and encoding fields.
    */
-  backupCodec?: { codec: BackupVideoCodec; encoding: VideoEncoding } | false;
+  backupCodec?: true | false | { codec: BackupVideoCodec; encoding?: VideoEncoding };
 
   /**
    * encoding parameters for screen share track
@@ -299,13 +305,6 @@ export type BackupVideoCodec = (typeof backupCodecs)[number];
 
 export function isBackupCodec(codec: string): codec is BackupVideoCodec {
   return !!backupCodecs.find((backup) => backup === codec);
-}
-
-export function isCodecEqual(c1: string | undefined, c2: string | undefined): boolean {
-  return (
-    c1?.toLowerCase().replace(/audio\/|video\//y, '') ===
-    c2?.toLowerCase().replace(/audio\/|video\//y, '')
-  );
 }
 
 /**

@@ -457,6 +457,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private makeRTCConfiguration(serverResponse: JoinResponse | ReconnectResponse): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
+    if (this.signalOpts?.e2eeEnabled) {
+      log.debug('E2EE - setting up transports with insertable streams');
+      //  this makes sure that no data is sent before the transforms are ready
+      // @ts-ignore
+      rtcConfig.encodedInsertableStreams = true;
+    }
 
     if (this.signalOpts?.e2eeEnabled) {
       log.debug('E2EE - setting up transports with insertable streams');
@@ -939,6 +945,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       let message = '';
       if (e instanceof Error) {
         message = e.message;
+        log.error(e.message);
       }
       if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
         throw new UnexpectedConnectionState('could not reconnect, token might be expired');
