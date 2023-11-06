@@ -209,12 +209,10 @@ export class PCTransportManager {
 
       abortController.signal.addEventListener('abort', abortHandler);
       this.publisher.once(PCEvents.NegotiationStarted, () => {
-        console.log('negotiation started');
         if (abortController.signal.aborted) {
           return;
         }
         this.publisher.once(PCEvents.NegotiationComplete, () => {
-          console.log('negotiation complete');
           clearTimeout(negotiationTimeout);
           resolve();
         });

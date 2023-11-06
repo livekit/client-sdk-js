@@ -3,7 +3,7 @@ import type { MediaDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log from '../logger';
-import { NegotiationError } from './errors';
+import { NegotiationError, UnexpectedConnectionState } from './errors';
 import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
@@ -34,6 +34,7 @@ export default class PCTransport extends EventEmitter {
 
   private get pc() {
     if (!this._pc) {
+      console.warn('creating new peer connection');
       this._pc = this.createPC(); // FIXME this seems to leak peer connections
     }
     return this._pc;
@@ -334,7 +335,10 @@ export default class PCTransport extends EventEmitter {
   }
 
   addTrack(track: MediaStreamTrack) {
-    return this.pc.addTrack(track);
+    if (!this._pc) {
+      throw new UnexpectedConnectionState('PC closed, cannot add track');
+    }
+    return this._pc.addTrack(track);
   }
 
   setTrackCodecBitrate(info: TrackBitrateInfo) {
@@ -342,43 +346,46 @@ export default class PCTransport extends EventEmitter {
   }
 
   setConfiguration(rtcConfig: RTCConfiguration) {
-    return this.pc.setConfiguration(rtcConfig);
+    if (!this._pc) {
+      throw new UnexpectedConnectionState('PC closed, cannot configure');
+    }
+    return this._pc?.setConfiguration(rtcConfig);
   }
 
   canRemoveTrack(): boolean {
-    return !!this.pc.removeTrack;
+    return !!this._pc?.removeTrack;
   }
 
   removeTrack(sender: RTCRtpSender) {
-    return this.pc.removeTrack(sender);
+    return this._pc?.removeTrack(sender);
   }
 
   getConnectionState() {
-    return this.pc.connectionState;
+    return this._pc?.connectionState ?? 'closed';
   }
 
   getICEConnectionState() {
-    return this.pc.iceConnectionState;
+    return this._pc?.iceConnectionState ?? 'closed';
   }
 
   getSignallingState() {
-    return this.pc.signalingState;
+    return this._pc?.signalingState ?? 'closed';
   }
 
   getTransceivers() {
-    return this.pc.getTransceivers();
+    return this._pc?.getTransceivers() ?? [];
   }
 
   getSenders() {
-    return this.pc.getSenders();
+    return this._pc?.getSenders() ?? [];
   }
 
   getLocalDescription() {
-    return this.pc.localDescription;
+    return this._pc?.localDescription;
   }
 
   getRemoteDescription() {
-    return this.pc.remoteDescription;
+    return this.pc?.remoteDescription;
   }
 
   async getConnectedAddress(): Promise<string | undefined> {
