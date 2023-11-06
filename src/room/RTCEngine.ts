@@ -246,6 +246,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   async cleanupPeerConnections() {
     await this.pcManager?.close();
+    this.pcManager = undefined;
 
     // this.primaryTransport = undefined;
 
@@ -342,7 +343,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private async configure(joinResponse: JoinResponse) {
     // already configured
-    if (this.pcManager && this.pcManager.currentState !== PCTransportState.DISCONNECTED) {
+    if (this.pcManager && this.pcManager.currentState !== PCTransportState.NEW) {
       return;
     }
 
@@ -400,9 +401,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       log.debug('received server answer', {
         RTCSdpType: sd.type,
-        signalingState: this.pcManager.publisher.getSignallingState().toString(),
       });
-      await this.pcManager.publisher.setRemoteDescription(sd);
+      await this.pcManager.setAnswer(sd);
     };
 
     // add candidate on trickle
@@ -811,8 +811,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED ||
       // signaling state could change to closed due to hardware sleep
       // those connections cannot be resumed
-      (this.pcManager?.currentState ?? PCTransportState.DISCONNECTED) ===
-        PCTransportState.DISCONNECTED
+      (this.pcManager?.currentState ?? PCTransportState.NEW) === PCTransportState.NEW
     ) {
       this.fullReconnectOnNext = true;
     }
@@ -975,7 +974,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   async waitForPCInitialConnection(timeout?: number, abortController?: AbortController) {
-    await this.pcManager?.ensurePCTransportConnection(abortController, timeout);
+    if (!this.pcManager) {
+      throw new UnexpectedConnectionState('PC manager is closed');
+    }
+    await this.pcManager.ensurePCTransportConnection(abortController, timeout);
     // if (this.pcState === PCState.Connected) {
     //   return;
     // }
@@ -1021,7 +1023,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     log.debug('waiting for peer connection to reconnect');
     try {
       await sleep(minReconnectWait); // FIXME setTimeout again not ideal for a connection critical path
-      await this.pcManager?.ensurePCTransportConnection(undefined, this.peerConnectionTimeout);
+      if (!this.pcManager) {
+        throw new UnexpectedConnectionState('PC manager is closed');
+      }
+      await this.pcManager.ensurePCTransportConnection(undefined, this.peerConnectionTimeout);
       this.pcState = PCState.Connected;
     } catch (e: any) {
       // TODO do we need a `failed` state here for the PC?
@@ -1084,7 +1089,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     kind: DataPacket_Kind,
     subscriber: boolean = this.subscriberPrimary,
   ) {
-    const transport = subscriber ? this.pcManager?.subscriber : this.pcManager?.publisher;
+    if (!this.pcManager) {
+      throw new UnexpectedConnectionState('PC manager is closed');
+    }
+    const transport = subscriber ? this.pcManager.subscriber : this.pcManager.publisher;
     const transportName = subscriber ? 'Subscriber' : 'Publisher';
     if (!transport) {
       throw new ConnectionError(`${transportName} connection not set`);
@@ -1092,8 +1100,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     if (
       !subscriber &&
-      !this.pcManager?.publisher.isICEConnected &&
-      this.pcManager?.publisher.getICEConnectionState() !== 'checking'
+      !this.pcManager.publisher.isICEConnected &&
+      this.pcManager.publisher.getICEConnectionState() !== 'checking'
     ) {
       // start negotiation
       this.negotiate();
@@ -1146,19 +1154,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   /** @internal */
-  negotiate(): Promise<void> {
+  async negotiate(): Promise<void> {
     // observe signal state
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>(async (resolve, reject) => {
       if (!this.pcManager) {
-        reject(new NegotiationError('pc manager is not defined'));
+        reject(new NegotiationError('PC manager is closed'));
         return;
       }
 
       this.pcManager.requirePublisher();
 
+      const abortController = new AbortController();
+
       const handleClosed = () => {
+        abortController.abort();
         log.debug('engine disconnected while negotiation was ongoing');
-        cleanup();
         resolve();
         return;
       };
@@ -1167,23 +1177,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         reject('cannot negotiate on closed engine');
       }
       this.on(EngineEvent.Closing, handleClosed);
-
-      const negotiationTimeout = setTimeout(() => {
-        reject('negotiation timed out');
-        this.handleDisconnect('negotiation', ReconnectReason.RR_SIGNAL_DISCONNECTED);
-      }, this.peerConnectionTimeout);
-
-      const cleanup = () => {
-        clearTimeout(negotiationTimeout);
-        this.off(EngineEvent.Closing, handleClosed);
-      };
-
-      this.pcManager.publisher.once(PCEvents.NegotiationStarted, () => {
-        this.pcManager?.publisher?.once(PCEvents.NegotiationComplete, () => {
-          cleanup();
-          resolve();
-        });
-      });
 
       this.pcManager.publisher.once(
         PCEvents.RTPVideoPayloadTypes,
@@ -1199,14 +1192,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         },
       );
 
-      this.pcManager.publisher.negotiate((e) => {
-        cleanup();
-        reject(e);
+      try {
+        await this.pcManager.negotiate(abortController);
+        resolve();
+      } catch (e: any) {
         if (e instanceof NegotiationError) {
           this.fullReconnectOnNext = true;
         }
         this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
-      });
+        reject(e);
+      } finally {
+        this.off(EngineEvent.Closing, handleClosed);
+      }
     });
   }
 

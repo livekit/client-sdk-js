@@ -1,16 +1,18 @@
 import log from '../logger';
 import { SignalTarget } from '../proto/livekit_rtc_pb';
-import PCTransport from './PCTransport';
+import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import CriticalTimers from './timers';
 import { Mutex, sleep } from './utils';
 
 export enum PCTransportState {
-  DISCONNECTED,
+  NEW,
   CONNECTING,
   CONNECTED,
   FAILED,
+  CLOSING,
+  CLOSED,
 }
 
 export class PCTransportManager {
@@ -84,7 +86,7 @@ export class PCTransportManager {
       this.onLocalOffer?.(offer);
     };
 
-    this.state = PCTransportState.DISCONNECTED;
+    this.state = PCTransportState.NEW;
 
     this.connectionLock = new Mutex();
   }
@@ -101,6 +103,10 @@ export class PCTransportManager {
 
   createAndSendOffer(options?: RTCOfferOptions) {
     return this.publisher.createAndSendOffer(options);
+  }
+
+  setAnswer(sd: RTCSessionDescriptionInit) {
+    return this.publisher.setRemoteDescription(sd);
   }
 
   removeTrack(sender: RTCRtpSender) {
@@ -189,6 +195,38 @@ export class PCTransportManager {
     }
   }
 
+  async negotiate(abortController: AbortController) {
+    console.log('negotiation requested');
+    return new Promise<void>(async (resolve, reject) => {
+      const negotiationTimeout = setTimeout(() => {
+        reject('negotiation timed out');
+      }, this.peerConnectionTimeout);
+
+      const abortHandler = () => {
+        clearTimeout(negotiationTimeout);
+        reject('negotiation aborted');
+      };
+
+      abortController.signal.addEventListener('abort', abortHandler);
+      this.publisher.once(PCEvents.NegotiationStarted, () => {
+        console.log('negotiation started');
+        if (abortController.signal.aborted) {
+          return;
+        }
+        this.publisher.once(PCEvents.NegotiationComplete, () => {
+          console.log('negotiation complete');
+          clearTimeout(negotiationTimeout);
+          resolve();
+        });
+      });
+
+      await this.publisher.negotiate((e) => {
+        clearTimeout(negotiationTimeout);
+        reject(e);
+      });
+    });
+  }
+
   addTransceiver(track: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
     return this.publisher.addTransceiver(track, transceiverInit);
   }
@@ -227,9 +265,11 @@ export class PCTransportManager {
     } else if (connectionStates.some((st) => st === 'connecting')) {
       this.state = PCTransportState.CONNECTING;
     } else if (connectionStates.every((st) => st === 'closed')) {
-      this.state = PCTransportState.DISCONNECTED;
+      this.state = PCTransportState.CLOSED;
+    } else if (connectionStates.some((st) => st === 'closed')) {
+      this.state = PCTransportState.CLOSING;
     } else if (connectionStates.every((st) => st === 'new')) {
-      this.state = PCTransportState.DISCONNECTED;
+      this.state = PCTransportState.NEW;
     }
     log.info(`pc state: ${PCTransportState[this.state]}`, {
       publisher: this.publisher.getConnectionState(),

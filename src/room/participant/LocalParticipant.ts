@@ -17,6 +17,7 @@ import {
   TrackPublishedResponse,
   TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc_pb';
+import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { defaultVideoCodec } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState } from '../errors';
@@ -929,8 +930,8 @@ export default class LocalParticipant extends Participant {
     const trackSender = track.sender;
     track.sender = undefined;
     if (
-      this.engine.pcManager?.publisher &&
-      this.engine.pcManager?.publisher.getConnectionState() !== 'closed' &&
+      this.engine.pcManager &&
+      this.engine.pcManager.currentState < PCTransportState.FAILED &&
       trackSender
     ) {
       try {
