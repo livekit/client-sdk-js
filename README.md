@@ -295,7 +295,7 @@ setLogExtension((level: LogLevel, msg: string, context: object) => {
 
 ### SDK Sample
 
-[example/sample.ts](example/sample.ts) contains a demo webapp that uses the SDK. Run it with `yarn sample`
+[example/sample.ts](example/sample.ts) contains a demo webapp that uses the SDK. Run it with `pnpm install && pnpm sample`
 
 ## Browser Support
 
