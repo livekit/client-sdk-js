@@ -36,7 +36,7 @@
   "author": "David Zhao <david@davidzhao.com>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs  && yarn downlevel-dts",
+    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
     "build:watch": "rollup --watch --config rollup.config.js",
     "build-docs": "typedoc",
     "proto": "protoc --es_out src/proto --es_opt target=ts -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
