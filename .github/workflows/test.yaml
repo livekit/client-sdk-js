@@ -24,21 +24,21 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-node-
 
-    - name: Install Yarn
+    - name: Install pnpm
       run: |
-        npm install -g yarn
-        yarn install
+        npm install -g pnpm
+        pnpm install
 
     - name: ESLint
-      run: yarn lint
+      run: pnpm lint
     
     - name: Prettier
-      run: yarn format:check
+      run: pnpm format:check
 
     - name: Run Tests
-      run: yarn test
+      run: pnpm test
 
     - name: Check browser target compatibility
       run: |
-        yarn build
-        yarn compat
+        pnpm build
+        pnpm compat
