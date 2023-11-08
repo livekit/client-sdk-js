@@ -28,7 +28,7 @@
         "./dist/ts4.2/src/index.d.ts"
       ],
       "./dist/src/e2ee/worker/e2ee.worker.d.ts": [
-        "./dist/ts4.2//dist/src/e2ee/worker/e2ee.worker.d.ts"
+        "./dist/ts4.2/dist/src/e2ee/worker/e2ee.worker.d.ts"
       ]
     }
   },
@@ -36,7 +36,7 @@
   "author": "David Zhao <david@davidzhao.com>",
   "license": "Apache-2.0",
   "scripts": {
-    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs  && yarn downlevel-dts",
+    "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
     "build:watch": "rollup --watch --config rollup.config.js",
     "build-docs": "typedoc",
     "proto": "protoc --es_out src/proto --es_opt target=ts -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
@@ -46,7 +46,7 @@
     "deploy": "gh-pages -d example/dist",
     "format": "prettier --write src example/sample.ts",
     "format:check": "prettier --check src",
-    "release": "yarn build && yarn compat && changeset publish",
+    "ci:publish": "pnpm build && pnpm compat && pnpm publish -r",
     "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2",
     "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js",
     "size-limit": "size-limit"
@@ -57,6 +57,7 @@
     "loglevel": "^1.8.0",
     "sdp-transform": "^2.14.1",
     "ts-debounce": "^4.0.0",
+    "tslib": "2.6.2",
     "typed-emitter": "^2.1.0",
     "webrtc-adapter": "^8.1.1"
   },
