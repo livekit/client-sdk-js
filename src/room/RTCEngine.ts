@@ -867,6 +867,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
     if (
+      true ||
       this.clientConfiguration?.resumeConnection === ClientConfigSetting.DISABLED ||
       // signaling state could change to closed due to hardware sleep
       // those connections cannot be resumed
