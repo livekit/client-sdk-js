@@ -46,7 +46,7 @@
     "deploy": "gh-pages -d example/dist",
     "format": "prettier --write src example/sample.ts",
     "format:check": "prettier --check src",
-    "ci:publish": "pnpm build && pnpm compat && pnpm publish -r",
+    "ci:publish": "pnpm build && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2",
     "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js",
     "size-limit": "size-limit"
