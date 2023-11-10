@@ -17095,6 +17095,7 @@ class RTCEngine extends eventsExports.EventEmitter {
     });
   }
   attemptReconnect(reason) {
+    var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
       if (this._isClosed) {
         return;
@@ -17103,7 +17104,10 @@ class RTCEngine extends eventsExports.EventEmitter {
       if (this.attemptingReconnect) {
         return;
       }
-      {
+      if (((_a = this.clientConfiguration) === null || _a === void 0 ? void 0 : _a.resumeConnection) === ClientConfigSetting.DISABLED ||
+      // signaling state could change to closed due to hardware sleep
+      // those connections cannot be resumed
+      ((_c = (_b = this.primaryTransport) === null || _b === void 0 ? void 0 : _b.getSignallingState()) !== null && _c !== void 0 ? _c : 'closed') === 'closed') {
         this.fullReconnectOnNext = true;
       }
       try {
