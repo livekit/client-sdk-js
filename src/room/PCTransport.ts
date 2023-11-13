@@ -34,8 +34,7 @@ export default class PCTransport extends EventEmitter {
 
   private get pc() {
     if (!this._pc) {
-      console.warn('creating new peer connection');
-      this._pc = this.createPC(); // FIXME this seems to leak peer connections
+      this._pc = this.createPC();
     }
     return this._pc;
   }
@@ -426,7 +425,6 @@ export default class PCTransport extends EventEmitter {
   }
 
   close = () => {
-    console.warn('closing pc transport');
     if (!this._pc) {
       return;
     }

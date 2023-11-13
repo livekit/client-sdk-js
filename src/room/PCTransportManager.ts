@@ -169,21 +169,14 @@ export class PCTransportManager {
 
   async ensurePCTransportConnection(abortController?: AbortController, timeout?: number) {
     const unlock = await this.connectionLock.lock();
-
     try {
       if (
         this.isPublisherConnectionRequired &&
         this.publisher.getConnectionState() !== 'connected' &&
         this.publisher.getConnectionState() !== 'connecting'
       ) {
-        console.log('negotiation required, start negotiating');
+        log.debug('negotiation required, start negotiating');
         this.publisher.negotiate();
-      } else {
-        console.log(
-          'no negotiation required',
-          this.isPublisherConnectionRequired,
-          this.publisher.getConnectionState(),
-        );
       }
       await Promise.all(
         this.requiredTransports?.map((transport) =>
@@ -196,7 +189,6 @@ export class PCTransportManager {
   }
 
   async negotiate(abortController: AbortController) {
-    console.log('negotiation requested');
     return new Promise<void>(async (resolve, reject) => {
       const negotiationTimeout = setTimeout(() => {
         reject('negotiation timed out');
@@ -269,11 +261,13 @@ export class PCTransportManager {
     } else if (connectionStates.every((st) => st === 'new')) {
       this.state = PCTransportState.NEW;
     }
-    log.info(`pc state: ${PCTransportState[this.state]}`, {
-      publisher: this.publisher.getConnectionState(),
-      subscriber: this.subscriber.getConnectionState(),
-    });
+
     if (previousState !== this.state) {
+      log.debug(
+        `pc state change: from ${PCTransportState[previousState]} to ${
+          PCTransportState[this.state]
+        }`,
+      );
       this.onStateChange?.(
         this.state,
         this.publisher.getConnectionState(),
@@ -291,11 +285,7 @@ export class PCTransportManager {
     if (connectionState === 'connected') {
       return;
     }
-    // if (this.pcState !== PCState.New) {
-    //   throw new UnexpectedConnectionState(
-    //     'Expected peer connection to be new on initial connection',
-    //   );
-    // }
+
     return new Promise<void>(async (resolve, reject) => {
       const abortHandler = () => {
         log.warn('abort transport connection');
@@ -336,11 +326,3 @@ export class PCTransportManager {
     });
   }
 }
-
-// function getPCState(pcTransport: PCTransport) {
-//   return {
-//     connectionState: pcTransport.getConnectionState(),
-//     iceState: pcTransport.getICEConnectionState(),
-//     signallingState: pcTransport.getSignallingState(),
-//   };
-// }

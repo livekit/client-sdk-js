@@ -978,41 +978,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('PC manager is closed');
     }
     await this.pcManager.ensurePCTransportConnection(abortController, timeout);
-    // if (this.pcState === PCState.Connected) {
-    //   return;
-    // }
-    // if (this.pcState !== PCState.New) {
-    //   throw new UnexpectedConnectionState(
-    //     'Expected peer connection to be new on initial connection',
-    //   );
-    // }
-    // return new Promise<void>((resolve, reject) => {
-    //   const abortHandler = () => {
-    //     log.warn('closing engine');
-    //     CriticalTimers.clearTimeout(connectTimeout);
-
-    //     reject(
-    //       new ConnectionError(
-    //         'room connection has been cancelled',
-    //         ConnectionErrorReason.Cancelled,
-    //       ),
-    //     );
-    //   };
-    //   if (abortController?.signal.aborted) {
-    //     abortHandler();
-    //   }
-    //   abortController?.signal.addEventListener('abort', abortHandler);
-    //   const onConnected = () => {
-    //     CriticalTimers.clearTimeout(connectTimeout);
-    //     abortController?.signal.removeEventListener('abort', abortHandler);
-    //     resolve();
-    //   };
-    //   const connectTimeout = CriticalTimers.setTimeout(() => {
-    //     this.off(EngineEvent.Connected, onConnected);
-    //     reject(new ConnectionError('could not establish pc connection'));
-    //   }, timeout ?? this.peerConnectionTimeout);
-    //   this.once(EngineEvent.Connected, onConnected);
-    // });
   }
 
   private async waitForPCReconnected() {
@@ -1140,14 +1105,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     // primary connection
     if (this.pcManager.currentState !== PCTransportState.CONNECTED) {
-      console.log('pc man state', this.pcManager.currentState);
       return false;
     }
 
     // ensure signal is connected
     if (!this.client.ws || this.client.ws.readyState === WebSocket.CLOSED) {
-      console.log('ws state', this.client.ws?.readyState);
-
       return false;
     }
     return true;
