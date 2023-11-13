@@ -229,7 +229,15 @@ export class PCTransportManager {
     return this.publisher.createDataChannel(label, dataChannelDict);
   }
 
-  getConnectedAddress() {
+  /**
+   * Returns the first required transport's address if no explicit target is specified
+   */
+  getConnectedAddress(target?: SignalTarget) {
+    if (target === SignalTarget.PUBLISHER) {
+      return this.publisher.getConnectedAddress();
+    } else if (target === SignalTarget.SUBSCRIBER) {
+      return this.publisher.getConnectedAddress();
+    }
     return this.requiredTransports[0].getConnectedAddress();
   }
 
