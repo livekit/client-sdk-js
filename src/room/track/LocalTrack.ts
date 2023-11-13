@@ -108,9 +108,11 @@ export default abstract class LocalTrack extends Track {
       this.attachedElements.forEach((el) => {
         detachTrack(this._mediaStreamTrack, el);
       });
+      this.debouncedTrackMuteHandler.cancel('new-track');
       this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
       this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
       this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
+
       if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
         this._mediaStreamTrack.stop();
       }
