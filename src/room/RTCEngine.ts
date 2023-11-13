@@ -73,10 +73,6 @@ enum PCState {
 
 /** @internal */
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
-  // publisher?: PCTransport;
-
-  // subscriber?: PCTransport;
-
   client: SignalClient;
 
   rtcConfig: RTCConfiguration = {};
@@ -109,8 +105,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private reliableDCSub?: RTCDataChannel;
 
   private subscriberPrimary: boolean = false;
-
-  // private primaryTransport?: PCTransport;
 
   private pcState: PCState = PCState.New;
 
@@ -247,8 +241,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   async cleanupPeerConnections() {
     await this.pcManager?.close();
     this.pcManager = undefined;
-
-    // this.primaryTransport = undefined;
 
     const dcCleanup = (dc: RTCDataChannel | undefined) => {
       if (!dc) return;
@@ -457,12 +449,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private makeRTCConfiguration(serverResponse: JoinResponse | ReconnectResponse): RTCConfiguration {
     const rtcConfig = { ...this.rtcConfig };
-    if (this.signalOpts?.e2eeEnabled) {
-      log.debug('E2EE - setting up transports with insertable streams');
-      //  this makes sure that no data is sent before the transforms are ready
-      // @ts-ignore
-      rtcConfig.encodedInsertableStreams = true;
-    }
 
     if (this.signalOpts?.e2eeEnabled) {
       log.debug('E2EE - setting up transports with insertable streams');
@@ -981,8 +967,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private async waitForPCReconnected() {
-    // const startTime = Date.now();
-    // let now = startTime;
     this.pcState = PCState.Reconnecting;
 
     log.debug('waiting for peer connection to reconnect');
@@ -995,6 +979,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.pcState = PCState.Connected;
     } catch (e: any) {
       // TODO do we need a `failed` state here for the PC?
+      this.pcState = PCState.Disconnected;
       throw new ConnectionError(`could not establish PC connection, ${e.message}`);
     }
   }
