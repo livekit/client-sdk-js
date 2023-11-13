@@ -1558,10 +1558,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const previousAnswer = this.engine.pcManager.subscriber.getLocalDescription();
     const previousOffer = this.engine.pcManager.subscriber.getRemoteDescription();
 
-    if (!previousAnswer) {
-      return;
-    }
-
     /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
           in this case, we send unsub tracks, so server add all tracks to this
           subscribe pc and unsub special tracks from it.
@@ -1579,10 +1575,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.engine.client.sendSyncState(
       new SyncState({
-        answer: toProtoSessionDescription({
-          sdp: previousAnswer.sdp,
-          type: previousAnswer.type,
-        }),
+        answer: previousAnswer
+          ? toProtoSessionDescription({
+              sdp: previousAnswer.sdp,
+              type: previousAnswer.type,
+            })
+          : undefined,
         offer: previousOffer
           ? toProtoSessionDescription({
               sdp: previousOffer.sdp,
