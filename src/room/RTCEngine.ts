@@ -351,7 +351,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.client.sendIceCandidate(candidate, target);
     };
 
-    this.pcManager.onLocalOffer = (offer) => {
+    this.pcManager.onPublisherOffer = (offer) => {
       this.client.sendOffer(offer);
     };
 

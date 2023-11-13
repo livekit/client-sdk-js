@@ -46,7 +46,7 @@ export class PCTransportManager {
 
   public onTrack?: (ev: RTCTrackEvent) => void;
 
-  public onLocalOffer?: (offer: RTCSessionDescriptionInit) => void;
+  public onPublisherOffer?: (offer: RTCSessionDescriptionInit) => void;
 
   private isPublisherConnectionRequired: boolean;
 
@@ -83,7 +83,7 @@ export class PCTransportManager {
       this.onTrack?.(ev);
     };
     this.publisher.onOffer = (offer) => {
-      this.onLocalOffer?.(offer);
+      this.onPublisherOffer?.(offer);
     };
 
     this.state = PCTransportState.NEW;
