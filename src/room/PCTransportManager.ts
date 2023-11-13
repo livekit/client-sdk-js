@@ -101,11 +101,11 @@ export class PCTransportManager {
     this.updateState();
   }
 
-  createAndSendOffer(options?: RTCOfferOptions) {
+  createAndSendPublisherOffer(options?: RTCOfferOptions) {
     return this.publisher.createAndSendOffer(options);
   }
 
-  setAnswer(sd: RTCSessionDescriptionInit) {
+  setPublisherAnswer(sd: RTCSessionDescriptionInit) {
     return this.publisher.setRemoteDescription(sd);
   }
 
@@ -135,7 +135,7 @@ export class PCTransportManager {
     this.subscriber.restartingIce = true;
     // only restart publisher if it's needed
     if (this.needsPublisher) {
-      await this.createAndSendOffer({ iceRestart: true });
+      await this.createAndSendPublisherOffer({ iceRestart: true });
     }
   }
 
@@ -147,7 +147,7 @@ export class PCTransportManager {
     }
   }
 
-  async createAnswerFromOffer(sd: RTCSessionDescriptionInit) {
+  async createSubscriberAnswerFromOffer(sd: RTCSessionDescriptionInit) {
     log.debug('received server offer', {
       RTCSdpType: sd.type,
       signalingState: this.subscriber.getSignallingState().toString(),
@@ -217,15 +217,15 @@ export class PCTransportManager {
     });
   }
 
-  addTransceiver(track: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
+  addPublisherTransceiver(track: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
     return this.publisher.addTransceiver(track, transceiverInit);
   }
 
-  addTrack(track: MediaStreamTrack) {
+  addPublisherTrack(track: MediaStreamTrack) {
     return this.publisher.addTrack(track);
   }
 
-  createDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
+  createPublisherDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
     return this.publisher.createDataChannel(label, dataChannelDict);
   }
 

@@ -394,7 +394,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       log.debug('received server answer', {
         RTCSdpType: sd.type,
       });
-      await this.pcManager.setAnswer(sd);
+      await this.pcManager.setPublisherAnswer(sd);
     };
 
     // add candidate on trickle
@@ -411,7 +411,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
-      const answer = await this.pcManager.createAnswerFromOffer(sd);
+      const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd);
       this.client.sendAnswer(answer);
     };
 
@@ -504,12 +504,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     // create data channels
-    this.lossyDC = this.pcManager.createDataChannel(lossyDataChannel, {
+    this.lossyDC = this.pcManager.createPublisherDataChannel(lossyDataChannel, {
       // will drop older packets that arrive
       ordered: true,
       maxRetransmits: 0,
     });
-    this.reliableDC = this.pcManager.createDataChannel(reliableDataChannel, {
+    this.reliableDC = this.pcManager.createPublisherDataChannel(reliableDataChannel, {
       ordered: true,
     });
 
@@ -690,7 +690,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.pcManager.addTransceiver(
+    const transceiver = await this.pcManager.addPublisherTransceiver(
       track.mediaStreamTrack,
       transceiverInit,
     );
@@ -716,7 +716,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-    const transceiver = await this.pcManager.addTransceiver(
+    const transceiver = await this.pcManager.addPublisherTransceiver(
       simulcastTrack.mediaStreamTrack,
       transceiverInit,
     );
@@ -732,7 +732,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!this.pcManager) {
       throw new UnexpectedConnectionState('publisher is closed');
     }
-    return this.pcManager.addTrack(track);
+    return this.pcManager.addPublisherTrack(track);
   }
 
   // websocket reconnect behavior. if websocket is interrupted, and the PeerConnection
