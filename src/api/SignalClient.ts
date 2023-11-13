@@ -558,6 +558,8 @@ export class SignalClient {
       log.debug('received unsupported message');
       return;
     }
+
+    let pingHandled = false;
     if (msg.case === 'answer') {
       const sd = fromProtoSessionDescription(msg.value);
       if (this.onAnswer) {
@@ -626,12 +628,16 @@ export class SignalClient {
         this.onSubscriptionError(msg.value);
       }
     } else if (msg.case === 'pong') {
-      this.resetPingTimeout();
     } else if (msg.case === 'pongResp') {
       this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
       this.resetPingTimeout();
+      pingHandled = true;
     } else {
       log.debug('unsupported message', msg);
+    }
+
+    if (!pingHandled) {
+      this.resetPingTimeout();
     }
   }
 
