@@ -1552,6 +1552,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private sendSyncState() {
     if (!this.engine.pcManager) {
+      log.warn('sync state cannot be sent without peer connection setup');
       return;
     }
     const previousAnswer = this.engine.pcManager.subscriber.getLocalDescription();
