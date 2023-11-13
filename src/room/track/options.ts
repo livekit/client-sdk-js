@@ -14,6 +14,8 @@ export interface TrackPublishDefaults {
    *
    * You could customize specific encoding parameters of the backup track by
    * explicitly setting codec and encoding fields.
+   *
+   * Defaults to `true`
    */
   backupCodec?: true | false | { codec: BackupVideoCodec; encoding?: VideoEncoding };
 

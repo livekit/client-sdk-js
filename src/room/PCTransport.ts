@@ -387,6 +387,10 @@ export default class PCTransport extends EventEmitter {
     return this.pc?.remoteDescription;
   }
 
+  getStats() {
+    return this.pc.getStats();
+  }
+
   async getConnectedAddress(): Promise<string | undefined> {
     if (!this._pc) {
       return;
