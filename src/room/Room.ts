@@ -152,6 +152,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private regionUrl?: string;
 
+  private isVideoPlaybackBlocked: boolean = false;
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -865,11 +867,37 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
+  startVideo = async () => {
+    for (const p of this.participants.values()) {
+      p.videoTracks.forEach((tr) => {
+        tr.track?.attachedElements.forEach((el) => {
+          el.play()
+            .then(() => {
+              this.isVideoPlaybackBlocked = false;
+            })
+            .catch((e) => {
+              if (e.name === 'NotAllowedError') {
+                this.isVideoPlaybackBlocked = true;
+                this.emit(RoomEvent.VideoPlaybackFailed);
+              }
+            });
+        });
+      });
+    }
+  };
+
   /**
    * Returns true if audio playback is enabled
    */
   get canPlaybackAudio(): boolean {
     return this.audioEnabled;
+  }
+
+  /**
+   * Returns true if video playback is enabled
+   */
+  get canPlaybackVideo(): boolean {
+    return !this.isVideoPlaybackBlocked;
   }
 
   /**
@@ -1384,6 +1412,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
   };
 
+  private handleVideoPlaybackFailed = () => {
+    this.isVideoPlaybackBlocked = true;
+    this.emit(RoomEvent.VideoPlaybackFailed);
+  };
+
   private handleDeviceChange = async () => {
     this.emit(RoomEvent.MediaDevicesChanged);
   };
@@ -1487,6 +1520,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           if (track.kind === Track.Kind.Audio) {
             track.on(TrackEvent.AudioPlaybackStarted, this.handleAudioPlaybackStarted);
             track.on(TrackEvent.AudioPlaybackFailed, this.handleAudioPlaybackFailed);
+          } else if (track.kind === Track.Kind.Video) {
+            track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
           }
           this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
         },
@@ -1929,6 +1964,7 @@ export type RoomEventCallbacks = {
     participant: RemoteParticipant,
   ) => void;
   audioPlaybackChanged: (playing: boolean) => void;
+  videoPlaybackFailed: () => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
   participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;
