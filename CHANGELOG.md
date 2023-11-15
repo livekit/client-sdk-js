@@ -1,5 +1,21 @@
 # Change Log
 
+## 1.15.0
+
+### Minor Changes
+
+- Enable backup codec by default - [#929](https://github.com/livekit/client-sdk-js/pull/929) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Reset LocalTrack debounced mute when setting new track - [#936](https://github.com/livekit/client-sdk-js/pull/936) ([@davideberlein](https://github.com/davideberlein))
+
+- Make sleep use critical timers - [#934](https://github.com/livekit/client-sdk-js/pull/934) ([@lukasIO](https://github.com/lukasIO))
+
+- Treat all signal messages as ping response - [#933](https://github.com/livekit/client-sdk-js/pull/933) ([@davidzhao](https://github.com/davidzhao))
+
+- Add getStats() to PCTransport - [#927](https://github.com/livekit/client-sdk-js/pull/927) ([@rnakano](https://github.com/rnakano))
+
 ## 1.14.4
 
 ### Patch Changes
