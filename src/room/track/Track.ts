@@ -339,7 +339,7 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
         // Safari 15 sometimes fails to start a video
         // when the window is backgrounded before the first frame is drawn
         // manually calling play here seems to fix that
-        return element.play().catch(() => {
+        element.play().catch(() => {
           /** do nothing, we watch the `suspended` event do deal with these failures */
         });
       }, 0);

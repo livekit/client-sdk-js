@@ -1414,13 +1414,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleVideoPlaybackStarted = () => {
-    this.isVideoPlaybackBlocked = false;
-    this.emit(RoomEvent.VideoPlaybackStatusChanged, true);
+    if (this.isVideoPlaybackBlocked) {
+      this.isVideoPlaybackBlocked = false;
+      this.emit(RoomEvent.VideoPlaybackStatusChanged, true);
+    }
   };
 
   private handleVideoPlaybackFailed = () => {
-    this.isVideoPlaybackBlocked = true;
-    this.emit(RoomEvent.VideoPlaybackStatusChanged, false);
+    if (!this.isVideoPlaybackBlocked) {
+      this.isVideoPlaybackBlocked = true;
+      this.emit(RoomEvent.VideoPlaybackStatusChanged, false);
+    }
   };
 
   private handleDeviceChange = async () => {
