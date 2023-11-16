@@ -7,7 +7,7 @@ import CriticalTimers from '../timers';
 import type { ObservableMediaElement } from '../utils';
 import { getDevicePixelRatio, getIntersectionObserver, getResizeObserver, isWeb } from '../utils';
 import RemoteTrack from './RemoteTrack';
-import { Track, detachTrack } from './Track';
+import { Track, attachToElement, detachTrack } from './Track';
 import type { AdaptiveStreamSettings } from './types';
 
 const REACTION_DELAY = 100;
@@ -53,7 +53,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       if (muted) {
         detachTrack(this._mediaStreamTrack, element);
       } else {
-        this.attachToElement(this._mediaStreamTrack, element);
+        attachToElement(this._mediaStreamTrack, element);
       }
     });
   }

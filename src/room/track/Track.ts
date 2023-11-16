@@ -121,7 +121,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     // even if we believe it's already attached to the element, it's possible
     // the element's srcObject was set to something else out of band.
     // we'll want to re-attach it in that case
-    this.attachToElement(this.mediaStreamTrack, element);
+    attachToElement(this.mediaStreamTrack, element);
 
     // handle auto playback failures
     const allMediaStreamTracks = (element.srcObject as MediaStream).getTracks();
@@ -288,61 +288,61 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
       this.emit(allowed ? TrackEvent.VideoPlaybackStarted : TrackEvent.VideoPlaybackFailed);
     }
   }, 300);
+}
 
-  protected attachToElement(track: MediaStreamTrack, element: HTMLMediaElement) {
-    let mediaStream: MediaStream;
-    if (element.srcObject instanceof MediaStream) {
-      mediaStream = element.srcObject;
-    } else {
-      mediaStream = new MediaStream();
-    }
+export function attachToElement(track: MediaStreamTrack, element: HTMLMediaElement) {
+  let mediaStream: MediaStream;
+  if (element.srcObject instanceof MediaStream) {
+    mediaStream = element.srcObject;
+  } else {
+    mediaStream = new MediaStream();
+  }
 
-    // check if track matches existing track
-    let existingTracks: MediaStreamTrack[];
-    if (track.kind === 'audio') {
-      existingTracks = mediaStream.getAudioTracks();
-    } else {
-      existingTracks = mediaStream.getVideoTracks();
-    }
-    if (!existingTracks.includes(track)) {
-      existingTracks.forEach((et) => {
-        mediaStream.removeTrack(et);
-      });
-      mediaStream.addTrack(track);
-    }
+  // check if track matches existing track
+  let existingTracks: MediaStreamTrack[];
+  if (track.kind === 'audio') {
+    existingTracks = mediaStream.getAudioTracks();
+  } else {
+    existingTracks = mediaStream.getVideoTracks();
+  }
+  if (!existingTracks.includes(track)) {
+    existingTracks.forEach((et) => {
+      mediaStream.removeTrack(et);
+    });
+    mediaStream.addTrack(track);
+  }
 
-    if (!isSafari() || !(element instanceof HTMLVideoElement)) {
-      // when in low power mode (applies to both macOS and iOS), Safari will show a play/pause overlay
-      // when a video starts that has the `autoplay` attribute is set.
-      // we work around this by _not_ setting the autoplay attribute on safari and instead call `setTimeout(() => el.play(),0)` further down
-      element.autoplay = true;
-    }
-    // In case there are no audio tracks present on the mediastream, we set the element as muted to ensure autoplay works
-    element.muted = mediaStream.getAudioTracks().length === 0;
-    if (element instanceof HTMLVideoElement) {
-      element.playsInline = true;
-    }
+  if (!isSafari() || !(element instanceof HTMLVideoElement)) {
+    // when in low power mode (applies to both macOS and iOS), Safari will show a play/pause overlay
+    // when a video starts that has the `autoplay` attribute is set.
+    // we work around this by _not_ setting the autoplay attribute on safari and instead call `setTimeout(() => el.play(),0)` further down
+    element.autoplay = true;
+  }
+  // In case there are no audio tracks present on the mediastream, we set the element as muted to ensure autoplay works
+  element.muted = mediaStream.getAudioTracks().length === 0;
+  if (element instanceof HTMLVideoElement) {
+    element.playsInline = true;
+  }
 
-    // avoid flicker
-    if (element.srcObject !== mediaStream) {
-      element.srcObject = mediaStream;
-      if ((isSafari() || isFireFox()) && element instanceof HTMLVideoElement) {
-        // Firefox also has a timing issue where video doesn't actually get attached unless
-        // performed out-of-band
-        // Safari 15 has a bug where in certain layouts, video element renders
-        // black until the page is resized or other changes take place.
-        // Resetting the src triggers it to render.
-        // https://developer.apple.com/forums/thread/690523
-        setTimeout(() => {
-          element.srcObject = mediaStream;
-          // Safari 15 sometimes fails to start a video
-          // when the window is backgrounded before the first frame is drawn
-          // manually calling play here seems to fix that
-          return element.play().catch(() => {
-            /** do nothing, we watch the `suspended` event do deal with these failures */
-          });
-        }, 0);
-      }
+  // avoid flicker
+  if (element.srcObject !== mediaStream) {
+    element.srcObject = mediaStream;
+    if ((isSafari() || isFireFox()) && element instanceof HTMLVideoElement) {
+      // Firefox also has a timing issue where video doesn't actually get attached unless
+      // performed out-of-band
+      // Safari 15 has a bug where in certain layouts, video element renders
+      // black until the page is resized or other changes take place.
+      // Resetting the src triggers it to render.
+      // https://developer.apple.com/forums/thread/690523
+      setTimeout(() => {
+        element.srcObject = mediaStream;
+        // Safari 15 sometimes fails to start a video
+        // when the window is backgrounded before the first frame is drawn
+        // manually calling play here seems to fix that
+        return element.play().catch(() => {
+          /** do nothing, we watch the `suspended` event do deal with these failures */
+        });
+      }, 0);
     }
   }
 }

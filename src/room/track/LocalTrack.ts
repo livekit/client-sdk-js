@@ -5,7 +5,7 @@ import DeviceManager from '../DeviceManager';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import { Mutex, compareVersions, isMobile, sleep } from '../utils';
-import { Track, detachTrack } from './Track';
+import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
 
@@ -137,7 +137,7 @@ export default abstract class LocalTrack extends Track {
         throw TypeError('cannot set processor on track of unknown kind');
       }
 
-      this.attachToElement(newTrack, this.processorElement);
+      attachToElement(newTrack, this.processorElement);
       await this.processor.restart({
         track: newTrack,
         kind: this.kind,
@@ -155,7 +155,7 @@ export default abstract class LocalTrack extends Track {
       // when a valid track is replace, we'd want to start producing
       await this.resumeUpstream();
       this.attachedElements.forEach((el) => {
-        this.attachToElement(processedTrack ?? newTrack, el);
+        attachToElement(processedTrack ?? newTrack, el);
       });
     }
   }
@@ -417,7 +417,7 @@ export default abstract class LocalTrack extends Track {
       this.processorElement = this.processorElement ?? document.createElement(this.kind);
       this.processorElement.muted = true;
 
-      this.attachToElement(this._mediaStreamTrack, this.processorElement);
+      attachToElement(this._mediaStreamTrack, this.processorElement);
       this.processorElement
         .play()
         .catch((error) => log.error('failed to play processor element', { error }));
@@ -434,7 +434,7 @@ export default abstract class LocalTrack extends Track {
         for (const el of this.attachedElements) {
           if (el !== this.processorElement && showProcessedStreamLocally) {
             detachTrack(this._mediaStreamTrack, el);
-            this.attachToElement(this.processor.processedTrack, el);
+            attachToElement(this.processor.processedTrack, el);
           }
         }
         await this.sender?.replaceTrack(this.processor.processedTrack);
