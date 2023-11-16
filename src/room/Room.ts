@@ -877,8 +877,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             })
             .catch((e) => {
               if (e.name === 'NotAllowedError') {
-                this.isVideoPlaybackBlocked = true;
-                this.emit(RoomEvent.VideoPlaybackFailed);
+                log.warn(
+                  'Resuming video playback failed, make sure you call `startVideo` directly in a user gesture handler',
+                );
               }
             });
         });
@@ -1412,9 +1413,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
   };
 
+  private handleVideoPlaybackStarted = () => {
+    this.isVideoPlaybackBlocked = false;
+    this.emit(RoomEvent.VideoPlaybackStatusChanged, true);
+  };
+
   private handleVideoPlaybackFailed = () => {
     this.isVideoPlaybackBlocked = true;
-    this.emit(RoomEvent.VideoPlaybackFailed);
+    this.emit(RoomEvent.VideoPlaybackStatusChanged, false);
   };
 
   private handleDeviceChange = async () => {
@@ -1522,6 +1528,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             track.on(TrackEvent.AudioPlaybackFailed, this.handleAudioPlaybackFailed);
           } else if (track.kind === Track.Kind.Video) {
             track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
+            track.on(TrackEvent.VideoPlaybackStarted, this.handleVideoPlaybackStarted);
           }
           this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
         },
@@ -1964,7 +1971,7 @@ export type RoomEventCallbacks = {
     participant: RemoteParticipant,
   ) => void;
   audioPlaybackChanged: (playing: boolean) => void;
-  videoPlaybackFailed: () => void;
+  videoPlaybackChanged: (playing: boolean) => void;
   signalConnected: () => void;
   recordingStatusChanged: (recording: boolean) => void;
   participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;
