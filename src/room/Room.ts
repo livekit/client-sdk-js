@@ -871,8 +871,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     for (const p of this.participants.values()) {
       p.videoTracks.forEach((tr) => {
         tr.track?.attachedElements.forEach((el) => {
-          el.play()
-          .catch((e) => {
+          el.play().catch((e) => {
             if (e.name === 'NotAllowedError') {
               log.warn(
                 'Resuming video playback failed, make sure you call `startVideo` directly in a user gesture handler',
