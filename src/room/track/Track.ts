@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
+import { debounce } from 'ts-debounce';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
-import log from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
@@ -113,6 +113,9 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
     if (!this.attachedElements.includes(element)) {
       this.attachedElements.push(element);
+      // listen to suspend events in order to detect auto playback issues
+      element.addEventListener('suspend', this.handleElementSuspended);
+      element.addEventListener('playing', this.handleElementPlay);
     }
 
     // even if we believe it's already attached to the element, it's possible
@@ -130,11 +133,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
           this.emit(TrackEvent.AudioPlaybackStarted);
         })
         .catch((e) => {
-          if (e.name === 'NotAllowedError') {
-            this.emit(TrackEvent.AudioPlaybackFailed, e);
-          } else {
-            log.warn('could not playback audio', e);
-          }
           // If audio playback isn't allowed make sure we still play back the video
           if (
             element &&
@@ -172,6 +170,8 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
         if (idx >= 0) {
           this.attachedElements.splice(idx, 1);
           this.recycleElement(element);
+          element.removeEventListener('suspend', this.handleElementSuspended);
+          element.removeEventListener('playing', this.handleElementPlay);
           this.emit(TrackEvent.ElementDetached, element);
         }
         return element;
@@ -182,6 +182,8 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
         detachTrack(this.mediaStreamTrack, elm);
         detached.push(elm);
         this.recycleElement(elm);
+        elm.removeEventListener('suspend', this.handleElementSuspended);
+        elm.removeEventListener('playing', this.handleElementPlay);
         this.emit(TrackEvent.ElementDetached, elm);
       });
 
@@ -268,9 +270,26 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
       document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
     }
   }
+
+  private handleElementSuspended = () => {
+    this.debouncedPlaybackStateChange(false);
+  };
+
+  private handleElementPlay = () => {
+    this.debouncedPlaybackStateChange(true);
+  };
+
+  private debouncedPlaybackStateChange = debounce((allowed: boolean) => {
+    // we debounce this as Safari triggers both `playing` and `suspend` shortly after one another
+    // in order not to raise the wrong event, we debounce the call to make sure we only emit the correct status
+    if (this.kind === Track.Kind.Audio) {
+      this.emit(allowed ? TrackEvent.AudioPlaybackStarted : TrackEvent.AudioPlaybackFailed);
+    } else if (this.kind === Track.Kind.Video) {
+      this.emit(allowed ? TrackEvent.VideoPlaybackStarted : TrackEvent.VideoPlaybackFailed);
+    }
+  }, 300);
 }
 
-/** @internal */
 export function attachToElement(track: MediaStreamTrack, element: HTMLMediaElement) {
   let mediaStream: MediaStream;
   if (element.srcObject instanceof MediaStream) {
@@ -321,7 +340,7 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
         // when the window is backgrounded before the first frame is drawn
         // manually calling play here seems to fix that
         element.play().catch(() => {
-          /* do nothing */
+          /** do nothing, we watch the `suspended` event do deal with these failures */
         });
       }, 0);
     }
@@ -446,10 +465,12 @@ export type TrackEventCallbacks = {
   updateSettings: () => void;
   updateSubscription: () => void;
   audioPlaybackStarted: () => void;
-  audioPlaybackFailed: (error: Error) => void;
+  audioPlaybackFailed: (error?: Error) => void;
   audioSilenceDetected: () => void;
   visibilityChanged: (visible: boolean, track?: any) => void;
   videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void;
+  videoPlaybackStarted: () => void;
+  videoPlaybackFailed: (error?: Error) => void;
   elementAttached: (element: HTMLMediaElement) => void;
   elementDetached: (element: HTMLMediaElement) => void;
   upstreamPaused: (track: any) => void;

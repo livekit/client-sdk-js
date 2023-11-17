@@ -246,6 +246,13 @@ export enum RoomEvent {
   AudioPlaybackStatusChanged = 'audioPlaybackChanged',
 
   /**
+   * LiveKit will attempt to autoplay all video tracks when you attach them to
+   * a video element. However, if that fails, we'll notify you via VideoPlaybackStatusChanged.
+   * Calling `room.startVideo()` in a user gesture event handler will resume the video playback.
+   */
+  VideoPlaybackStatusChanged = 'videoPlaybackChanged',
+
+  /**
    * When we have encountered an error while attempting to create a track.
    * The errors take place in getUserMedia().
    * Use MediaDeviceFailure.getFailure(error) to get the reason of failure.
@@ -509,6 +516,10 @@ export enum TrackEvent {
   VisibilityChanged = 'visibilityChanged',
   /** @internal */
   VideoDimensionsChanged = 'videoDimensionsChanged',
+  /** @internal */
+  VideoPlaybackStarted = 'videoPlaybackStarted',
+  /** @internal */
+  VideoPlaybackFailed = 'videoPlaybackFailed',
   /** @internal */
   ElementAttached = 'elementAttached',
   /** @internal */
