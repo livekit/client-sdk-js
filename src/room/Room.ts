@@ -872,16 +872,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       p.videoTracks.forEach((tr) => {
         tr.track?.attachedElements.forEach((el) => {
           el.play()
-            .then(() => {
-              this.isVideoPlaybackBlocked = false;
-            })
-            .catch((e) => {
-              if (e.name === 'NotAllowedError') {
-                log.warn(
-                  'Resuming video playback failed, make sure you call `startVideo` directly in a user gesture handler',
-                );
-              }
-            });
+          .catch((e) => {
+            if (e.name === 'NotAllowedError') {
+              log.warn(
+                'Resuming video playback failed, make sure you call `startVideo` directly in a user gesture handler',
+              );
+            }
+          });
         });
       });
     }
