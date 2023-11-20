@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
-import { SignalClient } from '../api/SignalClient';
+import { SignalClient, toProtoSessionDescription } from '../api/SignalClient';
 import log from '../logger';
 import type { InternalRoomOptions } from '../options';
 import {
@@ -18,16 +18,20 @@ import {
   TrackInfo,
   UserPacket,
 } from '../proto/livekit_models_pb';
-import type {
-  AddTrackRequest,
-  ConnectionQualityUpdate,
-  JoinResponse,
-  LeaveRequest,
-  ReconnectResponse,
-  StreamStateUpdate,
-  SubscriptionPermissionUpdate,
-  SubscriptionResponse,
-  TrackPublishedResponse,
+import {
+  type AddTrackRequest,
+  type ConnectionQualityUpdate,
+  DataChannelInfo,
+  type JoinResponse,
+  type LeaveRequest,
+  type ReconnectResponse,
+  SignalTarget,
+  type StreamStateUpdate,
+  type SubscriptionPermissionUpdate,
+  type SubscriptionResponse,
+  SyncState,
+  type TrackPublishedResponse,
+  UpdateSubscription,
 } from '../proto/livekit_rtc_pb';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
@@ -44,10 +48,13 @@ import {
 import { EngineEvent } from './events';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
+import type LocalTrackPublication from './track/LocalTrackPublication';
 import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
+import type RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
+import { getTrackPublicationInfo } from './track/utils';
 import {
   Mutex,
   isVideoCodec,
@@ -1172,10 +1179,78 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   }
 
+  /** @internal */
+  sendSyncState(remoteTracks: RemoteTrackPublication[], localTracks: LocalTrackPublication[]) {
+    if (!this.pcManager) {
+      log.warn('sync state cannot be sent without peer connection setup');
+      return;
+    }
+    const previousAnswer = this.pcManager.subscriber.getLocalDescription();
+    const previousOffer = this.pcManager.subscriber.getRemoteDescription();
+
+    /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
+          in this case, we send unsub tracks, so server add all tracks to this
+          subscribe pc and unsub special tracks from it.
+       2. autosubscribe off, we send subscribed tracks.
+    */
+    const autoSubscribe = this.signalOpts?.autoSubscribe ?? true;
+    const trackSids = new Array<string>();
+
+    remoteTracks.forEach((track) => {
+      if (track.isDesired !== autoSubscribe) {
+        trackSids.push(track.trackSid);
+      }
+    });
+
+    this.client.sendSyncState(
+      new SyncState({
+        answer: previousAnswer
+          ? toProtoSessionDescription({
+              sdp: previousAnswer.sdp,
+              type: previousAnswer.type,
+            })
+          : undefined,
+        offer: previousOffer
+          ? toProtoSessionDescription({
+              sdp: previousOffer.sdp,
+              type: previousOffer.type,
+            })
+          : undefined,
+        subscription: new UpdateSubscription({
+          trackSids,
+          subscribe: !autoSubscribe,
+          participantTracks: [],
+        }),
+        publishTracks: getTrackPublicationInfo(localTracks),
+        dataChannels: this.dataChannelsInfo(),
+      }),
+    );
+  }
+
   /* @internal */
   failNext() {
     // debugging method to fail the next reconnect/resume attempt
     this.shouldFailNext = true;
+  }
+
+  private dataChannelsInfo(): DataChannelInfo[] {
+    const infos: DataChannelInfo[] = [];
+    const getInfo = (dc: RTCDataChannel | undefined, target: SignalTarget) => {
+      if (dc?.id !== undefined && dc.id !== null) {
+        infos.push(
+          new DataChannelInfo({
+            label: dc.label,
+            id: dc.id,
+            target,
+          }),
+        );
+      }
+    };
+    getInfo(this.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
+    getInfo(this.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
+    getInfo(this.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
+    getInfo(this.dataChannelForKind(DataPacket_Kind.RELIABLE, true), SignalTarget.SUBSCRIBER);
+    return infos;
   }
 
   private clearReconnectTimeout() {

@@ -10,11 +10,8 @@ import {
 } from '../../proto/livekit_models_pb';
 import {
   AddTrackRequest,
-  DataChannelInfo,
-  SignalTarget,
   SimulcastCodec,
   SubscribedQualityUpdate,
-  TrackPublishedResponse,
   TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc_pb';
 import { PCTransportState } from '../PCTransportManager';
@@ -1310,45 +1307,5 @@ export default class LocalParticipant extends Participant {
       }
     });
     return publication;
-  }
-
-  /** @internal */
-  publishedTracksInfo(): TrackPublishedResponse[] {
-    const infos: TrackPublishedResponse[] = [];
-    this.tracks.forEach((track: LocalTrackPublication) => {
-      if (track.track !== undefined) {
-        infos.push(
-          new TrackPublishedResponse({
-            cid: track.track.mediaStreamID,
-            track: track.trackInfo,
-          }),
-        );
-      }
-    });
-    return infos;
-  }
-
-  /** @internal */
-  dataChannelsInfo(): DataChannelInfo[] {
-    const infos: DataChannelInfo[] = [];
-    const getInfo = (dc: RTCDataChannel | undefined, target: SignalTarget) => {
-      if (dc?.id !== undefined && dc.id !== null) {
-        infos.push(
-          new DataChannelInfo({
-            label: dc.label,
-            id: dc.id,
-            target,
-          }),
-        );
-      }
-    };
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
-    getInfo(
-      this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE, true),
-      SignalTarget.SUBSCRIBER,
-    );
-    return infos;
   }
 }
