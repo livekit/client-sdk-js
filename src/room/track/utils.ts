@@ -1,6 +1,8 @@
+import { TrackPublishedResponse } from '../../proto/livekit_rtc_pb';
 import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
 import { Track } from './Track';
+import type { TrackPublication } from './TrackPublication';
 import {
   type AudioCaptureOptions,
   type CreateLocalTracksOptions,
@@ -189,4 +191,21 @@ export function mimeTypeToVideoCodecString(mimeType: string) {
     throw Error(`Video codec not supported: ${codec}`);
   }
   return codec;
+}
+
+export function getTrackPublicationInfo<T extends TrackPublication>(
+  tracks: T[],
+): TrackPublishedResponse[] {
+  const infos: TrackPublishedResponse[] = [];
+  tracks.forEach((track: TrackPublication) => {
+    if (track.track !== undefined) {
+      infos.push(
+        new TrackPublishedResponse({
+          cid: track.track.mediaStreamID,
+          track: track.trackInfo,
+        }),
+      );
+    }
+  });
+  return infos;
 }

@@ -10,13 +10,11 @@ import {
 } from '../../proto/livekit_models_pb';
 import {
   AddTrackRequest,
-  DataChannelInfo,
-  SignalTarget,
   SimulcastCodec,
   SubscribedQualityUpdate,
-  TrackPublishedResponse,
   TrackUnpublishedResponse,
 } from '../../proto/livekit_rtc_pb';
+import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { defaultVideoCodec } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState } from '../errors';
@@ -766,8 +764,8 @@ export default class LocalParticipant extends Participant {
     publication.options = opts;
     track.sid = ti.sid;
 
-    if (!this.engine.publisher) {
-      throw new UnexpectedConnectionState('publisher is closed');
+    if (!this.engine.pcManager) {
+      throw new UnexpectedConnectionState('pcManager is not ready');
     }
     log.debug(`publishing ${track.kind} with encodings`, { encodings, trackInfo: ti });
 
@@ -783,21 +781,21 @@ export default class LocalParticipant extends Participant {
            fix the issue.
          */
         let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
-        for (const transceiver of this.engine.publisher.getTransceivers()) {
+        for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
           if (transceiver.sender === track.sender) {
             trackTransceiver = transceiver;
             break;
           }
         }
         if (trackTransceiver) {
-          this.engine.publisher.setTrackCodecBitrate({
+          this.engine.pcManager.publisher.setTrackCodecBitrate({
             transceiver: trackTransceiver,
             codec: 'opus',
             maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
           });
         }
       } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
-        this.engine.publisher.setTrackCodecBitrate({
+        this.engine.pcManager.publisher.setTrackCodecBitrate({
           cid: req.cid,
           codec: track.codec,
           maxbr: encodings[0].maxBitrate / 1000,
@@ -929,12 +927,12 @@ export default class LocalParticipant extends Participant {
     const trackSender = track.sender;
     track.sender = undefined;
     if (
-      this.engine.publisher &&
-      this.engine.publisher.getConnectionState() !== 'closed' &&
+      this.engine.pcManager &&
+      this.engine.pcManager.currentState < PCTransportState.FAILED &&
       trackSender
     ) {
       try {
-        for (const transceiver of this.engine.publisher.getTransceivers()) {
+        for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
           // if sender is not currently sending (after replaceTrack(null))
           // removeTrack would have no effect.
           // to ensure we end up successfully removing the track, manually set
@@ -1309,45 +1307,5 @@ export default class LocalParticipant extends Participant {
       }
     });
     return publication;
-  }
-
-  /** @internal */
-  publishedTracksInfo(): TrackPublishedResponse[] {
-    const infos: TrackPublishedResponse[] = [];
-    this.tracks.forEach((track: LocalTrackPublication) => {
-      if (track.track !== undefined) {
-        infos.push(
-          new TrackPublishedResponse({
-            cid: track.track.mediaStreamID,
-            track: track.trackInfo,
-          }),
-        );
-      }
-    });
-    return infos;
-  }
-
-  /** @internal */
-  dataChannelsInfo(): DataChannelInfo[] {
-    const infos: DataChannelInfo[] = [];
-    const getInfo = (dc: RTCDataChannel | undefined, target: SignalTarget) => {
-      if (dc?.id !== undefined && dc.id !== null) {
-        infos.push(
-          new DataChannelInfo({
-            label: dc.label,
-            id: dc.id,
-            target,
-          }),
-        );
-      }
-    };
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
-    getInfo(
-      this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE, true),
-      SignalTarget.SUBSCRIBER,
-    );
-    return infos;
   }
 }

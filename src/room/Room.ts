@@ -2,7 +2,6 @@ import { protoInt64 } from '@bufbuild/protobuf';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
-import { toProtoSessionDescription } from '../api/SignalClient';
 import { EncryptionEvent } from '../e2ee';
 import { E2EEManager } from '../e2ee/E2eeManager';
 import log from '../logger';
@@ -35,8 +34,6 @@ import {
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
-  SyncState,
-  UpdateSubscription,
 } from '../proto/livekit_rtc_pb';
 import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
@@ -1593,49 +1590,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private sendSyncState() {
-    const previousAnswer = this.engine.subscriber?.getLocalDescription();
-    const previousOffer = this.engine.subscriber?.getRemoteDescription();
-
-    if (!previousAnswer) {
-      return;
-    }
-
-    /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
-          in this case, we send unsub tracks, so server add all tracks to this
-          subscribe pc and unsub special tracks from it.
-       2. autosubscribe off, we send subscribed tracks.
-    */
-    const autoSubscribe = this.connOptions?.autoSubscribe ?? true;
-    const trackSids = new Array<string>();
-    this.participants.forEach((participant) => {
-      participant.tracks.forEach((track) => {
-        if (track.isDesired !== autoSubscribe) {
-          trackSids.push(track.trackSid);
-        }
-      });
-    });
-
-    this.engine.client.sendSyncState(
-      new SyncState({
-        answer: toProtoSessionDescription({
-          sdp: previousAnswer.sdp,
-          type: previousAnswer.type,
-        }),
-        offer: previousOffer
-          ? toProtoSessionDescription({
-              sdp: previousOffer.sdp,
-              type: previousOffer.type,
-            })
-          : undefined,
-        subscription: new UpdateSubscription({
-          trackSids,
-          subscribe: !autoSubscribe,
-          participantTracks: [],
-        }),
-        publishTracks: this.localParticipant.publishedTracksInfo(),
-        dataChannels: this.localParticipant.dataChannelsInfo(),
-      }),
-    );
+    const remoteTracks = Array.from(this.participants.values()).reduce((acc, participant) => {
+      acc.push(...(participant.getTracks() as RemoteTrackPublication[])); // FIXME would be nice to have this return RemoteTrackPublications directly instead of the type cast
+      return acc;
+    }, [] as RemoteTrackPublication[]);
+    const localTracks = this.localParticipant.getTracks() as LocalTrackPublication[]; // FIXME would be nice to have this return LocalTrackPublications directly instead of the type cast
+    this.engine.sendSyncState(remoteTracks, localTracks);
   }
 
   /**

@@ -33,9 +33,15 @@ export default class PCTransport extends EventEmitter {
   private _pc: RTCPeerConnection | null;
 
   private get pc() {
-    if (this._pc) return this._pc;
-    throw new UnexpectedConnectionState('Expected peer connection to be available');
+    if (!this._pc) {
+      this._pc = this.createPC();
+    }
+    return this._pc;
   }
+
+  private config?: RTCConfiguration;
+
+  private mediaConstraints: Record<string, unknown>;
 
   pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -57,32 +63,53 @@ export default class PCTransport extends EventEmitter {
 
   onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
 
+  onIceConnectionStateChange?: (state: RTCIceConnectionState) => void;
+
+  onSignalingStatechange?: (state: RTCSignalingState) => void;
+
   onDataChannel?: (ev: RTCDataChannelEvent) => void;
 
   onTrack?: (ev: RTCTrackEvent) => void;
 
   constructor(config?: RTCConfiguration, mediaConstraints: Record<string, unknown> = {}) {
     super();
-    this._pc = isChromiumBased()
+    this.config = config;
+    this.mediaConstraints = mediaConstraints;
+    this._pc = this.createPC();
+  }
+
+  private createPC() {
+    const pc = isChromiumBased()
       ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
-        new RTCPeerConnection(config, mediaConstraints)
-      : new RTCPeerConnection(config);
-    this._pc.onicecandidate = (ev) => {
+        new RTCPeerConnection(this.config, this.mediaConstraints)
+      : new RTCPeerConnection(this.config);
+
+    pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
       this.onIceCandidate?.(ev.candidate);
     };
-    this._pc.onicecandidateerror = (ev) => {
+    pc.onicecandidateerror = (ev) => {
       this.onIceCandidateError?.(ev);
     };
-    this._pc.onconnectionstatechange = () => {
-      this.onConnectionStateChange?.(this._pc?.connectionState ?? 'closed');
+
+    pc.oniceconnectionstatechange = () => {
+      this.onIceConnectionStateChange?.(pc.iceConnectionState);
     };
-    this._pc.ondatachannel = (ev) => {
+
+    pc.onsignalingstatechange = () => {
+      this.onSignalingStatechange?.(pc.signalingState);
+    };
+
+    pc.onconnectionstatechange = () => {
+      this.onConnectionStateChange?.(pc.connectionState);
+    };
+    pc.ondatachannel = (ev) => {
       this.onDataChannel?.(ev);
     };
-    this._pc.ontrack = (ev) => {
+    pc.ontrack = (ev) => {
       this.onTrack?.(ev);
     };
+    return pc;
   }
 
   get isICEConnected(): boolean {
@@ -168,7 +195,7 @@ export default class PCTransport extends EventEmitter {
 
     if (this.renegotiate) {
       this.renegotiate = false;
-      this.createAndSendOffer();
+      await this.createAndSendOffer();
     } else if (sd.type === 'answer') {
       this.emit(PCEvents.NegotiationComplete);
       if (sd.sdp) {
@@ -183,10 +210,10 @@ export default class PCTransport extends EventEmitter {
   }
 
   // debounced negotiate interface
-  negotiate = debounce((onError?: (e: Error) => void) => {
+  negotiate = debounce(async (onError?: (e: Error) => void) => {
     this.emit(PCEvents.NegotiationStarted);
     try {
-      this.createAndSendOffer();
+      await this.createAndSendOffer();
     } catch (e) {
       if (onError) {
         onError(e as Error);
@@ -209,11 +236,11 @@ export default class PCTransport extends EventEmitter {
     if (this._pc && this._pc.signalingState === 'have-local-offer') {
       // we're waiting for the peer to accept our offer, so we'll just wait
       // the only exception to this is when ICE restart is needed
-      const currentSD = this.pc.remoteDescription;
+      const currentSD = this._pc.remoteDescription;
       if (options?.iceRestart && currentSD) {
         // TODO: handle when ICE restart is needed but we don't have a remote description
         // the best thing to do is to recreate the peerconnection
-        await this.pc.setRemoteDescription(currentSD);
+        await this._pc.setRemoteDescription(currentSD);
       } else {
         this.renegotiate = true;
         return;
@@ -307,7 +334,10 @@ export default class PCTransport extends EventEmitter {
   }
 
   addTrack(track: MediaStreamTrack) {
-    return this.pc.addTrack(track);
+    if (!this._pc) {
+      throw new UnexpectedConnectionState('PC closed, cannot add track');
+    }
+    return this._pc.addTrack(track);
   }
 
   setTrackCodecBitrate(info: TrackBitrateInfo) {
@@ -315,43 +345,46 @@ export default class PCTransport extends EventEmitter {
   }
 
   setConfiguration(rtcConfig: RTCConfiguration) {
-    return this.pc.setConfiguration(rtcConfig);
+    if (!this._pc) {
+      throw new UnexpectedConnectionState('PC closed, cannot configure');
+    }
+    return this._pc?.setConfiguration(rtcConfig);
   }
 
   canRemoveTrack(): boolean {
-    return !!this.pc.removeTrack;
+    return !!this._pc?.removeTrack;
   }
 
   removeTrack(sender: RTCRtpSender) {
-    return this.pc.removeTrack(sender);
+    return this._pc?.removeTrack(sender);
   }
 
   getConnectionState() {
-    return this.pc.connectionState;
+    return this._pc?.connectionState ?? 'closed';
   }
 
   getICEConnectionState() {
-    return this.pc.iceConnectionState;
+    return this._pc?.iceConnectionState ?? 'closed';
   }
 
   getSignallingState() {
-    return this.pc.signalingState;
+    return this._pc?.signalingState ?? 'closed';
   }
 
   getTransceivers() {
-    return this.pc.getTransceivers();
+    return this._pc?.getTransceivers() ?? [];
   }
 
   getSenders() {
-    return this.pc.getSenders();
+    return this._pc?.getSenders() ?? [];
   }
 
   getLocalDescription() {
-    return this.pc.localDescription;
+    return this._pc?.localDescription;
   }
 
   getRemoteDescription() {
-    return this.pc.remoteDescription;
+    return this.pc?.remoteDescription;
   }
 
   getStats() {
@@ -395,7 +428,7 @@ export default class PCTransport extends EventEmitter {
     return candidates.get(selectedID);
   }
 
-  close() {
+  close = () => {
     if (!this._pc) {
       return;
     }
@@ -412,7 +445,7 @@ export default class PCTransport extends EventEmitter {
     this._pc.onconnectionstatechange = null;
     this._pc.oniceconnectionstatechange = null;
     this._pc = null;
-  }
+  };
 
   private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {
     if (munged) {
