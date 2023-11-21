@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.15.1
+
+### Patch Changes
+
+- Move PeerConnection logic into PCTransportManager - [#909](https://github.com/livekit/client-sdk-js/pull/909) ([@lukasIO](https://github.com/lukasIO))
+
+- Add `startVideo` method and `RoomEvent.VideoPlaybackStatusChanged` - [#939](https://github.com/livekit/client-sdk-js/pull/939) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.0
 
 ### Minor Changes
