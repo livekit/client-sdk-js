@@ -693,7 +693,12 @@ export default class LocalParticipant extends Participant {
         if (opts.backupCodec === true) {
           opts.backupCodec = { codec: defaultVideoCodec };
         }
-        if (opts.backupCodec && videoCodec !== opts.backupCodec.codec) {
+        if (
+          opts.backupCodec &&
+          videoCodec !== opts.backupCodec.codec &&
+          // TODO remove this once e2ee is supported for backup codecs
+          req.encryption === Encryption_Type.NONE
+        ) {
           // multi-codec simulcast requires dynacast
           if (!this.roomOptions.dynacast) {
             this.roomOptions.dynacast = true;
