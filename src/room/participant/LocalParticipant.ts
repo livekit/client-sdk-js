@@ -835,6 +835,11 @@ export default class LocalParticipant extends Participant {
     videoCodec: BackupVideoCodec,
     options?: TrackPublishOptions,
   ) {
+    // TODO remove once e2ee is supported for backup tracks
+    if (this.encryptionType !== Encryption_Type.NONE) {
+      return;
+    }
+
     // is it not published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
     this.tracks.forEach((publication) => {
