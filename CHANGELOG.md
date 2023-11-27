@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.15.2
+
+### Patch Changes
+
+- Make sure no backup codecs are published when e2ee is enabled - [#941](https://github.com/livekit/client-sdk-js/pull/941) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.1
 
 ### Patch Changes
