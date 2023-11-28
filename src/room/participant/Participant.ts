@@ -95,13 +95,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   /**
-   * @deprecated `getTracks` has been renamed to `getTrackPublications` and will be removed in a future version
-   */
-  getTracks() {
-    return this.getTrackPublications();
-  }
-
-  /**
    * Finds the first track that matches the source filter, for example, getting
    * the user's camera track with getTrackBySource(Track.Source.Camera).
    */
@@ -114,13 +107,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   /**
-   * @deprecated `getTrack` has been renamed to `getTrackPublication` and will be removed in a future version
-   */
-  getTrack(source: Track.Source) {
-    return this.getTrackPublication(source);
-  }
-
-  /**
    * Finds the first track that matches the track's name.
    */
   getTrackPublicationByName(name: string): TrackPublication | undefined {
@@ -129,13 +115,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
         return pub;
       }
     }
-  }
-
-  /**
-   * @deprecated `getTrackByName` has been renamed to `getTrackPublicationByName` and will be removed in a future version
-   */
-  getTrackByName(name: string) {
-    return this.getTrackPublicationByName(name);
   }
 
   get connectionQuality(): ConnectionQuality {

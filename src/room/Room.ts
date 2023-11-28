@@ -99,17 +99,6 @@ export const RoomState = ConnectionState;
 class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) {
   state: ConnectionState = ConnectionState.Disconnected;
 
-  /** map of sid: [[RemoteParticipant]]
-   * @deprecated `participants` has been renamed to `remoteParticipants`.
-   * Note: `remoteParticipants` is a map of identity: [[RemoteParticipant]]
-   */
-  get participants(): Map<string, RemoteParticipant> {
-    const map = Array.from(this.remoteParticipants.values()).map((p) => {
-      return [p.sid, p] as const;
-    });
-    return new Map<string, RemoteParticipant>(map);
-  }
-
   /**
    * map of sid: [[RemoteParticipant]]
    */
