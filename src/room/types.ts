@@ -15,7 +15,16 @@ export type SimulationOptions = {
 };
 
 export type DataPublishOptions = {
-  /** the participants who will receive the message, will be sent to every one if empty */
+  /**
+   * whether to send this as reliable or lossy.
+   * For data that you need delivery guarantee (such as chat messages), use Reliable.
+   * For data that should arrive as quickly as possible, but you are ok with dropped
+   * packets, use Lossy.
+   */
+  reliable?: boolean;
+  /** the participants who will receive the message, will be sent to every one if empty
+   * accepts an array of participant identities or the participant objects
+   */
   destination?: RemoteParticipant[] | string[];
   /** the topic under which the message gets published */
   topic?: string;
