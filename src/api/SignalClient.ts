@@ -55,8 +55,6 @@ interface ConnectOpts extends SignalOptions {
 // public options
 export interface SignalOptions {
   autoSubscribe: boolean;
-  /** @deprecated */
-  publishOnly?: string;
   adaptiveStream?: boolean;
   maxRetries: number;
   e2eeEnabled: boolean;
@@ -776,10 +774,6 @@ function createConnectionParams(token: string, info: ClientInfo, opts: ConnectOp
   }
   if (info.browserVersion) {
     params.set('browser_version', info.browserVersion);
-  }
-
-  if (opts.publishOnly !== undefined) {
-    params.set('publish', opts.publishOnly);
   }
 
   if (opts.adaptiveStream) {

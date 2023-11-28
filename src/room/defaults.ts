@@ -10,10 +10,6 @@ import { AudioPresets, ScreenSharePresets, VideoPresets } from './track/options'
 export const defaultVideoCodec = 'vp8';
 
 export const publishDefaults: TrackPublishDefaults = {
-  /**
-   * @deprecated
-   */
-  audioBitrate: AudioPresets.music.maxBitrate,
   audioPreset: AudioPresets.music,
   dtx: true,
   red: true,

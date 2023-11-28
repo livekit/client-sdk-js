@@ -31,12 +31,6 @@ export interface TrackPublishDefaults {
   videoCodec?: VideoCodec;
 
   /**
-   * max audio bitrate, defaults to [[AudioPresets.music]]
-   * @deprecated use `audioPreset` instead
-   */
-  audioBitrate?: number;
-
-  /**
    * which audio preset should be used for publishing (audio) tracks
    * defaults to [[AudioPresets.music]]
    */

@@ -85,9 +85,6 @@ export enum ConnectionState {
 
 const connectionReconcileFrequency = 2 * 1000;
 
-/** @deprecated RoomState has been renamed to [[ConnectionState]] */
-export const RoomState = ConnectionState;
-
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
  * Participants in a room can publish tracks, and subscribe to others' tracks.
@@ -499,7 +496,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       token,
       {
         autoSubscribe: connectOptions.autoSubscribe,
-        publishOnly: connectOptions.publishOnly,
         adaptiveStream:
           typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
         maxRetries: connectOptions.maxRetries,
@@ -892,15 +888,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   get canPlaybackVideo(): boolean {
     return !this.isVideoPlaybackBlocked;
-  }
-
-  /**
-   * Returns the active audio output device used in this room.
-   * @return the previously successfully set audio output device ID or an empty string if the default device is used.
-   * @deprecated use `getActiveDevice('audiooutput')` instead
-   */
-  getActiveAudioOutputDevice(): string {
-    return this.options.audioOutput?.deviceId ?? '';
   }
 
   getActiveDevice(kind: MediaDeviceKind): string | undefined {
@@ -1865,8 +1852,6 @@ export type RoomEventCallbacks = {
   reconnecting: () => void;
   reconnected: () => void;
   disconnected: (reason?: DisconnectReason) => void;
-  /** @deprecated stateChanged has been renamed to connectionStateChanged */
-  stateChanged: (state: ConnectionState) => void;
   connectionStateChanged: (state: ConnectionState) => void;
   mediaDevicesChanged: () => void;
   participantConnected: (participant: RemoteParticipant) => void;

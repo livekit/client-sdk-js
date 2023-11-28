@@ -727,7 +727,7 @@ export default class LocalParticipant extends Participant {
     } else if (track.kind === Track.Kind.Audio) {
       encodings = [
         {
-          maxBitrate: opts.audioPreset?.maxBitrate ?? opts.audioBitrate,
+          maxBitrate: opts.audioPreset?.maxBitrate,
           priority: opts.audioPreset?.priority ?? 'high',
           networkPriority: opts.audioPreset?.priority ?? 'high',
         },
