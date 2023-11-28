@@ -52,9 +52,9 @@ import {
 } from './publishUtils';
 
 export default class LocalParticipant extends Participant {
-  audioTracks: Map<string, LocalTrackPublication>;
+  audioTrackPublications: Map<string, LocalTrackPublication>;
 
-  videoTracks: Map<string, LocalTrackPublication>;
+  videoTrackPublications: Map<string, LocalTrackPublication>;
 
   /** map of track sid => all published tracks */
   trackPublications: Map<string, LocalTrackPublication>;
@@ -87,8 +87,8 @@ export default class LocalParticipant extends Participant {
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
     super(sid, identity);
-    this.audioTracks = new Map();
-    this.videoTracks = new Map();
+    this.audioTrackPublications = new Map();
+    this.videoTrackPublications = new Map();
     this.trackPublications = new Map();
     this.engine = engine;
     this.roomOptions = options;
@@ -975,10 +975,10 @@ export default class LocalParticipant extends Participant {
     this.trackPublications.delete(publication.trackSid);
     switch (publication.kind) {
       case Track.Kind.Audio:
-        this.audioTracks.delete(publication.trackSid);
+        this.audioTrackPublications.delete(publication.trackSid);
         break;
       case Track.Kind.Video:
-        this.videoTracks.delete(publication.trackSid);
+        this.videoTrackPublications.delete(publication.trackSid);
         break;
       default:
         break;
@@ -1210,7 +1210,7 @@ export default class LocalParticipant extends Participant {
     if (!this.roomOptions?.dynacast) {
       return;
     }
-    const pub = this.videoTracks.get(update.trackSid);
+    const pub = this.videoTrackPublications.get(update.trackSid);
     if (!pub) {
       log.warn('received subscribed quality update for unknown track', {
         method: 'handleSubscribedQualityUpdate',

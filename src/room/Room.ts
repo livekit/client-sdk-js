@@ -840,7 +840,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.participants.forEach((p) => {
-      p.audioTracks.forEach((t) => {
+      p.audioTrackPublications.forEach((t) => {
         if (t.track) {
           t.track.attachedElements.forEach((e) => {
             elements.push(e);
@@ -866,7 +866,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   startVideo = async () => {
     for (const p of this.participants.values()) {
-      p.videoTracks.forEach((tr) => {
+      p.videoTrackPublications.forEach((tr) => {
         tr.track?.attachedElements.forEach((el) => {
           el.play().catch((e) => {
             if (e.name === 'NotAllowedError') {
@@ -925,7 +925,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const prevDeviceId = this.options.audioCaptureDefaults!.deviceId;
       this.options.audioCaptureDefaults!.deviceId = deviceConstraint;
       deviceHasChanged = prevDeviceId !== deviceConstraint;
-      const tracks = Array.from(this.localParticipant.audioTracks.values()).filter(
+      const tracks = Array.from(this.localParticipant.audioTrackPublications.values()).filter(
         (track) => track.source === Track.Source.Microphone,
       );
       try {
@@ -940,7 +940,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const prevDeviceId = this.options.videoCaptureDefaults!.deviceId;
       this.options.videoCaptureDefaults!.deviceId = deviceConstraint;
       deviceHasChanged = prevDeviceId !== deviceConstraint;
-      const tracks = Array.from(this.localParticipant.videoTracks.values()).filter(
+      const tracks = Array.from(this.localParticipant.videoTrackPublications.values()).filter(
         (track) => track.source === Track.Source.Camera,
       );
       try {
@@ -1199,8 +1199,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         );
 
       this.localParticipant.trackPublications.clear();
-      this.localParticipant.videoTracks.clear();
-      this.localParticipant.audioTracks.clear();
+      this.localParticipant.videoTrackPublications.clear();
+      this.localParticipant.audioTrackPublications.clear();
 
       this.participants.clear();
       this.activeSpeakers = [];
@@ -1604,7 +1604,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   private updateSubscriptions() {
     for (const p of this.participants.values()) {
-      for (const pub of p.videoTracks.values()) {
+      for (const pub of p.videoTrackPublications.values()) {
         if (pub.isSubscribed && pub instanceof RemoteTrackPublication) {
           pub.emitTrackUpdate();
         }

@@ -40,9 +40,23 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
 export default class Participant extends (EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>) {
   protected participantInfo?: ParticipantInfo;
 
-  audioTracks: Map<string, TrackPublication>;
+  audioTrackPublications: Map<string, TrackPublication>;
 
-  videoTracks: Map<string, TrackPublication>;
+  videoTrackPublications: Map<string, TrackPublication>;
+
+  /**
+   * @deprecated `audioTracks` has been renamed to `audioTrackPublications`
+   */
+  get audioTracks() {
+    return this.audioTrackPublications;
+  }
+
+  /**
+   * @deprecated `videoTracks` has been renamed to `videoTrackPublications`
+   */
+  get videoTracks() {
+    return this.videoTrackPublications;
+  }
 
   /** map of track sid => all published tracks */
   trackPublications: Map<string, TrackPublication>;
@@ -88,8 +102,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.identity = identity;
     this.name = name;
     this.metadata = metadata;
-    this.audioTracks = new Map();
-    this.videoTracks = new Map();
+    this.audioTrackPublications = new Map();
+    this.videoTrackPublications = new Map();
     this.trackPublications = new Map();
   }
 
@@ -252,7 +266,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    */
   setAudioContext(ctx: AudioContext | undefined) {
     this.audioContext = ctx;
-    this.audioTracks.forEach(
+    this.audioTrackPublications.forEach(
       (track) =>
         (track.track instanceof RemoteAudioTrack || track.track instanceof LocalAudioTrack) &&
         track.track.setAudioContext(ctx),
@@ -277,10 +291,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.trackPublications.set(publication.trackSid, publication);
     switch (publication.kind) {
       case Track.Kind.Audio:
-        this.audioTracks.set(publication.trackSid, publication);
+        this.audioTrackPublications.set(publication.trackSid, publication);
         break;
       case Track.Kind.Video:
-        this.videoTracks.set(publication.trackSid, publication);
+        this.videoTrackPublications.set(publication.trackSid, publication);
         break;
       default:
         break;

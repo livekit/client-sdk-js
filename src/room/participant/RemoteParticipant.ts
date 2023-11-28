@@ -15,9 +15,9 @@ import Participant from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
 
 export default class RemoteParticipant extends Participant {
-  audioTracks: Map<string, RemoteTrackPublication>;
+  audioTrackPublications: Map<string, RemoteTrackPublication>;
 
-  videoTracks: Map<string, RemoteTrackPublication>;
+  videoTrackPublications: Map<string, RemoteTrackPublication>;
 
   trackPublications: Map<string, RemoteTrackPublication>;
 
@@ -43,8 +43,8 @@ export default class RemoteParticipant extends Participant {
     super(sid, identity || '', name, metadata);
     this.signalClient = signalClient;
     this.trackPublications = new Map();
-    this.audioTracks = new Map();
-    this.videoTracks = new Map();
+    this.audioTrackPublications = new Map();
+    this.videoTrackPublications = new Map();
     this.volumeMap = new Map();
   }
 
@@ -308,10 +308,10 @@ export default class RemoteParticipant extends Participant {
     // remove from the right type map
     switch (publication.kind) {
       case Track.Kind.Audio:
-        this.audioTracks.delete(sid);
+        this.audioTrackPublications.delete(sid);
         break;
       case Track.Kind.Video:
-        this.videoTracks.delete(sid);
+        this.videoTrackPublications.delete(sid);
         break;
       default:
         break;
@@ -328,7 +328,7 @@ export default class RemoteParticipant extends Participant {
   async setAudioOutput(output: AudioOutputOptions) {
     this.audioOutput = output;
     const promises: Promise<void>[] = [];
-    this.audioTracks.forEach((pub) => {
+    this.audioTrackPublications.forEach((pub) => {
       if (pub.track instanceof RemoteAudioTrack) {
         promises.push(pub.track.setSinkId(output.deviceId ?? 'default'));
       }
