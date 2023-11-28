@@ -90,17 +90,22 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.tracks = new Map();
   }
 
-  getTracks(): TrackPublication[] {
+  getTrackPublications(): TrackPublication[] {
     return Array.from(this.tracks.values());
+  }
+
+  /**
+   * @deprecated `getTracks` has been renamed to `getTrackPublications` and will be removed in a future version
+   */
+  getTracks() {
+    return this.getTrackPublications();
   }
 
   /**
    * Finds the first track that matches the source filter, for example, getting
    * the user's camera track with getTrackBySource(Track.Source.Camera).
-   * @param source
-   * @returns
    */
-  getTrack(source: Track.Source): TrackPublication | undefined {
+  getTrackPublication(source: Track.Source): TrackPublication | undefined {
     for (const [, pub] of this.tracks) {
       if (pub.source === source) {
         return pub;
@@ -109,11 +114,16 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   /**
-   * Finds the first track that matches the track's name.
-   * @param name
-   * @returns
+   * @deprecated `getTrack` has been renamed to `getTrackPublication` and will be removed in a future version
    */
-  getTrackByName(name: string): TrackPublication | undefined {
+  getTrack(source: Track.Source) {
+    return this.getTrackPublication(source);
+  }
+
+  /**
+   * Finds the first track that matches the track's name.
+   */
+  getTrackPublicationByName(name: string): TrackPublication | undefined {
     for (const [, pub] of this.tracks) {
       if (pub.trackName === name) {
         return pub;
@@ -121,22 +131,29 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
   }
 
+  /**
+   * @deprecated `getTrackByName` has been renamed to `getTrackPublicationByName` and will be removed in a future version
+   */
+  getTrackByName(name: string) {
+    return this.getTrackPublicationByName(name);
+  }
+
   get connectionQuality(): ConnectionQuality {
     return this._connectionQuality;
   }
 
   get isCameraEnabled(): boolean {
-    const track = this.getTrack(Track.Source.Camera);
+    const track = this.getTrackPublication(Track.Source.Camera);
     return !(track?.isMuted ?? true);
   }
 
   get isMicrophoneEnabled(): boolean {
-    const track = this.getTrack(Track.Source.Microphone);
+    const track = this.getTrackPublication(Track.Source.Microphone);
     return !(track?.isMuted ?? true);
   }
 
   get isScreenShareEnabled(): boolean {
-    const track = this.getTrack(Track.Source.ScreenShare);
+    const track = this.getTrackPublication(Track.Source.ScreenShare);
     return !!track;
   }
 

@@ -85,15 +85,15 @@ export default class RemoteParticipant extends Participant {
     });
   }
 
-  getTrack(source: Track.Source): RemoteTrackPublication | undefined {
-    const track = super.getTrack(source);
+  getTrackPublication(source: Track.Source): RemoteTrackPublication | undefined {
+    const track = super.getTrackPublication(source);
     if (track) {
       return track as RemoteTrackPublication;
     }
   }
 
-  getTrackByName(name: string): RemoteTrackPublication | undefined {
-    const track = super.getTrackByName(name);
+  getTrackPublicationByName(name: string): RemoteTrackPublication | undefined {
+    const track = super.getTrackPublicationByName(name);
     if (track) {
       return track as RemoteTrackPublication;
     }
@@ -110,7 +110,7 @@ export default class RemoteParticipant extends Participant {
     source: Track.Source.Microphone | Track.Source.ScreenShareAudio = Track.Source.Microphone,
   ) {
     this.volumeMap.set(source, volume);
-    const audioPublication = this.getTrack(source);
+    const audioPublication = this.getTrackPublication(source);
     if (audioPublication && audioPublication.track) {
       (audioPublication.track as RemoteAudioTrack).setVolume(volume);
     }
@@ -122,7 +122,7 @@ export default class RemoteParticipant extends Participant {
   getVolume(
     source: Track.Source.Microphone | Track.Source.ScreenShareAudio = Track.Source.Microphone,
   ) {
-    const audioPublication = this.getTrack(source);
+    const audioPublication = this.getTrackPublication(source);
     if (audioPublication && audioPublication.track) {
       return (audioPublication.track as RemoteAudioTrack).getVolume();
     }
@@ -140,7 +140,7 @@ export default class RemoteParticipant extends Participant {
   ) {
     // find the track publication
     // it's possible for the media track to arrive before participant info
-    let publication = this.getTrackPublication(sid);
+    let publication = this.getTrackPublicationBySid(sid);
 
     // it's also possible that the browser didn't honor our original track id
     // FireFox would use its own local uuid instead of server track id
@@ -216,7 +216,10 @@ export default class RemoteParticipant extends Participant {
     return !!this.participantInfo;
   }
 
-  getTrackPublication(sid: Track.SID): RemoteTrackPublication | undefined {
+  /**
+   * @internal
+   */
+  getTrackPublicationBySid(sid: Track.SID): RemoteTrackPublication | undefined {
     return this.tracks.get(sid);
   }
 
@@ -235,7 +238,7 @@ export default class RemoteParticipant extends Participant {
     const newTracks = new Map<string, RemoteTrackPublication>();
 
     info.tracks.forEach((ti) => {
-      let publication = this.getTrackPublication(ti.sid);
+      let publication = this.getTrackPublicationBySid(ti.sid);
       if (!publication) {
         // new publication
         const kind = Track.kindFromProto(ti.type);
