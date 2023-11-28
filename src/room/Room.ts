@@ -100,7 +100,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   state: ConnectionState = ConnectionState.Disconnected;
 
   /**
-   * map of sid: [[RemoteParticipant]]
+   * map of identity: [[RemoteParticipant]]
    */
   remoteParticipants: Map<string, RemoteParticipant>;
 
