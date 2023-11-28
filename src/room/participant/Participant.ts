@@ -47,11 +47,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   /** map of track sid => all published tracks */
   trackPublications: Map<string, TrackPublication>;
 
-  /** @deprecated `tracks` has been renamed to `trackPublications` */
-  get tracks() {
-    return this.trackPublications;
-  }
-
   /** audio level between 0-1.0, 1 being loudest, 0 being softest */
   audioLevel: number = 0;
 
