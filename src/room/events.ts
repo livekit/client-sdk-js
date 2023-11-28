@@ -372,6 +372,11 @@ export enum ParticipantEvent {
   LocalTrackUnpublished = 'localTrackUnpublished',
 
   /**
+   * @internal
+   */
+  LocalBackupTrackPublished = 'localBackupTrackPublished',
+
+  /**
    * Participant metadata is a simple way for app-specific state to be pushed to
    * all users.
    * When RoomService.UpdateParticipantMetadata is called to change a participant's

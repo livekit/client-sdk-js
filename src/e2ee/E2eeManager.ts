@@ -207,6 +207,11 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       this.setupE2EESender(publication.track!, publication.track!.sender!);
     });
 
+    room.localParticipant.on(
+      ParticipantEvent.LocalBackupTrackPublished,
+      this.setupE2EEForBackupTrack,
+    );
+
     keyProvider
       .on(KeyProviderEvent.SetKey, (keyInfo) => this.postKey(keyInfo))
       .on(KeyProviderEvent.RatchetRequest, (participantId, keyIndex) =>
@@ -310,6 +315,11 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       return;
     }
     this.handleSender(sender, track.mediaStreamID, undefined);
+  }
+
+  private setupE2EEForBackupTrack(trackInfo: TrackInfo, sender: RTCRtpSender, codec: VideoCodec) {
+    console.log('e2ee track info backup', trackInfo);
+    this.handleSender(sender, trackInfo.mid, codec);
   }
 
   /**

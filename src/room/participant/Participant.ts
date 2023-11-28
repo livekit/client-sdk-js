@@ -7,6 +7,7 @@ import {
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
   SubscriptionError,
+  TrackInfo,
 } from '../../proto/livekit_models_pb';
 import { ParticipantEvent, TrackEvent } from '../events';
 import LocalAudioTrack from '../track/LocalAudioTrack';
@@ -16,6 +17,7 @@ import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
+import type { VideoCodec } from '../track/options';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -295,6 +297,11 @@ export type ParticipantEventCallbacks = {
   trackUnmuted: (publication: TrackPublication) => void;
   localTrackPublished: (publication: LocalTrackPublication) => void;
   localTrackUnpublished: (publication: LocalTrackPublication) => void;
+  localBackupTrackPublished: (
+    trackInfo: TrackInfo,
+    sender: RTCRtpSender,
+    codec: VideoCodec,
+  ) => void;
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   participantNameChanged: (name: string) => void;
   dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;

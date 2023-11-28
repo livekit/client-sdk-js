@@ -693,12 +693,7 @@ export default class LocalParticipant extends Participant {
         if (opts.backupCodec === true) {
           opts.backupCodec = { codec: defaultVideoCodec };
         }
-        if (
-          opts.backupCodec &&
-          videoCodec !== opts.backupCodec.codec &&
-          // TODO remove this once e2ee is supported for backup codecs
-          req.encryption === Encryption_Type.NONE
-        ) {
+        if (opts.backupCodec && videoCodec !== opts.backupCodec.codec) {
           // multi-codec simulcast requires dynacast
           if (!this.roomOptions.dynacast) {
             this.roomOptions.dynacast = true;
@@ -835,11 +830,6 @@ export default class LocalParticipant extends Participant {
     videoCodec: BackupVideoCodec,
     options?: TrackPublishOptions,
   ) {
-    // TODO remove once e2ee is supported for backup tracks
-    if (this.encryptionType !== Encryption_Type.NONE) {
-      return;
-    }
-
     // is it not published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
     this.tracks.forEach((publication) => {
@@ -896,10 +886,12 @@ export default class LocalParticipant extends Participant {
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
     }
-    await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
-
-    await this.engine.negotiate();
-    log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
+    const sender = await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
+    if (sender) {
+      await this.engine.negotiate();
+      this.emit(ParticipantEvent.LocalBackupTrackPublished, ti, sender, videoCodec);
+      log.debug(`published ${videoCodec} for track ${track.sid}`, { encodings, trackInfo: ti });
+    }
   }
 
   async unpublishTrack(

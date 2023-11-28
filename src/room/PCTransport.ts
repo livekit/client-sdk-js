@@ -316,13 +316,28 @@ export default class PCTransport extends EventEmitter {
   async createAndSetAnswer(): Promise<RTCSessionDescriptionInit> {
     const answer = await this.pc.createAnswer();
     const sdpParsed = parse(answer.sdp ?? '');
-    sdpParsed.media.forEach((media) => {
+    sdpParsed.media = sdpParsed.media.map((media) => {
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, this.remoteStereoMids, this.remoteNackMids);
       }
+      if (media.type === 'video') {
+        const h264payloads = media.rtp
+          .filter((rtp) => rtp.codec.includes('264'))
+          .map((rtp) => rtp.payload);
+        media.rtp = media.rtp.filter((rtp) => !h264payloads.includes(rtp.payload));
+        media.fmtp = media.fmtp.filter((fmtp) => !h264payloads.includes(fmtp.payload));
+        media.rtcpFb = media.rtcpFb?.filter((fb) => !h264payloads.includes(fb.payload));
+        h264payloads.forEach((payload) => {
+          media.payloads = media.payloads?.replace(`${payload}`, '');
+          media.payloads = media.payloads?.replace('  ', ' ');
+          media.payloads = media.payloads?.trim();
+        });
+        // media.payloads = h264payloads.join(' ');
+      }
+      return media;
     });
-    await this.setMungedSDP(answer, write(sdpParsed));
-    return answer;
+    const appliedAnswer = await this.setMungedSDP(answer, write(sdpParsed));
+    return appliedAnswer;
   }
 
   createDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
@@ -458,7 +473,7 @@ export default class PCTransport extends EventEmitter {
         } else {
           await this.pc.setLocalDescription(sd);
         }
-        return;
+        return sd;
       } catch (e) {
         log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
           error: e,
@@ -474,6 +489,8 @@ export default class PCTransport extends EventEmitter {
       } else {
         await this.pc.setLocalDescription(sd);
       }
+
+      return sd;
     } catch (e) {
       // this error cannot always be caught.
       // If the local description has a setCodecPreferences error, this error will be uncaught
