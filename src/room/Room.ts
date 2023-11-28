@@ -1104,7 +1104,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     try {
       // unpublish & republish tracks
       const localPubs: LocalTrackPublication[] = [];
-      this.localParticipant.tracks.forEach((pub) => {
+      this.localParticipant.trackPublications.forEach((pub) => {
         if (pub.track) {
           localPubs.push(pub);
         }
@@ -1168,12 +1168,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     try {
       this.participants.forEach((p) => {
-        p.tracks.forEach((pub) => {
+        p.trackPublications.forEach((pub) => {
           p.unpublishTrack(pub.trackSid);
         });
       });
 
-      this.localParticipant.tracks.forEach((pub) => {
+      this.localParticipant.trackPublications.forEach((pub) => {
         if (pub.track) {
           this.localParticipant.unpublishTrack(pub.track, shouldStopTracks);
         }
@@ -1198,7 +1198,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.onLocalParticipantPermissionsChanged,
         );
 
-      this.localParticipant.tracks.clear();
+      this.localParticipant.trackPublications.clear();
       this.localParticipant.videoTracks.clear();
       this.localParticipant.audioTracks.clear();
 
@@ -1260,7 +1260,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.identityToSid.delete(participant.identity);
-    participant.tracks.forEach((publication) => {
+    participant.trackPublications.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
@@ -1366,7 +1366,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleSubscriptionError = (update: SubscriptionResponse) => {
     const participant = Array.from(this.participants.values()).find((p) =>
-      p.tracks.has(update.trackSid),
+      p.trackPublications.has(update.trackSid),
     );
     if (!participant) {
       return;

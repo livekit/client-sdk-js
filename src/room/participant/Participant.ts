@@ -45,7 +45,12 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   videoTracks: Map<string, TrackPublication>;
 
   /** map of track sid => all published tracks */
-  tracks: Map<string, TrackPublication>;
+  trackPublications: Map<string, TrackPublication>;
+
+  /** @deprecated `tracks` has been renamed to `trackPublications` */
+  get tracks() {
+    return this.trackPublications;
+  }
 
   /** audio level between 0-1.0, 1 being loudest, 0 being softest */
   audioLevel: number = 0;
@@ -74,7 +79,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   protected audioContext?: AudioContext;
 
   get isEncrypted() {
-    return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
+    return (
+      this.trackPublications.size > 0 &&
+      Array.from(this.trackPublications.values()).every((tr) => tr.isEncrypted)
+    );
   }
 
   /** @internal */
@@ -87,11 +95,11 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.metadata = metadata;
     this.audioTracks = new Map();
     this.videoTracks = new Map();
-    this.tracks = new Map();
+    this.trackPublications = new Map();
   }
 
   getTracks(): TrackPublication[] {
-    return Array.from(this.tracks.values());
+    return Array.from(this.trackPublications.values());
   }
 
   /**
@@ -101,7 +109,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    * @returns
    */
   getTrack(source: Track.Source): TrackPublication | undefined {
-    for (const [, pub] of this.tracks) {
+    for (const [, pub] of this.trackPublications) {
       if (pub.source === source) {
         return pub;
       }
@@ -114,7 +122,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    * @returns
    */
   getTrackByName(name: string): TrackPublication | undefined {
-    for (const [, pub] of this.tracks) {
+    for (const [, pub] of this.trackPublications) {
       if (pub.trackName === name) {
         return pub;
       }
@@ -271,7 +279,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       pub.track.sid = publication.trackSid;
     }
 
-    this.tracks.set(publication.trackSid, publication);
+    this.trackPublications.set(publication.trackSid, publication);
     switch (publication.kind) {
       case Track.Kind.Audio:
         this.audioTracks.set(publication.trackSid, publication);

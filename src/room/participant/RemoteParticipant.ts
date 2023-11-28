@@ -19,7 +19,7 @@ export default class RemoteParticipant extends Participant {
 
   videoTracks: Map<string, RemoteTrackPublication>;
 
-  tracks: Map<string, RemoteTrackPublication>;
+  trackPublications: Map<string, RemoteTrackPublication>;
 
   signalClient: SignalClient;
 
@@ -42,7 +42,7 @@ export default class RemoteParticipant extends Participant {
   ) {
     super(sid, identity || '', name, metadata);
     this.signalClient = signalClient;
-    this.tracks = new Map();
+    this.trackPublications = new Map();
     this.audioTracks = new Map();
     this.videoTracks = new Map();
     this.volumeMap = new Map();
@@ -147,7 +147,7 @@ export default class RemoteParticipant extends Participant {
     if (!publication) {
       if (!sid.startsWith('TR')) {
         // find the first track that matches type
-        this.tracks.forEach((p) => {
+        this.trackPublications.forEach((p) => {
           if (!publication && mediaTrack.kind === p.kind.toString()) {
             publication = p;
           }
@@ -217,7 +217,7 @@ export default class RemoteParticipant extends Participant {
   }
 
   getTrackPublication(sid: Track.SID): RemoteTrackPublication | undefined {
-    return this.tracks.get(sid);
+    return this.trackPublications.get(sid);
   }
 
   /** @internal */
@@ -249,7 +249,7 @@ export default class RemoteParticipant extends Participant {
         );
         publication.updateInfo(ti);
         newTracks.set(ti.sid, publication);
-        const existingTrackOfSource = Array.from(this.tracks.values()).find(
+        const existingTrackOfSource = Array.from(this.trackPublications.values()).find(
           (publishedTrack) => publishedTrack.source === publication?.source,
         );
         if (existingTrackOfSource && publication.source !== Track.Source.Unknown) {
@@ -271,7 +271,7 @@ export default class RemoteParticipant extends Participant {
     });
 
     // detect removed tracks
-    this.tracks.forEach((publication) => {
+    this.trackPublications.forEach((publication) => {
       if (!validTracks.has(publication.trackSid)) {
         log.trace('detected removed track on remote participant, unpublishing', {
           publication,
@@ -290,7 +290,7 @@ export default class RemoteParticipant extends Participant {
 
   /** @internal */
   unpublishTrack(sid: Track.SID, sendUnpublish?: boolean) {
-    const publication = <RemoteTrackPublication>this.tracks.get(sid);
+    const publication = <RemoteTrackPublication>this.trackPublications.get(sid);
     if (!publication) {
       return;
     }
@@ -303,7 +303,7 @@ export default class RemoteParticipant extends Participant {
     }
 
     // remove track from maps only after unsubscribed has been fired
-    this.tracks.delete(sid);
+    this.trackPublications.delete(sid);
 
     // remove from the right type map
     switch (publication.kind) {

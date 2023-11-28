@@ -169,7 +169,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       .on(RoomEvent.ConnectionStateChanged, (state) => {
         if (state === ConnectionState.Connected) {
           room.participants.forEach((participant) => {
-            participant.tracks.forEach((pub) => {
+            participant.trackPublications.forEach((pub) => {
               this.setParticipantCryptorEnabled(
                 pub.trackInfo!.encryption !== Encryption_Type.NONE,
                 participant.identity,
