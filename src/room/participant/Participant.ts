@@ -44,20 +44,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   videoTrackPublications: Map<string, TrackPublication>;
 
-  /**
-   * @deprecated `audioTracks` has been renamed to `audioTrackPublications`
-   */
-  get audioTracks() {
-    return this.audioTrackPublications;
-  }
-
-  /**
-   * @deprecated `videoTracks` has been renamed to `videoTrackPublications`
-   */
-  get videoTracks() {
-    return this.videoTrackPublications;
-  }
-
   /** map of track sid => all published tracks */
   trackPublications: Map<string, TrackPublication>;
 
