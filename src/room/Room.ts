@@ -1242,8 +1242,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         remoteParticipant = this.getOrCreateParticipant(info.identity, info);
         if (!isNewParticipant) {
           // just update, no events
-          const gotUpdate = remoteParticipant.updateInfo(info);
-          if (gotUpdate) {
+          const wasUpdated = remoteParticipant.updateInfo(info);
+          if (wasUpdated) {
             this.sidToIdentity.set(info.sid, info.identity);
           }
         }
