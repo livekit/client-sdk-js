@@ -124,7 +124,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private roomInfo?: RoomModel;
 
-  private identityToSid: Map<string, string>;
+  private sidToIdentity: Map<string, string>;
 
   /** connect options of room */
   private connOptions?: InternalRoomConnectOptions;
@@ -160,10 +160,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   constructor(options?: RoomOptions) {
     super();
     this.setMaxListeners(100);
-    // this.participants = new Map();
     this.remoteParticipants = new Map();
     this.cachedParticipantIdentities = [];
-    this.identityToSid = new Map();
+    this.sidToIdentity = new Map();
     this.options = { ...roomOptionDefaults, ...options };
 
     this.options.audioCaptureDefaults = {
@@ -1010,6 +1009,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // clear out existing remote participants, since they may have attached
     // the old engine
     this.remoteParticipants.clear();
+    this.sidToIdentity.clear();
     this.maybeCreateEngine();
   }
 
@@ -1205,6 +1205,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.localParticipant.audioTracks.clear();
 
       this.remoteParticipants.clear();
+      this.sidToIdentity.clear();
       this.activeSpeakers = [];
       if (this.audioContext && typeof this.options.expWebAudioMix === 'boolean') {
         this.audioContext.close();
@@ -1241,7 +1242,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         remoteParticipant = this.getOrCreateParticipant(info.identity, info);
         if (!isNewParticipant) {
           // just update, no events
-          remoteParticipant.updateInfo(info);
+          const gotUpdate = remoteParticipant.updateInfo(info);
+          if (gotUpdate) {
+            this.sidToIdentity.set(info.sid, info.identity);
+          }
         }
       }
     });
@@ -1500,7 +1504,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const participant = this.createParticipant(identity, info);
     this.remoteParticipants.set(identity, participant);
 
-    this.identityToSid.set(info.identity, info.sid);
+    this.sidToIdentity.set(info.sid, info.identity);
     // if we have valid info and the participant wasn't in the map before, we can assume the participant is new
     // firing here to make sure that `ParticipantConnected` fires before the initial track events
     this.emitWhenConnected(RoomEvent.ParticipantConnected, participant);
@@ -1608,8 +1612,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private getRemoteParticipantBySid(sid: string) {
-    return Array.from(this.remoteParticipants.values()).find((p) => p.sid === sid);
+  private getRemoteParticipantBySid(sid: string): RemoteParticipant | undefined {
+    const identity = this.sidToIdentity.get(sid);
+    if (identity) {
+      return this.remoteParticipants.get(identity);
+    }
   }
 
   private registerConnectionReconcile() {
