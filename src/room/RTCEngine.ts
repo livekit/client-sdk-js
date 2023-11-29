@@ -2,7 +2,11 @@ import { EventEmitter } from 'events';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
-import { SignalClient, toProtoSessionDescription } from '../api/SignalClient';
+import {
+  SignalClient,
+  SignalConnectionState,
+  toProtoSessionDescription,
+} from '../api/SignalClient';
 import log from '../logger';
 import type { InternalRoomOptions } from '../options';
 import {
@@ -867,7 +871,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
       this.emit(EngineEvent.Restarting);
 
-      if (this.client.isConnected) {
+      if (this.client.currentState < SignalConnectionState.DISCONNECTING) {
         await this.client.sendLeave();
       }
       await this.cleanupPeerConnections();
@@ -1266,7 +1270,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private handleBrowserOnLine = () => {
     // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
-    if (this.client.isReconnecting) {
+    if (this.client.currentState === SignalConnectionState.RECONNECTING) {
       this.clearReconnectTimeout();
       this.attemptReconnect(ReconnectReason.RR_SIGNAL_DISCONNECTED);
     }

@@ -1,3 +1,4 @@
+import { SignalConnectionState } from '../../api/SignalClient';
 import log from '../../logger';
 import type { InternalRoomOptions } from '../../options';
 import {
@@ -1129,7 +1130,7 @@ export default class LocalParticipant extends Participant {
   ) {
     this.participantTrackPermissions = participantTrackPermissions;
     this.allParticipantsAllowedToSubscribe = allParticipantsAllowed;
-    if (this.engine.client.isConnected) {
+    if (this.engine.client.currentState < SignalConnectionState.DISCONNECTING) {
       this.updateTrackSubscriptionPermissions();
     }
   }
