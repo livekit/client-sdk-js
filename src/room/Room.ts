@@ -2,7 +2,6 @@ import { protoInt64 } from '@bufbuild/protobuf';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
-import { SignalConnectionState } from '../api/SignalClient';
 import { EncryptionEvent } from '../e2ee';
 import { E2EEManager } from '../e2ee/E2eeManager';
 import log from '../logger';
@@ -665,7 +664,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.connectFuture = undefined;
       }
       // send leave
-      if (this.engine?.client.currentState < SignalConnectionState.DISCONNECTING) {
+      if (!this.engine?.client.isDisconnected) {
         await this.engine.client.sendLeave();
       }
       // close engine (also closes client)

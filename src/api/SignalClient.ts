@@ -149,6 +149,13 @@ export class SignalClient {
     return this.state;
   }
 
+  get isDisconnected() {
+    return (
+      this.state === SignalConnectionState.DISCONNECTING ||
+      this.state === SignalConnectionState.DISCONNECTED
+    );
+  }
+
   private options?: SignalOptions;
 
   private pingTimeout: ReturnType<typeof setTimeout> | undefined;

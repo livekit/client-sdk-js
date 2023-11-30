@@ -871,7 +871,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       log.info(`reconnecting, attempt: ${this.reconnectAttempts}`);
       this.emit(EngineEvent.Restarting);
 
-      if (this.client.currentState < SignalConnectionState.DISCONNECTING) {
+      if (!this.client.isDisconnected) {
         await this.client.sendLeave();
       }
       await this.cleanupPeerConnections();
