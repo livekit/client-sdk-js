@@ -1129,7 +1129,7 @@ export default class LocalParticipant extends Participant {
   ) {
     this.participantTrackPermissions = participantTrackPermissions;
     this.allParticipantsAllowedToSubscribe = allParticipantsAllowed;
-    if (this.engine.client.isConnected) {
+    if (!this.engine.client.isDisconnected) {
       this.updateTrackSubscriptionPermissions();
     }
   }
