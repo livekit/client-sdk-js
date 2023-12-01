@@ -65,8 +65,8 @@ devDependencies:
     specifier: ^8.2.4
     version: 8.2.6(size-limit@8.2.6)
   '@size-limit/webpack':
-    specifier: ^8.2.4
-    version: 8.2.6(size-limit@8.2.6)
+    specifier: ^11.0.0
+    version: 11.0.0(size-limit@8.2.6)
   '@trivago/prettier-plugin-sort-imports':
     specifier: ^4.1.1
     version: 4.2.1(prettier@2.8.8)
@@ -2025,13 +2025,13 @@ packages:
       size-limit: 8.2.6
     dev: true
 
-  /@size-limit/webpack@8.2.6(size-limit@8.2.6):
-    resolution: {integrity: sha512-y2sB66m5sJxIjZ8SEAzpWbiw3/+bnQHDHfk9cSbV5ChKklq02AlYg8BS5KxGWmMpdyUo4TzpjSCP9oEudY+hxQ==}
-    engines: {node: ^14.0.0 || ^16.0.0 || >=18.0.0}
+  /@size-limit/webpack@11.0.0(size-limit@8.2.6):
+    resolution: {integrity: sha512-AFF8/JBOcU7KUgkLUo93DmrfexRZz/7+qVwye+I4fbMgl/lRtoonNbgwGTdjvwZBjQLTGkWLtSPK5xGYbIdpGA==}
+    engines: {node: ^18.0.0 || >=20.0.0}
     peerDependencies:
-      size-limit: 8.2.6
+      size-limit: 11.0.0
     dependencies:
-      nanoid: 3.3.7
+      nanoid: 5.0.3
       size-limit: 8.2.6
       webpack: 5.89.0
     transitivePeerDependencies:
@@ -3165,7 +3165,7 @@ packages:
     dependencies:
       semver: 7.5.4
       shelljs: 0.8.5
-      typescript: 5.4.0-dev.20231107
+      typescript: 5.4.0-dev.20231130
     dev: true
 
   /electron-to-chromium@1.4.577:
@@ -4671,6 +4671,12 @@ packages:
     hasBin: true
     dev: true
 
+  /nanoid@5.0.3:
+    resolution: {integrity: sha512-I7X2b22cxA4LIHXPSqbBCEQSL+1wv8TuoefejsX4HFWyC6jc5JG7CEaxOltiKjc1M+YCS2YkrZZcj4+dytw9GA==}
+    engines: {node: ^18 || >=20}
+    hasBin: true
+    dev: true
+
   /nanospinner@1.1.0:
     resolution: {integrity: sha512-yFvNYMig4AthKYfHFl1sLj7B2nkHL4lzdig4osvl9/LdGbXwrdFRoqBS98gsEsOakr0yH+r5NZ/1Y9gdVB8trA==}
     dependencies:
@@ -5889,8 +5895,8 @@ packages:
     hasBin: true
     dev: true
 
-  /typescript@5.4.0-dev.20231107:
-    resolution: {integrity: sha512-4bQlfsyFjzZMo1bSLEkFJEcvuQ64pgE0S/BpdWu16lYsQOfJZtntZIyWdED3h+e96IMtVgrC6sxzfPZhj4J/dw==}
+  /typescript@5.4.0-dev.20231130:
+    resolution: {integrity: sha512-YDc4V66/MiOKq3LZh7onu6+VNKqQZrvzQEKAbWCjSmlVeK8TYEPYlbTmYFJvKbqDHwrxGBayl3egTG/IzyxZMQ==}
     engines: {node: '>=14.17'}
     hasBin: true
     dev: true
