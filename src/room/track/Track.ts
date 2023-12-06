@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-// import { debounce } from 'ts-debounce';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
@@ -179,8 +178,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
         if (idx >= 0) {
           this.attachedElements.splice(idx, 1);
           this.recycleElement(element);
-          // element.removeEventListener('suspend', this.handleElementSuspended);
-          // element.removeEventListener('playing', this.handleElementPlay);
           this.emit(TrackEvent.ElementDetached, element);
         }
         return element;
@@ -191,8 +188,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
         detachTrack(this.mediaStreamTrack, elm);
         detached.push(elm);
         this.recycleElement(elm);
-        // elm.removeEventListener('suspend', this.handleElementSuspended);
-        // elm.removeEventListener('playing', this.handleElementPlay);
         this.emit(TrackEvent.ElementDetached, elm);
       });
 
@@ -279,24 +274,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
       document.removeEventListener('visibilitychange', this.appVisibilityChangedListener);
     }
   }
-
-  // private handleElementSuspended = () => {
-  //   this.debouncedPlaybackStateChange(false);
-  // };
-
-  // private handleElementPlay = () => {
-  //   this.debouncedPlaybackStateChange(true);
-  // };
-
-  // private debouncedPlaybackStateChange = debounce((allowed: boolean) => {
-  //   // we debounce this as Safari triggers both `playing` and `suspend` shortly after one another
-  //   // in order not to raise the wrong event, we debounce the call to make sure we only emit the correct status
-  //   if (this.kind === Track.Kind.Audio) {
-  //     this.emit(allowed ? TrackEvent.AudioPlaybackStarted : TrackEvent.AudioPlaybackFailed);
-  //   } else if (this.kind === Track.Kind.Video) {
-  //     this.emit(allowed ? TrackEvent.VideoPlaybackStarted : TrackEvent.VideoPlaybackFailed);
-  //   }
-  // }, 300);
 }
 
 export function attachToElement(track: MediaStreamTrack, element: HTMLMediaElement) {
@@ -349,7 +326,7 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
         // when the window is backgrounded before the first frame is drawn
         // manually calling play here seems to fix that
         element.play().catch(() => {
-          /** do nothing, we watch the `suspended` event do deal with these failures */
+          /** do nothing */
         });
       }, 0);
     }
