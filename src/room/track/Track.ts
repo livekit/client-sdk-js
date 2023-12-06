@@ -1,7 +1,8 @@
 import { EventEmitter } from 'events';
-import { debounce } from 'ts-debounce';
+// import { debounce } from 'ts-debounce';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
+import log from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
@@ -113,9 +114,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
     if (!this.attachedElements.includes(element)) {
       this.attachedElements.push(element);
-      // listen to suspend events in order to detect auto playback issues
-      element.addEventListener('suspend', this.handleElementSuspended);
-      element.addEventListener('playing', this.handleElementPlay);
     }
 
     // even if we believe it's already attached to the element, it's possible
@@ -125,27 +123,38 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
     // handle auto playback failures
     const allMediaStreamTracks = (element.srcObject as MediaStream).getTracks();
-    if (allMediaStreamTracks.some((tr) => tr.kind === 'audio')) {
-      // manually play audio to detect audio playback status
-      element
-        .play()
-        .then(() => {
-          this.emit(TrackEvent.AudioPlaybackStarted);
-        })
-        .catch((e) => {
-          // If audio playback isn't allowed make sure we still play back the video
-          if (
-            element &&
-            allMediaStreamTracks.some((tr) => tr.kind === 'video') &&
-            e.name === 'NotAllowedError'
-          ) {
-            element.muted = true;
-            element.play().catch(() => {
-              // catch for Safari, exceeded options at this point to automatically play the media element
-            });
-          }
-        });
-    }
+    const hasAudio = allMediaStreamTracks.some((tr) => tr.kind === 'audio');
+
+    // manually play media to detect auto playback status
+    element
+      .play()
+      .then(() => {
+        this.emit(hasAudio ? TrackEvent.AudioPlaybackStarted : TrackEvent.VideoPlaybackStarted);
+      })
+      .catch((e) => {
+        if (e.name === 'NotAllowedError') {
+          this.emit(hasAudio ? TrackEvent.AudioPlaybackFailed : TrackEvent.VideoPlaybackFailed, e);
+        } else if (e.name === 'AbortError') {
+          // commonly triggered by another `play` request, only log for debugging purposes
+          log.debug(
+            `${hasAudio ? 'audio' : 'video'} playback aborted, likely due to new play request`,
+          );
+        } else {
+          log.warn(`could not playback ${hasAudio ? 'audio' : 'video'}`, e);
+        }
+        // If audio playback isn't allowed make sure we still play back the video
+        if (
+          hasAudio &&
+          element &&
+          allMediaStreamTracks.some((tr) => tr.kind === 'video') &&
+          e.name === 'NotAllowedError'
+        ) {
+          element.muted = true;
+          element.play().catch(() => {
+            // catch for Safari, exceeded options at this point to automatically play the media element
+          });
+        }
+      });
 
     this.emit(TrackEvent.ElementAttached, element);
     return element;
@@ -170,8 +179,8 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
         if (idx >= 0) {
           this.attachedElements.splice(idx, 1);
           this.recycleElement(element);
-          element.removeEventListener('suspend', this.handleElementSuspended);
-          element.removeEventListener('playing', this.handleElementPlay);
+          // element.removeEventListener('suspend', this.handleElementSuspended);
+          // element.removeEventListener('playing', this.handleElementPlay);
           this.emit(TrackEvent.ElementDetached, element);
         }
         return element;
@@ -182,8 +191,8 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
         detachTrack(this.mediaStreamTrack, elm);
         detached.push(elm);
         this.recycleElement(elm);
-        elm.removeEventListener('suspend', this.handleElementSuspended);
-        elm.removeEventListener('playing', this.handleElementPlay);
+        // elm.removeEventListener('suspend', this.handleElementSuspended);
+        // elm.removeEventListener('playing', this.handleElementPlay);
         this.emit(TrackEvent.ElementDetached, elm);
       });
 
@@ -271,23 +280,23 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     }
   }
 
-  private handleElementSuspended = () => {
-    this.debouncedPlaybackStateChange(false);
-  };
+  // private handleElementSuspended = () => {
+  //   this.debouncedPlaybackStateChange(false);
+  // };
 
-  private handleElementPlay = () => {
-    this.debouncedPlaybackStateChange(true);
-  };
+  // private handleElementPlay = () => {
+  //   this.debouncedPlaybackStateChange(true);
+  // };
 
-  private debouncedPlaybackStateChange = debounce((allowed: boolean) => {
-    // we debounce this as Safari triggers both `playing` and `suspend` shortly after one another
-    // in order not to raise the wrong event, we debounce the call to make sure we only emit the correct status
-    if (this.kind === Track.Kind.Audio) {
-      this.emit(allowed ? TrackEvent.AudioPlaybackStarted : TrackEvent.AudioPlaybackFailed);
-    } else if (this.kind === Track.Kind.Video) {
-      this.emit(allowed ? TrackEvent.VideoPlaybackStarted : TrackEvent.VideoPlaybackFailed);
-    }
-  }, 300);
+  // private debouncedPlaybackStateChange = debounce((allowed: boolean) => {
+  //   // we debounce this as Safari triggers both `playing` and `suspend` shortly after one another
+  //   // in order not to raise the wrong event, we debounce the call to make sure we only emit the correct status
+  //   if (this.kind === Track.Kind.Audio) {
+  //     this.emit(allowed ? TrackEvent.AudioPlaybackStarted : TrackEvent.AudioPlaybackFailed);
+  //   } else if (this.kind === Track.Kind.Video) {
+  //     this.emit(allowed ? TrackEvent.VideoPlaybackStarted : TrackEvent.VideoPlaybackFailed);
+  //   }
+  // }, 300);
 }
 
 export function attachToElement(track: MediaStreamTrack, element: HTMLMediaElement) {
