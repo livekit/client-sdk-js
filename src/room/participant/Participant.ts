@@ -77,6 +77,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
   }
 
+  get isAgent() {
+    return this.permissions?.agent ?? false;
+  }
+
   /** @internal */
   constructor(sid: string, identity: string, name?: string, metadata?: string) {
     super();
