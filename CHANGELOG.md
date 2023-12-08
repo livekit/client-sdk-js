@@ -1,5 +1,15 @@
 # Change Log
 
+## 1.15.4
+
+### Patch Changes
+
+- Add ConnectionQuality.Lost - [#961](https://github.com/livekit/client-sdk-js/pull/961) ([@lukasIO](https://github.com/lukasIO))
+
+- Add isAgent getter on participant - [#960](https://github.com/livekit/client-sdk-js/pull/960) ([@lukasIO](https://github.com/lukasIO))
+
+- Improve auto playback handling - [#958](https://github.com/livekit/client-sdk-js/pull/958) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.3
 
 ### Patch Changes
