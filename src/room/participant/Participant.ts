@@ -21,6 +21,11 @@ export enum ConnectionQuality {
   Excellent = 'excellent',
   Good = 'good',
   Poor = 'poor',
+  /**
+   * Indicates that a participant has temporarily (or permanently) lost connection to LiveKit.
+   * For permanent disconnection a `ParticipantDisconnected` event will be emitted after a timeout
+   */
+  Lost = 'lost',
   Unknown = 'unknown',
 }
 
@@ -32,6 +37,8 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
       return ConnectionQuality.Good;
     case ProtoQuality.POOR:
       return ConnectionQuality.Poor;
+    case ProtoQuality.LOST:
+      return ConnectionQuality.Lost;
     default:
       return ConnectionQuality.Unknown;
   }
