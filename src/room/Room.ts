@@ -1231,6 +1231,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return;
       }
 
+      // LiveKit server doesn't send identity info prior to version 1.5.2 in disconnect updates
+      // so we try to map an empty identity to an already known sID manually
+      if (info.identity === '') {
+        info.identity = this.sidToIdentity.get(info.sid) ?? '';
+      }
+
       let remoteParticipant = this.remoteParticipants.get(info.identity);
       const isNewParticipant = !remoteParticipant;
 
