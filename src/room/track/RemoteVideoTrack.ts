@@ -169,8 +169,11 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
     const stats = await this.receiver.getStats();
     let receiverStats: VideoReceiverStats | undefined;
+    let codecID = '';
+    let codecs = new Map<string, any>();
     stats.forEach((v) => {
       if (v.type === 'inbound-rtp') {
+        codecID = v.codecId;
         receiverStats = {
           type: 'video',
           framesDecoded: v.framesDecoded,
@@ -188,8 +191,13 @@ export default class RemoteVideoTrack extends RemoteTrack {
           bytesReceived: v.bytesReceived,
           decoderImplementation: v.decoderImplementation,
         };
+      } else if (v.type === 'codec') {
+        codecs.set(v.id, v);
       }
     });
+    if (receiverStats && codecID !== '' && codecs.get(codecID)) {
+      receiverStats.mimeType = codecs.get(codecID).mimeType;
+    }
     return receiverStats;
   }
 
