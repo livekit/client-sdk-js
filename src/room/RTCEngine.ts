@@ -31,10 +31,12 @@ import {
   type ReconnectResponse,
   SignalTarget,
   type StreamStateUpdate,
+  SubscribedQualityUpdate,
   type SubscriptionPermissionUpdate,
   type SubscriptionResponse,
   SyncState,
   type TrackPublishedResponse,
+  TrackUnpublishedResponse,
   UpdateSubscription,
 } from '../proto/livekit_rtc_pb';
 import PCTransport, { PCEvents } from './PCTransport';
@@ -439,6 +441,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onTokenRefresh = (token: string) => {
       this.token = token;
+    };
+
+    this.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
+      this.emit(EngineEvent.RemoteMute, trackSid, muted);
+    };
+
+    this.client.onSubscribedQualityUpdate = (update: SubscribedQualityUpdate) => {
+      this.emit(EngineEvent.SubscribedQualityUpdate, update);
     };
 
     this.client.onClose = () => {
@@ -1320,4 +1330,7 @@ export type EngineEventCallbacks = {
   streamStateChanged: (update: StreamStateUpdate) => void;
   subscriptionError: (resp: SubscriptionResponse) => void;
   subscriptionPermissionUpdate: (update: SubscriptionPermissionUpdate) => void;
+  subscribedQualityUpdate: (update: SubscribedQualityUpdate) => void;
+  localTrackUnpublished: (unpublishedResponse: TrackUnpublishedResponse) => void;
+  remoteMute: (trackSid: string, muted: boolean) => void;
 };
