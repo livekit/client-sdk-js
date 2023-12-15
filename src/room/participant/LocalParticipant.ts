@@ -127,7 +127,7 @@ export default class LocalParticipant extends Participant {
    */
   setupEngine(engine: RTCEngine) {
     this.engine = engine;
-    this.engine.client.onRemoteMuteChanged = (trackSid: string, muted: boolean) => {
+    this.engine.on(EngineEvent.RemoteMute, (trackSid: string, muted: boolean) => {
       const pub = this.tracks.get(trackSid);
       if (!pub || !pub.track) {
         return;
@@ -137,11 +137,7 @@ export default class LocalParticipant extends Participant {
       } else {
         pub.unmute();
       }
-    };
-
-    this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
-
-    this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
+    });
 
     this.engine
       .on(EngineEvent.Connected, this.handleReconnected)
@@ -149,6 +145,8 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.SignalResumed, this.handleReconnected)
       .on(EngineEvent.Restarting, this.handleReconnecting)
       .on(EngineEvent.Resuming, this.handleReconnecting)
+      .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
+      .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
       .on(EngineEvent.Disconnected, this.handleDisconnected);
   }
 
