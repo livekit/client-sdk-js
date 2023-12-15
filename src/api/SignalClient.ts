@@ -368,11 +368,8 @@ export class SignalClient {
     this.onAnswer = undefined;
     this.onLeave = undefined;
     this.onLocalTrackPublished = undefined;
-    this.onLocalTrackUnpublished = undefined;
     this.onNegotiateRequested = undefined;
     this.onOffer = undefined;
-    this.onRemoteMuteChanged = undefined;
-    this.onSubscribedQualityUpdate = undefined;
     this.onTokenRefresh = undefined;
     this.onTrickle = undefined;
     this.onClose = undefined;
