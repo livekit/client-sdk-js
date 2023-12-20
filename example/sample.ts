@@ -77,6 +77,7 @@ const appActions = {
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
+    const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
 
     setLogLevel(LogLevel.debug);
     updateSearchParams(url, token, cryptoKey);
@@ -84,6 +85,9 @@ const appActions = {
     const roomOpts: RoomOptions = {
       adaptiveStream,
       dynacast,
+      audioOutput: {
+        deviceId: audioOutputId,
+      },
       publishDefaults: {
         simulcast,
         videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],

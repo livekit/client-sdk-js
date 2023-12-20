@@ -1504,6 +1504,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.options.expWebAudioMix) {
       participant.setAudioContext(this.audioContext);
     }
+    if (this.options.audioOutput?.deviceId) {
+      participant
+        .setAudioOutput(this.options.audioOutput)
+        .catch((e) => log.warn(`Could not set audio output: ${e.message}`));
+    }
     return participant;
   }
 
