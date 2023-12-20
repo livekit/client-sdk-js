@@ -195,7 +195,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
     }
     if (this.options.audioOutput?.deviceId) {
-      this.switchActiveDevice('audiooutput', unwrapConstraint(this.options.audioOutput.deviceId));
+      this.switchActiveDevice(
+        'audiooutput',
+        unwrapConstraint(this.options.audioOutput.deviceId),
+      ).catch((e) => log.warn(`Could not set audio output: ${e.message}`));
     }
 
     if (this.options.e2ee) {
@@ -1503,6 +1506,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     if (this.options.expWebAudioMix) {
       participant.setAudioContext(this.audioContext);
+    }
+    if (this.options.audioOutput?.deviceId) {
+      participant
+        .setAudioOutput(this.options.audioOutput)
+        .catch((e) => log.warn(`Could not set audio output: ${e.message}`));
     }
     return participant;
   }
