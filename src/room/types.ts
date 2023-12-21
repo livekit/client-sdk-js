@@ -22,10 +22,11 @@ export type DataPublishOptions = {
    * packets, use Lossy.
    */
   reliable?: boolean;
-  /** the participants who will receive the message, will be sent to every one if empty
+  /**
+   * the participants who will receive the message, will be sent to every one if empty
    * accepts an array of participant identities or the participant objects
    */
-  destination?: RemoteParticipant[] | string[];
+  destinations?: RemoteParticipant[] | string[];
   /** the topic under which the message gets published */
   topic?: string;
 };
