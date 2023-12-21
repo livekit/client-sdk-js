@@ -1044,7 +1044,7 @@ export default class LocalParticipant extends Participant {
    */
   async publishData(data: Uint8Array, options: DataPublishOptions = {}): Promise<void> {
     const kind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
-    const destination = options.destination;
+    const destination = options.destinations;
     const topic = options.topic;
 
     const destinationIdentities: Array<string> = [];
