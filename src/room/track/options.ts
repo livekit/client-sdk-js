@@ -169,9 +169,10 @@ export interface ScreenShareCaptureOptions {
   video?: true | { displaySurface?: 'window' | 'browser' | 'monitor' };
 
   /**
-   * capture resolution, defaults to screen resolution
-   * NOTE: In Safari 17, specifying any resolution at all would lead to a low-resolution
-   * capture. https://bugs.webkit.org/show_bug.cgi?id=263015
+   * capture resolution, defaults to 1080 for all browsers other than Safari
+   * On Safari 17, default resolution is not capped, due to a bug, specifying
+   * any resolution at all would lead to a low-resolution capture.
+   * https://bugs.webkit.org/show_bug.cgi?id=263015
    */
   resolution?: VideoResolution;
 
@@ -186,6 +187,9 @@ export interface ScreenShareCaptureOptions {
 
   /** specifies whether the browser should include the system audio among the possible audio sources offered to the user */
   systemAudio?: 'include' | 'exclude';
+
+  /** specify the type of content, see: https://www.w3.org/TR/mst-content-hint/#video-content-hints */
+  contentHint?: 'detail' | 'text' | 'motion';
 
   /**
    * Experimental option to control whether the audio playing in a tab will continue to be played out of a user's
@@ -367,9 +371,12 @@ export const VideoPresets43 = {
 
 export const ScreenSharePresets = {
   h360fps3: new VideoPreset(640, 360, 200_000, 3, 'medium'),
-  h720fps5: new VideoPreset(1280, 720, 400_000, 5, 'medium'),
+  h360fps15: new VideoPreset(640, 360, 400_000, 15, 'medium'),
+  h540fps15: new VideoPreset(960, 540, 600_000, 15, 'medium'),
+  h540fps30: new VideoPreset(960, 540, 800_000, 15, 'medium'),
+  h720fps5: new VideoPreset(1280, 720, 800_000, 5, 'medium'),
   h720fps15: new VideoPreset(1280, 720, 1_500_000, 15, 'medium'),
   h720fps30: new VideoPreset(1280, 720, 2_000_000, 30, 'medium'),
   h1080fps15: new VideoPreset(1920, 1080, 2_500_000, 15, 'medium'),
-  h1080fps30: new VideoPreset(1920, 1080, 4_000_000, 30, 'medium'),
+  h1080fps30: new VideoPreset(1920, 1080, 5_000_000, 30, 'medium'),
 } as const;

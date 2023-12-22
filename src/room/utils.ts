@@ -148,6 +148,11 @@ export function isSafari(): boolean {
   return getBrowser()?.name === 'Safari';
 }
 
+export function isSafari17(): boolean {
+  const b = getBrowser();
+  return b?.name === 'Safari' && b.version.startsWith('17.');
+}
+
 export function isMobile(): boolean {
   if (!isWeb()) return false;
   return /Tablet|iPad|Mobile|Android|BlackBerry/.test(navigator.userAgent);
