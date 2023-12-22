@@ -372,8 +372,6 @@ export const VideoPresets43 = {
 export const ScreenSharePresets = {
   h360fps3: new VideoPreset(640, 360, 200_000, 3, 'medium'),
   h360fps15: new VideoPreset(640, 360, 400_000, 15, 'medium'),
-  h540fps15: new VideoPreset(960, 540, 600_000, 15, 'medium'),
-  h540fps30: new VideoPreset(960, 540, 800_000, 15, 'medium'),
   h720fps5: new VideoPreset(1280, 720, 800_000, 5, 'medium'),
   h720fps15: new VideoPreset(1280, 720, 1_500_000, 15, 'medium'),
   h720fps30: new VideoPreset(1280, 720, 2_000_000, 30, 'medium'),
