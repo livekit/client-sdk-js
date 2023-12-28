@@ -1490,12 +1490,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private createParticipant(id: string, info?: ParticipantInfo): RemoteParticipant {
+  private createParticipant(identity: string, info?: ParticipantInfo): RemoteParticipant {
     let participant: RemoteParticipant;
     if (info) {
       participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info);
     } else {
-      participant = new RemoteParticipant(this.engine.client, id, '', undefined, undefined);
+      participant = new RemoteParticipant(this.engine.client, '', identity, undefined, undefined);
     }
     if (this.options.expWebAudioMix) {
       participant.setAudioContext(this.audioContext);
