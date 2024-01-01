@@ -112,10 +112,6 @@ export default abstract class LocalTrack extends Track {
       this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
       this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
       this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
-
-      if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
-        this._mediaStreamTrack.stop();
-      }
     }
 
     this.mediaStream = new MediaStream([newTrack]);
@@ -147,6 +143,11 @@ export default abstract class LocalTrack extends Track {
     }
     if (this.sender) {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
+    }
+    // if `newTrack` is different from the existing track, stop the
+    // older track just before replacing it
+    if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
+      this._mediaStreamTrack.stop();
     }
     this._mediaStreamTrack = newTrack;
     if (newTrack) {
