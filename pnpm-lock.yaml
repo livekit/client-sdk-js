@@ -69,7 +69,7 @@ devDependencies:
     version: 8.2.6(size-limit@8.2.6)
   '@trivago/prettier-plugin-sort-imports':
     specifier: ^4.1.1
-    version: 4.2.1(prettier@2.8.8)
+    version: 4.2.1(prettier@3.1.1)
   '@types/events':
     specifier: ^3.0.0
     version: 3.0.3
@@ -110,8 +110,8 @@ devDependencies:
     specifier: ^23.0.0
     version: 23.0.1
   prettier:
-    specifier: ^2.8.8
-    version: 2.8.8
+    specifier: ^3.0.0
+    version: 3.1.1
   rollup:
     specifier: 3.29.4
     version: 3.29.4
@@ -2124,7 +2124,7 @@ packages:
       - webpack-cli
     dev: true
 
-  /@trivago/prettier-plugin-sort-imports@4.2.1(prettier@2.8.8):
+  /@trivago/prettier-plugin-sort-imports@4.2.1(prettier@3.1.1):
     resolution: {integrity: sha512-iuy2MPVURGdxILTchHr15VAioItuYBejKfcTmQFlxIuqA7jeaT6ngr5aUIG6S6U096d6a6lJCgaOwlRrPLlOPg==}
     peerDependencies:
       '@vue/compiler-sfc': 3.x
@@ -2139,7 +2139,7 @@ packages:
       '@babel/types': 7.17.0
       javascript-natural-sort: 0.7.1
       lodash: 4.17.21
-      prettier: 2.8.8
+      prettier: 3.1.1
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -3240,7 +3240,7 @@ packages:
     dependencies:
       semver: 7.5.4
       shelljs: 0.8.5
-      typescript: 5.4.0-dev.20240101
+      typescript: 5.4.0-dev.20240102
     dev: true
 
   /electron-to-chromium@1.4.577:
@@ -5073,6 +5073,12 @@ packages:
     hasBin: true
     dev: true
 
+  /prettier@3.1.1:
+    resolution: {integrity: sha512-22UbSzg8luF4UuZtzgiUOfcGM8s4tjBv6dJRT7j275NXsy2jb4aJa4NNveul5x4eqlF1wuhuR2RElK71RvmVaw==}
+    engines: {node: '>=14'}
+    hasBin: true
+    dev: true
+
   /pretty-format@29.7.0:
     resolution: {integrity: sha512-Pdlw/oPxN+aXdmM9R00JVC9WVFoCLTKJvDVLgmJ+qAffBMxsV85l/Lu7sNx4zSzPyoL2euImuEwHhOXdEgNFZQ==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
@@ -5962,8 +5968,8 @@ packages:
     hasBin: true
     dev: true
 
-  /typescript@5.4.0-dev.20240101:
-    resolution: {integrity: sha512-fIfemSahB5H/1Lc+kv3AEaI1UZc2SDtl0Qjk+SkfKRxyS2EdujUWJp62PzPeVflfCxyhpAuAF2M+WIR1Fo/ByA==}
+  /typescript@5.4.0-dev.20240102:
+    resolution: {integrity: sha512-2S5NVWoqMlgWUJJCAKS0RG5/XggxCWLPysu/McRM0XS1M3eeekddKMMw0h/xFZV+Afnrc4XgN4KCWV/l6DTxVQ==}
     engines: {node: '>=14.17'}
     hasBin: true
     dev: true
