@@ -98,6 +98,6 @@
     "typedoc-plugin-no-inherit": "1.4.0",
     "typescript": "5.3.3",
     "vite": "4.5.1",
-    "vitest": "^0.34.0"
+    "vitest": "^1.0.0"
   }
 }
