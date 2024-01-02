@@ -88,7 +88,7 @@
     "eslint-plugin-import": "2.29.1",
     "gh-pages": "6.1.1",
     "jsdom": "^23.0.0",
-    "prettier": "^2.8.8",
+    "prettier": "^3.0.0",
     "rollup": "3.29.4",
     "rollup-plugin-delete": "^2.0.0",
     "rollup-plugin-re": "1.0.7",
