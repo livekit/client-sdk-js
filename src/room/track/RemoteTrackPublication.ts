@@ -1,15 +1,10 @@
 import log from '../../logger';
-import {
-  ParticipantTracks,
-  SubscriptionError,
-  TrackInfo,
-  VideoQuality,
-} from '../../proto/livekit_models_pb';
+import { ParticipantTracks, SubscriptionError, TrackInfo } from '../../proto/livekit_models_pb';
 import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import type RemoteTrack from './RemoteTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
-import { Track } from './Track';
+import { Track, VideoQuality } from './Track';
 import { TrackPublication } from './TrackPublication';
 
 export default class RemoteTrackPublication extends TrackPublication {

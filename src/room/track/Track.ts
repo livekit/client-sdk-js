@@ -2,7 +2,11 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
-import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
+import {
+  VideoQuality as ProtoQuality,
+  TrackSource,
+  TrackType,
+} from '../../proto/livekit_models_pb';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import { isFireFox, isSafari, isWeb } from '../utils';
@@ -12,6 +16,27 @@ const BACKGROUND_REACTION_DELAY = 5000;
 // keep old audio elements when detached, we would re-use them since on iOS
 // Safari tracks which audio elements have been "blessed" by the user.
 const recycledElements: Array<HTMLAudioElement> = [];
+
+export enum VideoQuality {
+  LOW,
+  MEDIUM,
+  HIGH,
+}
+
+/**
+ * @internal
+ */
+export function videoQualityFromProto(q: ProtoQuality): VideoQuality {
+  switch (q) {
+    case ProtoQuality.HIGH:
+    case ProtoQuality.OFF:
+      return VideoQuality.HIGH;
+    case ProtoQuality.MEDIUM:
+      return VideoQuality.MEDIUM;
+    case ProtoQuality.LOW:
+      return VideoQuality.LOW;
+  }
+}
 
 export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
   kind: Track.Kind;

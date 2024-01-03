@@ -1,13 +1,13 @@
 import type { SignalClient } from '../../api/SignalClient';
 import log from '../../logger';
-import { VideoLayer, VideoQuality } from '../../proto/livekit_models_pb';
+import { VideoQuality as ProtoVideoQuality, VideoLayer } from '../../proto/livekit_models_pb';
 import { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc_pb';
 import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
 import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
-import { Track } from './Track';
+import { Track, VideoQuality } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
 import { constraintsForOptions } from './utils';
@@ -410,14 +410,14 @@ async function setPublishingLayersForSender(
       const encoding = encodings[0];
       /* @ts-ignore */
       // const mode = new ScalabilityMode(encoding.scalabilityMode);
-      let maxQuality = VideoQuality.OFF;
+      let maxQuality = ProtoVideoQuality.OFF;
       qualities.forEach((q) => {
-        if (q.enabled && (maxQuality === VideoQuality.OFF || q.quality > maxQuality)) {
+        if (q.enabled && (maxQuality === ProtoVideoQuality.OFF || q.quality > maxQuality)) {
           maxQuality = q.quality;
         }
       });
 
-      if (maxQuality === VideoQuality.OFF) {
+      if (maxQuality === ProtoVideoQuality.OFF) {
         if (encoding.active) {
           encoding.active = false;
           hasChanged = true;
@@ -512,7 +512,7 @@ export function videoLayersFromEncodings(
   if (!encodings) {
     return [
       new VideoLayer({
-        quality: VideoQuality.HIGH,
+        quality: ProtoVideoQuality.HIGH,
         width,
         height,
         bitrate: 0,
@@ -530,7 +530,7 @@ export function videoLayersFromEncodings(
     for (let i = 0; i < sm.spatial; i += 1) {
       layers.push(
         new VideoLayer({
-          quality: VideoQuality.HIGH - i,
+          quality: ProtoVideoQuality.HIGH - i,
           width: Math.ceil(width / 2 ** i),
           height: Math.ceil(height / 2 ** i),
           bitrate: encodings[0].maxBitrate ? Math.ceil(encodings[0].maxBitrate / 3 ** i) : 0,
