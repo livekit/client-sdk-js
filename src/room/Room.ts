@@ -265,9 +265,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       };
       this.engine.on(EngineEvent.RoomUpdate, handleRoomUpdate);
-      this.once(RoomEvent.Disconnected, () =>
-        reject('Room disconnected before room server id was available'),
-      );
+      this.once(RoomEvent.Disconnected, () => {
+        this.engine.off(EngineEvent.RoomUpdate, handleRoomUpdate);
+        reject('Room disconnected before room server id was available');
+      });
     });
   }
 
