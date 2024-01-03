@@ -18,11 +18,10 @@ const BACKGROUND_REACTION_DELAY = 5000;
 const recycledElements: Array<HTMLAudioElement> = [];
 
 export enum VideoQuality {
-  LOW,
-  MEDIUM,
-  HIGH,
+  LOW = ProtoQuality.LOW,
+  MEDIUM = ProtoQuality.MEDIUM,
+  HIGH = ProtoQuality.HIGH,
 }
-
 export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
   kind: Track.Kind;
 
