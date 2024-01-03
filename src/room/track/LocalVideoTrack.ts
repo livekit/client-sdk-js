@@ -512,7 +512,7 @@ export function videoLayersFromEncodings(
   if (!encodings) {
     return [
       new VideoLayer({
-        quality: ProtoVideoQuality.HIGH,
+        quality: VideoQuality.HIGH,
         width,
         height,
         bitrate: 0,
@@ -530,7 +530,7 @@ export function videoLayersFromEncodings(
     for (let i = 0; i < sm.spatial; i += 1) {
       layers.push(
         new VideoLayer({
-          quality: ProtoVideoQuality.HIGH - i,
+          quality: VideoQuality.HIGH - i,
           width: Math.ceil(width / 2 ** i),
           height: Math.ceil(height / 2 ** i),
           bitrate: encodings[0].maxBitrate ? Math.ceil(encodings[0].maxBitrate / 3 ** i) : 0,
