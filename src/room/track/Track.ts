@@ -23,21 +23,6 @@ export enum VideoQuality {
   HIGH,
 }
 
-/**
- * @internal
- */
-export function videoQualityFromProto(q: ProtoQuality): VideoQuality {
-  switch (q) {
-    case ProtoQuality.HIGH:
-    case ProtoQuality.OFF:
-      return VideoQuality.HIGH;
-    case ProtoQuality.MEDIUM:
-      return VideoQuality.MEDIUM;
-    case ProtoQuality.LOW:
-      return VideoQuality.LOW;
-  }
-}
-
 export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
   kind: Track.Kind;
 
