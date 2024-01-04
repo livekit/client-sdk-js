@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import type { MediaDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
-import log, { getLogger } from '../logger';
+import log, { LoggerNames, getLogger } from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
@@ -76,7 +76,7 @@ export default class PCTransport extends EventEmitter {
   constructor(
     config?: RTCConfiguration,
     mediaConstraints: Record<string, unknown> = {},
-    logger = 'livekit-pc-transport',
+    logger: string = LoggerNames.PCTransport,
   ) {
     super();
     this.log = getLogger(logger);

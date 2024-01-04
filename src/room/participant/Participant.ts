@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import log, { StructuredLogger, getLogger } from '../../logger';
+import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import type { InternalRoomOptions } from '../../options';
 import {
   DataPacket_Kind,
@@ -101,7 +101,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   ) {
     super();
 
-    this.log = getLogger(opts?.loggerName ?? 'livekit-participant');
+    this.log = getLogger(opts?.loggerName ?? LoggerNames.Participant);
 
     this.setMaxListeners(100);
     this.sid = sid;

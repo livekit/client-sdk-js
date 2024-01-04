@@ -1,4 +1,4 @@
-import log, { getLogger } from '../logger';
+import log, { LoggerNames, getLogger } from '../logger';
 import { SignalTarget } from '../proto/livekit_rtc_pb';
 import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
@@ -61,7 +61,7 @@ export class PCTransportManager {
   constructor(
     rtcConfig: RTCConfiguration,
     subscriberPrimary: boolean,
-    logger = 'livekit-transport-manager',
+    logger: string = LoggerNames.PCManager,
   ) {
     if (logger) {
       this.log = getLogger(logger);

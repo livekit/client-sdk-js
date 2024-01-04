@@ -4,7 +4,7 @@ import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
 import { EncryptionEvent } from '../e2ee';
 import { E2EEManager } from '../e2ee/E2eeManager';
-import log, { getLogger } from '../logger';
+import log, { LoggerNames, getLogger } from '../logger';
 import type {
   InternalRoomConnectOptions,
   InternalRoomOptions,
@@ -165,9 +165,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.identityToSid = new Map();
     this.options = { ...roomOptionDefaults, ...options };
 
-    if (this.options.loggerName) {
-      this.log = getLogger(this.options.loggerName);
-    }
+    this.log = getLogger(this.options.loggerName ?? LoggerNames.Room);
 
     this.options.audioCaptureDefaults = {
       ...audioDefaults,

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
-import log, { StructuredLogger, getLogger } from '../../logger';
+import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
@@ -52,7 +52,11 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
   protected log: StructuredLogger = log;
 
-  protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind, logger = 'livekit-track') {
+  protected constructor(
+    mediaTrack: MediaStreamTrack,
+    kind: Track.Kind,
+    logger = LoggerNames.Track,
+  ) {
     super();
     this.log = getLogger(logger);
     this.setMaxListeners(100);

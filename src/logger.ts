@@ -9,6 +9,19 @@ export enum LogLevel {
   silent = 5,
 }
 
+export enum LoggerNames {
+  Default = 'livekit',
+  Room = 'livekit-room',
+  Participant = 'livekit-participant',
+  Track = 'livekit-track',
+  Publication = 'livekit-track-publication',
+  Engine = 'livekit-engine',
+  Signal = 'livekit-signal',
+  PCManager = 'livekit-pc-manager',
+  PCTransport = 'livekit-pc-transport',
+  E2EE = 'lk-e2ee',
+}
+
 type LogLevelString = keyof typeof LogLevel;
 
 export type StructuredLogger = {
@@ -35,7 +48,7 @@ export function getLogger(name: string) {
   return logger as StructuredLogger;
 }
 
-export function setLogLevel(level: LogLevel | LogLevelString, loggerName?: 'livekit' | 'lk-e2ee') {
+export function setLogLevel(level: LogLevel | LogLevelString, loggerName?: LoggerNames) {
   if (loggerName) {
     log.getLogger(loggerName).setLevel(level);
   }

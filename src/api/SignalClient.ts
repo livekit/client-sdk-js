@@ -1,5 +1,5 @@
 import { protoInt64 } from '@bufbuild/protobuf';
-import log, { getLogger } from '../logger';
+import log, { LoggerNames, getLogger } from '../logger';
 import {
   ClientInfo,
   DisconnectReason,
@@ -174,7 +174,7 @@ export class SignalClient {
 
   private log = log;
 
-  constructor(useJSON: boolean = false, loggerName = 'livekit-signal') {
+  constructor(useJSON: boolean = false, loggerName: string = LoggerNames.Signal) {
     this.log = getLogger(loggerName);
     this.useJSON = useJSON;
     this.requestQueue = new AsyncQueue();

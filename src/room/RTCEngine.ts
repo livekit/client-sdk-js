@@ -7,7 +7,7 @@ import {
   SignalConnectionState,
   toProtoSessionDescription,
 } from '../api/SignalClient';
-import log, { getLogger } from '../logger';
+import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import {
   ClientConfigSetting,
@@ -166,7 +166,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   constructor(private options: InternalRoomOptions) {
     super();
-    this.log = getLogger(options.loggerName ?? 'livekit-engine');
+    this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
     this.client = new SignalClient(undefined, options.loggerName);
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
