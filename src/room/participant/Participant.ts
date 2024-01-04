@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import log from '../../logger';
+import log, { StructuredLogger, getLogger } from '../../logger';
+import type { InternalRoomOptions } from '../../options';
 import {
   DataPacket_Kind,
   ParticipantInfo,
@@ -78,6 +79,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
+  protected log: StructuredLogger = log;
+
   protected audioContext?: AudioContext;
 
   get isEncrypted() {
@@ -89,8 +92,17 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   /** @internal */
-  constructor(sid: string, identity: string, name?: string, metadata?: string) {
+  constructor(
+    sid: string,
+    identity: string,
+    name?: string,
+    metadata?: string,
+    opts?: InternalRoomOptions,
+  ) {
     super();
+
+    this.log = getLogger(opts?.loggerName ?? 'livekit-participant');
+
     this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
@@ -187,7 +199,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
-    log.trace('update participant info', { info });
+    this.log.trace('update participant info', { info });
     return true;
   }
 

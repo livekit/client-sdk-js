@@ -1,4 +1,4 @@
-import log from '../logger';
+import log, { getLogger } from '../logger';
 import { SignalTarget } from '../proto/livekit_rtc_pb';
 import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
@@ -56,7 +56,16 @@ export class PCTransportManager {
 
   private connectionLock: Mutex;
 
-  constructor(rtcConfig: RTCConfiguration, subscriberPrimary: boolean) {
+  private log = log;
+
+  constructor(
+    rtcConfig: RTCConfiguration,
+    subscriberPrimary: boolean,
+    logger = 'livekit-transport-manager',
+  ) {
+    if (logger) {
+      this.log = getLogger(logger);
+    }
     this.isPublisherConnectionRequired = !subscriberPrimary;
     this.isSubscriberConnectionRequired = subscriberPrimary;
     const googConstraints = { optional: [{ googDscp: true }] };
@@ -123,7 +132,7 @@ export class PCTransportManager {
             publisher.removeTrack(sender);
           }
         } catch (e) {
-          log.warn('could not removeTrack', { error: e });
+          this.log.warn('could not removeTrack', { error: e });
         }
       }
     }
@@ -148,7 +157,7 @@ export class PCTransportManager {
   }
 
   async createSubscriberAnswerFromOffer(sd: RTCSessionDescriptionInit) {
-    log.debug('received server offer', {
+    this.log.debug('received server offer', {
       RTCSdpType: sd.type,
       signalingState: this.subscriber.getSignallingState().toString(),
     });
@@ -175,7 +184,7 @@ export class PCTransportManager {
         this.publisher.getConnectionState() !== 'connected' &&
         this.publisher.getConnectionState() !== 'connecting'
       ) {
-        log.debug('negotiation required, start negotiating');
+        this.log.debug('negotiation required, start negotiating');
         this.publisher.negotiate();
       }
       await Promise.all(
@@ -271,7 +280,7 @@ export class PCTransportManager {
     }
 
     if (previousState !== this.state) {
-      log.debug(
+      this.log.debug(
         `pc state change: from ${PCTransportState[previousState]} to ${
           PCTransportState[this.state]
         }`,
@@ -296,7 +305,7 @@ export class PCTransportManager {
 
     return new Promise<void>(async (resolve, reject) => {
       const abortHandler = () => {
-        log.warn('abort transport connection');
+        this.log.warn('abort transport connection');
         CriticalTimers.clearTimeout(connectTimeout);
 
         reject(

@@ -1,4 +1,3 @@
-import log from '../../logger';
 import {
   ParticipantTracks,
   SubscriptionError,
@@ -252,13 +251,15 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   private isManualOperationAllowed(): boolean {
     if (this.kind === Track.Kind.Video && this.isAdaptiveStream) {
-      log.warn('adaptive stream is enabled, cannot change video track settings', {
+      this.log.warn('adaptive stream is enabled, cannot change video track settings', {
         trackSid: this.trackSid,
       });
       return false;
     }
     if (!this.isDesired) {
-      log.warn('cannot update track settings when not subscribed', { trackSid: this.trackSid });
+      this.log.warn('cannot update track settings when not subscribed', {
+        trackSid: this.trackSid,
+      });
       return false;
     }
     return true;
@@ -274,7 +275,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   protected handleVisibilityChange = (visible: boolean) => {
-    log.debug(`adaptivestream video visibility ${this.trackSid}, visible=${visible}`, {
+    this.log.debug(`adaptivestream video visibility ${this.trackSid}, visible=${visible}`, {
       trackSid: this.trackSid,
     });
     this.disabled = !visible;
@@ -282,7 +283,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   };
 
   protected handleVideoDimensionsChange = (dimensions: Track.Dimensions) => {
-    log.debug(`adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`, {
+    this.log.debug(`adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`, {
       trackSid: this.trackSid,
     });
     this.videoDimensions = dimensions;

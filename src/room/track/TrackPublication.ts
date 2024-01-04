@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
-import log from '../../logger';
+import log, { getLogger } from '../../logger';
 import { Encryption_Type } from '../../proto/livekit_models_pb';
 import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models_pb';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
@@ -39,8 +39,11 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
 
   protected encryption: Encryption_Type = Encryption_Type.NONE;
 
-  constructor(kind: Track.Kind, id: string, name: string) {
+  protected log = log;
+
+  constructor(kind: Track.Kind, id: string, name: string, logger = 'livekit-track-publication') {
     super();
+    this.log = getLogger(logger);
     this.setMaxListeners(100);
     this.kind = kind;
     this.trackSid = id;
@@ -121,7 +124,7 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
     }
     this.encryption = info.encryption;
     this.trackInfo = info;
-    log.debug('update publication info', { info });
+    this.log.debug('update publication info', { info });
   }
 }
 

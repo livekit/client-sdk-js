@@ -1,5 +1,4 @@
 import { debounce } from 'ts-debounce';
-import log from '../../logger';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';
@@ -28,8 +27,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
     sid: string,
     receiver?: RTCRtpReceiver,
     adaptiveStreamSettings?: AdaptiveStreamSettings,
+    logger?: string,
   ) {
-    super(mediaTrack, sid, Track.Kind.Video, receiver);
+    super(mediaTrack, sid, Track.Kind.Video, receiver, logger);
     this.adaptiveStreamSettings = adaptiveStreamSettings;
   }
 
@@ -103,7 +103,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       this.debouncedHandleResize();
       this.updateVisibility();
     } else {
-      log.warn('visibility resize observer not triggered');
+      this.log.warn('visibility resize observer not triggered');
     }
   }
 
@@ -114,7 +114,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
    */
   stopObservingElementInfo(elementInfo: ElementInfo) {
     if (!this.isAdaptiveStream) {
-      log.warn('stopObservingElementInfo ignored');
+      this.log.warn('stopObservingElementInfo ignored');
       return;
     }
     const stopElementInfos = this.elementInfos.filter((info) => info === elementInfo);

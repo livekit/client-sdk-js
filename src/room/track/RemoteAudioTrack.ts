@@ -1,4 +1,3 @@
-import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate } from '../stats';
 import type { AudioReceiverStats } from '../stats';
@@ -107,7 +106,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
       element.setSinkId(this.sinkId);
     }
     if (this.audioContext && needsNewWebAudioConnection) {
-      log.debug('using audio context mapping');
+      this.log.debug('using audio context mapping');
       this.connectWebAudio(this.audioContext, element);
       element.volume = 0;
       element.muted = true;

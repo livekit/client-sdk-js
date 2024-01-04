@@ -1,5 +1,5 @@
 import type { SignalClient } from '../../api/SignalClient';
-import log from '../../logger';
+import type { InternalRoomOptions } from '../../options';
 import type { ParticipantInfo, SubscriptionError } from '../../proto/livekit_models_pb';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
 import { ParticipantEvent, TrackEvent } from '../events';
@@ -39,8 +39,9 @@ export default class RemoteParticipant extends Participant {
     identity?: string,
     name?: string,
     metadata?: string,
+    opts?: InternalRoomOptions,
   ) {
-    super(sid, identity || '', name, metadata);
+    super(sid, identity || '', name, metadata, opts);
     this.signalClient = signalClient;
     this.tracks = new Map();
     this.audioTracks = new Map();
@@ -53,7 +54,7 @@ export default class RemoteParticipant extends Participant {
 
     // register action events
     publication.on(TrackEvent.UpdateSettings, (settings: UpdateTrackSettings) => {
-      log.debug('send update settings', settings);
+      this.log.debug('send update settings', settings);
       this.signalClient.sendUpdateTrackSettings(settings);
     });
     publication.on(TrackEvent.UpdateSubscription, (sub: UpdateSubscription) => {
@@ -159,7 +160,7 @@ export default class RemoteParticipant extends Participant {
     // yet arrived. Wait a bit longer for it to arrive, or fire an error
     if (!publication) {
       if (triesLeft === 0) {
-        log.error('could not find published track', { participant: this.sid, trackSid: sid });
+        this.log.error('could not find published track', { participant: this.sid, trackSid: sid });
         this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
         return;
       }
@@ -179,7 +180,7 @@ export default class RemoteParticipant extends Participant {
     }
 
     if (mediaTrack.readyState === 'ended') {
-      log.error(
+      this.log.error(
         'unable to subscribe because MediaStreamTrack is ended. Do not call MediaStreamTrack.stop()',
         { participant: this.sid, trackSid: sid },
       );
@@ -253,7 +254,7 @@ export default class RemoteParticipant extends Participant {
           (publishedTrack) => publishedTrack.source === publication?.source,
         );
         if (existingTrackOfSource && publication.source !== Track.Source.Unknown) {
-          log.debug(
+          this.log.debug(
             `received a second track publication for ${this.identity} with the same source: ${publication.source}`,
             {
               oldTrack: existingTrackOfSource,
@@ -273,7 +274,7 @@ export default class RemoteParticipant extends Participant {
     // detect removed tracks
     this.tracks.forEach((publication) => {
       if (!validTracks.has(publication.trackSid)) {
-        log.trace('detected removed track on remote participant, unpublishing', {
+        this.log.trace('detected removed track on remote participant, unpublishing', {
           publication,
           participantSid: this.sid,
         });
@@ -341,7 +342,7 @@ export default class RemoteParticipant extends Participant {
     event: E,
     ...args: Parameters<ParticipantEventCallbacks[E]>
   ): boolean {
-    log.trace('participant event', { participant: this.sid, event, args });
+    this.log.trace('participant event', { participant: this.sid, event, args });
     return super.emit(event, ...args);
   }
 }

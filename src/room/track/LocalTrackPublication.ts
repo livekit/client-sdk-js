@@ -16,8 +16,8 @@ export default class LocalTrackPublication extends TrackPublication {
     return this.track?.isUpstreamPaused;
   }
 
-  constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
-    super(kind, ti.sid, ti.name);
+  constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack, logger?: string) {
+    super(kind, ti.sid, ti.name, logger);
 
     this.updateInfo(ti);
     this.setTrack(track);
