@@ -138,6 +138,8 @@ export default abstract class LocalTrack extends Track {
       }
 
       attachToElement(newTrack, this.processorElement);
+      // ensure the processorElement itself stays muted
+      this.processorElement.muted = true;
       await this.processor.restart({
         track: newTrack,
         kind: this.kind,
@@ -415,9 +417,10 @@ export default abstract class LocalTrack extends Track {
         throw TypeError('cannot set processor on track of unknown kind');
       }
       this.processorElement = this.processorElement ?? document.createElement(this.kind);
-      this.processorElement.muted = true;
 
       attachToElement(this._mediaStreamTrack, this.processorElement);
+      this.processorElement.muted = true;
+
       this.processorElement
         .play()
         .catch((error) => log.error('failed to play processor element', { error }));
