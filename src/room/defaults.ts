@@ -42,7 +42,6 @@ export const roomOptionDefaults: InternalRoomOptions = {
   reconnectPolicy: new DefaultReconnectPolicy(),
   disconnectOnPageLeave: true,
   expWebAudioMix: false,
-  loggerName: 'livekit',
 } as const;
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {

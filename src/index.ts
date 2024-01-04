@@ -1,4 +1,4 @@
-import { LogLevel, setLogExtension, setLogLevel } from './logger';
+import { LogLevel, getLogger, setLogExtension, setLogLevel } from './logger';
 import { DataPacket_Kind, DisconnectReason, VideoQuality } from './proto/livekit_models_pb';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import Room, { ConnectionState, RoomState } from './room/Room';
@@ -55,6 +55,7 @@ export {
   supportsVP9,
   createAudioAnalyser,
   LogLevel,
+  getLogger,
   Room,
   ConnectionState,
   RoomState,

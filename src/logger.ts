@@ -26,6 +26,9 @@ livekitLogger.setDefaultLevel(LogLevel.info);
 
 export default livekitLogger as StructuredLogger;
 
+/**
+ * @internal
+ */
 export function getLogger(name: string) {
   const logger = log.getLogger(name);
   logger.setDefaultLevel(livekitLogger.getLevel());
@@ -36,7 +39,9 @@ export function setLogLevel(level: LogLevel | LogLevelString, loggerName?: 'live
   if (loggerName) {
     log.getLogger(loggerName).setLevel(level);
   }
-  for (const logger of Object.values(log.getLoggers())) {
+  for (const logger of Object.entries(log.getLoggers())
+    .filter(([logrName]) => logrName.startsWith('livekit'))
+    .map(([, logr]) => logr)) {
     logger.setLevel(level);
   }
 }
@@ -47,10 +52,10 @@ export type LogExtension = (level: LogLevel, msg: string, context?: object) => v
  * use this to hook into the logging function to allow sending internal livekit logs to third party services
  * if set, the browser logs will lose their stacktrace information (see https://github.com/pimterry/loglevel#writing-plugins)
  */
-export function setLogExtension(extension: LogExtension) {
-  const originalFactory = livekitLogger.methodFactory;
+export function setLogExtension(extension: LogExtension, logger = livekitLogger) {
+  const originalFactory = logger.methodFactory;
 
-  livekitLogger.methodFactory = (methodName, configLevel, loggerName) => {
+  logger.methodFactory = (methodName, configLevel, loggerName) => {
     const rawMethod = originalFactory(methodName, configLevel, loggerName);
 
     const logLevel = LogLevel[methodName as LogLevelString];
@@ -64,7 +69,7 @@ export function setLogExtension(extension: LogExtension) {
       }
     };
   };
-  livekitLogger.setLevel(livekitLogger.getLevel()); // Be sure to call setLevel method in order to apply plugin
+  logger.setLevel(logger.getLevel()); // Be sure to call setLevel method in order to apply plugin
 }
 
 export const workerLogger = log.getLogger('lk-e2ee') as StructuredLogger;
