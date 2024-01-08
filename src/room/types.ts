@@ -41,3 +41,8 @@ export type SimulationScenario =
   // this can be used to test application behavior when congested or
   // to disable congestion control entirely (by setting bandwidth to 100Mbps)
   | 'subscriber-bandwidth';
+
+export type LoggerOptions = {
+  loggerName?: string;
+  loggerContextCb?: () => Object;
+};

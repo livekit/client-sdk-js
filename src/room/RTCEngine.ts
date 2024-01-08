@@ -167,7 +167,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
-    this.client = new SignalClient(undefined, options.loggerName);
+    this.client = new SignalClient(undefined, {
+      loggerName: options.loggerName,
+      loggerContextCb: () => this.logContext,
+    });
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
     this.registerOnLineListener();
