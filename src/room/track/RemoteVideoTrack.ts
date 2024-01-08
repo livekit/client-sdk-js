@@ -3,6 +3,7 @@ import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';
 import CriticalTimers from '../timers';
+import type { LoggerOptions } from '../types';
 import type { ObservableMediaElement } from '../utils';
 import { getDevicePixelRatio, getIntersectionObserver, getResizeObserver, isWeb } from '../utils';
 import RemoteTrack from './RemoteTrack';
@@ -27,9 +28,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
     sid: string,
     receiver?: RTCRtpReceiver,
     adaptiveStreamSettings?: AdaptiveStreamSettings,
-    loggerName?: string,
+    loggerOptions?: LoggerOptions,
   ) {
-    super(mediaTrack, sid, Track.Kind.Video, receiver, loggerName);
+    super(mediaTrack, sid, Track.Kind.Video, receiver, loggerOptions);
     this.adaptiveStreamSettings = adaptiveStreamSettings;
   }
 
@@ -103,7 +104,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       this.debouncedHandleResize();
       this.updateVisibility();
     } else {
-      this.log.warn('visibility resize observer not triggered');
+      this.log.warn('visibility resize observer not triggered', this.logContext);
     }
   }
 
@@ -114,7 +115,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
    */
   stopObservingElementInfo(elementInfo: ElementInfo) {
     if (!this.isAdaptiveStream) {
-      this.log.warn('stopObservingElementInfo ignored');
+      this.log.warn('stopObservingElementInfo ignored', this.logContext);
       return;
     }
     const stopElementInfos = this.elementInfos.filter((info) => info === elementInfo);

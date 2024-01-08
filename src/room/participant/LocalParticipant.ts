@@ -429,7 +429,10 @@ export default class LocalParticipant extends Participant {
       if (typeof conOrBool !== 'boolean') {
         trackConstraints = conOrBool;
       }
-      const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
+      const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints, {
+        loggerName: this.roomOptions.loggerName,
+        loggerContextCb: () => this.logContext,
+      });
       if (track.kind === Track.Kind.Video) {
         track.source = Track.Source.Camera;
       } else if (track.kind === Track.Kind.Audio) {
@@ -461,12 +464,10 @@ export default class LocalParticipant extends Participant {
     if (tracks.length === 0) {
       throw new TrackInvalidError('no video track found');
     }
-    const screenVideo = new LocalVideoTrack(
-      tracks[0],
-      undefined,
-      false,
-      this.roomOptions.loggerName,
-    );
+    const screenVideo = new LocalVideoTrack(tracks[0], undefined, false, {
+      loggerName: this.roomOptions.loggerName,
+      loggerContextCb: () => this.logContext,
+    });
     screenVideo.source = Track.Source.ScreenShare;
     const localTracks: Array<LocalTrack> = [screenVideo];
     if (stream.getAudioTracks().length > 0) {
@@ -476,7 +477,7 @@ export default class LocalParticipant extends Participant {
         undefined,
         false,
         this.audioContext,
-        this.roomOptions.loggerName,
+        { loggerName: this.roomOptions.loggerName, loggerContextCb: () => this.logContext },
       );
       screenAudio.source = Track.Source.ScreenShareAudio;
       localTracks.push(screenAudio);
@@ -525,16 +526,16 @@ export default class LocalParticipant extends Participant {
     if (track instanceof MediaStreamTrack) {
       switch (track.kind) {
         case 'audio':
-          track = new LocalAudioTrack(
-            track,
-            defaultConstraints,
-            true,
-            this.audioContext,
-            this.roomOptions.loggerName,
-          );
+          track = new LocalAudioTrack(track, defaultConstraints, true, this.audioContext, {
+            loggerName: this.roomOptions.loggerName,
+            loggerContextCb: () => this.logContext,
+          });
           break;
         case 'video':
-          track = new LocalVideoTrack(track, defaultConstraints, true, this.roomOptions.loggerName);
+          track = new LocalVideoTrack(track, defaultConstraints, true, {
+            loggerName: this.roomOptions.loggerName,
+            loggerContextCb: () => this.logContext,
+          });
           break;
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
@@ -803,12 +804,10 @@ export default class LocalParticipant extends Participant {
       }
     }
 
-    const publication = new LocalTrackPublication(
-      track.kind,
-      ti,
-      track,
-      this.roomOptions.loggerName,
-    );
+    const publication = new LocalTrackPublication(track.kind, ti, track, {
+      loggerName: this.roomOptions.loggerName,
+      loggerContextCb: () => this.logContext,
+    });
     // save options for when it needs to be republished again
     publication.options = opts;
     track.sid = ti.sid;

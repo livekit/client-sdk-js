@@ -1839,9 +1839,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               ),
           undefined,
           false,
-          this.options.loggerName,
+          { loggerName: this.options.loggerName, loggerContextCb: () => this.logContext },
         ),
-        this.options.loggerName,
+        { loggerName: this.options.loggerName, loggerContextCb: () => this.logContext },
       );
       // @ts-ignore
       this.localParticipant.addTrackPublication(camPub);
@@ -1862,9 +1862,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           undefined,
           false,
           this.audioContext,
-          this.options.loggerName,
+          { loggerName: this.options.loggerName, loggerContextCb: () => this.logContext },
         ),
-        this.options.loggerName,
+        { loggerName: this.options.loggerName, loggerContextCb: () => this.logContext },
       );
       // @ts-ignore
       this.localParticipant.addTrackPublication(audioPub);

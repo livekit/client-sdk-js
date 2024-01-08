@@ -5,6 +5,7 @@ import { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc_pb';
 import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
+import type { LoggerOptions } from '../types';
 import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
@@ -58,9 +59,9 @@ export default class LocalVideoTrack extends LocalTrack {
     mediaTrack: MediaStreamTrack,
     constraints?: MediaTrackConstraints,
     userProvidedTrack = true,
-    loggerName = 'logger',
+    loggerOptions?: LoggerOptions,
   ) {
-    super(mediaTrack, Track.Kind.Video, constraints, userProvidedTrack, loggerName);
+    super(mediaTrack, Track.Kind.Video, constraints, userProvidedTrack, loggerOptions);
     this.senderLock = new Mutex();
   }
 
@@ -118,7 +119,7 @@ export default class LocalVideoTrack extends LocalTrack {
     const unlock = await this.muteLock.lock();
     try {
       if (this.source === Track.Source.Camera && !this.isUserProvided) {
-        this.log.debug('stopping camera track');
+        this.log.debug('stopping camera track', this.logContext);
         // also stop the track, so that camera indicator is turned off
         this._mediaStreamTrack.stop();
       }
@@ -133,7 +134,7 @@ export default class LocalVideoTrack extends LocalTrack {
     const unlock = await this.muteLock.lock();
     try {
       if (this.source === Track.Source.Camera && !this.isUserProvided) {
-        this.log.debug('reacquiring camera track');
+        this.log.debug('reacquiring camera track', this.logContext);
         await this.restartTrack();
       }
       await super.unmute();
@@ -203,7 +204,7 @@ export default class LocalVideoTrack extends LocalTrack {
         }),
       );
     }
-    this.log.debug(`setting publishing quality. max quality ${maxQuality}`);
+    this.log.debug(`setting publishing quality. max quality ${maxQuality}`, this.logContext);
     this.setPublishingLayers(qualities);
   }
 
@@ -290,6 +291,7 @@ export default class LocalVideoTrack extends LocalTrack {
    */
   async setPublishingCodecs(codecs: SubscribedCodec[]): Promise<VideoCodec[]> {
     this.log.debug('setting publishing codecs', {
+      ...this.logContext,
       codecs,
       currentCodec: this.codec,
     });
@@ -307,7 +309,10 @@ export default class LocalVideoTrack extends LocalTrack {
         await this.setPublishingLayers(codec.qualities);
       } else {
         const simulcastCodecInfo = this.simulcastCodecs.get(codec.codec as VideoCodec);
-        this.log.debug(`try setPublishingCodec for ${codec.codec}`, simulcastCodecInfo);
+        this.log.debug(`try setPublishingCodec for ${codec.codec}`, {
+          ...this.logContext,
+          simulcastCodecInfo,
+        });
         if (!simulcastCodecInfo || !simulcastCodecInfo.sender) {
           for (const q of codec.qualities) {
             if (q.enabled) {
@@ -316,7 +321,7 @@ export default class LocalVideoTrack extends LocalTrack {
             }
           }
         } else if (simulcastCodecInfo.encodings) {
-          this.log.debug(`try setPublishingLayersForSender ${codec.codec}`);
+          this.log.debug(`try setPublishingLayersForSender ${codec.codec}`, this.logContext);
           await setPublishingLayersForSender(
             simulcastCodecInfo.sender,
             simulcastCodecInfo.encodings!,
@@ -335,7 +340,7 @@ export default class LocalVideoTrack extends LocalTrack {
    * Sets layers that should be publishing
    */
   async setPublishingLayers(qualities: SubscribedQuality[]) {
-    this.log.debug('setting publishing layers', qualities);
+    this.log.debug('setting publishing layers', { ...this.logContext, qualities });
     if (!this.sender || !this.encodings) {
       return;
     }
@@ -359,7 +364,7 @@ export default class LocalVideoTrack extends LocalTrack {
     try {
       stats = await this.getSenderStats();
     } catch (e) {
-      this.log.error('could not get audio sender stats', { error: e });
+      this.log.error('could not get audio sender stats', { ...this.logContext, error: e });
       return;
     }
     const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));

@@ -83,10 +83,14 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   protected log: StructuredLogger = log;
 
-  protected logContextCb?: LoggerOptions['loggerContextCb'];
+  protected loggerOptions?: LoggerOptions;
 
   protected get logContext() {
-    return { ...this.logContextCb?.(), participantSid: this.sid, participantId: this.identity };
+    return {
+      ...this.loggerOptions?.loggerContextCb?.(),
+      participantSid: this.sid,
+      participantId: this.identity,
+    };
   }
 
   get isEncrypted() {
@@ -108,7 +112,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     super();
 
     this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Participant);
-    this.logContextCb = loggerOptions?.loggerContextCb;
+    this.loggerOptions = loggerOptions;
 
     this.setMaxListeners(100);
     this.sid = sid;

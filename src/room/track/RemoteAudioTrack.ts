@@ -1,6 +1,7 @@
 import { TrackEvent } from '../events';
 import { computeBitrate } from '../stats';
 import type { AudioReceiverStats } from '../stats';
+import type { LoggerOptions } from '../types';
 import { isReactNative, supportsSetSinkId } from '../utils';
 import RemoteTrack from './RemoteTrack';
 import { Track } from './Track';
@@ -27,8 +28,9 @@ export default class RemoteAudioTrack extends RemoteTrack {
     receiver?: RTCRtpReceiver,
     audioContext?: AudioContext,
     audioOutput?: AudioOutputOptions,
+    loggerOptions?: LoggerOptions,
   ) {
-    super(mediaTrack, sid, Track.Kind.Audio, receiver);
+    super(mediaTrack, sid, Track.Kind.Audio, receiver, loggerOptions);
     this.audioContext = audioContext;
     this.webAudioPluginNodes = [];
     if (audioOutput) {
@@ -106,7 +108,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
       element.setSinkId(this.sinkId);
     }
     if (this.audioContext && needsNewWebAudioConnection) {
-      this.log.debug('using audio context mapping');
+      this.log.debug('using audio context mapping', this.logContext);
       this.connectWebAudio(this.audioContext, element);
       element.volume = 0;
       element.muted = true;

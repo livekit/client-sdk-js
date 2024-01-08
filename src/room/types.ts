@@ -44,5 +44,5 @@ export type SimulationScenario =
 
 export type LoggerOptions = {
   loggerName?: string;
-  loggerContextCb?: () => Object;
+  loggerContextCb?: () => Record<string, unknown>;
 };

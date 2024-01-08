@@ -10,19 +10,20 @@ import type {
   VideoEncoding,
 } from '../track/options';
 import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
+import type { LoggerOptions } from '../types';
 import { getReactNativeOs, isFireFox, isReactNative, isSVCCodec } from '../utils';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
   mediaStreamTrack: MediaStreamTrack,
   constraints?: MediaTrackConstraints,
-  loggerName?: string,
+  loggerOptions?: LoggerOptions,
 ): LocalVideoTrack | LocalAudioTrack {
   switch (mediaStreamTrack.kind) {
     case 'audio':
-      return new LocalAudioTrack(mediaStreamTrack, constraints, false, undefined, loggerName);
+      return new LocalAudioTrack(mediaStreamTrack, constraints, false, undefined, loggerOptions);
     case 'video':
-      return new LocalVideoTrack(mediaStreamTrack, constraints, false, loggerName);
+      return new LocalVideoTrack(mediaStreamTrack, constraints, false, loggerOptions);
     default:
       throw new TrackInvalidError(`unsupported track type: ${mediaStreamTrack.kind}`);
   }

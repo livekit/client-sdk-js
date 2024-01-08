@@ -5,12 +5,14 @@ import { Encryption_Type } from '../../proto/livekit_models_pb';
 import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models_pb';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
+import type { LoggerOptions } from '../types';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import RemoteAudioTrack from './RemoteAudioTrack';
 import type RemoteTrack from './RemoteTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
+import { getLogContextFromTrack } from './utils';
 
 export class TrackPublication extends (EventEmitter as new () => TypedEventEmitter<PublicationEventCallbacks>) {
   kind: Track.Kind;
@@ -41,14 +43,12 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
 
   protected log = log;
 
-  constructor(
-    kind: Track.Kind,
-    id: string,
-    name: string,
-    loggerName: string = LoggerNames.Publication,
-  ) {
+  private loggerContextCb?: LoggerOptions['loggerContextCb'];
+
+  constructor(kind: Track.Kind, id: string, name: string, loggerOptions?: LoggerOptions) {
     super();
-    this.log = getLogger(loggerName);
+    this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Publication);
+    this.loggerContextCb = this.loggerContextCb;
     this.setMaxListeners(100);
     this.kind = kind;
     this.trackSid = id;
@@ -70,6 +70,13 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
       track.on(TrackEvent.Muted, this.handleMuted);
       track.on(TrackEvent.Unmuted, this.handleUnmuted);
     }
+  }
+
+  protected get logContext() {
+    return {
+      ...this.loggerContextCb?.(),
+      ...getLogContextFromTrack(this),
+    };
   }
 
   get isMuted(): boolean {
@@ -129,7 +136,7 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
     }
     this.encryption = info.encryption;
     this.trackInfo = info;
-    this.log.debug('update publication info', { info });
+    this.log.debug('update publication info', { ...this.logContext, info });
   }
 }
 

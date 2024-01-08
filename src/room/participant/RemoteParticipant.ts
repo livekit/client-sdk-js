@@ -254,6 +254,7 @@ export default class RemoteParticipant extends Participant {
           kind,
           ti,
           this.signalClient.connectOptions?.autoSubscribe,
+          { loggerContextCb: () => this.logContext, loggerName: this.loggerOptions?.loggerName },
         );
         publication.updateInfo(ti);
         newTracks.set(ti.sid, publication);
