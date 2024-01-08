@@ -1534,14 +1534,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (info) {
       participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info);
     } else {
-      participant = new RemoteParticipant(
-        this.engine.client,
-        id,
-        '',
-        undefined,
-        undefined,
-        this.options,
-      );
+      participant = new RemoteParticipant(this.engine.client, id, '', undefined, undefined, {
+        loggerContextCb: () => this.logContext,
+        loggerName: this.options.loggerName,
+      });
     }
     if (this.options.expWebAudioMix) {
       participant.setAudioContext(this.audioContext);
