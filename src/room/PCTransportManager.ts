@@ -4,6 +4,7 @@ import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import CriticalTimers from './timers';
+import type { LoggerOptions } from './types';
 import { Mutex, sleep } from './utils';
 
 export enum PCTransportState {
@@ -58,19 +59,21 @@ export class PCTransportManager {
 
   private log = log;
 
+  private loggerOptions: LoggerOptions;
+
   constructor(
     rtcConfig: RTCConfiguration,
     subscriberPrimary: boolean,
-    loggerName: string = LoggerNames.PCManager,
+    loggerOptions: LoggerOptions,
   ) {
-    if (loggerName) {
-      this.log = getLogger(loggerName);
-    }
+    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCManager);
+    this.loggerOptions = loggerOptions;
+
     this.isPublisherConnectionRequired = !subscriberPrimary;
     this.isSubscriberConnectionRequired = subscriberPrimary;
     const googConstraints = { optional: [{ googDscp: true }] };
-    this.publisher = new PCTransport(rtcConfig, googConstraints);
-    this.subscriber = new PCTransport(rtcConfig);
+    this.publisher = new PCTransport(rtcConfig, googConstraints, loggerOptions);
+    this.subscriber = new PCTransport(rtcConfig, loggerOptions);
 
     this.publisher.onConnectionStateChange = this.updateState;
     this.subscriber.onConnectionStateChange = this.updateState;
@@ -98,6 +101,12 @@ export class PCTransportManager {
     this.state = PCTransportState.NEW;
 
     this.connectionLock = new Mutex();
+  }
+
+  private get logContext() {
+    return {
+      ...this.loggerOptions.loggerContextCb?.(),
+    };
   }
 
   requirePublisher(require = true) {
@@ -132,7 +141,7 @@ export class PCTransportManager {
             publisher.removeTrack(sender);
           }
         } catch (e) {
-          this.log.warn('could not removeTrack', { error: e });
+          this.log.warn('could not removeTrack', { ...this.logContext, error: e });
         }
       }
     }
@@ -158,6 +167,7 @@ export class PCTransportManager {
 
   async createSubscriberAnswerFromOffer(sd: RTCSessionDescriptionInit) {
     this.log.debug('received server offer', {
+      ...this.logContext,
       RTCSdpType: sd.type,
       signalingState: this.subscriber.getSignallingState().toString(),
     });
@@ -184,7 +194,7 @@ export class PCTransportManager {
         this.publisher.getConnectionState() !== 'connected' &&
         this.publisher.getConnectionState() !== 'connecting'
       ) {
-        this.log.debug('negotiation required, start negotiating');
+        this.log.debug('negotiation required, start negotiating', this.logContext);
         this.publisher.negotiate();
       }
       await Promise.all(
@@ -284,6 +294,7 @@ export class PCTransportManager {
         `pc state change: from ${PCTransportState[previousState]} to ${
           PCTransportState[this.state]
         }`,
+        this.logContext,
       );
       this.onStateChange?.(
         this.state,
@@ -305,7 +316,7 @@ export class PCTransportManager {
 
     return new Promise<void>(async (resolve, reject) => {
       const abortHandler = () => {
-        this.log.warn('abort transport connection');
+        this.log.warn('abort transport connection', this.logContext);
         CriticalTimers.clearTimeout(connectTimeout);
 
         reject(

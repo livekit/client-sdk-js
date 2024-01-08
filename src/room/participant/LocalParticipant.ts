@@ -540,6 +540,11 @@ export default class LocalParticipant extends Participant {
         default:
           throw new TrackInvalidError(`unsupported MediaStreamTrack kind ${track.kind}`);
       }
+    } else {
+      track.updateLoggerOptions({
+        loggerName: this.roomOptions.loggerName,
+        loggerContextCb: () => this.logContext,
+      });
     }
 
     if (track instanceof LocalAudioTrack) {

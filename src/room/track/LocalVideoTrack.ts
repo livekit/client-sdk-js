@@ -328,6 +328,7 @@ export default class LocalVideoTrack extends LocalTrack {
             codec.qualities,
             this.senderLock,
             this.log,
+            this.logContext,
           );
         }
       }
@@ -351,6 +352,7 @@ export default class LocalVideoTrack extends LocalTrack {
       qualities,
       this.senderLock,
       this.log,
+      this.logContext,
     );
   }
 
@@ -396,9 +398,10 @@ async function setPublishingLayersForSender(
   qualities: SubscribedQuality[],
   senderLock: Mutex,
   log: StructuredLogger,
+  logContext: Record<string, unknown>,
 ) {
   const unlock = await senderLock.lock();
-  log.debug('setPublishingLayersForSender', { sender, qualities, senderEncodings });
+  log.debug('setPublishingLayersForSender', { ...logContext, sender, qualities, senderEncodings });
   try {
     const params = sender.getParameters();
     const { encodings } = params;
@@ -472,6 +475,7 @@ async function setPublishingLayersForSender(
             `setting layer ${subscribedQuality.quality} to ${
               encoding.active ? 'enabled' : 'disabled'
             }`,
+            logContext,
           );
 
           // FireFox does not support setting encoding.active to false, so we
@@ -495,7 +499,7 @@ async function setPublishingLayersForSender(
 
     if (hasChanged) {
       params.encodings = encodings;
-      log.debug(`setting encodings`, params.encodings);
+      log.debug(`setting encodings`, { ...logContext, encodings: params.encodings });
       await sender.setParameters(params);
     }
   } finally {

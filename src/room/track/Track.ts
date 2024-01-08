@@ -63,6 +63,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
   ) {
     super();
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Track);
+    this.loggerContextCb = loggerOptions.loggerContextCb;
 
     this.setMaxListeners(100);
     this.kind = kind;
@@ -240,6 +241,16 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
   stopMonitor() {
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
+    }
+  }
+
+  /** @internal */
+  updateLoggerOptions(loggerOptions: LoggerOptions) {
+    if (loggerOptions.loggerName) {
+      this.log = getLogger(loggerOptions.loggerName);
+    }
+    if (loggerOptions.loggerContextCb) {
+      this.loggerContextCb = loggerOptions.loggerContextCb;
     }
   }
 

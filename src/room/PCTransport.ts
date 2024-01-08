@@ -4,6 +4,7 @@ import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
+import type { LoggerOptions } from './types';
 import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
 
 /** @internal */
@@ -45,6 +46,8 @@ export default class PCTransport extends EventEmitter {
 
   private log = log;
 
+  private loggerOptions: LoggerOptions;
+
   pendingCandidates: RTCIceCandidateInit[] = [];
 
   restartingIce: boolean = false;
@@ -76,10 +79,11 @@ export default class PCTransport extends EventEmitter {
   constructor(
     config?: RTCConfiguration,
     mediaConstraints: Record<string, unknown> = {},
-    loggerName: string = LoggerNames.PCTransport,
+    loggerOptions: LoggerOptions = {},
   ) {
     super();
-    this.log = getLogger(loggerName);
+    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCTransport);
+    this.loggerOptions = loggerOptions;
     this.config = config;
     this.mediaConstraints = mediaConstraints;
     this._pc = this.createPC();
@@ -117,6 +121,12 @@ export default class PCTransport extends EventEmitter {
       this.onTrack?.(ev);
     };
     return pc;
+  }
+
+  private get logContext() {
+    return {
+      ...this.loggerOptions.loggerContextCb?.(),
+    };
   }
 
   get isICEConnected(): boolean {
@@ -236,7 +246,7 @@ export default class PCTransport extends EventEmitter {
     }
 
     if (options?.iceRestart) {
-      this.log.debug('restarting ICE');
+      this.log.debug('restarting ICE', this.logContext);
       this.restartingIce = true;
     }
 
@@ -253,12 +263,12 @@ export default class PCTransport extends EventEmitter {
         return;
       }
     } else if (!this._pc || this._pc.signalingState === 'closed') {
-      this.log.warn('could not createOffer with closed peer connection');
+      this.log.warn('could not createOffer with closed peer connection', this.logContext);
       return;
     }
 
     // actually negotiate
-    this.log.debug('starting to negotiate');
+    this.log.debug('starting to negotiate', this.logContext);
     const offer = await this.pc.createOffer(options);
 
     const sdpParsed = parse(offer.sdp ?? '');
@@ -459,7 +469,10 @@ export default class PCTransport extends EventEmitter {
       const originalSdp = sd.sdp;
       sd.sdp = munged;
       try {
-        this.log.debug(`setting munged ${remote ? 'remote' : 'local'} description`);
+        this.log.debug(
+          `setting munged ${remote ? 'remote' : 'local'} description`,
+          this.logContext,
+        );
         if (remote) {
           await this.pc.setRemoteDescription(sd);
         } else {
@@ -468,6 +481,7 @@ export default class PCTransport extends EventEmitter {
         return;
       } catch (e) {
         this.log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
+          ...this.logContext,
           error: e,
           sdp: munged,
         });
@@ -498,7 +512,7 @@ export default class PCTransport extends EventEmitter {
       if (!remote && this.pc.remoteDescription) {
         fields.remoteSdp = this.pc.remoteDescription;
       }
-      this.log.error(`unable to set ${sd.type}`, fields);
+      this.log.error(`unable to set ${sd.type}`, { ...this.logContext, fields });
       throw new NegotiationError(msg);
     }
   }

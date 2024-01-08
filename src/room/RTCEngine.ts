@@ -61,6 +61,7 @@ import type RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
+import type { LoggerOptions } from './types';
 import {
   Mutex,
   isVideoCodec,
@@ -164,13 +165,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private log = log;
 
+  private loggerOptions: LoggerOptions;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
-    this.client = new SignalClient(undefined, {
+    this.loggerOptions = {
       loggerName: options.loggerName,
       loggerContextCb: () => this.logContext,
-    });
+    };
+    this.client = new SignalClient(undefined, this.loggerOptions);
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
     this.registerOnLineListener();
@@ -372,7 +376,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     const rtcConfig = this.makeRTCConfiguration(joinResponse);
 
-    this.pcManager = new PCTransportManager(rtcConfig, joinResponse.subscriberPrimary);
+    this.pcManager = new PCTransportManager(
+      rtcConfig,
+      joinResponse.subscriberPrimary,
+      this.loggerOptions,
+    );
 
     this.emit(EngineEvent.TransportsCreated, this.pcManager.publisher, this.pcManager.subscriber);
 
