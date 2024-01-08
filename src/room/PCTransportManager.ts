@@ -61,10 +61,10 @@ export class PCTransportManager {
   constructor(
     rtcConfig: RTCConfiguration,
     subscriberPrimary: boolean,
-    logger: string = LoggerNames.PCManager,
+    loggerName: string = LoggerNames.PCManager,
   ) {
-    if (logger) {
-      this.log = getLogger(logger);
+    if (loggerName) {
+      this.log = getLogger(loggerName);
     }
     this.isPublisherConnectionRequired = !subscriberPrimary;
     this.isSubscriberConnectionRequired = subscriberPrimary;

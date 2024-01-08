@@ -76,10 +76,10 @@ export default class PCTransport extends EventEmitter {
   constructor(
     config?: RTCConfiguration,
     mediaConstraints: Record<string, unknown> = {},
-    logger: string = LoggerNames.PCTransport,
+    loggerName: string = LoggerNames.PCTransport,
   ) {
     super();
-    this.log = getLogger(logger);
+    this.log = getLogger(loggerName);
     this.config = config;
     this.mediaConstraints = mediaConstraints;
     this._pc = this.createPC();

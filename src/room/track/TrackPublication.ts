@@ -45,10 +45,10 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
     kind: Track.Kind,
     id: string,
     name: string,
-    logger: string = LoggerNames.Publication,
+    loggerName: string = LoggerNames.Publication,
   ) {
     super();
-    this.log = getLogger(logger);
+    this.log = getLogger(loggerName);
     this.setMaxListeners(100);
     this.kind = kind;
     this.trackSid = id;
