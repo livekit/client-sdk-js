@@ -1917,10 +1917,27 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ): boolean {
     // active speaker updates are too spammy
     if (event !== RoomEvent.ActiveSpeakersChanged) {
-      this.log.debug(`room event ${event}`, { ...this.logContext, event, args });
+      // only extract logContext from arguments in order to avoid logging the whole object tree
+      const minimizedArgs = mapArgs(args).filter((arg: unknown) => arg !== undefined);
+      this.log.debug(`room event ${event}`, { ...this.logContext, event, args: minimizedArgs });
     }
     return super.emit(event, ...args);
   }
+}
+
+function mapArgs(args: unknown[]): any {
+  return args.map((arg: unknown) => {
+    if (!arg) {
+      return;
+    }
+    if (Array.isArray(arg)) {
+      return mapArgs(arg);
+    }
+    if (typeof arg === 'object') {
+      return 'logContext' in arg && arg.logContext;
+    }
+    return arg;
+  });
 }
 
 export default Room;
