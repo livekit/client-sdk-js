@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
-import type { InternalRoomOptions } from '../../options';
 import {
   DataPacket_Kind,
   ParticipantInfo,
@@ -17,6 +16,7 @@ import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
+import type { LoggerOptions } from '../types';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -79,9 +79,15 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
+  protected audioContext?: AudioContext;
+
   protected log: StructuredLogger = log;
 
-  protected audioContext?: AudioContext;
+  protected logContextCb?: LoggerOptions['loggerContextCb'];
+
+  protected get logContext() {
+    return { ...this.logContextCb?.(), participantSid: this.sid, participantId: this.identity };
+  }
 
   get isEncrypted() {
     return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
@@ -97,11 +103,12 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     identity: string,
     name?: string,
     metadata?: string,
-    opts?: InternalRoomOptions,
+    loggerOptions?: LoggerOptions,
   ) {
     super();
 
-    this.log = getLogger(opts?.loggerName ?? LoggerNames.Participant);
+    this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Participant);
+    this.logContextCb = loggerOptions?.loggerContextCb;
 
     this.setMaxListeners(100);
     this.sid = sid;
@@ -199,7 +206,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
-    this.log.trace('update participant info', { info });
+    this.log.trace('update participant info', { ...this.logContext, info });
     return true;
   }
 

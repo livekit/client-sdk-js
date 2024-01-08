@@ -193,7 +193,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onStreamStateUpdate = (update) => this.emit(EngineEvent.StreamStateChanged, update);
   }
 
-  private get logContext() {
+  /** @internal */
+  get logContext() {
     return {
       room: this.latestJoinResponse?.room?.name,
       roomSid: this.latestJoinResponse?.room?.sid,

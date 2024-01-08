@@ -1,5 +1,4 @@
 import type { SignalClient } from '../../api/SignalClient';
-import type { InternalRoomOptions } from '../../options';
 import type { ParticipantInfo, SubscriptionError } from '../../proto/livekit_models_pb';
 import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
 import { ParticipantEvent, TrackEvent } from '../events';
@@ -11,6 +10,8 @@ import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
 import type { AudioOutputOptions } from '../track/options';
 import type { AdaptiveStreamSettings } from '../track/types';
+import { getLogContextFromTrack } from '../track/utils';
+import type { LoggerOptions } from '../types';
 import Participant from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
 
@@ -39,9 +40,9 @@ export default class RemoteParticipant extends Participant {
     identity?: string,
     name?: string,
     metadata?: string,
-    opts?: InternalRoomOptions,
+    loggerOptions?: LoggerOptions,
   ) {
-    super(sid, identity || '', name, metadata, opts);
+    super(sid, identity || '', name, metadata, loggerOptions);
     this.signalClient = signalClient;
     this.tracks = new Map();
     this.audioTracks = new Map();
@@ -54,7 +55,10 @@ export default class RemoteParticipant extends Participant {
 
     // register action events
     publication.on(TrackEvent.UpdateSettings, (settings: UpdateTrackSettings) => {
-      this.log.debug('send update settings', settings);
+      this.log.debug('send update settings', {
+        ...this.logContext,
+        ...getLogContextFromTrack(publication),
+      });
       this.signalClient.sendUpdateTrackSettings(settings);
     });
     publication.on(TrackEvent.UpdateSubscription, (sub: UpdateSubscription) => {
@@ -160,7 +164,10 @@ export default class RemoteParticipant extends Participant {
     // yet arrived. Wait a bit longer for it to arrive, or fire an error
     if (!publication) {
       if (triesLeft === 0) {
-        this.log.error('could not find published track', { participant: this.sid, trackSid: sid });
+        this.log.error('could not find published track', {
+          ...this.logContext,
+          trackSid: sid,
+        });
         this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
         return;
       }
@@ -182,7 +189,7 @@ export default class RemoteParticipant extends Participant {
     if (mediaTrack.readyState === 'ended') {
       this.log.error(
         'unable to subscribe because MediaStreamTrack is ended. Do not call MediaStreamTrack.stop()',
-        { participant: this.sid, trackSid: sid },
+        { ...this.logContext, ...getLogContextFromTrack(publication) },
       );
       this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
       return;
@@ -257,10 +264,9 @@ export default class RemoteParticipant extends Participant {
           this.log.debug(
             `received a second track publication for ${this.identity} with the same source: ${publication.source}`,
             {
-              oldTrack: existingTrackOfSource,
-              newTrack: publication,
-              participant: this,
-              participantInfo: info,
+              ...this.logContext,
+              oldTrack: getLogContextFromTrack(existingTrackOfSource),
+              newTrack: getLogContextFromTrack(publication),
             },
           );
         }
@@ -275,8 +281,8 @@ export default class RemoteParticipant extends Participant {
     this.tracks.forEach((publication) => {
       if (!validTracks.has(publication.trackSid)) {
         this.log.trace('detected removed track on remote participant, unpublishing', {
-          publication,
-          participantSid: this.sid,
+          ...this.logContext,
+          ...getLogContextFromTrack(publication),
         });
         this.unpublishTrack(publication.trackSid, true);
       }
@@ -342,7 +348,7 @@ export default class RemoteParticipant extends Participant {
     event: E,
     ...args: Parameters<ParticipantEventCallbacks[E]>
   ): boolean {
-    this.log.trace('participant event', { participant: this.sid, event, args });
+    this.log.trace('participant event', { ...this.logContext, event, args });
     return super.emit(event, ...args);
   }
 }

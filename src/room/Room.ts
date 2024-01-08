@@ -534,7 +534,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       `connected to Livekit Server ${Object.entries(serverInfo)
         .map(([key, value]) => `${key}: ${value}`)
         .join(', ')}`,
-      this.logContext,
+      {
+        room: joinResponse.room?.name,
+        roomSid: joinResponse.room?.sid,
+        identity: joinResponse.participant?.identity,
+      },
     );
 
     if (!joinResponse.serverVersion) {
