@@ -88,7 +88,7 @@ export default class LocalParticipant extends Participant {
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
     super(sid, identity, undefined, undefined, {
       loggerName: options.loggerName,
-      loggerContextCb: () => engine.logContext,
+      loggerContextCb: () => this.engine.logContext,
     });
     this.audioTracks = new Map();
     this.videoTracks = new Map();
