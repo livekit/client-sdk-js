@@ -213,19 +213,20 @@ export function getTrackPublicationInfo<T extends TrackPublication>(
 export function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown> {
   if (track instanceof Track) {
     return {
-      sid: track.sid,
-      source: track.source,
-      muted: track.isMuted,
-      enabled: track.mediaStreamTrack.enabled,
-      kind: track.kind,
+      trackSid: track.sid,
+      trackSource: track.source,
+      trackMuted: track.isMuted,
+      trackEnabled: track.mediaStreamTrack.enabled,
+      trackKind: track.kind,
     };
   } else {
     return {
-      sid: track.trackSid,
-      name: track.trackName,
+      trackSid: track.trackSid,
+      trackName: track.trackName,
       track: track.track ? getLogContextFromTrack(track.track) : undefined,
-      enabled: track.isEnabled,
-      encrypted: track.isEncrypted,
+      trackEnabled: track.isEnabled,
+      trackEncrypted: track.isEncrypted,
+      trackMimeType: track.mimeType,
     };
   }
 }
