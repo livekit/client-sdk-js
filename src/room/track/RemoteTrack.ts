@@ -11,9 +11,9 @@ export default abstract class RemoteTrack extends Track {
     sid: string,
     kind: Track.Kind,
     receiver?: RTCRtpReceiver,
-    logger?: string,
+    loggerName?: string,
   ) {
-    super(mediaTrack, kind, logger);
+    super(mediaTrack, kind, loggerName);
 
     this.sid = sid;
     this.receiver = receiver;

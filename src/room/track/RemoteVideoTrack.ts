@@ -27,9 +27,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
     sid: string,
     receiver?: RTCRtpReceiver,
     adaptiveStreamSettings?: AdaptiveStreamSettings,
-    logger?: string,
+    loggerName?: string,
   ) {
-    super(mediaTrack, sid, Track.Kind.Video, receiver, logger);
+    super(mediaTrack, sid, Track.Kind.Video, receiver, loggerName);
     this.adaptiveStreamSettings = adaptiveStreamSettings;
   }
 

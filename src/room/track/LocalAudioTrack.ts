@@ -27,9 +27,9 @@ export default class LocalAudioTrack extends LocalTrack {
     constraints?: MediaTrackConstraints,
     userProvidedTrack = true,
     audioContext?: AudioContext,
-    logger?: string,
+    loggerName?: string,
   ) {
-    super(mediaTrack, Track.Kind.Audio, constraints, userProvidedTrack, logger);
+    super(mediaTrack, Track.Kind.Audio, constraints, userProvidedTrack, loggerName);
     this.audioContext = audioContext;
     this.checkForSilence();
   }

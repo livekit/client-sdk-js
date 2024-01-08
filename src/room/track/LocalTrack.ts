@@ -49,9 +49,9 @@ export default abstract class LocalTrack extends Track {
     kind: Track.Kind,
     constraints?: MediaTrackConstraints,
     userProvidedTrack = false,
-    logger?: string,
+    loggerName?: string,
   ) {
-    super(mediaTrack, kind, logger);
+    super(mediaTrack, kind, loggerName);
     this.reacquireTrack = false;
     this.providedByUser = userProvidedTrack;
     this.muteLock = new Mutex();
