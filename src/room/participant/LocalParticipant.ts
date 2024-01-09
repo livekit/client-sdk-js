@@ -44,7 +44,6 @@ import { Future, isFireFox, isSVCCodec, isSafari, isWeb, supportsAV1, supportsVP
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import { trackPermissionToProto } from './ParticipantTrackPermission';
-import RemoteParticipant from './RemoteParticipant';
 import {
   computeTrackBackupEncodings,
   computeVideoEncodings,
@@ -1044,20 +1043,8 @@ export default class LocalParticipant extends Participant {
    */
   async publishData(data: Uint8Array, options: DataPublishOptions = {}): Promise<void> {
     const kind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
-    const destination = options.destinations;
+    const destinationIdentities = options.destinationIdentities;
     const topic = options.topic;
-
-    const destinationIdentities: Array<string> = [];
-
-    if (destination !== undefined) {
-      destination.forEach((val) => {
-        if (val instanceof RemoteParticipant) {
-          destinationIdentities.push(val.identity);
-        } else {
-          destinationIdentities.push(val);
-        }
-      });
-    }
 
     const packet = new DataPacket({
       kind: kind,
