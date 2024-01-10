@@ -245,7 +245,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private get logContext() {
     return {
       room: this.name,
-      roomSid: this.sid,
+      roomSid: this.roomInfo?.sid,
       identity: this.localParticipant.identity,
     };
   }
