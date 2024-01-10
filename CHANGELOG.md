@@ -1,5 +1,21 @@
 # Change Log
 
+## 1.15.7
+
+### Patch Changes
+
+- Fix stopping old track in `setMediaStreamTrack` - [#980](https://github.com/livekit/client-sdk-js/pull/980) ([@mpnri](https://github.com/mpnri))
+
+- Add class level configurable logger - [#988](https://github.com/livekit/client-sdk-js/pull/988) ([@lukasIO](https://github.com/lukasIO))
+
+- Default screenshare capture resolution to 1080p - [#972](https://github.com/livekit/client-sdk-js/pull/972) ([@davidzhao](https://github.com/davidzhao))
+
+## 1.15.6
+
+### Patch Changes
+
+- Make sure that processorElement stays muted after attach - [#984](https://github.com/livekit/client-sdk-js/pull/984) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.5
 
 ### Patch Changes

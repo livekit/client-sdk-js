@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import log from '../../logger';
+import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import {
   DataPacket_Kind,
   ParticipantInfo,
@@ -16,6 +16,7 @@ import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
+import type { LoggerOptions } from '../types';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -47,12 +48,12 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
 export default class Participant extends (EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>) {
   protected participantInfo?: ParticipantInfo;
 
-  audioTracks: Map<string, TrackPublication>;
+  audioTrackPublications: Map<string, TrackPublication>;
 
-  videoTracks: Map<string, TrackPublication>;
+  videoTrackPublications: Map<string, TrackPublication>;
 
   /** map of track sid => all published tracks */
-  tracks: Map<string, TrackPublication>;
+  trackPublications: Map<string, TrackPublication>;
 
   /** audio level between 0-1.0, 1 being loudest, 0 being softest */
   audioLevel: number = 0;
@@ -80,8 +81,23 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   protected audioContext?: AudioContext;
 
+  protected log: StructuredLogger = log;
+
+  protected loggerOptions?: LoggerOptions;
+
+  protected get logContext() {
+    return {
+      ...this.loggerOptions?.loggerContextCb?.(),
+      participantSid: this.sid,
+      participantId: this.identity,
+    };
+  }
+
   get isEncrypted() {
-    return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
+    return (
+      this.trackPublications.size > 0 &&
+      Array.from(this.trackPublications.values()).every((tr) => tr.isEncrypted)
+    );
   }
 
   get isAgent() {
@@ -89,30 +105,38 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   /** @internal */
-  constructor(sid: string, identity: string, name?: string, metadata?: string) {
+  constructor(
+    sid: string,
+    identity: string,
+    name?: string,
+    metadata?: string,
+    loggerOptions?: LoggerOptions,
+  ) {
     super();
+
+    this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Participant);
+    this.loggerOptions = loggerOptions;
+
     this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
     this.name = name;
     this.metadata = metadata;
-    this.audioTracks = new Map();
-    this.videoTracks = new Map();
-    this.tracks = new Map();
+    this.audioTrackPublications = new Map();
+    this.videoTrackPublications = new Map();
+    this.trackPublications = new Map();
   }
 
-  getTracks(): TrackPublication[] {
-    return Array.from(this.tracks.values());
+  getTrackPublications(): TrackPublication[] {
+    return Array.from(this.trackPublications.values());
   }
 
   /**
    * Finds the first track that matches the source filter, for example, getting
    * the user's camera track with getTrackBySource(Track.Source.Camera).
-   * @param source
-   * @returns
    */
-  getTrack(source: Track.Source): TrackPublication | undefined {
-    for (const [, pub] of this.tracks) {
+  getTrackPublication(source: Track.Source): TrackPublication | undefined {
+    for (const [, pub] of this.trackPublications) {
       if (pub.source === source) {
         return pub;
       }
@@ -121,11 +145,9 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   /**
    * Finds the first track that matches the track's name.
-   * @param name
-   * @returns
    */
-  getTrackByName(name: string): TrackPublication | undefined {
-    for (const [, pub] of this.tracks) {
+  getTrackPublicationByName(name: string): TrackPublication | undefined {
+    for (const [, pub] of this.trackPublications) {
       if (pub.trackName === name) {
         return pub;
       }
@@ -137,17 +159,17 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   get isCameraEnabled(): boolean {
-    const track = this.getTrack(Track.Source.Camera);
+    const track = this.getTrackPublication(Track.Source.Camera);
     return !(track?.isMuted ?? true);
   }
 
   get isMicrophoneEnabled(): boolean {
-    const track = this.getTrack(Track.Source.Microphone);
+    const track = this.getTrackPublication(Track.Source.Microphone);
     return !(track?.isMuted ?? true);
   }
 
   get isScreenShareEnabled(): boolean {
-    const track = this.getTrack(Track.Source.ScreenShare);
+    const track = this.getTrackPublication(Track.Source.ScreenShare);
     return !!track;
   }
 
@@ -187,7 +209,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
-    log.trace('update participant info', { info });
+    this.log.trace('update participant info', { ...this.logContext, info });
     return true;
   }
 
@@ -260,7 +282,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    */
   setAudioContext(ctx: AudioContext | undefined) {
     this.audioContext = ctx;
-    this.audioTracks.forEach(
+    this.audioTrackPublications.forEach(
       (track) =>
         (track.track instanceof RemoteAudioTrack || track.track instanceof LocalAudioTrack) &&
         track.track.setAudioContext(ctx),
@@ -282,13 +304,13 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       pub.track.sid = publication.trackSid;
     }
 
-    this.tracks.set(publication.trackSid, publication);
+    this.trackPublications.set(publication.trackSid, publication);
     switch (publication.kind) {
       case Track.Kind.Audio:
-        this.audioTracks.set(publication.trackSid, publication);
+        this.audioTrackPublications.set(publication.trackSid, publication);
         break;
       case Track.Kind.Video:
-        this.videoTracks.set(publication.trackSid, publication);
+        this.videoTrackPublications.set(publication.trackSid, publication);
         break;
       default:
         break;

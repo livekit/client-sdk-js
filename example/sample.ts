@@ -19,6 +19,7 @@ import {
   RoomConnectOptions,
   RoomEvent,
   RoomOptions,
+  ScreenSharePresets,
   Track,
   TrackPublication,
   VideoCaptureOptions,
@@ -95,6 +96,7 @@ const appActions = {
         dtx: true,
         red: true,
         forceStereo: false,
+        screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
