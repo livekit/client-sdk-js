@@ -8,7 +8,8 @@
     ".eslintrc.dist.cjs",
     "jest.config.js",
     "rollup.config.js",
-    "rollup.config.worker.js"
+    "rollup.config.worker.js",
+    "vite.config.mjs"
   ],
   "exclude": ["dist/**"]
 }

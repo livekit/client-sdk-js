@@ -112,10 +112,6 @@ export default abstract class LocalTrack extends Track {
       this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
       this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
       this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
-
-      if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
-        this._mediaStreamTrack.stop();
-      }
     }
 
     this.mediaStream = new MediaStream([newTrack]);
@@ -138,6 +134,8 @@ export default abstract class LocalTrack extends Track {
       }
 
       attachToElement(newTrack, this.processorElement);
+      // ensure the processorElement itself stays muted
+      this.processorElement.muted = true;
       await this.processor.restart({
         track: newTrack,
         kind: this.kind,
@@ -147,6 +145,11 @@ export default abstract class LocalTrack extends Track {
     }
     if (this.sender) {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
+    }
+    // if `newTrack` is different from the existing track, stop the
+    // older track just before replacing it
+    if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
+      this._mediaStreamTrack.stop();
     }
     this._mediaStreamTrack = newTrack;
     if (newTrack) {
@@ -415,9 +418,10 @@ export default abstract class LocalTrack extends Track {
         throw TypeError('cannot set processor on track of unknown kind');
       }
       this.processorElement = this.processorElement ?? document.createElement(this.kind);
-      this.processorElement.muted = true;
 
       attachToElement(this._mediaStreamTrack, this.processorElement);
+      this.processorElement.muted = true;
+
       this.processorElement
         .play()
         .catch((error) => log.error('failed to play processor element', { error }));

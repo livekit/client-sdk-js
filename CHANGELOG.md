@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.15.6
+
+### Patch Changes
+
+- Make sure that processorElement stays muted after attach - [#984](https://github.com/livekit/client-sdk-js/pull/984) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.5
 
 ### Patch Changes
