@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.15.8
+
+### Patch Changes
+
+- Await unpublish before re-publishing on signal-reconnect - [`eea871c11118ff36a04917dc1008dc9023c662b5`](https://github.com/livekit/client-sdk-js/commit/eea871c11118ff36a04917dc1008dc9023c662b5) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.7
 
 ### Patch Changes
