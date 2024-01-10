@@ -2,7 +2,11 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
 import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
-import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
+import {
+  VideoQuality as ProtoQuality,
+  TrackSource,
+  TrackType,
+} from '../../proto/livekit_models_pb';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
@@ -15,6 +19,11 @@ const BACKGROUND_REACTION_DELAY = 5000;
 // Safari tracks which audio elements have been "blessed" by the user.
 const recycledElements: Array<HTMLAudioElement> = [];
 
+export enum VideoQuality {
+  LOW = ProtoQuality.LOW,
+  MEDIUM = ProtoQuality.MEDIUM,
+  HIGH = ProtoQuality.HIGH,
+}
 export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
   kind: Track.Kind;
 

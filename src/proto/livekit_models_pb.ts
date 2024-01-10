@@ -437,6 +437,11 @@ export class Room extends Message<Room> {
    */
   activeRecording = false;
 
+  /**
+   * @generated from field: livekit.TimedVersion version = 13;
+   */
+  version?: TimedVersion;
+
   constructor(data?: PartialMessage<Room>) {
     super();
     proto3.util.initPartial(data, this);
@@ -456,6 +461,7 @@ export class Room extends Message<Room> {
     { no: 9, name: "num_participants", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
     { no: 11, name: "num_publishers", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
     { no: 10, name: "active_recording", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 13, name: "version", kind: "message", T: TimedVersion },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Room {
@@ -726,6 +732,11 @@ export class ParticipantInfo extends Message<ParticipantInfo> {
    */
   isPublisher = false;
 
+  /**
+   * @generated from field: livekit.ParticipantInfo.Kind kind = 14;
+   */
+  kind = ParticipantInfo_Kind.STANDARD;
+
   constructor(data?: PartialMessage<ParticipantInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -745,6 +756,7 @@ export class ParticipantInfo extends Message<ParticipantInfo> {
     { no: 11, name: "permission", kind: "message", T: ParticipantPermission },
     { no: 12, name: "region", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 13, name: "is_publisher", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 14, name: "kind", kind: "enum", T: proto3.getEnumType(ParticipantInfo_Kind) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ParticipantInfo {
@@ -802,6 +814,54 @@ proto3.util.setEnumType(ParticipantInfo_State, "livekit.ParticipantInfo.State", 
   { no: 1, name: "JOINED" },
   { no: 2, name: "ACTIVE" },
   { no: 3, name: "DISCONNECTED" },
+]);
+
+/**
+ * @generated from enum livekit.ParticipantInfo.Kind
+ */
+export enum ParticipantInfo_Kind {
+  /**
+   * standard participants, e.g. web clients
+   *
+   * @generated from enum value: STANDARD = 0;
+   */
+  STANDARD = 0,
+
+  /**
+   * only ingests streams
+   *
+   * @generated from enum value: INGRESS = 1;
+   */
+  INGRESS = 1,
+
+  /**
+   * only consumes streams
+   *
+   * @generated from enum value: EGRESS = 2;
+   */
+  EGRESS = 2,
+
+  /**
+   * SIP participants
+   *
+   * @generated from enum value: SIP = 3;
+   */
+  SIP = 3,
+
+  /**
+   * LiveKit agents
+   *
+   * @generated from enum value: AGENT = 4;
+   */
+  AGENT = 4,
+}
+// Retrieve enum metadata with: proto3.getEnumType(ParticipantInfo_Kind)
+proto3.util.setEnumType(ParticipantInfo_Kind, "livekit.ParticipantInfo.Kind", [
+  { no: 0, name: "STANDARD" },
+  { no: 1, name: "INGRESS" },
+  { no: 2, name: "EGRESS" },
+  { no: 3, name: "SIP" },
+  { no: 4, name: "AGENT" },
 ]);
 
 /**
@@ -1020,6 +1080,11 @@ export class TrackInfo extends Message<TrackInfo> {
    */
   stream = "";
 
+  /**
+   * @generated from field: livekit.TimedVersion version = 18;
+   */
+  version?: TimedVersion;
+
   constructor(data?: PartialMessage<TrackInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1045,6 +1110,7 @@ export class TrackInfo extends Message<TrackInfo> {
     { no: 15, name: "disable_red", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 16, name: "encryption", kind: "enum", T: proto3.getEnumType(Encryption_Type) },
     { no: 17, name: "stream", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 18, name: "version", kind: "message", T: TimedVersion },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TrackInfo {

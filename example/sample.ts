@@ -345,9 +345,8 @@ const appActions = {
     if (textField.value) {
       const msg = state.encoder.encode(textField.value);
       currentRoom.localParticipant.publishData(msg, DataPacket_Kind.RELIABLE);
-      (<HTMLTextAreaElement>(
-        $('chat')
-      )).value += `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
+      (<HTMLTextAreaElement>$('chat')).value +=
+        `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
       textField.value = '';
     }
   },

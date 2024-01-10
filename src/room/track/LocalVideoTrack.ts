@@ -1,6 +1,6 @@
 import type { SignalClient } from '../../api/SignalClient';
 import type { StructuredLogger } from '../../logger';
-import { VideoLayer, VideoQuality } from '../../proto/livekit_models_pb';
+import { VideoQuality as ProtoVideoQuality, VideoLayer } from '../../proto/livekit_models_pb';
 import { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc_pb';
 import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
@@ -8,7 +8,7 @@ import { computeBitrate, monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
 import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
-import { Track } from './Track';
+import { Track, VideoQuality } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
 import { constraintsForOptions } from './utils';
@@ -427,14 +427,14 @@ async function setPublishingLayersForSender(
       const encoding = encodings[0];
       /* @ts-ignore */
       // const mode = new ScalabilityMode(encoding.scalabilityMode);
-      let maxQuality = VideoQuality.OFF;
+      let maxQuality = ProtoVideoQuality.OFF;
       qualities.forEach((q) => {
-        if (q.enabled && (maxQuality === VideoQuality.OFF || q.quality > maxQuality)) {
+        if (q.enabled && (maxQuality === ProtoVideoQuality.OFF || q.quality > maxQuality)) {
           maxQuality = q.quality;
         }
       });
 
-      if (maxQuality === VideoQuality.OFF) {
+      if (maxQuality === ProtoVideoQuality.OFF) {
         if (encoding.active) {
           encoding.active = false;
           hasChanged = true;
