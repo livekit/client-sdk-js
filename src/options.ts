@@ -116,12 +116,6 @@ export interface InternalRoomConnectOptions {
    */
   rtcConfig?: RTCConfiguration;
 
-  /**
-   * @deprecated
-   * publish only mode
-   */
-  publishOnly?: string;
-
   /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
   maxRetries: number;
 

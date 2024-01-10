@@ -39,11 +39,6 @@ export enum RoomEvent {
   ConnectionStateChanged = 'connectionStateChanged',
 
   /**
-   * @deprecated StateChanged has been renamed to ConnectionStateChanged
-   */
-  StateChanged = 'connectionStateChanged',
-
-  /**
    * When input or output devices on the machine have changed.
    */
   MediaDevicesChanged = 'mediaDevicesChanged',
