@@ -9,9 +9,22 @@ export enum LogLevel {
   silent = 5,
 }
 
+export enum LoggerNames {
+  Default = 'livekit',
+  Room = 'livekit-room',
+  Participant = 'livekit-participant',
+  Track = 'livekit-track',
+  Publication = 'livekit-track-publication',
+  Engine = 'livekit-engine',
+  Signal = 'livekit-signal',
+  PCManager = 'livekit-pc-manager',
+  PCTransport = 'livekit-pc-transport',
+  E2EE = 'lk-e2ee',
+}
+
 type LogLevelString = keyof typeof LogLevel;
 
-type StructuredLogger = {
+export type StructuredLogger = {
   trace: (msg: string, context?: object) => void;
   debug: (msg: string, context?: object) => void;
   info: (msg: string, context?: object) => void;
@@ -20,17 +33,28 @@ type StructuredLogger = {
   setDefaultLevel: (level: log.LogLevelDesc) => void;
 };
 
-const livekitLogger = log.getLogger('livekit');
+let livekitLogger = log.getLogger('livekit');
 
 livekitLogger.setDefaultLevel(LogLevel.info);
 
 export default livekitLogger as StructuredLogger;
 
-export function setLogLevel(level: LogLevel | LogLevelString, loggerName?: 'livekit' | 'lk-e2ee') {
+/**
+ * @internal
+ */
+export function getLogger(name: string) {
+  const logger = log.getLogger(name);
+  logger.setDefaultLevel(livekitLogger.getLevel());
+  return logger as StructuredLogger;
+}
+
+export function setLogLevel(level: LogLevel | LogLevelString, loggerName?: LoggerNames) {
   if (loggerName) {
     log.getLogger(loggerName).setLevel(level);
   }
-  for (const logger of Object.values(log.getLoggers())) {
+  for (const logger of Object.entries(log.getLoggers())
+    .filter(([logrName]) => logrName.startsWith('livekit'))
+    .map(([, logr]) => logr)) {
     logger.setLevel(level);
   }
 }
@@ -41,10 +65,10 @@ export type LogExtension = (level: LogLevel, msg: string, context?: object) => v
  * use this to hook into the logging function to allow sending internal livekit logs to third party services
  * if set, the browser logs will lose their stacktrace information (see https://github.com/pimterry/loglevel#writing-plugins)
  */
-export function setLogExtension(extension: LogExtension) {
-  const originalFactory = livekitLogger.methodFactory;
+export function setLogExtension(extension: LogExtension, logger = livekitLogger) {
+  const originalFactory = logger.methodFactory;
 
-  livekitLogger.methodFactory = (methodName, configLevel, loggerName) => {
+  logger.methodFactory = (methodName, configLevel, loggerName) => {
     const rawMethod = originalFactory(methodName, configLevel, loggerName);
 
     const logLevel = LogLevel[methodName as LogLevelString];
@@ -58,7 +82,7 @@ export function setLogExtension(extension: LogExtension) {
       }
     };
   };
-  livekitLogger.setLevel(livekitLogger.getLevel()); // Be sure to call setLevel method in order to apply plugin
+  logger.setLevel(logger.getLevel()); // Be sure to call setLevel method in order to apply plugin
 }
 
 export const workerLogger = log.getLogger('lk-e2ee') as StructuredLogger;

@@ -486,6 +486,9 @@ export enum EngineEvent {
   ConnectionQualityUpdate = 'connectionQualityUpdate',
   SubscriptionError = 'subscriptionError',
   SubscriptionPermissionUpdate = 'subscriptionPermissionUpdate',
+  RemoteMute = 'remoteMute',
+  SubscribedQualityUpdate = 'subscribedQualityUpdate',
+  LocalTrackUnpublished = 'localTrackUnpublished',
 }
 
 export enum TrackEvent {

@@ -1,5 +1,51 @@
 # Change Log
 
+## 1.15.7
+
+### Patch Changes
+
+- Fix stopping old track in `setMediaStreamTrack` - [#980](https://github.com/livekit/client-sdk-js/pull/980) ([@mpnri](https://github.com/mpnri))
+
+- Add class level configurable logger - [#988](https://github.com/livekit/client-sdk-js/pull/988) ([@lukasIO](https://github.com/lukasIO))
+
+- Default screenshare capture resolution to 1080p - [#972](https://github.com/livekit/client-sdk-js/pull/972) ([@davidzhao](https://github.com/davidzhao))
+
+## 1.15.6
+
+### Patch Changes
+
+- Make sure that processorElement stays muted after attach - [#984](https://github.com/livekit/client-sdk-js/pull/984) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.15.5
+
+### Patch Changes
+
+- Add receiver video mime type to stats - [#963](https://github.com/livekit/client-sdk-js/pull/963) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Make sure all signal client callbacks are set up for a reconnect - [#966](https://github.com/livekit/client-sdk-js/pull/966) ([@lukasIO](https://github.com/lukasIO))
+
+- Make sure to apply audio output selection when participant is first created - [#968](https://github.com/livekit/client-sdk-js/pull/968) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.15.4
+
+### Patch Changes
+
+- Add ConnectionQuality.Lost - [#961](https://github.com/livekit/client-sdk-js/pull/961) ([@lukasIO](https://github.com/lukasIO))
+
+- Add isAgent getter on participant - [#960](https://github.com/livekit/client-sdk-js/pull/960) ([@lukasIO](https://github.com/lukasIO))
+
+- Improve auto playback handling - [#958](https://github.com/livekit/client-sdk-js/pull/958) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.15.3
+
+### Patch Changes
+
+- Prevent backup codec publishing when e2ee is enabled - [#943](https://github.com/livekit/client-sdk-js/pull/943) ([@lukasIO](https://github.com/lukasIO))
+
+- Use enum to track connection state of signal client - [#949](https://github.com/livekit/client-sdk-js/pull/949) ([@lukasIO](https://github.com/lukasIO))
+
+- Disable VP9 for Safari 15, AV1 for Safari (incomplete support) - [#950](https://github.com/livekit/client-sdk-js/pull/950) ([@davidzhao](https://github.com/davidzhao))
+
 ## 1.15.2
 
 ### Patch Changes

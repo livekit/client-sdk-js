@@ -1,9 +1,9 @@
 import { debounce } from 'ts-debounce';
-import log from '../../logger';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
+import type { LoggerOptions } from '../types';
 import { Mutex, compareVersions, isMobile, sleep } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
@@ -50,8 +50,9 @@ export default abstract class LocalTrack extends Track {
     kind: Track.Kind,
     constraints?: MediaTrackConstraints,
     userProvidedTrack = false,
+    loggerOptions?: LoggerOptions,
   ) {
-    super(mediaTrack, kind);
+    super(mediaTrack, kind, loggerOptions);
     this.reacquireTrack = false;
     this.providedByUser = userProvidedTrack;
     this.muteLock = new Mutex();
@@ -112,10 +113,6 @@ export default abstract class LocalTrack extends Track {
       this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
       this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
       this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
-
-      if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
-        this._mediaStreamTrack.stop();
-      }
     }
 
     this.mediaStream = new MediaStream([newTrack]);
@@ -132,12 +129,14 @@ export default abstract class LocalTrack extends Track {
     }
     let processedTrack: MediaStreamTrack | undefined;
     if (this.processor && newTrack && this.processorElement) {
-      log.debug('restarting processor');
+      this.log.debug('restarting processor', this.logContext);
       if (this.kind === 'unknown') {
         throw TypeError('cannot set processor on track of unknown kind');
       }
 
       attachToElement(newTrack, this.processorElement);
+      // ensure the processorElement itself stays muted
+      this.processorElement.muted = true;
       await this.processor.restart({
         track: newTrack,
         kind: this.kind,
@@ -147,6 +146,11 @@ export default abstract class LocalTrack extends Track {
     }
     if (this.sender) {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
+    }
+    // if `newTrack` is different from the existing track, stop the
+    // older track just before replacing it
+    if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
+      this._mediaStreamTrack.stop();
     }
     this._mediaStreamTrack = newTrack;
     if (newTrack) {
@@ -211,7 +215,7 @@ export default abstract class LocalTrack extends Track {
       throw new TrackInvalidError('unable to replace an unpublished track');
     }
 
-    log.debug('replace MediaStreamTrack');
+    this.log.debug('replace MediaStreamTrack', this.logContext);
     await this.setMediaStreamTrack(track);
     // this must be synced *after* setting mediaStreamTrack above, since it relies
     // on the previous state in order to cleanup
@@ -227,7 +231,7 @@ export default abstract class LocalTrack extends Track {
     if (!constraints) {
       constraints = this._constraints;
     }
-    log.debug('restarting track with constraints', constraints);
+    this.log.debug('restarting track with constraints', { ...this.logContext, constraints });
 
     const streamConstraints: MediaStreamConstraints = {
       audio: false,
@@ -255,7 +259,7 @@ export default abstract class LocalTrack extends Track {
     const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
     const newTrack = mediaStream.getTracks()[0];
     newTrack.addEventListener('ended', this.handleEnded);
-    log.debug('re-acquired MediaStreamTrack');
+    this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 
     await this.setMediaStreamTrack(newTrack);
     this._constraints = constraints;
@@ -265,7 +269,7 @@ export default abstract class LocalTrack extends Track {
   }
 
   protected setTrackMuted(muted: boolean) {
-    log.debug(`setting ${this.kind} track ${muted ? 'muted' : 'unmuted'}`);
+    this.log.debug(`setting ${this.kind} track ${muted ? 'muted' : 'unmuted'}`, this.logContext);
 
     if (this.isMuted === muted && this._mediaStreamTrack.enabled !== muted) {
       return;
@@ -288,10 +292,10 @@ export default abstract class LocalTrack extends Track {
   protected async handleAppVisibilityChanged() {
     await super.handleAppVisibilityChanged();
     if (!isMobile()) return;
-    log.debug(`visibility changed, is in Background: ${this.isInBackground}`);
+    this.log.debug(`visibility changed, is in Background: ${this.isInBackground}`, this.logContext);
 
     if (!this.isInBackground && this.needsReAcquisition && !this.isUserProvided && !this.isMuted) {
-      log.debug(`track needs to be reacquired, restarting ${this.source}`);
+      this.log.debug(`track needs to be reacquired, restarting ${this.source}`, this.logContext);
       await this.restart();
       this.reacquireTrack = false;
     }
@@ -299,7 +303,7 @@ export default abstract class LocalTrack extends Track {
 
   private handleTrackMuteEvent = () =>
     this.debouncedTrackMuteHandler().catch(() =>
-      log.debug('track mute bounce got cancelled by an unmute event'),
+      this.log.debug('track mute bounce got cancelled by an unmute event', this.logContext),
     );
 
   private debouncedTrackMuteHandler = debounce(async () => {
@@ -343,7 +347,7 @@ export default abstract class LocalTrack extends Track {
         return;
       }
       if (!this.sender) {
-        log.warn('unable to pause upstream for an unpublished track');
+        this.log.warn('unable to pause upstream for an unpublished track', this.logContext);
         return;
       }
 
@@ -367,7 +371,7 @@ export default abstract class LocalTrack extends Track {
         return;
       }
       if (!this.sender) {
-        log.warn('unable to resume upstream for an unpublished track');
+        this.log.warn('unable to resume upstream for an unpublished track', this.logContext);
         return;
       }
       this._isUpstreamPaused = false;
@@ -407,7 +411,7 @@ export default abstract class LocalTrack extends Track {
   async setProcessor(processor: TrackProcessor<this['kind']>, showProcessedStreamLocally = true) {
     const unlock = await this.processorLock.lock();
     try {
-      log.debug('setting up processor');
+      this.log.debug('setting up processor', this.logContext);
       if (this.processor) {
         await this.stopProcessor();
       }
@@ -415,12 +419,15 @@ export default abstract class LocalTrack extends Track {
         throw TypeError('cannot set processor on track of unknown kind');
       }
       this.processorElement = this.processorElement ?? document.createElement(this.kind);
-      this.processorElement.muted = true;
 
       attachToElement(this._mediaStreamTrack, this.processorElement);
+      this.processorElement.muted = true;
+
       this.processorElement
         .play()
-        .catch((error) => log.error('failed to play processor element', { error }));
+        .catch((error) =>
+          this.log.error('failed to play processor element', { ...this.logContext, error }),
+        );
 
       const processorOptions = {
         kind: this.kind,
@@ -458,7 +465,7 @@ export default abstract class LocalTrack extends Track {
   async stopProcessor() {
     if (!this.processor) return;
 
-    log.debug('stopping processor');
+    this.log.debug('stopping processor', this.logContext);
     this.processor.processedTrack?.stop();
     await this.processor.destroy();
     this.processor = undefined;

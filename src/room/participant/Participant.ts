@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import log from '../../logger';
+import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import {
   DataPacket_Kind,
   ParticipantInfo,
@@ -16,11 +16,17 @@ import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
+import type { LoggerOptions } from '../types';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
   Good = 'good',
   Poor = 'poor',
+  /**
+   * Indicates that a participant has temporarily (or permanently) lost connection to LiveKit.
+   * For permanent disconnection a `ParticipantDisconnected` event will be emitted after a timeout
+   */
+  Lost = 'lost',
   Unknown = 'unknown',
 }
 
@@ -32,6 +38,8 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
       return ConnectionQuality.Good;
     case ProtoQuality.POOR:
       return ConnectionQuality.Poor;
+    case ProtoQuality.LOST:
+      return ConnectionQuality.Lost;
     default:
       return ConnectionQuality.Unknown;
   }
@@ -73,6 +81,18 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   protected audioContext?: AudioContext;
 
+  protected log: StructuredLogger = log;
+
+  protected loggerOptions?: LoggerOptions;
+
+  protected get logContext() {
+    return {
+      ...this.loggerOptions?.loggerContextCb?.(),
+      participantSid: this.sid,
+      participantId: this.identity,
+    };
+  }
+
   get isEncrypted() {
     return (
       this.trackPublications.size > 0 &&
@@ -80,9 +100,23 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     );
   }
 
+  get isAgent() {
+    return this.permissions?.agent ?? false;
+  }
+
   /** @internal */
-  constructor(sid: string, identity: string, name?: string, metadata?: string) {
+  constructor(
+    sid: string,
+    identity: string,
+    name?: string,
+    metadata?: string,
+    loggerOptions?: LoggerOptions,
+  ) {
     super();
+
+    this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Participant);
+    this.loggerOptions = loggerOptions;
+
     this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
@@ -93,17 +127,15 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.trackPublications = new Map();
   }
 
-  getTracks(): TrackPublication[] {
+  getTrackPublications(): TrackPublication[] {
     return Array.from(this.trackPublications.values());
   }
 
   /**
    * Finds the first track that matches the source filter, for example, getting
    * the user's camera track with getTrackBySource(Track.Source.Camera).
-   * @param source
-   * @returns
    */
-  getTrack(source: Track.Source): TrackPublication | undefined {
+  getTrackPublication(source: Track.Source): TrackPublication | undefined {
     for (const [, pub] of this.trackPublications) {
       if (pub.source === source) {
         return pub;
@@ -113,10 +145,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   /**
    * Finds the first track that matches the track's name.
-   * @param name
-   * @returns
    */
-  getTrackByName(name: string): TrackPublication | undefined {
+  getTrackPublicationByName(name: string): TrackPublication | undefined {
     for (const [, pub] of this.trackPublications) {
       if (pub.trackName === name) {
         return pub;
@@ -129,17 +159,17 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   get isCameraEnabled(): boolean {
-    const track = this.getTrack(Track.Source.Camera);
+    const track = this.getTrackPublication(Track.Source.Camera);
     return !(track?.isMuted ?? true);
   }
 
   get isMicrophoneEnabled(): boolean {
-    const track = this.getTrack(Track.Source.Microphone);
+    const track = this.getTrackPublication(Track.Source.Microphone);
     return !(track?.isMuted ?? true);
   }
 
   get isScreenShareEnabled(): boolean {
-    const track = this.getTrack(Track.Source.ScreenShare);
+    const track = this.getTrackPublication(Track.Source.ScreenShare);
     return !!track;
   }
 
@@ -179,7 +209,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
-    log.trace('update participant info', { info });
+    this.log.trace('update participant info', { ...this.logContext, info });
     return true;
   }
 

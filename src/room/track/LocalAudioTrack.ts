@@ -1,7 +1,7 @@
-import log from '../../logger';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
+import type { LoggerOptions } from '../types';
 import { isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
@@ -28,8 +28,9 @@ export default class LocalAudioTrack extends LocalTrack {
     constraints?: MediaTrackConstraints,
     userProvidedTrack = true,
     audioContext?: AudioContext,
+    loggerOptions?: LoggerOptions,
   ) {
-    super(mediaTrack, Track.Kind.Audio, constraints, userProvidedTrack);
+    super(mediaTrack, Track.Kind.Audio, constraints, userProvidedTrack, loggerOptions);
     this.audioContext = audioContext;
     this.checkForSilence();
   }
@@ -52,7 +53,7 @@ export default class LocalAudioTrack extends LocalTrack {
     try {
       // disabled special handling as it will cause BT headsets to switch communication modes
       if (this.source === Track.Source.Microphone && this.stopOnMute && !this.isUserProvided) {
-        log.debug('stopping mic track');
+        this.log.debug('stopping mic track', this.logContext);
         // also stop the track, so that microphone indicator is turned off
         this._mediaStreamTrack.stop();
       }
@@ -76,7 +77,7 @@ export default class LocalAudioTrack extends LocalTrack {
         (this.stopOnMute || this._mediaStreamTrack.readyState === 'ended' || deviceHasChanged) &&
         !this.isUserProvided
       ) {
-        log.debug('reacquiring mic track');
+        this.log.debug('reacquiring mic track', this.logContext);
         await this.restartTrack();
       }
       await super.unmute();
@@ -127,7 +128,7 @@ export default class LocalAudioTrack extends LocalTrack {
     try {
       stats = await this.getSenderStats();
     } catch (e) {
-      log.error('could not get audio sender stats', { error: e });
+      this.log.error('could not get audio sender stats', { ...this.logContext, error: e });
       return;
     }
 
@@ -158,7 +159,7 @@ export default class LocalAudioTrack extends LocalTrack {
         track: this._mediaStreamTrack,
         audioContext: this.audioContext,
       };
-      log.debug(`setting up audio processor ${processor.name}`);
+      this.log.debug(`setting up audio processor ${processor.name}`, this.logContext);
 
       await processor.init(processorOptions);
       this.processor = processor;
@@ -207,7 +208,7 @@ export default class LocalAudioTrack extends LocalTrack {
     const trackIsSilent = await detectSilence(this);
     if (trackIsSilent) {
       if (!this.isMuted) {
-        log.warn('silence detected on local audio track');
+        this.log.warn('silence detected on local audio track', this.logContext);
       }
       this.emit(TrackEvent.AudioSilenceDetected);
     }
