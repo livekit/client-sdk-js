@@ -257,9 +257,30 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     return this.roomInfo?.activeRecording ?? false;
   }
 
-  /** server assigned unique room id */
-  get sid(): string {
-    return this.roomInfo?.sid ?? '';
+  /**
+   * server assigned unique room id.
+   * returns once a sid has been issued by the server.
+   */
+  async getSid(): Promise<string> {
+    if (this.state === ConnectionState.Disconnected) {
+      return '';
+    }
+    if (this.roomInfo && this.roomInfo.sid !== '') {
+      return this.roomInfo.sid;
+    }
+    return new Promise((resolve, reject) => {
+      const handleRoomUpdate = (roomInfo: RoomModel) => {
+        if (roomInfo.sid !== '') {
+          this.engine.off(EngineEvent.RoomUpdate, handleRoomUpdate);
+          resolve(roomInfo.sid);
+        }
+      };
+      this.engine.on(EngineEvent.RoomUpdate, handleRoomUpdate);
+      this.once(RoomEvent.Disconnected, () => {
+        this.engine.off(EngineEvent.RoomUpdate, handleRoomUpdate);
+        reject('Room disconnected before room server id was available');
+      });
+    });
   }
 
   /** user assigned name, derived from JWT token */
