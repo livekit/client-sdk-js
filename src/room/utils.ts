@@ -47,6 +47,10 @@ export function supportsAV1(): boolean {
   if (!('getCapabilities' in RTCRtpSender)) {
     return false;
   }
+  if (isSafari()) {
+    // Safari 17 on iPhone14 reports AV1 capability, but does not actually support it
+    return false;
+  }
   const capabilities = RTCRtpSender.getCapabilities('video');
   let hasAV1 = false;
   if (capabilities) {
@@ -68,6 +72,13 @@ export function supportsVP9(): boolean {
     // technically speaking FireFox supports VP9, but SVC publishing is broken
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
     return false;
+  }
+  if (isSafari()) {
+    const browser = getBrowser();
+    if (browser?.version && compareVersions(browser.version, '16') < 0) {
+      // Safari 16 and below does not support VP9
+      return false;
+    }
   }
   const capabilities = RTCRtpSender.getCapabilities('video');
   let hasVP9 = false;
@@ -135,6 +146,11 @@ export function isChromiumBased(): boolean {
 
 export function isSafari(): boolean {
   return getBrowser()?.name === 'Safari';
+}
+
+export function isSafari17(): boolean {
+  const b = getBrowser();
+  return b?.name === 'Safari' && b.version.startsWith('17.');
 }
 
 export function isMobile(): boolean {

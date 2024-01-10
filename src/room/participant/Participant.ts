@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import log from '../../logger';
+import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import {
   DataPacket_Kind,
   ParticipantInfo,
@@ -16,11 +16,17 @@ import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
+import type { LoggerOptions } from '../types';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
   Good = 'good',
   Poor = 'poor',
+  /**
+   * Indicates that a participant has temporarily (or permanently) lost connection to LiveKit.
+   * For permanent disconnection a `ParticipantDisconnected` event will be emitted after a timeout
+   */
+  Lost = 'lost',
   Unknown = 'unknown',
 }
 
@@ -32,6 +38,8 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
       return ConnectionQuality.Good;
     case ProtoQuality.POOR:
       return ConnectionQuality.Poor;
+    case ProtoQuality.LOST:
+      return ConnectionQuality.Lost;
     default:
       return ConnectionQuality.Unknown;
   }
@@ -73,13 +81,39 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   protected audioContext?: AudioContext;
 
+  protected log: StructuredLogger = log;
+
+  protected loggerOptions?: LoggerOptions;
+
+  protected get logContext() {
+    return {
+      ...this.loggerOptions?.loggerContextCb?.(),
+      participantSid: this.sid,
+      participantId: this.identity,
+    };
+  }
+
   get isEncrypted() {
     return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
   }
 
+  get isAgent() {
+    return this.permissions?.agent ?? false;
+  }
+
   /** @internal */
-  constructor(sid: string, identity: string, name?: string, metadata?: string) {
+  constructor(
+    sid: string,
+    identity: string,
+    name?: string,
+    metadata?: string,
+    loggerOptions?: LoggerOptions,
+  ) {
     super();
+
+    this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Participant);
+    this.loggerOptions = loggerOptions;
+
     this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
@@ -172,7 +206,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
-    log.trace('update participant info', { info });
+    this.log.trace('update participant info', { ...this.logContext, info });
     return true;
   }
 

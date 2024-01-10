@@ -19,6 +19,7 @@ import {
   RoomConnectOptions,
   RoomEvent,
   RoomOptions,
+  ScreenSharePresets,
   Track,
   TrackPublication,
   VideoCaptureOptions,
@@ -77,6 +78,7 @@ const appActions = {
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
+    const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
 
     setLogLevel(LogLevel.debug);
     updateSearchParams(url, token, cryptoKey);
@@ -84,6 +86,9 @@ const appActions = {
     const roomOpts: RoomOptions = {
       adaptiveStream,
       dynacast,
+      audioOutput: {
+        deviceId: audioOutputId,
+      },
       publishDefaults: {
         simulcast,
         videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
@@ -91,6 +96,7 @@ const appActions = {
         dtx: true,
         red: true,
         forceStereo: false,
+        screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,

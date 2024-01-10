@@ -1,5 +1,6 @@
 import { TrackEvent } from '../events';
 import { monitorFrequency } from '../stats';
+import type { LoggerOptions } from '../types';
 import { Track } from './Track';
 
 export default abstract class RemoteTrack extends Track {
@@ -11,8 +12,10 @@ export default abstract class RemoteTrack extends Track {
     sid: string,
     kind: Track.Kind,
     receiver?: RTCRtpReceiver,
+    loggerOptions?: LoggerOptions,
   ) {
-    super(mediaTrack, kind);
+    super(mediaTrack, kind, loggerOptions);
+
     this.sid = sid;
     this.receiver = receiver;
   }

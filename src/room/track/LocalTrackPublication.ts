@@ -1,5 +1,6 @@
 import type { TrackInfo } from '../../proto/livekit_models_pb';
 import { TrackEvent } from '../events';
+import type { LoggerOptions } from '../types';
 import type LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import type LocalVideoTrack from './LocalVideoTrack';
@@ -16,8 +17,8 @@ export default class LocalTrackPublication extends TrackPublication {
     return this.track?.isUpstreamPaused;
   }
 
-  constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack) {
-    super(kind, ti.sid, ti.name);
+  constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack, loggerOptions?: LoggerOptions) {
+    super(kind, ti.sid, ti.name, loggerOptions);
 
     this.updateInfo(ti);
     this.setTrack(track);

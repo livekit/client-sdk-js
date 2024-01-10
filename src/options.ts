@@ -92,6 +92,8 @@ export interface InternalRoomOptions {
    * @experimental
    */
   e2ee?: E2EEOptions;
+
+  loggerName?: string;
 }
 
 /**

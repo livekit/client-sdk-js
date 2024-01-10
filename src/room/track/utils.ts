@@ -155,7 +155,8 @@ export function screenCaptureToDisplayMediaStreamOptions(
   options: ScreenShareCaptureOptions,
 ): DisplayMediaStreamOptions {
   let videoConstraints: MediaTrackConstraints | boolean = options.video ?? true;
-  if (options.resolution) {
+  // treat 0 as uncapped
+  if (options.resolution && options.resolution.width > 0 && options.resolution.height > 0) {
     videoConstraints = typeof videoConstraints === 'boolean' ? {} : videoConstraints;
     if (isSafari()) {
       videoConstraints = {
@@ -208,4 +209,25 @@ export function getTrackPublicationInfo<T extends TrackPublication>(
     }
   });
   return infos;
+}
+
+export function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown> {
+  if (track instanceof Track) {
+    return {
+      trackSid: track.sid,
+      trackSource: track.source,
+      trackMuted: track.isMuted,
+      trackEnabled: track.mediaStreamTrack.enabled,
+      trackKind: track.kind,
+    };
+  } else {
+    return {
+      trackSid: track.trackSid,
+      trackName: track.trackName,
+      track: track.track ? getLogContextFromTrack(track.track) : undefined,
+      trackEnabled: track.isEnabled,
+      trackEncrypted: track.isEncrypted,
+      trackMimeType: track.mimeType,
+    };
+  }
 }

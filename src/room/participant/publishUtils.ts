@@ -10,18 +10,20 @@ import type {
   VideoEncoding,
 } from '../track/options';
 import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
+import type { LoggerOptions } from '../types';
 import { getReactNativeOs, isFireFox, isReactNative, isSVCCodec } from '../utils';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
   mediaStreamTrack: MediaStreamTrack,
   constraints?: MediaTrackConstraints,
+  loggerOptions?: LoggerOptions,
 ): LocalVideoTrack | LocalAudioTrack {
   switch (mediaStreamTrack.kind) {
     case 'audio':
-      return new LocalAudioTrack(mediaStreamTrack, constraints, false);
+      return new LocalAudioTrack(mediaStreamTrack, constraints, false, undefined, loggerOptions);
     case 'video':
-      return new LocalVideoTrack(mediaStreamTrack, constraints, false);
+      return new LocalVideoTrack(mediaStreamTrack, constraints, false, loggerOptions);
     default:
       throw new TrackInvalidError(`unsupported track type: ${mediaStreamTrack.kind}`);
   }
@@ -44,7 +46,7 @@ export const defaultSimulcastPresets43 = [VideoPresets43.h180, VideoPresets43.h3
 
 /* @internal */
 export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPreset) => {
-  const layers = [{ scaleResolutionDownBy: 2, fps: 3 }];
+  const layers = [{ scaleResolutionDownBy: 2, fps: fromPreset.encoding.maxFramerate }];
   return layers.map(
     (t) =>
       new VideoPreset(
@@ -54,7 +56,8 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
           150_000,
           Math.floor(
             fromPreset.encoding.maxBitrate /
-              (t.scaleResolutionDownBy ** 2 * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps)),
+              (t.scaleResolutionDownBy ** 2 *
+                ((fromPreset.encoding.maxFramerate ?? 30) / (t.fps ?? 30))),
           ),
         ),
         t.fps,
