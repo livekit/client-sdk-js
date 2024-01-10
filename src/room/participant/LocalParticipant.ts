@@ -31,7 +31,7 @@ import type {
   TrackPublishOptions,
   VideoCaptureOptions,
 } from '../track/options';
-import { VideoPresets, isBackupCodec } from '../track/options';
+import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
 import {
   constraintsForOptions,
   getLogContextFromTrack,
@@ -40,7 +40,16 @@ import {
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
 import type { DataPublishOptions } from '../types';
-import { Future, isFireFox, isSVCCodec, isSafari, isWeb, supportsAV1, supportsVP9 } from '../utils';
+import {
+  Future,
+  isFireFox,
+  isSVCCodec,
+  isSafari,
+  isSafari17,
+  isWeb,
+  supportsAV1,
+  supportsVP9,
+} from '../utils';
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import { trackPermissionToProto } from './ParticipantTrackPermission';
@@ -457,6 +466,13 @@ export default class LocalParticipant extends Participant {
       throw new DeviceUnsupportedError('getDisplayMedia not supported');
     }
 
+    if (options.resolution === undefined && !isSafari17()) {
+      // we need to constrain the dimensions, otherwise it could lead to low bitrate
+      // due to encoding a huge video. Encoding such large surfaces is really expensive
+      // unfortunately Safari 17 has a but and cannot be constrained by default
+      options.resolution = ScreenSharePresets.h1080fps30.resolution;
+    }
+
     const constraints = screenCaptureToDisplayMediaStreamOptions(options);
     const stream: MediaStream = await navigator.mediaDevices.getDisplayMedia(constraints);
 
@@ -469,6 +485,10 @@ export default class LocalParticipant extends Participant {
       loggerContextCb: () => this.logContext,
     });
     screenVideo.source = Track.Source.ScreenShare;
+    if (options.contentHint) {
+      screenVideo.mediaStreamTrack.contentHint = options.contentHint;
+    }
+
     const localTracks: Array<LocalTrack> = [screenVideo];
     if (stream.getAudioTracks().length > 0) {
       this.emit(ParticipantEvent.AudioStreamAcquired);

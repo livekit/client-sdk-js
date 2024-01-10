@@ -46,7 +46,7 @@ export const defaultSimulcastPresets43 = [VideoPresets43.h180, VideoPresets43.h3
 
 /* @internal */
 export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPreset) => {
-  const layers = [{ scaleResolutionDownBy: 2, fps: 3 }];
+  const layers = [{ scaleResolutionDownBy: 2, fps: fromPreset.encoding.maxFramerate }];
   return layers.map(
     (t) =>
       new VideoPreset(
@@ -56,7 +56,8 @@ export const computeDefaultScreenShareSimulcastPresets = (fromPreset: VideoPrese
           150_000,
           Math.floor(
             fromPreset.encoding.maxBitrate /
-              (t.scaleResolutionDownBy ** 2 * ((fromPreset.encoding.maxFramerate ?? 30) / t.fps)),
+              (t.scaleResolutionDownBy ** 2 *
+                ((fromPreset.encoding.maxFramerate ?? 30) / (t.fps ?? 30))),
           ),
         ),
         t.fps,

@@ -40,7 +40,7 @@
     "build:watch": "rollup --watch --config rollup.config.js",
     "build-docs": "typedoc",
     "proto": "protoc --es_out src/proto --es_opt target=ts -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
-    "sample": "vite example -c vite.config.js",
+    "sample": "vite example -c vite.config.mjs",
     "lint": "eslint src",
     "test": "vitest run src",
     "deploy": "gh-pages -d example/dist",
