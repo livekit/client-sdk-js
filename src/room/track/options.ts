@@ -377,4 +377,6 @@ export const ScreenSharePresets = {
   h720fps30: new VideoPreset(1280, 720, 2_000_000, 30, 'medium'),
   h1080fps15: new VideoPreset(1920, 1080, 2_500_000, 15, 'medium'),
   h1080fps30: new VideoPreset(1920, 1080, 5_000_000, 30, 'medium'),
+  // original resolution, without resizing
+  original: new VideoPreset(0, 0, 7_000_000, 30, 'medium'),
 } as const;

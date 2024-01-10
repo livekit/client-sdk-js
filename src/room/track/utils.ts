@@ -155,7 +155,8 @@ export function screenCaptureToDisplayMediaStreamOptions(
   options: ScreenShareCaptureOptions,
 ): DisplayMediaStreamOptions {
   let videoConstraints: MediaTrackConstraints | boolean = options.video ?? true;
-  if (options.resolution) {
+  // treat 0 as uncapped
+  if (options.resolution && options.resolution.width > 0 && options.resolution.height > 0) {
     videoConstraints = typeof videoConstraints === 'boolean' ? {} : videoConstraints;
     if (isSafari()) {
       videoConstraints = {
