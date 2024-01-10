@@ -53,7 +53,6 @@ import {
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import { trackPermissionToProto } from './ParticipantTrackPermission';
-import RemoteParticipant from './RemoteParticipant';
 import {
   computeTrackBackupEncodings,
   computeVideoEncodings,
@@ -1130,64 +1129,21 @@ export default class LocalParticipant extends Participant {
    * participant in the room if the destination field in publishOptions is empty
    *
    * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
-   * @param kind whether to send this as reliable or lossy.
-   * For data that you need delivery guarantee (such as chat messages), use Reliable.
-   * For data that should arrive as quickly as possible, but you are ok with dropped
-   * packets, use Lossy.
-   * @param publishOptions optionally specify a `topic` and `destination`
+   * @param options optionally specify a `reliable`, `topic` and `destination`
    */
-  async publishData(
-    data: Uint8Array,
-    kind: DataPacket_Kind,
-    publishOptions?: DataPublishOptions,
-  ): Promise<void>;
-  /**
-   * Publish a new data payload to the room. Data will be forwarded to each
-   * participant in the room if the destination argument is empty
-   *
-   * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
-   * @param kind whether to send this as reliable or lossy.
-   * For data that you need delivery guarantee (such as chat messages), use Reliable.
-   * For data that should arrive as quickly as possible, but you are ok with dropped
-   * packets, use Lossy.
-   * @param destination the participants who will receive the message
-   */
-  async publishData(
-    data: Uint8Array,
-    kind: DataPacket_Kind,
-    destination?: RemoteParticipant[] | string[],
-  ): Promise<void>;
-
-  async publishData(
-    data: Uint8Array,
-    kind: DataPacket_Kind,
-    publishOptions: DataPublishOptions | RemoteParticipant[] | string[] = {},
-  ) {
-    const destination = Array.isArray(publishOptions)
-      ? publishOptions
-      : publishOptions?.destination;
-    const destinationSids: string[] = [];
-
-    const topic = !Array.isArray(publishOptions) ? publishOptions.topic : undefined;
-
-    if (destination !== undefined) {
-      destination.forEach((val: any) => {
-        if (val instanceof RemoteParticipant) {
-          destinationSids.push(val.sid);
-        } else {
-          destinationSids.push(val);
-        }
-      });
-    }
+  async publishData(data: Uint8Array, options: DataPublishOptions = {}): Promise<void> {
+    const kind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
+    const destinationIdentities = options.destinationIdentities;
+    const topic = options.topic;
 
     const packet = new DataPacket({
-      kind,
+      kind: kind,
       value: {
         case: 'user',
         value: new UserPacket({
-          participantSid: this.sid,
+          participantIdentity: this.identity,
           payload: data,
-          destinationSids: destinationSids,
+          destinationIdentities,
           topic,
         }),
       },
