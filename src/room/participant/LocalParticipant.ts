@@ -119,15 +119,15 @@ export default class LocalParticipant extends Participant {
     return this.encryptionType !== Encryption_Type.NONE;
   }
 
-  getTrack(source: Track.Source): LocalTrackPublication | undefined {
-    const track = super.getTrack(source);
+  getTrackPublication(source: Track.Source): LocalTrackPublication | undefined {
+    const track = super.getTrackPublication(source);
     if (track) {
       return track as LocalTrackPublication;
     }
   }
 
-  getTrackByName(name: string): LocalTrackPublication | undefined {
-    const track = super.getTrackByName(name);
+  getTrackPublicationByName(name: string): LocalTrackPublication | undefined {
+    const track = super.getTrackPublicationByName(name);
     if (track) {
       return track as LocalTrackPublication;
     }
@@ -289,7 +289,7 @@ export default class LocalParticipant extends Participant {
     publishOptions?: TrackPublishOptions,
   ) {
     this.log.debug('setTrackEnabled', { ...this.logContext, source, enabled });
-    let track = this.getTrack(source);
+    let track = this.getTrackPublication(source);
     if (enabled) {
       if (track) {
         await track.unmute();
@@ -350,7 +350,7 @@ export default class LocalParticipant extends Participant {
       // screenshare cannot be muted, unpublish instead
       if (source === Track.Source.ScreenShare) {
         track = await this.unpublishTrack(track.track);
-        const screenAudioTrack = this.getTrack(Track.Source.ScreenShareAudio);
+        const screenAudioTrack = this.getTrackPublication(Track.Source.ScreenShareAudio);
         if (screenAudioTrack && screenAudioTrack.track) {
           this.unpublishTrack(screenAudioTrack.track);
         }

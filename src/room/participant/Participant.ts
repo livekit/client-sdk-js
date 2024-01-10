@@ -124,17 +124,15 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.tracks = new Map();
   }
 
-  getTracks(): TrackPublication[] {
+  getTrackPublications(): TrackPublication[] {
     return Array.from(this.tracks.values());
   }
 
   /**
    * Finds the first track that matches the source filter, for example, getting
    * the user's camera track with getTrackBySource(Track.Source.Camera).
-   * @param source
-   * @returns
    */
-  getTrack(source: Track.Source): TrackPublication | undefined {
+  getTrackPublication(source: Track.Source): TrackPublication | undefined {
     for (const [, pub] of this.tracks) {
       if (pub.source === source) {
         return pub;
@@ -144,10 +142,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   /**
    * Finds the first track that matches the track's name.
-   * @param name
-   * @returns
    */
-  getTrackByName(name: string): TrackPublication | undefined {
+  getTrackPublicationByName(name: string): TrackPublication | undefined {
     for (const [, pub] of this.tracks) {
       if (pub.trackName === name) {
         return pub;
@@ -160,17 +156,17 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   get isCameraEnabled(): boolean {
-    const track = this.getTrack(Track.Source.Camera);
+    const track = this.getTrackPublication(Track.Source.Camera);
     return !(track?.isMuted ?? true);
   }
 
   get isMicrophoneEnabled(): boolean {
-    const track = this.getTrack(Track.Source.Microphone);
+    const track = this.getTrackPublication(Track.Source.Microphone);
     return !(track?.isMuted ?? true);
   }
 
   get isScreenShareEnabled(): boolean {
-    const track = this.getTrack(Track.Source.ScreenShare);
+    const track = this.getTrackPublication(Track.Source.ScreenShare);
     return !!track;
   }
 
