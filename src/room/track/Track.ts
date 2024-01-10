@@ -1,11 +1,13 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
-import log from '../../logger';
+import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
 import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
+import type { LoggerOptions } from '../types';
 import { isFireFox, isSafari, isWeb } from '../utils';
+import { getLogContextFromTrack } from './utils';
 
 const BACKGROUND_REACTION_DELAY = 5000;
 
@@ -46,17 +48,35 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
   private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
 
+  private loggerContextCb: LoggerOptions['loggerContextCb'];
+
   protected _currentBitrate: number = 0;
 
   protected monitorInterval?: ReturnType<typeof setInterval>;
 
-  protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
+  protected log: StructuredLogger = log;
+
+  protected constructor(
+    mediaTrack: MediaStreamTrack,
+    kind: Track.Kind,
+    loggerOptions: LoggerOptions = {},
+  ) {
     super();
+    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Track);
+    this.loggerContextCb = loggerOptions.loggerContextCb;
+
     this.setMaxListeners(100);
     this.kind = kind;
     this._mediaStreamTrack = mediaTrack;
     this._mediaStreamID = mediaTrack.id;
     this.source = Track.Source.Unknown;
+  }
+
+  protected get logContext() {
+    return {
+      ...this.loggerContextCb?.(),
+      ...getLogContextFromTrack(this),
+    };
   }
 
   /** current receive bits per second */
@@ -221,6 +241,16 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
   stopMonitor() {
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
+    }
+  }
+
+  /** @internal */
+  updateLoggerOptions(loggerOptions: LoggerOptions) {
+    if (loggerOptions.loggerName) {
+      this.log = getLogger(loggerOptions.loggerName);
+    }
+    if (loggerOptions.loggerContextCb) {
+      this.loggerContextCb = loggerOptions.loggerContextCb;
     }
   }
 

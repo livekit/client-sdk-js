@@ -1,5 +1,5 @@
 import { protoInt64 } from '@bufbuild/protobuf';
-import log from '../logger';
+import log, { LoggerNames, getLogger } from '../logger';
 import {
   ClientInfo,
   DisconnectReason,
@@ -39,6 +39,7 @@ import {
 } from '../proto/livekit_rtc_pb';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
+import type { LoggerOptions } from '../room/types';
 import { Mutex, getClientInfo, isReactNative, sleep, toWebsocketUrl } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
 
@@ -172,13 +173,23 @@ export class SignalClient {
 
   private connectionLock: Mutex;
 
-  constructor(useJSON: boolean = false) {
+  private log = log;
+
+  private loggerContextCb?: LoggerOptions['loggerContextCb'];
+
+  constructor(useJSON: boolean = false, loggerOptions: LoggerOptions = {}) {
+    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Signal);
+    this.loggerContextCb = loggerOptions.loggerContextCb;
     this.useJSON = useJSON;
     this.requestQueue = new AsyncQueue();
     this.queuedRequests = [];
     this.closingLock = new Mutex();
     this.connectionLock = new Mutex();
     this.state = SignalConnectionState.DISCONNECTED;
+  }
+
+  private get logContext() {
+    return this.loggerContextCb?.() ?? {};
   }
 
   async join(
@@ -202,7 +213,10 @@ export class SignalClient {
     reason?: ReconnectReason,
   ): Promise<ReconnectResponse | void> {
     if (!this.options) {
-      log.warn('attempted to reconnect without signal options being set, ignoring');
+      this.log.warn(
+        'attempted to reconnect without signal options being set, ignoring',
+        this.logContext,
+      );
       return;
     }
     this.state = SignalConnectionState.RECONNECTING;
@@ -251,7 +265,7 @@ export class SignalClient {
           abortHandler();
         }
         abortSignal?.addEventListener('abort', abortHandler);
-        log.debug(`connecting to ${url + params}`);
+        this.log.debug(`connecting to ${url + params}`, this.logContext);
         if (this.ws) {
           await this.close();
         }
@@ -302,7 +316,10 @@ export class SignalClient {
           } else if (ev.data instanceof ArrayBuffer) {
             resp = SignalResponse.fromBinary(new Uint8Array(ev.data));
           } else {
-            log.error(`could not decode websocket message: ${typeof ev.data}`);
+            this.log.error(
+              `could not decode websocket message: ${typeof ev.data}`,
+              this.logContext,
+            );
             return;
           }
 
@@ -316,7 +333,8 @@ export class SignalClient {
               this.pingIntervalDuration = resp.message.value.pingInterval;
 
               if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
-                log.debug('ping config', {
+                this.log.debug('ping config', {
+                  ...this.logContext,
                   timeout: this.pingTimeoutDuration,
                   interval: this.pingIntervalDuration,
                 });
@@ -354,7 +372,7 @@ export class SignalClient {
         };
 
         this.ws.onclose = (ev: CloseEvent) => {
-          log.warn(`websocket closed`, { ev });
+          this.log.warn(`websocket closed`, { ...this.logContext, reason: ev.reason });
           this.handleOnClose(ev.reason);
         };
       } finally {
@@ -414,7 +432,7 @@ export class SignalClient {
 
   // initial offer after joining
   sendOffer(offer: RTCSessionDescriptionInit) {
-    log.debug('sending offer', offer);
+    this.log.debug('sending offer', { ...this.logContext, offerSdp: offer.sdp });
     this.sendRequest({
       case: 'offer',
       value: toProtoSessionDescription(offer),
@@ -423,7 +441,7 @@ export class SignalClient {
 
   // answer a server-initiated offer
   sendAnswer(answer: RTCSessionDescriptionInit) {
-    log.debug('sending answer');
+    this.log.debug('sending answer', { ...this.logContext, answerSdp: answer.sdp });
     return this.sendRequest({
       case: 'answer',
       value: toProtoSessionDescription(answer),
@@ -431,7 +449,7 @@ export class SignalClient {
   }
 
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
-    log.trace('sending ice candidate', candidate);
+    this.log.trace('sending ice candidate', { ...this.logContext, candidate });
     return this.sendRequest({
       case: 'trickle',
       value: new TrickleRequest({
@@ -561,7 +579,10 @@ export class SignalClient {
       await sleep(this.signalLatency);
     }
     if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
-      log.error(`cannot send signal request before connected, type: ${message?.case}`);
+      this.log.error(
+        `cannot send signal request before connected, type: ${message?.case}`,
+        this.logContext,
+      );
       return;
     }
     const req = new SignalRequest({ message });
@@ -573,14 +594,14 @@ export class SignalClient {
         this.ws.send(req.toBinary());
       }
     } catch (e) {
-      log.error('error sending signal message', { error: e });
+      this.log.error('error sending signal message', { ...this.logContext, error: e });
     }
   }
 
   private handleSignalResponse(res: SignalResponse) {
     const msg = res.message;
     if (msg == undefined) {
-      log.debug('received unsupported message');
+      this.log.debug('received unsupported message', this.logContext);
       return;
     }
 
@@ -658,7 +679,7 @@ export class SignalClient {
       this.resetPingTimeout();
       pingHandled = true;
     } else {
-      log.debug('unsupported message', msg);
+      this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });
     }
 
     if (!pingHandled) {
@@ -679,14 +700,14 @@ export class SignalClient {
     if (this.state === SignalConnectionState.DISCONNECTED) return;
     const onCloseCallback = this.onClose;
     await this.close();
-    log.debug(`websocket connection closed: ${reason}`);
+    this.log.debug(`websocket connection closed: ${reason}`, { ...this.logContext, reason });
     if (onCloseCallback) {
       onCloseCallback(reason);
     }
   }
 
   private handleWSError(ev: Event) {
-    log.error('websocket error', ev);
+    this.log.error('websocket error', { ...this.logContext, error: ev });
   }
 
   /**
@@ -696,14 +717,15 @@ export class SignalClient {
   private resetPingTimeout() {
     this.clearPingTimeout();
     if (!this.pingTimeoutDuration) {
-      log.warn('ping timeout duration not set');
+      this.log.warn('ping timeout duration not set', this.logContext);
       return;
     }
     this.pingTimeout = CriticalTimers.setTimeout(() => {
-      log.warn(
+      this.log.warn(
         `ping timeout triggered. last pong received at: ${new Date(
           Date.now() - this.pingTimeoutDuration! * 1000,
         ).toUTCString()}`,
+        this.logContext,
       );
       this.handleOnClose('ping timeout');
     }, this.pingTimeoutDuration * 1000);
@@ -722,17 +744,17 @@ export class SignalClient {
     this.clearPingInterval();
     this.resetPingTimeout();
     if (!this.pingIntervalDuration) {
-      log.warn('ping interval duration not set');
+      this.log.warn('ping interval duration not set', this.logContext);
       return;
     }
-    log.debug('start ping interval');
+    this.log.debug('start ping interval', this.logContext);
     this.pingInterval = CriticalTimers.setInterval(() => {
       this.sendPing();
     }, this.pingIntervalDuration * 1000);
   }
 
   private clearPingInterval() {
-    log.debug('clearing ping interval');
+    this.log.debug('clearing ping interval', this.logContext);
     this.clearPingTimeout();
     if (this.pingInterval) {
       CriticalTimers.clearInterval(this.pingInterval);

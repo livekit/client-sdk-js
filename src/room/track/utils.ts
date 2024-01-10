@@ -209,3 +209,24 @@ export function getTrackPublicationInfo<T extends TrackPublication>(
   });
   return infos;
 }
+
+export function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown> {
+  if (track instanceof Track) {
+    return {
+      trackSid: track.sid,
+      trackSource: track.source,
+      trackMuted: track.isMuted,
+      trackEnabled: track.mediaStreamTrack.enabled,
+      trackKind: track.kind,
+    };
+  } else {
+    return {
+      trackSid: track.trackSid,
+      trackName: track.trackName,
+      track: track.track ? getLogContextFromTrack(track.track) : undefined,
+      trackEnabled: track.isEnabled,
+      trackEncrypted: track.isEncrypted,
+      trackMimeType: track.mimeType,
+    };
+  }
+}

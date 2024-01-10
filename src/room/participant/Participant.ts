@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import log from '../../logger';
+import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import {
   DataPacket_Kind,
   ParticipantInfo,
@@ -16,6 +16,7 @@ import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
+import type { LoggerOptions } from '../types';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -80,6 +81,18 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   protected audioContext?: AudioContext;
 
+  protected log: StructuredLogger = log;
+
+  protected loggerOptions?: LoggerOptions;
+
+  protected get logContext() {
+    return {
+      ...this.loggerOptions?.loggerContextCb?.(),
+      participantSid: this.sid,
+      participantId: this.identity,
+    };
+  }
+
   get isEncrypted() {
     return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
   }
@@ -89,8 +102,18 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   /** @internal */
-  constructor(sid: string, identity: string, name?: string, metadata?: string) {
+  constructor(
+    sid: string,
+    identity: string,
+    name?: string,
+    metadata?: string,
+    loggerOptions?: LoggerOptions,
+  ) {
     super();
+
+    this.log = getLogger(loggerOptions?.loggerName ?? LoggerNames.Participant);
+    this.loggerOptions = loggerOptions;
+
     this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
@@ -187,7 +210,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
-    log.trace('update participant info', { info });
+    this.log.trace('update participant info', { ...this.logContext, info });
     return true;
   }
 
