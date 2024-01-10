@@ -1108,6 +1108,8 @@ export default class LocalParticipant extends Participant {
         if (
           restartTracks &&
           !track.isMuted &&
+          track.source !== Track.Source.ScreenShare &&
+          track.source !== Track.Source.ScreenShareAudio &&
           (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
           !track.isUserProvided
         ) {
