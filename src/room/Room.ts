@@ -1131,40 +1131,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     try {
       // unpublish & republish tracks
-      const localPubs: LocalTrackPublication[] = [];
-      this.localParticipant.trackPublications.forEach((pub) => {
-        if (pub.track) {
-          localPubs.push(pub);
-        }
-      });
-
-      await Promise.all(
-        localPubs.map(async (pub) => {
-          const track = pub.track!;
-          this.localParticipant.unpublishTrack(track, false);
-          if (!track.isMuted) {
-            if (
-              (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
-              track.source !== Track.Source.ScreenShare &&
-              track.source !== Track.Source.ScreenShareAudio &&
-              !track.isUserProvided
-            ) {
-              // we need to restart the track before publishing, often a full reconnect
-              // is necessary because computer had gone to sleep.
-              this.log.debug('restarting existing track', {
-                ...this.logContext,
-                track: pub.trackSid,
-              });
-              await track.restartTrack();
-            }
-            this.log.debug('publishing new track', {
-              ...this.logContext,
-              track: pub.trackSid,
-            });
-            await this.localParticipant.publishTrack(track, pub.options);
-          }
-        }),
-      );
+      await this.localParticipant.republishAllTracks(undefined, true);
     } catch (error) {
       this.log.error('error trying to re-publish tracks after reconnection', {
         ...this.logContext,
