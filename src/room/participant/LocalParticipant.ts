@@ -60,12 +60,12 @@ import {
 } from './publishUtils';
 
 export default class LocalParticipant extends Participant {
-  audioTracks: Map<string, LocalTrackPublication>;
+  audioTrackPublications: Map<string, LocalTrackPublication>;
 
-  videoTracks: Map<string, LocalTrackPublication>;
+  videoTrackPublications: Map<string, LocalTrackPublication>;
 
   /** map of track sid => all published tracks */
-  tracks: Map<string, LocalTrackPublication>;
+  trackPublications: Map<string, LocalTrackPublication>;
 
   /** @internal */
   engine: RTCEngine;
@@ -98,9 +98,9 @@ export default class LocalParticipant extends Participant {
       loggerName: options.loggerName,
       loggerContextCb: () => this.engine.logContext,
     });
-    this.audioTracks = new Map();
-    this.videoTracks = new Map();
-    this.tracks = new Map();
+    this.audioTrackPublications = new Map();
+    this.videoTrackPublications = new Map();
+    this.trackPublications = new Map();
     this.engine = engine;
     this.roomOptions = options;
     this.setupEngine(engine);
@@ -139,7 +139,7 @@ export default class LocalParticipant extends Participant {
   setupEngine(engine: RTCEngine) {
     this.engine = engine;
     this.engine.on(EngineEvent.RemoteMute, (trackSid: string, muted: boolean) => {
-      const pub = this.tracks.get(trackSid);
+      const pub = this.trackPublications.get(trackSid);
       if (!pub || !pub.track) {
         return;
       }
@@ -572,7 +572,7 @@ export default class LocalParticipant extends Participant {
 
     // is it already published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
-    this.tracks.forEach((publication) => {
+    this.trackPublications.forEach((publication) => {
       if (!publication.track) {
         return;
       }
@@ -650,7 +650,7 @@ export default class LocalParticipant extends Participant {
   }
 
   private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
-    const existingTrackOfSource = Array.from(this.tracks.values()).find(
+    const existingTrackOfSource = Array.from(this.trackPublications.values()).find(
       (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
     );
     if (existingTrackOfSource && track.source !== Track.Source.Unknown) {
@@ -913,7 +913,7 @@ export default class LocalParticipant extends Participant {
 
     // is it not published? if so skip
     let existingPublication: LocalTrackPublication | undefined;
-    this.tracks.forEach((publication) => {
+    this.trackPublications.forEach((publication) => {
       if (!publication.track) {
         return;
       }
@@ -1060,13 +1060,13 @@ export default class LocalParticipant extends Participant {
     }
 
     // remove from our maps
-    this.tracks.delete(publication.trackSid);
+    this.trackPublications.delete(publication.trackSid);
     switch (publication.kind) {
       case Track.Kind.Audio:
-        this.audioTracks.delete(publication.trackSid);
+        this.audioTrackPublications.delete(publication.trackSid);
         break;
       case Track.Kind.Video:
-        this.videoTracks.delete(publication.trackSid);
+        this.videoTrackPublications.delete(publication.trackSid);
         break;
       default:
         break;
@@ -1092,7 +1092,7 @@ export default class LocalParticipant extends Participant {
 
   async republishAllTracks(options?: TrackPublishOptions, restartTracks: boolean = true) {
     const localPubs: LocalTrackPublication[] = [];
-    this.tracks.forEach((pub) => {
+    this.trackPublications.forEach((pub) => {
       if (pub.track) {
         if (options) {
           pub.options = { ...pub.options, ...options };
@@ -1195,7 +1195,7 @@ export default class LocalParticipant extends Participant {
     // if server's track mute status doesn't match actual, we'll have to update
     // the server's copy
     info.tracks.forEach((ti) => {
-      const pub = this.tracks.get(ti.sid);
+      const pub = this.trackPublications.get(ti.sid);
 
       if (pub) {
         const mutedOnServer = pub.isMuted || (pub.track?.isUpstreamPaused ?? false);
@@ -1267,7 +1267,7 @@ export default class LocalParticipant extends Participant {
     if (!this.roomOptions?.dynacast) {
       return;
     }
-    const pub = this.videoTracks.get(update.trackSid);
+    const pub = this.videoTrackPublications.get(update.trackSid);
     if (!pub) {
       this.log.warn('received subscribed quality update for unknown track', {
         ...this.logContext,
@@ -1295,7 +1295,7 @@ export default class LocalParticipant extends Participant {
   };
 
   private handleLocalTrackUnpublished = (unpublished: TrackUnpublishedResponse) => {
-    const track = this.tracks.get(unpublished.trackSid);
+    const track = this.trackPublications.get(unpublished.trackSid);
     if (!track) {
       this.log.warn('received unpublished event for unknown track', {
         ...this.logContext,
@@ -1369,7 +1369,7 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
   ): LocalTrackPublication | undefined {
     let publication: LocalTrackPublication | undefined;
-    this.tracks.forEach((pub) => {
+    this.trackPublications.forEach((pub) => {
       const localTrack = pub.track;
       if (!localTrack) {
         return;

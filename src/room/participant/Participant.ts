@@ -48,12 +48,12 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
 export default class Participant extends (EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>) {
   protected participantInfo?: ParticipantInfo;
 
-  audioTracks: Map<string, TrackPublication>;
+  audioTrackPublications: Map<string, TrackPublication>;
 
-  videoTracks: Map<string, TrackPublication>;
+  videoTrackPublications: Map<string, TrackPublication>;
 
   /** map of track sid => all published tracks */
-  tracks: Map<string, TrackPublication>;
+  trackPublications: Map<string, TrackPublication>;
 
   /** audio level between 0-1.0, 1 being loudest, 0 being softest */
   audioLevel: number = 0;
@@ -94,7 +94,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   get isEncrypted() {
-    return this.tracks.size > 0 && Array.from(this.tracks.values()).every((tr) => tr.isEncrypted);
+    return (
+      this.trackPublications.size > 0 &&
+      Array.from(this.trackPublications.values()).every((tr) => tr.isEncrypted)
+    );
   }
 
   get isAgent() {
@@ -119,13 +122,13 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.identity = identity;
     this.name = name;
     this.metadata = metadata;
-    this.audioTracks = new Map();
-    this.videoTracks = new Map();
-    this.tracks = new Map();
+    this.audioTrackPublications = new Map();
+    this.videoTrackPublications = new Map();
+    this.trackPublications = new Map();
   }
 
   getTrackPublications(): TrackPublication[] {
-    return Array.from(this.tracks.values());
+    return Array.from(this.trackPublications.values());
   }
 
   /**
@@ -133,7 +136,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    * the user's camera track with getTrackBySource(Track.Source.Camera).
    */
   getTrackPublication(source: Track.Source): TrackPublication | undefined {
-    for (const [, pub] of this.tracks) {
+    for (const [, pub] of this.trackPublications) {
       if (pub.source === source) {
         return pub;
       }
@@ -144,7 +147,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    * Finds the first track that matches the track's name.
    */
   getTrackPublicationByName(name: string): TrackPublication | undefined {
-    for (const [, pub] of this.tracks) {
+    for (const [, pub] of this.trackPublications) {
       if (pub.trackName === name) {
         return pub;
       }
@@ -279,7 +282,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    */
   setAudioContext(ctx: AudioContext | undefined) {
     this.audioContext = ctx;
-    this.audioTracks.forEach(
+    this.audioTrackPublications.forEach(
       (track) =>
         (track.track instanceof RemoteAudioTrack || track.track instanceof LocalAudioTrack) &&
         track.track.setAudioContext(ctx),
@@ -301,13 +304,13 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       pub.track.sid = publication.trackSid;
     }
 
-    this.tracks.set(publication.trackSid, publication);
+    this.trackPublications.set(publication.trackSid, publication);
     switch (publication.kind) {
       case Track.Kind.Audio:
-        this.audioTracks.set(publication.trackSid, publication);
+        this.audioTrackPublications.set(publication.trackSid, publication);
         break;
       case Track.Kind.Video:
-        this.videoTracks.set(publication.trackSid, publication);
+        this.videoTrackPublications.set(publication.trackSid, publication);
         break;
       default:
         break;
