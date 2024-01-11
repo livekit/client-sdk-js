@@ -51,6 +51,7 @@ const livekit = require('livekit-client');
 
 const room = new livekit.Room(...);
 
+// call this some time before actually connecting to speed up the actual connection
 room.prepareConnection(url, token);
 
 await room.connect(...);
@@ -164,14 +165,14 @@ await p.setCameraEnabled(false);
 Similarly, you can access these common track types on the other participants' end.
 
 ```typescript
-// get a RemoteParticipant by their sid
-const p = room.participants.get('participant-sid');
+// get a RemoteParticipant by their identity
+const p = room.remoteParticipants.get('participant-identity');
 if (p) {
   // if the other user has enabled their camera, attach it to a new HTMLVideoElement
   if (p.isCameraEnabled) {
-    const track = p.getTrack(Track.Source.Camera);
-    if (track?.isSubscribed) {
-      const videoElement = track.videoTrack?.attach();
+    const publication = p.getTrackPublication(Track.Source.Camera);
+    if (publication?.isSubscribed) {
+      const videoElement = publication.videoTrack?.attach();
       // do something with the element
     }
   }
