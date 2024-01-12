@@ -339,7 +339,10 @@ export class SignalClient {
                 this.startPingInterval();
               }
               resolve(resp.message.value);
-            } else if (this.state === SignalConnectionState.RECONNECTING) {
+            } else if (
+              this.state === SignalConnectionState.RECONNECTING &&
+              resp.message.case !== 'leave'
+            ) {
               // in reconnecting, any message received means signal reconnected
               this.state = SignalConnectionState.CONNECTED;
               abortSignal?.removeEventListener('abort', abortHandler);
@@ -350,6 +353,11 @@ export class SignalClient {
                 resolve();
                 shouldProcessMessage = true;
               }
+            } else if (
+              this.state === SignalConnectionState.RECONNECTING &&
+              resp.message.case === 'leave'
+            ) {
+              reject(new ConnectionError('got leave request while trying to reconnect'));
             } else if (!opts.reconnect) {
               // non-reconnect case, should receive join response first
               reject(

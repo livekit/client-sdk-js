@@ -845,6 +845,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     // guard for attempting reconnection multiple times while one attempt is still not finished
     if (this.attemptingReconnect) {
+      // FIXME this might be problematic. If a leave request is sent during reconnection, we'd return early here, ignoring the leave request
       return;
     }
     if (
