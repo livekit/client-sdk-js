@@ -155,6 +155,13 @@ export class SignalClient {
     );
   }
 
+  private get isEstablishingConnection() {
+    return (
+      this.state === SignalConnectionState.CONNECTING ||
+      this.state === SignalConnectionState.RECONNECTING
+    );
+  }
+
   private options?: SignalOptions;
 
   private pingTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -353,11 +360,8 @@ export class SignalClient {
                 resolve();
                 shouldProcessMessage = true;
               }
-            } else if (
-              this.state === SignalConnectionState.RECONNECTING &&
-              resp.message.case === 'leave'
-            ) {
-              reject(new ConnectionError('got leave request while trying to reconnect'));
+            } else if (this.isEstablishingConnection && resp.message.case === 'leave') {
+              reject(new ConnectionError('Received leave request while trying to (re)connect'));
             } else if (!opts.reconnect) {
               // non-reconnect case, should receive join response first
               reject(
@@ -378,6 +382,10 @@ export class SignalClient {
         };
 
         this.ws.onclose = (ev: CloseEvent) => {
+          if (this.isEstablishingConnection) {
+            reject(new ConnectionError('Websocket got closed during a (re)connection attempt'));
+          }
+
           this.log.warn(`websocket closed`, { ...this.logContext, reason: ev.reason });
           this.handleOnClose(ev.reason);
         };
