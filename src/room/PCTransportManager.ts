@@ -169,6 +169,7 @@ export class PCTransportManager {
     this.log.debug('received server offer', {
       ...this.logContext,
       RTCSdpType: sd.type,
+      sdp: sd.sdp,
       signalingState: this.subscriber.getSignallingState().toString(),
     });
     await this.subscriber.setRemoteDescription(sd);
