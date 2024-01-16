@@ -47,7 +47,8 @@ export type SimulationScenario =
   // overrides server-side bandwidth estimator with set bandwidth
   // this can be used to test application behavior when congested or
   // to disable congestion control entirely (by setting bandwidth to 100Mbps)
-  | 'subscriber-bandwidth';
+  | 'subscriber-bandwidth'
+  | 'disconnect-signal-on-resume';
 
 export type LoggerOptions = {
   loggerName?: string;

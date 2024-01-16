@@ -845,6 +845,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     // guard for attempting reconnection multiple times while one attempt is still not finished
     if (this.attemptingReconnect) {
+      log.warn('already attempting reconnect, returning early', this.logContext);
       return;
     }
     if (
@@ -948,6 +949,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.SignalRestarted, joinResponse);
 
       await this.waitForPCReconnected();
+
+      // re-check signal connection state before setting engine as resumed
+      if (this.client.currentState !== SignalConnectionState.CONNECTED) {
+        throw new SignalReconnectError('Signal connection got severed during reconnect');
+      }
+
       this.regionUrlProvider?.resetAttempts();
       // reconnect success
       this.emit(EngineEvent.Restarted);
@@ -1005,6 +1012,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     await this.pcManager.triggerIceRestart();
 
     await this.waitForPCReconnected();
+
+    // re-check signal connection state before setting engine as resumed
+    if (this.client.currentState !== SignalConnectionState.CONNECTED) {
+      throw new SignalReconnectError('Signal connection got severed during reconnect');
+    }
+
     this.client.setReconnected();
 
     // recreate publish datachannel if it's id is null

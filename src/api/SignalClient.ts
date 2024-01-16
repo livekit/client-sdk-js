@@ -386,7 +386,11 @@ export class SignalClient {
             reject(new ConnectionError('Websocket got closed during a (re)connection attempt'));
           }
 
-          this.log.warn(`websocket closed`, { ...this.logContext, reason: ev.reason });
+          this.log.warn(`websocket closed`, {
+            ...this.logContext,
+            reason: ev.reason,
+            state: this.state,
+          });
           this.handleOnClose(ev.reason);
         };
       } finally {
