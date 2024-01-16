@@ -800,9 +800,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         });
         break;
+      case 'disconnect-signal-on-resume-no-messages':
+        postAction = async () => {
+          // @ts-expect-error function is private
+          await this.engine.client.handleOnClose('simulate resume-disconnect');
+        };
+        req = new SimulateScenario({
+          scenario: {
+            case: 'disconnectSignalOnResumeNoMessages',
+            value: true,
+          },
+        });
+        break;
       case 'full-reconnect':
         this.engine.fullReconnectOnNext = true;
-
+        // @ts-expect-error function is private
+        await this.engine.client.handleOnClose('simulate full-reconnect');
         break;
       case 'force-tcp':
       case 'force-tls':

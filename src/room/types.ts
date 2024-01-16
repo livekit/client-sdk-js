@@ -48,7 +48,8 @@ export type SimulationScenario =
   // this can be used to test application behavior when congested or
   // to disable congestion control entirely (by setting bandwidth to 100Mbps)
   | 'subscriber-bandwidth'
-  | 'disconnect-signal-on-resume';
+  | 'disconnect-signal-on-resume'
+  | 'disconnect-signal-on-resume-no-messages';
 
 export type LoggerOptions = {
   loggerName?: string;

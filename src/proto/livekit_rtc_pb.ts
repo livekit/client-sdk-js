@@ -2092,6 +2092,14 @@ export class SimulateScenario extends Message<SimulateScenario> {
      */
     value: boolean;
     case: "disconnectSignalOnResume";
+  } | {
+    /**
+     * disconnect signal on resume before sending any messages from server
+     *
+     * @generated from field: bool disconnect_signal_on_resume_no_messages = 8;
+     */
+    value: boolean;
+    case: "disconnectSignalOnResumeNoMessages";
   } | { case: undefined; value?: undefined } = { case: undefined };
 
   constructor(data?: PartialMessage<SimulateScenario>) {
@@ -2109,6 +2117,7 @@ export class SimulateScenario extends Message<SimulateScenario> {
     { no: 5, name: "switch_candidate_protocol", kind: "enum", T: proto3.getEnumType(CandidateProtocol), oneof: "scenario" },
     { no: 6, name: "subscriber_bandwidth", kind: "scalar", T: 3 /* ScalarType.INT64 */, oneof: "scenario" },
     { no: 7, name: "disconnect_signal_on_resume", kind: "scalar", T: 8 /* ScalarType.BOOL */, oneof: "scenario" },
+    { no: 8, name: "disconnect_signal_on_resume_no_messages", kind: "scalar", T: 8 /* ScalarType.BOOL */, oneof: "scenario" },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SimulateScenario {
