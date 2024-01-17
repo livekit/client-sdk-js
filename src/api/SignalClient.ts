@@ -383,7 +383,6 @@ export class SignalClient {
 
         this.ws.onclose = (ev: CloseEvent) => {
           if (this.isEstablishingConnection) {
-            log.warn('websocket got closed during reconnection', this.logContext);
             reject(new ConnectionError('Websocket got closed during a (re)connection attempt'));
           }
 

@@ -991,13 +991,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const rtcConfig = this.makeRTCConfiguration(res);
         this.pcManager.updateConfiguration(rtcConfig);
       }
-    } catch (e) {
+    } catch (error) {
       let message = '';
-      if (e instanceof Error) {
-        message = e.message;
-        this.log.error(e.message, this.logContext);
+      if (error instanceof Error) {
+        message = error.message;
+        this.log.error(error.message, { ...this.logContext, error });
       }
-      if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
+      if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
         throw new UnexpectedConnectionState('could not reconnect, token might be expired');
       }
       throw new SignalReconnectError(message);
