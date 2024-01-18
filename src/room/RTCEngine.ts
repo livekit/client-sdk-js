@@ -468,6 +468,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       resolve(res.track!);
     };
 
+    this.client.onLocalTrackUnpublished = (response: TrackUnpublishedResponse) => {
+      this.emit(EngineEvent.LocalTrackUnpublished, response);
+    };
+
     this.client.onTokenRefresh = (token: string) => {
       this.token = token;
     };
