@@ -788,6 +788,30 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         // @ts-expect-error function is private
         await this.engine.client.handleOnClose('simulate resume-disconnect');
         break;
+      case 'disconnect-signal-on-resume':
+        postAction = async () => {
+          // @ts-expect-error function is private
+          await this.engine.client.handleOnClose('simulate resume-disconnect');
+        };
+        req = new SimulateScenario({
+          scenario: {
+            case: 'disconnectSignalOnResume',
+            value: true,
+          },
+        });
+        break;
+      case 'disconnect-signal-on-resume-no-messages':
+        postAction = async () => {
+          // @ts-expect-error function is private
+          await this.engine.client.handleOnClose('simulate resume-disconnect');
+        };
+        req = new SimulateScenario({
+          scenario: {
+            case: 'disconnectSignalOnResumeNoMessages',
+            value: true,
+          },
+        });
+        break;
       case 'full-reconnect':
         this.engine.fullReconnectOnNext = true;
         // @ts-expect-error function is private
@@ -824,11 +848,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         });
         break;
+
       default:
     }
     if (req) {
-      this.engine.client.sendSimulateScenario(req);
-      postAction();
+      await this.engine.client.sendSimulateScenario(req);
+      await postAction();
     }
   }
 
@@ -1669,6 +1694,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.log.warn('detected connection state mismatch', {
           ...this.logContext,
           numFailures: consecutiveFailures,
+          engine: {
+            closed: this.engine.isClosed,
+            transportsConnected: this.engine.verifyTransport(),
+          },
         });
         if (consecutiveFailures >= 3) {
           this.recreateEngine();
@@ -1820,7 +1849,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 await window.navigator.mediaDevices.getUserMedia({ video: true })
               ).getVideoTracks()[0]
             : createDummyVideoStreamTrack(
-                160 * participantOptions.aspectRatios[0] ?? 1,
+                160 * (participantOptions.aspectRatios[0] ?? 1),
                 160,
                 true,
                 true,
@@ -1870,7 +1899,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const p = this.getOrCreateParticipant(info.identity, info);
       if (participantOptions.video) {
         const dummyVideo = createDummyVideoStreamTrack(
-          160 * participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1,
+          160 * (participantOptions.aspectRatios[i % participantOptions.aspectRatios.length] ?? 1),
           160,
           false,
           true,

@@ -849,6 +849,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     // guard for attempting reconnection multiple times while one attempt is still not finished
     if (this.attemptingReconnect) {
+      log.warn('already attempting reconnect, returning early', this.logContext);
       return;
     }
     if (
@@ -952,6 +953,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.SignalRestarted, joinResponse);
 
       await this.waitForPCReconnected();
+
+      // re-check signal connection state before setting engine as resumed
+      if (this.client.currentState !== SignalConnectionState.CONNECTED) {
+        throw new SignalReconnectError('Signal connection got severed during reconnect');
+      }
+
       this.regionUrlProvider?.resetAttempts();
       // reconnect success
       this.emit(EngineEvent.Restarted);
@@ -988,13 +995,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const rtcConfig = this.makeRTCConfiguration(res);
         this.pcManager.updateConfiguration(rtcConfig);
       }
-    } catch (e) {
+    } catch (error) {
       let message = '';
-      if (e instanceof Error) {
-        message = e.message;
-        this.log.error(e.message, this.logContext);
+      if (error instanceof Error) {
+        message = error.message;
+        this.log.error(error.message, { ...this.logContext, error });
       }
-      if (e instanceof ConnectionError && e.reason === ConnectionErrorReason.NotAllowed) {
+      if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
         throw new UnexpectedConnectionState('could not reconnect, token might be expired');
       }
       throw new SignalReconnectError(message);
@@ -1009,6 +1016,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     await this.pcManager.triggerIceRestart();
 
     await this.waitForPCReconnected();
+
+    // re-check signal connection state before setting engine as resumed
+    if (this.client.currentState !== SignalConnectionState.CONNECTED) {
+      throw new SignalReconnectError('Signal connection got severed during reconnect');
+    }
+
     this.client.setReconnected();
 
     // recreate publish datachannel if it's id is null
