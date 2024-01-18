@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.15.9
+
+### Patch Changes
+
+- Fix for recovering SignalChannel closing during reconnect - [`d1fa7554630d9f9fd787784b154eb460c8568894`](https://github.com/livekit/client-sdk-js/commit/d1fa7554630d9f9fd787784b154eb460c8568894) ([@lukasIO](https://github.com/lukasIO))
+
+- Log server offer sdp - [`6cd3ae5f0c3c30ce852d7b3f000f1adf2e08eb96`](https://github.com/livekit/client-sdk-js/commit/6cd3ae5f0c3c30ce852d7b3f000f1adf2e08eb96) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.8
 
 ### Patch Changes
