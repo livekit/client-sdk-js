@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.15.10
+
+### Patch Changes
+
+- Perform full reconnect on leave during reconnect - [`dc95472cca12ad3b150e824da8e3f7e387de0e12`](https://github.com/livekit/client-sdk-js/commit/dc95472cca12ad3b150e824da8e3f7e387de0e12) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.9
 
 ### Patch Changes
