@@ -361,7 +361,12 @@ export class SignalClient {
                 shouldProcessMessage = true;
               }
             } else if (this.isEstablishingConnection && resp.message.case === 'leave') {
-              reject(new ConnectionError('Received leave request while trying to (re)connect'));
+              reject(
+                new ConnectionError(
+                  'Received leave request while trying to (re)connect',
+                  ConnectionErrorReason.LeaveRequest,
+                ),
+              );
             } else if (!opts.reconnect) {
               // non-reconnect case, should receive join response first
               reject(
