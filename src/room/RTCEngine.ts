@@ -1004,6 +1004,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.NotAllowed) {
         throw new UnexpectedConnectionState('could not reconnect, token might be expired');
       }
+      if (error instanceof ConnectionError && error.reason === ConnectionErrorReason.LeaveRequest) {
+        throw error;
+      }
       throw new SignalReconnectError(message);
     }
     this.emit(EngineEvent.SignalResumed);
