@@ -394,6 +394,7 @@ export class SignalClient {
           this.log.warn(`websocket closed`, {
             ...this.logContext,
             reason: ev.reason,
+            code: ev.code,
             state: this.state,
           });
           this.handleOnClose(ev.reason);
