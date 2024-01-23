@@ -395,6 +395,7 @@ export class SignalClient {
             ...this.logContext,
             reason: ev.reason,
             code: ev.code,
+            wasClean: ev.wasClean,
             state: this.state,
           });
           this.handleOnClose(ev.reason);
