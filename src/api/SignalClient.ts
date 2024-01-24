@@ -272,7 +272,7 @@ export class SignalClient {
         abortSignal?.addEventListener('abort', abortHandler);
         this.log.debug(`connecting to ${url + params}`, this.logContext);
         if (this.ws) {
-          await this.close();
+          await this.close(false);
         }
         this.ws = new WebSocket(url + params);
         this.ws.binaryType = 'arraybuffer';
@@ -421,10 +421,12 @@ export class SignalClient {
     this.onClose = undefined;
   };
 
-  async close() {
+  async close(updateState: boolean = true) {
     const unlock = await this.closingLock.lock();
     try {
-      this.state = SignalConnectionState.DISCONNECTING;
+      if (updateState) {
+        this.state = SignalConnectionState.DISCONNECTING;
+      }
       if (this.ws) {
         this.ws.onmessage = null;
         this.ws.onopen = null;
@@ -449,7 +451,9 @@ export class SignalClient {
         this.ws = undefined;
       }
     } finally {
-      this.state = SignalConnectionState.DISCONNECTED;
+      if (updateState) {
+        this.state = SignalConnectionState.DISCONNECTED;
+      }
       this.clearPingInterval();
       unlock();
     }
