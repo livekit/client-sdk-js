@@ -25,6 +25,7 @@ import {
   TrackSource,
   TrackType,
   UserPacket,
+  VideoQuality,
 } from '../proto/livekit_models_pb';
 import {
   ConnectionQualityUpdate,
@@ -319,6 +320,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.Reconnected);
         this.registerConnectionReconcile();
         this.updateSubscriptions();
+
+        if (this.options.dynacast) {
+          // in case dynacast is enabled, make sure that after a resume we temporarily re-enable all layers so that the migration can succeed
+          // LiveKit server will automatically disable unneeded layers afterwards again
+          Array.from(this.localParticipant.videoTracks.values()).map(async (publication) => {
+            if (publication.track instanceof LocalVideoTrack) {
+              publication.track.setPublishingQuality(VideoQuality.HIGH);
+            }
+          });
+        }
 
         // once reconnected, figure out if any participants connected during reconnect and emit events for it
         const diffParticipants = Array.from(this.participants.values()).filter(

@@ -1092,6 +1092,7 @@ export default class LocalParticipant extends Participant {
   }
 
   async republishAllTracks(options?: TrackPublishOptions, restartTracks: boolean = true) {
+    this.log.info('republishing all tracks', this.logContext);
     const localPubs: LocalTrackPublication[] = [];
     this.tracks.forEach((pub) => {
       if (pub.track) {
@@ -1122,6 +1123,7 @@ export default class LocalParticipant extends Participant {
           });
           await track.restartTrack();
         }
+
         await this.publishTrack(track, pub.options);
       }),
     );
