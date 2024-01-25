@@ -142,6 +142,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private cachedParticipantIdentities: Array<string>;
 
+  private cachedParticipantMetadata: Map<string, string | undefined>;
+
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
   private regionUrlProvider?: RegionUrlProvider;
@@ -161,6 +163,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.setMaxListeners(100);
     this.remoteParticipants = new Map();
     this.cachedParticipantIdentities = [];
+    this.cachedParticipantMetadata = new Map();
     this.sidToIdentity = new Map();
     this.options = { ...roomOptionDefaults, ...options };
 
@@ -333,6 +336,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.emit(RoomEvent.Reconnecting);
         }
         this.cachedParticipantIdentities = Array.from(this.remoteParticipants.keys());
+        this.cachedParticipantMetadata = new Map(
+          Array.from(this.remoteParticipants.values()).map((p) => [p.identity, p.metadata]),
+        );
       })
       .on(EngineEvent.Resumed, () => {
         this.setAndEmitConnectionState(ConnectionState.Connected);
@@ -346,6 +352,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         );
         diffParticipants.forEach((p) => this.emit(RoomEvent.ParticipantConnected, p));
         this.cachedParticipantIdentities = [];
+        // also check if any participants changed metadata during reconnect
+        const changedParticipants = Array.from(this.remoteParticipants.values()).filter(
+          (p) => this.cachedParticipantMetadata.get(p.identity) !== p.metadata,
+        );
+        changedParticipants.forEach((p) =>
+          this.emit(
+            RoomEvent.ParticipantMetadataChanged,
+            this.cachedParticipantMetadata.get(p.identity),
+            p,
+          ),
+        );
+        this.cachedParticipantMetadata = new Map();
       })
       .on(EngineEvent.SignalResumed, () => {
         if (this.state === ConnectionState.Reconnecting) {
