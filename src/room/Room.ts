@@ -1559,7 +1559,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant {
     if (this.remoteParticipants.has(identity)) {
       const existingParticipant = this.remoteParticipants.get(identity)!;
-      existingParticipant.updateInfo(info);
+      if (info) {
+        existingParticipant.updateInfo(info);
+      }
       return existingParticipant;
     }
     const participant = this.createParticipant(identity, info);
