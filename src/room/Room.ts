@@ -1724,6 +1724,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.bufferedEvents.forEach(([ev, args]) => {
       this.emit(ev, ...args);
     });
+    this.bufferedEvents = [];
   }
 
   private emitWhenConnected<E extends keyof RoomEventCallbacks>(
