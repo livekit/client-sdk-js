@@ -1,5 +1,6 @@
 import { LogLevel, getLogger, setLogExtension, setLogLevel } from './logger';
 import { DataPacket_Kind, DisconnectReason } from './proto/livekit_models_pb';
+import { SubscribedQuality } from './proto/livekit_rtc_pb';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import Room, { ConnectionState } from './room/Room';
 import LocalParticipant from './room/participant/LocalParticipant';
@@ -73,6 +74,7 @@ export {
   RemoteTrackPublication,
   TrackPublication,
   ConnectionQuality,
+  SubscribedQuality,
   DefaultReconnectPolicy,
   CriticalTimers,
 };
