@@ -1089,7 +1089,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // We'll defer these events until when the room is connected or eventually disconnected.
     if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
       const reconnectedHandler = () => {
-        // TODO make sure this fires in line with the new buffered events and doesn't mess up the order of events
         this.onTrackAdded(mediaTrack, stream, receiver);
         cleanup();
       };
