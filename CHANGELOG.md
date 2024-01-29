@@ -1,5 +1,25 @@
 # Change Log
 
+## 1.15.10
+
+### Patch Changes
+
+- Perform full reconnect on leave during reconnect - [`dc95472cca12ad3b150e824da8e3f7e387de0e12`](https://github.com/livekit/client-sdk-js/commit/dc95472cca12ad3b150e824da8e3f7e387de0e12) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.15.9
+
+### Patch Changes
+
+- Fix for recovering SignalChannel closing during reconnect - [`d1fa7554630d9f9fd787784b154eb460c8568894`](https://github.com/livekit/client-sdk-js/commit/d1fa7554630d9f9fd787784b154eb460c8568894) ([@lukasIO](https://github.com/lukasIO))
+
+- Log server offer sdp - [`6cd3ae5f0c3c30ce852d7b3f000f1adf2e08eb96`](https://github.com/livekit/client-sdk-js/commit/6cd3ae5f0c3c30ce852d7b3f000f1adf2e08eb96) ([@lukasIO](https://github.com/lukasIO))
+
+## 1.15.8
+
+### Patch Changes
+
+- Await unpublish before re-publishing on signal-reconnect - [`eea871c11118ff36a04917dc1008dc9023c662b5`](https://github.com/livekit/client-sdk-js/commit/eea871c11118ff36a04917dc1008dc9023c662b5) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.7
 
 ### Patch Changes
