@@ -901,6 +901,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         document.body.append(dummyAudioEl);
         this.once(RoomEvent.Disconnected, () => {
           dummyAudioEl?.remove();
+          dummyAudioEl = null;
         });
       }
       elements.push(dummyAudioEl);
