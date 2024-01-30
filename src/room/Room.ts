@@ -1015,8 +1015,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
     } else if (kind === 'audiooutput') {
       if (
-        (!supportsSetSinkId() && !this.options.expWebAudioMix) ||
-        (this.options.expWebAudioMix && this.audioContext && !('setSinkId' in this.audioContext))
+        (!supportsSetSinkId() && !this.options.webAudioMix) ||
+        (this.options.webAudioMix && this.audioContext && !('setSinkId' in this.audioContext))
       ) {
         throw new Error('cannot switch audio output, setSinkId not supported');
       }
@@ -1026,7 +1026,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       deviceHasChanged = prevDeviceId !== deviceConstraint;
 
       try {
-        if (this.options.expWebAudioMix) {
+        if (this.options.webAudioMix) {
           // @ts-expect-error setSinkId is not yet in the typescript type of AudioContext
           this.audioContext?.setSinkId(deviceId);
         } else {
@@ -1243,7 +1243,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.remoteParticipants.clear();
       this.sidToIdentity.clear();
       this.activeSpeakers = [];
-      if (this.audioContext && typeof this.options.expWebAudioMix === 'boolean') {
+      if (this.audioContext && typeof this.options.webAudioMix === 'boolean') {
         this.audioContext.close();
         this.audioContext = undefined;
       }
@@ -1489,12 +1489,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private async acquireAudioContext() {
-    if (
-      typeof this.options.expWebAudioMix !== 'boolean' &&
-      this.options.expWebAudioMix.audioContext
-    ) {
+    if (typeof this.options.webAudioMix !== 'boolean' && this.options.webAudioMix.audioContext) {
       // override audio context with custom audio context if supplied by user
-      this.audioContext = this.options.expWebAudioMix.audioContext;
+      this.audioContext = this.options.webAudioMix.audioContext;
     } else if (!this.audioContext || this.audioContext.state === 'closed') {
       // by using an AudioContext, it reduces lag on audio elements
       // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
@@ -1511,7 +1508,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
     }
 
-    if (this.options.expWebAudioMix) {
+    if (this.options.webAudioMix) {
       this.remoteParticipants.forEach((participant) =>
         participant.setAudioContext(this.audioContext),
       );
@@ -1536,7 +1533,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         loggerName: this.options.loggerName,
       });
     }
-    if (this.options.expWebAudioMix) {
+    if (this.options.webAudioMix) {
       participant.setAudioContext(this.audioContext);
     }
     if (this.options.audioOutput?.deviceId) {
