@@ -670,6 +670,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     if (isWeb()) {
       document.addEventListener('freeze', this.onPageLeave);
+      // on iOS Safari audio playback might be blocked after resuming a frozen page, so we call startAudio to update the playback status
+      window.document.addEventListener('resume', this.startAudio);
       navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
@@ -890,6 +892,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           }
           // set the srcObject to null on page hide in order to prevent lock screen controls to show up for it
           dummyAudioEl.srcObject = document.hidden ? null : stream;
+          if (!document.hidden) {
+            this.log.debug(
+              'page visible again, triggering startAudio to resume playback and update playback status',
+              this.logContext,
+            );
+            this.startAudio();
+          }
         });
         document.body.append(dummyAudioEl);
         this.once(RoomEvent.Disconnected, () => {
@@ -1251,6 +1260,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         window.removeEventListener('beforeunload', this.onPageLeave);
         window.removeEventListener('pagehide', this.onPageLeave);
         window.removeEventListener('freeze', this.onPageLeave);
+        window.removeEventListener('resume', this.startAudio);
         navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
       }
     } finally {
