@@ -141,8 +141,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private e2eeManager: E2EEManager | undefined;
 
-  private cachedParticipantSids: Array<string>;
-
   private connectionReconcileInterval?: ReturnType<typeof setInterval>;
 
   private regionUrlProvider?: RegionUrlProvider;
@@ -153,6 +151,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private log = log;
 
+  private bufferedEvents: Array<any> = [];
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -161,7 +161,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     super();
     this.setMaxListeners(100);
     this.participants = new Map();
-    this.cachedParticipantSids = [];
     this.identityToSid = new Map();
     this.options = { ...roomOptionDefaults, ...options };
 
@@ -312,22 +311,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
           this.emit(RoomEvent.Reconnecting);
         }
-        this.cachedParticipantSids = Array.from(this.participants.keys());
       })
       .on(EngineEvent.Resumed, () => {
         this.setAndEmitConnectionState(ConnectionState.Connected);
         this.emit(RoomEvent.Reconnected);
         this.registerConnectionReconcile();
         this.updateSubscriptions();
-
-        // once reconnected, figure out if any participants connected during reconnect and emit events for it
-        const diffParticipants = Array.from(this.participants.values()).filter(
-          (p) => !this.cachedParticipantSids.includes(p.sid),
-        );
-        diffParticipants.forEach((p) => this.emit(RoomEvent.ParticipantConnected, p));
-        this.cachedParticipantSids = [];
+        this.emitBufferedEvents();
       })
       .on(EngineEvent.SignalResumed, () => {
+        this.bufferedEvents = [];
         if (this.state === ConnectionState.Reconnecting) {
           this.sendSyncState();
         }
@@ -1072,6 +1065,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // clear out existing remote participants, since they may have attached
     // the old engine
     this.participants.clear();
+    this.bufferedEvents = [];
     this.maybeCreateEngine();
   }
 
@@ -1161,8 +1155,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ...this.logContext,
       region: joinResponse.serverRegion,
     });
+    this.bufferedEvents = [];
 
-    this.cachedParticipantSids = [];
     this.applyJoinResponse(joinResponse);
 
     try {
@@ -1188,15 +1182,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Reconnected);
     this.registerConnectionReconcile();
-
-    // emit participant connected events after connection has been re-established
-    this.participants.forEach((participant) => {
-      this.emit(RoomEvent.ParticipantConnected, participant);
-    });
+    this.emitBufferedEvents();
   };
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
     this.clearConnectionReconcile();
+    this.bufferedEvents = [];
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
@@ -1707,12 +1698,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     return true;
   }
 
+  private emitBufferedEvents() {
+    this.bufferedEvents.forEach(([ev, args]) => {
+      this.emit(ev, ...args);
+    });
+    this.bufferedEvents = [];
+  }
+
   private emitWhenConnected<E extends keyof RoomEventCallbacks>(
     event: E,
     ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
     if (this.state === ConnectionState.Connected) {
       return this.emit(event, ...args);
+    } else if (this.state === ConnectionState.Reconnecting) {
+      // in case the room is reconnecting, buffer the events by firing them later after emitting RoomEvent.Reconnected
+      this.bufferedEvents.push([event, args]);
     }
     return false;
   }
