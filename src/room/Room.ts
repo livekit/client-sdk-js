@@ -2,6 +2,7 @@ import { protoInt64 } from '@bufbuild/protobuf';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
+import { SignalConnectionState } from '../api/SignalClient';
 import { EncryptionEvent } from '../e2ee';
 import { E2EEManager } from '../e2ee/E2eeManager';
 import log, { LoggerNames, getLogger } from '../logger';
@@ -37,6 +38,7 @@ import {
 } from '../proto/livekit_rtc_pb';
 import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
+import { PCTransportState } from './PCTransportManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import {
@@ -338,9 +340,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.SignalResumed, () => {
         this.bufferedEvents = [];
-        if (this.state === ConnectionState.Reconnecting) {
-          this.sendSyncState();
-        }
+        this.sendSyncState();
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
@@ -587,7 +587,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     opts: RoomConnectOptions | undefined,
     abortController: AbortController,
   ) => {
-    if (this.state === ConnectionState.Reconnecting) {
+    if (
+      this.state === ConnectionState.Reconnecting ||
+      this.engine.client.currentState === SignalConnectionState.RECONNECTING ||
+      this.engine.pcManager?.currentState === PCTransportState.CONNECTING
+    ) {
       this.log.info('Reconnection attempt replaced by new connection attempt', this.logContext);
       // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
       this.recreateEngine();
@@ -689,7 +693,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       });
       if (
         this.state === ConnectionState.Connecting ||
-        this.state === ConnectionState.Reconnecting
+        this.state === ConnectionState.Reconnecting ||
+        this.connectFuture
       ) {
         // try aborting pending connection attempt
         this.log.warn('abort connection attempt', this.logContext);
