@@ -104,6 +104,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     return this.permissions?.agent ?? false;
   }
 
+  get infoVersion() {
+    return this.participantInfo?.version;
+  }
+
   /** @internal */
   constructor(
     sid: string,
