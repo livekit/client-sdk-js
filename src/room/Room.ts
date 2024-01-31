@@ -1285,11 +1285,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       let remoteParticipant = this.remoteParticipants.get(info.identity);
 
       // when it's disconnected, send updates
-      if (
-        info.state === ParticipantInfo_State.DISCONNECTED &&
-        // make sure we emit the disconnected event only if the info is newer
-        (!remoteParticipant?.infoVersion || info.version > remoteParticipant.infoVersion)
-      ) {
+      if (info.state === ParticipantInfo_State.DISCONNECTED) {
         this.handleParticipantDisconnected(info.identity, remoteParticipant);
       } else {
         // create participant if doesn't exist
