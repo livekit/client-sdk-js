@@ -1744,7 +1744,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ): boolean {
     if (this.state === ConnectionState.Connected) {
       return this.emit(event, ...args);
-    } else if (this.state === ConnectionState.Reconnecting) {
+    } else if (this.state === ConnectionState.Reconnecting || this.isResuming) {
       // in case the room is reconnecting, buffer the events by firing them later after emitting RoomEvent.Reconnected
       this.bufferedEvents.push([event, args]);
     }
