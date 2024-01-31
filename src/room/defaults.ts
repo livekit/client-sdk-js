@@ -37,7 +37,7 @@ export const roomOptionDefaults: InternalRoomOptions = {
   stopLocalTrackOnUnpublish: true,
   reconnectPolicy: new DefaultReconnectPolicy(),
   disconnectOnPageLeave: true,
-  expWebAudioMix: false,
+  webAudioMix: true,
 } as const;
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {
