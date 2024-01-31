@@ -81,12 +81,11 @@ export interface InternalRoomOptions {
   expSignalLatency?: number;
 
   /**
-   * @internal
-   * @experimental
-   * experimental flag, mix all audio tracks in web audio
+   * mix all audio tracks in web audio, helps to tackle some audio auto playback issues
+   * allows for passing in your own AudioContext instance, too
    */
 
-  expWebAudioMix: boolean | WebAudioSettings;
+  webAudioMix: boolean | WebAudioSettings;
 
   /**
    * @experimental

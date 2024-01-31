@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "1.15.10",
+  "version": "1.15.11",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -37,7 +37,8 @@
   "license": "Apache-2.0",
   "scripts": {
     "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
-    "build:watch": "rollup --watch --config rollup.config.js",
+    "build:watch": "rollup --watch --config --bundleConfigAsCjs",
+    "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",
     "build-docs": "typedoc",
     "proto": "protoc --es_out src/proto --es_opt target=ts -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
     "sample": "vite example -c vite.config.mjs",

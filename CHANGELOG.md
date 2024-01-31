@@ -1,5 +1,15 @@
 # Change Log
 
+## 1.15.11
+
+### Patch Changes
+
+- Resume audio playback status when switching back to tab on iOS - [`c247f7d67c423f5d7ea09549cd2eb44a95762cbb`](https://github.com/livekit/client-sdk-js/commit/c247f7d67c423f5d7ea09549cd2eb44a95762cbb) ([@lukasIO](https://github.com/lukasIO))
+
+- Buffer room events during reconnect - [`f83124d881dc962ff940b806c45da4d1b8c0b86e`](https://github.com/livekit/client-sdk-js/commit/f83124d881dc962ff940b806c45da4d1b8c0b86e) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix state handling issue in SignalClient - [`1200535d0c87d127cebd0b07330dd0a688843287`](https://github.com/livekit/client-sdk-js/commit/1200535d0c87d127cebd0b07330dd0a688843287) ([@holzgeist](https://github.com/holzgeist))
+
 ## 1.15.10
 
 ### Patch Changes
