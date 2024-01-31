@@ -890,10 +890,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           }
           // set the srcObject to null on page hide in order to prevent lock screen controls to show up for it
           dummyAudioEl.srcObject = document.hidden ? null : stream;
+          if (!document.hidden) {
+            this.log.debug(
+              'page visible again, triggering startAudio to resume playback and update playback status',
+              this.logContext,
+            );
+            this.startAudio();
+          }
         });
         document.body.append(dummyAudioEl);
         this.once(RoomEvent.Disconnected, () => {
           dummyAudioEl?.remove();
+          dummyAudioEl = null;
         });
       }
       elements.push(dummyAudioEl);
