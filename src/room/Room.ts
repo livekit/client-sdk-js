@@ -342,7 +342,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.SignalResumed, () => {
         this.bufferedEvents = [];
-        if (this.isResuming) {
+        if (this.state === ConnectionState.Reconnecting || this.isResuming) {
           this.sendSyncState();
         }
       })
