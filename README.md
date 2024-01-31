@@ -11,7 +11,9 @@
 # JavaScript/TypeScript client SDK for LiveKit
 
 <!--BEGIN_DESCRIPTION-->
+
 Use this SDK to add real-time video, audio and data features to your JavaScript/TypeScript app. By connecting to a self- or cloud-hosted <a href="https://livekit.io/">LiveKit</a> server, you can quickly build applications like interactive live streaming or video calls with just a few lines of code.
+
 <!--END_DESCRIPTION-->
 
 ## Docs
@@ -19,6 +21,10 @@ Use this SDK to add real-time video, audio and data features to your JavaScript/
 Docs and guides at [https://docs.livekit.io](https://docs.livekit.io)
 
 [SDK reference](https://docs.livekit.io/client-sdk-js/)
+
+> [!NOTE]
+> This is v2 of `livekit-client`. When migrating from v1.x to v2.x you might encounter a small set of breaking changes.
+> Read the [migration guide](https://docs.livekit.io/guides/migrate-from-v1/) for a detailed overview of what has changed.
 
 ## Installation
 
@@ -323,7 +329,9 @@ If you are targeting legacy browsers, but still want adaptiveStream functionalit
 Also when targeting legacy browsers, older than the ones specified in our browserslist target, make sure to transpile the library code to your desired target and include required polyfills with babel and/or corejs.
 
 <!--BEGIN_REPO_NAV-->
+
 <br/><table>
+
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>
 <tr><td>Real-time SDKs</td><td><a href="https://github.com/livekit/components-js">React Components</a> · <b>JavaScript</b> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/client-sdk-rust">Rust</a> · <a href="https://github.com/livekit/client-sdk-python">Python</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (web)</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity (beta)</a></td></tr><tr></tr>
