@@ -2,7 +2,6 @@ import { protoInt64 } from '@bufbuild/protobuf';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
-import { SignalConnectionState } from '../api/SignalClient';
 import { EncryptionEvent } from '../e2ee';
 import { E2EEManager } from '../e2ee/E2eeManager';
 import log, { LoggerNames, getLogger } from '../logger';
@@ -38,7 +37,6 @@ import {
 } from '../proto/livekit_rtc_pb';
 import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
-import { PCTransportState } from './PCTransportManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import {
@@ -153,6 +151,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private log = log;
 
   private bufferedEvents: Array<any> = [];
+
+  private isResuming: boolean = false;
 
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
@@ -330,17 +330,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
         this.clearConnectionReconcile();
+        this.isResuming = true;
         this.log.info('Resuming signal connection', this.logContext);
       })
       .on(EngineEvent.Resumed, () => {
         this.registerConnectionReconcile();
+        this.isResuming = false;
         this.log.info('Resumed signal connection', this.logContext);
         this.updateSubscriptions();
         this.emitBufferedEvents();
       })
       .on(EngineEvent.SignalResumed, () => {
         this.bufferedEvents = [];
-        this.sendSyncState();
+        if (this.isResuming) {
+          this.sendSyncState();
+        }
       })
       .on(EngineEvent.Restarting, this.handleRestarting)
       .on(EngineEvent.SignalRestarted, this.handleSignalRestarted)
@@ -587,11 +591,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     opts: RoomConnectOptions | undefined,
     abortController: AbortController,
   ) => {
-    if (
-      this.state === ConnectionState.Reconnecting ||
-      this.engine.client.currentState === SignalConnectionState.RECONNECTING ||
-      this.engine.pcManager?.currentState === PCTransportState.CONNECTING
-    ) {
+    if (this.state === ConnectionState.Reconnecting || this.isResuming) {
       this.log.info('Reconnection attempt replaced by new connection attempt', this.logContext);
       // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
       this.recreateEngine();
@@ -694,7 +694,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (
         this.state === ConnectionState.Connecting ||
         this.state === ConnectionState.Reconnecting ||
-        this.connectFuture
+        this.isResuming
       ) {
         // try aborting pending connection attempt
         this.log.warn('abort connection attempt', this.logContext);
@@ -1070,6 +1070,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.engine?.close();
     /* @ts-ignore */
     this.engine = undefined;
+    this.isResuming = false;
 
     // clear out existing remote participants, since they may have attached
     // the old engine
@@ -1152,6 +1153,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleRestarting = () => {
     this.clearConnectionReconcile();
+    // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
+    this.isResuming = false;
+
     // also unwind existing participants & existing subscriptions
     for (const p of this.remoteParticipants.values()) {
       this.handleParticipantDisconnected(p.identity, p);
@@ -1199,6 +1203,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleDisconnect(shouldStopTracks = true, reason?: DisconnectReason) {
     this.clearConnectionReconcile();
+    this.isResuming = false;
     this.bufferedEvents = [];
     if (this.state === ConnectionState.Disconnected) {
       return;
