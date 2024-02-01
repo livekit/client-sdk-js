@@ -88,7 +88,7 @@
     "eslint-plugin-ecmascript-compat": "^3.0.0",
     "eslint-plugin-import": "2.29.1",
     "gh-pages": "6.1.1",
-    "jsdom": "^23.0.0",
+    "jsdom": "^24.0.0",
     "prettier": "^3.0.0",
     "rollup": "4.9.6",
     "rollup-plugin-delete": "^2.0.0",
