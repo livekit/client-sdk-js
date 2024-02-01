@@ -106,6 +106,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     return this._isClosed;
   }
 
+  get pendingReconnect() {
+    return !!this.reconnectTimeout;
+  }
+
   private lossyDC?: RTCDataChannel;
 
   // @ts-ignore noUnusedLocals
@@ -838,7 +842,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.regionUrlProvider.updateToken(this.token);
     }
     this.reconnectTimeout = CriticalTimers.setTimeout(
-      () => this.attemptReconnect(disconnectReason),
+      () =>
+        this.attemptReconnect(disconnectReason).finally(() => (this.reconnectTimeout = undefined)),
       delay,
     );
   };

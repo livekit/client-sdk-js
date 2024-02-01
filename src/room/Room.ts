@@ -591,7 +591,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     opts: RoomConnectOptions | undefined,
     abortController: AbortController,
   ) => {
-    if (this.state === ConnectionState.Reconnecting || this.isResuming) {
+    if (
+      this.state === ConnectionState.Reconnecting ||
+      this.isResuming ||
+      this.engine?.pendingReconnect
+    ) {
       this.log.info('Reconnection attempt replaced by new connection attempt', this.logContext);
       // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
       this.recreateEngine();
@@ -1742,11 +1746,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     event: E,
     ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
-    if (this.state === ConnectionState.Connected) {
-      return this.emit(event, ...args);
-    } else if (this.state === ConnectionState.Reconnecting || this.isResuming) {
+    if (
+      this.state === ConnectionState.Reconnecting ||
+      this.isResuming ||
+      !this.engine ||
+      this.engine.pendingReconnect
+    ) {
       // in case the room is reconnecting, buffer the events by firing them later after emitting RoomEvent.Reconnected
       this.bufferedEvents.push([event, args]);
+    } else if (this.state === ConnectionState.Connected) {
+      return this.emit(event, ...args);
     }
     return false;
   }
