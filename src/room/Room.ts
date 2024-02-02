@@ -1293,7 +1293,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
 
       let remoteParticipant = this.remoteParticipants.get(info.identity);
-      const isNewParticipant = !remoteParticipant;
 
       // when it's disconnected, send updates
       if (info.state === ParticipantInfo_State.DISCONNECTED) {
@@ -1301,13 +1300,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       } else {
         // create participant if doesn't exist
         remoteParticipant = this.getOrCreateParticipant(info.identity, info);
-        if (!isNewParticipant) {
-          // just update, no events
-          const wasUpdated = remoteParticipant.updateInfo(info);
-          if (wasUpdated) {
-            this.sidToIdentity.set(info.sid, info.identity);
-          }
-        }
       }
     });
   };
@@ -1565,7 +1557,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private getOrCreateParticipant(identity: string, info: ParticipantInfo): RemoteParticipant {
     if (this.remoteParticipants.has(identity)) {
-      return this.remoteParticipants.get(identity) as RemoteParticipant;
+      const existingParticipant = this.remoteParticipants.get(identity)!;
+      if (info) {
+        const wasUpdated = existingParticipant.updateInfo(info);
+        if (wasUpdated) {
+          this.sidToIdentity.set(info.sid, info.identity);
+        }
+      }
+      return existingParticipant;
     }
     const participant = this.createParticipant(identity, info);
     this.remoteParticipants.set(identity, participant);
