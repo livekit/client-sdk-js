@@ -1,5 +1,37 @@
 # Change Log
 
+## 2.0.0
+
+### Major Changes
+
+- Remove experimental hint for webAudioMix and enable it by default - [#1013](https://github.com/livekit/client-sdk-js/pull/1013) ([@lukasIO](https://github.com/lukasIO))
+
+- Add support for async room sid. Removes `room.sid` and replaces it with `await room.getSid()`. - [#983](https://github.com/livekit/client-sdk-js/pull/983) ([@lukasIO](https://github.com/lukasIO))
+
+- Change publishData signature - [#946](https://github.com/livekit/client-sdk-js/pull/946) ([@lukasIO](https://github.com/lukasIO))
+
+- Remote `OFF` option from VideoQuality enum - [#985](https://github.com/livekit/client-sdk-js/pull/985) ([@lukasIO](https://github.com/lukasIO))
+
+- Rename `participant.tracks` to `participant.trackPublications` - [#947](https://github.com/livekit/client-sdk-js/pull/947) ([@lukasIO](https://github.com/lukasIO))
+
+- Rename getTrack to getTrackPublications and participants to remoteParticipants - [#945](https://github.com/livekit/client-sdk-js/pull/945) ([@lukasIO](https://github.com/lukasIO))
+
+- Remove previously deprecated APIs - [#948](https://github.com/livekit/client-sdk-js/pull/948) ([@lukasIO](https://github.com/lukasIO))
+
+### Minor Changes
+
+- Don't emit RoomEvent.Reconnecting for resumes - [#1012](https://github.com/livekit/client-sdk-js/pull/1012) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Update participant info when getting participant - [#1009](https://github.com/livekit/client-sdk-js/pull/1009) ([@lukasIO](https://github.com/lukasIO))
+
+- Log websocket close code - [#1002](https://github.com/livekit/client-sdk-js/pull/1002) ([@lukasIO](https://github.com/lukasIO))
+
+- Avoid throwing unhandled error for simulcast codec tracks - [#999](https://github.com/livekit/client-sdk-js/pull/999) ([@lukasIO](https://github.com/lukasIO))
+
+- Get sid from roomInfo for logContext - [#991](https://github.com/livekit/client-sdk-js/pull/991) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.11
 
 ### Patch Changes
