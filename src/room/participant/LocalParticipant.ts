@@ -946,6 +946,9 @@ export default class LocalParticipant extends Participant {
       return;
     }
     const simulcastTrack = track.addSimulcastTrack(videoCodec, encodings);
+    if (!simulcastTrack) {
+      return;
+    }
     const req = new AddTrackRequest({
       cid: simulcastTrack.mediaStreamTrack.id,
       type: Track.kindToProto(track.kind),

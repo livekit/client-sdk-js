@@ -254,9 +254,13 @@ export default class LocalVideoTrack extends LocalTrack {
     }
   }
 
-  addSimulcastTrack(codec: VideoCodec, encodings?: RTCRtpEncodingParameters[]): SimulcastTrackInfo {
+  addSimulcastTrack(
+    codec: VideoCodec,
+    encodings?: RTCRtpEncodingParameters[],
+  ): SimulcastTrackInfo | undefined {
     if (this.simulcastCodecs.has(codec)) {
-      throw new Error(`${codec} already added`);
+      this.log.error(`${codec} already added, skipping adding simulcast codec`, this.logContext);
+      return;
     }
     const simulcastCodecInfo: SimulcastTrackInfo = {
       codec,
