@@ -88,6 +88,7 @@ export enum ConnectionState {
   Connecting = 'connecting',
   Connected = 'connected',
   Reconnecting = 'reconnecting',
+  Resuming = 'resuming',
 }
 
 const connectionReconcileFrequency = 2 * 1000;
@@ -340,6 +341,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.clearConnectionReconcile();
         this.isResuming = true;
         this.log.info('Resuming signal connection', this.logContext);
+        this.setAndEmitConnectionState(ConnectionState.Resuming);
       })
       .on(EngineEvent.Resumed, () => {
         this.registerConnectionReconcile();
