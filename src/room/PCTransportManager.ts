@@ -71,8 +71,7 @@ export class PCTransportManager {
 
     this.isPublisherConnectionRequired = !subscriberPrimary;
     this.isSubscriberConnectionRequired = subscriberPrimary;
-    const googConstraints = { optional: [{ googDscp: true }] };
-    this.publisher = new PCTransport(rtcConfig, googConstraints, loggerOptions);
+    this.publisher = new PCTransport(rtcConfig, loggerOptions);
     this.subscriber = new PCTransport(rtcConfig, loggerOptions);
 
     this.publisher.onConnectionStateChange = this.updateState;

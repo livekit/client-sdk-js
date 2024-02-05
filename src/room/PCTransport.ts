@@ -5,7 +5,7 @@ import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
+import { ddExtensionURI, isSVCCodec } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -42,8 +42,6 @@ export default class PCTransport extends EventEmitter {
 
   private config?: RTCConfiguration;
 
-  private mediaConstraints: Record<string, unknown>;
-
   private log = log;
 
   private loggerOptions: LoggerOptions;
@@ -76,24 +74,16 @@ export default class PCTransport extends EventEmitter {
 
   onTrack?: (ev: RTCTrackEvent) => void;
 
-  constructor(
-    config?: RTCConfiguration,
-    mediaConstraints: Record<string, unknown> = {},
-    loggerOptions: LoggerOptions = {},
-  ) {
+  constructor(config?: RTCConfiguration, loggerOptions: LoggerOptions = {}) {
     super();
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCTransport);
     this.loggerOptions = loggerOptions;
     this.config = config;
-    this.mediaConstraints = mediaConstraints;
     this._pc = this.createPC();
   }
 
   private createPC() {
-    const pc = isChromiumBased()
-      ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
-        new RTCPeerConnection(this.config, this.mediaConstraints)
-      : new RTCPeerConnection(this.config);
+    const pc = new RTCPeerConnection(this.config);
 
     pc.onicecandidate = (ev) => {
       if (!ev.candidate) return;
