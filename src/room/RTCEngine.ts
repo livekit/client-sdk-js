@@ -1271,10 +1271,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     */
     const autoSubscribe = this.signalOpts?.autoSubscribe ?? true;
     const trackSids = new Array<string>();
+    const trackSidsDisabled = new Array<string>();
 
     remoteTracks.forEach((track) => {
       if (track.isDesired !== autoSubscribe) {
         trackSids.push(track.trackSid);
+      }
+      if (!track.isEnabled) {
+        trackSidsDisabled.push(track.trackSid);
       }
     });
 
@@ -1299,6 +1303,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }),
         publishTracks: getTrackPublicationInfo(localTracks),
         dataChannels: this.dataChannelsInfo(),
+        trackSidsDisabled,
       }),
     );
   }
