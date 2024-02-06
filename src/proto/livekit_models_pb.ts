@@ -301,6 +301,16 @@ export enum DisconnectReason {
    * @generated from enum value: JOIN_FAILURE = 7;
    */
   JOIN_FAILURE = 7,
+
+  /**
+   * @generated from enum value: MIGRATION = 8;
+   */
+  MIGRATION = 8,
+
+  /**
+   * @generated from enum value: SIGNAL_CLOSE = 9;
+   */
+  SIGNAL_CLOSE = 9,
 }
 // Retrieve enum metadata with: proto3.getEnumType(DisconnectReason)
 proto3.util.setEnumType(DisconnectReason, "livekit.DisconnectReason", [
@@ -312,6 +322,8 @@ proto3.util.setEnumType(DisconnectReason, "livekit.DisconnectReason", [
   { no: 5, name: "ROOM_DELETED" },
   { no: 6, name: "STATE_MISMATCH" },
   { no: 7, name: "JOIN_FAILURE" },
+  { no: 8, name: "MIGRATION" },
+  { no: 9, name: "SIGNAL_CLOSE" },
 ]);
 
 /**

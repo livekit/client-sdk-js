@@ -1208,6 +1208,7 @@ export class LeaveRequest extends Message<LeaveRequest> {
   /**
    * sent when server initiates the disconnect due to server-restart
    * indicates clients should attempt full-reconnect sequence
+   * NOTE: `can_reconnect` obsoleted by `action` starting in protocol version 13
    *
    * @generated from field: bool can_reconnect = 1;
    */
@@ -1217,6 +1218,16 @@ export class LeaveRequest extends Message<LeaveRequest> {
    * @generated from field: livekit.DisconnectReason reason = 2;
    */
   reason = DisconnectReason.UNKNOWN_REASON;
+
+  /**
+   * @generated from field: livekit.LeaveRequest.Action action = 3;
+   */
+  action = LeaveRequest_Action.DISCONNECT;
+
+  /**
+   * @generated from field: livekit.RegionSettings regions = 4;
+   */
+  regions?: RegionSettings;
 
   constructor(data?: PartialMessage<LeaveRequest>) {
     super();
@@ -1228,6 +1239,8 @@ export class LeaveRequest extends Message<LeaveRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "can_reconnect", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 2, name: "reason", kind: "enum", T: proto3.getEnumType(DisconnectReason) },
+    { no: 3, name: "action", kind: "enum", T: proto3.getEnumType(LeaveRequest_Action) },
+    { no: 4, name: "regions", kind: "message", T: RegionSettings },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): LeaveRequest {
@@ -1246,6 +1259,40 @@ export class LeaveRequest extends Message<LeaveRequest> {
     return proto3.util.equals(LeaveRequest, a, b);
   }
 }
+
+/**
+ * indicates action clients should take on receiving this message
+ *
+ * @generated from enum livekit.LeaveRequest.Action
+ */
+export enum LeaveRequest_Action {
+  /**
+   * should disconnect
+   *
+   * @generated from enum value: DISCONNECT = 0;
+   */
+  DISCONNECT = 0,
+
+  /**
+   * should attempt a resume with `reconnect=1` in join URL
+   *
+   * @generated from enum value: RESUME = 1;
+   */
+  RESUME = 1,
+
+  /**
+   * should attempt a reconnect, i. e. no `reconnect=1`
+   *
+   * @generated from enum value: RECONNECT = 2;
+   */
+  RECONNECT = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(LeaveRequest_Action)
+proto3.util.setEnumType(LeaveRequest_Action, "livekit.LeaveRequest.Action", [
+  { no: 0, name: "DISCONNECT" },
+  { no: 1, name: "RESUME" },
+  { no: 2, name: "RECONNECT" },
+]);
 
 /**
  * message to indicate published video track dimensions are changing
@@ -1947,6 +1994,11 @@ export class SyncState extends Message<SyncState> {
    */
   offer?: SessionDescription;
 
+  /**
+   * @generated from field: repeated string track_sids_disabled = 6;
+   */
+  trackSidsDisabled: string[] = [];
+
   constructor(data?: PartialMessage<SyncState>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1960,6 +2012,7 @@ export class SyncState extends Message<SyncState> {
     { no: 3, name: "publish_tracks", kind: "message", T: TrackPublishedResponse, repeated: true },
     { no: 4, name: "data_channels", kind: "message", T: DataChannelInfo, repeated: true },
     { no: 5, name: "offer", kind: "message", T: SessionDescription },
+    { no: 6, name: "track_sids_disabled", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SyncState {
