@@ -27,7 +27,14 @@ export enum RoomEvent {
 
   /**
    * When disconnected from room. This fires when room.disconnect() is called or
-   * when an unrecoverable connection issue had occured
+   * when an unrecoverable connection issue had occured.
+   *
+   * DisconnectReason can be used to determine why the participant was disconnected. Notable reasons are
+   * - DUPLICATE_IDENTITY: another client with the same identity has joined the room
+   * - PARTICIPANT_REMOVED: participant was removed by RemoveParticipant API
+   * - ROOM_DELETED: the room has ended via DeleteRoom API
+   *
+   * args: ([[DisconnectReason]])
    */
   Disconnected = 'disconnected',
 
