@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.15.12
+
+### Patch Changes
+
+- Fix pc transport constructor - [#1027](https://github.com/livekit/client-sdk-js/pull/1027) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.11
 
 ### Patch Changes
