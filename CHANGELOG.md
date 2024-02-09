@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.0.1
+
+### Patch Changes
+
+- Sync disabled track sids - [#1025](https://github.com/livekit/client-sdk-js/pull/1025) ([@lukasIO](https://github.com/lukasIO))
+
+- Remove googConstraints from RTCPeerConnection constructor - [#1022](https://github.com/livekit/client-sdk-js/pull/1022) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.0.0
 
 ### Major Changes
