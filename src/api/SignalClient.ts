@@ -317,7 +317,7 @@ export class SignalClient {
           let resp: SignalResponse;
           if (typeof ev.data === 'string') {
             const json = JSON.parse(ev.data);
-            resp = SignalResponse.fromJson(json);
+            resp = SignalResponse.fromJson(json, { ignoreUnknownFields: true });
           } else if (ev.data instanceof ArrayBuffer) {
             resp = SignalResponse.fromBinary(new Uint8Array(ev.data));
           } else {
