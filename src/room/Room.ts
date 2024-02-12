@@ -347,6 +347,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.registerConnectionReconcile();
         this.isResuming = false;
         this.log.info('Resumed signal connection', this.logContext);
+        this.setAndEmitConnectionState(ConnectionState.Connected);
         this.updateSubscriptions();
         this.emitBufferedEvents();
       })
