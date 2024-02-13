@@ -125,7 +125,9 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
 }
 
 function getTrackCryptor(participantIdentity: string, trackId: string) {
-  let cryptor = participantCryptors.find((c) => c.getTrackId() === trackId);
+  let cryptor = participantCryptors.find(
+    (c) => c.getParticipantIdentity() === participantIdentity && c.getTrackId() === trackId,
+  );
   if (!cryptor) {
     workerLogger.info('creating new cryptor for', { participantIdentity });
     if (!keyProviderOptions) {
