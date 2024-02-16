@@ -1,6 +1,7 @@
 import { debounce } from 'ts-debounce';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
+import type RTCEngine from '../RTCEngine';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
@@ -39,6 +40,8 @@ export default abstract class LocalTrack<
   protected processor?: TrackProcessor<TrackKind, any>;
 
   protected processorLock: Mutex;
+
+  protected audioContext?: AudioContext;
 
   /**
    *
@@ -131,22 +134,27 @@ export default abstract class LocalTrack<
     }
     let processedTrack: MediaStreamTrack | undefined;
     if (this.processor && newTrack) {
-      this.log.debug('restarting processor', this.logContext);
-      if (this.kind === 'unknown') {
-        throw TypeError('cannot set processor on track of unknown kind');
-      }
+      const unlock = await this.processorLock.lock();
+      try {
+        this.log.debug('restarting processor', this.logContext);
+        if (this.kind === 'unknown') {
+          throw TypeError('cannot set processor on track of unknown kind');
+        }
 
-      if (this.processorElement) {
-        attachToElement(newTrack, this.processorElement);
-        // ensure the processorElement itself stays muted
-        this.processorElement.muted = true;
+        if (this.processorElement) {
+          attachToElement(newTrack, this.processorElement);
+          // ensure the processorElement itself stays muted
+          this.processorElement.muted = true;
+        }
+        await this.processor.restart({
+          track: newTrack,
+          kind: this.kind,
+          element: this.processorElement,
+        });
+        processedTrack = this.processor.processedTrack;
+      } finally {
+        unlock();
       }
-      await this.processor.restart({
-        track: newTrack,
-        kind: this.kind,
-        element: this.processorElement,
-      });
-      processedTrack = this.processor.processedTrack;
     }
     if (this.sender) {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
@@ -438,6 +446,7 @@ export default abstract class LocalTrack<
         kind: this.kind,
         track: this._mediaStreamTrack,
         element: this.processorElement,
+        audioContext: this.audioContext,
       };
 
       await processor.init(processorOptions);
@@ -478,6 +487,20 @@ export default abstract class LocalTrack<
     this.processorElement = undefined;
 
     await this.restart();
+  }
+
+  /**
+   * @internal
+   */
+  async onTrackPublished(engine: RTCEngine) {
+    if (this.processor) {
+      const unlock = await this.processorLock.lock();
+      try {
+        await this.processor.onPublish?.(engine);
+      } finally {
+        unlock();
+      }
+    }
   }
 
   protected abstract monitorSender(): void;

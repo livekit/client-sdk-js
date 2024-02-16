@@ -13,8 +13,6 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
   /** @internal */
   stopOnMute: boolean = false;
 
-  private audioContext?: AudioContext;
-
   private prevStats?: AudioSenderStats;
 
   protected processor?: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
