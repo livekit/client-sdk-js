@@ -7,6 +7,7 @@ export type ProcessorOptions<T extends Track.Kind> = {
   kind: T;
   track: MediaStreamTrack;
   element?: HTMLMediaElement;
+  audioContext?: AudioContext;
 };
 
 /**

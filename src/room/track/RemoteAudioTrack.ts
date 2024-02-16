@@ -7,7 +7,7 @@ import RemoteTrack from './RemoteTrack';
 import { Track } from './Track';
 import type { AudioOutputOptions } from './options';
 
-export default class RemoteAudioTrack extends RemoteTrack {
+export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
   private prevStats?: AudioReceiverStats;
 
   private elementVolume: number | undefined;
