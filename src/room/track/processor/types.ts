@@ -1,4 +1,4 @@
-import type RTCEngine from '../../RTCEngine';
+import type Room from '../../Room';
 import type { Track } from '../Track';
 
 /**
@@ -35,6 +35,6 @@ export interface TrackProcessor<
   restart: (opts: U) => Promise<void>;
   destroy: () => Promise<void>;
   processedTrack?: MediaStreamTrack;
-  onPublish?: (engine: RTCEngine) => Promise<void>;
+  onPublish?: (room: Room) => Promise<void>;
   onUnpublish?: () => Promise<void>;
 }

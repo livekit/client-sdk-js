@@ -1776,7 +1776,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private onLocalTrackPublished = async (pub: LocalTrackPublication) => {
+    pub.track?.getProcessor()?.onPublish?.(this);
+
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
+
     if (pub.track instanceof LocalAudioTrack) {
       const trackIsSilent = await pub.track.checkForSilence();
       if (trackIsSilent) {

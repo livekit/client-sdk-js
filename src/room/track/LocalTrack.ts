@@ -1,7 +1,6 @@
 import { debounce } from 'ts-debounce';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
-import type RTCEngine from '../RTCEngine';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
@@ -487,20 +486,6 @@ export default abstract class LocalTrack<
     this.processorElement = undefined;
 
     await this.restart();
-  }
-
-  /**
-   * @internal
-   */
-  async onTrackPublished(engine: RTCEngine) {
-    if (this.processor) {
-      const unlock = await this.processorLock.lock();
-      try {
-        await this.processor.onPublish?.(engine);
-      } finally {
-        unlock();
-      }
-    }
   }
 
   protected abstract monitorSender(): void;
