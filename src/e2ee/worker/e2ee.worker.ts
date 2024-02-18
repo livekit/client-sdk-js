@@ -84,7 +84,7 @@ onmessage = (ev) => {
       }
       break;
     case 'removeTransform':
-      unsetCryptorParticipant(data.trackId);
+      unsetCryptorParticipant(data.trackId, data.participantIdentity);
       break;
     case 'updateCodec':
       getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
@@ -125,7 +125,9 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
 }
 
 function getTrackCryptor(participantIdentity: string, trackId: string) {
-  let cryptor = participantCryptors.find((c) => c.getTrackId() === trackId);
+  let cryptor = participantCryptors.find(
+    (c) => c.getParticipantIdentity() === participantIdentity && c.getTrackId() === trackId,
+  );
   if (!cryptor) {
     workerLogger.info('creating new cryptor for', { participantIdentity });
     if (!keyProviderOptions) {
@@ -172,8 +174,10 @@ function getSharedKeyHandler() {
   return sharedKeyHandler;
 }
 
-function unsetCryptorParticipant(trackId: string) {
-  participantCryptors.find((c) => c.getTrackId() === trackId)?.unsetParticipant();
+function unsetCryptorParticipant(trackId: string, participantIdentity: string) {
+  participantCryptors
+    .find((c) => c.getParticipantIdentity() === participantIdentity && c.getTrackId() === trackId)
+    ?.unsetParticipant();
 }
 
 function setEncryptionEnabled(enable: boolean, participantIdentity: string) {
