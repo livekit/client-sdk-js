@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.0.2
+
+### Patch Changes
+
+- Ignore unknown fields in protobuf parsing - [#1029](https://github.com/livekit/client-sdk-js/pull/1029) ([@lukasIO](https://github.com/lukasIO))
+
+- Stronger kind type for Tracks to improve processor support - [#1033](https://github.com/livekit/client-sdk-js/pull/1033) ([@lukasIO](https://github.com/lukasIO))
+
+- Verify participant identity matching when unsetting transformer for e2ee - [#1032](https://github.com/livekit/client-sdk-js/pull/1032) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.0.1
 
 ### Patch Changes
