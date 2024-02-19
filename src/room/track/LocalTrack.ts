@@ -11,7 +11,9 @@ import type { TrackProcessor } from './processor/types';
 
 const defaultDimensionsTimeout = 1000;
 
-export default abstract class LocalTrack extends Track {
+export default abstract class LocalTrack<
+  TrackKind extends Track.Kind = Track.Kind,
+> extends Track<TrackKind> {
   /** @internal */
   sender?: RTCRtpSender;
 
@@ -34,9 +36,11 @@ export default abstract class LocalTrack extends Track {
 
   protected processorElement?: HTMLMediaElement;
 
-  protected processor?: TrackProcessor<this['kind']>;
+  protected processor?: TrackProcessor<TrackKind, any>;
 
   protected processorLock: Mutex;
+
+  protected audioContext?: AudioContext;
 
   /**
    *
@@ -47,7 +51,7 @@ export default abstract class LocalTrack extends Track {
    */
   protected constructor(
     mediaTrack: MediaStreamTrack,
-    kind: Track.Kind,
+    kind: TrackKind,
     constraints?: MediaTrackConstraints,
     userProvidedTrack = false,
     loggerOptions?: LoggerOptions,
@@ -128,21 +132,28 @@ export default abstract class LocalTrack extends Track {
       this._constraints = newTrack.getConstraints();
     }
     let processedTrack: MediaStreamTrack | undefined;
-    if (this.processor && newTrack && this.processorElement) {
-      this.log.debug('restarting processor', this.logContext);
-      if (this.kind === 'unknown') {
-        throw TypeError('cannot set processor on track of unknown kind');
-      }
+    if (this.processor && newTrack) {
+      const unlock = await this.processorLock.lock();
+      try {
+        this.log.debug('restarting processor', this.logContext);
+        if (this.kind === 'unknown') {
+          throw TypeError('cannot set processor on track of unknown kind');
+        }
 
-      attachToElement(newTrack, this.processorElement);
-      // ensure the processorElement itself stays muted
-      this.processorElement.muted = true;
-      await this.processor.restart({
-        track: newTrack,
-        kind: this.kind,
-        element: this.processorElement,
-      });
-      processedTrack = this.processor.processedTrack;
+        if (this.processorElement) {
+          attachToElement(newTrack, this.processorElement);
+          // ensure the processorElement itself stays muted
+          this.processorElement.muted = true;
+        }
+        await this.processor.restart({
+          track: newTrack,
+          kind: this.kind,
+          element: this.processorElement,
+        });
+        processedTrack = this.processor.processedTrack;
+      } finally {
+        unlock();
+      }
     }
     if (this.sender) {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
@@ -200,17 +211,17 @@ export default abstract class LocalTrack extends Track {
     return DeviceManager.getInstance().normalizeDeviceId(kind, deviceId, groupId);
   }
 
-  async mute(): Promise<LocalTrack> {
+  async mute() {
     this.setTrackMuted(true);
     return this;
   }
 
-  async unmute(): Promise<LocalTrack> {
+  async unmute() {
     this.setTrackMuted(false);
     return this;
   }
 
-  async replaceTrack(track: MediaStreamTrack, userProvidedTrack = true): Promise<LocalTrack> {
+  async replaceTrack(track: MediaStreamTrack, userProvidedTrack = true) {
     if (!this.sender) {
       throw new TrackInvalidError('unable to replace an unpublished track');
     }
@@ -227,7 +238,7 @@ export default abstract class LocalTrack extends Track {
     return this;
   }
 
-  protected async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {
+  protected async restart(constraints?: MediaTrackConstraints) {
     if (!constraints) {
       constraints = this._constraints;
     }
@@ -408,7 +419,7 @@ export default abstract class LocalTrack extends Track {
    * @param showProcessedStreamLocally
    * @returns
    */
-  async setProcessor(processor: TrackProcessor<this['kind']>, showProcessedStreamLocally = true) {
+  async setProcessor(processor: TrackProcessor<TrackKind>, showProcessedStreamLocally = true) {
     const unlock = await this.processorLock.lock();
     try {
       this.log.debug('setting up processor', this.logContext);
@@ -418,7 +429,8 @@ export default abstract class LocalTrack extends Track {
       if (this.kind === 'unknown') {
         throw TypeError('cannot set processor on track of unknown kind');
       }
-      this.processorElement = this.processorElement ?? document.createElement(this.kind);
+      this.processorElement =
+        this.processorElement ?? (document.createElement(this.kind) as HTMLMediaElement);
 
       attachToElement(this._mediaStreamTrack, this.processorElement);
       this.processorElement.muted = true;
@@ -433,6 +445,7 @@ export default abstract class LocalTrack extends Track {
         kind: this.kind,
         track: this._mediaStreamTrack,
         element: this.processorElement,
+        audioContext: this.audioContext,
       };
 
       await processor.init(processorOptions);

@@ -12,7 +12,7 @@ import type { AdaptiveStreamSettings } from './types';
 
 const REACTION_DELAY = 100;
 
-export default class RemoteVideoTrack extends RemoteTrack {
+export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   private prevStats?: VideoReceiverStats;
 
   private elementInfos: ElementInfo[] = [];

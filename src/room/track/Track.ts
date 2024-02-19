@@ -24,8 +24,10 @@ export enum VideoQuality {
   MEDIUM = ProtoQuality.MEDIUM,
   HIGH = ProtoQuality.HIGH,
 }
-export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
-  kind: Track.Kind;
+export abstract class Track<
+  TrackKind extends Track.Kind = Track.Kind,
+> extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
+  readonly kind: TrackKind;
 
   attachedElements: HTMLMediaElement[] = [];
 
@@ -67,7 +69,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
   protected constructor(
     mediaTrack: MediaStreamTrack,
-    kind: Track.Kind,
+    kind: TrackKind,
     loggerOptions: LoggerOptions = {},
   ) {
     super();

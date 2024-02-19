@@ -30,7 +30,7 @@ export class SimulcastTrackInfo {
 
 const refreshSubscribedCodecAfterNewCodec = 5000;
 
-export default class LocalVideoTrack extends LocalTrack {
+export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   /* @internal */
   signalClient?: SignalClient;
 
@@ -115,7 +115,7 @@ export default class LocalVideoTrack extends LocalTrack {
     }
   }
 
-  async mute(): Promise<LocalVideoTrack> {
+  async mute(): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
     try {
       if (this.source === Track.Source.Camera && !this.isUserProvided) {
@@ -130,7 +130,7 @@ export default class LocalVideoTrack extends LocalTrack {
     }
   }
 
-  async unmute(): Promise<LocalVideoTrack> {
+  async unmute(): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
     try {
       if (this.source === Track.Source.Camera && !this.isUserProvided) {

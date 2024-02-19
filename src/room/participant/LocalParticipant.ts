@@ -888,7 +888,6 @@ export default class LocalParticipant extends Participant {
     }
 
     this.addTrackPublication(publication);
-
     // send event for publication
     this.emit(ParticipantEvent.LocalTrackPublished, publication);
     return publication;

@@ -6,16 +6,16 @@ import { isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 import type { AudioCaptureOptions } from './options';
-import type { TrackProcessor } from './processor/types';
+import type { AudioProcessorOptions, TrackProcessor } from './processor/types';
 import { constraintsForOptions, detectSilence } from './utils';
 
-export default class LocalAudioTrack extends LocalTrack {
+export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
   /** @internal */
   stopOnMute: boolean = false;
 
-  private audioContext?: AudioContext;
-
   private prevStats?: AudioSenderStats;
+
+  protected processor?: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
 
   /**
    *
@@ -48,7 +48,7 @@ export default class LocalAudioTrack extends LocalTrack {
     );
   }
 
-  async mute(): Promise<LocalAudioTrack> {
+  async mute(): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
     try {
       // disabled special handling as it will cause BT headsets to switch communication modes
@@ -64,7 +64,7 @@ export default class LocalAudioTrack extends LocalTrack {
     }
   }
 
-  async unmute(): Promise<LocalAudioTrack> {
+  async unmute(): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
     try {
       const deviceHasChanged =
@@ -99,7 +99,7 @@ export default class LocalAudioTrack extends LocalTrack {
     await this.restart(constraints);
   }
 
-  protected async restart(constraints?: MediaTrackConstraints): Promise<LocalTrack> {
+  protected async restart(constraints?: MediaTrackConstraints): Promise<typeof this> {
     const track = await super.restart(constraints);
     this.checkForSilence();
     return track;
@@ -139,7 +139,7 @@ export default class LocalAudioTrack extends LocalTrack {
     this.prevStats = stats;
   };
 
-  async setProcessor(processor: TrackProcessor<this['kind']>) {
+  async setProcessor(processor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>) {
     const unlock = await this.processorLock.lock();
     try {
       if (!this.audioContext) {
@@ -149,9 +149,6 @@ export default class LocalAudioTrack extends LocalTrack {
       }
       if (this.processor) {
         await this.stopProcessor();
-      }
-      if (this.kind === 'unknown') {
-        throw TypeError('cannot set processor on track of unknown kind');
       }
 
       const processorOptions = {

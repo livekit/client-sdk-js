@@ -3,14 +3,16 @@ import { monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
 import { Track } from './Track';
 
-export default abstract class RemoteTrack extends Track {
+export default abstract class RemoteTrack<
+  TrackKind extends Track.Kind = Track.Kind,
+> extends Track<TrackKind> {
   /** @internal */
   receiver?: RTCRtpReceiver;
 
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
-    kind: Track.Kind,
+    kind: TrackKind,
     receiver?: RTCRtpReceiver,
     loggerOptions?: LoggerOptions,
   ) {
