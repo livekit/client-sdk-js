@@ -60,6 +60,7 @@ import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
+import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, sourceToKind } from './track/utils';
 import type { SimulationOptions, SimulationScenario } from './types';
@@ -1775,7 +1776,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
   };
 
+  private onTrackProcessorUpdate = (processor?: TrackProcessor<Track.Kind, any>) => {
+    processor?.onPublish?.(this);
+  };
+
   private onLocalTrackPublished = async (pub: LocalTrackPublication) => {
+    pub.track?.on(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
     pub.track?.getProcessor()?.onPublish?.(this);
 
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
@@ -1799,6 +1805,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private onLocalTrackUnpublished = (pub: LocalTrackPublication) => {
+    pub.track?.off(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
     this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
   };
 

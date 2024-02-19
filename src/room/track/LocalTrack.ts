@@ -459,6 +459,7 @@ export default abstract class LocalTrack<
         }
         await this.sender?.replaceTrack(this.processor.processedTrack);
       }
+      this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
     } finally {
       unlock();
     }
@@ -484,8 +485,8 @@ export default abstract class LocalTrack<
     this.processor = undefined;
     this.processorElement?.remove();
     this.processorElement = undefined;
-
     await this.restart();
+    this.emit(TrackEvent.TrackProcessorUpdate);
   }
 
   protected abstract monitorSender(): void;

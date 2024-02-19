@@ -11,6 +11,7 @@ import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
 import { isFireFox, isSafari, isWeb } from '../utils';
+import type { TrackProcessor } from './processor/types';
 import { getLogContextFromTrack } from './utils';
 
 const BACKGROUND_REACTION_DELAY = 5000;
@@ -502,4 +503,5 @@ export type TrackEventCallbacks = {
   elementDetached: (element: HTMLMediaElement) => void;
   upstreamPaused: (track: any) => void;
   upstreamResumed: (track: any) => void;
+  trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
 };

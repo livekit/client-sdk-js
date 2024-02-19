@@ -163,6 +163,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       if (this.processor.processedTrack) {
         await this.sender?.replaceTrack(this.processor.processedTrack);
       }
+      this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
     } finally {
       unlock();
     }
