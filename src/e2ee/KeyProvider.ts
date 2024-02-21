@@ -12,7 +12,7 @@ import { createKeyMaterialFromBuffer, createKeyMaterialFromString } from './util
 export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitter<KeyProviderCallbacks>) {
   private keyInfoMap: Map<string, KeyInfo>;
 
-  private options: KeyProviderOptions;
+  private readonly options: KeyProviderOptions;
 
   constructor(options: Partial<KeyProviderOptions> = {}) {
     super();
@@ -29,6 +29,11 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
    */
   protected onSetEncryptionKey(key: CryptoKey, participantIdentity?: string, keyIndex?: number) {
     const keyInfo: KeyInfo = { key, participantIdentity, keyIndex };
+    if (!this.options.sharedKey && !participantIdentity) {
+      throw new Error(
+        'participant identity needs to be passed for encryption key if sharedKey option is false',
+      );
+    }
     this.keyInfoMap.set(`${participantIdentity ?? 'shared'}-${keyIndex ?? 0}`, keyInfo);
     this.emit(KeyProviderEvent.SetKey, keyInfo);
   }
