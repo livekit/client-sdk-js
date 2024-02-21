@@ -552,4 +552,8 @@ export enum TrackEvent {
    * Fires on RemoteTrackPublication
    */
   SubscriptionFailed = 'subscriptionFailed',
+  /**
+   * @internal
+   */
+  TrackProcessorUpdate = 'trackProcessorUpdate',
 }
