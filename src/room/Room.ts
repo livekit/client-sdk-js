@@ -574,15 +574,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant.sid = pi.sid;
     this.localParticipant.identity = pi.identity;
 
+    if (this.options.e2ee && this.e2eeManager) {
+      try {
+        this.e2eeManager.setSifTrailer(joinResponse.sifTrailer);
+      } catch (e: any) {
+        this.log.error(e instanceof Error ? e.message : 'Could not set SifTrailer', {
+          ...this.logContext,
+          error: e,
+        });
+      }
+    }
+
     // populate remote participants, these should not trigger new events
     this.handleParticipantUpdates([pi, ...joinResponse.otherParticipants]);
 
     if (joinResponse.room) {
       this.handleRoomUpdate(joinResponse.room);
-    }
-
-    if (this.options.e2ee && this.e2eeManager) {
-      this.e2eeManager.setSifTrailer(joinResponse.sifTrailer);
     }
   };
 

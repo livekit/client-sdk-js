@@ -83,6 +83,14 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.sifGuard = new SifGuard();
   }
 
+  private get logContext() {
+    return {
+      identity: this.participantIdentity,
+      trackId: this.trackId,
+      fallbackCodec: this.videoCodec,
+    };
+  }
+
   /**
    * Assign a different participant to the cryptor.
    * useful for transceiver re-use
@@ -96,6 +104,7 @@ export class FrameCryptor extends BaseFrameCryptor {
   }
 
   unsetParticipant() {
+    workerLogger.debug('unsetting participant', this.logContext);
     this.participantIdentity = undefined;
   }
 
@@ -143,6 +152,13 @@ export class FrameCryptor extends BaseFrameCryptor {
       this.videoCodec = codec;
     }
 
+    workerLogger.debug('Setting up frame cryptor transform', {
+      operation,
+      passedTrackId: trackId,
+      codec,
+      ...this.logContext,
+    });
+
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
       transform: transformFn.bind(this),
@@ -159,6 +175,7 @@ export class FrameCryptor extends BaseFrameCryptor {
   }
 
   setSifTrailer(trailer: Uint8Array) {
+    workerLogger.debug('setting SIF trailer', { ...this.logContext, trailer });
     this.sifTrailer = trailer;
   }
 
@@ -212,6 +229,8 @@ export class FrameCryptor extends BaseFrameCryptor {
         encodedFrame.timestamp,
       );
       let frameInfo = this.getUnencryptedBytes(encodedFrame);
+      workerLogger.debug('frameInfo for encoded frame', { ...frameInfo, ...this.logContext });
+
       // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
       const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
 
@@ -262,6 +281,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         workerLogger.error(e);
       }
     } else {
+      workerLogger.debug('failed to decrypt, emitting error', this.logContext);
       this.emit(
         CryptorEvent.Error,
         new CryptorError(`encryption key missing for encoding`, CryptorErrorReason.MissingKey),
@@ -284,11 +304,13 @@ export class FrameCryptor extends BaseFrameCryptor {
       // skip for decryption for empty dtx frames
       encodedFrame.data.byteLength === 0
     ) {
+      workerLogger.debug('skipping empty frame', this.logContext);
       this.sifGuard.recordUserFrame();
       return controller.enqueue(encodedFrame);
     }
 
     if (isFrameServerInjected(encodedFrame.data, this.sifTrailer)) {
+      workerLogger.debug('enqueue SIF', this.logContext);
       this.sifGuard.recordSif();
 
       if (this.sifGuard.isSifAllowed()) {
@@ -312,6 +334,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
         this.keys.decryptionSuccess();
         if (decodedFrame) {
+          workerLogger.debug('enqueue decrypted frame', this.logContext);
           return controller.enqueue(decodedFrame);
         }
       } catch (error) {
@@ -352,6 +375,8 @@ export class FrameCryptor extends BaseFrameCryptor {
       throw new TypeError(`no encryption key found for decryption of ${this.participantIdentity}`);
     }
     let frameInfo = this.getUnencryptedBytes(encodedFrame);
+    workerLogger.debug('frameInfo for decoded frame', { ...frameInfo, ...this.logContext });
+
     // Construct frame trailer. Similar to the frame header described in
     // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
     // but we put it at the end.
@@ -566,6 +591,7 @@ export class FrameCryptor extends BaseFrameCryptor {
     // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
     const payloadType = frame.getMetadata().payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
+    workerLogger.debug('reading codec from frame', { codec, ...this.logContext });
     return codec;
   }
 }

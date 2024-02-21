@@ -21,8 +21,6 @@ let isEncryptionEnabled: boolean = false;
 
 let useSharedKey: boolean = false;
 
-let sharedKey: CryptoKey | undefined;
-
 let sifTrailer: Uint8Array | undefined;
 
 let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
@@ -72,10 +70,9 @@ onmessage = (ev) => {
       break;
     case 'setKey':
       if (useSharedKey) {
-        workerLogger.warn('set shared key');
         setSharedKey(data.key, data.keyIndex);
       } else if (data.participantIdentity) {
-        workerLogger.warn(
+        workerLogger.info(
           `set participant sender key ${data.participantIdentity} index ${data.keyIndex}`,
         );
         getParticipantKeyHandler(data.participantIdentity).setKey(data.key, data.keyIndex);
@@ -125,9 +122,7 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
 }
 
 function getTrackCryptor(participantIdentity: string, trackId: string) {
-  let cryptor = participantCryptors.find(
-    (c) => c.getParticipantIdentity() === participantIdentity && c.getTrackId() === trackId,
-  );
+  let cryptor = participantCryptors.find((c) => c.getTrackId() === trackId);
   if (!cryptor) {
     workerLogger.info('creating new cryptor for', { participantIdentity });
     if (!keyProviderOptions) {
@@ -146,8 +141,7 @@ function getTrackCryptor(participantIdentity: string, trackId: string) {
     // assign new participant id to track cryptor and pass in correct key handler
     cryptor.setParticipant(participantIdentity, getParticipantKeyHandler(participantIdentity));
   }
-  if (sharedKey) {
-  }
+
   return cryptor;
 }
 
@@ -158,9 +152,6 @@ function getParticipantKeyHandler(participantIdentity: string) {
   let keys = participantKeys.get(participantIdentity);
   if (!keys) {
     keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
-    if (sharedKey) {
-      keys.setKey(sharedKey);
-    }
     keys.on(KeyHandlerEvent.KeyRatcheted, emitRatchetedKeys);
     participantKeys.set(participantIdentity, keys);
   }
@@ -169,24 +160,32 @@ function getParticipantKeyHandler(participantIdentity: string) {
 
 function getSharedKeyHandler() {
   if (!sharedKeyHandler) {
+    workerLogger.debug('creating new shared key handler');
     sharedKeyHandler = new ParticipantKeyHandler('shared-key', keyProviderOptions);
   }
   return sharedKeyHandler;
 }
 
 function unsetCryptorParticipant(trackId: string, participantIdentity: string) {
-  participantCryptors
-    .find((c) => c.getParticipantIdentity() === participantIdentity && c.getTrackId() === trackId)
-    ?.unsetParticipant();
+  const cryptor = participantCryptors.find(
+    (c) => c.getParticipantIdentity() === participantIdentity && c.getTrackId() === trackId,
+  );
+  if (!cryptor) {
+    workerLogger.warn('Could not unset participant on cryptor', { trackId, participantIdentity });
+  } else {
+    cryptor.unsetParticipant();
+  }
 }
 
 function setEncryptionEnabled(enable: boolean, participantIdentity: string) {
+  workerLogger.debug(`setting encryption enabled for all tracks of ${participantIdentity}`, {
+    enable,
+  });
   encryptionEnabledMap.set(participantIdentity, enable);
 }
 
 function setSharedKey(key: CryptoKey, index?: number) {
-  workerLogger.debug('setting shared key');
-  sharedKey = key;
+  workerLogger.info('set shared key', { index });
   getSharedKeyHandler().setKey(key, index);
 }
 
