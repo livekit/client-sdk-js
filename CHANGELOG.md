@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.0.3
+
+### Patch Changes
+
+- Fix transceiver reuse for e2ee and add more verbose e2ee debug logging - [#1041](https://github.com/livekit/client-sdk-js/pull/1041) ([@lukasIO](https://github.com/lukasIO))
+
+- Make sure only one track restart request is processed at a time - [#1039](https://github.com/livekit/client-sdk-js/pull/1039) ([@lukasIO](https://github.com/lukasIO))
+
+- Emit event when track processor changes - [#1036](https://github.com/livekit/client-sdk-js/pull/1036) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.0.2
 
 ### Patch Changes
