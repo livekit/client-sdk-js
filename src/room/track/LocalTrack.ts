@@ -42,6 +42,8 @@ export default abstract class LocalTrack<
 
   protected audioContext?: AudioContext;
 
+  private restartLock: Mutex;
+
   /**
    *
    * @param mediaTrack
@@ -62,6 +64,7 @@ export default abstract class LocalTrack<
     this.muteLock = new Mutex();
     this.pauseUpstreamLock = new Mutex();
     this.processorLock = new Mutex();
+    this.restartLock = new Mutex();
     this.setMediaStreamTrack(mediaTrack, true);
 
     // added to satisfy TS compiler, constraints are synced with MediaStreamTrack
@@ -239,44 +242,49 @@ export default abstract class LocalTrack<
   }
 
   protected async restart(constraints?: MediaTrackConstraints) {
-    if (!constraints) {
-      constraints = this._constraints;
+    const unlock = await this.restartLock.lock();
+    try {
+      if (!constraints) {
+        constraints = this._constraints;
+      }
+      this.log.debug('restarting track with constraints', { ...this.logContext, constraints });
+
+      const streamConstraints: MediaStreamConstraints = {
+        audio: false,
+        video: false,
+      };
+
+      if (this.kind === Track.Kind.Video) {
+        streamConstraints.video = constraints;
+      } else {
+        streamConstraints.audio = constraints;
+      }
+
+      // these steps are duplicated from setMediaStreamTrack because we must stop
+      // the previous tracks before new tracks can be acquired
+      this.attachedElements.forEach((el) => {
+        detachTrack(this.mediaStreamTrack, el);
+      });
+      this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+      // on Safari, the old audio track must be stopped before attempting to acquire
+      // the new track, otherwise the new track will stop with
+      // 'A MediaStreamTrack ended due to a capture failure`
+      this._mediaStreamTrack.stop();
+
+      // create new track and attach
+      const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
+      const newTrack = mediaStream.getTracks()[0];
+      newTrack.addEventListener('ended', this.handleEnded);
+      this.log.debug('re-acquired MediaStreamTrack', this.logContext);
+
+      await this.setMediaStreamTrack(newTrack);
+      this._constraints = constraints;
+
+      this.emit(TrackEvent.Restarted, this);
+      return this;
+    } finally {
+      unlock();
     }
-    this.log.debug('restarting track with constraints', { ...this.logContext, constraints });
-
-    const streamConstraints: MediaStreamConstraints = {
-      audio: false,
-      video: false,
-    };
-
-    if (this.kind === Track.Kind.Video) {
-      streamConstraints.video = constraints;
-    } else {
-      streamConstraints.audio = constraints;
-    }
-
-    // these steps are duplicated from setMediaStreamTrack because we must stop
-    // the previous tracks before new tracks can be acquired
-    this.attachedElements.forEach((el) => {
-      detachTrack(this.mediaStreamTrack, el);
-    });
-    this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
-    // on Safari, the old audio track must be stopped before attempting to acquire
-    // the new track, otherwise the new track will stop with
-    // 'A MediaStreamTrack ended due to a capture failure`
-    this._mediaStreamTrack.stop();
-
-    // create new track and attach
-    const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
-    const newTrack = mediaStream.getTracks()[0];
-    newTrack.addEventListener('ended', this.handleEnded);
-    this.log.debug('re-acquired MediaStreamTrack', this.logContext);
-
-    await this.setMediaStreamTrack(newTrack);
-    this._constraints = constraints;
-
-    this.emit(TrackEvent.Restarted, this);
-    return this;
   }
 
   protected setTrackMuted(muted: boolean) {
