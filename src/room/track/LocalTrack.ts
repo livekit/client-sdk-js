@@ -221,7 +221,7 @@ export default abstract class LocalTrack<
     return this;
   }
 
-  async replaceTrack(track: MediaStreamTrack, userProvidedTrack = true) {
+  async replaceTrack(track: MediaStreamTrack, userProvidedTrack = true, stopProcessor = true) {
     if (!this.sender) {
       throw new TrackInvalidError('unable to replace an unpublished track');
     }
@@ -232,7 +232,7 @@ export default abstract class LocalTrack<
     // on the previous state in order to cleanup
     this.providedByUser = userProvidedTrack;
 
-    if (this.processor) {
+    if (stopProcessor && this.processor) {
       await this.stopProcessor();
     }
     return this;
