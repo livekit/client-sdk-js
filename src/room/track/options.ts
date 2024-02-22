@@ -299,9 +299,10 @@ export class VideoPreset {
         maxFramerate: widthOrOptions.maxFramerate,
         priority: widthOrOptions.priority,
       };
-    } else if (height && maxBitrate) {
+    } else if (height !== undefined && maxBitrate !== undefined) {
       this.width = widthOrOptions;
       this.height = height;
+      this.aspectRatio = widthOrOptions / height;
       this.encoding = {
         maxBitrate,
         maxFramerate,
