@@ -221,16 +221,38 @@ export default abstract class LocalTrack<
     return this;
   }
 
-  async replaceTrack(track: MediaStreamTrack, userProvidedTrack = true, stopProcessor = true) {
+  async replaceTrack(
+    track: MediaStreamTrack,
+    options?: { userProvidedTrack?: boolean; stopProcessor?: boolean },
+  ): Promise<typeof this>;
+  async replaceTrack(track: MediaStreamTrack, userProvidedTrack?: boolean): Promise<typeof this>;
+  async replaceTrack(
+    track: MediaStreamTrack,
+    userProvidedOrOptions:
+      | boolean
+      | { userProvidedTrack?: boolean; stopProcessor?: boolean }
+      | undefined,
+  ) {
     if (!this.sender) {
       throw new TrackInvalidError('unable to replace an unpublished track');
     }
+
+    let userProvidedTrack: boolean | undefined;
+    let stopProcessor: boolean | undefined;
+
+    if (typeof userProvidedOrOptions === 'boolean') {
+      userProvidedTrack = userProvidedOrOptions;
+    } else if (userProvidedOrOptions !== undefined) {
+      userProvidedTrack = userProvidedOrOptions.userProvidedTrack;
+      stopProcessor = userProvidedOrOptions.stopProcessor;
+    }
+
+    this.providedByUser = userProvidedTrack ?? true;
 
     this.log.debug('replace MediaStreamTrack', this.logContext);
     await this.setMediaStreamTrack(track);
     // this must be synced *after* setting mediaStreamTrack above, since it relies
     // on the previous state in order to cleanup
-    this.providedByUser = userProvidedTrack;
 
     if (stopProcessor && this.processor) {
       await this.stopProcessor();
