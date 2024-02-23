@@ -32,6 +32,7 @@ onmessage = (ev) => {
 
   switch (kind) {
     case 'init':
+      workerLogger.setLevel(data.loglevel);
       workerLogger.info('worker initialized');
       keyProviderOptions = data.keyProviderOptions;
       useSharedKey = !!data.keyProviderOptions.sharedKey;

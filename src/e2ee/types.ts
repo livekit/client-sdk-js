@@ -1,3 +1,4 @@
+import type { LogLevel } from '../logger';
 import type { VideoCodec } from '../room/track/options';
 import type { BaseKeyProvider } from './KeyProvider';
 
@@ -10,6 +11,7 @@ export interface InitMessage extends BaseMessage {
   kind: 'init';
   data: {
     keyProviderOptions: KeyProviderOptions;
+    loglevel: LogLevel;
   };
 }
 

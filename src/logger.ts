@@ -31,6 +31,8 @@ export type StructuredLogger = {
   warn: (msg: string, context?: object) => void;
   error: (msg: string, context?: object) => void;
   setDefaultLevel: (level: log.LogLevelDesc) => void;
+  setLevel: (level: log.LogLevelDesc) => void;
+  getLevel: () => number;
 };
 
 let livekitLogger = log.getLogger('livekit');
