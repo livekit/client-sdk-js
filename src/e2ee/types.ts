@@ -1,3 +1,4 @@
+import type { LogLevel } from '../logger';
 import type { VideoCodec } from '../room/track/options';
 import type { BaseKeyProvider } from './KeyProvider';
 
@@ -10,6 +11,7 @@ export interface InitMessage extends BaseMessage {
   kind: 'init';
   data: {
     keyProviderOptions: KeyProviderOptions;
+    loglevel: LogLevel;
   };
 }
 
@@ -90,6 +92,13 @@ export interface ErrorMessage extends BaseMessage {
   };
 }
 
+export interface LogLvlMessage extends BaseMessage {
+  kind: 'loglevel';
+  data: {
+    level: string;
+  };
+}
+
 export interface EnableMessage extends BaseMessage {
   kind: 'enable';
   data: {
@@ -117,7 +126,8 @@ export type E2EEWorkerMessage =
   | RatchetRequestMessage
   | RatchetMessage
   | SifTrailerMessage
-  | InitAck;
+  | InitAck
+  | LogLvlMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
