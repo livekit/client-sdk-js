@@ -8,6 +8,7 @@ import { Mutex, compareVersions, isMobile, sleep } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
+import type { ReplaceTrackOptions } from './types';
 
 const defaultDimensionsTimeout = 1000;
 
@@ -221,17 +222,11 @@ export default abstract class LocalTrack<
     return this;
   }
 
-  async replaceTrack(
-    track: MediaStreamTrack,
-    options?: { userProvidedTrack?: boolean; stopProcessor?: boolean },
-  ): Promise<typeof this>;
+  async replaceTrack(track: MediaStreamTrack, options?: ReplaceTrackOptions): Promise<typeof this>;
   async replaceTrack(track: MediaStreamTrack, userProvidedTrack?: boolean): Promise<typeof this>;
   async replaceTrack(
     track: MediaStreamTrack,
-    userProvidedOrOptions:
-      | boolean
-      | { userProvidedTrack?: boolean; stopProcessor?: boolean }
-      | undefined,
+    userProvidedOrOptions: boolean | ReplaceTrackOptions | undefined,
   ) {
     if (!this.sender) {
       throw new TrackInvalidError('unable to replace an unpublished track');
