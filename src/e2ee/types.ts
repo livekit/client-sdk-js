@@ -92,13 +92,6 @@ export interface ErrorMessage extends BaseMessage {
   };
 }
 
-export interface LogLvlMessage extends BaseMessage {
-  kind: 'loglevel';
-  data: {
-    level: string;
-  };
-}
-
 export interface EnableMessage extends BaseMessage {
   kind: 'enable';
   data: {
@@ -126,8 +119,7 @@ export type E2EEWorkerMessage =
   | RatchetRequestMessage
   | RatchetMessage
   | SifTrailerMessage
-  | InitAck
-  | LogLvlMessage;
+  | InitAck;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 
