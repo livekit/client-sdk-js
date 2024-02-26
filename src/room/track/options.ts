@@ -257,6 +257,15 @@ export interface VideoEncoding {
   priority?: RTCPriorityType;
 }
 
+export interface VideoPresetOptions {
+  width: number;
+  height: number;
+  aspectRatio?: number;
+  maxBitrate: number;
+  maxFramerate?: number;
+  priority?: RTCPriorityType;
+}
+
 export class VideoPreset {
   encoding: VideoEncoding;
 
@@ -264,20 +273,44 @@ export class VideoPreset {
 
   height: number;
 
+  aspectRatio?: number;
+
+  constructor(videoPresetOptions: VideoPresetOptions);
   constructor(
     width: number,
     height: number,
     maxBitrate: number,
     maxFramerate?: number,
     priority?: RTCPriorityType,
+  );
+  constructor(
+    widthOrOptions: number | VideoPresetOptions,
+    height?: number,
+    maxBitrate?: number,
+    maxFramerate?: number,
+    priority?: RTCPriorityType,
   ) {
-    this.width = width;
-    this.height = height;
-    this.encoding = {
-      maxBitrate,
-      maxFramerate,
-      priority,
-    };
+    if (typeof widthOrOptions === 'object') {
+      this.width = widthOrOptions.width;
+      this.height = widthOrOptions.height;
+      this.aspectRatio = widthOrOptions.aspectRatio;
+      this.encoding = {
+        maxBitrate: widthOrOptions.maxBitrate,
+        maxFramerate: widthOrOptions.maxFramerate,
+        priority: widthOrOptions.priority,
+      };
+    } else if (height !== undefined && maxBitrate !== undefined) {
+      this.width = widthOrOptions;
+      this.height = height;
+      this.aspectRatio = widthOrOptions / height;
+      this.encoding = {
+        maxBitrate,
+        maxFramerate,
+        priority,
+      };
+    } else {
+      throw new TypeError('Unsupported options: provide at least width, height and maxBitrate');
+    }
   }
 
   get resolution(): VideoResolution {
@@ -285,7 +318,7 @@ export class VideoPreset {
       width: this.width,
       height: this.height,
       frameRate: this.encoding.maxFramerate,
-      aspectRatio: this.width / this.height,
+      aspectRatio: this.aspectRatio,
     };
   }
 }
