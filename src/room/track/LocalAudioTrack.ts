@@ -50,6 +50,10 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
 
   async mute(): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
+    if (this.isMuted) {
+      this.log.debug('Track already muted', this.logContext);
+      return this;
+    }
     try {
       // disabled special handling as it will cause BT headsets to switch communication modes
       if (this.source === Track.Source.Microphone && this.stopOnMute && !this.isUserProvided) {
@@ -66,6 +70,10 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
 
   async unmute(): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
+    if (!this.isMuted) {
+      this.log.debug('Track already unmuted', this.logContext);
+      return this;
+    }
     try {
       const deviceHasChanged =
         this._constraints.deviceId &&
