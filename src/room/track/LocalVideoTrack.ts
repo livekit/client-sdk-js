@@ -117,7 +117,6 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
   async mute(): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
-
     try {
       if (this.isMuted) {
         this.log.debug('Track already muted', this.logContext);
@@ -138,7 +137,6 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
   async unmute(): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
-
     try {
       if (!this.isMuted) {
         this.log.debug('Track already unmuted', this.logContext);
