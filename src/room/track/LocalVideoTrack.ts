@@ -118,6 +118,11 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   async mute(): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
     try {
+      if (this.isMuted) {
+        this.log.debug('Track already muted', this.logContext);
+        return this;
+      }
+
       if (this.source === Track.Source.Camera && !this.isUserProvided) {
         this.log.debug('stopping camera track', this.logContext);
         // also stop the track, so that camera indicator is turned off
@@ -133,6 +138,11 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   async unmute(): Promise<typeof this> {
     const unlock = await this.muteLock.lock();
     try {
+      if (!this.isMuted) {
+        this.log.debug('Track already unmuted', this.logContext);
+        return this;
+      }
+
       if (this.source === Track.Source.Camera && !this.isUserProvided) {
         this.log.debug('reacquiring camera track', this.logContext);
         await this.restartTrack();
