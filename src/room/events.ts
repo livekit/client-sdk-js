@@ -491,6 +491,7 @@ export enum EngineEvent {
   RemoteMute = 'remoteMute',
   SubscribedQualityUpdate = 'subscribedQualityUpdate',
   LocalTrackUnpublished = 'localTrackUnpublished',
+  Offline = 'offline',
 }
 
 export enum TrackEvent {

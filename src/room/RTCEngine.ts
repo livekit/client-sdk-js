@@ -418,6 +418,19 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           );
         }
       }
+
+      // detect cases where both signal client and peer connection are severed and assume that user has lost network connection
+      const isSignalSevered =
+        this.client.isDisconnected ||
+        this.client.currentState === SignalConnectionState.RECONNECTING;
+      const isPCSevered = [
+        PCTransportState.FAILED,
+        PCTransportState.CLOSING,
+        PCTransportState.CLOSED,
+      ].includes(connectionState);
+      if (isSignalSevered && isPCSevered && !this._isClosed) {
+        this.emit(EngineEvent.Offline);
+      }
     };
     this.pcManager.onTrack = (ev: RTCTrackEvent) => {
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
@@ -1400,4 +1413,5 @@ export type EngineEventCallbacks = {
   subscribedQualityUpdate: (update: SubscribedQualityUpdate) => void;
   localTrackUnpublished: (unpublishedResponse: TrackUnpublishedResponse) => void;
   remoteMute: (trackSid: string, muted: boolean) => void;
+  offline: () => void;
 };
