@@ -1047,6 +1047,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ) {
         throw new Error('cannot switch audio output, setSinkId not supported');
       }
+      if (this.options.webAudioMix) {
+        // setting `default` for web audio output doesn't work, so we need to normalize the id before
+        deviceId =
+          (await DeviceManager.getInstance().normalizeDeviceId('audiooutput', deviceId)) ?? '';
+      }
       this.options.audioOutput ??= {};
       const prevDeviceId = this.options.audioOutput.deviceId;
       this.options.audioOutput.deviceId = deviceId;
