@@ -283,6 +283,7 @@ export class SignalClient {
 
         this.ws.onerror = async (ev: Event) => {
           if (this.state !== SignalConnectionState.CONNECTED) {
+            this.state = SignalConnectionState.DISCONNECTED;
             clearTimeout(wsTimeout);
             try {
               const resp = await fetch(`http${url.substring(2)}/validate${params}`);
