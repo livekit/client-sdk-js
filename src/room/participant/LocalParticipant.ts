@@ -513,6 +513,10 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
   ): Promise<LocalTrackPublication> {
+    if (track instanceof LocalAudioTrack) {
+      track.setAudioContext(this.audioContext);
+    }
+
     await this.reconnectFuture?.promise;
     if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
       await this.pendingPublishPromises.get(track);
@@ -564,10 +568,6 @@ export default class LocalParticipant extends Participant {
         loggerName: this.roomOptions.loggerName,
         loggerContextCb: () => this.logContext,
       });
-    }
-
-    if (track instanceof LocalAudioTrack) {
-      track.setAudioContext(this.audioContext);
     }
 
     // is it already published? if so skip
