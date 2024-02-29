@@ -1005,14 +1005,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`, this.logContext);
     this.emit(EngineEvent.Resuming);
-
+    let res: ReconnectResponse | undefined;
     try {
       this.setupSignalClientCallbacks();
-      const res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
-      if (res) {
-        const rtcConfig = this.makeRTCConfiguration(res);
-        this.pcManager.updateConfiguration(rtcConfig);
-      }
+      res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
     } catch (error) {
       let message = '';
       if (error instanceof Error) {
@@ -1027,7 +1023,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       throw new SignalReconnectError(message);
     }
+
     this.emit(EngineEvent.SignalResumed);
+
+    if (res) {
+      const rtcConfig = this.makeRTCConfiguration(res);
+      this.pcManager.updateConfiguration(rtcConfig);
+    }
 
     if (this.shouldFailNext) {
       this.shouldFailNext = false;
