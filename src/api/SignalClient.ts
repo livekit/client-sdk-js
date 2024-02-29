@@ -140,6 +140,8 @@ export class SignalClient {
 
   onLeave?: (leave: LeaveRequest) => void;
 
+  onReconnectResponse?: (response: ReconnectResponse) => void;
+
   connectOptions?: ConnectOpts;
 
   ws?: WebSocket;
@@ -356,7 +358,8 @@ export class SignalClient {
               abortSignal?.removeEventListener('abort', abortHandler);
               this.startPingInterval();
               if (resp.message?.case === 'reconnect') {
-                resolve(resp.message?.value);
+                resolve(resp.message.value);
+                this.onReconnectResponse?.(resp.message.value);
               } else {
                 resolve(undefined);
                 shouldProcessMessage = true;

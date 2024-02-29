@@ -424,7 +424,11 @@ async function setPublishingLayersForSender(
     }
 
     if (encodings.length !== senderEncodings.length) {
-      log.warn('cannot set publishing layers, encodings mismatch');
+      log.warn('cannot set publishing layers, encodings mismatch', {
+        ...logContext,
+        encodings,
+        senderEncodings,
+      });
       return;
     }
 
