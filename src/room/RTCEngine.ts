@@ -1023,7 +1023,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       throw new SignalReconnectError(message);
     }
-
     this.emit(EngineEvent.SignalResumed);
 
     if (res) {
