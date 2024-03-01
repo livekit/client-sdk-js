@@ -1,5 +1,29 @@
 # Change Log
 
+## 2.0.4
+
+### Patch Changes
+
+- Normalize audiooutput device id for webAudio mode - [#1051](https://github.com/livekit/client-sdk-js/pull/1051) ([@lukasIO](https://github.com/lukasIO))
+
+- Add page leave log - [#1056](https://github.com/livekit/client-sdk-js/pull/1056) ([@lukasIO](https://github.com/lukasIO))
+
+- Add `stopProcessor` param to replaceTrack function - [#1040](https://github.com/livekit/client-sdk-js/pull/1040) ([@lukasIO](https://github.com/lukasIO))
+
+- Set audio context on track as early as possible - [#1053](https://github.com/livekit/client-sdk-js/pull/1053) ([@lukasIO](https://github.com/lukasIO))
+
+- Export logger names to configure fine grained logging - [#1042](https://github.com/livekit/client-sdk-js/pull/1042) ([@lukasIO](https://github.com/lukasIO))
+
+- Emit Restarting as soon as both signal and pc connection are severed - [#1047](https://github.com/livekit/client-sdk-js/pull/1047) ([@lukasIO](https://github.com/lukasIO))
+
+- Add VideoPreset overload for more granular options settings - [#1044](https://github.com/livekit/client-sdk-js/pull/1044) ([@lukasIO](https://github.com/lukasIO))
+
+- Send worker loglevel in init message - [#1045](https://github.com/livekit/client-sdk-js/pull/1045) ([@lukasIO](https://github.com/lukasIO))
+
+- Only perform mute/unmute actions if necessary - [#1048](https://github.com/livekit/client-sdk-js/pull/1048) ([@lukasIO](https://github.com/lukasIO))
+
+- Make sure a 401 ConnectionError is thrown on invalid token permissions - [#1049](https://github.com/livekit/client-sdk-js/pull/1049) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.0.3
 
 ### Patch Changes
