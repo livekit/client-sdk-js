@@ -1040,7 +1040,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       const rtcConfig = this.makeRTCConfiguration(res);
       this.pcManager.updateConfiguration(rtcConfig);
     } else {
-      this.log.warn('Did not receive reconnect response after timeout', this.logContext);
+      this.log.warn('Did not receive reconnect response', this.logContext);
     }
 
     if (this.shouldFailNext) {
