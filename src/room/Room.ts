@@ -870,6 +870,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private onPageLeave = async () => {
+    this.log.info('Page leave detected, disconnecting', this.logContext);
     await this.disconnect();
   };
 
