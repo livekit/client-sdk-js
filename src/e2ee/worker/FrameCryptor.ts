@@ -67,6 +67,8 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private sifGuard: SifGuard;
 
+  private detectedCodec?: VideoCodec;
+
   constructor(opts: {
     keys: ParticipantKeyHandler;
     participantIdentity: string;
@@ -229,7 +231,6 @@ export class FrameCryptor extends BaseFrameCryptor {
         encodedFrame.timestamp,
       );
       let frameInfo = this.getUnencryptedBytes(encodedFrame);
-      workerLogger.debug('frameInfo for encoded frame', { ...frameInfo, ...this.logContext });
 
       // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
       const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
@@ -334,7 +335,6 @@ export class FrameCryptor extends BaseFrameCryptor {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
         this.keys.decryptionSuccess();
         if (decodedFrame) {
-          workerLogger.debug('enqueue decrypted frame', this.logContext);
           return controller.enqueue(decodedFrame);
         }
       } catch (error) {
@@ -375,7 +375,6 @@ export class FrameCryptor extends BaseFrameCryptor {
       throw new TypeError(`no encryption key found for decryption of ${this.participantIdentity}`);
     }
     let frameInfo = this.getUnencryptedBytes(encodedFrame);
-    workerLogger.debug('frameInfo for decoded frame', { ...frameInfo, ...this.logContext });
 
     // Construct frame trailer. Similar to the frame header described in
     // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -534,6 +533,14 @@ export class FrameCryptor extends BaseFrameCryptor {
     var frameInfo = { unencryptedBytes: 0, isH264: false };
     if (isVideoFrame(frame)) {
       let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
+      if (detectedCodec !== this.detectedCodec) {
+        workerLogger.debug('detected different codec', {
+          detectedCodec,
+          oldCodec: this.detectedCodec,
+          ...this.logContext,
+        });
+        this.detectedCodec = detectedCodec;
+      }
 
       if (detectedCodec === 'av1' || detectedCodec === 'vp9') {
         throw new Error(`${detectedCodec} is not yet supported for end to end encryption`);
@@ -591,7 +598,6 @@ export class FrameCryptor extends BaseFrameCryptor {
     // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
     const payloadType = frame.getMetadata().payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
-    workerLogger.debug('reading codec from frame', { codec, ...this.logContext });
     return codec;
   }
 }
