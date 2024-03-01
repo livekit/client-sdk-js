@@ -76,6 +76,7 @@ const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
+const maxReconnectResponseWait = 2 * 1000;
 
 enum PCState {
   New,
@@ -1005,14 +1006,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.log.info(`resuming signal connection, attempt ${this.reconnectAttempts}`, this.logContext);
     this.emit(EngineEvent.Resuming);
-
+    let res: ReconnectResponse | undefined;
     try {
       this.setupSignalClientCallbacks();
-      const res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
-      if (res) {
-        const rtcConfig = this.makeRTCConfiguration(res);
-        this.pcManager.updateConfiguration(rtcConfig);
-      }
+      res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
     } catch (error) {
       let message = '';
       if (error instanceof Error) {
@@ -1028,6 +1025,23 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new SignalReconnectError(message);
     }
     this.emit(EngineEvent.SignalResumed);
+
+    if (!res) {
+      const startTime = Date.now();
+      while (Date.now() < startTime + maxReconnectResponseWait) {
+        if (res) {
+          break;
+        }
+        await sleep(50);
+      }
+    }
+
+    if (res) {
+      const rtcConfig = this.makeRTCConfiguration(res);
+      this.pcManager.updateConfiguration(rtcConfig);
+    } else {
+      this.log.warn('Did not receive reconnect response', this.logContext);
+    }
 
     if (this.shouldFailNext) {
       this.shouldFailNext = false;

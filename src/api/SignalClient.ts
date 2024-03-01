@@ -216,7 +216,7 @@ export class SignalClient {
     token: string,
     sid?: string,
     reason?: ReconnectReason,
-  ): Promise<ReconnectResponse | void> {
+  ): Promise<ReconnectResponse | undefined> {
     if (!this.options) {
       this.log.warn(
         'attempted to reconnect without signal options being set, ignoring',
@@ -242,7 +242,7 @@ export class SignalClient {
     token: string,
     opts: ConnectOpts,
     abortSignal?: AbortSignal,
-  ): Promise<JoinResponse | ReconnectResponse | void> {
+  ): Promise<JoinResponse | ReconnectResponse | undefined> {
     this.connectOptions = opts;
     url = toWebsocketUrl(url);
     // strip trailing slash
@@ -252,7 +252,7 @@ export class SignalClient {
     const clientInfo = getClientInfo();
     const params = createConnectionParams(token, clientInfo, opts);
 
-    return new Promise<JoinResponse | ReconnectResponse | void>(async (resolve, reject) => {
+    return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       const unlock = await this.connectionLock.lock();
       try {
         const abortHandler = async () => {
@@ -356,9 +356,13 @@ export class SignalClient {
               abortSignal?.removeEventListener('abort', abortHandler);
               this.startPingInterval();
               if (resp.message?.case === 'reconnect') {
-                resolve(resp.message?.value);
+                resolve(resp.message.value);
               } else {
-                resolve();
+                this.log.debug(
+                  'declaring signal reconnected without reconnect response received',
+                  this.logContext,
+                );
+                resolve(undefined);
                 shouldProcessMessage = true;
               }
             } else if (this.isEstablishingConnection && resp.message.case === 'leave') {
