@@ -140,8 +140,6 @@ export class SignalClient {
 
   onLeave?: (leave: LeaveRequest) => void;
 
-  onReconnectResponse?: (response: ReconnectResponse) => void;
-
   connectOptions?: ConnectOpts;
 
   ws?: WebSocket;
@@ -359,8 +357,11 @@ export class SignalClient {
               this.startPingInterval();
               if (resp.message?.case === 'reconnect') {
                 resolve(resp.message.value);
-                this.onReconnectResponse?.(resp.message.value);
               } else {
+                this.log.debug(
+                  'declaring signal reconnected without reconnect response received',
+                  this.logContext,
+                );
                 resolve(undefined);
                 shouldProcessMessage = true;
               }

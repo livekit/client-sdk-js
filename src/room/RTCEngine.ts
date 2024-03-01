@@ -1009,12 +1009,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     let res: ReconnectResponse | undefined;
     try {
       this.setupSignalClientCallbacks();
-      this.client.onReconnectResponse = (response) => {
-        res = response;
-      };
-      await this.client.reconnect(this.url, this.token, this.participantSid, reason);
+      res = await this.client.reconnect(this.url, this.token, this.participantSid, reason);
     } catch (error) {
-      this.client.onReconnectResponse = undefined;
       let message = '';
       if (error instanceof Error) {
         message = error.message;
@@ -1038,7 +1034,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         }
         await sleep(50);
       }
-      this.client.onReconnectResponse = undefined;
     }
 
     if (res) {
