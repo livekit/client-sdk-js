@@ -76,7 +76,6 @@ const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
-const maxReconnectResponseWait = 2 * 1000;
 
 enum PCState {
   New,
