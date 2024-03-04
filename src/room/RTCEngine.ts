@@ -1026,16 +1026,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     this.emit(EngineEvent.SignalResumed);
 
-    if (!res) {
-      const startTime = Date.now();
-      while (Date.now() < startTime + maxReconnectResponseWait) {
-        if (res) {
-          break;
-        }
-        await sleep(50);
-      }
-    }
-
     if (res) {
       const rtcConfig = this.makeRTCConfiguration(res);
       this.pcManager.updateConfiguration(rtcConfig);
