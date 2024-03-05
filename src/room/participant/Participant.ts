@@ -88,8 +88,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   protected get logContext() {
     return {
       ...this.loggerOptions?.loggerContextCb?.(),
-      participantSid: this.sid,
-      participantId: this.identity,
     };
   }
 

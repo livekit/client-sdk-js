@@ -33,6 +33,14 @@ export default class RemoteParticipant extends Participant {
     return new RemoteParticipant(signalClient, pi.sid, pi.identity, pi.name, pi.metadata);
   }
 
+  protected get logContext() {
+    return {
+      ...super.logContext,
+      rpID: this.sid,
+      remoteParticipant: this.identity,
+    };
+  }
+
   /** @internal */
   constructor(
     signalClient: SignalClient,
