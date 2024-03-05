@@ -441,6 +441,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private setupSignalClientCallbacks() {
+    const tryHandleInvalidStateError = (error: unknown, disconnectReason: ReconnectReason) => {
+      if (error instanceof DOMException && error.name === 'InvalidStateError') {
+        this.fullReconnectOnNext = true;
+        this.handleDisconnect('peerconnection failed', disconnectReason);
+      }
+    };
     // configure signaling client
     this.client.onAnswer = async (sd) => {
       if (!this.pcManager) {
@@ -456,6 +462,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           ...this.logContext,
           RTCSdpType: sd.type,
         });
+        tryHandleInvalidStateError(error, ReconnectReason.RR_PUBLISHER_FAILED);
       }
     };
 
@@ -471,6 +478,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           candidate,
           target,
         });
+        tryHandleInvalidStateError(
+          error,
+          target === SignalTarget.PUBLISHER
+            ? ReconnectReason.RR_PUBLISHER_FAILED
+            : ReconnectReason.RR_SUBSCRIBER_FAILED,
+        );
       });
     };
 
@@ -488,6 +501,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         log.error(`failed to createSubscriberAnswerFromOffer: ${errorMessage}`, {
           ...this.logContext,
         });
+        tryHandleInvalidStateError(error, ReconnectReason.RR_SUBSCRIBER_FAILED);
       }
     };
 
