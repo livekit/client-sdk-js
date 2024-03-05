@@ -36,17 +36,11 @@ export type StructuredLogger = log.Logger & {
 };
 
 let livekitLogger = log.getLogger('livekit');
+const livekitLoggers = Object.values(LoggerNames).map((name) => log.getLogger(name));
 
 livekitLogger.setDefaultLevel(LogLevel.info);
 
 export default livekitLogger as StructuredLogger;
-
-function getLiveKitLoggers() {
-  const loggers = Object.entries(log.getLoggers()).filter(
-    ([logrName]) => logrName.startsWith('livekit') || logrName.startsWith('lk-'),
-  );
-  return loggers.map(([, logger]) => logger);
-}
 
 /**
  * @internal
@@ -61,7 +55,7 @@ export function setLogLevel(level: LogLevel | LogLevelString, loggerName?: Logge
   if (loggerName) {
     log.getLogger(loggerName).setLevel(level);
   }
-  for (const logger of getLiveKitLoggers()) {
+  for (const logger of livekitLoggers) {
     logger.setLevel(level);
   }
 }
@@ -73,7 +67,7 @@ export type LogExtension = (level: LogLevel, msg: string, context?: object) => v
  * if set, the browser logs will lose their stacktrace information (see https://github.com/pimterry/loglevel#writing-plugins)
  */
 export function setLogExtension(extension: LogExtension, logger?: StructuredLogger) {
-  const loggers = logger ? [logger] : getLiveKitLoggers();
+  const loggers = logger ? [logger] : livekitLoggers;
 
   loggers.forEach((logR) => {
     const originalFactory = logR.methodFactory;
