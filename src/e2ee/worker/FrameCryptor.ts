@@ -88,7 +88,7 @@ export class FrameCryptor extends BaseFrameCryptor {
   private get logContext() {
     return {
       participant: this.participantIdentity,
-      trackId: this.trackId,
+      mediaTrackId: this.trackId,
       fallbackCodec: this.videoCodec,
     };
   }
