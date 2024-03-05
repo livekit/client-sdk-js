@@ -451,8 +451,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       try {
         await this.pcManager.setPublisherAnswer(sd);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'unknown error'
-        log.error(`failed to setPublisherAnswer: ${errorMessage}`, { ...this.logContext, RTCSdpType: sd.type })
+        const errorMessage = error instanceof Error ? error.message : 'unknown error';
+        log.error(`failed to setPublisherAnswer: ${errorMessage}`, {
+          ...this.logContext,
+          RTCSdpType: sd.type,
+        });
       }
     };
 
@@ -462,10 +465,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
       this.log.trace('got ICE candidate from peer', { ...this.logContext, candidate, target });
-      this.pcManager.addIceCandidate(candidate, target).catch(error => {
+      this.pcManager.addIceCandidate(candidate, target).catch((error) => {
         log.error(`failed to addIceCandidate: ${error.message}`, {
-          ...this.logContext, candidate, target
-        })
+          ...this.logContext,
+          candidate,
+          target,
+        });
       });
     };
 
@@ -479,10 +484,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd);
         await this.client.sendAnswer(answer);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'unknown error'
+        const errorMessage = error instanceof Error ? error.message : 'unknown error';
         log.error(`failed to createSubscriberAnswerFromOffer: ${errorMessage}`, {
-          ...this.logContext
-        })
+          ...this.logContext,
+        });
       }
     };
 
