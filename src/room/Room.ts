@@ -163,16 +163,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   constructor(options?: RoomOptions) {
     super();
-
-    if (!isBrowserSupported()) {
-      if (isReactNative()) {
-        throw Error("WebRTC isn't detected, have you called registerGlobals?");
-      } else {
-        throw Error(
-          "LiveKit doesn't seem to be supported on this browser. Try to update your browser and make sure no browser extensions are disabling webRTC.",
-        );
-      }
-    }
     this.setMaxListeners(100);
     this.remoteParticipants = new Map();
     this.sidToIdentity = new Map();
@@ -428,6 +418,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   connect = async (url: string, token: string, opts?: RoomConnectOptions): Promise<void> => {
+    if (!isBrowserSupported()) {
+      if (isReactNative()) {
+        throw Error("WebRTC isn't detected, have you called registerGlobals?");
+      } else {
+        throw Error(
+          "LiveKit doesn't seem to be supported on this browser. Try to update your browser and make sure no browser extensions are disabling webRTC.",
+        );
+      }
+    }
+
     // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
     const unlockDisconnect = await this.disconnectLock.lock();
 
