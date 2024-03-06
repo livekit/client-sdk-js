@@ -69,7 +69,9 @@ import {
   Mutex,
   createDummyVideoStreamTrack,
   getEmptyAudioStreamTrack,
+  isBrowserSupported,
   isCloud,
+  isReactNative,
   isWeb,
   supportsSetSinkId,
   toHttpUrl,
@@ -161,6 +163,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   constructor(options?: RoomOptions) {
     super();
+
+    if(!isBrowserSupported()) {
+      if(isReactNative()) {
+        throw Error("react-native-webrtc isn't detected, have you called registerGlobals?")
+      } else {
+        throw Error("LiveKit isn't supported on this browser.")
+      }
+    }
     this.setMaxListeners(100);
     this.remoteParticipants = new Map();
     this.sidToIdentity = new Map();

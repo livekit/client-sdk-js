@@ -133,6 +133,11 @@ export function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boo
 }
 
 export function isBrowserSupported() {
+  // global defined only for ReactNative.
+  // @ts-ignore
+  if (isReactNative() && global && global.RTCPeerConnection === undefined) {
+    return false;
+  }
   return supportsTransceiver() || supportsAddTrack();
 }
 
