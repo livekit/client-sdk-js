@@ -2,4 +2,4 @@
 "livekit-client": patch
 ---
 
-Throw error if Room is instantiated on non-compatible browser
+Throw error if trying to connect with a non-compatible browser
