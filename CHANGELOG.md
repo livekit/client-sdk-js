@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.0.5
+
+### Patch Changes
+
+- Set logExtension on all livekit loggers if not specified - [#1061](https://github.com/livekit/client-sdk-js/pull/1061) ([@lukasIO](https://github.com/lukasIO))
+
+- Don't treat PC config error as SignalReconnectError - [#1052](https://github.com/livekit/client-sdk-js/pull/1052) ([@lukasIO](https://github.com/lukasIO))
+
+- Align logContext fields with server naming - [#1062](https://github.com/livekit/client-sdk-js/pull/1062) ([@lukasIO](https://github.com/lukasIO))
+
+- Remove some noisy e2ee logs - [#1057](https://github.com/livekit/client-sdk-js/pull/1057) ([@lukasIO](https://github.com/lukasIO))
+
+- Throw error if trying to connect with a non-compatible browser - [#1064](https://github.com/livekit/client-sdk-js/pull/1064) ([@davidliu](https://github.com/davidliu))
+
 ## 2.0.4
 
 ### Patch Changes
