@@ -164,11 +164,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   constructor(options?: RoomOptions) {
     super();
 
-    if(!isBrowserSupported()) {
-      if(isReactNative()) {
-        throw Error("react-native-webrtc isn't detected, have you called registerGlobals?")
+    if (!isBrowserSupported()) {
+      if (isReactNative()) {
+        throw Error("react-native-webrtc isn't detected, have you called registerGlobals?");
       } else {
-        throw Error("LiveKit isn't supported on this browser.")
+        throw Error("LiveKit isn't supported on this browser.");
       }
     }
     this.setMaxListeners(100);
