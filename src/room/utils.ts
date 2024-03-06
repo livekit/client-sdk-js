@@ -134,7 +134,7 @@ export function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boo
 
 export function isBrowserSupported() {
   if (typeof RTCPeerConnection === 'undefined') {
-    return false
+    return false;
   }
   return supportsTransceiver() || supportsAddTrack();
 }
