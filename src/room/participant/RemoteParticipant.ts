@@ -1,5 +1,9 @@
-import type { ParticipantInfo, SubscriptionError } from '@livekit/protocol';
-import type { UpdateSubscription, UpdateTrackSettings } from '@livekit/protocol';
+import type {
+  ParticipantInfo,
+  SubscriptionError,
+  UpdateSubscription,
+  UpdateTrackSettings,
+} from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import { ParticipantEvent, TrackEvent } from '../events';
 import RemoteAudioTrack from '../track/RemoteAudioTrack';

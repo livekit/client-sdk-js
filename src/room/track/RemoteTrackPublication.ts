@@ -1,5 +1,10 @@
-import { ParticipantTracks, SubscriptionError, TrackInfo } from '@livekit/protocol';
-import { UpdateSubscription, UpdateTrackSettings } from '@livekit/protocol';
+import {
+  ParticipantTracks,
+  SubscriptionError,
+  TrackInfo,
+  UpdateSubscription,
+  UpdateTrackSettings,
+} from '@livekit/protocol';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
 import type RemoteTrack from './RemoteTrack';

@@ -1,27 +1,25 @@
 import { protoInt64 } from '@bufbuild/protobuf';
 import {
+  ConnectionQualityUpdate,
   DataPacket_Kind,
   DisconnectReason,
+  JoinResponse,
+  LeaveRequest,
   ParticipantInfo,
   ParticipantInfo_State,
   ParticipantPermission,
   Room as RoomModel,
   ServerInfo,
+  SimulateScenario,
   SpeakerInfo,
+  StreamStateUpdate,
   SubscriptionError,
+  SubscriptionPermissionUpdate,
+  SubscriptionResponse,
   TrackInfo,
   TrackSource,
   TrackType,
   UserPacket,
-} from '@livekit/protocol';
-import {
-  ConnectionQualityUpdate,
-  JoinResponse,
-  LeaveRequest,
-  SimulateScenario,
-  StreamStateUpdate,
-  SubscriptionPermissionUpdate,
-  SubscriptionResponse,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';

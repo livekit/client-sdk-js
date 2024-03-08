@@ -1,16 +1,14 @@
 import {
+  AddTrackRequest,
   DataPacket,
   DataPacket_Kind,
   Encryption_Type,
   ParticipantInfo,
   ParticipantPermission,
-  UserPacket,
-} from '@livekit/protocol';
-import {
-  AddTrackRequest,
   SimulcastCodec,
   SubscribedQualityUpdate,
   TrackUnpublishedResponse,
+  UserPacket,
 } from '@livekit/protocol';
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';

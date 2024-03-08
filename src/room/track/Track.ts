@@ -1,5 +1,9 @@
-import { VideoQuality as ProtoQuality, TrackSource, TrackType } from '@livekit/protocol';
-import { StreamState as ProtoStreamState } from '@livekit/protocol';
+import {
+  VideoQuality as ProtoQuality,
+  StreamState as ProtoStreamState,
+  TrackSource,
+  TrackType,
+} from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';

@@ -1,5 +1,9 @@
-import { VideoQuality as ProtoVideoQuality, VideoLayer } from '@livekit/protocol';
-import { SubscribedCodec, SubscribedQuality } from '@livekit/protocol';
+import {
+  VideoQuality as ProtoVideoQuality,
+  SubscribedCodec,
+  SubscribedQuality,
+  VideoLayer,
+} from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import type { StructuredLogger } from '../../logger';
 import { ScalabilityMode } from '../participant/publishUtils';
