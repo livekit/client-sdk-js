@@ -1,16 +1,4 @@
 import { protoInt64 } from '@bufbuild/protobuf';
-import { EventEmitter } from 'events';
-import type TypedEmitter from 'typed-emitter';
-import 'webrtc-adapter';
-import { EncryptionEvent } from '../e2ee';
-import { E2EEManager } from '../e2ee/E2eeManager';
-import log, { LoggerNames, getLogger } from '../logger';
-import type {
-  InternalRoomConnectOptions,
-  InternalRoomOptions,
-  RoomConnectOptions,
-  RoomOptions,
-} from '../options';
 import {
   DataPacket_Kind,
   DisconnectReason,
@@ -25,7 +13,7 @@ import {
   TrackSource,
   TrackType,
   UserPacket,
-} from '../proto/livekit_models_pb';
+} from '@livekit/protocol';
 import {
   ConnectionQualityUpdate,
   JoinResponse,
@@ -34,7 +22,19 @@ import {
   StreamStateUpdate,
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
-} from '../proto/livekit_rtc_pb';
+} from '@livekit/protocol';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
+import 'webrtc-adapter';
+import { EncryptionEvent } from '../e2ee';
+import { E2EEManager } from '../e2ee/E2eeManager';
+import log, { LoggerNames, getLogger } from '../logger';
+import type {
+  InternalRoomConnectOptions,
+  InternalRoomOptions,
+  RoomConnectOptions,
+  RoomOptions,
+} from '../options';
 import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';

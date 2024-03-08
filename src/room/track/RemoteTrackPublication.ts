@@ -1,5 +1,5 @@
-import { ParticipantTracks, SubscriptionError, TrackInfo } from '../../proto/livekit_models_pb';
-import { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
+import { ParticipantTracks, SubscriptionError, TrackInfo } from '@livekit/protocol';
+import { UpdateSubscription, UpdateTrackSettings } from '@livekit/protocol';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
 import type RemoteTrack from './RemoteTrack';

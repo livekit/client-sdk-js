@@ -1,5 +1,5 @@
+import { ServerInfo_Edition } from '@livekit/protocol';
 import { SignalClient } from '../../api/SignalClient';
-import { ServerInfo_Edition } from '../../proto/livekit_models_pb';
 import { Checker } from './Checker';
 
 export class WebSocketCheck extends Checker {

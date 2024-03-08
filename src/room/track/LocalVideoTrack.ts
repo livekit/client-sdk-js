@@ -1,7 +1,7 @@
+import { VideoQuality as ProtoVideoQuality, VideoLayer } from '@livekit/protocol';
+import { SubscribedCodec, SubscribedQuality } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import type { StructuredLogger } from '../../logger';
-import { VideoQuality as ProtoVideoQuality, VideoLayer } from '../../proto/livekit_models_pb';
-import { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc_pb';
 import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';

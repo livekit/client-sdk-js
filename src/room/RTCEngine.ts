@@ -1,14 +1,3 @@
-import { EventEmitter } from 'events';
-import type { MediaAttributes } from 'sdp-transform';
-import type TypedEventEmitter from 'typed-emitter';
-import type { SignalOptions } from '../api/SignalClient';
-import {
-  SignalClient,
-  SignalConnectionState,
-  toProtoSessionDescription,
-} from '../api/SignalClient';
-import log, { LoggerNames, getLogger } from '../logger';
-import type { InternalRoomOptions } from '../options';
 import {
   ClientConfigSetting,
   ClientConfiguration,
@@ -21,7 +10,7 @@ import {
   SpeakerInfo,
   TrackInfo,
   UserPacket,
-} from '../proto/livekit_models_pb';
+} from '@livekit/protocol';
 import {
   type AddTrackRequest,
   type ConnectionQualityUpdate,
@@ -38,7 +27,18 @@ import {
   type TrackPublishedResponse,
   TrackUnpublishedResponse,
   UpdateSubscription,
-} from '../proto/livekit_rtc_pb';
+} from '@livekit/protocol';
+import { EventEmitter } from 'events';
+import type { MediaAttributes } from 'sdp-transform';
+import type TypedEventEmitter from 'typed-emitter';
+import type { SignalOptions } from '../api/SignalClient';
+import {
+  SignalClient,
+  SignalConnectionState,
+  toProtoSessionDescription,
+} from '../api/SignalClient';
+import log, { LoggerNames, getLogger } from '../logger';
+import type { InternalRoomOptions } from '../options';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';

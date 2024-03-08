@@ -1,13 +1,13 @@
-import { EventEmitter } from 'events';
-import type TypedEmitter from 'typed-emitter';
-import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import {
   DataPacket_Kind,
   ParticipantInfo,
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
   SubscriptionError,
-} from '../../proto/livekit_models_pb';
+} from '@livekit/protocol';
+import { EventEmitter } from 'events';
+import type TypedEmitter from 'typed-emitter';
+import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import { ParticipantEvent, TrackEvent } from '../events';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import type LocalTrackPublication from '../track/LocalTrackPublication';

@@ -1,9 +1,9 @@
+import { Encryption_Type } from '@livekit/protocol';
+import type { SubscriptionError, TrackInfo } from '@livekit/protocol';
+import type { UpdateSubscription, UpdateTrackSettings } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import log, { LoggerNames, getLogger } from '../../logger';
-import { Encryption_Type } from '../../proto/livekit_models_pb';
-import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models_pb';
-import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
 import LocalAudioTrack from './LocalAudioTrack';

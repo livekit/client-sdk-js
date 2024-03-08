@@ -1,27 +1,23 @@
 import { protoInt64 } from '@bufbuild/protobuf';
-import log, { LoggerNames, getLogger } from '../logger';
-import {
-  ClientInfo,
-  DisconnectReason,
-  ParticipantInfo,
-  ReconnectReason,
-  Room,
-  SpeakerInfo,
-  VideoLayer,
-} from '../proto/livekit_models_pb';
 import {
   AddTrackRequest,
+  ClientInfo,
   ConnectionQualityUpdate,
+  DisconnectReason,
   JoinResponse,
   LeaveRequest,
   MuteTrackRequest,
+  ParticipantInfo,
   Ping,
+  ReconnectReason,
   ReconnectResponse,
+  Room,
   SessionDescription,
   SignalRequest,
   SignalResponse,
   SignalTarget,
   SimulateScenario,
+  SpeakerInfo,
   StreamStateUpdate,
   SubscribedQualityUpdate,
   SubscriptionPermission,
@@ -36,7 +32,9 @@ import {
   UpdateSubscription,
   UpdateTrackSettings,
   UpdateVideoLayers,
-} from '../proto/livekit_rtc_pb';
+  VideoLayer,
+} from '@livekit/protocol';
+import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
