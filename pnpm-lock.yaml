@@ -5,12 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
-  '@bufbuild/protobuf':
-    specifier: ^1.3.0
-    version: 1.4.2
   '@livekit/protocol':
-    specifier: ^1.10.2
-    version: 1.10.2
+    specifier: 1.10.3
+    version: 1.10.3
   events:
     specifier: ^3.3.0
     version: 3.3.0
@@ -42,7 +39,7 @@ devDependencies:
     version: 7.23.9(@babel/core@7.23.9)
   '@bufbuild/protoc-gen-es':
     specifier: ^1.3.0
-    version: 1.4.2(@bufbuild/protobuf@1.4.2)
+    version: 1.4.2
   '@changesets/cli':
     specifier: 2.27.1
     version: 2.27.1
@@ -1397,12 +1394,13 @@ packages:
 
   /@bufbuild/protobuf@1.4.2:
     resolution: {integrity: sha512-JyEH8Z+OD5Sc2opSg86qMHn1EM1Sa+zj/Tc0ovxdwk56ByVNONJSabuCUbLQp+eKN3rWNfrho0X+3SEqEPXIow==}
+    dev: true
 
   /@bufbuild/protobuf@1.7.2:
     resolution: {integrity: sha512-i5GE2Dk5ekdlK1TR7SugY4LWRrKSfb5T1Qn4unpIMbfxoeGKERKQ59HG3iYewacGD10SR7UzevfPnh6my4tNmQ==}
     dev: false
 
-  /@bufbuild/protoc-gen-es@1.4.2(@bufbuild/protobuf@1.4.2):
+  /@bufbuild/protoc-gen-es@1.4.2:
     resolution: {integrity: sha512-/It7M2s8H1zTDvUMJu6vhBmtnzeFL2VS6e78RYIY38602pNXDK/vbteKUo4KrG0O07lOPFu87hHZ0Y+w5Ib6iw==}
     engines: {node: '>=14'}
     hasBin: true
@@ -1412,7 +1410,6 @@ packages:
       '@bufbuild/protobuf':
         optional: true
     dependencies:
-      '@bufbuild/protobuf': 1.4.2
       '@bufbuild/protoplugin': 1.4.2
     transitivePeerDependencies:
       - supports-color
@@ -1942,8 +1939,8 @@ packages:
       - encoding
     dev: true
 
-  /@livekit/protocol@1.10.2:
-    resolution: {integrity: sha512-Tu/tM9N2fAL97wBDy0XHUDMti3Cg0ZO9lARv8UJ0dyrQlN/gByFD9nf3trzxe2MACpznlaADaUwpnjsPU42I7g==}
+  /@livekit/protocol@1.10.3:
+    resolution: {integrity: sha512-m247Fa67VRo6ojCzmHWA5TBTnjZzB9bTYeRP/yMsMiLz+Ug7EKTRHV0uP17hUocRqoPsbejG+JWq/A5JFrlABg==}
     dependencies:
       '@bufbuild/protobuf': 1.7.2
     dev: false
@@ -3360,7 +3357,7 @@ packages:
     dependencies:
       semver: 7.5.4
       shelljs: 0.8.5
-      typescript: 5.5.0-dev.20240308
+      typescript: 5.5.0-dev.20240311
     dev: true
 
   /electron-to-chromium@1.4.577:
@@ -6171,8 +6168,8 @@ packages:
     hasBin: true
     dev: true
 
-  /typescript@5.5.0-dev.20240308:
-    resolution: {integrity: sha512-HskK9uC+zmt8wS0GYh2EoP2u2nSJELnbD3mjl1VwPlnjxqwyHkAIV+dO9bnIWA0t/KL9Q7hDUzIIYQ15QlJFtg==}
+  /typescript@5.5.0-dev.20240311:
+    resolution: {integrity: sha512-Cdp0eYgn/19lkcrq7WCqQxmnvCqvuJrd/jGhm1HyPMSYVTGzjxVP0NfXr2A4YVS12IAipt1uO4zgAJeLlYG2JA==}
     engines: {node: '>=14.17'}
     hasBin: true
     dev: true
