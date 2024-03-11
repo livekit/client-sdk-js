@@ -1,4 +1,3 @@
-import { protoInt64 } from '@bufbuild/protobuf';
 import {
   AddTrackRequest,
   ClientInfo,
@@ -33,6 +32,7 @@ import {
   UpdateTrackSettings,
   UpdateVideoLayers,
   VideoLayer,
+  protoInt64,
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
