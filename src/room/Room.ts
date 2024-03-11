@@ -1,4 +1,3 @@
-import { protoInt64 } from '@bufbuild/protobuf';
 import {
   ConnectionQualityUpdate,
   DataPacket_Kind,
@@ -20,6 +19,7 @@ import {
   TrackSource,
   TrackType,
   UserPacket,
+  protoInt64,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
