@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.0.6
+
+### Patch Changes
+
+- Read deviceId from source mediastreamtrack - [#1068](https://github.com/livekit/client-sdk-js/pull/1068) ([@lukasIO](https://github.com/lukasIO))
+
+- Replace protocol submodule with npm package - [#1067](https://github.com/livekit/client-sdk-js/pull/1067) ([@lukasIO](https://github.com/lukasIO))
+
+- Demote facingMode logs to trace - [#1065](https://github.com/livekit/client-sdk-js/pull/1065) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.0.5
 
 ### Patch Changes
