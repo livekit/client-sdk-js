@@ -16,7 +16,7 @@ dependencies:
     version: 1.8.1
   sdp-transform:
     specifier: ^2.14.1
-    version: 2.14.1
+    version: 2.14.2
   ts-debounce:
     specifier: ^4.0.0
     version: 4.0.0
@@ -3357,7 +3357,7 @@ packages:
     dependencies:
       semver: 7.5.4
       shelljs: 0.8.5
-      typescript: 5.5.0-dev.20240311
+      typescript: 5.5.0-dev.20240312
     dev: true
 
   /electron-to-chromium@1.4.577:
@@ -5561,8 +5561,8 @@ packages:
       ajv-keywords: 3.5.2(ajv@6.12.6)
     dev: true
 
-  /sdp-transform@2.14.1:
-    resolution: {integrity: sha512-RjZyX3nVwJyCuTo5tGPx+PZWkDMCg7oOLpSlhjDdZfwUoNqG1mM8nyj31IGHyaPWXhjbP7cdK3qZ2bmkJ1GzRw==}
+  /sdp-transform@2.14.2:
+    resolution: {integrity: sha512-icY6jVao7MfKCieyo1AyxFYm1baiM+fA00qW/KrNNVlkxHAd34riEKuEkUe4bBb3gJwLJZM+xT60Yj1QL8rHiA==}
     hasBin: true
     dev: false
 
@@ -6168,8 +6168,8 @@ packages:
     hasBin: true
     dev: true
 
-  /typescript@5.5.0-dev.20240311:
-    resolution: {integrity: sha512-Cdp0eYgn/19lkcrq7WCqQxmnvCqvuJrd/jGhm1HyPMSYVTGzjxVP0NfXr2A4YVS12IAipt1uO4zgAJeLlYG2JA==}
+  /typescript@5.5.0-dev.20240312:
+    resolution: {integrity: sha512-CEPqB9IvrkCgyoFCmsmQH4AXsXM+KX32FQvmVk8LYecfoNsow5+nW5ZwI8MiQUoGNZ78uTINFwyM1M6G/aNSrA==}
     engines: {node: '>=14.17'}
     hasBin: true
     dev: true
