@@ -38,7 +38,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
   async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
     if (
       this._constraints.deviceId === deviceId &&
-      this._mediaStreamTrack.getSettings().deviceId === deviceId
+      this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)
     ) {
       return true;
     }
