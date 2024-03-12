@@ -7,6 +7,12 @@
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["patch", "minor"],
       "groupName": "devDependencies (non-major)"
+    },
+    {
+      "matchSourceUrlPrefixes": ["https://github.com/livekit/"],
+      "rangeStrategy": "replace",
+      "groupName": "LiveKit dependencies",
+      "automerge": true
     }
   ]
 }

@@ -1,13 +1,13 @@
+import {
+  VideoQuality as ProtoQuality,
+  StreamState as ProtoStreamState,
+  TrackSource,
+  TrackType,
+} from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
 import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
-import {
-  VideoQuality as ProtoQuality,
-  TrackSource,
-  TrackType,
-} from '../../proto/livekit_models_pb';
-import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
 import { isFireFox, isSafari, isWeb } from '../utils';

@@ -1,5 +1,5 @@
+import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import log from '../logger';
-import type { RegionInfo, RegionSettings } from '../proto/livekit_rtc_pb';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import { isCloud } from './utils';
 

@@ -1,4 +1,4 @@
-import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models_pb';
+import { ClientInfo, ClientInfo_SDK } from '@livekit/protocol';
 import type { DetectableBrowser } from '../utils/browserParser';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';

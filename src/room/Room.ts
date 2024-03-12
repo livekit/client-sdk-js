@@ -1,4 +1,26 @@
-import { protoInt64 } from '@bufbuild/protobuf';
+import {
+  ConnectionQualityUpdate,
+  DataPacket_Kind,
+  DisconnectReason,
+  JoinResponse,
+  LeaveRequest,
+  ParticipantInfo,
+  ParticipantInfo_State,
+  ParticipantPermission,
+  Room as RoomModel,
+  ServerInfo,
+  SimulateScenario,
+  SpeakerInfo,
+  StreamStateUpdate,
+  SubscriptionError,
+  SubscriptionPermissionUpdate,
+  SubscriptionResponse,
+  TrackInfo,
+  TrackSource,
+  TrackType,
+  UserPacket,
+  protoInt64,
+} from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
@@ -11,30 +33,6 @@ import type {
   RoomConnectOptions,
   RoomOptions,
 } from '../options';
-import {
-  DataPacket_Kind,
-  DisconnectReason,
-  ParticipantInfo,
-  ParticipantInfo_State,
-  ParticipantPermission,
-  Room as RoomModel,
-  ServerInfo,
-  SpeakerInfo,
-  SubscriptionError,
-  TrackInfo,
-  TrackSource,
-  TrackType,
-  UserPacket,
-} from '../proto/livekit_models_pb';
-import {
-  ConnectionQualityUpdate,
-  JoinResponse,
-  LeaveRequest,
-  SimulateScenario,
-  StreamStateUpdate,
-  SubscriptionPermissionUpdate,
-  SubscriptionResponse,
-} from '../proto/livekit_rtc_pb';
 import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';

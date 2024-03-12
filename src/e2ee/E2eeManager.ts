@@ -1,7 +1,7 @@
+import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import log, { LogLevel, workerLogger } from '../logger';
-import { Encryption_Type, TrackInfo } from '../proto/livekit_models_pb';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';

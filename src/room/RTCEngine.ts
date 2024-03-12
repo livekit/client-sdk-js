@@ -1,3 +1,31 @@
+import {
+  type AddTrackRequest,
+  ClientConfigSetting,
+  ClientConfiguration,
+  type ConnectionQualityUpdate,
+  DataChannelInfo,
+  DataPacket,
+  DataPacket_Kind,
+  DisconnectReason,
+  type JoinResponse,
+  type LeaveRequest,
+  ParticipantInfo,
+  ReconnectReason,
+  type ReconnectResponse,
+  Room as RoomModel,
+  SignalTarget,
+  SpeakerInfo,
+  type StreamStateUpdate,
+  SubscribedQualityUpdate,
+  type SubscriptionPermissionUpdate,
+  type SubscriptionResponse,
+  SyncState,
+  TrackInfo,
+  type TrackPublishedResponse,
+  TrackUnpublishedResponse,
+  UpdateSubscription,
+  UserPacket,
+} from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
@@ -9,36 +37,6 @@ import {
 } from '../api/SignalClient';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
-import {
-  ClientConfigSetting,
-  ClientConfiguration,
-  DataPacket,
-  DataPacket_Kind,
-  DisconnectReason,
-  ParticipantInfo,
-  ReconnectReason,
-  Room as RoomModel,
-  SpeakerInfo,
-  TrackInfo,
-  UserPacket,
-} from '../proto/livekit_models_pb';
-import {
-  type AddTrackRequest,
-  type ConnectionQualityUpdate,
-  DataChannelInfo,
-  type JoinResponse,
-  type LeaveRequest,
-  type ReconnectResponse,
-  SignalTarget,
-  type StreamStateUpdate,
-  SubscribedQualityUpdate,
-  type SubscriptionPermissionUpdate,
-  type SubscriptionResponse,
-  SyncState,
-  type TrackPublishedResponse,
-  TrackUnpublishedResponse,
-  UpdateSubscription,
-} from '../proto/livekit_rtc_pb';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';

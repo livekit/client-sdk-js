@@ -1,18 +1,16 @@
-import type { InternalRoomOptions } from '../../options';
 import {
+  AddTrackRequest,
   DataPacket,
   DataPacket_Kind,
   Encryption_Type,
   ParticipantInfo,
   ParticipantPermission,
-  UserPacket,
-} from '../../proto/livekit_models_pb';
-import {
-  AddTrackRequest,
   SimulcastCodec,
   SubscribedQualityUpdate,
   TrackUnpublishedResponse,
-} from '../../proto/livekit_rtc_pb';
+  UserPacket,
+} from '@livekit/protocol';
+import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { defaultVideoCodec } from '../defaults';
