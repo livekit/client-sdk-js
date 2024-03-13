@@ -736,7 +736,16 @@ export default class LocalParticipant extends Participant {
         if (isSVCCodec(videoCodec)) {
           // vp9 svc with screenshare has problem to encode, always use L1T3 here
           if (track.source === Track.Source.ScreenShare && videoCodec === 'vp9') {
-            opts.scalabilityMode = 'L1T3';
+            // Chrome does not allow more than 5 fps with L1T3, and it has encoding bugs with L3T3
+            // It has a different path for screenshare handling and it seems to be untested/buggy
+            // As a workaround, we are setting contentHint to force it to go through the same
+            // path as regular camera video. While this is not optimal, it delivers the performance
+            // that we need
+            if ('contentHint' in track.mediaStreamTrack) {
+              track.mediaStreamTrack.contentHint = 'motion';
+            } else {
+              opts.scalabilityMode = 'L1T3';
+            }
           }
           // set scalabilityMode to 'L3T3_KEY' by default
           opts.scalabilityMode = opts.scalabilityMode ?? 'L3T3_KEY';
