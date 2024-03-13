@@ -190,6 +190,13 @@ export interface ScreenShareCaptureOptions {
    * local speakers when the tab is captured.
    */
   suppressLocalAudioPlayback?: boolean;
+
+  /**
+   * Experimental option to instruct the browser to offer the current tab as the most prominent capture source
+   * @experimental
+   * @see https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia#prefercurrenttab
+   */
+  preferCurrentTab?: boolean;
 }
 
 export interface AudioCaptureOptions {

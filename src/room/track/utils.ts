@@ -183,6 +183,7 @@ export function screenCaptureToDisplayMediaStreamOptions(
     selfBrowserSurface: options.selfBrowserSurface,
     surfaceSwitching: options.surfaceSwitching,
     systemAudio: options.systemAudio,
+    preferCurrentTab: options.preferCurrentTab,
   };
 }
 
