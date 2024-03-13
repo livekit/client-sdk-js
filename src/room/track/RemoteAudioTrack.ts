@@ -1,6 +1,6 @@
 import { TrackEvent } from '../events';
-import { computeBitrate } from '../stats';
 import type { AudioReceiverStats } from '../stats';
+import { computeBitrate } from '../stats';
 import type { LoggerOptions } from '../types';
 import { isReactNative, supportsSetSinkId } from '../utils';
 import RemoteTrack from './RemoteTrack';
