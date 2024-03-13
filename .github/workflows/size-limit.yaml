@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 jobs:
   package-size:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-2vcpu-cache
     env:
       CI_JOB_NUMBER: 1
     steps:
@@ -21,7 +21,7 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install
-      - uses: andresz1/size-limit-action@v1.7.0
+      - uses: andresz1/size-limit-action@f338c35e16e2643dcc41a8ba32fbaf0ec9016728
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           script: npx size-limit --json
