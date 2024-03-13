@@ -507,6 +507,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               `Initial connection failed with ConnectionError: ${e.message}. Retrying with another region: ${nextUrl}`,
               this.logContext,
             );
+            this.recreateEngine();
             await connectFn(resolve, reject, nextUrl);
           } else {
             this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
