@@ -743,6 +743,10 @@ export default class LocalParticipant extends Participant {
             // that we need
             if ('contentHint' in track.mediaStreamTrack) {
               track.mediaStreamTrack.contentHint = 'motion';
+              this.log.info('forcing contentHint to motion for screenshare with VP9', {
+                ...this.logContext,
+                ...getLogContextFromTrack(track),
+              });
             } else {
               opts.scalabilityMode = 'L1T3';
             }
