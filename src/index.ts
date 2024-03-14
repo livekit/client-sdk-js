@@ -29,7 +29,7 @@ import {
   supportsDynacast,
   supportsVP9,
 } from './room/utils';
-import type { getBrowser } from './utils/browserParser';
+import { getBrowser } from './utils/browserParser';
 
 export * from './connectionHelper/ConnectionCheck';
 export * from './options';
