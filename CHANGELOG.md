@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.0.7
+
+### Patch Changes
+
+- Recreate engine before trying to connect to another region - [#1071](https://github.com/livekit/client-sdk-js/pull/1071) ([@lukasIO](https://github.com/lukasIO))
+
+- Add experimental preferCurrentTab screen share capture option - [#1070](https://github.com/livekit/client-sdk-js/pull/1070) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix FPS and latency issues with VP9 screenshare - [#1069](https://github.com/livekit/client-sdk-js/pull/1069) ([@davidzhao](https://github.com/davidzhao))
+
 ## 2.0.6
 
 ### Patch Changes
