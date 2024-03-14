@@ -1,4 +1,4 @@
-import { DataPacket_Kind, DisconnectReason } from '@livekit/protocol';
+import { DataPacket_Kind, DisconnectReason, SubscriptionError } from '@livekit/protocol';
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import Room, { ConnectionState } from './room/Room';
@@ -31,55 +31,56 @@ import {
 } from './room/utils';
 
 export * from './connectionHelper/ConnectionCheck';
+export * from './e2ee';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';
 export * from './room/track/Track';
 export * from './room/track/create';
-export * from './room/track/options';
 export { facingModeFromDeviceLabel, facingModeFromLocalTrack } from './room/track/facingMode';
+export * from './room/track/options';
+export * from './room/track/processor/types';
 export * from './room/track/types';
 export type { DataPublishOptions, SimulationScenario } from './room/types';
 export * from './version';
-export * from './e2ee';
-export * from './room/track/processor/types';
 export {
-  setLogLevel,
-  setLogExtension,
-  getEmptyAudioStreamTrack,
-  getEmptyVideoStreamTrack,
-  isBrowserSupported,
-  supportsAdaptiveStream,
-  supportsDynacast,
-  supportsAV1,
-  supportsVP9,
-  createAudioAnalyser,
-  LogLevel,
-  LoggerNames,
-  getLogger,
-  Room,
+  ConnectionQuality,
   ConnectionState,
+  CriticalTimers,
   DataPacket_Kind,
+  DefaultReconnectPolicy,
   DisconnectReason,
-  Participant,
-  RemoteParticipant,
-  LocalParticipant,
   LocalAudioTrack,
-  LocalVideoTrack,
+  LocalParticipant,
   LocalTrack,
   LocalTrackPublication,
-  RemoteTrack,
+  LocalVideoTrack,
+  LogLevel,
+  LoggerNames,
+  Participant,
   RemoteAudioTrack,
-  RemoteVideoTrack,
+  RemoteParticipant,
+  RemoteTrack,
   RemoteTrackPublication,
+  RemoteVideoTrack,
+  Room,
+  SubscriptionError,
   TrackPublication,
-  ConnectionQuality,
-  DefaultReconnectPolicy,
-  CriticalTimers,
+  createAudioAnalyser,
+  getEmptyAudioStreamTrack,
+  getEmptyVideoStreamTrack,
+  getLogger,
+  isBrowserSupported,
+  setLogExtension,
+  setLogLevel,
+  supportsAV1,
+  supportsAdaptiveStream,
+  supportsDynacast,
+  supportsVP9,
 };
 export type {
-  ElementInfo,
-  ParticipantTrackPermission,
   AudioAnalyserOptions,
+  ElementInfo,
   LiveKitReactNativeInfo,
+  ParticipantTrackPermission,
 };
