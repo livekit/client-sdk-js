@@ -206,25 +206,7 @@ const appActions = {
         // speed up publishing by starting to publish before it's fully connected
         // publishing is accepted as soon as signal connection has established
         if (shouldPublish) {
-          // await room.localParticipant.enableCameraAndMicrophone();
-          const ms = await navigator.mediaDevices.getUserMedia({ video: true });
-          const videoTrack = ms.getVideoTracks()[0];
-          videoTrack.applyConstraints({
-            width: 1080,
-            height: 1920,
-            frameRate: 60,
-            aspectRatio: 9 / 16,
-          });
-          room.localParticipant.publishTrack(videoTrack, {
-            name: 'camera',
-            source: Track.Source.Camera,
-            videoCodec: 'vp9',
-            simulcast: false,
-            videoEncoding: {
-              maxBitrate: 3_000_000,
-              maxFramerate: 30,
-            },
-          });
+          await room.localParticipant.enableCameraAndMicrophone();
           appendLog(`tracks published in ${Date.now() - startTime}ms`);
           updateButtonsForPublishState();
         }
