@@ -732,8 +732,10 @@ export default class LocalParticipant extends Participant {
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
         if (isSVCCodec(videoCodec)) {
-          // vp9 svc with screenshare has problem to encode, always use L1T3 here
           if (track.source === Track.Source.ScreenShare && videoCodec === 'vp9') {
+            // vp9 svc with screenshare cannot encode multiple spatial layers
+            // doing so reduces publish resolution to minimal resolution
+            opts.scalabilityMode = 'L1T3';
             // Chrome does not allow more than 5 fps with L1T3, and it has encoding bugs with L3T3
             // It has a different path for screenshare handling and it seems to be untested/buggy
             // As a workaround, we are setting contentHint to force it to go through the same
@@ -745,8 +747,6 @@ export default class LocalParticipant extends Participant {
                 ...this.logContext,
                 ...getLogContextFromTrack(track),
               });
-            } else {
-              opts.scalabilityMode = 'L1T3';
             }
           }
           // set scalabilityMode to 'L3T3_KEY' by default

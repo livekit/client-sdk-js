@@ -267,52 +267,6 @@ export default class PCTransport extends EventEmitter {
         ensureAudioNackAndStereo(media, [], []);
       } else if (media.type === 'video') {
         ensureVideoDDExtensionForSVC(media);
-        // mung sdp for codec bitrate setting that can't apply by sendEncoding
-        this.trackBitrates.some((trackbr): boolean => {
-          if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
-            return false;
-          }
-
-          let codecPayload = 0;
-          media.rtp.some((rtp): boolean => {
-            if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
-              codecPayload = rtp.payload;
-              return true;
-            }
-            return false;
-          });
-
-          if (codecPayload === 0) {
-            return true;
-          }
-
-          let fmtpFound = false;
-          for (const fmtp of media.fmtp) {
-            if (fmtp.payload === codecPayload) {
-              if (!fmtp.config.includes('x-google-start-bitrate')) {
-                fmtp.config += `;x-google-start-bitrate=${Math.round(
-                  trackbr.maxbr * startBitrateForSVC,
-                )}`;
-              }
-              if (!fmtp.config.includes('x-google-max-bitrate')) {
-                fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
-              }
-              fmtpFound = true;
-              break;
-            }
-          }
-
-          if (!fmtpFound) {
-            media.fmtp.push({
-              payload: codecPayload,
-              config: `x-google-start-bitrate=${Math.round(
-                trackbr.maxbr * startBitrateForSVC,
-              )};x-google-max-bitrate=${trackbr.maxbr}`,
-            });
-          }
-
-          return true;
-        });
       }
     });
 

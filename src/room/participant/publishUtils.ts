@@ -125,8 +125,6 @@ export function computeVideoEncodings(
   );
 
   if (scalabilityMode && isSVCCodec(videoCodec)) {
-    log.debug(`using svc with scalabilityMode ${scalabilityMode}`);
-
     const sm = new ScalabilityMode(scalabilityMode);
 
     const encodings: RTCRtpEncodingParameters[] = [];
@@ -134,17 +132,14 @@ export function computeVideoEncodings(
     if (sm.spatial > 3) {
       throw new Error(`unsupported scalabilityMode: ${scalabilityMode}`);
     }
-    for (let i = 0; i < sm.spatial; i += 1) {
-      encodings.push({
-        rid: videoRids[2 - i],
-        maxBitrate: videoEncoding.maxBitrate / 3 ** i,
-        /* @ts-ignore */
-        maxFramerate: original.encoding.maxFramerate,
-      });
-    }
-    /* @ts-ignore */
-    encodings[0].scalabilityMode = scalabilityMode;
-    log.debug('encodings', encodings);
+    encodings.push({
+      maxBitrate: videoEncoding.maxBitrate,
+      /* @ts-ignore */
+      maxFramerate: original.encoding.maxFramerate,
+      /* @ts-ignore */
+      scalabilityMode: scalabilityMode,
+    });
+    log.debug(`using svc encoding`, encodings[0]);
     return encodings;
   }
 
