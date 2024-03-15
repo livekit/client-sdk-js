@@ -267,6 +267,40 @@ export default class PCTransport extends EventEmitter {
         ensureAudioNackAndStereo(media, [], []);
       } else if (media.type === 'video') {
         ensureVideoDDExtensionForSVC(media);
+        // mung sdp for codec bitrate setting that can't apply by sendEncoding
+        this.trackBitrates.some((trackbr): boolean => {
+          if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
+            return false;
+          }
+
+          let codecPayload = 0;
+          media.rtp.some((rtp): boolean => {
+            if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
+              codecPayload = rtp.payload;
+              return true;
+            }
+            return false;
+          });
+
+          if (codecPayload === 0) {
+            return true;
+          }
+
+          const startBitrate = Math.round(trackbr.maxbr * startBitrateForSVC);
+
+          for (const fmtp of media.fmtp) {
+            if (fmtp.payload === codecPayload) {
+              // if another track's fmtp already is set, we cannot override the bitrate
+              // this has the unfortunate consequence of being forced to use the
+              // initial track's bitrate for all tracks
+              if (!fmtp.config.includes('x-google-start-bitrate')) {
+                fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
+              }
+              break;
+            }
+          }
+          return true;
+        });
       }
     });
 

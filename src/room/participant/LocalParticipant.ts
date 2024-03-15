@@ -732,7 +732,7 @@ export default class LocalParticipant extends Participant {
       // for svc codecs, disable simulcast and use vp8 for backup codec
       if (track instanceof LocalVideoTrack) {
         if (isSVCCodec(videoCodec)) {
-          if (track.source === Track.Source.ScreenShare && videoCodec === 'vp9') {
+          if (track.source === Track.Source.ScreenShare) {
             // vp9 svc with screenshare cannot encode multiple spatial layers
             // doing so reduces publish resolution to minimal resolution
             opts.scalabilityMode = 'L1T3';
@@ -743,7 +743,7 @@ export default class LocalParticipant extends Participant {
             // that we need
             if ('contentHint' in track.mediaStreamTrack) {
               track.mediaStreamTrack.contentHint = 'motion';
-              this.log.info('forcing contentHint to motion for screenshare with VP9', {
+              this.log.info('forcing contentHint to motion for screenshare with SVC codecs', {
                 ...this.logContext,
                 ...getLogContextFromTrack(track),
               });
@@ -881,7 +881,8 @@ export default class LocalParticipant extends Participant {
             maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
           });
         }
-      } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
+      } else if (track.codec && track.codec == 'av1' && encodings[0]?.maxBitrate) {
+        // AV1 requires setting x-start-bitrate in SDP
         this.engine.pcManager.publisher.setTrackCodecBitrate({
           cid: req.cid,
           codec: track.codec,
