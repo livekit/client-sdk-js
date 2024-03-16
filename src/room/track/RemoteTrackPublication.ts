@@ -25,7 +25,7 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected currentVideoQuality?: VideoQuality = VideoQuality.HIGH;
 
-  protected videoDimensions?: Track.Dimensions;
+  protected currentVideoDimensions?: Track.Dimensions;
 
   protected fps?: number;
 
@@ -135,7 +135,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       return;
     }
     this.currentVideoQuality = quality;
-    this.videoDimensions = undefined;
+    this.currentVideoDimensions = undefined;
 
     this.emitTrackUpdate();
   }
@@ -145,17 +145,21 @@ export default class RemoteTrackPublication extends TrackPublication {
       return;
     }
     if (
-      this.videoDimensions?.width === dimensions.width &&
-      this.videoDimensions?.height === dimensions.height
+      this.currentVideoDimensions?.width === dimensions.width &&
+      this.currentVideoDimensions?.height === dimensions.height
     ) {
       return;
     }
     if (this.track instanceof RemoteVideoTrack) {
-      this.videoDimensions = dimensions;
+      this.currentVideoDimensions = dimensions;
     }
     this.currentVideoQuality = undefined;
 
     this.emitTrackUpdate();
+  }
+
+  get videoDimensions(): Track.Dimensions | undefined {
+    return this.currentVideoDimensions;
   }
 
   setVideoFPS(fps: number) {
@@ -293,7 +297,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       `adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`,
       this.logContext,
     );
-    this.videoDimensions = dimensions;
+    this.currentVideoDimensions = dimensions;
     this.emitTrackUpdate();
   };
 
@@ -304,9 +308,9 @@ export default class RemoteTrackPublication extends TrackPublication {
       disabled: this.disabled,
       fps: this.fps,
     });
-    if (this.videoDimensions) {
-      settings.width = Math.ceil(this.videoDimensions.width);
-      settings.height = Math.ceil(this.videoDimensions.height);
+    if (this.currentVideoDimensions) {
+      settings.width = Math.ceil(this.currentVideoDimensions.width);
+      settings.height = Math.ceil(this.currentVideoDimensions.height);
     } else if (this.currentVideoQuality !== undefined) {
       settings.quality = this.currentVideoQuality;
     } else {
