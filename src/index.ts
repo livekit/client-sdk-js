@@ -29,6 +29,7 @@ import {
   supportsDynacast,
   supportsVP9,
 } from './room/utils';
+import { getBrowser } from './utils/browserParser';
 
 export * from './connectionHelper/ConnectionCheck';
 export * from './e2ee';
@@ -67,6 +68,7 @@ export {
   SubscriptionError,
   TrackPublication,
   createAudioAnalyser,
+  getBrowser,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
   getLogger,
