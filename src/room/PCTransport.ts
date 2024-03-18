@@ -286,31 +286,19 @@ export default class PCTransport extends EventEmitter {
             return true;
           }
 
-          let fmtpFound = false;
+          const startBitrate = Math.round(trackbr.maxbr * startBitrateForSVC);
+
           for (const fmtp of media.fmtp) {
             if (fmtp.payload === codecPayload) {
+              // if another track's fmtp already is set, we cannot override the bitrate
+              // this has the unfortunate consequence of being forced to use the
+              // initial track's bitrate for all tracks
               if (!fmtp.config.includes('x-google-start-bitrate')) {
-                fmtp.config += `;x-google-start-bitrate=${Math.round(
-                  trackbr.maxbr * startBitrateForSVC,
-                )}`;
+                fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
               }
-              if (!fmtp.config.includes('x-google-max-bitrate')) {
-                fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
-              }
-              fmtpFound = true;
               break;
             }
           }
-
-          if (!fmtpFound) {
-            media.fmtp.push({
-              payload: codecPayload,
-              config: `x-google-start-bitrate=${Math.round(
-                trackbr.maxbr * startBitrateForSVC,
-              )};x-google-max-bitrate=${trackbr.maxbr}`,
-            });
-          }
-
           return true;
         });
       }
