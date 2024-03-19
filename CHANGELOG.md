@@ -1,5 +1,23 @@
 # Change Log
 
+## 2.0.8
+
+### Patch Changes
+
+- Set degradationPreference to maintain-resolution for screen share tracks - [#1080](https://github.com/livekit/client-sdk-js/pull/1080) ([@davidzhao](https://github.com/davidzhao))
+
+- Export browser parser - [#1074](https://github.com/livekit/client-sdk-js/pull/1074) ([@lukasIO](https://github.com/lukasIO))
+
+- Don't restart track when processor stops - [#1081](https://github.com/livekit/client-sdk-js/pull/1081) ([@lukasIO](https://github.com/lukasIO))
+
+- Handle SVC compatibility with Safari and Chrome prior to M113 - [#1079](https://github.com/livekit/client-sdk-js/pull/1079) ([@davidzhao](https://github.com/davidzhao))
+
+- Add sanity check for duplicate cryptors and log more errors - [#1082](https://github.com/livekit/client-sdk-js/pull/1082) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix quality issues with SVC screenshares - [#1077](https://github.com/livekit/client-sdk-js/pull/1077) ([@davidzhao](https://github.com/davidzhao))
+
+- Export SubscriptionError from protocol - [#1075](https://github.com/livekit/client-sdk-js/pull/1075) ([@davidzhao](https://github.com/davidzhao))
+
 ## 2.0.7
 
 ### Patch Changes
