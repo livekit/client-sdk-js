@@ -100,6 +100,18 @@ export class FrameCryptor extends BaseFrameCryptor {
    * @param keys
    */
   setParticipant(id: string, keys: ParticipantKeyHandler) {
+    workerLogger.debug('setting new participant on cryptor', {
+      ...this.logContext,
+      participant: id,
+    });
+    if (this.participantIdentity) {
+      workerLogger.error(
+        'cryptor has already a participant set, participant should have been unset before',
+        {
+          ...this.logContext,
+        },
+      );
+    }
     this.participantIdentity = id;
     this.keys = keys;
     this.sifGuard.reset();
