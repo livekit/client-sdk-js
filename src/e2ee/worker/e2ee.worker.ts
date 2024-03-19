@@ -45,7 +45,9 @@ onmessage = (ev) => {
       break;
     case 'enable':
       setEncryptionEnabled(data.enabled, data.participantIdentity);
-      workerLogger.info('updated e2ee enabled status');
+      workerLogger.info(
+        `updated e2ee enabled status for ${data.participantIdentity} to ${data.enabled}`,
+      );
       // acknowledge enable call successful
       postMessage(ev.data);
       break;
@@ -123,7 +125,19 @@ async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
 }
 
 function getTrackCryptor(participantIdentity: string, trackId: string) {
-  let cryptor = participantCryptors.find((c) => c.getTrackId() === trackId);
+  let cryptors = participantCryptors.filter((c) => c.getTrackId() === trackId);
+  if (cryptors.length > 1) {
+    const debugInfo = cryptors
+      .map((c) => {
+        return { participant: c.getParticipantIdentity() };
+      })
+      .join(',');
+    workerLogger.error(
+      `Found multiple cryptors for the same trackID ${trackId}. target participant: ${participantIdentity} `,
+      { participants: debugInfo },
+    );
+  }
+  let cryptor = cryptors[0];
   if (!cryptor) {
     workerLogger.info('creating new cryptor for', { participantIdentity });
     if (!keyProviderOptions) {
@@ -168,9 +182,16 @@ function getSharedKeyHandler() {
 }
 
 function unsetCryptorParticipant(trackId: string, participantIdentity: string) {
-  const cryptor = participantCryptors.find(
+  const cryptors = participantCryptors.filter(
     (c) => c.getParticipantIdentity() === participantIdentity && c.getTrackId() === trackId,
   );
+  if (cryptors.length > 1) {
+    workerLogger.error('Found multiple cryptors for the same participant and trackID combination', {
+      trackId,
+      participantIdentity,
+    });
+  }
+  const cryptor = cryptors[0];
   if (!cryptor) {
     workerLogger.warn('Could not unset participant on cryptor', { trackId, participantIdentity });
   } else {
