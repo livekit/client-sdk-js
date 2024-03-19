@@ -1,4 +1,5 @@
 import log from '../../logger';
+import { getBrowser } from '../../utils/browserParser';
 import { TrackInvalidError } from '../errors';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
@@ -11,7 +12,14 @@ import type {
 } from '../track/options';
 import { ScreenSharePresets, VideoPreset, VideoPresets, VideoPresets43 } from '../track/options';
 import type { LoggerOptions } from '../types';
-import { getReactNativeOs, isFireFox, isReactNative, isSVCCodec } from '../utils';
+import {
+  compareVersions,
+  getReactNativeOs,
+  isFireFox,
+  isReactNative,
+  isSVCCodec,
+  isSafari,
+} from '../utils';
 
 /** @internal */
 export function mediaTrackToLocalTrack(
@@ -132,14 +140,37 @@ export function computeVideoEncodings(
     if (sm.spatial > 3) {
       throw new Error(`unsupported scalabilityMode: ${scalabilityMode}`);
     }
-    encodings.push({
-      maxBitrate: videoEncoding.maxBitrate,
+    // Before M113 in Chrome, defining multiple encodings with an SVC codec indicated
+    // that SVC mode should be used. Safari still works this way.
+    // This is a bit confusing but is due to how libwebrtc interpreted the encodings field
+    // before M113.
+    // Announced here: https://groups.google.com/g/discuss-webrtc/c/-QQ3pxrl-fw?pli=1
+    const browser = getBrowser();
+    if (
+      isSafari() ||
+      (browser?.name === 'Chrome' && compareVersions(browser?.version, '113') < 0)
+    ) {
+      for (let i = 0; i < sm.spatial; i += 1) {
+        // in legacy SVC, scaleResolutionDownBy cannot be set
+        encodings.push({
+          rid: videoRids[2 - i],
+          maxBitrate: videoEncoding.maxBitrate / 3 ** i,
+          maxFramerate: original.encoding.maxFramerate,
+        });
+      }
+      // legacy SVC, scalabilityMode is set only on the first encoding
       /* @ts-ignore */
-      maxFramerate: original.encoding.maxFramerate,
-      /* @ts-ignore */
-      scalabilityMode: scalabilityMode,
-    });
-    log.debug(`using svc encoding`, encodings[0]);
+      encodings[0].scalabilityMode = scalabilityMode;
+    } else {
+      encodings.push({
+        maxBitrate: videoEncoding.maxBitrate,
+        maxFramerate: original.encoding.maxFramerate,
+        /* @ts-ignore */
+        scalabilityMode: scalabilityMode,
+      });
+    }
+
+    log.debug(`using svc encoding`, { encodings });
     return encodings;
   }
 
