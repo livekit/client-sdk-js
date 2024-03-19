@@ -510,7 +510,10 @@ export default abstract class LocalTrack<
     this.processor = undefined;
     this.processorElement?.remove();
     this.processorElement = undefined;
-    await this.restart();
+    // apply original track constraints in case the processor changed them
+    await this._mediaStreamTrack.applyConstraints(this._constraints);
+    // force re-setting of the mediaStreamTrack on the sender
+    await this.setMediaStreamTrack(this._mediaStreamTrack, true);
     this.emit(TrackEvent.TrackProcessorUpdate);
   }
 
