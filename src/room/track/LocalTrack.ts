@@ -448,6 +448,13 @@ export default abstract class LocalTrack<
     const unlock = await this.processorLock.lock();
     try {
       this.log.debug('setting up processor', this.logContext);
+      const processorOptions = {
+        kind: this.kind,
+        track: this._mediaStreamTrack,
+        element: this.processorElement,
+        audioContext: this.audioContext,
+      };
+      await processor.init(processorOptions);
       if (this.processor) {
         await this.stopProcessor();
       }
@@ -466,14 +473,6 @@ export default abstract class LocalTrack<
           this.log.error('failed to play processor element', { ...this.logContext, error }),
         );
 
-      const processorOptions = {
-        kind: this.kind,
-        track: this._mediaStreamTrack,
-        element: this.processorElement,
-        audioContext: this.audioContext,
-      };
-
-      await processor.init(processorOptions);
       this.processor = processor;
       if (this.processor.processedTrack) {
         for (const el of this.attachedElements) {
@@ -510,7 +509,10 @@ export default abstract class LocalTrack<
     this.processor = undefined;
     this.processorElement?.remove();
     this.processorElement = undefined;
-    await this.restart();
+    // apply original track constraints in case the processor changed them
+    await this._mediaStreamTrack.applyConstraints(this._constraints);
+    // force re-setting of the mediaStreamTrack on the sender
+    await this.setMediaStreamTrack(this._mediaStreamTrack, true);
     this.emit(TrackEvent.TrackProcessorUpdate);
   }
 
