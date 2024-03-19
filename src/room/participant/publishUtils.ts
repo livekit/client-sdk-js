@@ -169,7 +169,7 @@ export function computeVideoEncodings(
     //      to disable when CPU constrained.
     //      So encodings should be ordered in increasing spatial
     //      resolution order.
-    //   2. ion-sfu translates rids into layers. So, all encodings
+    //   2. livekit-server translates rids into layers. So, all encodings
     //      should have the base layer `q` and then more added
     //      based on other conditions.
     const size = Math.max(width, height);
@@ -241,6 +241,7 @@ export function determineAppropriateEncoding(
       break;
     }
   }
+
   // presets are based on the assumption of vp8 as a codec
   // for other codecs we adjust the maxBitrate if no specific videoEncoding has been provided
   // users should override these with ones that are optimized for their use case

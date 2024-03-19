@@ -891,6 +891,20 @@ export default class LocalParticipant extends Participant {
       }
     }
 
+    if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
+      // a few of reasons we are forcing this setting without allowing overrides:
+      // 1. without this, Chrome seems to aggressively resize the SVC video stating `quality-limitation: bandwidth` even when BW isn't an issue
+      // 2. since we are overriding contentHint to motion (to workaround L1T3 publishing), it overrides the default degradationPreference to `balanced`
+      try {
+        this.log.debug(`setting degradationPreference to maintain-resolution`);
+        const params = track.sender.getParameters();
+        params.degradationPreference = 'maintain-resolution';
+        await track.sender.setParameters(params);
+      } catch (e) {
+        this.log.warn(`failed to set degradationPreference: ${e}`);
+      }
+    }
+
     await this.engine.negotiate();
 
     if (track instanceof LocalVideoTrack) {
