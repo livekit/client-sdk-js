@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
-import { KEYRING_SIZE } from '../constants';
 import { KeyHandlerEvent, type ParticipantKeyHandlerCallbacks } from '../events';
 import type { KeyProviderOptions, KeySet } from '../types';
 import { deriveKeys, importKey, ratchet } from '../utils';
@@ -39,7 +38,10 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
   constructor(participantIdentity: string, keyProviderOptions: KeyProviderOptions) {
     super();
     this.currentKeyIndex = 0;
-    this.cryptoKeyRing = new Array(KEYRING_SIZE).fill(undefined);
+    if (keyProviderOptions.keyringSize < 1 || keyProviderOptions.keyringSize > 255) {
+      throw new TypeError('Keyring size needs to be between 1 and 256');
+    }
+    this.cryptoKeyRing = new Array(keyProviderOptions.keyringSize).fill(undefined);
     this.keyProviderOptions = keyProviderOptions;
     this.ratchetPromiseMap = new Map();
     this.participantIdentity = participantIdentity;
