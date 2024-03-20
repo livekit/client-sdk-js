@@ -128,6 +128,7 @@ export type KeyProviderOptions = {
   ratchetSalt: string;
   ratchetWindowSize: number;
   failureTolerance: number;
+  keyringSize: number;
 };
 
 export type KeyInfo = {
