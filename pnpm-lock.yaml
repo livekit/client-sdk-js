@@ -6,8 +6,8 @@ settings:
 
 dependencies:
   '@livekit/protocol':
-    specifier: 1.10.4
-    version: 1.10.4
+    specifier: 1.12.0
+    version: 1.12.0
   events:
     specifier: ^3.3.0
     version: 3.3.0
@@ -1939,8 +1939,8 @@ packages:
       - encoding
     dev: true
 
-  /@livekit/protocol@1.10.4:
-    resolution: {integrity: sha512-7Occ6l5VqjsKsUjpLeVJXJkip4ce22iG9QR/haOkrDXYwGSY+TwCA4ubbJ81aQBt2z0kHVZuaQWdzJSDLI+Kag==}
+  /@livekit/protocol@1.12.0:
+    resolution: {integrity: sha512-AMUWxna4AO/biPaKiu45JYYVHi7sc+sK6pkeNNpqkzL85+eeHkNhkFfENn9YbQKQsVWABkOmcL8p4ZbUjxZkeQ==}
     dependencies:
       '@bufbuild/protobuf': 1.7.2
     dev: false
@@ -3357,7 +3357,7 @@ packages:
     dependencies:
       semver: 7.5.4
       shelljs: 0.8.5
-      typescript: 5.5.0-dev.20240311
+      typescript: 5.5.0-dev.20240321
     dev: true
 
   /electron-to-chromium@1.4.577:
@@ -6168,8 +6168,8 @@ packages:
     hasBin: true
     dev: true
 
-  /typescript@5.5.0-dev.20240311:
-    resolution: {integrity: sha512-Cdp0eYgn/19lkcrq7WCqQxmnvCqvuJrd/jGhm1HyPMSYVTGzjxVP0NfXr2A4YVS12IAipt1uO4zgAJeLlYG2JA==}
+  /typescript@5.5.0-dev.20240321:
+    resolution: {integrity: sha512-QEUqMB18VAUQBHtHlq8BfjxGZzFkavH5fhZn+I97N67mDZTa86n1S8kiRKmrbxVwPAdvn3DYtJzcGq5OvdWkmQ==}
     engines: {node: '>=14.17'}
     hasBin: true
     dev: true
