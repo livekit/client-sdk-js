@@ -672,9 +672,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!('getCapabilities' in RTCRtpReceiver)) {
       return;
     }
+    // when setting codec preferences, the capabilites need to be read from the RTCRtpReceiver
     const cap = RTCRtpReceiver.getCapabilities(kind);
     if (!cap) return;
-    this.log.debug('get sender capabilities', { ...this.logContext, cap });
+    this.log.debug('get receiver capabilities', { ...this.logContext, cap });
     const matched: RTCRtpCodecCapability[] = [];
     const partialMatched: RTCRtpCodecCapability[] = [];
     const unmatched: RTCRtpCodecCapability[] = [];
