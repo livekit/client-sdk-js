@@ -669,10 +669,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     kind: Track.Kind,
     videoCodec: VideoCodec,
   ) {
-    if (!('getCapabilities' in RTCRtpSender)) {
+    if (!('getCapabilities' in RTCRtpReceiver)) {
       return;
     }
-    const cap = RTCRtpSender.getCapabilities(kind);
+    const cap = RTCRtpReceiver.getCapabilities(kind);
     if (!cap) return;
     this.log.debug('get sender capabilities', { ...this.logContext, cap });
     const matched: RTCRtpCodecCapability[] = [];
