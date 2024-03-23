@@ -448,6 +448,10 @@ export default abstract class LocalTrack<
     const unlock = await this.processorLock.lock();
     try {
       this.log.debug('setting up processor', this.logContext);
+
+      this.processorElement =
+        this.processorElement ?? (document.createElement(this.kind) as HTMLMediaElement);
+
       const processorOptions = {
         kind: this.kind,
         track: this._mediaStreamTrack,
@@ -461,8 +465,6 @@ export default abstract class LocalTrack<
       if (this.kind === 'unknown') {
         throw TypeError('cannot set processor on track of unknown kind');
       }
-      this.processorElement =
-        this.processorElement ?? (document.createElement(this.kind) as HTMLMediaElement);
 
       attachToElement(this._mediaStreamTrack, this.processorElement);
       this.processorElement.muted = true;
