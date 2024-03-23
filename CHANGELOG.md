@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.0.10
+
+### Patch Changes
+
+- Create processorElement before processor init - [#1091](https://github.com/livekit/client-sdk-js/pull/1091) ([@xdef](https://github.com/xdef))
+
+- Improve VideoSenderStats with FPS and targetBitrate - [#1090](https://github.com/livekit/client-sdk-js/pull/1090) ([@davidzhao](https://github.com/davidzhao))
+
 ## 2.0.9
 
 ### Patch Changes
