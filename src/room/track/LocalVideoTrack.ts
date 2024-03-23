@@ -180,17 +180,20 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
           streamId: v.id,
           frameHeight: v.frameHeight,
           frameWidth: v.frameWidth,
+          framesPerSecond: v.framesPerSecond,
+          framesSent: v.framesSent,
           firCount: v.firCount,
           pliCount: v.pliCount,
           nackCount: v.nackCount,
           packetsSent: v.packetsSent,
           bytesSent: v.bytesSent,
-          framesSent: v.framesSent,
-          timestamp: v.timestamp,
+          qualityLimitationReason: v.qualityLimitationReason,
+          qualityLimitationDurations: v.qualityLimitationDurations,
+          qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
           rid: v.rid ?? v.id,
           retransmittedPacketsSent: v.retransmittedPacketsSent,
-          qualityLimitationReason: v.qualityLimitationReason,
-          qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
+          targetBitrate: v.targetBitrate,
+          timestamp: v.timestamp,
         };
 
         // locate the appropriate remote-inbound-rtp item
@@ -205,6 +208,8 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       }
     });
 
+    // make sure highest res layer is always first
+    items.sort((a, b) => (b.frameWidth ?? 0) - (a.frameWidth ?? 0));
     return items;
   }
 
