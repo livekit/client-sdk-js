@@ -1,5 +1,11 @@
 # Change Log
 
+## 1.15.13
+
+### Patch Changes
+
+- Read capapbilites from RtcRTPReceiver instead of from sender - [`0953a61c346cc8e24b24bd4f696ea521168be4a2`](https://github.com/livekit/client-sdk-js/commit/0953a61c346cc8e24b24bd4f696ea521168be4a2) ([@lukasIO](https://github.com/lukasIO))
+
 ## 1.15.12
 
 ### Patch Changes
