@@ -53,7 +53,7 @@
     "size-limit": "size-limit"
   },
   "dependencies": {
-    "@livekit/protocol": "1.10.4",
+    "@livekit/protocol": "1.12.0",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
     "sdp-transform": "^2.14.1",

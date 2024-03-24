@@ -1,5 +1,6 @@
 import {
   AddTrackRequest,
+  AudioTrackFeature,
   ClientInfo,
   ConnectionQualityUpdate,
   DisconnectReason,
@@ -27,6 +28,7 @@ import {
   TrackPublishedResponse,
   TrackUnpublishedResponse,
   TrickleRequest,
+  UpdateLocalAudioTrack,
   UpdateParticipantMetadata,
   UpdateSubscription,
   UpdateTrackSettings,
@@ -581,6 +583,13 @@ export class SignalClient {
         }),
       }),
     ]);
+  }
+
+  sendUpdateLocalAudioTrack(trackSid: string, features: AudioTrackFeature[]) {
+    return this.sendRequest({
+      case: 'updateAudioTrack',
+      value: new UpdateLocalAudioTrack({ trackSid, features }),
+    });
   }
 
   sendLeave() {

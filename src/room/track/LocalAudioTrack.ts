@@ -1,3 +1,4 @@
+import { AudioTrackFeature } from '@livekit/protocol';
 import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
@@ -15,7 +16,16 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
 
   private prevStats?: AudioSenderStats;
 
+  private isKrispNoiseFilterEnabled = false;
+
   protected processor?: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
+
+  /**
+   * boolean indicating whether enhanced noise cancellation is currently being used on this track
+   */
+  get enhancedNoiseCancellation() {
+    return this.isKrispNoiseFilterEnabled;
+  }
 
   /**
    *
@@ -152,6 +162,28 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     this.prevStats = stats;
   };
 
+  private handleKrispNoiseFilterEnable = () => {
+    this.isKrispNoiseFilterEnabled = true;
+    this.log.debug(`Krisp noise filter enabled`, this.logContext);
+    this.emit(
+      TrackEvent.AudioTrackFeatureUpdate,
+      this,
+      AudioTrackFeature.TF_ENHANCED_NOISE_CANCELLATION,
+      true,
+    );
+  };
+
+  private handleKrispNoiseFilterDisable = () => {
+    this.isKrispNoiseFilterEnabled = false;
+    this.log.debug(`Krisp noise filter disabled`, this.logContext);
+    this.emit(
+      TrackEvent.AudioTrackFeatureUpdate,
+      this,
+      AudioTrackFeature.TF_ENHANCED_NOISE_CANCELLATION,
+      false,
+    );
+  };
+
   async setProcessor(processor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>) {
     const unlock = await this.processorLock.lock();
     try {
@@ -175,6 +207,14 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       this.processor = processor;
       if (this.processor.processedTrack) {
         await this.sender?.replaceTrack(this.processor.processedTrack);
+        this.processor.processedTrack.addEventListener(
+          'enable-lk-krisp-noise-filter',
+          this.handleKrispNoiseFilterEnable,
+        );
+        this.processor.processedTrack.addEventListener(
+          'disable-lk-krisp-noise-filter',
+          this.handleKrispNoiseFilterDisable,
+        );
       }
       this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
     } finally {

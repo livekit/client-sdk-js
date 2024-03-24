@@ -557,4 +557,9 @@ export enum TrackEvent {
    * @internal
    */
   TrackProcessorUpdate = 'trackProcessorUpdate',
+
+  /**
+   * @internal
+   */
+  AudioTrackFeatureUpdate = 'audioTrackFeatureUpdate',
 }

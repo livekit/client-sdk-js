@@ -685,6 +685,7 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.Ended, this.handleTrackEnded);
     track.on(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
     track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
+    track.on(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
 
     // create track publication from track
     const req = new AddTrackRequest({
@@ -1037,6 +1038,7 @@ export default class LocalParticipant extends Participant {
     track.off(TrackEvent.Ended, this.handleTrackEnded);
     track.off(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
     track.off(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
+    track.off(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
 
     if (stopOnUnpublish === undefined) {
       stopOnUnpublish = this.roomOptions?.stopLocalTrackOnUnpublish ?? true;
@@ -1291,6 +1293,18 @@ export default class LocalParticipant extends Participant {
       ...getLogContextFromTrack(track),
     });
     this.onTrackMuted(track, track.isMuted);
+  };
+
+  private onTrackFeatureUpdate = (track: LocalAudioTrack) => {
+    const pub = this.audioTrackPublications.get(track.sid!);
+    if (!pub) {
+      this.log.warn(
+        `Could not update local audio track settings, missing publication for track ${track.sid}`,
+        this.logContext,
+      );
+      return;
+    }
+    this.engine.client.sendUpdateLocalAudioTrack(pub.trackSid, pub.getTrackFeatures());
   };
 
   private handleSubscribedQualityUpdate = async (update: SubscribedQualityUpdate) => {
