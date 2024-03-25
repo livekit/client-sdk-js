@@ -715,6 +715,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     encodings?: RTCRtpEncodingParameters[],
   ) {
     if (supportsTransceiver()) {
+      this.log.debug('try using add-transceiver', this.logContext);
       const sender = await this.createTransceiverRTCRtpSender(track, opts, encodings);
       return sender;
     }
@@ -734,6 +735,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   ) {
     // store RTCRtpSender
     if (supportsTransceiver()) {
+      this.log.debug('try using add-transceiver', this.logContext);
       return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
     }
     if (supportsAddTrack()) {
@@ -760,7 +762,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly', streams };
-    if (encodings) {
+    if (encodings && opts.videoCodec !== 'av1') {
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
@@ -786,7 +788,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new UnexpectedConnectionState('publisher is closed');
     }
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-    if (encodings) {
+    if (encodings && opts.videoCodec !== 'av1') {
       transceiverInit.sendEncodings = encodings;
     }
     // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
