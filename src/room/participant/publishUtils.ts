@@ -148,6 +148,8 @@ export function computeVideoEncodings(
     const browser = getBrowser();
     if (
       isSafari() ||
+      // TODO: RN requires legacy for now
+      isReactNative() ||
       (browser?.name === 'Chrome' && compareVersions(browser?.version, '113') < 0)
     ) {
       for (let i = 0; i < sm.spatial; i += 1) {
