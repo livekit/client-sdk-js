@@ -148,6 +148,10 @@ export function computeVideoEncodings(
     const browser = getBrowser();
     if (
       isSafari() ||
+      // Even tho RN runs M114, it does not produce SVC layers when a single encoding
+      // is provided. So we'll use the legacy SVC specification for now.
+      // TODO: when we upstream libwebrtc, this will need additional verification
+      isReactNative() ||
       (browser?.name === 'Chrome' && compareVersions(browser?.version, '113') < 0)
     ) {
       for (let i = 0; i < sm.spatial; i += 1) {
