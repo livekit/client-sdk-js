@@ -96,6 +96,7 @@ const appActions = {
         red: true,
         forceStereo: false,
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
+        scalabilityMode: 'L3T3',
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
