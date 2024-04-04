@@ -27,7 +27,7 @@ export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<Con
     this.options = options;
   }
 
-  getNextCheckId() {
+  private getNextCheckId() {
     const nextId = this.checkResults.size;
     this.checkResults.set(nextId, {
       logs: [],
