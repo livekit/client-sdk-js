@@ -6,8 +6,8 @@ settings:
 
 dependencies:
   '@livekit/protocol':
-    specifier: 1.10.4
-    version: 1.10.4
+    specifier: 1.12.0
+    version: 1.12.0
   events:
     specifier: ^3.3.0
     version: 3.3.0
@@ -1912,8 +1912,8 @@ packages:
       - encoding
     dev: true
 
-  /@livekit/protocol@1.10.4:
-    resolution: {integrity: sha512-7Occ6l5VqjsKsUjpLeVJXJkip4ce22iG9QR/haOkrDXYwGSY+TwCA4ubbJ81aQBt2z0kHVZuaQWdzJSDLI+Kag==}
+  /@livekit/protocol@1.12.0:
+    resolution: {integrity: sha512-AMUWxna4AO/biPaKiu45JYYVHi7sc+sK6pkeNNpqkzL85+eeHkNhkFfENn9YbQKQsVWABkOmcL8p4ZbUjxZkeQ==}
     dependencies:
       '@bufbuild/protobuf': 1.8.0
     dev: false
