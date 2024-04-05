@@ -1185,6 +1185,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         adaptiveStreamSettings = {};
       }
     }
+    if (receiver) {
+      // @ts-ignore
+      receiver.playoutDelayHint = 2;
+    }
     participant.addSubscribedMediaTrack(
       mediaTrack,
       trackId,
