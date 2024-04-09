@@ -1,6 +1,9 @@
 import {
   AddTrackRequest,
   ClientInfo,
+  ClientMetrics,
+  ClientMetrics_ConnectionError,
+  ClientMetrics_ConnectionTime,
   ConnectionQualityUpdate,
   DisconnectReason,
   JoinResponse,
@@ -563,6 +566,42 @@ export class SignalClient {
     return this.sendRequest({
       case: 'simulate',
       value: scenario,
+    });
+  }
+
+  sendConnectionError(error: ConnectionError) {
+    return this.sendRequest({
+      case: 'clientMetrics',
+      value: new ClientMetrics({
+        message: {
+          case: 'connectionError',
+          value: new ClientMetrics_ConnectionError({
+            message: error.message,
+            timestamp: protoInt64.parse(Date.now()),
+            code: error.code,
+          }),
+        },
+      }),
+    });
+  }
+
+  sendConnectionTimes({
+    signal,
+    publisher,
+    subscriber,
+  }: {
+    signal?: number;
+    publisher?: number;
+    subscriber?: number;
+  }) {
+    return this.sendRequest({
+      case: 'clientMetrics',
+      value: new ClientMetrics({
+        message: {
+          case: 'connectionTime',
+          value: new ClientMetrics_ConnectionTime({ signal, publisher, subscriber }),
+        },
+      }),
     });
   }
 
