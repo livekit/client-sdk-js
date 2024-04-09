@@ -150,11 +150,12 @@ export function computeVideoEncodings(
       isSafari() ||
       (browser?.name === 'Chrome' && compareVersions(browser?.version, '113') < 0)
     ) {
+      const bitratesRatio = sm.suffix == 'h' ? 2 : 3;
       for (let i = 0; i < sm.spatial; i += 1) {
         // in legacy SVC, scaleResolutionDownBy cannot be set
         encodings.push({
           rid: videoRids[2 - i],
-          maxBitrate: videoEncoding.maxBitrate / 3 ** i,
+          maxBitrate: videoEncoding.maxBitrate / bitratesRatio ** i,
           maxFramerate: original.encoding.maxFramerate,
         });
       }

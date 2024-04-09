@@ -30,7 +30,9 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../src/index';
+import { ScalabilityMode } from '../src/room/track/options';
 import type { SimulationScenario } from '../src/room/types';
+import { isSVCCodec } from '../src/room/utils';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -74,6 +76,7 @@ const appActions = {
     const adaptiveStream = (<HTMLInputElement>$('adaptive-stream')).checked;
     const shouldPublish = (<HTMLInputElement>$('publish-option')).checked;
     const preferredCodec = (<HTMLSelectElement>$('preferred-codec')).value as VideoCodec;
+    const scalabilityMode = (<HTMLSelectElement>$('scalability-mode')).value;
     const cryptoKey = (<HTMLSelectElement>$('crypto-key')).value;
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
@@ -109,6 +112,9 @@ const appActions = {
       roomOpts.publishDefaults?.videoCodec === 'vp9'
     ) {
       roomOpts.publishDefaults.backupCodec = true;
+      if (scalabilityMode !== '') {
+        roomOpts.publishDefaults.scalabilityMode = scalabilityMode as ScalabilityMode;
+      }
     }
 
     const connectOpts: RoomConnectOptions = {
@@ -914,5 +920,51 @@ function populateSupportedCodecs() {
   }
 }
 
+function populateScalabilityModes() {
+  const modeSelect = $('scalability-mode');
+  const modes: string[] = [
+    'L1T2',
+    'L1T3',
+    'L2T1',
+    'L2T1h',
+    'L2T1_KEY',
+    'L2T2',
+    'L2T2h',
+    'L2T2_KEY',
+    'L2T3',
+    'L2T3h',
+    'L2T3_KEY',
+    'L3T1',
+    'L3T1h',
+    'L3T1_KEY',
+    'L3T2',
+    'L3T2h',
+    'L3T2_KEY',
+    'L3T3',
+    'L3T3h',
+    'L3T3_KEY',
+  ];
+  let n = document.createElement('option');
+  n.value = '';
+  n.text = 'ScalabilityMode';
+  modeSelect.appendChild(n);
+  for (const mode of modes) {
+    n = document.createElement('option');
+    n.value = mode;
+    n.text = mode;
+    modeSelect.appendChild(n);
+  }
+
+  const codecSelect = <HTMLSelectElement>$('preferred-codec');
+  codecSelect.onchange = () => {
+    if (isSVCCodec(codecSelect.value)) {
+      modeSelect.removeAttribute('disabled');
+    } else {
+      modeSelect.setAttribute('disabled', 'true');
+    }
+  };
+}
+
 acquireDeviceList();
 populateSupportedCodecs();
+populateScalabilityModes();

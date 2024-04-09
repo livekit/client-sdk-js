@@ -572,13 +572,17 @@ export function videoLayersFromEncodings(
     const encodingSM = encodings[0].scalabilityMode as string;
     const sm = new ScalabilityMode(encodingSM);
     const layers = [];
+    const resRatio = sm.suffix == 'h' ? 1.5 : 2;
+    const bitratesRatio = sm.suffix == 'h' ? 2 : 3;
     for (let i = 0; i < sm.spatial; i += 1) {
       layers.push(
         new VideoLayer({
           quality: VideoQuality.HIGH - i,
-          width: Math.ceil(width / 2 ** i),
-          height: Math.ceil(height / 2 ** i),
-          bitrate: encodings[0].maxBitrate ? Math.ceil(encodings[0].maxBitrate / 3 ** i) : 0,
+          width: Math.ceil(width / resRatio ** i),
+          height: Math.ceil(height / resRatio ** i),
+          bitrate: encodings[0].maxBitrate
+            ? Math.ceil(encodings[0].maxBitrate / bitratesRatio ** i)
+            : 0,
           ssrc: 0,
         }),
       );
