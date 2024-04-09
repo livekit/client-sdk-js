@@ -527,7 +527,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         connectFn(resolve, reject, regionUrl);
       },
       () => {
-        const connectionTime = performance.now() - connectStartTime;
         this.clearConnectionFutures();
       },
     );
