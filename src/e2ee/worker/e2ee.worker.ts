@@ -245,9 +245,11 @@ function handleSifTrailer(trailer: Uint8Array) {
 if (self.RTCTransformEvent) {
   workerLogger.debug('setup transform event');
   // @ts-ignore
-  self.onrtctransform = (event) => {
+  self.onrtctransform = (event: RTCTransformEvent) => {
+    // @ts-ignore .transformer property is part of RTCTransformEvent
     const transformer = event.transformer;
     workerLogger.debug('transformer', transformer);
+    // @ts-ignore monkey patching non standard flag
     transformer.handled = true;
     const { kind, participantIdentity, trackId, codec } = transformer.options;
     const cryptor = getTrackCryptor(participantIdentity, trackId);

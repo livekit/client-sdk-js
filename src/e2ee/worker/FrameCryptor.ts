@@ -607,7 +607,6 @@ export class FrameCryptor extends BaseFrameCryptor {
     if (this.rtpMap.size === 0) {
       return undefined;
     }
-    // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
     const payloadType = frame.getMetadata().payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;

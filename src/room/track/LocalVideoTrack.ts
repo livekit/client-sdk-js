@@ -180,17 +180,20 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
           streamId: v.id,
           frameHeight: v.frameHeight,
           frameWidth: v.frameWidth,
+          framesPerSecond: v.framesPerSecond,
+          framesSent: v.framesSent,
           firCount: v.firCount,
           pliCount: v.pliCount,
           nackCount: v.nackCount,
           packetsSent: v.packetsSent,
           bytesSent: v.bytesSent,
-          framesSent: v.framesSent,
-          timestamp: v.timestamp,
+          qualityLimitationReason: v.qualityLimitationReason,
+          qualityLimitationDurations: v.qualityLimitationDurations,
+          qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
           rid: v.rid ?? v.id,
           retransmittedPacketsSent: v.retransmittedPacketsSent,
-          qualityLimitationReason: v.qualityLimitationReason,
-          qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
+          targetBitrate: v.targetBitrate,
+          timestamp: v.timestamp,
         };
 
         // locate the appropriate remote-inbound-rtp item
@@ -205,6 +208,8 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       }
     });
 
+    // make sure highest res layer is always first
+    items.sort((a, b) => (b.frameWidth ?? 0) - (a.frameWidth ?? 0));
     return items;
   }
 
@@ -567,13 +572,17 @@ export function videoLayersFromEncodings(
     const encodingSM = encodings[0].scalabilityMode as string;
     const sm = new ScalabilityMode(encodingSM);
     const layers = [];
+    const resRatio = sm.suffix == 'h' ? 1.5 : 2;
+    const bitratesRatio = sm.suffix == 'h' ? 2 : 3;
     for (let i = 0; i < sm.spatial; i += 1) {
       layers.push(
         new VideoLayer({
           quality: VideoQuality.HIGH - i,
-          width: Math.ceil(width / 2 ** i),
-          height: Math.ceil(height / 2 ** i),
-          bitrate: encodings[0].maxBitrate ? Math.ceil(encodings[0].maxBitrate / 3 ** i) : 0,
+          width: Math.ceil(width / resRatio ** i),
+          height: Math.ceil(height / resRatio ** i),
+          bitrate: encodings[0].maxBitrate
+            ? Math.ceil(encodings[0].maxBitrate / bitratesRatio ** i)
+            : 0,
           ssrc: 0,
         }),
       );

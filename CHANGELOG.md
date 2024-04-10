@@ -1,5 +1,21 @@
 # Change Log
 
+## 2.0.10
+
+### Patch Changes
+
+- Create processorElement before processor init - [#1091](https://github.com/livekit/client-sdk-js/pull/1091) ([@xdef](https://github.com/xdef))
+
+- Improve VideoSenderStats with FPS and targetBitrate - [#1090](https://github.com/livekit/client-sdk-js/pull/1090) ([@davidzhao](https://github.com/davidzhao))
+
+## 2.0.9
+
+### Patch Changes
+
+- Fix publishing for Chrome M124. Read capabilities from RtcRTPReceiver instead of from sender - [#1088](https://github.com/livekit/client-sdk-js/pull/1088) ([@lukasIO](https://github.com/lukasIO))
+
+- Add keyring size to keyprovider options - [#1085](https://github.com/livekit/client-sdk-js/pull/1085) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.0.8
 
 ### Patch Changes
