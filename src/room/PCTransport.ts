@@ -5,7 +5,7 @@ import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isSVCCodec } from './utils';
+import { actExtensionURI, ddExtensionURI, isSVCCodec } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -265,8 +265,11 @@ export default class PCTransport extends EventEmitter {
     sdpParsed.media.forEach((media) => {
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, [], []);
+        // ensureAbsCaptureTimeExtension(media);
       } else if (media.type === 'video') {
         ensureVideoDDExtensionForSVC(media);
+        ensureAbsCaptureTimeExtension(media);
+
         // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
           if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
@@ -574,6 +577,28 @@ function ensureVideoDDExtensionForSVC(
     media.ext?.push({
       value: maxID + 1,
       uri: ddExtensionURI,
+    });
+  }
+}
+
+function ensureAbsCaptureTimeExtension(
+  media: {
+    type: string;
+    port: number;
+    protocol: string;
+    payloads?: string | undefined;
+  } & MediaDescription,
+) {
+  if (!media.ext) {
+    media.ext = [];
+  }
+  let maxID = media.ext.reduce((acc, ext) => Math.max(acc, ext.value), 0);
+  const actFound = media.ext.some((ext) => ext.uri === actExtensionURI);
+  if (!actFound) {
+    console.log('adding abs capture time extension');
+    media.ext.push({
+      value: maxID + 1,
+      uri: actExtensionURI,
     });
   }
 }

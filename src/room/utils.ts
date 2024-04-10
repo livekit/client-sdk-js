@@ -13,6 +13,8 @@ const separator = '|';
 export const ddExtensionURI =
   'https://aomediacodec.github.io/av1-rtp-spec/#dependency-descriptor-rtp-header-extension';
 
+export const actExtensionURI = 'http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time';
+
 export function unpackStreamId(packed: string): string[] {
   const parts = packed.split(separator);
   if (parts.length > 1) {
