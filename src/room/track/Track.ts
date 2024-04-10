@@ -1,4 +1,5 @@
 import {
+  AudioTrackFeature,
   VideoQuality as ProtoQuality,
   StreamState as ProtoStreamState,
   TrackSource,
@@ -504,4 +505,5 @@ export type TrackEventCallbacks = {
   upstreamPaused: (track: any) => void;
   upstreamResumed: (track: any) => void;
   trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
+  audioTrackFeatureUpdate: (track: any, feature: AudioTrackFeature, enabled: boolean) => void;
 };

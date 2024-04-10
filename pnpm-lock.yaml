@@ -3311,7 +3311,7 @@ packages:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.5.0-dev.20240404
+      typescript: 5.5.0-dev.20240410
     dev: true
 
   /electron-to-chromium@1.4.724:
@@ -6137,8 +6137,8 @@ packages:
     hasBin: true
     dev: true
 
-  /typescript@5.5.0-dev.20240404:
-    resolution: {integrity: sha512-Knb9Yx0JJHc0mmqXLEPPKNSwOvPQrtYZEDLQY7Wns7LckkQl82AZ+OGTPG/ofwqx2QeDCHCtKjutZPy1UEiwKA==}
+  /typescript@5.5.0-dev.20240410:
+    resolution: {integrity: sha512-OvGiFb8iPBHHqR8RuhIeCM+j2W1TtPbTZLuesCEi4gulAxzkOP2B3jDPTWmcOmxvUeJN5pNzlKoi/reRn1BZww==}
     engines: {node: '>=14.17'}
     hasBin: true
     dev: true
