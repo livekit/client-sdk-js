@@ -305,12 +305,9 @@ export abstract class Track<
       setTimeout(
         () =>
           this.attachedElements.forEach((el) =>
-            el
-              .play()
-              .then(() => this.log.debug('resumed video playback'))
-              .catch(() => {
-                /** catch clause necessary for Safari */
-              }),
+            el.play().catch(() => {
+              /** catch clause necessary for Safari */
+            }),
           ),
         0,
       );
