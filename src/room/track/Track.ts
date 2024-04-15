@@ -301,6 +301,20 @@ export abstract class Track<
 
   protected async handleAppVisibilityChanged() {
     this.isInBackground = document.visibilityState === 'hidden';
+    if (!this.isInBackground && this.kind === Track.Kind.Video) {
+      setTimeout(
+        () =>
+          this.attachedElements.forEach((el) =>
+            el
+              .play()
+              .then(() => this.log.debug('resumed video playback'))
+              .catch(() => {
+                /** catch clause necessary for Safari */
+              }),
+          ),
+        0,
+      );
+    }
   }
 
   protected addAppVisibilityListener() {
