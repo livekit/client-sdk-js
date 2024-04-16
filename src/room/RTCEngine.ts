@@ -169,6 +169,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private loggerOptions: LoggerOptions;
 
+  private publisherConnectionPromise: Promise<void> | undefined;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
@@ -1179,7 +1181,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private async ensurePublisherConnected(kind: DataPacket_Kind) {
-    await this.ensureDataTransportConnected(kind, false);
+    if (!this.publisherConnectionPromise) {
+      this.publisherConnectionPromise = this.ensureDataTransportConnected(kind, false);
+    }
+    await this.publisherConnectionPromise;
   }
 
   /* @internal */
