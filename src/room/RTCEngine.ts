@@ -400,6 +400,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.pcManager.onDataChannel = this.handleDataChannel;
     this.pcManager.onStateChange = async (connectionState, publisherState, subscriberState) => {
       this.log.debug(`primary PC state changed ${connectionState}`, this.logContext);
+
+      if (['closed', 'disconnected', 'failed'].includes(publisherState)) {
+        // reset publisher connection promise
+        this.publisherConnectionPromise = undefined;
+      }
       if (connectionState === PCTransportState.CONNECTED) {
         const shouldEmit = this.pcState === PCState.New;
         this.pcState = PCState.Connected;
