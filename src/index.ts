@@ -32,6 +32,7 @@ import {
 import { getBrowser } from './utils/browserParser';
 
 export * from './connectionHelper/ConnectionCheck';
+export * from './connectionHelper/checks/Checker';
 export * from './e2ee';
 export * from './options';
 export * from './room/errors';
