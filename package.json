@@ -83,7 +83,7 @@
     "@typescript-eslint/parser": "5.62.0",
     "downlevel-dts": "^0.11.0",
     "eslint": "8.57.0",
-    "eslint-config-airbnb-typescript": "17.1.0",
+    "eslint-config-airbnb-typescript": "18.0.0",
     "eslint-config-prettier": "9.1.0",
     "eslint-plugin-ecmascript-compat": "^3.0.0",
     "eslint-plugin-import": "2.29.1",
