@@ -169,6 +169,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private loggerOptions: LoggerOptions;
 
+  private publisherConnectionPromise: Promise<void> | undefined;
+
   constructor(private options: InternalRoomOptions) {
     super();
     this.log = getLogger(options.loggerName ?? LoggerNames.Engine);
@@ -398,6 +400,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.pcManager.onDataChannel = this.handleDataChannel;
     this.pcManager.onStateChange = async (connectionState, publisherState, subscriberState) => {
       this.log.debug(`primary PC state changed ${connectionState}`, this.logContext);
+
+      if (['closed', 'disconnected', 'failed'].includes(publisherState)) {
+        // reset publisher connection promise
+        this.publisherConnectionPromise = undefined;
+      }
       if (connectionState === PCTransportState.CONNECTED) {
         const shouldEmit = this.pcState === PCState.New;
         this.pcState = PCState.Connected;
@@ -1179,7 +1186,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private async ensurePublisherConnected(kind: DataPacket_Kind) {
-    await this.ensureDataTransportConnected(kind, false);
+    if (!this.publisherConnectionPromise) {
+      this.publisherConnectionPromise = this.ensureDataTransportConnected(kind, false);
+    }
+    await this.publisherConnectionPromise;
   }
 
   /* @internal */
