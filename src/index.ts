@@ -20,6 +20,7 @@ import { TrackPublication } from './room/track/TrackPublication';
 import type { LiveKitReactNativeInfo } from './room/types';
 import type { AudioAnalyserOptions } from './room/utils';
 import {
+  Mutex,
   createAudioAnalyser,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
@@ -80,6 +81,7 @@ export {
   supportsAdaptiveStream,
   supportsDynacast,
   supportsVP9,
+  Mutex,
 };
 export type {
   AudioAnalyserOptions,
