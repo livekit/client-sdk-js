@@ -447,6 +447,9 @@ export function createAudioAnalyser(
   return { calculateVolume, analyser, cleanup };
 }
 
+/**
+ * @internal
+ */
 export class Mutex {
   private _locking: Promise<void>;
 
