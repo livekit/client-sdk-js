@@ -1,5 +1,25 @@
 # Change Log
 
+## 2.1.0
+
+### Minor Changes
+
+- Force playback after app visibility changes back to visible - [#1106](https://github.com/livekit/client-sdk-js/pull/1106) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Allow options to be passed into connection checker - [#1102](https://github.com/livekit/client-sdk-js/pull/1102) ([@cscherban](https://github.com/cscherban))
+
+- Await data publisher connection without multiple negotiations - [#1107](https://github.com/livekit/client-sdk-js/pull/1107) ([@lukasIO](https://github.com/lukasIO))
+
+- Signal local audio track feature updates - [#1087](https://github.com/livekit/client-sdk-js/pull/1087) ([@lukasIO](https://github.com/lukasIO))
+
+- Export internal mutex util - [#1110](https://github.com/livekit/client-sdk-js/pull/1110) ([@lukasIO](https://github.com/lukasIO))
+
+- Add non-svc mode (L1T1) for vp9/av1 - [#1109](https://github.com/livekit/client-sdk-js/pull/1109) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Support more scalability mode - [#1104](https://github.com/livekit/client-sdk-js/pull/1104) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 2.0.10
 
 ### Patch Changes
