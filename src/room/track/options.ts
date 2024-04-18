@@ -351,6 +351,7 @@ export function isBackupCodec(codec: string): codec is BackupVideoCodec {
  * scalability modes for svc.
  */
 export type ScalabilityMode =
+  | 'L1T1'
   | 'L1T2'
   | 'L1T3'
   | 'L2T1'

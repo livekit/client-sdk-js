@@ -923,6 +923,7 @@ function populateSupportedCodecs() {
 function populateScalabilityModes() {
   const modeSelect = $('scalability-mode');
   const modes: string[] = [
+    'L1T1',
     'L1T2',
     'L1T3',
     'L2T1',
