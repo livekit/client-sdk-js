@@ -1,4 +1,4 @@
-import type { RegionSettings } from '../proto/livekit_rtc_pb';
+import type { RegionSettings } from '@livekit/protocol';
 export declare class RegionUrlProvider {
     private serverUrl;
     private token;

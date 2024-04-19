@@ -1,12 +1,14 @@
+import type { LoggerOptions } from '../types';
 import RemoteTrack from './RemoteTrack';
+import { Track } from './Track';
 import type { AdaptiveStreamSettings } from './types';
-export default class RemoteVideoTrack extends RemoteTrack {
+export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     private prevStats?;
     private elementInfos;
     private adaptiveStreamSettings?;
     private lastVisible?;
     private lastDimensions?;
-    constructor(mediaTrack: MediaStreamTrack, sid: string, receiver?: RTCRtpReceiver, adaptiveStreamSettings?: AdaptiveStreamSettings);
+    constructor(mediaTrack: MediaStreamTrack, sid: string, receiver?: RTCRtpReceiver, adaptiveStreamSettings?: AdaptiveStreamSettings, loggerOptions?: LoggerOptions);
     get isAdaptiveStream(): boolean;
     /**
      * Note: When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, otherwise your video tracks might never start

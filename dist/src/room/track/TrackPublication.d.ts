@@ -1,7 +1,7 @@
+import { Encryption_Type } from '@livekit/protocol';
+import type { SubscriptionError, TrackInfo, UpdateSubscription, UpdateTrackSettings } from '@livekit/protocol';
 import type TypedEventEmitter from 'typed-emitter';
-import { Encryption_Type } from '../../proto/livekit_models_pb';
-import type { SubscriptionError, TrackInfo } from '../../proto/livekit_models_pb';
-import type { UpdateSubscription, UpdateTrackSettings } from '../../proto/livekit_rtc_pb';
+import type { LoggerOptions } from '../types';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import RemoteAudioTrack from './RemoteAudioTrack';
@@ -25,9 +25,14 @@ export declare class TrackPublication extends TrackPublication_base {
     trackInfo?: TrackInfo;
     protected metadataMuted: boolean;
     protected encryption: Encryption_Type;
-    constructor(kind: Track.Kind, id: string, name: string);
+    protected log: import("../../logger").StructuredLogger;
+    private loggerContextCb?;
+    constructor(kind: Track.Kind, id: string, name: string, loggerOptions?: LoggerOptions);
     /** @internal */
     setTrack(track?: Track): void;
+    protected get logContext(): {
+        [x: string]: unknown;
+    };
     get isMuted(): boolean;
     get isEnabled(): boolean;
     get isSubscribed(): boolean;

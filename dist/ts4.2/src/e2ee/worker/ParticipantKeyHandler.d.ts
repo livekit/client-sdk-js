@@ -44,11 +44,11 @@ export declare class ParticipantKeyHandler extends ParticipantKeyHandler_base {
     setKey(material: CryptoKey, keyIndex?: number): Promise<void>;
     /**
      * takes in a key material with `deriveBits` and `deriveKey` set as key usages
-     * and derives encryption keys from the material and sets it on the key ring buffer
+     * and derives encryption keys from the material and sets it on the key ring buffers
      * together with the material
      * also updates the currentKeyIndex
      */
-    setKeyFromMaterial(material: CryptoKey, keyIndex?: number, emitRatchetEvent?: boolean): Promise<void>;
+    setKeyFromMaterial(material: CryptoKey, keyIndex: number, emitRatchetEvent?: boolean): Promise<void>;
     setKeySet(keySet: KeySet, keyIndex: number, emitRatchetEvent?: boolean): void;
     setCurrentKeyIndex(index: number): Promise<void>;
     getCurrentKeyIndex(): number;

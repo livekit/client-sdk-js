@@ -1,7 +1,7 @@
+import { DataPacket_Kind, DisconnectReason, ParticipantPermission, SubscriptionError } from '@livekit/protocol';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
 import type { InternalRoomOptions, RoomConnectOptions, RoomOptions } from '../options';
-import { DataPacket_Kind, DisconnectReason, ParticipantPermission, SubscriptionError } from '../proto/livekit_models_pb';
 import RTCEngine from './RTCEngine';
 import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
@@ -19,8 +19,6 @@ export declare enum ConnectionState {
     Connected = "connected",
     Reconnecting = "reconnecting"
 }
-/** @deprecated RoomState has been renamed to [[ConnectionState]] */
-export declare const RoomState: typeof ConnectionState;
 declare const Room_base: new () => TypedEmitter<RoomEventCallbacks>;
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -32,8 +30,10 @@ declare const Room_base: new () => TypedEmitter<RoomEventCallbacks>;
  */
 declare class Room extends Room_base {
     state: ConnectionState;
-    /** map of sid: [[RemoteParticipant]] */
-    participants: Map<string, RemoteParticipant>;
+    /**
+     * map of identity: [[RemoteParticipant]]
+     */
+    remoteParticipants: Map<string, RemoteParticipant>;
     /**
      * list of participants that are actively speaking. when this changes
      * a [[RoomEvent.ActiveSpeakersChanged]] event is fired
@@ -48,7 +48,7 @@ declare class Room extends Room_base {
     /** reflects the sender encryption status of the local participant */
     isE2EEEnabled: boolean;
     private roomInfo?;
-    private identityToSid;
+    private sidToIdentity;
     /** connect options of room */
     private connOptions?;
     private audioEnabled;
@@ -59,10 +59,13 @@ declare class Room extends Room_base {
     private connectFuture?;
     private disconnectLock;
     private e2eeManager;
-    private cachedParticipantSids;
     private connectionReconcileInterval?;
     private regionUrlProvider?;
     private regionUrl?;
+    private isVideoPlaybackBlocked;
+    private log;
+    private bufferedEvents;
+    private isResuming;
     /**
      * Creates a new Room, the primary construct for a LiveKit session.
      * @param options
@@ -73,12 +76,16 @@ declare class Room extends Room_base {
      */
     setE2EEEnabled(enabled: boolean): Promise<void>;
     private setupE2EE;
+    private get logContext();
     /**
      * if the current room has a participant with `recorder: true` in its JWT grant
      **/
     get isRecording(): boolean;
-    /** server assigned unique room id */
-    get sid(): string;
+    /**
+     * server assigned unique room id.
+     * returns once a sid has been issued by the server.
+     */
+    getSid(): Promise<string>;
     /** user assigned name, derived from JWT token */
     get name(): string;
     /** room metadata */
@@ -132,17 +139,16 @@ declare class Room extends Room_base {
      * - `startAudio`
      * - `getUserMedia`
      */
-    startAudio(): Promise<void>;
+    startAudio: () => Promise<void>;
+    startVideo: () => Promise<void>;
     /**
      * Returns true if audio playback is enabled
      */
     get canPlaybackAudio(): boolean;
     /**
-     * Returns the active audio output device used in this room.
-     * @return the previously successfully set audio output device ID or an empty string if the default device is used.
-     * @deprecated use `getActiveDevice('audiooutput')` instead
+     * Returns true if video playback is enabled
      */
-    getActiveAudioOutputDevice(): string;
+    get canPlaybackVideo(): boolean;
     getActiveDevice(kind: MediaDeviceKind): string | undefined;
     /**
      * Switches all active devices used in this room to the given device.
@@ -171,6 +177,8 @@ declare class Room extends Room_base {
     private handleDataPacket;
     private handleAudioPlaybackStarted;
     private handleAudioPlaybackFailed;
+    private handleVideoPlaybackStarted;
+    private handleVideoPlaybackFailed;
     private handleDeviceChange;
     private handleRoomUpdate;
     private handleConnectionQualityUpdate;
@@ -183,14 +191,17 @@ declare class Room extends Room_base {
      * subscription settings.
      */
     private updateSubscriptions;
+    private getRemoteParticipantBySid;
     private registerConnectionReconcile;
     private clearConnectionReconcile;
     private setAndEmitConnectionState;
+    private emitBufferedEvents;
     private emitWhenConnected;
     private onLocalParticipantMetadataChanged;
     private onLocalParticipantNameChanged;
     private onLocalTrackMuted;
     private onLocalTrackUnmuted;
+    private onTrackProcessorUpdate;
     private onLocalTrackPublished;
     private onLocalTrackUnpublished;
     private onLocalConnectionQualityChanged;
@@ -210,8 +221,6 @@ export type RoomEventCallbacks = {
     reconnecting: () => void;
     reconnected: () => void;
     disconnected: (reason?: DisconnectReason) => void;
-    /** @deprecated stateChanged has been renamed to connectionStateChanged */
-    stateChanged: (state: ConnectionState) => void;
     connectionStateChanged: (state: ConnectionState) => void;
     mediaDevicesChanged: () => void;
     participantConnected: (participant: RemoteParticipant) => void;
@@ -238,6 +247,7 @@ export type RoomEventCallbacks = {
     trackSubscriptionPermissionChanged: (publication: RemoteTrackPublication, status: TrackPublication.PermissionStatus, participant: RemoteParticipant) => void;
     trackSubscriptionStatusChanged: (publication: RemoteTrackPublication, status: TrackPublication.SubscriptionStatus, participant: RemoteParticipant) => void;
     audioPlaybackChanged: (playing: boolean) => void;
+    videoPlaybackChanged: (playing: boolean) => void;
     signalConnected: () => void;
     recordingStatusChanged: (recording: boolean) => void;
     participantEncryptionStatusChanged: (encrypted: boolean, participant?: Participant) => void;

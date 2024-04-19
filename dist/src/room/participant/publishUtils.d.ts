@@ -2,8 +2,9 @@ import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalVideoTrack from '../track/LocalVideoTrack';
 import type { BackupVideoCodec, TrackPublishOptions, VideoCodec, VideoEncoding } from '../track/options';
 import { VideoPreset } from '../track/options';
+import type { LoggerOptions } from '../types';
 /** @internal */
-export declare function mediaTrackToLocalTrack(mediaStreamTrack: MediaStreamTrack, constraints?: MediaTrackConstraints): LocalVideoTrack | LocalAudioTrack;
+export declare function mediaTrackToLocalTrack(mediaStreamTrack: MediaStreamTrack, constraints?: MediaTrackConstraints, loggerOptions?: LoggerOptions): LocalVideoTrack | LocalAudioTrack;
 export declare const presets169: VideoPreset[];
 export declare const presets43: VideoPreset[];
 export declare const presetsScreenShare: VideoPreset[];

@@ -1,333 +1,19 @@
 function _mergeNamespaces(n, m) {
-	m.forEach(function (e) {
-		e && typeof e !== 'string' && !Array.isArray(e) && Object.keys(e).forEach(function (k) {
-			if (k !== 'default' && !(k in n)) {
-				var d = Object.getOwnPropertyDescriptor(e, k);
-				Object.defineProperty(n, k, d.get ? d : {
-					enumerable: true,
-					get: function () { return e[k]; }
-				});
-			}
-		});
-	});
-	return Object.freeze(n);
-}
-
-var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
-
-function getDefaultExportFromCjs (x) {
-	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
-}
-
-var loglevel = {exports: {}};
-
-/*
-* loglevel - https://github.com/pimterry/loglevel
-*
-* Copyright (c) 2013 Tim Perry
-* Licensed under the MIT license.
-*/
-(function (module) {
-  (function (root, definition) {
-
-    if (module.exports) {
-      module.exports = definition();
-    } else {
-      root.log = definition();
-    }
-  })(commonjsGlobal, function () {
-
-    // Slightly dubious tricks to cut down minimized file size
-    var noop = function () {};
-    var undefinedType = "undefined";
-    var isIE = typeof window !== undefinedType && typeof window.navigator !== undefinedType && /Trident\/|MSIE /.test(window.navigator.userAgent);
-    var logMethods = ["trace", "debug", "info", "warn", "error"];
-
-    // Cross-browser bind equivalent that works at least back to IE6
-    function bindMethod(obj, methodName) {
-      var method = obj[methodName];
-      if (typeof method.bind === 'function') {
-        return method.bind(obj);
-      } else {
-        try {
-          return Function.prototype.bind.call(method, obj);
-        } catch (e) {
-          // Missing bind shim or IE8 + Modernizr, fallback to wrapping
-          return function () {
-            return Function.prototype.apply.apply(method, [obj, arguments]);
-          };
-        }
-      }
-    }
-
-    // Trace() doesn't print the message in IE, so for that case we need to wrap it
-    function traceForIE() {
-      if (console.log) {
-        if (console.log.apply) {
-          console.log.apply(console, arguments);
-        } else {
-          // In old IE, native console methods themselves don't have apply().
-          Function.prototype.apply.apply(console.log, [console, arguments]);
-        }
-      }
-      if (console.trace) console.trace();
-    }
-
-    // Build the best logging method possible for this env
-    // Wherever possible we want to bind, not wrap, to preserve stack traces
-    function realMethod(methodName) {
-      if (methodName === 'debug') {
-        methodName = 'log';
-      }
-      if (typeof console === undefinedType) {
-        return false; // No method possible, for now - fixed later by enableLoggingWhenConsoleArrives
-      } else if (methodName === 'trace' && isIE) {
-        return traceForIE;
-      } else if (console[methodName] !== undefined) {
-        return bindMethod(console, methodName);
-      } else if (console.log !== undefined) {
-        return bindMethod(console, 'log');
-      } else {
-        return noop;
-      }
-    }
-
-    // These private functions always need `this` to be set properly
-
-    function replaceLoggingMethods(level, loggerName) {
-      /*jshint validthis:true */
-      for (var i = 0; i < logMethods.length; i++) {
-        var methodName = logMethods[i];
-        this[methodName] = i < level ? noop : this.methodFactory(methodName, level, loggerName);
-      }
-
-      // Define log.log as an alias for log.debug
-      this.log = this.debug;
-    }
-
-    // In old IE versions, the console isn't present until you first open it.
-    // We build realMethod() replacements here that regenerate logging methods
-    function enableLoggingWhenConsoleArrives(methodName, level, loggerName) {
-      return function () {
-        if (typeof console !== undefinedType) {
-          replaceLoggingMethods.call(this, level, loggerName);
-          this[methodName].apply(this, arguments);
-        }
-      };
-    }
-
-    // By default, we use closely bound real methods wherever possible, and
-    // otherwise we wait for a console to appear, and then try again.
-    function defaultMethodFactory(methodName, level, loggerName) {
-      /*jshint validthis:true */
-      return realMethod(methodName) || enableLoggingWhenConsoleArrives.apply(this, arguments);
-    }
-    function Logger(name, defaultLevel, factory) {
-      var self = this;
-      var currentLevel;
-      defaultLevel = defaultLevel == null ? "WARN" : defaultLevel;
-      var storageKey = "loglevel";
-      if (typeof name === "string") {
-        storageKey += ":" + name;
-      } else if (typeof name === "symbol") {
-        storageKey = undefined;
-      }
-      function persistLevelIfPossible(levelNum) {
-        var levelName = (logMethods[levelNum] || 'silent').toUpperCase();
-        if (typeof window === undefinedType || !storageKey) return;
-
-        // Use localStorage if available
-        try {
-          window.localStorage[storageKey] = levelName;
-          return;
-        } catch (ignore) {}
-
-        // Use session cookie as fallback
-        try {
-          window.document.cookie = encodeURIComponent(storageKey) + "=" + levelName + ";";
-        } catch (ignore) {}
-      }
-      function getPersistedLevel() {
-        var storedLevel;
-        if (typeof window === undefinedType || !storageKey) return;
-        try {
-          storedLevel = window.localStorage[storageKey];
-        } catch (ignore) {}
-
-        // Fallback to cookies if local storage gives us nothing
-        if (typeof storedLevel === undefinedType) {
-          try {
-            var cookie = window.document.cookie;
-            var location = cookie.indexOf(encodeURIComponent(storageKey) + "=");
-            if (location !== -1) {
-              storedLevel = /^([^;]+)/.exec(cookie.slice(location))[1];
+    m.forEach(function (e) {
+        e && typeof e !== 'string' && !Array.isArray(e) && Object.keys(e).forEach(function (k) {
+            if (k !== 'default' && !(k in n)) {
+                var d = Object.getOwnPropertyDescriptor(e, k);
+                Object.defineProperty(n, k, d.get ? d : {
+                    enumerable: true,
+                    get: function () { return e[k]; }
+                });
             }
-          } catch (ignore) {}
-        }
-
-        // If the stored level is not valid, treat it as if nothing was stored.
-        if (self.levels[storedLevel] === undefined) {
-          storedLevel = undefined;
-        }
-        return storedLevel;
-      }
-      function clearPersistedLevel() {
-        if (typeof window === undefinedType || !storageKey) return;
-
-        // Use localStorage if available
-        try {
-          window.localStorage.removeItem(storageKey);
-          return;
-        } catch (ignore) {}
-
-        // Use session cookie as fallback
-        try {
-          window.document.cookie = encodeURIComponent(storageKey) + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC";
-        } catch (ignore) {}
-      }
-
-      /*
-       *
-       * Public logger API - see https://github.com/pimterry/loglevel for details
-       *
-       */
-
-      self.name = name;
-      self.levels = {
-        "TRACE": 0,
-        "DEBUG": 1,
-        "INFO": 2,
-        "WARN": 3,
-        "ERROR": 4,
-        "SILENT": 5
-      };
-      self.methodFactory = factory || defaultMethodFactory;
-      self.getLevel = function () {
-        return currentLevel;
-      };
-      self.setLevel = function (level, persist) {
-        if (typeof level === "string" && self.levels[level.toUpperCase()] !== undefined) {
-          level = self.levels[level.toUpperCase()];
-        }
-        if (typeof level === "number" && level >= 0 && level <= self.levels.SILENT) {
-          currentLevel = level;
-          if (persist !== false) {
-            // defaults to true
-            persistLevelIfPossible(level);
-          }
-          replaceLoggingMethods.call(self, level, name);
-          if (typeof console === undefinedType && level < self.levels.SILENT) {
-            return "No console available for logging";
-          }
-        } else {
-          throw "log.setLevel() called with invalid level: " + level;
-        }
-      };
-      self.setDefaultLevel = function (level) {
-        defaultLevel = level;
-        if (!getPersistedLevel()) {
-          self.setLevel(level, false);
-        }
-      };
-      self.resetLevel = function () {
-        self.setLevel(defaultLevel, false);
-        clearPersistedLevel();
-      };
-      self.enableAll = function (persist) {
-        self.setLevel(self.levels.TRACE, persist);
-      };
-      self.disableAll = function (persist) {
-        self.setLevel(self.levels.SILENT, persist);
-      };
-
-      // Initialize with the right level
-      var initialLevel = getPersistedLevel();
-      if (initialLevel == null) {
-        initialLevel = defaultLevel;
-      }
-      self.setLevel(initialLevel, false);
-    }
-
-    /*
-     *
-     * Top-level API
-     *
-     */
-
-    var defaultLogger = new Logger();
-    var _loggersByName = {};
-    defaultLogger.getLogger = function getLogger(name) {
-      if (typeof name !== "symbol" && typeof name !== "string" || name === "") {
-        throw new TypeError("You must supply a name when creating a logger.");
-      }
-      var logger = _loggersByName[name];
-      if (!logger) {
-        logger = _loggersByName[name] = new Logger(name, defaultLogger.getLevel(), defaultLogger.methodFactory);
-      }
-      return logger;
-    };
-
-    // Grab the current global log variable in case of overwrite
-    var _log = typeof window !== undefinedType ? window.log : undefined;
-    defaultLogger.noConflict = function () {
-      if (typeof window !== undefinedType && window.log === defaultLogger) {
-        window.log = _log;
-      }
-      return defaultLogger;
-    };
-    defaultLogger.getLoggers = function getLoggers() {
-      return _loggersByName;
-    };
-
-    // ES6 default export, for compatibility
-    defaultLogger['default'] = defaultLogger;
-    return defaultLogger;
-  });
-})(loglevel);
-var loglevelExports = loglevel.exports;
-
-var LogLevel;
-(function (LogLevel) {
-  LogLevel[LogLevel["trace"] = 0] = "trace";
-  LogLevel[LogLevel["debug"] = 1] = "debug";
-  LogLevel[LogLevel["info"] = 2] = "info";
-  LogLevel[LogLevel["warn"] = 3] = "warn";
-  LogLevel[LogLevel["error"] = 4] = "error";
-  LogLevel[LogLevel["silent"] = 5] = "silent";
-})(LogLevel || (LogLevel = {}));
-const livekitLogger = loglevelExports.getLogger('livekit');
-livekitLogger.setDefaultLevel(LogLevel.info);
-function setLogLevel(level, loggerName) {
-  if (loggerName) {
-    loglevelExports.getLogger(loggerName).setLevel(level);
-  }
-  for (const logger of Object.values(loglevelExports.getLoggers())) {
-    logger.setLevel(level);
-  }
-}
-/**
- * use this to hook into the logging function to allow sending internal livekit logs to third party services
- * if set, the browser logs will lose their stacktrace information (see https://github.com/pimterry/loglevel#writing-plugins)
- */
-function setLogExtension(extension) {
-  const originalFactory = livekitLogger.methodFactory;
-  livekitLogger.methodFactory = (methodName, configLevel, loggerName) => {
-    const rawMethod = originalFactory(methodName, configLevel, loggerName);
-    const logLevel = LogLevel[methodName];
-    const needLog = logLevel >= configLevel && logLevel < LogLevel.silent;
-    return (msg, context) => {
-      if (context) rawMethod(msg, context);else rawMethod(msg);
-      if (needLog) {
-        extension(logLevel, msg, context);
-      }
-    };
-  };
-  livekitLogger.setLevel(livekitLogger.getLevel()); // Be sure to call setLevel method in order to apply plugin
+        });
+    });
+    return Object.freeze(n);
 }
 
-loglevelExports.getLogger('lk-e2ee');
-
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -377,7 +63,7 @@ function assertFloat32(arg) {
   if (arg > FLOAT32_MAX || arg < FLOAT32_MIN) throw new Error("invalid float 32: " + arg); // eslint-disable-line @typescript-eslint/restrict-plus-operands -- we want the implicit conversion to string
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -466,7 +152,7 @@ function normalizeEnumValue(value) {
   });
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -599,7 +285,7 @@ class Message {
   }
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -644,85 +330,6 @@ function makeMessageType(runtime, typeName, fields, opt) {
   });
   return type;
 }
-
-// Copyright 2021-2023 Buf Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-function makeProtoRuntime(syntax, json, bin, util) {
-  return {
-    syntax,
-    json,
-    bin,
-    util,
-    makeMessageType(typeName, fields, opt) {
-      return makeMessageType(this, typeName, fields, opt);
-    },
-    makeEnum,
-    makeEnumType,
-    getEnumType
-  };
-}
-
-// Copyright 2021-2023 Buf Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-/**
- * Scalar value types. This is a subset of field types declared by protobuf
- * enum google.protobuf.FieldDescriptorProto.Type The types GROUP and MESSAGE
- * are omitted, but the numerical values are identical.
- */
-var ScalarType;
-(function (ScalarType) {
-  // 0 is reserved for errors.
-  // Order is weird for historical reasons.
-  ScalarType[ScalarType["DOUBLE"] = 1] = "DOUBLE";
-  ScalarType[ScalarType["FLOAT"] = 2] = "FLOAT";
-  // Not ZigZag encoded.  Negative numbers take 10 bytes.  Use TYPE_SINT64 if
-  // negative values are likely.
-  ScalarType[ScalarType["INT64"] = 3] = "INT64";
-  ScalarType[ScalarType["UINT64"] = 4] = "UINT64";
-  // Not ZigZag encoded.  Negative numbers take 10 bytes.  Use TYPE_SINT32 if
-  // negative values are likely.
-  ScalarType[ScalarType["INT32"] = 5] = "INT32";
-  ScalarType[ScalarType["FIXED64"] = 6] = "FIXED64";
-  ScalarType[ScalarType["FIXED32"] = 7] = "FIXED32";
-  ScalarType[ScalarType["BOOL"] = 8] = "BOOL";
-  ScalarType[ScalarType["STRING"] = 9] = "STRING";
-  // Tag-delimited aggregate.
-  // Group type is deprecated and not supported in proto3. However, Proto3
-  // implementations should still be able to parse the group wire format and
-  // treat group fields as unknown fields.
-  // TYPE_GROUP = 10,
-  // TYPE_MESSAGE = 11,  // Length-delimited aggregate.
-  // New in version 2.
-  ScalarType[ScalarType["BYTES"] = 12] = "BYTES";
-  ScalarType[ScalarType["UINT32"] = 13] = "UINT32";
-  // TYPE_ENUM = 14,
-  ScalarType[ScalarType["SFIXED32"] = 15] = "SFIXED32";
-  ScalarType[ScalarType["SFIXED64"] = 16] = "SFIXED64";
-  ScalarType[ScalarType["SINT32"] = 17] = "SINT32";
-  ScalarType[ScalarType["SINT64"] = 18] = "SINT64";
-})(ScalarType || (ScalarType = {}));
 
 // Copyright 2008 Google Inc.  All rights reserved.
 //
@@ -1042,7 +649,7 @@ function varint32read() {
   return result >>> 0;
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1150,7 +757,185 @@ function makeInt64Support() {
 }
 const protoInt64 = makeInt64Support();
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+/**
+ * Scalar value types. This is a subset of field types declared by protobuf
+ * enum google.protobuf.FieldDescriptorProto.Type The types GROUP and MESSAGE
+ * are omitted, but the numerical values are identical.
+ */
+var ScalarType;
+(function (ScalarType) {
+  // 0 is reserved for errors.
+  // Order is weird for historical reasons.
+  ScalarType[ScalarType["DOUBLE"] = 1] = "DOUBLE";
+  ScalarType[ScalarType["FLOAT"] = 2] = "FLOAT";
+  // Not ZigZag encoded.  Negative numbers take 10 bytes.  Use TYPE_SINT64 if
+  // negative values are likely.
+  ScalarType[ScalarType["INT64"] = 3] = "INT64";
+  ScalarType[ScalarType["UINT64"] = 4] = "UINT64";
+  // Not ZigZag encoded.  Negative numbers take 10 bytes.  Use TYPE_SINT32 if
+  // negative values are likely.
+  ScalarType[ScalarType["INT32"] = 5] = "INT32";
+  ScalarType[ScalarType["FIXED64"] = 6] = "FIXED64";
+  ScalarType[ScalarType["FIXED32"] = 7] = "FIXED32";
+  ScalarType[ScalarType["BOOL"] = 8] = "BOOL";
+  ScalarType[ScalarType["STRING"] = 9] = "STRING";
+  // Tag-delimited aggregate.
+  // Group type is deprecated and not supported in proto3. However, Proto3
+  // implementations should still be able to parse the group wire format and
+  // treat group fields as unknown fields.
+  // TYPE_GROUP = 10,
+  // TYPE_MESSAGE = 11,  // Length-delimited aggregate.
+  // New in version 2.
+  ScalarType[ScalarType["BYTES"] = 12] = "BYTES";
+  ScalarType[ScalarType["UINT32"] = 13] = "UINT32";
+  // TYPE_ENUM = 14,
+  ScalarType[ScalarType["SFIXED32"] = 15] = "SFIXED32";
+  ScalarType[ScalarType["SFIXED64"] = 16] = "SFIXED64";
+  ScalarType[ScalarType["SINT32"] = 17] = "SINT32";
+  ScalarType[ScalarType["SINT64"] = 18] = "SINT64";
+})(ScalarType || (ScalarType = {}));
+/**
+ * JavaScript representation of fields with 64 bit integral types (int64, uint64,
+ * sint64, fixed64, sfixed64).
+ *
+ * This is a subset of google.protobuf.FieldOptions.JSType, which defines JS_NORMAL,
+ * JS_STRING, and JS_NUMBER. Protobuf-ES uses BigInt by default, but will use
+ * String if `[jstype = JS_STRING]` is specified.
+ *
+ * ```protobuf
+ * uint64 field_a = 1; // BigInt
+ * uint64 field_b = 2 [jstype = JS_NORMAL]; // BigInt
+ * uint64 field_b = 2 [jstype = JS_NUMBER]; // BigInt
+ * uint64 field_b = 2 [jstype = JS_STRING]; // String
+ * ```
+ */
+var LongType;
+(function (LongType) {
+  /**
+   * Use JavaScript BigInt.
+   */
+  LongType[LongType["BIGINT"] = 0] = "BIGINT";
+  /**
+   * Use JavaScript String.
+   *
+   * Field option `[jstype = JS_STRING]`.
+   */
+  LongType[LongType["STRING"] = 1] = "STRING";
+})(LongType || (LongType = {}));
+
+// Copyright 2021-2024 Buf Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+/**
+ * Returns true if both scalar values are equal.
+ */
+function scalarEquals(type, a, b) {
+  if (a === b) {
+    // This correctly matches equal values except BYTES and (possibly) 64-bit integers.
+    return true;
+  }
+  // Special case BYTES - we need to compare each byte individually
+  if (type == ScalarType.BYTES) {
+    if (!(a instanceof Uint8Array) || !(b instanceof Uint8Array)) {
+      return false;
+    }
+    if (a.length !== b.length) {
+      return false;
+    }
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+  // Special case 64-bit integers - we support number, string and bigint representation.
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
+  switch (type) {
+    case ScalarType.UINT64:
+    case ScalarType.FIXED64:
+    case ScalarType.INT64:
+    case ScalarType.SFIXED64:
+    case ScalarType.SINT64:
+      // Loose comparison will match between 0n, 0 and "0".
+      return a == b;
+  }
+  // Anything that hasn't been caught by strict comparison or special cased
+  // BYTES and 64-bit integers is not equal.
+  return false;
+}
+/**
+ * Returns the zero value for the given scalar type.
+ */
+function scalarZeroValue(type, longType) {
+  switch (type) {
+    case ScalarType.BOOL:
+      return false;
+    case ScalarType.UINT64:
+    case ScalarType.FIXED64:
+    case ScalarType.INT64:
+    case ScalarType.SFIXED64:
+    case ScalarType.SINT64:
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison -- acceptable since it's covered by tests
+      return longType == 0 ? protoInt64.zero : "0";
+    case ScalarType.DOUBLE:
+    case ScalarType.FLOAT:
+      return 0.0;
+    case ScalarType.BYTES:
+      return new Uint8Array(0);
+    case ScalarType.STRING:
+      return "";
+    default:
+      // Handles INT32, UINT32, SINT32, FIXED32, SFIXED32.
+      // We do not use individual cases to save a few bytes code size.
+      return 0;
+  }
+}
+/**
+ * Returns true for a zero-value. For example, an integer has the zero-value `0`,
+ * a boolean is `false`, a string is `""`, and bytes is an empty Uint8Array.
+ *
+ * In proto3, zero-values are not written to the wire, unless the field is
+ * optional or repeated.
+ */
+function isScalarZeroValue(type, value) {
+  switch (type) {
+    case ScalarType.BOOL:
+      return value === false;
+    case ScalarType.STRING:
+      return value === "";
+    case ScalarType.BYTES:
+      return value instanceof Uint8Array && !value.byteLength;
+    default:
+      return value == 0;
+    // Loose comparison matches 0n, 0 and "0"
+  }
+}
+
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1192,13 +977,12 @@ var WireType;
    */
   WireType[WireType["LengthDelimited"] = 2] = "LengthDelimited";
   /**
-   * Used for groups
-   * @deprecated
+   * Start of a tag-delimited aggregate, such as a proto2 group, or a message
+   * in editions with message_encoding = DELIMITED.
    */
   WireType[WireType["StartGroup"] = 3] = "StartGroup";
   /**
-   * Used for groups
-   * @deprecated
+   * End of a tag-delimited aggregate.
    */
   WireType[WireType["EndGroup"] = 4] = "EndGroup";
   /**
@@ -1473,8 +1257,7 @@ class BinaryReader {
         this.pos += len;
         break;
       case WireType.StartGroup:
-        // From descriptor.proto: Group type is deprecated, not supported in proto3.
-        // But we must still be able to parse and treat as unknown.
+        // TODO check for matching field numbers in StartGroup / EndGroup tags
         let t;
         while ((t = this.tag()[1]) !== WireType.EndGroup) {
           this.skip(t);
@@ -1590,7 +1373,7 @@ class BinaryReader {
   }
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1604,523 +1387,74 @@ class BinaryReader {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 /**
- * Wrap a primitive message field value in its corresponding wrapper
- * message. This function is idempotent.
+ * Create a new extension using the given runtime.
  */
-function wrapField(type, value) {
-  if (value instanceof Message || !type.fieldWrapper) {
-    return value;
-  }
-  return type.fieldWrapper.wrapField(value);
-}
-({
-  "google.protobuf.DoubleValue": ScalarType.DOUBLE,
-  "google.protobuf.FloatValue": ScalarType.FLOAT,
-  "google.protobuf.Int64Value": ScalarType.INT64,
-  "google.protobuf.UInt64Value": ScalarType.UINT64,
-  "google.protobuf.Int32Value": ScalarType.INT32,
-  "google.protobuf.UInt32Value": ScalarType.UINT32,
-  "google.protobuf.BoolValue": ScalarType.BOOL,
-  "google.protobuf.StringValue": ScalarType.STRING,
-  "google.protobuf.BytesValue": ScalarType.BYTES
-});
-
-// Copyright 2021-2023 Buf Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/**
- * Returns true if both scalar values are equal.
- */
-function scalarEquals(type, a, b) {
-  if (a === b) {
-    // This correctly matches equal values except BYTES and (possibly) 64-bit integers.
-    return true;
-  }
-  // Special case BYTES - we need to compare each byte individually
-  if (type == ScalarType.BYTES) {
-    if (!(a instanceof Uint8Array) || !(b instanceof Uint8Array)) {
-      return false;
-    }
-    if (a.length !== b.length) {
-      return false;
-    }
-    for (let i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) {
-        return false;
-      }
-    }
-    return true;
-  }
-  // Special case 64-bit integers - we support number, string and bigint representation.
-  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
-  switch (type) {
-    case ScalarType.UINT64:
-    case ScalarType.FIXED64:
-    case ScalarType.INT64:
-    case ScalarType.SFIXED64:
-    case ScalarType.SINT64:
-      // Loose comparison will match between 0n, 0 and "0".
-      return a == b;
-  }
-  // Anything that hasn't been caught by strict comparison or special cased
-  // BYTES and 64-bit integers is not equal.
-  return false;
-}
-/**
- * Returns the default value for the given scalar type, following
- * proto3 semantics.
- */
-function scalarDefaultValue(type) {
-  switch (type) {
-    case ScalarType.BOOL:
-      return false;
-    case ScalarType.UINT64:
-    case ScalarType.FIXED64:
-    case ScalarType.INT64:
-    case ScalarType.SFIXED64:
-    case ScalarType.SINT64:
-      return protoInt64.zero;
-    case ScalarType.DOUBLE:
-    case ScalarType.FLOAT:
-      return 0.0;
-    case ScalarType.BYTES:
-      return new Uint8Array(0);
-    case ScalarType.STRING:
-      return "";
-    default:
-      // Handles INT32, UINT32, SINT32, FIXED32, SFIXED32.
-      // We do not use individual cases to save a few bytes code size.
-      return 0;
-  }
-}
-/**
- * Get information for writing a scalar value.
- *
- * Returns tuple:
- * [0]: appropriate WireType
- * [1]: name of the appropriate method of IBinaryWriter
- * [2]: whether the given value is a default value for proto3 semantics
- *
- * If argument `value` is omitted, [2] is always false.
- */
-function scalarTypeInfo(type, value) {
-  const isUndefined = value === undefined;
-  let wireType = WireType.Varint;
-  let isIntrinsicDefault = value === 0;
-  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- INT32, UINT32, SINT32 are covered by the defaults
-  switch (type) {
-    case ScalarType.STRING:
-      isIntrinsicDefault = isUndefined || !value.length;
-      wireType = WireType.LengthDelimited;
-      break;
-    case ScalarType.BOOL:
-      isIntrinsicDefault = value === false;
-      break;
-    case ScalarType.DOUBLE:
-      wireType = WireType.Bit64;
-      break;
-    case ScalarType.FLOAT:
-      wireType = WireType.Bit32;
-      break;
-    case ScalarType.INT64:
-      isIntrinsicDefault = isUndefined || value == 0;
-      break;
-    case ScalarType.UINT64:
-      isIntrinsicDefault = isUndefined || value == 0;
-      break;
-    case ScalarType.FIXED64:
-      isIntrinsicDefault = isUndefined || value == 0;
-      wireType = WireType.Bit64;
-      break;
-    case ScalarType.BYTES:
-      isIntrinsicDefault = isUndefined || !value.byteLength;
-      wireType = WireType.LengthDelimited;
-      break;
-    case ScalarType.FIXED32:
-      wireType = WireType.Bit32;
-      break;
-    case ScalarType.SFIXED32:
-      wireType = WireType.Bit32;
-      break;
-    case ScalarType.SFIXED64:
-      isIntrinsicDefault = isUndefined || value == 0;
-      wireType = WireType.Bit64;
-      break;
-    case ScalarType.SINT64:
-      isIntrinsicDefault = isUndefined || value == 0;
-      break;
-  }
-  const method = ScalarType[type].toLowerCase();
-  return [wireType, method, isUndefined || isIntrinsicDefault];
-}
-
-// Copyright 2021-2023 Buf Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-/* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unnecessary-condition, no-case-declarations, prefer-const */
-const unknownFieldsSymbol = Symbol("@bufbuild/protobuf/unknown-fields");
-// Default options for parsing binary data.
-const readDefaults = {
-  readUnknownFields: true,
-  readerFactory: bytes => new BinaryReader(bytes)
-};
-// Default options for serializing binary data.
-const writeDefaults = {
-  writeUnknownFields: true,
-  writerFactory: () => new BinaryWriter()
-};
-function makeReadOptions$1(options) {
-  return options ? Object.assign(Object.assign({}, readDefaults), options) : readDefaults;
-}
-function makeWriteOptions$1(options) {
-  return options ? Object.assign(Object.assign({}, writeDefaults), options) : writeDefaults;
-}
-function makeBinaryFormatCommon() {
+function makeExtension(runtime, typeName, extendee, field) {
+  let fi;
   return {
-    makeReadOptions: makeReadOptions$1,
-    makeWriteOptions: makeWriteOptions$1,
-    listUnknownFields(message) {
-      var _a;
-      return (_a = message[unknownFieldsSymbol]) !== null && _a !== void 0 ? _a : [];
-    },
-    discardUnknownFields(message) {
-      delete message[unknownFieldsSymbol];
-    },
-    writeUnknownFields(message, writer) {
-      const m = message;
-      const c = m[unknownFieldsSymbol];
-      if (c) {
-        for (const f of c) {
-          writer.tag(f.no, f.wireType).raw(f.data);
-        }
+    typeName,
+    extendee,
+    get field() {
+      if (!fi) {
+        const i = typeof field == "function" ? field() : field;
+        i.name = typeName.split(".").pop();
+        i.jsonName = "[".concat(typeName, "]");
+        fi = runtime.util.newFieldList([i]).list()[0];
       }
+      return fi;
     },
-    onUnknownField(message, no, wireType, data) {
-      const m = message;
-      if (!Array.isArray(m[unknownFieldsSymbol])) {
-        m[unknownFieldsSymbol] = [];
-      }
-      m[unknownFieldsSymbol].push({
-        no,
-        wireType,
-        data
-      });
-    },
-    readMessage(message, reader, length, options) {
-      const type = message.getType();
-      const end = length === undefined ? reader.len : reader.pos + length;
-      while (reader.pos < end) {
-        const [fieldNo, wireType] = reader.tag(),
-          field = type.fields.find(fieldNo);
-        if (!field) {
-          const data = reader.skip(wireType);
-          if (options.readUnknownFields) {
-            this.onUnknownField(message, fieldNo, wireType, data);
-          }
-          continue;
-        }
-        let target = message,
-          repeated = field.repeated,
-          localName = field.localName;
-        if (field.oneof) {
-          target = target[field.oneof.localName];
-          if (target.case != localName) {
-            delete target.value;
-          }
-          target.case = localName;
-          localName = "value";
-        }
-        switch (field.kind) {
-          case "scalar":
-          case "enum":
-            const scalarType = field.kind == "enum" ? ScalarType.INT32 : field.T;
-            if (repeated) {
-              let arr = target[localName]; // safe to assume presence of array, oneof cannot contain repeated values
-              if (wireType == WireType.LengthDelimited && scalarType != ScalarType.STRING && scalarType != ScalarType.BYTES) {
-                let e = reader.uint32() + reader.pos;
-                while (reader.pos < e) {
-                  arr.push(readScalar$1(reader, scalarType));
-                }
-              } else {
-                arr.push(readScalar$1(reader, scalarType));
-              }
-            } else {
-              target[localName] = readScalar$1(reader, scalarType);
-            }
-            break;
-          case "message":
-            const messageType = field.T;
-            if (repeated) {
-              // safe to assume presence of array, oneof cannot contain repeated values
-              target[localName].push(readMessageField(reader, new messageType(), options));
-            } else {
-              if (target[localName] instanceof Message) {
-                readMessageField(reader, target[localName], options);
-              } else {
-                target[localName] = readMessageField(reader, new messageType(), options);
-                if (messageType.fieldWrapper && !field.oneof && !field.repeated) {
-                  target[localName] = messageType.fieldWrapper.unwrapField(target[localName]);
-                }
-              }
-            }
-            break;
-          case "map":
-            let [mapKey, mapVal] = readMapEntry(field, reader, options);
-            // safe to assume presence of map object, oneof cannot contain repeated values
-            target[localName][mapKey] = mapVal;
-            break;
-        }
-      }
-    }
+    runtime
   };
 }
-// Read a message, avoiding MessageType.fromBinary() to re-use the
-// BinaryReadOptions and the IBinaryReader.
-function readMessageField(reader, message, options) {
-  const format = message.getType().runtime.bin;
-  format.readMessage(message, reader, reader.uint32(), options);
-  return message;
+/**
+ * Create a container that allows us to read extension fields into it with the
+ * same logic as regular fields.
+ */
+function createExtensionContainer(extension) {
+  const localName = extension.field.localName;
+  const container = Object.create(null);
+  container[localName] = initExtensionField(extension);
+  return [container, () => container[localName]];
 }
-// Read a map field, expecting key field = 1, value field = 2
-function readMapEntry(field, reader, options) {
-  const length = reader.uint32(),
-    end = reader.pos + length;
-  let key, val;
-  while (reader.pos < end) {
-    let [fieldNo] = reader.tag();
-    switch (fieldNo) {
-      case 1:
-        key = readScalar$1(reader, field.K);
-        break;
-      case 2:
-        switch (field.V.kind) {
-          case "scalar":
-            val = readScalar$1(reader, field.V.T);
-            break;
-          case "enum":
-            val = reader.int32();
-            break;
-          case "message":
-            val = readMessageField(reader, new field.V.T(), options);
-            break;
-        }
-        break;
-    }
+function initExtensionField(ext) {
+  const field = ext.field;
+  if (field.repeated) {
+    return [];
   }
-  if (key === undefined) {
-    let keyRaw = scalarDefaultValue(field.K);
-    key = field.K == ScalarType.BOOL ? keyRaw.toString() : keyRaw;
+  if (field.default !== undefined) {
+    return field.default;
   }
-  if (typeof key != "string" && typeof key != "number") {
-    key = key.toString();
-  }
-  if (val === undefined) {
-    switch (field.V.kind) {
-      case "scalar":
-        val = scalarDefaultValue(field.V.T);
-        break;
-      case "enum":
-        val = 0;
-        break;
-      case "message":
-        val = new field.V.T();
-        break;
-    }
-  }
-  return [key, val];
-}
-// Does not use scalarTypeInfo() for better performance.
-function readScalar$1(reader, type) {
-  switch (type) {
-    case ScalarType.STRING:
-      return reader.string();
-    case ScalarType.BOOL:
-      return reader.bool();
-    case ScalarType.DOUBLE:
-      return reader.double();
-    case ScalarType.FLOAT:
-      return reader.float();
-    case ScalarType.INT32:
-      return reader.int32();
-    case ScalarType.INT64:
-      return reader.int64();
-    case ScalarType.UINT64:
-      return reader.uint64();
-    case ScalarType.FIXED64:
-      return reader.fixed64();
-    case ScalarType.BYTES:
-      return reader.bytes();
-    case ScalarType.FIXED32:
-      return reader.fixed32();
-    case ScalarType.SFIXED32:
-      return reader.sfixed32();
-    case ScalarType.SFIXED64:
-      return reader.sfixed64();
-    case ScalarType.SINT64:
-      return reader.sint64();
-    case ScalarType.UINT32:
-      return reader.uint32();
-    case ScalarType.SINT32:
-      return reader.sint32();
-  }
-}
-function writeMapEntry(writer, options, field, key, value) {
-  writer.tag(field.no, WireType.LengthDelimited);
-  writer.fork();
-  // javascript only allows number or string for object properties
-  // we convert from our representation to the protobuf type
-  let keyValue = key;
-  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- we deliberately handle just the special cases for map keys
-  switch (field.K) {
-    case ScalarType.INT32:
-    case ScalarType.FIXED32:
-    case ScalarType.UINT32:
-    case ScalarType.SFIXED32:
-    case ScalarType.SINT32:
-      keyValue = Number.parseInt(key);
-      break;
-    case ScalarType.BOOL:
-      assert(key == "true" || key == "false");
-      keyValue = key == "true";
-      break;
-  }
-  // write key, expecting key field number = 1
-  writeScalar$1(writer, field.K, 1, keyValue, true);
-  // write value, expecting value field number = 2
-  switch (field.V.kind) {
-    case "scalar":
-      writeScalar$1(writer, field.V.T, 2, value, true);
-      break;
+  switch (field.kind) {
     case "enum":
-      writeScalar$1(writer, ScalarType.INT32, 2, value, true);
-      break;
+      return field.T.values[0].no;
+    case "scalar":
+      return scalarZeroValue(field.T, field.L);
     case "message":
-      writeMessageField(writer, options, field.V.T, 2, value);
-      break;
-  }
-  writer.join();
-}
-function writeMessageField(writer, options, type, fieldNo, value) {
-  if (value !== undefined) {
-    const message = wrapField(type, value);
-    writer.tag(fieldNo, WireType.LengthDelimited).bytes(message.toBinary(options));
+      // eslint-disable-next-line no-case-declarations
+      const T = field.T,
+        value = new T();
+      return T.fieldWrapper ? T.fieldWrapper.unwrapField(value) : value;
+    case "map":
+      throw "map fields are not allowed to be extensions";
   }
 }
-function writeScalar$1(writer, type, fieldNo, value, emitIntrinsicDefault) {
-  let [wireType, method, isIntrinsicDefault] = scalarTypeInfo(type, value);
-  if (!isIntrinsicDefault || emitIntrinsicDefault) {
-    writer.tag(fieldNo, wireType)[method](value);
-  }
-}
-function writePacked(writer, type, fieldNo, value) {
-  if (!value.length) {
-    return;
-  }
-  writer.tag(fieldNo, WireType.LengthDelimited).fork();
-  let [, method] = scalarTypeInfo(type);
-  for (let i = 0; i < value.length; i++) {
-    writer[method](value[i]);
-  }
-  writer.join();
-}
-
-// Copyright 2021-2023 Buf Technologies, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/strict-boolean-expressions, prefer-const, no-case-declarations */
-function makeBinaryFormatProto3() {
-  return Object.assign(Object.assign({}, makeBinaryFormatCommon()), {
-    writeMessage(message, writer, options) {
-      const type = message.getType();
-      for (const field of type.fields.byNumber()) {
-        let value,
-          // this will be our field value, whether it is member of a oneof or regular field
-          repeated = field.repeated,
-          localName = field.localName;
-        if (field.oneof) {
-          const oneof = message[field.oneof.localName];
-          if (oneof.case !== localName) {
-            continue; // field is not selected, skip
-          }
-
-          value = oneof.value;
-        } else {
-          value = message[localName];
-        }
-        switch (field.kind) {
-          case "scalar":
-          case "enum":
-            let scalarType = field.kind == "enum" ? ScalarType.INT32 : field.T;
-            if (repeated) {
-              if (field.packed) {
-                writePacked(writer, scalarType, field.no, value);
-              } else {
-                for (const item of value) {
-                  writeScalar$1(writer, scalarType, field.no, item, true);
-                }
-              }
-            } else {
-              if (value !== undefined) {
-                writeScalar$1(writer, scalarType, field.no, value, !!field.oneof || field.opt);
-              }
-            }
-            break;
-          case "message":
-            if (repeated) {
-              for (const item of value) {
-                writeMessageField(writer, options, field.T, field.no, item);
-              }
-            } else {
-              writeMessageField(writer, options, field.T, field.no, value);
-            }
-            break;
-          case "map":
-            for (const [key, val] of Object.entries(value)) {
-              writeMapEntry(writer, options, field, key, val);
-            }
-            break;
-        }
+/**
+ * Helper to filter unknown fields, optimized based on field type.
+ */
+function filterUnknownFields(unknownFields, field) {
+  if (!field.repeated && (field.kind == "enum" || field.kind == "scalar")) {
+    // singular scalar fields do not merge, we pick the last
+    for (let i = unknownFields.length - 1; i >= 0; --i) {
+      if (unknownFields[i].no == field.no) {
+        return [unknownFields[i]];
       }
-      if (options.writeUnknownFields) {
-        this.writeUnknownFields(message, writer);
-      }
-      return writer;
     }
-  });
+    return [];
+  }
+  return unknownFields.filter(uf => uf.no === field.no);
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -2249,7 +1583,7 @@ const protoBase64 = {
   }
 };
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -2262,7 +1596,242 @@ const protoBase64 = {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-/* eslint-disable no-case-declarations, @typescript-eslint/restrict-plus-operands,@typescript-eslint/no-explicit-any,@typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-argument */
+/**
+ * Retrieve an extension value from a message.
+ *
+ * The function never returns undefined. Use hasExtension() to check whether an
+ * extension is set. If the extension is not set, this function returns the
+ * default value (if one was specified in the protobuf source), or the zero value
+ * (for example `0` for numeric types, `[]` for repeated extension fields, and
+ * an empty message instance for message fields).
+ *
+ * Extensions are stored as unknown fields on a message. To mutate an extension
+ * value, make sure to store the new value with setExtension() after mutating.
+ *
+ * If the extension does not extend the given message, an error is raised.
+ */
+function getExtension(message, extension, options) {
+  assertExtendee(extension, message);
+  const opt = extension.runtime.bin.makeReadOptions(options);
+  const ufs = filterUnknownFields(message.getType().runtime.bin.listUnknownFields(message), extension.field);
+  const [container, get] = createExtensionContainer(extension);
+  for (const uf of ufs) {
+    extension.runtime.bin.readField(container, opt.readerFactory(uf.data), extension.field, uf.wireType, opt);
+  }
+  return get();
+}
+/**
+ * Set an extension value on a message. If the message already has a value for
+ * this extension, the value is replaced.
+ *
+ * If the extension does not extend the given message, an error is raised.
+ */
+function setExtension(message, extension, value, options) {
+  assertExtendee(extension, message);
+  const readOpt = extension.runtime.bin.makeReadOptions(options);
+  const writeOpt = extension.runtime.bin.makeWriteOptions(options);
+  if (hasExtension(message, extension)) {
+    const ufs = message.getType().runtime.bin.listUnknownFields(message).filter(uf => uf.no != extension.field.no);
+    message.getType().runtime.bin.discardUnknownFields(message);
+    for (const uf of ufs) {
+      message.getType().runtime.bin.onUnknownField(message, uf.no, uf.wireType, uf.data);
+    }
+  }
+  const writer = writeOpt.writerFactory();
+  let f = extension.field;
+  // Implicit presence does not apply to extensions, see https://github.com/protocolbuffers/protobuf/issues/8234
+  // We patch the field info to use explicit presence:
+  if (!f.opt && !f.repeated && (f.kind == "enum" || f.kind == "scalar")) {
+    f = Object.assign(Object.assign({}, extension.field), {
+      opt: true
+    });
+  }
+  extension.runtime.bin.writeField(f, value, writer, writeOpt);
+  const reader = readOpt.readerFactory(writer.finish());
+  while (reader.pos < reader.len) {
+    const [no, wireType] = reader.tag();
+    const data = reader.skip(wireType);
+    message.getType().runtime.bin.onUnknownField(message, no, wireType, data);
+  }
+}
+/**
+ * Check whether an extension is set on a message.
+ */
+function hasExtension(message, extension) {
+  const messageType = message.getType();
+  return extension.extendee.typeName === messageType.typeName && !!messageType.runtime.bin.listUnknownFields(message).find(uf => uf.no == extension.field.no);
+}
+function assertExtendee(extension, message) {
+  assert(extension.extendee.typeName == message.getType().typeName, "extension ".concat(extension.typeName, " can only be applied to message ").concat(extension.extendee.typeName));
+}
+
+// Copyright 2021-2024 Buf Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+/**
+ * Returns true if the field is set.
+ */
+function isFieldSet(field, target) {
+  const localName = field.localName;
+  if (field.repeated) {
+    return target[localName].length > 0;
+  }
+  if (field.oneof) {
+    return target[field.oneof.localName].case === localName; // eslint-disable-line @typescript-eslint/no-unsafe-member-access
+  }
+  switch (field.kind) {
+    case "enum":
+    case "scalar":
+      if (field.opt || field.req) {
+        // explicit presence
+        return target[localName] !== undefined;
+      }
+      // implicit presence
+      if (field.kind == "enum") {
+        return target[localName] !== field.T.values[0].no;
+      }
+      return !isScalarZeroValue(field.T, target[localName]);
+    case "message":
+      return target[localName] !== undefined;
+    case "map":
+      return Object.keys(target[localName]).length > 0;
+    // eslint-disable-line @typescript-eslint/no-unsafe-argument
+  }
+}
+/**
+ * Resets the field, so that isFieldSet() will return false.
+ */
+function clearField(field, target) {
+  const localName = field.localName;
+  const implicitPresence = !field.opt && !field.req;
+  if (field.repeated) {
+    target[localName] = [];
+  } else if (field.oneof) {
+    target[field.oneof.localName] = {
+      case: undefined
+    };
+  } else {
+    switch (field.kind) {
+      case "map":
+        target[localName] = {};
+        break;
+      case "enum":
+        target[localName] = implicitPresence ? field.T.values[0].no : undefined;
+        break;
+      case "scalar":
+        target[localName] = implicitPresence ? scalarZeroValue(field.T, field.L) : undefined;
+        break;
+      case "message":
+        target[localName] = undefined;
+        break;
+    }
+  }
+}
+
+// Copyright 2021-2024 Buf Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+/**
+ * Check whether the given object is any subtype of Message or is a specific
+ * Message by passing the type.
+ *
+ * Just like `instanceof`, `isMessage` narrows the type. The advantage of
+ * `isMessage` is that it compares identity by the message type name, not by
+ * class identity. This makes it robust against the dual package hazard and
+ * similar situations, where the same message is duplicated.
+ *
+ * This function is _mostly_ equivalent to the `instanceof` operator. For
+ * example, `isMessage(foo, MyMessage)` is the same as `foo instanceof MyMessage`,
+ * and `isMessage(foo)` is the same as `foo instanceof Message`. In most cases,
+ * `isMessage` should be preferred over `instanceof`.
+ *
+ * However, due to the fact that `isMessage` does not use class identity, there
+ * are subtle differences between this function and `instanceof`. Notably,
+ * calling `isMessage` on an explicit type of Message will return false.
+ */
+function isMessage(arg, type) {
+  if (arg === null || typeof arg != "object") {
+    return false;
+  }
+  if (!Object.getOwnPropertyNames(Message.prototype).every(m => m in arg && typeof arg[m] == "function")) {
+    return false;
+  }
+  const actualType = arg.getType();
+  if (actualType === null || typeof actualType != "function" || !("typeName" in actualType) || typeof actualType.typeName != "string") {
+    return false;
+  }
+  return type === undefined ? true : actualType.typeName == type.typeName;
+}
+
+// Copyright 2021-2024 Buf Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+/**
+ * Wrap a primitive message field value in its corresponding wrapper
+ * message. This function is idempotent.
+ */
+function wrapField(type, value) {
+  if (isMessage(value) || !type.fieldWrapper) {
+    return value;
+  }
+  return type.fieldWrapper.wrapField(value);
+}
+({
+  "google.protobuf.DoubleValue": ScalarType.DOUBLE,
+  "google.protobuf.FloatValue": ScalarType.FLOAT,
+  "google.protobuf.Int64Value": ScalarType.INT64,
+  "google.protobuf.UInt64Value": ScalarType.UINT64,
+  "google.protobuf.Int32Value": ScalarType.INT32,
+  "google.protobuf.UInt32Value": ScalarType.UINT32,
+  "google.protobuf.BoolValue": ScalarType.BOOL,
+  "google.protobuf.StringValue": ScalarType.STRING,
+  "google.protobuf.BytesValue": ScalarType.BYTES
+});
+
+// Copyright 2021-2024 Buf Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+/* eslint-disable no-case-declarations,@typescript-eslint/no-unsafe-argument,@typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call */
 // Default options for parsing JSON.
 const jsonReadDefaults = {
   ignoreUnknownFields: false
@@ -2274,163 +1843,56 @@ const jsonWriteDefaults = {
   useProtoFieldName: false,
   prettySpaces: 0
 };
-function makeReadOptions(options) {
+function makeReadOptions$1(options) {
   return options ? Object.assign(Object.assign({}, jsonReadDefaults), options) : jsonReadDefaults;
 }
-function makeWriteOptions(options) {
+function makeWriteOptions$1(options) {
   return options ? Object.assign(Object.assign({}, jsonWriteDefaults), options) : jsonWriteDefaults;
 }
-function makeJsonFormatCommon(makeWriteField) {
-  const writeField = makeWriteField(writeEnum, writeScalar);
+const tokenNull = Symbol();
+const tokenIgnoredUnknownEnum = Symbol();
+function makeJsonFormat() {
   return {
-    makeReadOptions,
-    makeWriteOptions,
+    makeReadOptions: makeReadOptions$1,
+    makeWriteOptions: makeWriteOptions$1,
     readMessage(type, json, options, message) {
       if (json == null || Array.isArray(json) || typeof json != "object") {
-        throw new Error("cannot decode message ".concat(type.typeName, " from JSON: ").concat(this.debug(json)));
+        throw new Error("cannot decode message ".concat(type.typeName, " from JSON: ").concat(debugJsonValue(json)));
       }
       message = message !== null && message !== void 0 ? message : new type();
-      const oneofSeen = {};
+      const oneofSeen = new Map();
+      const registry = options.typeRegistry;
       for (const [jsonKey, jsonValue] of Object.entries(json)) {
         const field = type.fields.findJsonName(jsonKey);
-        if (!field) {
-          if (!options.ignoreUnknownFields) {
-            throw new Error("cannot decode message ".concat(type.typeName, " from JSON: key \"").concat(jsonKey, "\" is unknown"));
-          }
-          continue;
-        }
-        let localName = field.localName;
-        let target = message;
-        if (field.oneof) {
-          if (jsonValue === null && field.kind == "scalar") {
-            // see conformance test Required.Proto3.JsonInput.OneofFieldNull{First,Second}
-            continue;
-          }
-          const seen = oneofSeen[field.oneof.localName];
-          if (seen) {
-            throw new Error("cannot decode message ".concat(type.typeName, " from JSON: multiple keys for oneof \"").concat(field.oneof.name, "\" present: \"").concat(seen, "\", \"").concat(jsonKey, "\""));
-          }
-          oneofSeen[field.oneof.localName] = jsonKey;
-          target = target[field.oneof.localName] = {
-            case: localName
-          };
-          localName = "value";
-        }
-        if (field.repeated) {
-          if (jsonValue === null) {
-            continue;
-          }
-          if (!Array.isArray(jsonValue)) {
-            throw new Error("cannot decode field ".concat(type.typeName, ".").concat(field.name, " from JSON: ").concat(this.debug(jsonValue)));
-          }
-          const targetArray = target[localName];
-          for (const jsonItem of jsonValue) {
-            if (jsonItem === null) {
-              throw new Error("cannot decode field ".concat(type.typeName, ".").concat(field.name, " from JSON: ").concat(this.debug(jsonItem)));
+        if (field) {
+          if (field.oneof) {
+            if (jsonValue === null && field.kind == "scalar") {
+              // see conformance test Required.Proto3.JsonInput.OneofFieldNull{First,Second}
+              continue;
             }
-            let val;
-            // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- "map" is invalid for repeated fields
-            switch (field.kind) {
-              case "message":
-                val = field.T.fromJson(jsonItem, options);
-                break;
-              case "enum":
-                val = readEnum(field.T, jsonItem, options.ignoreUnknownFields);
-                if (val === undefined) continue;
-                break;
-              case "scalar":
-                try {
-                  val = readScalar(field.T, jsonItem);
-                } catch (e) {
-                  let m = "cannot decode field ".concat(type.typeName, ".").concat(field.name, " from JSON: ").concat(this.debug(jsonItem));
-                  if (e instanceof Error && e.message.length > 0) {
-                    m += ": ".concat(e.message);
-                  }
-                  throw new Error(m);
-                }
-                break;
+            const seen = oneofSeen.get(field.oneof);
+            if (seen !== undefined) {
+              throw new Error("cannot decode message ".concat(type.typeName, " from JSON: multiple keys for oneof \"").concat(field.oneof.name, "\" present: \"").concat(seen, "\", \"").concat(jsonKey, "\""));
             }
-            targetArray.push(val);
+            oneofSeen.set(field.oneof, jsonKey);
           }
-        } else if (field.kind == "map") {
-          if (jsonValue === null) {
-            continue;
-          }
-          if (Array.isArray(jsonValue) || typeof jsonValue != "object") {
-            throw new Error("cannot decode field ".concat(type.typeName, ".").concat(field.name, " from JSON: ").concat(this.debug(jsonValue)));
-          }
-          const targetMap = target[localName];
-          for (const [jsonMapKey, jsonMapValue] of Object.entries(jsonValue)) {
-            if (jsonMapValue === null) {
-              throw new Error("cannot decode field ".concat(type.typeName, ".").concat(field.name, " from JSON: map value null"));
-            }
-            let val;
-            switch (field.V.kind) {
-              case "message":
-                val = field.V.T.fromJson(jsonMapValue, options);
-                break;
-              case "enum":
-                val = readEnum(field.V.T, jsonMapValue, options.ignoreUnknownFields);
-                if (val === undefined) continue;
-                break;
-              case "scalar":
-                try {
-                  val = readScalar(field.V.T, jsonMapValue);
-                } catch (e) {
-                  let m = "cannot decode map value for field ".concat(type.typeName, ".").concat(field.name, " from JSON: ").concat(this.debug(jsonValue));
-                  if (e instanceof Error && e.message.length > 0) {
-                    m += ": ".concat(e.message);
-                  }
-                  throw new Error(m);
-                }
-                break;
-            }
-            try {
-              targetMap[readScalar(field.K, field.K == ScalarType.BOOL ? jsonMapKey == "true" ? true : jsonMapKey == "false" ? false : jsonMapKey : jsonMapKey).toString()] = val;
-            } catch (e) {
-              let m = "cannot decode map key for field ".concat(type.typeName, ".").concat(field.name, " from JSON: ").concat(this.debug(jsonValue));
-              if (e instanceof Error && e.message.length > 0) {
-                m += ": ".concat(e.message);
-              }
-              throw new Error(m);
-            }
-          }
+          readField$1(message, jsonValue, field, options, type);
         } else {
-          switch (field.kind) {
-            case "message":
-              const messageType = field.T;
-              if (jsonValue === null && messageType.typeName != "google.protobuf.Value") {
-                if (field.oneof) {
-                  throw new Error("cannot decode field ".concat(type.typeName, ".").concat(field.name, " from JSON: null is invalid for oneof field \"").concat(jsonKey, "\""));
-                }
-                continue;
-              }
-              if (target[localName] instanceof Message) {
-                target[localName].fromJson(jsonValue, options);
-              } else {
-                target[localName] = messageType.fromJson(jsonValue, options);
-                if (messageType.fieldWrapper && !field.oneof) {
-                  target[localName] = messageType.fieldWrapper.unwrapField(target[localName]);
-                }
-              }
-              break;
-            case "enum":
-              const enumValue = readEnum(field.T, jsonValue, options.ignoreUnknownFields);
-              if (enumValue !== undefined) {
-                target[localName] = enumValue;
-              }
-              break;
-            case "scalar":
-              try {
-                target[localName] = readScalar(field.T, jsonValue);
-              } catch (e) {
-                let m = "cannot decode field ".concat(type.typeName, ".").concat(field.name, " from JSON: ").concat(this.debug(jsonValue));
-                if (e instanceof Error && e.message.length > 0) {
-                  m += ": ".concat(e.message);
-                }
-                throw new Error(m);
-              }
-              break;
+          let found = false;
+          if ((registry === null || registry === void 0 ? void 0 : registry.findExtension) && jsonKey.startsWith("[") && jsonKey.endsWith("]")) {
+            const ext = registry.findExtension(jsonKey.substring(1, jsonKey.length - 1));
+            if (ext && ext.extendee.typeName == type.typeName) {
+              found = true;
+              const [container, get] = createExtensionContainer(ext);
+              readField$1(container, jsonValue, ext.field, options, ext);
+              // We pass on the options as BinaryReadOptions/BinaryWriteOptions,
+              // so that users can bring their own binary reader and writer factories
+              // if necessary.
+              setExtension(message, ext, get(), options);
+            }
+          }
+          if (!found && !options.ignoreUnknownFields) {
+            throw new Error("cannot decode message ".concat(type.typeName, " from JSON: key \"").concat(jsonKey, "\" is unknown"));
           }
         }
       }
@@ -2441,24 +1903,38 @@ function makeJsonFormatCommon(makeWriteField) {
       const json = {};
       let field;
       try {
-        for (const member of type.fields.byMember()) {
-          let jsonValue;
-          if (member.kind == "oneof") {
-            const oneof = message[member.localName];
-            if (oneof.value === undefined) {
+        for (field of type.fields.byNumber()) {
+          if (!isFieldSet(field, message)) {
+            // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+            if (field.req) {
+              throw "required field not set";
+            }
+            if (!options.emitDefaultValues) {
               continue;
             }
-            field = member.findField(oneof.case);
-            if (!field) {
-              throw "oneof case not found: " + oneof.case;
+            if (!canEmitFieldDefaultValue(field)) {
+              continue;
             }
-            jsonValue = writeField(field, oneof.value, options);
-          } else {
-            field = member;
-            jsonValue = writeField(field, message[field.localName], options);
           }
+          const value = field.oneof ? message[field.oneof.localName].value : message[field.localName];
+          const jsonValue = writeField$1(field, value, options);
           if (jsonValue !== undefined) {
             json[options.useProtoFieldName ? field.name : field.jsonName] = jsonValue;
+          }
+        }
+        const registry = options.typeRegistry;
+        if (registry === null || registry === void 0 ? void 0 : registry.findExtensionFor) {
+          for (const uf of type.runtime.bin.listUnknownFields(message)) {
+            const ext = registry.findExtensionFor(type.typeName, uf.no);
+            if (ext && hasExtension(message, ext)) {
+              // We pass on the options as BinaryReadOptions, so that users can bring their own
+              // binary reader factory if necessary.
+              const value = getExtension(message, ext, options);
+              const jsonValue = writeField$1(ext.field, value, options);
+              if (jsonValue !== undefined) {
+                json[ext.field.jsonName] = jsonValue;
+              }
+            }
           }
         }
       } catch (e) {
@@ -2468,8 +1944,24 @@ function makeJsonFormatCommon(makeWriteField) {
       }
       return json;
     },
-    readScalar,
-    writeScalar,
+    readScalar(type, json, longType) {
+      // The signature of our internal function has changed. For backwards-
+      // compatibility, we support the old form that is part of the public API
+      // through the interface JsonFormat.
+      return readScalar$1(type, json, longType !== null && longType !== void 0 ? longType : LongType.BIGINT, true);
+    },
+    writeScalar(type, value, emitDefaultValues) {
+      // The signature of our internal function has changed. For backwards-
+      // compatibility, we support the old form that is part of the public API
+      // through the interface JsonFormat.
+      if (value === undefined) {
+        return undefined;
+      }
+      if (emitDefaultValues || isScalarZeroValue(type, value)) {
+        return writeScalar$1(type, value);
+      }
+      return undefined;
+    },
     debug: debugJsonValue
   };
 }
@@ -2486,9 +1978,170 @@ function debugJsonValue(json) {
       return String(json);
   }
 }
-// May throw an error. If the error message is non-blank, it should be shown.
-// It is up to the caller to provide context.
-function readScalar(type, json) {
+// Read a JSON value for a field.
+// The "parentType" argument is only used to provide context in errors.
+function readField$1(target, jsonValue, field, options, parentType) {
+  let localName = field.localName;
+  if (field.repeated) {
+    assert(field.kind != "map");
+    if (jsonValue === null) {
+      return;
+    }
+    if (!Array.isArray(jsonValue)) {
+      throw new Error("cannot decode field ".concat(parentType.typeName, ".").concat(field.name, " from JSON: ").concat(debugJsonValue(jsonValue)));
+    }
+    const targetArray = target[localName];
+    for (const jsonItem of jsonValue) {
+      if (jsonItem === null) {
+        throw new Error("cannot decode field ".concat(parentType.typeName, ".").concat(field.name, " from JSON: ").concat(debugJsonValue(jsonItem)));
+      }
+      switch (field.kind) {
+        case "message":
+          targetArray.push(field.T.fromJson(jsonItem, options));
+          break;
+        case "enum":
+          const enumValue = readEnum(field.T, jsonItem, options.ignoreUnknownFields, true);
+          if (enumValue !== tokenIgnoredUnknownEnum) {
+            targetArray.push(enumValue);
+          }
+          break;
+        case "scalar":
+          try {
+            targetArray.push(readScalar$1(field.T, jsonItem, field.L, true));
+          } catch (e) {
+            let m = "cannot decode field ".concat(parentType.typeName, ".").concat(field.name, " from JSON: ").concat(debugJsonValue(jsonItem));
+            if (e instanceof Error && e.message.length > 0) {
+              m += ": ".concat(e.message);
+            }
+            throw new Error(m);
+          }
+          break;
+      }
+    }
+  } else if (field.kind == "map") {
+    if (jsonValue === null) {
+      return;
+    }
+    if (typeof jsonValue != "object" || Array.isArray(jsonValue)) {
+      throw new Error("cannot decode field ".concat(parentType.typeName, ".").concat(field.name, " from JSON: ").concat(debugJsonValue(jsonValue)));
+    }
+    const targetMap = target[localName];
+    for (const [jsonMapKey, jsonMapValue] of Object.entries(jsonValue)) {
+      if (jsonMapValue === null) {
+        throw new Error("cannot decode field ".concat(parentType.typeName, ".").concat(field.name, " from JSON: map value null"));
+      }
+      let key;
+      try {
+        key = readMapKey(field.K, jsonMapKey);
+      } catch (e) {
+        let m = "cannot decode map key for field ".concat(parentType.typeName, ".").concat(field.name, " from JSON: ").concat(debugJsonValue(jsonValue));
+        if (e instanceof Error && e.message.length > 0) {
+          m += ": ".concat(e.message);
+        }
+        throw new Error(m);
+      }
+      switch (field.V.kind) {
+        case "message":
+          targetMap[key] = field.V.T.fromJson(jsonMapValue, options);
+          break;
+        case "enum":
+          const enumValue = readEnum(field.V.T, jsonMapValue, options.ignoreUnknownFields, true);
+          if (enumValue !== tokenIgnoredUnknownEnum) {
+            targetMap[key] = enumValue;
+          }
+          break;
+        case "scalar":
+          try {
+            targetMap[key] = readScalar$1(field.V.T, jsonMapValue, LongType.BIGINT, true);
+          } catch (e) {
+            let m = "cannot decode map value for field ".concat(parentType.typeName, ".").concat(field.name, " from JSON: ").concat(debugJsonValue(jsonValue));
+            if (e instanceof Error && e.message.length > 0) {
+              m += ": ".concat(e.message);
+            }
+            throw new Error(m);
+          }
+          break;
+      }
+    }
+  } else {
+    if (field.oneof) {
+      target = target[field.oneof.localName] = {
+        case: localName
+      };
+      localName = "value";
+    }
+    switch (field.kind) {
+      case "message":
+        const messageType = field.T;
+        if (jsonValue === null && messageType.typeName != "google.protobuf.Value") {
+          return;
+        }
+        let currentValue = target[localName];
+        if (isMessage(currentValue)) {
+          currentValue.fromJson(jsonValue, options);
+        } else {
+          target[localName] = currentValue = messageType.fromJson(jsonValue, options);
+          if (messageType.fieldWrapper && !field.oneof) {
+            target[localName] = messageType.fieldWrapper.unwrapField(currentValue);
+          }
+        }
+        break;
+      case "enum":
+        const enumValue = readEnum(field.T, jsonValue, options.ignoreUnknownFields, false);
+        switch (enumValue) {
+          case tokenNull:
+            clearField(field, target);
+            break;
+          case tokenIgnoredUnknownEnum:
+            break;
+          default:
+            target[localName] = enumValue;
+            break;
+        }
+        break;
+      case "scalar":
+        try {
+          const scalarValue = readScalar$1(field.T, jsonValue, field.L, false);
+          switch (scalarValue) {
+            case tokenNull:
+              clearField(field, target);
+              break;
+            default:
+              target[localName] = scalarValue;
+              break;
+          }
+        } catch (e) {
+          let m = "cannot decode field ".concat(parentType.typeName, ".").concat(field.name, " from JSON: ").concat(debugJsonValue(jsonValue));
+          if (e instanceof Error && e.message.length > 0) {
+            m += ": ".concat(e.message);
+          }
+          throw new Error(m);
+        }
+        break;
+    }
+  }
+}
+function readMapKey(type, json) {
+  if (type === ScalarType.BOOL) {
+    // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
+    switch (json) {
+      case "true":
+        json = true;
+        break;
+      case "false":
+        json = false;
+        break;
+    }
+  }
+  return readScalar$1(type, json, LongType.BIGINT, true).toString();
+}
+function readScalar$1(type, json, longType, nullAsZeroValue) {
+  if (json === null) {
+    if (nullAsZeroValue) {
+      return scalarZeroValue(type, longType);
+    }
+    return tokenNull;
+  }
   // every valid case in the switch below returns, and every fall
   // through is regarded as a failure.
   switch (type) {
@@ -2496,7 +2149,6 @@ function readScalar(type, json) {
     // Either numbers or strings are accepted. Exponent notation is also accepted.
     case ScalarType.DOUBLE:
     case ScalarType.FLOAT:
-      if (json === null) return 0.0;
       if (json === "NaN") return Number.NaN;
       if (json === "Infinity") return Number.POSITIVE_INFINITY;
       if (json === "-Infinity") return Number.NEGATIVE_INFINITY;
@@ -2528,7 +2180,6 @@ function readScalar(type, json) {
     case ScalarType.SFIXED32:
     case ScalarType.SINT32:
     case ScalarType.UINT32:
-      if (json === null) return 0;
       let int32;
       if (typeof json == "number") int32 = json;else if (typeof json == "string" && json.length > 0) {
         if (json.trim().length === json.length) int32 = Number(json);
@@ -2540,22 +2191,22 @@ function readScalar(type, json) {
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
-      if (json === null) return protoInt64.zero;
       if (typeof json != "number" && typeof json != "string") break;
-      return protoInt64.parse(json);
+      const long = protoInt64.parse(json);
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      return longType ? long.toString() : long;
     case ScalarType.FIXED64:
     case ScalarType.UINT64:
-      if (json === null) return protoInt64.zero;
       if (typeof json != "number" && typeof json != "string") break;
-      return protoInt64.uParse(json);
+      const uLong = protoInt64.uParse(json);
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      return longType ? uLong.toString() : uLong;
     // bool:
     case ScalarType.BOOL:
-      if (json === null) return false;
       if (typeof json !== "boolean") break;
       return json;
     // string:
     case ScalarType.STRING:
-      if (json === null) return "";
       if (typeof json !== "string") {
         break;
       }
@@ -2570,16 +2221,18 @@ function readScalar(type, json) {
     // bytes: JSON value will be the data encoded as a string using standard base64 encoding with paddings.
     // Either standard or URL-safe base64 encoding with/without paddings are accepted.
     case ScalarType.BYTES:
-      if (json === null || json === "") return new Uint8Array(0);
+      if (json === "") return new Uint8Array(0);
       if (typeof json !== "string") break;
       return protoBase64.dec(json);
   }
   throw new Error();
 }
-function readEnum(type, json, ignoreUnknownFields) {
+function readEnum(type, json, ignoreUnknownFields, nullAsZeroValue) {
   if (json === null) {
-    // proto3 requires 0 to be default value for all enums
-    return 0;
+    if (type.typeName == "google.protobuf.NullValue") {
+      return 0; // google.protobuf.NullValue.NULL_VALUE = 0
+    }
+    return nullAsZeroValue ? type.values[0].no : tokenNull;
   }
   // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check
   switch (typeof json) {
@@ -2590,37 +2243,108 @@ function readEnum(type, json, ignoreUnknownFields) {
       break;
     case "string":
       const value = type.findName(json);
-      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-      if (value || ignoreUnknownFields) {
-        return value === null || value === void 0 ? void 0 : value.no;
+      if (value !== undefined) {
+        return value.no;
+      }
+      if (ignoreUnknownFields) {
+        return tokenIgnoredUnknownEnum;
       }
       break;
   }
   throw new Error("cannot decode enum ".concat(type.typeName, " from JSON: ").concat(debugJsonValue(json)));
 }
-function writeEnum(type, value, emitIntrinsicDefault, enumAsInteger) {
-  var _a;
-  if (value === undefined) {
-    return value;
+// Decide whether an unset field should be emitted with JSON write option `emitDefaultValues`
+function canEmitFieldDefaultValue(field) {
+  if (field.repeated || field.kind == "map") {
+    // maps are {}, repeated fields are []
+    return true;
   }
-  if (value === 0 && !emitIntrinsicDefault) {
-    // proto3 requires 0 to be default value for all enums
-    return undefined;
+  if (field.oneof) {
+    // oneof fields are never emitted
+    return false;
+  }
+  if (field.kind == "message") {
+    // singular message field are allowed to emit JSON null, but we do not
+    return false;
+  }
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+  if (field.opt || field.req) {
+    // the field uses explicit presence, so we cannot emit a zero value
+    return false;
+  }
+  return true;
+}
+function writeField$1(field, value, options) {
+  if (field.kind == "map") {
+    assert(typeof value == "object" && value != null);
+    const jsonObj = {};
+    const entries = Object.entries(value);
+    switch (field.V.kind) {
+      case "scalar":
+        for (const [entryKey, entryValue] of entries) {
+          jsonObj[entryKey.toString()] = writeScalar$1(field.V.T, entryValue); // JSON standard allows only (double quoted) string as property key
+        }
+        break;
+      case "message":
+        for (const [entryKey, entryValue] of entries) {
+          // JSON standard allows only (double quoted) string as property key
+          jsonObj[entryKey.toString()] = entryValue.toJson(options);
+        }
+        break;
+      case "enum":
+        const enumType = field.V.T;
+        for (const [entryKey, entryValue] of entries) {
+          // JSON standard allows only (double quoted) string as property key
+          jsonObj[entryKey.toString()] = writeEnum(enumType, entryValue, options.enumAsInteger);
+        }
+        break;
+    }
+    return options.emitDefaultValues || entries.length > 0 ? jsonObj : undefined;
+  }
+  if (field.repeated) {
+    assert(Array.isArray(value));
+    const jsonArr = [];
+    switch (field.kind) {
+      case "scalar":
+        for (let i = 0; i < value.length; i++) {
+          jsonArr.push(writeScalar$1(field.T, value[i]));
+        }
+        break;
+      case "enum":
+        for (let i = 0; i < value.length; i++) {
+          jsonArr.push(writeEnum(field.T, value[i], options.enumAsInteger));
+        }
+        break;
+      case "message":
+        for (let i = 0; i < value.length; i++) {
+          jsonArr.push(value[i].toJson(options));
+        }
+        break;
+    }
+    return options.emitDefaultValues || jsonArr.length > 0 ? jsonArr : undefined;
+  }
+  switch (field.kind) {
+    case "scalar":
+      return writeScalar$1(field.T, value);
+    case "enum":
+      return writeEnum(field.T, value, options.enumAsInteger);
+    case "message":
+      return wrapField(field.T, value).toJson(options);
+  }
+}
+function writeEnum(type, value, enumAsInteger) {
+  var _a;
+  assert(typeof value == "number");
+  if (type.typeName == "google.protobuf.NullValue") {
+    return null;
   }
   if (enumAsInteger) {
     return value;
   }
-  if (type.typeName == "google.protobuf.NullValue") {
-    return null;
-  }
   const val = type.findNumber(value);
   return (_a = val === null || val === void 0 ? void 0 : val.name) !== null && _a !== void 0 ? _a : value; // if we don't know the enum value, just return the number
 }
-
-function writeScalar(type, value, emitIntrinsicDefault) {
-  if (value === undefined) {
-    return undefined;
-  }
+function writeScalar$1(type, value) {
   switch (type) {
     // int32, fixed32, uint32: JSON value will be a decimal number. Either numbers or strings are accepted.
     case ScalarType.INT32:
@@ -2629,7 +2353,7 @@ function writeScalar(type, value, emitIntrinsicDefault) {
     case ScalarType.FIXED32:
     case ScalarType.UINT32:
       assert(typeof value == "number");
-      return value != 0 || emitIntrinsicDefault ? value : undefined;
+      return value;
     // float, double: JSON value will be a number or one of the special string values "NaN", "Infinity", and "-Infinity".
     // Either numbers or strings are accepted. Exponent notation is also accepted.
     case ScalarType.FLOAT:
@@ -2640,15 +2364,15 @@ function writeScalar(type, value, emitIntrinsicDefault) {
       if (Number.isNaN(value)) return "NaN";
       if (value === Number.POSITIVE_INFINITY) return "Infinity";
       if (value === Number.NEGATIVE_INFINITY) return "-Infinity";
-      return value !== 0 || emitIntrinsicDefault ? value : undefined;
+      return value;
     // string:
     case ScalarType.STRING:
       assert(typeof value == "string");
-      return value.length > 0 || emitIntrinsicDefault ? value : undefined;
+      return value;
     // bool:
     case ScalarType.BOOL:
       assert(typeof value == "boolean");
-      return value || emitIntrinsicDefault ? value : undefined;
+      return value;
     // JSON value will be a decimal string. Either numbers or strings are accepted.
     case ScalarType.UINT64:
     case ScalarType.FIXED64:
@@ -2656,19 +2380,16 @@ function writeScalar(type, value, emitIntrinsicDefault) {
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
       assert(typeof value == "bigint" || typeof value == "string" || typeof value == "number");
-      // We use implicit conversion with `value != 0` to catch both 0n and "0"
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      return emitIntrinsicDefault || value != 0 ? value.toString(10) : undefined;
+      return value.toString();
     // bytes: JSON value will be the data encoded as a string using standard base64 encoding with paddings.
     // Either standard or URL-safe base64 encoding with/without paddings are accepted.
     case ScalarType.BYTES:
       assert(value instanceof Uint8Array);
-      return emitIntrinsicDefault || value.byteLength > 0 ? protoBase64.enc(value) : undefined;
+      return protoBase64.enc(value);
   }
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -2681,74 +2402,403 @@ function writeScalar(type, value, emitIntrinsicDefault) {
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-/* eslint-disable no-case-declarations, @typescript-eslint/restrict-plus-operands,@typescript-eslint/no-explicit-any,@typescript-eslint/no-unsafe-return,@typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-argument */
-function makeJsonFormatProto3() {
-  return makeJsonFormatCommon((writeEnum, writeScalar) => {
-    return function writeField(field, value, options) {
-      if (field.kind == "map") {
-        const jsonObj = {};
-        switch (field.V.kind) {
-          case "scalar":
-            for (const [entryKey, entryValue] of Object.entries(value)) {
-              const val = writeScalar(field.V.T, entryValue, true);
-              assert(val !== undefined);
-              jsonObj[entryKey.toString()] = val; // JSON standard allows only (double quoted) string as property key
-            }
-
-            break;
-          case "message":
-            for (const [entryKey, entryValue] of Object.entries(value)) {
-              // JSON standard allows only (double quoted) string as property key
-              jsonObj[entryKey.toString()] = entryValue.toJson(options);
-            }
-            break;
-          case "enum":
-            const enumType = field.V.T;
-            for (const [entryKey, entryValue] of Object.entries(value)) {
-              assert(entryValue === undefined || typeof entryValue == "number");
-              const val = writeEnum(enumType, entryValue, true, options.enumAsInteger);
-              assert(val !== undefined);
-              jsonObj[entryKey.toString()] = val; // JSON standard allows only (double quoted) string as property key
-            }
-
-            break;
-        }
-        return options.emitDefaultValues || Object.keys(jsonObj).length > 0 ? jsonObj : undefined;
-      } else if (field.repeated) {
-        const jsonArr = [];
-        switch (field.kind) {
-          case "scalar":
-            for (let i = 0; i < value.length; i++) {
-              jsonArr.push(writeScalar(field.T, value[i], true));
-            }
-            break;
-          case "enum":
-            for (let i = 0; i < value.length; i++) {
-              jsonArr.push(writeEnum(field.T, value[i], true, options.enumAsInteger));
-            }
-            break;
-          case "message":
-            for (let i = 0; i < value.length; i++) {
-              jsonArr.push(wrapField(field.T, value[i]).toJson(options));
-            }
-            break;
-        }
-        return options.emitDefaultValues || jsonArr.length > 0 ? jsonArr : undefined;
-      } else {
-        switch (field.kind) {
-          case "scalar":
-            return writeScalar(field.T, value, !!field.oneof || field.opt || options.emitDefaultValues);
-          case "enum":
-            return writeEnum(field.T, value, !!field.oneof || field.opt || options.emitDefaultValues, options.enumAsInteger);
-          case "message":
-            return value !== undefined ? wrapField(field.T, value).toJson(options) : undefined;
+/* eslint-disable prefer-const,no-case-declarations,@typescript-eslint/no-explicit-any,@typescript-eslint/no-unsafe-argument,@typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-return */
+const unknownFieldsSymbol = Symbol("@bufbuild/protobuf/unknown-fields");
+// Default options for parsing binary data.
+const readDefaults = {
+  readUnknownFields: true,
+  readerFactory: bytes => new BinaryReader(bytes)
+};
+// Default options for serializing binary data.
+const writeDefaults = {
+  writeUnknownFields: true,
+  writerFactory: () => new BinaryWriter()
+};
+function makeReadOptions(options) {
+  return options ? Object.assign(Object.assign({}, readDefaults), options) : readDefaults;
+}
+function makeWriteOptions(options) {
+  return options ? Object.assign(Object.assign({}, writeDefaults), options) : writeDefaults;
+}
+function makeBinaryFormat() {
+  return {
+    makeReadOptions,
+    makeWriteOptions,
+    listUnknownFields(message) {
+      var _a;
+      return (_a = message[unknownFieldsSymbol]) !== null && _a !== void 0 ? _a : [];
+    },
+    discardUnknownFields(message) {
+      delete message[unknownFieldsSymbol];
+    },
+    writeUnknownFields(message, writer) {
+      const m = message;
+      const c = m[unknownFieldsSymbol];
+      if (c) {
+        for (const f of c) {
+          writer.tag(f.no, f.wireType).raw(f.data);
         }
       }
-    };
-  });
+    },
+    onUnknownField(message, no, wireType, data) {
+      const m = message;
+      if (!Array.isArray(m[unknownFieldsSymbol])) {
+        m[unknownFieldsSymbol] = [];
+      }
+      m[unknownFieldsSymbol].push({
+        no,
+        wireType,
+        data
+      });
+    },
+    readMessage(message, reader, lengthOrEndTagFieldNo, options, delimitedMessageEncoding) {
+      const type = message.getType();
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      const end = delimitedMessageEncoding ? reader.len : reader.pos + lengthOrEndTagFieldNo;
+      let fieldNo, wireType;
+      while (reader.pos < end) {
+        [fieldNo, wireType] = reader.tag();
+        if (wireType == WireType.EndGroup) {
+          break;
+        }
+        const field = type.fields.find(fieldNo);
+        if (!field) {
+          const data = reader.skip(wireType);
+          if (options.readUnknownFields) {
+            this.onUnknownField(message, fieldNo, wireType, data);
+          }
+          continue;
+        }
+        readField(message, reader, field, wireType, options);
+      }
+      if (delimitedMessageEncoding && (
+      // eslint-disable-line @typescript-eslint/strict-boolean-expressions
+      wireType != WireType.EndGroup || fieldNo !== lengthOrEndTagFieldNo)) {
+        throw new Error("invalid end group tag");
+      }
+    },
+    readField,
+    writeMessage(message, writer, options) {
+      const type = message.getType();
+      for (const field of type.fields.byNumber()) {
+        if (!isFieldSet(field, message)) {
+          if (field.req) {
+            throw new Error("cannot encode field ".concat(type.typeName, ".").concat(field.name, " to binary: required field not set"));
+          }
+          continue;
+        }
+        const value = field.oneof ? message[field.oneof.localName].value : message[field.localName];
+        writeField(field, value, writer, options);
+      }
+      if (options.writeUnknownFields) {
+        this.writeUnknownFields(message, writer);
+      }
+      return writer;
+    },
+    writeField(field, value, writer, options) {
+      // The behavior of our internal function has changed, it does no longer
+      // accept `undefined` values for singular scalar and map.
+      // For backwards-compatibility, we support the old form that is part of
+      // the public API through the interface BinaryFormat.
+      if (value === undefined) {
+        return undefined;
+      }
+      writeField(field, value, writer, options);
+    }
+  };
+}
+function readField(target,
+// eslint-disable-line @typescript-eslint/no-explicit-any -- `any` is the best choice for dynamic access
+reader, field, wireType, options) {
+  let {
+    repeated,
+    localName
+  } = field;
+  if (field.oneof) {
+    target = target[field.oneof.localName];
+    if (target.case != localName) {
+      delete target.value;
+    }
+    target.case = localName;
+    localName = "value";
+  }
+  switch (field.kind) {
+    case "scalar":
+    case "enum":
+      const scalarType = field.kind == "enum" ? ScalarType.INT32 : field.T;
+      let read = readScalar;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison -- acceptable since it's covered by tests
+      if (field.kind == "scalar" && field.L > 0) {
+        read = readScalarLTString;
+      }
+      if (repeated) {
+        let arr = target[localName]; // safe to assume presence of array, oneof cannot contain repeated values
+        const isPacked = wireType == WireType.LengthDelimited && scalarType != ScalarType.STRING && scalarType != ScalarType.BYTES;
+        if (isPacked) {
+          let e = reader.uint32() + reader.pos;
+          while (reader.pos < e) {
+            arr.push(read(reader, scalarType));
+          }
+        } else {
+          arr.push(read(reader, scalarType));
+        }
+      } else {
+        target[localName] = read(reader, scalarType);
+      }
+      break;
+    case "message":
+      const messageType = field.T;
+      if (repeated) {
+        // safe to assume presence of array, oneof cannot contain repeated values
+        target[localName].push(readMessageField(reader, new messageType(), options, field));
+      } else {
+        if (isMessage(target[localName])) {
+          readMessageField(reader, target[localName], options, field);
+        } else {
+          target[localName] = readMessageField(reader, new messageType(), options, field);
+          if (messageType.fieldWrapper && !field.oneof && !field.repeated) {
+            target[localName] = messageType.fieldWrapper.unwrapField(target[localName]);
+          }
+        }
+      }
+      break;
+    case "map":
+      let [mapKey, mapVal] = readMapEntry(field, reader, options);
+      // safe to assume presence of map object, oneof cannot contain repeated values
+      target[localName][mapKey] = mapVal;
+      break;
+  }
+}
+// Read a message, avoiding MessageType.fromBinary() to re-use the
+// BinaryReadOptions and the IBinaryReader.
+function readMessageField(reader, message, options, field) {
+  const format = message.getType().runtime.bin;
+  const delimited = field === null || field === void 0 ? void 0 : field.delimited;
+  format.readMessage(message, reader, delimited ? field.no : reader.uint32(),
+  // eslint-disable-line @typescript-eslint/strict-boolean-expressions
+  options, delimited);
+  return message;
+}
+// Read a map field, expecting key field = 1, value field = 2
+function readMapEntry(field, reader, options) {
+  const length = reader.uint32(),
+    end = reader.pos + length;
+  let key, val;
+  while (reader.pos < end) {
+    const [fieldNo] = reader.tag();
+    switch (fieldNo) {
+      case 1:
+        key = readScalar(reader, field.K);
+        break;
+      case 2:
+        switch (field.V.kind) {
+          case "scalar":
+            val = readScalar(reader, field.V.T);
+            break;
+          case "enum":
+            val = reader.int32();
+            break;
+          case "message":
+            val = readMessageField(reader, new field.V.T(), options, undefined);
+            break;
+        }
+        break;
+    }
+  }
+  if (key === undefined) {
+    key = scalarZeroValue(field.K, LongType.BIGINT);
+  }
+  if (typeof key != "string" && typeof key != "number") {
+    key = key.toString();
+  }
+  if (val === undefined) {
+    switch (field.V.kind) {
+      case "scalar":
+        val = scalarZeroValue(field.V.T, LongType.BIGINT);
+        break;
+      case "enum":
+        val = field.V.T.values[0].no;
+        break;
+      case "message":
+        val = new field.V.T();
+        break;
+    }
+  }
+  return [key, val];
+}
+// Read a scalar value, but return 64 bit integral types (int64, uint64,
+// sint64, fixed64, sfixed64) as string instead of bigint.
+function readScalarLTString(reader, type) {
+  const v = readScalar(reader, type);
+  return typeof v == "bigint" ? v.toString() : v;
+}
+// Does not use scalarTypeInfo() for better performance.
+function readScalar(reader, type) {
+  switch (type) {
+    case ScalarType.STRING:
+      return reader.string();
+    case ScalarType.BOOL:
+      return reader.bool();
+    case ScalarType.DOUBLE:
+      return reader.double();
+    case ScalarType.FLOAT:
+      return reader.float();
+    case ScalarType.INT32:
+      return reader.int32();
+    case ScalarType.INT64:
+      return reader.int64();
+    case ScalarType.UINT64:
+      return reader.uint64();
+    case ScalarType.FIXED64:
+      return reader.fixed64();
+    case ScalarType.BYTES:
+      return reader.bytes();
+    case ScalarType.FIXED32:
+      return reader.fixed32();
+    case ScalarType.SFIXED32:
+      return reader.sfixed32();
+    case ScalarType.SFIXED64:
+      return reader.sfixed64();
+    case ScalarType.SINT64:
+      return reader.sint64();
+    case ScalarType.UINT32:
+      return reader.uint32();
+    case ScalarType.SINT32:
+      return reader.sint32();
+  }
+}
+function writeField(field, value, writer, options) {
+  assert(value !== undefined);
+  const repeated = field.repeated;
+  switch (field.kind) {
+    case "scalar":
+    case "enum":
+      let scalarType = field.kind == "enum" ? ScalarType.INT32 : field.T;
+      if (repeated) {
+        assert(Array.isArray(value));
+        if (field.packed) {
+          writePacked(writer, scalarType, field.no, value);
+        } else {
+          for (const item of value) {
+            writeScalar(writer, scalarType, field.no, item);
+          }
+        }
+      } else {
+        writeScalar(writer, scalarType, field.no, value);
+      }
+      break;
+    case "message":
+      if (repeated) {
+        assert(Array.isArray(value));
+        for (const item of value) {
+          writeMessageField(writer, options, field, item);
+        }
+      } else {
+        writeMessageField(writer, options, field, value);
+      }
+      break;
+    case "map":
+      assert(typeof value == "object" && value != null);
+      for (const [key, val] of Object.entries(value)) {
+        writeMapEntry(writer, options, field, key, val);
+      }
+      break;
+  }
+}
+function writeMapEntry(writer, options, field, key, value) {
+  writer.tag(field.no, WireType.LengthDelimited);
+  writer.fork();
+  // javascript only allows number or string for object properties
+  // we convert from our representation to the protobuf type
+  let keyValue = key;
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- we deliberately handle just the special cases for map keys
+  switch (field.K) {
+    case ScalarType.INT32:
+    case ScalarType.FIXED32:
+    case ScalarType.UINT32:
+    case ScalarType.SFIXED32:
+    case ScalarType.SINT32:
+      keyValue = Number.parseInt(key);
+      break;
+    case ScalarType.BOOL:
+      assert(key == "true" || key == "false");
+      keyValue = key == "true";
+      break;
+  }
+  // write key, expecting key field number = 1
+  writeScalar(writer, field.K, 1, keyValue);
+  // write value, expecting value field number = 2
+  switch (field.V.kind) {
+    case "scalar":
+      writeScalar(writer, field.V.T, 2, value);
+      break;
+    case "enum":
+      writeScalar(writer, ScalarType.INT32, 2, value);
+      break;
+    case "message":
+      assert(value !== undefined);
+      writer.tag(2, WireType.LengthDelimited).bytes(value.toBinary(options));
+      break;
+  }
+  writer.join();
+}
+// Value must not be undefined
+function writeMessageField(writer, options, field, value) {
+  const message = wrapField(field.T, value);
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+  if (field.delimited) writer.tag(field.no, WireType.StartGroup).raw(message.toBinary(options)).tag(field.no, WireType.EndGroup);else writer.tag(field.no, WireType.LengthDelimited).bytes(message.toBinary(options));
+}
+function writeScalar(writer, type, fieldNo, value) {
+  assert(value !== undefined);
+  let [wireType, method] = scalarTypeInfo(type);
+  writer.tag(fieldNo, wireType)[method](value);
+}
+function writePacked(writer, type, fieldNo, value) {
+  if (!value.length) {
+    return;
+  }
+  writer.tag(fieldNo, WireType.LengthDelimited).fork();
+  let [, method] = scalarTypeInfo(type);
+  for (let i = 0; i < value.length; i++) {
+    writer[method](value[i]);
+  }
+  writer.join();
+}
+/**
+ * Get information for writing a scalar value.
+ *
+ * Returns tuple:
+ * [0]: appropriate WireType
+ * [1]: name of the appropriate method of IBinaryWriter
+ * [2]: whether the given value is a default value for proto3 semantics
+ *
+ * If argument `value` is omitted, [2] is always false.
+ */
+// TODO replace call-sites writeScalar() and writePacked(), then remove
+function scalarTypeInfo(type) {
+  let wireType = WireType.Varint;
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- INT32, UINT32, SINT32 are covered by the defaults
+  switch (type) {
+    case ScalarType.BYTES:
+    case ScalarType.STRING:
+      wireType = WireType.LengthDelimited;
+      break;
+    case ScalarType.DOUBLE:
+    case ScalarType.FIXED64:
+    case ScalarType.SFIXED64:
+      wireType = WireType.Bit64;
+      break;
+    case ScalarType.FIXED32:
+    case ScalarType.SFIXED32:
+    case ScalarType.FLOAT:
+      wireType = WireType.Bit32;
+      break;
+  }
+  const method = ScalarType[type].toLowerCase();
+  return [wireType, method];
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -2775,6 +2825,7 @@ function makeUtilCommon() {
           t = target,
           s = source;
         if (s[localName] === undefined) {
+          // TODO if source is a Message instance, we should use isFieldSet() here to support future field presence
           continue;
         }
         switch (member.kind) {
@@ -2785,7 +2836,7 @@ function makeUtilCommon() {
             }
             const sourceField = member.findField(sk);
             let val = s[localName].value;
-            if (sourceField && sourceField.kind == "message" && !(val instanceof sourceField.T)) {
+            if (sourceField && sourceField.kind == "message" && !isMessage(val, sourceField.T)) {
               val = new sourceField.T(val);
             } else if (sourceField && sourceField.kind === "scalar" && sourceField.T === ScalarType.BYTES) {
               val = toU8Arr(val);
@@ -2832,8 +2883,8 @@ function makeUtilCommon() {
           case "message":
             const mt = member.T;
             if (member.repeated) {
-              t[localName] = s[localName].map(val => val instanceof mt ? val : new mt(val));
-            } else if (s[localName] !== undefined) {
+              t[localName] = s[localName].map(val => isMessage(val, mt) ? val : new mt(val));
+            } else {
               const val = s[localName];
               if (mt.fieldWrapper) {
                 if (
@@ -2844,13 +2895,14 @@ function makeUtilCommon() {
                   t[localName] = val;
                 }
               } else {
-                t[localName] = val instanceof mt ? val : new mt(val);
+                t[localName] = isMessage(val, mt) ? val : new mt(val);
               }
             }
             break;
         }
       }
     },
+    // TODO use isFieldSet() here to support future field presence
     equals(type, a, b) {
       if (a === b) {
         return true;
@@ -2917,6 +2969,7 @@ function makeUtilCommon() {
         }
       });
     },
+    // TODO use isFieldSet() here to support future field presence
     clone(message) {
       const type = message.getType(),
         target = new type(),
@@ -2953,7 +3006,7 @@ function cloneSingularField(value) {
   if (value === undefined) {
     return value;
   }
-  if (value instanceof Message) {
+  if (isMessage(value)) {
     return value.clone();
   }
   if (value instanceof Uint8Array) {
@@ -2968,7 +3021,41 @@ function toU8Arr(input) {
   return input instanceof Uint8Array ? input : new Uint8Array(input);
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+function makeProtoRuntime(syntax, newFieldList, initFields) {
+  return {
+    syntax,
+    json: makeJsonFormat(),
+    bin: makeBinaryFormat(),
+    util: Object.assign(Object.assign({}, makeUtilCommon()), {
+      newFieldList,
+      initFields
+    }),
+    makeMessageType(typeName, fields, opt) {
+      return makeMessageType(this, typeName, fields, opt);
+    },
+    makeEnum,
+    makeEnumType,
+    getEnumType,
+    makeExtension(typeName, extendee, field) {
+      return makeExtension(this, typeName, extendee, field);
+    }
+  };
+}
+
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -3038,7 +3125,7 @@ class InternalFieldList {
   }
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -3155,7 +3242,7 @@ const safeObjectProperty = name => {
   return name;
 };
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -3174,6 +3261,7 @@ class InternalOneofInfo {
     this.repeated = false;
     this.packed = false;
     this.opt = false;
+    this.req = false;
     this.default = undefined;
     this.fields = [];
     this.name = name;
@@ -3194,7 +3282,7 @@ class InternalOneofInfo {
   }
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -3208,45 +3296,13 @@ class InternalOneofInfo {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 /**
- * Provides functionality for messages defined with the proto3 syntax.
+ * Convert a collection of field info to an array of normalized FieldInfo.
+ *
+ * The argument `packedByDefault` specifies whether fields that do not specify
+ * `packed` should be packed (proto3) or unpacked (proto2).
  */
-const proto3 = makeProtoRuntime("proto3", makeJsonFormatProto3(), makeBinaryFormatProto3(), Object.assign(Object.assign({}, makeUtilCommon()), {
-  newFieldList(fields) {
-    return new InternalFieldList(fields, normalizeFieldInfosProto3);
-  },
-  initFields(target) {
-    for (const member of target.getType().fields.byMember()) {
-      if (member.opt) {
-        continue;
-      }
-      const name = member.localName,
-        t = target;
-      if (member.repeated) {
-        t[name] = [];
-        continue;
-      }
-      switch (member.kind) {
-        case "oneof":
-          t[name] = {
-            case: undefined
-          };
-          break;
-        case "enum":
-          t[name] = 0;
-          break;
-        case "map":
-          t[name] = {};
-          break;
-        case "scalar":
-          t[name] = scalarDefaultValue(member.T); // eslint-disable-line @typescript-eslint/no-unsafe-assignment
-          break;
-      }
-    }
-  }
-}));
-/* eslint-disable @typescript-eslint/no-explicit-any,@typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-unsafe-argument */
-function normalizeFieldInfosProto3(fieldInfos) {
-  var _a, _b, _c;
+function normalizeFieldInfos(fieldInfos, packedByDefault) {
+  var _a, _b, _c, _d, _e, _f;
   const r = [];
   let o;
   for (const field of typeof fieldInfos == "function" ? fieldInfos() : fieldInfos) {
@@ -3254,12 +3310,19 @@ function normalizeFieldInfosProto3(fieldInfos) {
     f.localName = localFieldName(field.name, field.oneof !== undefined);
     f.jsonName = (_a = field.jsonName) !== null && _a !== void 0 ? _a : fieldJsonName(field.name);
     f.repeated = (_b = field.repeated) !== null && _b !== void 0 ? _b : false;
-    // From the proto3 language guide:
-    // > In proto3, repeated fields of scalar numeric types are packed by default.
-    // This information is incomplete - according to the conformance tests, BOOL
-    // and ENUM are packed by default as well. This means only STRING and BYTES
-    // are not packed by default, which makes sense because they are length-delimited.
-    f.packed = (_c = field.packed) !== null && _c !== void 0 ? _c : field.kind == "enum" || field.kind == "scalar" && field.T != ScalarType.BYTES && field.T != ScalarType.STRING;
+    if (field.kind == "scalar") {
+      f.L = (_c = field.L) !== null && _c !== void 0 ? _c : LongType.BIGINT;
+    }
+    f.delimited = (_d = field.delimited) !== null && _d !== void 0 ? _d : false;
+    f.req = (_e = field.req) !== null && _e !== void 0 ? _e : false;
+    f.opt = (_f = field.opt) !== null && _f !== void 0 ? _f : false;
+    if (field.packed === undefined) {
+      if (packedByDefault) {
+        f.packed = field.kind == "enum" || field.kind == "scalar" && field.T != ScalarType.BYTES && field.T != ScalarType.STRING;
+      } else {
+        f.packed = false;
+      }
+    }
     // We do not surface options at this time
     // f.options = field.options ?? emptyReadonlyObject;
     if (field.oneof !== undefined) {
@@ -3275,7 +3338,7 @@ function normalizeFieldInfosProto3(fieldInfos) {
   return r;
 }
 
-// Copyright 2021-2023 Buf Technologies, Inc.
+// Copyright 2021-2024 Buf Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -3289,203 +3352,41 @@ function normalizeFieldInfosProto3(fieldInfos) {
 // See the License for the specific language governing permissions and
 // limitations under the License.
 /**
- * A Timestamp represents a point in time independent of any time zone or local
- * calendar, encoded as a count of seconds and fractions of seconds at
- * nanosecond resolution. The count is relative to an epoch at UTC midnight on
- * January 1, 1970, in the proleptic Gregorian calendar which extends the
- * Gregorian calendar backwards to year one.
- *
- * All minutes are 60 seconds long. Leap seconds are "smeared" so that no leap
- * second table is needed for interpretation, using a [24-hour linear
- * smear](https://developers.google.com/time/smear).
- *
- * The range is from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z. By
- * restricting to that range, we ensure that we can convert to and from [RFC
- * 3339](https://www.ietf.org/rfc/rfc3339.txt) date strings.
- *
- * # Examples
- *
- * Example 1: Compute Timestamp from POSIX `time()`.
- *
- *     Timestamp timestamp;
- *     timestamp.set_seconds(time(NULL));
- *     timestamp.set_nanos(0);
- *
- * Example 2: Compute Timestamp from POSIX `gettimeofday()`.
- *
- *     struct timeval tv;
- *     gettimeofday(&tv, NULL);
- *
- *     Timestamp timestamp;
- *     timestamp.set_seconds(tv.tv_sec);
- *     timestamp.set_nanos(tv.tv_usec * 1000);
- *
- * Example 3: Compute Timestamp from Win32 `GetSystemTimeAsFileTime()`.
- *
- *     FILETIME ft;
- *     GetSystemTimeAsFileTime(&ft);
- *     UINT64 ticks = (((UINT64)ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
- *
- *     // A Windows tick is 100 nanoseconds. Windows epoch 1601-01-01T00:00:00Z
- *     // is 11644473600 seconds before Unix epoch 1970-01-01T00:00:00Z.
- *     Timestamp timestamp;
- *     timestamp.set_seconds((INT64) ((ticks / 10000000) - 11644473600LL));
- *     timestamp.set_nanos((INT32) ((ticks % 10000000) * 100));
- *
- * Example 4: Compute Timestamp from Java `System.currentTimeMillis()`.
- *
- *     long millis = System.currentTimeMillis();
- *
- *     Timestamp timestamp = Timestamp.newBuilder().setSeconds(millis / 1000)
- *         .setNanos((int) ((millis % 1000) * 1000000)).build();
- *
- * Example 5: Compute Timestamp from Java `Instant.now()`.
- *
- *     Instant now = Instant.now();
- *
- *     Timestamp timestamp =
- *         Timestamp.newBuilder().setSeconds(now.getEpochSecond())
- *             .setNanos(now.getNano()).build();
- *
- * Example 6: Compute Timestamp from current time in Python.
- *
- *     timestamp = Timestamp()
- *     timestamp.GetCurrentTime()
- *
- * # JSON Mapping
- *
- * In JSON format, the Timestamp type is encoded as a string in the
- * [RFC 3339](https://www.ietf.org/rfc/rfc3339.txt) format. That is, the
- * format is "{year}-{month}-{day}T{hour}:{min}:{sec}[.{frac_sec}]Z"
- * where {year} is always expressed using four digits while {month}, {day},
- * {hour}, {min}, and {sec} are zero-padded to two digits each. The fractional
- * seconds, which can go up to 9 digits (i.e. up to 1 nanosecond resolution),
- * are optional. The "Z" suffix indicates the timezone ("UTC"); the timezone
- * is required. A proto3 JSON serializer should always use UTC (as indicated by
- * "Z") when printing the Timestamp type and a proto3 JSON parser should be
- * able to accept both UTC and other timezones (as indicated by an offset).
- *
- * For example, "2017-01-15T01:30:15.01Z" encodes 15.01 seconds past
- * 01:30 UTC on January 15, 2017.
- *
- * In JavaScript, one can convert a Date object to this format using the
- * standard
- * [toISOString()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString)
- * method. In Python, a standard `datetime.datetime` object can be converted
- * to this format using
- * [`strftime`](https://docs.python.org/2/library/time.html#time.strftime) with
- * the time format spec '%Y-%m-%dT%H:%M:%S.%fZ'. Likewise, in Java, one can use
- * the Joda Time's [`ISODateTimeFormat.dateTime()`](
- * http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime()
- * ) to obtain a formatter capable of generating timestamps in this format.
- *
- *
- * @generated from message google.protobuf.Timestamp
+ * Provides functionality for messages defined with the proto3 syntax.
  */
-class Timestamp extends Message {
-  constructor(data) {
-    super();
-    /**
-     * Represents seconds of UTC time since Unix epoch
-     * 1970-01-01T00:00:00Z. Must be from 0001-01-01T00:00:00Z to
-     * 9999-12-31T23:59:59Z inclusive.
-     *
-     * @generated from field: int64 seconds = 1;
-     */
-    this.seconds = protoInt64.zero;
-    /**
-     * Non-negative fractions of a second at nanosecond resolution. Negative
-     * second values with fractions must still have non-negative nanos values
-     * that count forward in time. Must be from 0 to 999,999,999
-     * inclusive.
-     *
-     * @generated from field: int32 nanos = 2;
-     */
-    this.nanos = 0;
-    proto3.util.initPartial(data, this);
-  }
-  fromJson(json, options) {
-    if (typeof json !== "string") {
-      throw new Error("cannot decode google.protobuf.Timestamp from JSON: ".concat(proto3.json.debug(json)));
+const proto3 = makeProtoRuntime("proto3", fields => {
+  return new InternalFieldList(fields, source => normalizeFieldInfos(source, true));
+},
+// TODO merge with proto2 and initExtensionField, also see initPartial, equals, clone
+target => {
+  for (const member of target.getType().fields.byMember()) {
+    if (member.opt) {
+      continue;
     }
-    const matches = json.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:Z|\.([0-9]{3,9})Z|([+-][0-9][0-9]:[0-9][0-9]))$/);
-    if (!matches) {
-      throw new Error("cannot decode google.protobuf.Timestamp from JSON: invalid RFC 3339 string");
+    const name = member.localName,
+      t = target;
+    if (member.repeated) {
+      t[name] = [];
+      continue;
     }
-    const ms = Date.parse(matches[1] + "-" + matches[2] + "-" + matches[3] + "T" + matches[4] + ":" + matches[5] + ":" + matches[6] + (matches[8] ? matches[8] : "Z"));
-    if (Number.isNaN(ms)) {
-      throw new Error("cannot decode google.protobuf.Timestamp from JSON: invalid RFC 3339 string");
+    switch (member.kind) {
+      case "oneof":
+        t[name] = {
+          case: undefined
+        };
+        break;
+      case "enum":
+        t[name] = 0;
+        break;
+      case "map":
+        t[name] = {};
+        break;
+      case "scalar":
+        t[name] = scalarZeroValue(member.T, member.L);
+        break;
     }
-    if (ms < Date.parse("0001-01-01T00:00:00Z") || ms > Date.parse("9999-12-31T23:59:59Z")) {
-      throw new Error("cannot decode message google.protobuf.Timestamp from JSON: must be from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z inclusive");
-    }
-    this.seconds = protoInt64.parse(ms / 1000);
-    this.nanos = 0;
-    if (matches[7]) {
-      this.nanos = parseInt("1" + matches[7] + "0".repeat(9 - matches[7].length)) - 1000000000;
-    }
-    return this;
   }
-  toJson(options) {
-    const ms = Number(this.seconds) * 1000;
-    if (ms < Date.parse("0001-01-01T00:00:00Z") || ms > Date.parse("9999-12-31T23:59:59Z")) {
-      throw new Error("cannot encode google.protobuf.Timestamp to JSON: must be from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z inclusive");
-    }
-    if (this.nanos < 0) {
-      throw new Error("cannot encode google.protobuf.Timestamp to JSON: nanos must not be negative");
-    }
-    let z = "Z";
-    if (this.nanos > 0) {
-      const nanosStr = (this.nanos + 1000000000).toString().substring(1);
-      if (nanosStr.substring(3) === "000000") {
-        z = "." + nanosStr.substring(0, 3) + "Z";
-      } else if (nanosStr.substring(6) === "000") {
-        z = "." + nanosStr.substring(0, 6) + "Z";
-      } else {
-        z = "." + nanosStr + "Z";
-      }
-    }
-    return new Date(ms).toISOString().replace(".000Z", z);
-  }
-  toDate() {
-    return new Date(Number(this.seconds) * 1000 + Math.ceil(this.nanos / 1000000));
-  }
-  static now() {
-    return Timestamp.fromDate(new Date());
-  }
-  static fromDate(date) {
-    const ms = date.getTime();
-    return new Timestamp({
-      seconds: protoInt64.parse(Math.floor(ms / 1000)),
-      nanos: ms % 1000 * 1000000
-    });
-  }
-  static fromBinary(bytes, options) {
-    return new Timestamp().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new Timestamp().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new Timestamp().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(Timestamp, a, b);
-  }
-}
-Timestamp.runtime = proto3;
-Timestamp.typeName = "google.protobuf.Timestamp";
-Timestamp.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "seconds",
-  kind: "scalar",
-  T: 3 /* ScalarType.INT64 */
-}, {
-  no: 2,
-  name: "nanos",
-  kind: "scalar",
-  T: 5 /* ScalarType.INT32 */
-}]);
+});
 
 // Copyright 2023 LiveKit, Inc.
 //
@@ -3500,120 +3401,12 @@ Timestamp.fields = proto3.util.newFieldList(() => [{
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-/**
- * @generated from enum livekit.AudioCodec
- */
-var AudioCodec;
-(function (AudioCodec) {
-  /**
-   * @generated from enum value: DEFAULT_AC = 0;
-   */
-  AudioCodec[AudioCodec["DEFAULT_AC"] = 0] = "DEFAULT_AC";
-  /**
-   * @generated from enum value: OPUS = 1;
-   */
-  AudioCodec[AudioCodec["OPUS"] = 1] = "OPUS";
-  /**
-   * @generated from enum value: AAC = 2;
-   */
-  AudioCodec[AudioCodec["AAC"] = 2] = "AAC";
-})(AudioCodec || (AudioCodec = {}));
-// Retrieve enum metadata with: proto3.getEnumType(AudioCodec)
-proto3.util.setEnumType(AudioCodec, "livekit.AudioCodec", [{
-  no: 0,
-  name: "DEFAULT_AC"
-}, {
-  no: 1,
-  name: "OPUS"
-}, {
-  no: 2,
-  name: "AAC"
-}]);
-/**
- * @generated from enum livekit.VideoCodec
- */
-var VideoCodec;
-(function (VideoCodec) {
-  /**
-   * @generated from enum value: DEFAULT_VC = 0;
-   */
-  VideoCodec[VideoCodec["DEFAULT_VC"] = 0] = "DEFAULT_VC";
-  /**
-   * @generated from enum value: H264_BASELINE = 1;
-   */
-  VideoCodec[VideoCodec["H264_BASELINE"] = 1] = "H264_BASELINE";
-  /**
-   * @generated from enum value: H264_MAIN = 2;
-   */
-  VideoCodec[VideoCodec["H264_MAIN"] = 2] = "H264_MAIN";
-  /**
-   * @generated from enum value: H264_HIGH = 3;
-   */
-  VideoCodec[VideoCodec["H264_HIGH"] = 3] = "H264_HIGH";
-  /**
-   * @generated from enum value: VP8 = 4;
-   */
-  VideoCodec[VideoCodec["VP8"] = 4] = "VP8";
-})(VideoCodec || (VideoCodec = {}));
-// Retrieve enum metadata with: proto3.getEnumType(VideoCodec)
-proto3.util.setEnumType(VideoCodec, "livekit.VideoCodec", [{
-  no: 0,
-  name: "DEFAULT_VC"
-}, {
-  no: 1,
-  name: "H264_BASELINE"
-}, {
-  no: 2,
-  name: "H264_MAIN"
-}, {
-  no: 3,
-  name: "H264_HIGH"
-}, {
-  no: 4,
-  name: "VP8"
-}]);
-/**
- * @generated from enum livekit.ImageCodec
- */
-var ImageCodec;
-(function (ImageCodec) {
-  /**
-   * @generated from enum value: IC_DEFAULT = 0;
-   */
-  ImageCodec[ImageCodec["IC_DEFAULT"] = 0] = "IC_DEFAULT";
-  /**
-   * @generated from enum value: IC_JPEG = 1;
-   */
-  ImageCodec[ImageCodec["IC_JPEG"] = 1] = "IC_JPEG";
-})(ImageCodec || (ImageCodec = {}));
-// Retrieve enum metadata with: proto3.getEnumType(ImageCodec)
-proto3.util.setEnumType(ImageCodec, "livekit.ImageCodec", [{
-  no: 0,
-  name: "IC_DEFAULT"
-}, {
-  no: 1,
-  name: "IC_JPEG"
-}]);
+
+
 /**
  * @generated from enum livekit.TrackType
  */
-var TrackType;
-(function (TrackType) {
-  /**
-   * @generated from enum value: AUDIO = 0;
-   */
-  TrackType[TrackType["AUDIO"] = 0] = "AUDIO";
-  /**
-   * @generated from enum value: VIDEO = 1;
-   */
-  TrackType[TrackType["VIDEO"] = 1] = "VIDEO";
-  /**
-   * @generated from enum value: DATA = 2;
-   */
-  TrackType[TrackType["DATA"] = 2] = "DATA";
-})(TrackType || (TrackType = {}));
-// Retrieve enum metadata with: proto3.getEnumType(TrackType)
-proto3.util.setEnumType(TrackType, "livekit.TrackType", [{
+const TrackType = /*@__PURE__*/proto3.makeEnum("livekit.TrackType", [{
   no: 0,
   name: "AUDIO"
 }, {
@@ -3623,34 +3416,11 @@ proto3.util.setEnumType(TrackType, "livekit.TrackType", [{
   no: 2,
   name: "DATA"
 }]);
+
 /**
  * @generated from enum livekit.TrackSource
  */
-var TrackSource;
-(function (TrackSource) {
-  /**
-   * @generated from enum value: UNKNOWN = 0;
-   */
-  TrackSource[TrackSource["UNKNOWN"] = 0] = "UNKNOWN";
-  /**
-   * @generated from enum value: CAMERA = 1;
-   */
-  TrackSource[TrackSource["CAMERA"] = 1] = "CAMERA";
-  /**
-   * @generated from enum value: MICROPHONE = 2;
-   */
-  TrackSource[TrackSource["MICROPHONE"] = 2] = "MICROPHONE";
-  /**
-   * @generated from enum value: SCREEN_SHARE = 3;
-   */
-  TrackSource[TrackSource["SCREEN_SHARE"] = 3] = "SCREEN_SHARE";
-  /**
-   * @generated from enum value: SCREEN_SHARE_AUDIO = 4;
-   */
-  TrackSource[TrackSource["SCREEN_SHARE_AUDIO"] = 4] = "SCREEN_SHARE_AUDIO";
-})(TrackSource || (TrackSource = {}));
-// Retrieve enum metadata with: proto3.getEnumType(TrackSource)
-proto3.util.setEnumType(TrackSource, "livekit.TrackSource", [{
+const TrackSource = /*@__PURE__*/proto3.makeEnum("livekit.TrackSource", [{
   no: 0,
   name: "UNKNOWN"
 }, {
@@ -3666,30 +3436,11 @@ proto3.util.setEnumType(TrackSource, "livekit.TrackSource", [{
   no: 4,
   name: "SCREEN_SHARE_AUDIO"
 }]);
+
 /**
  * @generated from enum livekit.VideoQuality
  */
-var VideoQuality;
-(function (VideoQuality) {
-  /**
-   * @generated from enum value: LOW = 0;
-   */
-  VideoQuality[VideoQuality["LOW"] = 0] = "LOW";
-  /**
-   * @generated from enum value: MEDIUM = 1;
-   */
-  VideoQuality[VideoQuality["MEDIUM"] = 1] = "MEDIUM";
-  /**
-   * @generated from enum value: HIGH = 2;
-   */
-  VideoQuality[VideoQuality["HIGH"] = 2] = "HIGH";
-  /**
-   * @generated from enum value: OFF = 3;
-   */
-  VideoQuality[VideoQuality["OFF"] = 3] = "OFF";
-})(VideoQuality || (VideoQuality = {}));
-// Retrieve enum metadata with: proto3.getEnumType(VideoQuality)
-proto3.util.setEnumType(VideoQuality, "livekit.VideoQuality", [{
+const VideoQuality$1 = /*@__PURE__*/proto3.makeEnum("livekit.VideoQuality", [{
   no: 0,
   name: "LOW"
 }, {
@@ -3702,26 +3453,11 @@ proto3.util.setEnumType(VideoQuality, "livekit.VideoQuality", [{
   no: 3,
   name: "OFF"
 }]);
+
 /**
  * @generated from enum livekit.ConnectionQuality
  */
-var ConnectionQuality$1;
-(function (ConnectionQuality) {
-  /**
-   * @generated from enum value: POOR = 0;
-   */
-  ConnectionQuality[ConnectionQuality["POOR"] = 0] = "POOR";
-  /**
-   * @generated from enum value: GOOD = 1;
-   */
-  ConnectionQuality[ConnectionQuality["GOOD"] = 1] = "GOOD";
-  /**
-   * @generated from enum value: EXCELLENT = 2;
-   */
-  ConnectionQuality[ConnectionQuality["EXCELLENT"] = 2] = "EXCELLENT";
-})(ConnectionQuality$1 || (ConnectionQuality$1 = {}));
-// Retrieve enum metadata with: proto3.getEnumType(ConnectionQuality)
-proto3.util.setEnumType(ConnectionQuality$1, "livekit.ConnectionQuality", [{
+const ConnectionQuality$1 = /*@__PURE__*/proto3.makeEnum("livekit.ConnectionQuality", [{
   no: 0,
   name: "POOR"
 }, {
@@ -3730,27 +3466,15 @@ proto3.util.setEnumType(ConnectionQuality$1, "livekit.ConnectionQuality", [{
 }, {
   no: 2,
   name: "EXCELLENT"
+}, {
+  no: 3,
+  name: "LOST"
 }]);
+
 /**
  * @generated from enum livekit.ClientConfigSetting
  */
-var ClientConfigSetting;
-(function (ClientConfigSetting) {
-  /**
-   * @generated from enum value: UNSET = 0;
-   */
-  ClientConfigSetting[ClientConfigSetting["UNSET"] = 0] = "UNSET";
-  /**
-   * @generated from enum value: DISABLED = 1;
-   */
-  ClientConfigSetting[ClientConfigSetting["DISABLED"] = 1] = "DISABLED";
-  /**
-   * @generated from enum value: ENABLED = 2;
-   */
-  ClientConfigSetting[ClientConfigSetting["ENABLED"] = 2] = "ENABLED";
-})(ClientConfigSetting || (ClientConfigSetting = {}));
-// Retrieve enum metadata with: proto3.getEnumType(ClientConfigSetting)
-proto3.util.setEnumType(ClientConfigSetting, "livekit.ClientConfigSetting", [{
+const ClientConfigSetting = /*@__PURE__*/proto3.makeEnum("livekit.ClientConfigSetting", [{
   no: 0,
   name: "UNSET"
 }, {
@@ -3760,46 +3484,11 @@ proto3.util.setEnumType(ClientConfigSetting, "livekit.ClientConfigSetting", [{
   no: 2,
   name: "ENABLED"
 }]);
+
 /**
  * @generated from enum livekit.DisconnectReason
  */
-var DisconnectReason;
-(function (DisconnectReason) {
-  /**
-   * @generated from enum value: UNKNOWN_REASON = 0;
-   */
-  DisconnectReason[DisconnectReason["UNKNOWN_REASON"] = 0] = "UNKNOWN_REASON";
-  /**
-   * @generated from enum value: CLIENT_INITIATED = 1;
-   */
-  DisconnectReason[DisconnectReason["CLIENT_INITIATED"] = 1] = "CLIENT_INITIATED";
-  /**
-   * @generated from enum value: DUPLICATE_IDENTITY = 2;
-   */
-  DisconnectReason[DisconnectReason["DUPLICATE_IDENTITY"] = 2] = "DUPLICATE_IDENTITY";
-  /**
-   * @generated from enum value: SERVER_SHUTDOWN = 3;
-   */
-  DisconnectReason[DisconnectReason["SERVER_SHUTDOWN"] = 3] = "SERVER_SHUTDOWN";
-  /**
-   * @generated from enum value: PARTICIPANT_REMOVED = 4;
-   */
-  DisconnectReason[DisconnectReason["PARTICIPANT_REMOVED"] = 4] = "PARTICIPANT_REMOVED";
-  /**
-   * @generated from enum value: ROOM_DELETED = 5;
-   */
-  DisconnectReason[DisconnectReason["ROOM_DELETED"] = 5] = "ROOM_DELETED";
-  /**
-   * @generated from enum value: STATE_MISMATCH = 6;
-   */
-  DisconnectReason[DisconnectReason["STATE_MISMATCH"] = 6] = "STATE_MISMATCH";
-  /**
-   * @generated from enum value: JOIN_FAILURE = 7;
-   */
-  DisconnectReason[DisconnectReason["JOIN_FAILURE"] = 7] = "JOIN_FAILURE";
-})(DisconnectReason || (DisconnectReason = {}));
-// Retrieve enum metadata with: proto3.getEnumType(DisconnectReason)
-proto3.util.setEnumType(DisconnectReason, "livekit.DisconnectReason", [{
+const DisconnectReason = /*@__PURE__*/proto3.makeEnum("livekit.DisconnectReason", [{
   no: 0,
   name: "UNKNOWN_REASON"
 }, {
@@ -3823,35 +3512,18 @@ proto3.util.setEnumType(DisconnectReason, "livekit.DisconnectReason", [{
 }, {
   no: 7,
   name: "JOIN_FAILURE"
+}, {
+  no: 8,
+  name: "MIGRATION"
+}, {
+  no: 9,
+  name: "SIGNAL_CLOSE"
 }]);
+
 /**
  * @generated from enum livekit.ReconnectReason
  */
-var ReconnectReason;
-(function (ReconnectReason) {
-  /**
-   * @generated from enum value: RR_UNKNOWN = 0;
-   */
-  ReconnectReason[ReconnectReason["RR_UNKNOWN"] = 0] = "RR_UNKNOWN";
-  /**
-   * @generated from enum value: RR_SIGNAL_DISCONNECTED = 1;
-   */
-  ReconnectReason[ReconnectReason["RR_SIGNAL_DISCONNECTED"] = 1] = "RR_SIGNAL_DISCONNECTED";
-  /**
-   * @generated from enum value: RR_PUBLISHER_FAILED = 2;
-   */
-  ReconnectReason[ReconnectReason["RR_PUBLISHER_FAILED"] = 2] = "RR_PUBLISHER_FAILED";
-  /**
-   * @generated from enum value: RR_SUBSCRIBER_FAILED = 3;
-   */
-  ReconnectReason[ReconnectReason["RR_SUBSCRIBER_FAILED"] = 3] = "RR_SUBSCRIBER_FAILED";
-  /**
-   * @generated from enum value: RR_SWITCH_CANDIDATE = 4;
-   */
-  ReconnectReason[ReconnectReason["RR_SWITCH_CANDIDATE"] = 4] = "RR_SWITCH_CANDIDATE";
-})(ReconnectReason || (ReconnectReason = {}));
-// Retrieve enum metadata with: proto3.getEnumType(ReconnectReason)
-proto3.util.setEnumType(ReconnectReason, "livekit.ReconnectReason", [{
+const ReconnectReason = /*@__PURE__*/proto3.makeEnum("livekit.ReconnectReason", [{
   no: 0,
   name: "RR_UNKNOWN"
 }, {
@@ -3867,26 +3539,11 @@ proto3.util.setEnumType(ReconnectReason, "livekit.ReconnectReason", [{
   no: 4,
   name: "RR_SWITCH_CANDIDATE"
 }]);
+
 /**
  * @generated from enum livekit.SubscriptionError
  */
-var SubscriptionError;
-(function (SubscriptionError) {
-  /**
-   * @generated from enum value: SE_UNKNOWN = 0;
-   */
-  SubscriptionError[SubscriptionError["SE_UNKNOWN"] = 0] = "SE_UNKNOWN";
-  /**
-   * @generated from enum value: SE_CODEC_UNSUPPORTED = 1;
-   */
-  SubscriptionError[SubscriptionError["SE_CODEC_UNSUPPORTED"] = 1] = "SE_CODEC_UNSUPPORTED";
-  /**
-   * @generated from enum value: SE_TRACK_NOTFOUND = 2;
-   */
-  SubscriptionError[SubscriptionError["SE_TRACK_NOTFOUND"] = 2] = "SE_TRACK_NOTFOUND";
-})(SubscriptionError || (SubscriptionError = {}));
-// Retrieve enum metadata with: proto3.getEnumType(SubscriptionError)
-proto3.util.setEnumType(SubscriptionError, "livekit.SubscriptionError", [{
+const SubscriptionError = /*@__PURE__*/proto3.makeEnum("livekit.SubscriptionError", [{
   no: 0,
   name: "SE_UNKNOWN"
 }, {
@@ -3896,74 +3553,34 @@ proto3.util.setEnumType(SubscriptionError, "livekit.SubscriptionError", [{
   no: 2,
   name: "SE_TRACK_NOTFOUND"
 }]);
+
+/**
+ * @generated from enum livekit.AudioTrackFeature
+ */
+const AudioTrackFeature = /*@__PURE__*/proto3.makeEnum("livekit.AudioTrackFeature", [{
+  no: 0,
+  name: "TF_STEREO"
+}, {
+  no: 1,
+  name: "TF_NO_DTX"
+}, {
+  no: 2,
+  name: "TF_AUTO_GAIN_CONTROL"
+}, {
+  no: 3,
+  name: "TF_ECHO_CANCELLATION"
+}, {
+  no: 4,
+  name: "TF_NOISE_SUPPRESSION"
+}, {
+  no: 5,
+  name: "TF_ENHANCED_NOISE_CANCELLATION"
+}]);
+
 /**
  * @generated from message livekit.Room
  */
-let Room$1 = class Room extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string sid = 1;
-     */
-    this.sid = "";
-    /**
-     * @generated from field: string name = 2;
-     */
-    this.name = "";
-    /**
-     * @generated from field: uint32 empty_timeout = 3;
-     */
-    this.emptyTimeout = 0;
-    /**
-     * @generated from field: uint32 max_participants = 4;
-     */
-    this.maxParticipants = 0;
-    /**
-     * @generated from field: int64 creation_time = 5;
-     */
-    this.creationTime = protoInt64.zero;
-    /**
-     * @generated from field: string turn_password = 6;
-     */
-    this.turnPassword = "";
-    /**
-     * @generated from field: repeated livekit.Codec enabled_codecs = 7;
-     */
-    this.enabledCodecs = [];
-    /**
-     * @generated from field: string metadata = 8;
-     */
-    this.metadata = "";
-    /**
-     * @generated from field: uint32 num_participants = 9;
-     */
-    this.numParticipants = 0;
-    /**
-     * @generated from field: uint32 num_publishers = 11;
-     */
-    this.numPublishers = 0;
-    /**
-     * @generated from field: bool active_recording = 10;
-     */
-    this.activeRecording = false;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new Room().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new Room().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new Room().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(Room, a, b);
-  }
-};
-Room$1.runtime = proto3;
-Room$1.typeName = "livekit.Room";
-Room$1.fields = proto3.util.newFieldList(() => [{
+const Room$1 = /*@__PURE__*/proto3.makeMessageType("livekit.Room", () => [{
   no: 1,
   name: "sid",
   kind: "scalar",
@@ -3976,6 +3593,11 @@ Room$1.fields = proto3.util.newFieldList(() => [{
 }, {
   no: 3,
   name: "empty_timeout",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}, {
+  no: 14,
+  name: "departure_timeout",
   kind: "scalar",
   T: 13 /* ScalarType.UINT32 */
 }, {
@@ -4019,39 +3641,17 @@ Room$1.fields = proto3.util.newFieldList(() => [{
   name: "active_recording",
   kind: "scalar",
   T: 8 /* ScalarType.BOOL */
+}, {
+  no: 13,
+  name: "version",
+  kind: "message",
+  T: TimedVersion
 }]);
+
 /**
  * @generated from message livekit.Codec
  */
-class Codec extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string mime = 1;
-     */
-    this.mime = "";
-    /**
-     * @generated from field: string fmtp_line = 2;
-     */
-    this.fmtpLine = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new Codec().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new Codec().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new Codec().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(Codec, a, b);
-  }
-}
-Codec.runtime = proto3;
-Codec.typeName = "livekit.Codec";
-Codec.fields = proto3.util.newFieldList(() => [{
+const Codec = /*@__PURE__*/proto3.makeMessageType("livekit.Codec", () => [{
   no: 1,
   name: "mime",
   kind: "scalar",
@@ -4062,123 +3662,11 @@ Codec.fields = proto3.util.newFieldList(() => [{
   kind: "scalar",
   T: 9 /* ScalarType.STRING */
 }]);
-/**
- * @generated from message livekit.PlayoutDelay
- */
-class PlayoutDelay extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: bool enabled = 1;
-     */
-    this.enabled = false;
-    /**
-     * @generated from field: uint32 min = 2;
-     */
-    this.min = 0;
-    /**
-     * @generated from field: uint32 max = 3;
-     */
-    this.max = 0;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new PlayoutDelay().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new PlayoutDelay().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new PlayoutDelay().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(PlayoutDelay, a, b);
-  }
-}
-PlayoutDelay.runtime = proto3;
-PlayoutDelay.typeName = "livekit.PlayoutDelay";
-PlayoutDelay.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "enabled",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 2,
-  name: "min",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 3,
-  name: "max",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}]);
+
 /**
  * @generated from message livekit.ParticipantPermission
  */
-class ParticipantPermission extends Message {
-  constructor(data) {
-    super();
-    /**
-     * allow participant to subscribe to other tracks in the room
-     *
-     * @generated from field: bool can_subscribe = 1;
-     */
-    this.canSubscribe = false;
-    /**
-     * allow participant to publish new tracks to room
-     *
-     * @generated from field: bool can_publish = 2;
-     */
-    this.canPublish = false;
-    /**
-     * allow participant to publish data
-     *
-     * @generated from field: bool can_publish_data = 3;
-     */
-    this.canPublishData = false;
-    /**
-     * sources that are allowed to be published
-     *
-     * @generated from field: repeated livekit.TrackSource can_publish_sources = 9;
-     */
-    this.canPublishSources = [];
-    /**
-     * indicates that it's hidden to others
-     *
-     * @generated from field: bool hidden = 7;
-     */
-    this.hidden = false;
-    /**
-     * indicates it's a recorder instance
-     *
-     * @generated from field: bool recorder = 8;
-     */
-    this.recorder = false;
-    /**
-     * indicates that participant can update own metadata
-     *
-     * @generated from field: bool can_update_metadata = 10;
-     */
-    this.canUpdateMetadata = false;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ParticipantPermission().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ParticipantPermission().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ParticipantPermission().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ParticipantPermission, a, b);
-  }
-}
-ParticipantPermission.runtime = proto3;
-ParticipantPermission.typeName = "livekit.ParticipantPermission";
-ParticipantPermission.fields = proto3.util.newFieldList(() => [{
+const ParticipantPermission = /*@__PURE__*/proto3.makeMessageType("livekit.ParticipantPermission", () => [{
   no: 1,
   name: "can_subscribe",
   kind: "scalar",
@@ -4214,76 +3702,17 @@ ParticipantPermission.fields = proto3.util.newFieldList(() => [{
   name: "can_update_metadata",
   kind: "scalar",
   T: 8 /* ScalarType.BOOL */
+}, {
+  no: 11,
+  name: "agent",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
 }]);
+
 /**
  * @generated from message livekit.ParticipantInfo
  */
-class ParticipantInfo extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string sid = 1;
-     */
-    this.sid = "";
-    /**
-     * @generated from field: string identity = 2;
-     */
-    this.identity = "";
-    /**
-     * @generated from field: livekit.ParticipantInfo.State state = 3;
-     */
-    this.state = ParticipantInfo_State.JOINING;
-    /**
-     * @generated from field: repeated livekit.TrackInfo tracks = 4;
-     */
-    this.tracks = [];
-    /**
-     * @generated from field: string metadata = 5;
-     */
-    this.metadata = "";
-    /**
-     * timestamp when participant joined room, in seconds
-     *
-     * @generated from field: int64 joined_at = 6;
-     */
-    this.joinedAt = protoInt64.zero;
-    /**
-     * @generated from field: string name = 9;
-     */
-    this.name = "";
-    /**
-     * @generated from field: uint32 version = 10;
-     */
-    this.version = 0;
-    /**
-     * @generated from field: string region = 12;
-     */
-    this.region = "";
-    /**
-     * indicates the participant has an active publisher connection
-     * and can publish to the server
-     *
-     * @generated from field: bool is_publisher = 13;
-     */
-    this.isPublisher = false;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ParticipantInfo().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ParticipantInfo().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ParticipantInfo().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ParticipantInfo, a, b);
-  }
-}
-ParticipantInfo.runtime = proto3;
-ParticipantInfo.typeName = "livekit.ParticipantInfo";
-ParticipantInfo.fields = proto3.util.newFieldList(() => [{
+const ParticipantInfo = /*@__PURE__*/proto3.makeMessageType("livekit.ParticipantInfo", () => [{
   no: 1,
   name: "sid",
   kind: "scalar",
@@ -4339,39 +3768,17 @@ ParticipantInfo.fields = proto3.util.newFieldList(() => [{
   name: "is_publisher",
   kind: "scalar",
   T: 8 /* ScalarType.BOOL */
+}, {
+  no: 14,
+  name: "kind",
+  kind: "enum",
+  T: proto3.getEnumType(ParticipantInfo_Kind)
 }]);
+
 /**
  * @generated from enum livekit.ParticipantInfo.State
  */
-var ParticipantInfo_State;
-(function (ParticipantInfo_State) {
-  /**
-   * websocket' connected, but not offered yet
-   *
-   * @generated from enum value: JOINING = 0;
-   */
-  ParticipantInfo_State[ParticipantInfo_State["JOINING"] = 0] = "JOINING";
-  /**
-   * server received client offer
-   *
-   * @generated from enum value: JOINED = 1;
-   */
-  ParticipantInfo_State[ParticipantInfo_State["JOINED"] = 1] = "JOINED";
-  /**
-   * ICE connectivity established
-   *
-   * @generated from enum value: ACTIVE = 2;
-   */
-  ParticipantInfo_State[ParticipantInfo_State["ACTIVE"] = 2] = "ACTIVE";
-  /**
-   * WS disconnected
-   *
-   * @generated from enum value: DISCONNECTED = 3;
-   */
-  ParticipantInfo_State[ParticipantInfo_State["DISCONNECTED"] = 3] = "DISCONNECTED";
-})(ParticipantInfo_State || (ParticipantInfo_State = {}));
-// Retrieve enum metadata with: proto3.getEnumType(ParticipantInfo_State)
-proto3.util.setEnumType(ParticipantInfo_State, "livekit.ParticipantInfo.State", [{
+const ParticipantInfo_State = /*@__PURE__*/proto3.makeEnum("livekit.ParticipantInfo.State", [{
   no: 0,
   name: "JOINING"
 }, {
@@ -4384,50 +3791,31 @@ proto3.util.setEnumType(ParticipantInfo_State, "livekit.ParticipantInfo.State", 
   no: 3,
   name: "DISCONNECTED"
 }]);
+
 /**
- * @generated from message livekit.Encryption
+ * @generated from enum livekit.ParticipantInfo.Kind
  */
-class Encryption extends Message {
-  constructor(data) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new Encryption().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new Encryption().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new Encryption().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(Encryption, a, b);
-  }
-}
-Encryption.runtime = proto3;
-Encryption.typeName = "livekit.Encryption";
-Encryption.fields = proto3.util.newFieldList(() => []);
+const ParticipantInfo_Kind = /*@__PURE__*/proto3.makeEnum("livekit.ParticipantInfo.Kind", [{
+  no: 0,
+  name: "STANDARD"
+}, {
+  no: 1,
+  name: "INGRESS"
+}, {
+  no: 2,
+  name: "EGRESS"
+}, {
+  no: 3,
+  name: "SIP"
+}, {
+  no: 4,
+  name: "AGENT"
+}]);
+
 /**
  * @generated from enum livekit.Encryption.Type
  */
-var Encryption_Type;
-(function (Encryption_Type) {
-  /**
-   * @generated from enum value: NONE = 0;
-   */
-  Encryption_Type[Encryption_Type["NONE"] = 0] = "NONE";
-  /**
-   * @generated from enum value: GCM = 1;
-   */
-  Encryption_Type[Encryption_Type["GCM"] = 1] = "GCM";
-  /**
-   * @generated from enum value: CUSTOM = 2;
-   */
-  Encryption_Type[Encryption_Type["CUSTOM"] = 2] = "CUSTOM";
-})(Encryption_Type || (Encryption_Type = {}));
-// Retrieve enum metadata with: proto3.getEnumType(Encryption_Type)
-proto3.util.setEnumType(Encryption_Type, "livekit.Encryption.Type", [{
+const Encryption_Type = /*@__PURE__*/proto3.makeEnum("livekit.Encryption.Type", [{
   no: 0,
   name: "NONE"
 }, {
@@ -4437,46 +3825,11 @@ proto3.util.setEnumType(Encryption_Type, "livekit.Encryption.Type", [{
   no: 2,
   name: "CUSTOM"
 }]);
+
 /**
  * @generated from message livekit.SimulcastCodecInfo
  */
-class SimulcastCodecInfo extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string mime_type = 1;
-     */
-    this.mimeType = "";
-    /**
-     * @generated from field: string mid = 2;
-     */
-    this.mid = "";
-    /**
-     * @generated from field: string cid = 3;
-     */
-    this.cid = "";
-    /**
-     * @generated from field: repeated livekit.VideoLayer layers = 4;
-     */
-    this.layers = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SimulcastCodecInfo().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SimulcastCodecInfo().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SimulcastCodecInfo().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SimulcastCodecInfo, a, b);
-  }
-}
-SimulcastCodecInfo.runtime = proto3;
-SimulcastCodecInfo.typeName = "livekit.SimulcastCodecInfo";
-SimulcastCodecInfo.fields = proto3.util.newFieldList(() => [{
+const SimulcastCodecInfo = /*@__PURE__*/proto3.makeMessageType("livekit.SimulcastCodecInfo", () => [{
   no: 1,
   name: "mime_type",
   kind: "scalar",
@@ -4498,113 +3851,11 @@ SimulcastCodecInfo.fields = proto3.util.newFieldList(() => [{
   T: VideoLayer,
   repeated: true
 }]);
+
 /**
  * @generated from message livekit.TrackInfo
  */
-class TrackInfo extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string sid = 1;
-     */
-    this.sid = "";
-    /**
-     * @generated from field: livekit.TrackType type = 2;
-     */
-    this.type = TrackType.AUDIO;
-    /**
-     * @generated from field: string name = 3;
-     */
-    this.name = "";
-    /**
-     * @generated from field: bool muted = 4;
-     */
-    this.muted = false;
-    /**
-     * original width of video (unset for audio)
-     * clients may receive a lower resolution version with simulcast
-     *
-     * @generated from field: uint32 width = 5;
-     */
-    this.width = 0;
-    /**
-     * original height of video (unset for audio)
-     *
-     * @generated from field: uint32 height = 6;
-     */
-    this.height = 0;
-    /**
-     * true if track is simulcasted
-     *
-     * @generated from field: bool simulcast = 7;
-     */
-    this.simulcast = false;
-    /**
-     * true if DTX (Discontinuous Transmission) is disabled for audio
-     *
-     * @generated from field: bool disable_dtx = 8;
-     */
-    this.disableDtx = false;
-    /**
-     * source of media
-     *
-     * @generated from field: livekit.TrackSource source = 9;
-     */
-    this.source = TrackSource.UNKNOWN;
-    /**
-     * @generated from field: repeated livekit.VideoLayer layers = 10;
-     */
-    this.layers = [];
-    /**
-     * mime type of codec
-     *
-     * @generated from field: string mime_type = 11;
-     */
-    this.mimeType = "";
-    /**
-     * @generated from field: string mid = 12;
-     */
-    this.mid = "";
-    /**
-     * @generated from field: repeated livekit.SimulcastCodecInfo codecs = 13;
-     */
-    this.codecs = [];
-    /**
-     * @generated from field: bool stereo = 14;
-     */
-    this.stereo = false;
-    /**
-     * true if RED (Redundant Encoding) is disabled for audio
-     *
-     * @generated from field: bool disable_red = 15;
-     */
-    this.disableRed = false;
-    /**
-     * @generated from field: livekit.Encryption.Type encryption = 16;
-     */
-    this.encryption = Encryption_Type.NONE;
-    /**
-     * @generated from field: string stream = 17;
-     */
-    this.stream = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new TrackInfo().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new TrackInfo().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new TrackInfo().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(TrackInfo, a, b);
-  }
-}
-TrackInfo.runtime = proto3;
-TrackInfo.typeName = "livekit.TrackInfo";
-TrackInfo.fields = proto3.util.newFieldList(() => [{
+const TrackInfo = /*@__PURE__*/proto3.makeMessageType("livekit.TrackInfo", () => [{
   no: 1,
   name: "sid",
   kind: "scalar",
@@ -4691,61 +3942,23 @@ TrackInfo.fields = proto3.util.newFieldList(() => [{
   name: "stream",
   kind: "scalar",
   T: 9 /* ScalarType.STRING */
+}, {
+  no: 18,
+  name: "version",
+  kind: "message",
+  T: TimedVersion
 }]);
+
 /**
  * provide information about available spatial layers
  *
  * @generated from message livekit.VideoLayer
  */
-class VideoLayer extends Message {
-  constructor(data) {
-    super();
-    /**
-     * for tracks with a single layer, this should be HIGH
-     *
-     * @generated from field: livekit.VideoQuality quality = 1;
-     */
-    this.quality = VideoQuality.LOW;
-    /**
-     * @generated from field: uint32 width = 2;
-     */
-    this.width = 0;
-    /**
-     * @generated from field: uint32 height = 3;
-     */
-    this.height = 0;
-    /**
-     * target bitrate in bit per second (bps), server will measure actual
-     *
-     * @generated from field: uint32 bitrate = 4;
-     */
-    this.bitrate = 0;
-    /**
-     * @generated from field: uint32 ssrc = 5;
-     */
-    this.ssrc = 0;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new VideoLayer().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new VideoLayer().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new VideoLayer().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(VideoLayer, a, b);
-  }
-}
-VideoLayer.runtime = proto3;
-VideoLayer.typeName = "livekit.VideoLayer";
-VideoLayer.fields = proto3.util.newFieldList(() => [{
+const VideoLayer = /*@__PURE__*/proto3.makeMessageType("livekit.VideoLayer", () => [{
   no: 1,
   name: "quality",
   kind: "enum",
-  T: proto3.getEnumType(VideoQuality)
+  T: proto3.getEnumType(VideoQuality$1)
 }, {
   no: 2,
   name: "width",
@@ -4767,46 +3980,28 @@ VideoLayer.fields = proto3.util.newFieldList(() => [{
   kind: "scalar",
   T: 13 /* ScalarType.UINT32 */
 }]);
+
 /**
  * new DataPacket API
  *
  * @generated from message livekit.DataPacket
  */
-class DataPacket extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: livekit.DataPacket.Kind kind = 1;
-     */
-    this.kind = DataPacket_Kind.RELIABLE;
-    /**
-     * @generated from oneof livekit.DataPacket.value
-     */
-    this.value = {
-      case: undefined
-    };
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new DataPacket().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new DataPacket().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new DataPacket().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(DataPacket, a, b);
-  }
-}
-DataPacket.runtime = proto3;
-DataPacket.typeName = "livekit.DataPacket";
-DataPacket.fields = proto3.util.newFieldList(() => [{
+const DataPacket = /*@__PURE__*/proto3.makeMessageType("livekit.DataPacket", () => [{
   no: 1,
   name: "kind",
   kind: "enum",
   T: proto3.getEnumType(DataPacket_Kind)
+}, {
+  no: 4,
+  name: "participant_identity",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 5,
+  name: "destination_identities",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */,
+  repeated: true
 }, {
   no: 2,
   name: "user",
@@ -4819,103 +4014,40 @@ DataPacket.fields = proto3.util.newFieldList(() => [{
   kind: "message",
   T: ActiveSpeakerUpdate,
   oneof: "value"
+}, {
+  no: 6,
+  name: "sip_dtmf",
+  kind: "message",
+  T: SipDTMF,
+  oneof: "value"
 }]);
+
 /**
  * @generated from enum livekit.DataPacket.Kind
  */
-var DataPacket_Kind;
-(function (DataPacket_Kind) {
-  /**
-   * @generated from enum value: RELIABLE = 0;
-   */
-  DataPacket_Kind[DataPacket_Kind["RELIABLE"] = 0] = "RELIABLE";
-  /**
-   * @generated from enum value: LOSSY = 1;
-   */
-  DataPacket_Kind[DataPacket_Kind["LOSSY"] = 1] = "LOSSY";
-})(DataPacket_Kind || (DataPacket_Kind = {}));
-// Retrieve enum metadata with: proto3.getEnumType(DataPacket_Kind)
-proto3.util.setEnumType(DataPacket_Kind, "livekit.DataPacket.Kind", [{
+const DataPacket_Kind = /*@__PURE__*/proto3.makeEnum("livekit.DataPacket.Kind", [{
   no: 0,
   name: "RELIABLE"
 }, {
   no: 1,
   name: "LOSSY"
 }]);
+
 /**
  * @generated from message livekit.ActiveSpeakerUpdate
  */
-class ActiveSpeakerUpdate extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated livekit.SpeakerInfo speakers = 1;
-     */
-    this.speakers = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ActiveSpeakerUpdate().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ActiveSpeakerUpdate().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ActiveSpeakerUpdate().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ActiveSpeakerUpdate, a, b);
-  }
-}
-ActiveSpeakerUpdate.runtime = proto3;
-ActiveSpeakerUpdate.typeName = "livekit.ActiveSpeakerUpdate";
-ActiveSpeakerUpdate.fields = proto3.util.newFieldList(() => [{
+const ActiveSpeakerUpdate = /*@__PURE__*/proto3.makeMessageType("livekit.ActiveSpeakerUpdate", () => [{
   no: 1,
   name: "speakers",
   kind: "message",
   T: SpeakerInfo,
   repeated: true
 }]);
+
 /**
  * @generated from message livekit.SpeakerInfo
  */
-class SpeakerInfo extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string sid = 1;
-     */
-    this.sid = "";
-    /**
-     * audio level, 0-1.0, 1 is loudest
-     *
-     * @generated from field: float level = 2;
-     */
-    this.level = 0;
-    /**
-     * true if speaker is currently active
-     *
-     * @generated from field: bool active = 3;
-     */
-    this.active = false;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SpeakerInfo().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SpeakerInfo().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SpeakerInfo().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SpeakerInfo, a, b);
-  }
-}
-SpeakerInfo.runtime = proto3;
-SpeakerInfo.typeName = "livekit.SpeakerInfo";
-SpeakerInfo.fields = proto3.util.newFieldList(() => [{
+const SpeakerInfo = /*@__PURE__*/proto3.makeMessageType("livekit.SpeakerInfo", () => [{
   no: 1,
   name: "sid",
   kind: "scalar",
@@ -4931,58 +4063,11 @@ SpeakerInfo.fields = proto3.util.newFieldList(() => [{
   kind: "scalar",
   T: 8 /* ScalarType.BOOL */
 }]);
+
 /**
  * @generated from message livekit.UserPacket
  */
-class UserPacket extends Message {
-  constructor(data) {
-    super();
-    /**
-     * participant ID of user that sent the message
-     *
-     * @generated from field: string participant_sid = 1;
-     */
-    this.participantSid = "";
-    /**
-     * @generated from field: string participant_identity = 5;
-     */
-    this.participantIdentity = "";
-    /**
-     * user defined payload
-     *
-     * @generated from field: bytes payload = 2;
-     */
-    this.payload = new Uint8Array(0);
-    /**
-     * the ID of the participants who will receive the message (sent to all by default)
-     *
-     * @generated from field: repeated string destination_sids = 3;
-     */
-    this.destinationSids = [];
-    /**
-     * identities of participants who will receive the message (sent to all by default)
-     *
-     * @generated from field: repeated string destination_identities = 6;
-     */
-    this.destinationIdentities = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new UserPacket().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new UserPacket().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new UserPacket().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(UserPacket, a, b);
-  }
-}
-UserPacket.runtime = proto3;
-UserPacket.typeName = "livekit.UserPacket";
-UserPacket.fields = proto3.util.newFieldList(() => [{
+const UserPacket = /*@__PURE__*/proto3.makeMessageType("livekit.UserPacket", () => [{
   no: 1,
   name: "participant_sid",
   kind: "scalar",
@@ -5016,40 +4101,26 @@ UserPacket.fields = proto3.util.newFieldList(() => [{
   T: 9 /* ScalarType.STRING */,
   opt: true
 }]);
+
+/**
+ * @generated from message livekit.SipDTMF
+ */
+const SipDTMF = /*@__PURE__*/proto3.makeMessageType("livekit.SipDTMF", () => [{
+  no: 3,
+  name: "code",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}, {
+  no: 4,
+  name: "digit",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}]);
+
 /**
  * @generated from message livekit.ParticipantTracks
  */
-class ParticipantTracks extends Message {
-  constructor(data) {
-    super();
-    /**
-     * participant ID of participant to whom the tracks belong
-     *
-     * @generated from field: string participant_sid = 1;
-     */
-    this.participantSid = "";
-    /**
-     * @generated from field: repeated string track_sids = 2;
-     */
-    this.trackSids = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ParticipantTracks().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ParticipantTracks().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ParticipantTracks().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ParticipantTracks, a, b);
-  }
-}
-ParticipantTracks.runtime = proto3;
-ParticipantTracks.typeName = "livekit.ParticipantTracks";
-ParticipantTracks.fields = proto3.util.newFieldList(() => [{
+const ParticipantTracks = /*@__PURE__*/proto3.makeMessageType("livekit.ParticipantTracks", () => [{
   no: 1,
   name: "participant_sid",
   kind: "scalar",
@@ -5061,58 +4132,13 @@ ParticipantTracks.fields = proto3.util.newFieldList(() => [{
   T: 9 /* ScalarType.STRING */,
   repeated: true
 }]);
+
 /**
  * details about the server
  *
  * @generated from message livekit.ServerInfo
  */
-class ServerInfo extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: livekit.ServerInfo.Edition edition = 1;
-     */
-    this.edition = ServerInfo_Edition.Standard;
-    /**
-     * @generated from field: string version = 2;
-     */
-    this.version = "";
-    /**
-     * @generated from field: int32 protocol = 3;
-     */
-    this.protocol = 0;
-    /**
-     * @generated from field: string region = 4;
-     */
-    this.region = "";
-    /**
-     * @generated from field: string node_id = 5;
-     */
-    this.nodeId = "";
-    /**
-     * additional debugging information. sent only if server is in development mode
-     *
-     * @generated from field: string debug_info = 6;
-     */
-    this.debugInfo = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ServerInfo().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ServerInfo().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ServerInfo().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ServerInfo, a, b);
-  }
-}
-ServerInfo.runtime = proto3;
-ServerInfo.typeName = "livekit.ServerInfo";
-ServerInfo.fields = proto3.util.newFieldList(() => [{
+const ServerInfo = /*@__PURE__*/proto3.makeMessageType("livekit.ServerInfo", () => [{
   no: 1,
   name: "edition",
   kind: "enum",
@@ -5142,97 +4168,30 @@ ServerInfo.fields = proto3.util.newFieldList(() => [{
   name: "debug_info",
   kind: "scalar",
   T: 9 /* ScalarType.STRING */
+}, {
+  no: 7,
+  name: "agent_protocol",
+  kind: "scalar",
+  T: 5 /* ScalarType.INT32 */
 }]);
+
 /**
  * @generated from enum livekit.ServerInfo.Edition
  */
-var ServerInfo_Edition;
-(function (ServerInfo_Edition) {
-  /**
-   * @generated from enum value: Standard = 0;
-   */
-  ServerInfo_Edition[ServerInfo_Edition["Standard"] = 0] = "Standard";
-  /**
-   * @generated from enum value: Cloud = 1;
-   */
-  ServerInfo_Edition[ServerInfo_Edition["Cloud"] = 1] = "Cloud";
-})(ServerInfo_Edition || (ServerInfo_Edition = {}));
-// Retrieve enum metadata with: proto3.getEnumType(ServerInfo_Edition)
-proto3.util.setEnumType(ServerInfo_Edition, "livekit.ServerInfo.Edition", [{
+const ServerInfo_Edition = /*@__PURE__*/proto3.makeEnum("livekit.ServerInfo.Edition", [{
   no: 0,
   name: "Standard"
 }, {
   no: 1,
   name: "Cloud"
 }]);
+
 /**
  * details about the client
  *
  * @generated from message livekit.ClientInfo
  */
-class ClientInfo extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: livekit.ClientInfo.SDK sdk = 1;
-     */
-    this.sdk = ClientInfo_SDK.UNKNOWN;
-    /**
-     * @generated from field: string version = 2;
-     */
-    this.version = "";
-    /**
-     * @generated from field: int32 protocol = 3;
-     */
-    this.protocol = 0;
-    /**
-     * @generated from field: string os = 4;
-     */
-    this.os = "";
-    /**
-     * @generated from field: string os_version = 5;
-     */
-    this.osVersion = "";
-    /**
-     * @generated from field: string device_model = 6;
-     */
-    this.deviceModel = "";
-    /**
-     * @generated from field: string browser = 7;
-     */
-    this.browser = "";
-    /**
-     * @generated from field: string browser_version = 8;
-     */
-    this.browserVersion = "";
-    /**
-     * @generated from field: string address = 9;
-     */
-    this.address = "";
-    /**
-     * wifi, wired, cellular, vpn, empty if not known
-     *
-     * @generated from field: string network = 10;
-     */
-    this.network = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ClientInfo().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ClientInfo().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ClientInfo().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ClientInfo, a, b);
-  }
-}
-ClientInfo.runtime = proto3;
-ClientInfo.typeName = "livekit.ClientInfo";
-ClientInfo.fields = proto3.util.newFieldList(() => [{
+const ClientInfo = /*@__PURE__*/proto3.makeMessageType("livekit.ClientInfo", () => [{
   no: 1,
   name: "sdk",
   kind: "enum",
@@ -5283,58 +4242,11 @@ ClientInfo.fields = proto3.util.newFieldList(() => [{
   kind: "scalar",
   T: 9 /* ScalarType.STRING */
 }]);
+
 /**
  * @generated from enum livekit.ClientInfo.SDK
  */
-var ClientInfo_SDK;
-(function (ClientInfo_SDK) {
-  /**
-   * @generated from enum value: UNKNOWN = 0;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["UNKNOWN"] = 0] = "UNKNOWN";
-  /**
-   * @generated from enum value: JS = 1;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["JS"] = 1] = "JS";
-  /**
-   * @generated from enum value: SWIFT = 2;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["SWIFT"] = 2] = "SWIFT";
-  /**
-   * @generated from enum value: ANDROID = 3;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["ANDROID"] = 3] = "ANDROID";
-  /**
-   * @generated from enum value: FLUTTER = 4;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["FLUTTER"] = 4] = "FLUTTER";
-  /**
-   * @generated from enum value: GO = 5;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["GO"] = 5] = "GO";
-  /**
-   * @generated from enum value: UNITY = 6;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["UNITY"] = 6] = "UNITY";
-  /**
-   * @generated from enum value: REACT_NATIVE = 7;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["REACT_NATIVE"] = 7] = "REACT_NATIVE";
-  /**
-   * @generated from enum value: RUST = 8;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["RUST"] = 8] = "RUST";
-  /**
-   * @generated from enum value: PYTHON = 9;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["PYTHON"] = 9] = "PYTHON";
-  /**
-   * @generated from enum value: CPP = 10;
-   */
-  ClientInfo_SDK[ClientInfo_SDK["CPP"] = 10] = "CPP";
-})(ClientInfo_SDK || (ClientInfo_SDK = {}));
-// Retrieve enum metadata with: proto3.getEnumType(ClientInfo_SDK)
-proto3.util.setEnumType(ClientInfo_SDK, "livekit.ClientInfo.SDK", [{
+const ClientInfo_SDK = /*@__PURE__*/proto3.makeEnum("livekit.ClientInfo.SDK", [{
   no: 0,
   name: "UNKNOWN"
 }, {
@@ -5368,40 +4280,13 @@ proto3.util.setEnumType(ClientInfo_SDK, "livekit.ClientInfo.SDK", [{
   no: 10,
   name: "CPP"
 }]);
+
 /**
  * server provided client configuration
  *
  * @generated from message livekit.ClientConfiguration
  */
-class ClientConfiguration extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: livekit.ClientConfigSetting resume_connection = 3;
-     */
-    this.resumeConnection = ClientConfigSetting.UNSET;
-    /**
-     * @generated from field: livekit.ClientConfigSetting force_relay = 5;
-     */
-    this.forceRelay = ClientConfigSetting.UNSET;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ClientConfiguration().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ClientConfiguration().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ClientConfiguration().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ClientConfiguration, a, b);
-  }
-}
-ClientConfiguration.runtime = proto3;
-ClientConfiguration.typeName = "livekit.ClientConfiguration";
-ClientConfiguration.fields = proto3.util.newFieldList(() => [{
+const ClientConfiguration = /*@__PURE__*/proto3.makeMessageType("livekit.ClientConfiguration", () => [{
   no: 1,
   name: "video",
   kind: "message",
@@ -5427,75 +4312,21 @@ ClientConfiguration.fields = proto3.util.newFieldList(() => [{
   kind: "enum",
   T: proto3.getEnumType(ClientConfigSetting)
 }]);
+
 /**
  * @generated from message livekit.VideoConfiguration
  */
-class VideoConfiguration extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: livekit.ClientConfigSetting hardware_encoder = 1;
-     */
-    this.hardwareEncoder = ClientConfigSetting.UNSET;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new VideoConfiguration().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new VideoConfiguration().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new VideoConfiguration().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(VideoConfiguration, a, b);
-  }
-}
-VideoConfiguration.runtime = proto3;
-VideoConfiguration.typeName = "livekit.VideoConfiguration";
-VideoConfiguration.fields = proto3.util.newFieldList(() => [{
+const VideoConfiguration = /*@__PURE__*/proto3.makeMessageType("livekit.VideoConfiguration", () => [{
   no: 1,
   name: "hardware_encoder",
   kind: "enum",
   T: proto3.getEnumType(ClientConfigSetting)
 }]);
+
 /**
  * @generated from message livekit.DisabledCodecs
  */
-class DisabledCodecs extends Message {
-  constructor(data) {
-    super();
-    /**
-     * disabled for both publish and subscribe
-     *
-     * @generated from field: repeated livekit.Codec codecs = 1;
-     */
-    this.codecs = [];
-    /**
-     * only disable for publish
-     *
-     * @generated from field: repeated livekit.Codec publish = 2;
-     */
-    this.publish = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new DisabledCodecs().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new DisabledCodecs().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new DisabledCodecs().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(DisabledCodecs, a, b);
-  }
-}
-DisabledCodecs.runtime = proto3;
-DisabledCodecs.typeName = "livekit.DisabledCodecs";
-DisabledCodecs.fields = proto3.util.newFieldList(() => [{
+const DisabledCodecs = /*@__PURE__*/proto3.makeMessageType("livekit.DisabledCodecs", () => [{
   no: 1,
   name: "codecs",
   kind: "message",
@@ -5508,518 +4339,11 @@ DisabledCodecs.fields = proto3.util.newFieldList(() => [{
   T: Codec,
   repeated: true
 }]);
-/**
- * @generated from message livekit.RTPDrift
- */
-class RTPDrift extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: double duration = 3;
-     */
-    this.duration = 0;
-    /**
-     * @generated from field: uint64 start_timestamp = 4;
-     */
-    this.startTimestamp = protoInt64.zero;
-    /**
-     * @generated from field: uint64 end_timestamp = 5;
-     */
-    this.endTimestamp = protoInt64.zero;
-    /**
-     * @generated from field: uint64 rtp_clock_ticks = 6;
-     */
-    this.rtpClockTicks = protoInt64.zero;
-    /**
-     * @generated from field: int64 drift_samples = 7;
-     */
-    this.driftSamples = protoInt64.zero;
-    /**
-     * @generated from field: double drift_ms = 8;
-     */
-    this.driftMs = 0;
-    /**
-     * @generated from field: double clock_rate = 9;
-     */
-    this.clockRate = 0;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new RTPDrift().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new RTPDrift().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new RTPDrift().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(RTPDrift, a, b);
-  }
-}
-RTPDrift.runtime = proto3;
-RTPDrift.typeName = "livekit.RTPDrift";
-RTPDrift.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "start_time",
-  kind: "message",
-  T: Timestamp
-}, {
-  no: 2,
-  name: "end_time",
-  kind: "message",
-  T: Timestamp
-}, {
-  no: 3,
-  name: "duration",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 4,
-  name: "start_timestamp",
-  kind: "scalar",
-  T: 4 /* ScalarType.UINT64 */
-}, {
-  no: 5,
-  name: "end_timestamp",
-  kind: "scalar",
-  T: 4 /* ScalarType.UINT64 */
-}, {
-  no: 6,
-  name: "rtp_clock_ticks",
-  kind: "scalar",
-  T: 4 /* ScalarType.UINT64 */
-}, {
-  no: 7,
-  name: "drift_samples",
-  kind: "scalar",
-  T: 3 /* ScalarType.INT64 */
-}, {
-  no: 8,
-  name: "drift_ms",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 9,
-  name: "clock_rate",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}]);
-/**
- * @generated from message livekit.RTPStats
- */
-class RTPStats extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: double duration = 3;
-     */
-    this.duration = 0;
-    /**
-     * @generated from field: uint32 packets = 4;
-     */
-    this.packets = 0;
-    /**
-     * @generated from field: double packet_rate = 5;
-     */
-    this.packetRate = 0;
-    /**
-     * @generated from field: uint64 bytes = 6;
-     */
-    this.bytes = protoInt64.zero;
-    /**
-     * @generated from field: uint64 header_bytes = 39;
-     */
-    this.headerBytes = protoInt64.zero;
-    /**
-     * @generated from field: double bitrate = 7;
-     */
-    this.bitrate = 0;
-    /**
-     * @generated from field: uint32 packets_lost = 8;
-     */
-    this.packetsLost = 0;
-    /**
-     * @generated from field: double packet_loss_rate = 9;
-     */
-    this.packetLossRate = 0;
-    /**
-     * @generated from field: float packet_loss_percentage = 10;
-     */
-    this.packetLossPercentage = 0;
-    /**
-     * @generated from field: uint32 packets_duplicate = 11;
-     */
-    this.packetsDuplicate = 0;
-    /**
-     * @generated from field: double packet_duplicate_rate = 12;
-     */
-    this.packetDuplicateRate = 0;
-    /**
-     * @generated from field: uint64 bytes_duplicate = 13;
-     */
-    this.bytesDuplicate = protoInt64.zero;
-    /**
-     * @generated from field: uint64 header_bytes_duplicate = 40;
-     */
-    this.headerBytesDuplicate = protoInt64.zero;
-    /**
-     * @generated from field: double bitrate_duplicate = 14;
-     */
-    this.bitrateDuplicate = 0;
-    /**
-     * @generated from field: uint32 packets_padding = 15;
-     */
-    this.packetsPadding = 0;
-    /**
-     * @generated from field: double packet_padding_rate = 16;
-     */
-    this.packetPaddingRate = 0;
-    /**
-     * @generated from field: uint64 bytes_padding = 17;
-     */
-    this.bytesPadding = protoInt64.zero;
-    /**
-     * @generated from field: uint64 header_bytes_padding = 41;
-     */
-    this.headerBytesPadding = protoInt64.zero;
-    /**
-     * @generated from field: double bitrate_padding = 18;
-     */
-    this.bitratePadding = 0;
-    /**
-     * @generated from field: uint32 packets_out_of_order = 19;
-     */
-    this.packetsOutOfOrder = 0;
-    /**
-     * @generated from field: uint32 frames = 20;
-     */
-    this.frames = 0;
-    /**
-     * @generated from field: double frame_rate = 21;
-     */
-    this.frameRate = 0;
-    /**
-     * @generated from field: double jitter_current = 22;
-     */
-    this.jitterCurrent = 0;
-    /**
-     * @generated from field: double jitter_max = 23;
-     */
-    this.jitterMax = 0;
-    /**
-     * @generated from field: map<int32, uint32> gap_histogram = 24;
-     */
-    this.gapHistogram = {};
-    /**
-     * @generated from field: uint32 nacks = 25;
-     */
-    this.nacks = 0;
-    /**
-     * @generated from field: uint32 nack_acks = 37;
-     */
-    this.nackAcks = 0;
-    /**
-     * @generated from field: uint32 nack_misses = 26;
-     */
-    this.nackMisses = 0;
-    /**
-     * @generated from field: uint32 nack_repeated = 38;
-     */
-    this.nackRepeated = 0;
-    /**
-     * @generated from field: uint32 plis = 27;
-     */
-    this.plis = 0;
-    /**
-     * @generated from field: uint32 firs = 29;
-     */
-    this.firs = 0;
-    /**
-     * @generated from field: uint32 rtt_current = 31;
-     */
-    this.rttCurrent = 0;
-    /**
-     * @generated from field: uint32 rtt_max = 32;
-     */
-    this.rttMax = 0;
-    /**
-     * @generated from field: uint32 key_frames = 33;
-     */
-    this.keyFrames = 0;
-    /**
-     * @generated from field: uint32 layer_lock_plis = 35;
-     */
-    this.layerLockPlis = 0;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new RTPStats().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new RTPStats().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new RTPStats().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(RTPStats, a, b);
-  }
-}
-RTPStats.runtime = proto3;
-RTPStats.typeName = "livekit.RTPStats";
-RTPStats.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "start_time",
-  kind: "message",
-  T: Timestamp
-}, {
-  no: 2,
-  name: "end_time",
-  kind: "message",
-  T: Timestamp
-}, {
-  no: 3,
-  name: "duration",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 4,
-  name: "packets",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 5,
-  name: "packet_rate",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 6,
-  name: "bytes",
-  kind: "scalar",
-  T: 4 /* ScalarType.UINT64 */
-}, {
-  no: 39,
-  name: "header_bytes",
-  kind: "scalar",
-  T: 4 /* ScalarType.UINT64 */
-}, {
-  no: 7,
-  name: "bitrate",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 8,
-  name: "packets_lost",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 9,
-  name: "packet_loss_rate",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 10,
-  name: "packet_loss_percentage",
-  kind: "scalar",
-  T: 2 /* ScalarType.FLOAT */
-}, {
-  no: 11,
-  name: "packets_duplicate",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 12,
-  name: "packet_duplicate_rate",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 13,
-  name: "bytes_duplicate",
-  kind: "scalar",
-  T: 4 /* ScalarType.UINT64 */
-}, {
-  no: 40,
-  name: "header_bytes_duplicate",
-  kind: "scalar",
-  T: 4 /* ScalarType.UINT64 */
-}, {
-  no: 14,
-  name: "bitrate_duplicate",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 15,
-  name: "packets_padding",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 16,
-  name: "packet_padding_rate",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 17,
-  name: "bytes_padding",
-  kind: "scalar",
-  T: 4 /* ScalarType.UINT64 */
-}, {
-  no: 41,
-  name: "header_bytes_padding",
-  kind: "scalar",
-  T: 4 /* ScalarType.UINT64 */
-}, {
-  no: 18,
-  name: "bitrate_padding",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 19,
-  name: "packets_out_of_order",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 20,
-  name: "frames",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 21,
-  name: "frame_rate",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 22,
-  name: "jitter_current",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 23,
-  name: "jitter_max",
-  kind: "scalar",
-  T: 1 /* ScalarType.DOUBLE */
-}, {
-  no: 24,
-  name: "gap_histogram",
-  kind: "map",
-  K: 5 /* ScalarType.INT32 */,
-  V: {
-    kind: "scalar",
-    T: 13 /* ScalarType.UINT32 */
-  }
-}, {
-  no: 25,
-  name: "nacks",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 37,
-  name: "nack_acks",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 26,
-  name: "nack_misses",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 38,
-  name: "nack_repeated",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 27,
-  name: "plis",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 28,
-  name: "last_pli",
-  kind: "message",
-  T: Timestamp
-}, {
-  no: 29,
-  name: "firs",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 30,
-  name: "last_fir",
-  kind: "message",
-  T: Timestamp
-}, {
-  no: 31,
-  name: "rtt_current",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 32,
-  name: "rtt_max",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 33,
-  name: "key_frames",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 34,
-  name: "last_key_frame",
-  kind: "message",
-  T: Timestamp
-}, {
-  no: 35,
-  name: "layer_lock_plis",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 36,
-  name: "last_layer_lock_pli",
-  kind: "message",
-  T: Timestamp
-}, {
-  no: 44,
-  name: "packet_drift",
-  kind: "message",
-  T: RTPDrift
-}, {
-  no: 45,
-  name: "report_drift",
-  kind: "message",
-  T: RTPDrift
-}]);
+
 /**
  * @generated from message livekit.TimedVersion
  */
-class TimedVersion extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: int64 unix_micro = 1;
-     */
-    this.unixMicro = protoInt64.zero;
-    /**
-     * @generated from field: int32 ticks = 2;
-     */
-    this.ticks = 0;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new TimedVersion().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new TimedVersion().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new TimedVersion().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(TimedVersion, a, b);
-  }
-}
-TimedVersion.runtime = proto3;
-TimedVersion.typeName = "livekit.TimedVersion";
-TimedVersion.fields = proto3.util.newFieldList(() => [{
+const TimedVersion = /*@__PURE__*/proto3.makeMessageType("livekit.TimedVersion", () => [{
   no: 1,
   name: "unix_micro",
   kind: "scalar",
@@ -6030,6 +4354,1523 @@ TimedVersion.fields = proto3.util.newFieldList(() => [{
   kind: "scalar",
   T: 5 /* ScalarType.INT32 */
 }]);
+
+// Copyright 2023 LiveKit, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+
+/**
+ * @generated from enum livekit.SignalTarget
+ */
+const SignalTarget = /*@__PURE__*/proto3.makeEnum("livekit.SignalTarget", [{
+  no: 0,
+  name: "PUBLISHER"
+}, {
+  no: 1,
+  name: "SUBSCRIBER"
+}]);
+
+/**
+ * @generated from enum livekit.StreamState
+ */
+const StreamState = /*@__PURE__*/proto3.makeEnum("livekit.StreamState", [{
+  no: 0,
+  name: "ACTIVE"
+}, {
+  no: 1,
+  name: "PAUSED"
+}]);
+
+/**
+ * @generated from enum livekit.CandidateProtocol
+ */
+const CandidateProtocol = /*@__PURE__*/proto3.makeEnum("livekit.CandidateProtocol", [{
+  no: 0,
+  name: "UDP"
+}, {
+  no: 1,
+  name: "TCP"
+}, {
+  no: 2,
+  name: "TLS"
+}]);
+
+/**
+ * @generated from message livekit.SignalRequest
+ */
+const SignalRequest = /*@__PURE__*/proto3.makeMessageType("livekit.SignalRequest", () => [{
+  no: 1,
+  name: "offer",
+  kind: "message",
+  T: SessionDescription,
+  oneof: "message"
+}, {
+  no: 2,
+  name: "answer",
+  kind: "message",
+  T: SessionDescription,
+  oneof: "message"
+}, {
+  no: 3,
+  name: "trickle",
+  kind: "message",
+  T: TrickleRequest,
+  oneof: "message"
+}, {
+  no: 4,
+  name: "add_track",
+  kind: "message",
+  T: AddTrackRequest,
+  oneof: "message"
+}, {
+  no: 5,
+  name: "mute",
+  kind: "message",
+  T: MuteTrackRequest,
+  oneof: "message"
+}, {
+  no: 6,
+  name: "subscription",
+  kind: "message",
+  T: UpdateSubscription,
+  oneof: "message"
+}, {
+  no: 7,
+  name: "track_setting",
+  kind: "message",
+  T: UpdateTrackSettings,
+  oneof: "message"
+}, {
+  no: 8,
+  name: "leave",
+  kind: "message",
+  T: LeaveRequest,
+  oneof: "message"
+}, {
+  no: 10,
+  name: "update_layers",
+  kind: "message",
+  T: UpdateVideoLayers,
+  oneof: "message"
+}, {
+  no: 11,
+  name: "subscription_permission",
+  kind: "message",
+  T: SubscriptionPermission,
+  oneof: "message"
+}, {
+  no: 12,
+  name: "sync_state",
+  kind: "message",
+  T: SyncState,
+  oneof: "message"
+}, {
+  no: 13,
+  name: "simulate",
+  kind: "message",
+  T: SimulateScenario,
+  oneof: "message"
+}, {
+  no: 14,
+  name: "ping",
+  kind: "scalar",
+  T: 3 /* ScalarType.INT64 */,
+  oneof: "message"
+}, {
+  no: 15,
+  name: "update_metadata",
+  kind: "message",
+  T: UpdateParticipantMetadata,
+  oneof: "message"
+}, {
+  no: 16,
+  name: "ping_req",
+  kind: "message",
+  T: Ping,
+  oneof: "message"
+}, {
+  no: 17,
+  name: "update_audio_track",
+  kind: "message",
+  T: UpdateLocalAudioTrack,
+  oneof: "message"
+}, {
+  no: 18,
+  name: "update_video_track",
+  kind: "message",
+  T: UpdateLocalVideoTrack,
+  oneof: "message"
+}]);
+
+/**
+ * @generated from message livekit.SignalResponse
+ */
+const SignalResponse = /*@__PURE__*/proto3.makeMessageType("livekit.SignalResponse", () => [{
+  no: 1,
+  name: "join",
+  kind: "message",
+  T: JoinResponse,
+  oneof: "message"
+}, {
+  no: 2,
+  name: "answer",
+  kind: "message",
+  T: SessionDescription,
+  oneof: "message"
+}, {
+  no: 3,
+  name: "offer",
+  kind: "message",
+  T: SessionDescription,
+  oneof: "message"
+}, {
+  no: 4,
+  name: "trickle",
+  kind: "message",
+  T: TrickleRequest,
+  oneof: "message"
+}, {
+  no: 5,
+  name: "update",
+  kind: "message",
+  T: ParticipantUpdate,
+  oneof: "message"
+}, {
+  no: 6,
+  name: "track_published",
+  kind: "message",
+  T: TrackPublishedResponse,
+  oneof: "message"
+}, {
+  no: 8,
+  name: "leave",
+  kind: "message",
+  T: LeaveRequest,
+  oneof: "message"
+}, {
+  no: 9,
+  name: "mute",
+  kind: "message",
+  T: MuteTrackRequest,
+  oneof: "message"
+}, {
+  no: 10,
+  name: "speakers_changed",
+  kind: "message",
+  T: SpeakersChanged,
+  oneof: "message"
+}, {
+  no: 11,
+  name: "room_update",
+  kind: "message",
+  T: RoomUpdate,
+  oneof: "message"
+}, {
+  no: 12,
+  name: "connection_quality",
+  kind: "message",
+  T: ConnectionQualityUpdate,
+  oneof: "message"
+}, {
+  no: 13,
+  name: "stream_state_update",
+  kind: "message",
+  T: StreamStateUpdate,
+  oneof: "message"
+}, {
+  no: 14,
+  name: "subscribed_quality_update",
+  kind: "message",
+  T: SubscribedQualityUpdate,
+  oneof: "message"
+}, {
+  no: 15,
+  name: "subscription_permission_update",
+  kind: "message",
+  T: SubscriptionPermissionUpdate,
+  oneof: "message"
+}, {
+  no: 16,
+  name: "refresh_token",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */,
+  oneof: "message"
+}, {
+  no: 17,
+  name: "track_unpublished",
+  kind: "message",
+  T: TrackUnpublishedResponse,
+  oneof: "message"
+}, {
+  no: 18,
+  name: "pong",
+  kind: "scalar",
+  T: 3 /* ScalarType.INT64 */,
+  oneof: "message"
+}, {
+  no: 19,
+  name: "reconnect",
+  kind: "message",
+  T: ReconnectResponse,
+  oneof: "message"
+}, {
+  no: 20,
+  name: "pong_resp",
+  kind: "message",
+  T: Pong,
+  oneof: "message"
+}, {
+  no: 21,
+  name: "subscription_response",
+  kind: "message",
+  T: SubscriptionResponse,
+  oneof: "message"
+}]);
+
+/**
+ * @generated from message livekit.SimulcastCodec
+ */
+const SimulcastCodec = /*@__PURE__*/proto3.makeMessageType("livekit.SimulcastCodec", () => [{
+  no: 1,
+  name: "codec",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "cid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}]);
+
+/**
+ * @generated from message livekit.AddTrackRequest
+ */
+const AddTrackRequest = /*@__PURE__*/proto3.makeMessageType("livekit.AddTrackRequest", () => [{
+  no: 1,
+  name: "cid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "name",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 3,
+  name: "type",
+  kind: "enum",
+  T: proto3.getEnumType(TrackType)
+}, {
+  no: 4,
+  name: "width",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}, {
+  no: 5,
+  name: "height",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}, {
+  no: 6,
+  name: "muted",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}, {
+  no: 7,
+  name: "disable_dtx",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}, {
+  no: 8,
+  name: "source",
+  kind: "enum",
+  T: proto3.getEnumType(TrackSource)
+}, {
+  no: 9,
+  name: "layers",
+  kind: "message",
+  T: VideoLayer,
+  repeated: true
+}, {
+  no: 10,
+  name: "simulcast_codecs",
+  kind: "message",
+  T: SimulcastCodec,
+  repeated: true
+}, {
+  no: 11,
+  name: "sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 12,
+  name: "stereo",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}, {
+  no: 13,
+  name: "disable_red",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}, {
+  no: 14,
+  name: "encryption",
+  kind: "enum",
+  T: proto3.getEnumType(Encryption_Type)
+}, {
+  no: 15,
+  name: "stream",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}]);
+
+/**
+ * @generated from message livekit.TrickleRequest
+ */
+const TrickleRequest = /*@__PURE__*/proto3.makeMessageType("livekit.TrickleRequest", () => [{
+  no: 1,
+  name: "candidateInit",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "target",
+  kind: "enum",
+  T: proto3.getEnumType(SignalTarget)
+}]);
+
+/**
+ * @generated from message livekit.MuteTrackRequest
+ */
+const MuteTrackRequest = /*@__PURE__*/proto3.makeMessageType("livekit.MuteTrackRequest", () => [{
+  no: 1,
+  name: "sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "muted",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}]);
+
+/**
+ * @generated from message livekit.JoinResponse
+ */
+const JoinResponse = /*@__PURE__*/proto3.makeMessageType("livekit.JoinResponse", () => [{
+  no: 1,
+  name: "room",
+  kind: "message",
+  T: Room$1
+}, {
+  no: 2,
+  name: "participant",
+  kind: "message",
+  T: ParticipantInfo
+}, {
+  no: 3,
+  name: "other_participants",
+  kind: "message",
+  T: ParticipantInfo,
+  repeated: true
+}, {
+  no: 4,
+  name: "server_version",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 5,
+  name: "ice_servers",
+  kind: "message",
+  T: ICEServer,
+  repeated: true
+}, {
+  no: 6,
+  name: "subscriber_primary",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}, {
+  no: 7,
+  name: "alternative_url",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 8,
+  name: "client_configuration",
+  kind: "message",
+  T: ClientConfiguration
+}, {
+  no: 9,
+  name: "server_region",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 10,
+  name: "ping_timeout",
+  kind: "scalar",
+  T: 5 /* ScalarType.INT32 */
+}, {
+  no: 11,
+  name: "ping_interval",
+  kind: "scalar",
+  T: 5 /* ScalarType.INT32 */
+}, {
+  no: 12,
+  name: "server_info",
+  kind: "message",
+  T: ServerInfo
+}, {
+  no: 13,
+  name: "sif_trailer",
+  kind: "scalar",
+  T: 12 /* ScalarType.BYTES */
+}]);
+
+/**
+ * @generated from message livekit.ReconnectResponse
+ */
+const ReconnectResponse = /*@__PURE__*/proto3.makeMessageType("livekit.ReconnectResponse", () => [{
+  no: 1,
+  name: "ice_servers",
+  kind: "message",
+  T: ICEServer,
+  repeated: true
+}, {
+  no: 2,
+  name: "client_configuration",
+  kind: "message",
+  T: ClientConfiguration
+}]);
+
+/**
+ * @generated from message livekit.TrackPublishedResponse
+ */
+const TrackPublishedResponse = /*@__PURE__*/proto3.makeMessageType("livekit.TrackPublishedResponse", () => [{
+  no: 1,
+  name: "cid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "track",
+  kind: "message",
+  T: TrackInfo
+}]);
+
+/**
+ * @generated from message livekit.TrackUnpublishedResponse
+ */
+const TrackUnpublishedResponse = /*@__PURE__*/proto3.makeMessageType("livekit.TrackUnpublishedResponse", () => [{
+  no: 1,
+  name: "track_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}]);
+
+/**
+ * @generated from message livekit.SessionDescription
+ */
+const SessionDescription = /*@__PURE__*/proto3.makeMessageType("livekit.SessionDescription", () => [{
+  no: 1,
+  name: "type",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "sdp",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}]);
+
+/**
+ * @generated from message livekit.ParticipantUpdate
+ */
+const ParticipantUpdate = /*@__PURE__*/proto3.makeMessageType("livekit.ParticipantUpdate", () => [{
+  no: 1,
+  name: "participants",
+  kind: "message",
+  T: ParticipantInfo,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.UpdateSubscription
+ */
+const UpdateSubscription = /*@__PURE__*/proto3.makeMessageType("livekit.UpdateSubscription", () => [{
+  no: 1,
+  name: "track_sids",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */,
+  repeated: true
+}, {
+  no: 2,
+  name: "subscribe",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}, {
+  no: 3,
+  name: "participant_tracks",
+  kind: "message",
+  T: ParticipantTracks,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.UpdateTrackSettings
+ */
+const UpdateTrackSettings = /*@__PURE__*/proto3.makeMessageType("livekit.UpdateTrackSettings", () => [{
+  no: 1,
+  name: "track_sids",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */,
+  repeated: true
+}, {
+  no: 3,
+  name: "disabled",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}, {
+  no: 4,
+  name: "quality",
+  kind: "enum",
+  T: proto3.getEnumType(VideoQuality$1)
+}, {
+  no: 5,
+  name: "width",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}, {
+  no: 6,
+  name: "height",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}, {
+  no: 7,
+  name: "fps",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}, {
+  no: 8,
+  name: "priority",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}]);
+
+/**
+ * @generated from message livekit.UpdateLocalAudioTrack
+ */
+const UpdateLocalAudioTrack = /*@__PURE__*/proto3.makeMessageType("livekit.UpdateLocalAudioTrack", () => [{
+  no: 1,
+  name: "track_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "features",
+  kind: "enum",
+  T: proto3.getEnumType(AudioTrackFeature),
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.UpdateLocalVideoTrack
+ */
+const UpdateLocalVideoTrack = /*@__PURE__*/proto3.makeMessageType("livekit.UpdateLocalVideoTrack", () => [{
+  no: 1,
+  name: "track_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "width",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}, {
+  no: 3,
+  name: "height",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}]);
+
+/**
+ * @generated from message livekit.LeaveRequest
+ */
+const LeaveRequest = /*@__PURE__*/proto3.makeMessageType("livekit.LeaveRequest", () => [{
+  no: 1,
+  name: "can_reconnect",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}, {
+  no: 2,
+  name: "reason",
+  kind: "enum",
+  T: proto3.getEnumType(DisconnectReason)
+}, {
+  no: 3,
+  name: "action",
+  kind: "enum",
+  T: proto3.getEnumType(LeaveRequest_Action)
+}, {
+  no: 4,
+  name: "regions",
+  kind: "message",
+  T: RegionSettings
+}]);
+
+/**
+ * indicates action clients should take on receiving this message
+ *
+ * @generated from enum livekit.LeaveRequest.Action
+ */
+const LeaveRequest_Action = /*@__PURE__*/proto3.makeEnum("livekit.LeaveRequest.Action", [{
+  no: 0,
+  name: "DISCONNECT"
+}, {
+  no: 1,
+  name: "RESUME"
+}, {
+  no: 2,
+  name: "RECONNECT"
+}]);
+
+/**
+ * message to indicate published video track dimensions are changing
+ *
+ * @generated from message livekit.UpdateVideoLayers
+ */
+const UpdateVideoLayers = /*@__PURE__*/proto3.makeMessageType("livekit.UpdateVideoLayers", () => [{
+  no: 1,
+  name: "track_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "layers",
+  kind: "message",
+  T: VideoLayer,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.UpdateParticipantMetadata
+ */
+const UpdateParticipantMetadata = /*@__PURE__*/proto3.makeMessageType("livekit.UpdateParticipantMetadata", () => [{
+  no: 1,
+  name: "metadata",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "name",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}]);
+
+/**
+ * @generated from message livekit.ICEServer
+ */
+const ICEServer = /*@__PURE__*/proto3.makeMessageType("livekit.ICEServer", () => [{
+  no: 1,
+  name: "urls",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */,
+  repeated: true
+}, {
+  no: 2,
+  name: "username",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 3,
+  name: "credential",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}]);
+
+/**
+ * @generated from message livekit.SpeakersChanged
+ */
+const SpeakersChanged = /*@__PURE__*/proto3.makeMessageType("livekit.SpeakersChanged", () => [{
+  no: 1,
+  name: "speakers",
+  kind: "message",
+  T: SpeakerInfo,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.RoomUpdate
+ */
+const RoomUpdate = /*@__PURE__*/proto3.makeMessageType("livekit.RoomUpdate", () => [{
+  no: 1,
+  name: "room",
+  kind: "message",
+  T: Room$1
+}]);
+
+/**
+ * @generated from message livekit.ConnectionQualityInfo
+ */
+const ConnectionQualityInfo = /*@__PURE__*/proto3.makeMessageType("livekit.ConnectionQualityInfo", () => [{
+  no: 1,
+  name: "participant_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "quality",
+  kind: "enum",
+  T: proto3.getEnumType(ConnectionQuality$1)
+}, {
+  no: 3,
+  name: "score",
+  kind: "scalar",
+  T: 2 /* ScalarType.FLOAT */
+}]);
+
+/**
+ * @generated from message livekit.ConnectionQualityUpdate
+ */
+const ConnectionQualityUpdate = /*@__PURE__*/proto3.makeMessageType("livekit.ConnectionQualityUpdate", () => [{
+  no: 1,
+  name: "updates",
+  kind: "message",
+  T: ConnectionQualityInfo,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.StreamStateInfo
+ */
+const StreamStateInfo = /*@__PURE__*/proto3.makeMessageType("livekit.StreamStateInfo", () => [{
+  no: 1,
+  name: "participant_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "track_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 3,
+  name: "state",
+  kind: "enum",
+  T: proto3.getEnumType(StreamState)
+}]);
+
+/**
+ * @generated from message livekit.StreamStateUpdate
+ */
+const StreamStateUpdate = /*@__PURE__*/proto3.makeMessageType("livekit.StreamStateUpdate", () => [{
+  no: 1,
+  name: "stream_states",
+  kind: "message",
+  T: StreamStateInfo,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.SubscribedQuality
+ */
+const SubscribedQuality = /*@__PURE__*/proto3.makeMessageType("livekit.SubscribedQuality", () => [{
+  no: 1,
+  name: "quality",
+  kind: "enum",
+  T: proto3.getEnumType(VideoQuality$1)
+}, {
+  no: 2,
+  name: "enabled",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}]);
+
+/**
+ * @generated from message livekit.SubscribedCodec
+ */
+const SubscribedCodec = /*@__PURE__*/proto3.makeMessageType("livekit.SubscribedCodec", () => [{
+  no: 1,
+  name: "codec",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "qualities",
+  kind: "message",
+  T: SubscribedQuality,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.SubscribedQualityUpdate
+ */
+const SubscribedQualityUpdate = /*@__PURE__*/proto3.makeMessageType("livekit.SubscribedQualityUpdate", () => [{
+  no: 1,
+  name: "track_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "subscribed_qualities",
+  kind: "message",
+  T: SubscribedQuality,
+  repeated: true
+}, {
+  no: 3,
+  name: "subscribed_codecs",
+  kind: "message",
+  T: SubscribedCodec,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.TrackPermission
+ */
+const TrackPermission = /*@__PURE__*/proto3.makeMessageType("livekit.TrackPermission", () => [{
+  no: 1,
+  name: "participant_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "all_tracks",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}, {
+  no: 3,
+  name: "track_sids",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */,
+  repeated: true
+}, {
+  no: 4,
+  name: "participant_identity",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}]);
+
+/**
+ * @generated from message livekit.SubscriptionPermission
+ */
+const SubscriptionPermission = /*@__PURE__*/proto3.makeMessageType("livekit.SubscriptionPermission", () => [{
+  no: 1,
+  name: "all_participants",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}, {
+  no: 2,
+  name: "track_permissions",
+  kind: "message",
+  T: TrackPermission,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.SubscriptionPermissionUpdate
+ */
+const SubscriptionPermissionUpdate = /*@__PURE__*/proto3.makeMessageType("livekit.SubscriptionPermissionUpdate", () => [{
+  no: 1,
+  name: "participant_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "track_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 3,
+  name: "allowed",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */
+}]);
+
+/**
+ * @generated from message livekit.SyncState
+ */
+const SyncState = /*@__PURE__*/proto3.makeMessageType("livekit.SyncState", () => [{
+  no: 1,
+  name: "answer",
+  kind: "message",
+  T: SessionDescription
+}, {
+  no: 2,
+  name: "subscription",
+  kind: "message",
+  T: UpdateSubscription
+}, {
+  no: 3,
+  name: "publish_tracks",
+  kind: "message",
+  T: TrackPublishedResponse,
+  repeated: true
+}, {
+  no: 4,
+  name: "data_channels",
+  kind: "message",
+  T: DataChannelInfo,
+  repeated: true
+}, {
+  no: 5,
+  name: "offer",
+  kind: "message",
+  T: SessionDescription
+}, {
+  no: 6,
+  name: "track_sids_disabled",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.DataChannelInfo
+ */
+const DataChannelInfo = /*@__PURE__*/proto3.makeMessageType("livekit.DataChannelInfo", () => [{
+  no: 1,
+  name: "label",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "id",
+  kind: "scalar",
+  T: 13 /* ScalarType.UINT32 */
+}, {
+  no: 3,
+  name: "target",
+  kind: "enum",
+  T: proto3.getEnumType(SignalTarget)
+}]);
+
+/**
+ * @generated from message livekit.SimulateScenario
+ */
+const SimulateScenario = /*@__PURE__*/proto3.makeMessageType("livekit.SimulateScenario", () => [{
+  no: 1,
+  name: "speaker_update",
+  kind: "scalar",
+  T: 5 /* ScalarType.INT32 */,
+  oneof: "scenario"
+}, {
+  no: 2,
+  name: "node_failure",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */,
+  oneof: "scenario"
+}, {
+  no: 3,
+  name: "migration",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */,
+  oneof: "scenario"
+}, {
+  no: 4,
+  name: "server_leave",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */,
+  oneof: "scenario"
+}, {
+  no: 5,
+  name: "switch_candidate_protocol",
+  kind: "enum",
+  T: proto3.getEnumType(CandidateProtocol),
+  oneof: "scenario"
+}, {
+  no: 6,
+  name: "subscriber_bandwidth",
+  kind: "scalar",
+  T: 3 /* ScalarType.INT64 */,
+  oneof: "scenario"
+}, {
+  no: 7,
+  name: "disconnect_signal_on_resume",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */,
+  oneof: "scenario"
+}, {
+  no: 8,
+  name: "disconnect_signal_on_resume_no_messages",
+  kind: "scalar",
+  T: 8 /* ScalarType.BOOL */,
+  oneof: "scenario"
+}]);
+
+/**
+ * @generated from message livekit.Ping
+ */
+const Ping = /*@__PURE__*/proto3.makeMessageType("livekit.Ping", () => [{
+  no: 1,
+  name: "timestamp",
+  kind: "scalar",
+  T: 3 /* ScalarType.INT64 */
+}, {
+  no: 2,
+  name: "rtt",
+  kind: "scalar",
+  T: 3 /* ScalarType.INT64 */
+}]);
+
+/**
+ * @generated from message livekit.Pong
+ */
+const Pong = /*@__PURE__*/proto3.makeMessageType("livekit.Pong", () => [{
+  no: 1,
+  name: "last_ping_timestamp",
+  kind: "scalar",
+  T: 3 /* ScalarType.INT64 */
+}, {
+  no: 2,
+  name: "timestamp",
+  kind: "scalar",
+  T: 3 /* ScalarType.INT64 */
+}]);
+
+/**
+ * @generated from message livekit.RegionSettings
+ */
+const RegionSettings = /*@__PURE__*/proto3.makeMessageType("livekit.RegionSettings", () => [{
+  no: 1,
+  name: "regions",
+  kind: "message",
+  T: RegionInfo,
+  repeated: true
+}]);
+
+/**
+ * @generated from message livekit.RegionInfo
+ */
+const RegionInfo = /*@__PURE__*/proto3.makeMessageType("livekit.RegionInfo", () => [{
+  no: 1,
+  name: "region",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "url",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 3,
+  name: "distance",
+  kind: "scalar",
+  T: 3 /* ScalarType.INT64 */
+}]);
+
+/**
+ * @generated from message livekit.SubscriptionResponse
+ */
+const SubscriptionResponse = /*@__PURE__*/proto3.makeMessageType("livekit.SubscriptionResponse", () => [{
+  no: 1,
+  name: "track_sid",
+  kind: "scalar",
+  T: 9 /* ScalarType.STRING */
+}, {
+  no: 2,
+  name: "err",
+  kind: "enum",
+  T: proto3.getEnumType(SubscriptionError)
+}]);
+
+var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
+
+function getDefaultExportFromCjs (x) {
+	return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, 'default') ? x['default'] : x;
+}
+
+var loglevel = {exports: {}};
+
+/*
+* loglevel - https://github.com/pimterry/loglevel
+*
+* Copyright (c) 2013 Tim Perry
+* Licensed under the MIT license.
+*/
+(function (module) {
+  (function (root, definition) {
+
+    if (module.exports) {
+      module.exports = definition();
+    } else {
+      root.log = definition();
+    }
+  })(commonjsGlobal, function () {
+
+    // Slightly dubious tricks to cut down minimized file size
+    var noop = function () {};
+    var undefinedType = "undefined";
+    var isIE = typeof window !== undefinedType && typeof window.navigator !== undefinedType && /Trident\/|MSIE /.test(window.navigator.userAgent);
+    var logMethods = ["trace", "debug", "info", "warn", "error"];
+    var _loggersByName = {};
+    var defaultLogger = null;
+
+    // Cross-browser bind equivalent that works at least back to IE6
+    function bindMethod(obj, methodName) {
+      var method = obj[methodName];
+      if (typeof method.bind === 'function') {
+        return method.bind(obj);
+      } else {
+        try {
+          return Function.prototype.bind.call(method, obj);
+        } catch (e) {
+          // Missing bind shim or IE8 + Modernizr, fallback to wrapping
+          return function () {
+            return Function.prototype.apply.apply(method, [obj, arguments]);
+          };
+        }
+      }
+    }
+
+    // Trace() doesn't print the message in IE, so for that case we need to wrap it
+    function traceForIE() {
+      if (console.log) {
+        if (console.log.apply) {
+          console.log.apply(console, arguments);
+        } else {
+          // In old IE, native console methods themselves don't have apply().
+          Function.prototype.apply.apply(console.log, [console, arguments]);
+        }
+      }
+      if (console.trace) console.trace();
+    }
+
+    // Build the best logging method possible for this env
+    // Wherever possible we want to bind, not wrap, to preserve stack traces
+    function realMethod(methodName) {
+      if (methodName === 'debug') {
+        methodName = 'log';
+      }
+      if (typeof console === undefinedType) {
+        return false; // No method possible, for now - fixed later by enableLoggingWhenConsoleArrives
+      } else if (methodName === 'trace' && isIE) {
+        return traceForIE;
+      } else if (console[methodName] !== undefined) {
+        return bindMethod(console, methodName);
+      } else if (console.log !== undefined) {
+        return bindMethod(console, 'log');
+      } else {
+        return noop;
+      }
+    }
+
+    // These private functions always need `this` to be set properly
+
+    function replaceLoggingMethods() {
+      /*jshint validthis:true */
+      var level = this.getLevel();
+
+      // Replace the actual methods.
+      for (var i = 0; i < logMethods.length; i++) {
+        var methodName = logMethods[i];
+        this[methodName] = i < level ? noop : this.methodFactory(methodName, level, this.name);
+      }
+
+      // Define log.log as an alias for log.debug
+      this.log = this.debug;
+
+      // Return any important warnings.
+      if (typeof console === undefinedType && level < this.levels.SILENT) {
+        return "No console available for logging";
+      }
+    }
+
+    // In old IE versions, the console isn't present until you first open it.
+    // We build realMethod() replacements here that regenerate logging methods
+    function enableLoggingWhenConsoleArrives(methodName) {
+      return function () {
+        if (typeof console !== undefinedType) {
+          replaceLoggingMethods.call(this);
+          this[methodName].apply(this, arguments);
+        }
+      };
+    }
+
+    // By default, we use closely bound real methods wherever possible, and
+    // otherwise we wait for a console to appear, and then try again.
+    function defaultMethodFactory(methodName, _level, _loggerName) {
+      /*jshint validthis:true */
+      return realMethod(methodName) || enableLoggingWhenConsoleArrives.apply(this, arguments);
+    }
+    function Logger(name, factory) {
+      // Private instance variables.
+      var self = this;
+      /**
+       * The level inherited from a parent logger (or a global default). We
+       * cache this here rather than delegating to the parent so that it stays
+       * in sync with the actual logging methods that we have installed (the
+       * parent could change levels but we might not have rebuilt the loggers
+       * in this child yet).
+       * @type {number}
+       */
+      var inheritedLevel;
+      /**
+       * The default level for this logger, if any. If set, this overrides
+       * `inheritedLevel`.
+       * @type {number|null}
+       */
+      var defaultLevel;
+      /**
+       * A user-specific level for this logger. If set, this overrides
+       * `defaultLevel`.
+       * @type {number|null}
+       */
+      var userLevel;
+      var storageKey = "loglevel";
+      if (typeof name === "string") {
+        storageKey += ":" + name;
+      } else if (typeof name === "symbol") {
+        storageKey = undefined;
+      }
+      function persistLevelIfPossible(levelNum) {
+        var levelName = (logMethods[levelNum] || 'silent').toUpperCase();
+        if (typeof window === undefinedType || !storageKey) return;
+
+        // Use localStorage if available
+        try {
+          window.localStorage[storageKey] = levelName;
+          return;
+        } catch (ignore) {}
+
+        // Use session cookie as fallback
+        try {
+          window.document.cookie = encodeURIComponent(storageKey) + "=" + levelName + ";";
+        } catch (ignore) {}
+      }
+      function getPersistedLevel() {
+        var storedLevel;
+        if (typeof window === undefinedType || !storageKey) return;
+        try {
+          storedLevel = window.localStorage[storageKey];
+        } catch (ignore) {}
+
+        // Fallback to cookies if local storage gives us nothing
+        if (typeof storedLevel === undefinedType) {
+          try {
+            var cookie = window.document.cookie;
+            var cookieName = encodeURIComponent(storageKey);
+            var location = cookie.indexOf(cookieName + "=");
+            if (location !== -1) {
+              storedLevel = /^([^;]+)/.exec(cookie.slice(location + cookieName.length + 1))[1];
+            }
+          } catch (ignore) {}
+        }
+
+        // If the stored level is not valid, treat it as if nothing was stored.
+        if (self.levels[storedLevel] === undefined) {
+          storedLevel = undefined;
+        }
+        return storedLevel;
+      }
+      function clearPersistedLevel() {
+        if (typeof window === undefinedType || !storageKey) return;
+
+        // Use localStorage if available
+        try {
+          window.localStorage.removeItem(storageKey);
+        } catch (ignore) {}
+
+        // Use session cookie as fallback
+        try {
+          window.document.cookie = encodeURIComponent(storageKey) + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC";
+        } catch (ignore) {}
+      }
+      function normalizeLevel(input) {
+        var level = input;
+        if (typeof level === "string" && self.levels[level.toUpperCase()] !== undefined) {
+          level = self.levels[level.toUpperCase()];
+        }
+        if (typeof level === "number" && level >= 0 && level <= self.levels.SILENT) {
+          return level;
+        } else {
+          throw new TypeError("log.setLevel() called with invalid level: " + input);
+        }
+      }
+
+      /*
+       *
+       * Public logger API - see https://github.com/pimterry/loglevel for details
+       *
+       */
+
+      self.name = name;
+      self.levels = {
+        "TRACE": 0,
+        "DEBUG": 1,
+        "INFO": 2,
+        "WARN": 3,
+        "ERROR": 4,
+        "SILENT": 5
+      };
+      self.methodFactory = factory || defaultMethodFactory;
+      self.getLevel = function () {
+        if (userLevel != null) {
+          return userLevel;
+        } else if (defaultLevel != null) {
+          return defaultLevel;
+        } else {
+          return inheritedLevel;
+        }
+      };
+      self.setLevel = function (level, persist) {
+        userLevel = normalizeLevel(level);
+        if (persist !== false) {
+          // defaults to true
+          persistLevelIfPossible(userLevel);
+        }
+
+        // NOTE: in v2, this should call rebuild(), which updates children.
+        return replaceLoggingMethods.call(self);
+      };
+      self.setDefaultLevel = function (level) {
+        defaultLevel = normalizeLevel(level);
+        if (!getPersistedLevel()) {
+          self.setLevel(level, false);
+        }
+      };
+      self.resetLevel = function () {
+        userLevel = null;
+        clearPersistedLevel();
+        replaceLoggingMethods.call(self);
+      };
+      self.enableAll = function (persist) {
+        self.setLevel(self.levels.TRACE, persist);
+      };
+      self.disableAll = function (persist) {
+        self.setLevel(self.levels.SILENT, persist);
+      };
+      self.rebuild = function () {
+        if (defaultLogger !== self) {
+          inheritedLevel = normalizeLevel(defaultLogger.getLevel());
+        }
+        replaceLoggingMethods.call(self);
+        if (defaultLogger === self) {
+          for (var childName in _loggersByName) {
+            _loggersByName[childName].rebuild();
+          }
+        }
+      };
+
+      // Initialize all the internal levels.
+      inheritedLevel = normalizeLevel(defaultLogger ? defaultLogger.getLevel() : "WARN");
+      var initialLevel = getPersistedLevel();
+      if (initialLevel != null) {
+        userLevel = normalizeLevel(initialLevel);
+      }
+      replaceLoggingMethods.call(self);
+    }
+
+    /*
+     *
+     * Top-level API
+     *
+     */
+
+    defaultLogger = new Logger();
+    defaultLogger.getLogger = function getLogger(name) {
+      if (typeof name !== "symbol" && typeof name !== "string" || name === "") {
+        throw new TypeError("You must supply a name when creating a logger.");
+      }
+      var logger = _loggersByName[name];
+      if (!logger) {
+        logger = _loggersByName[name] = new Logger(name, defaultLogger.methodFactory);
+      }
+      return logger;
+    };
+
+    // Grab the current global log variable in case of overwrite
+    var _log = typeof window !== undefinedType ? window.log : undefined;
+    defaultLogger.noConflict = function () {
+      if (typeof window !== undefinedType && window.log === defaultLogger) {
+        window.log = _log;
+      }
+      return defaultLogger;
+    };
+    defaultLogger.getLoggers = function getLoggers() {
+      return _loggersByName;
+    };
+
+    // ES6 default export, for compatibility
+    defaultLogger['default'] = defaultLogger;
+    return defaultLogger;
+  });
+})(loglevel);
+var loglevelExports = loglevel.exports;
+
+var LogLevel;
+(function (LogLevel) {
+  LogLevel[LogLevel["trace"] = 0] = "trace";
+  LogLevel[LogLevel["debug"] = 1] = "debug";
+  LogLevel[LogLevel["info"] = 2] = "info";
+  LogLevel[LogLevel["warn"] = 3] = "warn";
+  LogLevel[LogLevel["error"] = 4] = "error";
+  LogLevel[LogLevel["silent"] = 5] = "silent";
+})(LogLevel || (LogLevel = {}));
+var LoggerNames;
+(function (LoggerNames) {
+  LoggerNames["Default"] = "livekit";
+  LoggerNames["Room"] = "livekit-room";
+  LoggerNames["Participant"] = "livekit-participant";
+  LoggerNames["Track"] = "livekit-track";
+  LoggerNames["Publication"] = "livekit-track-publication";
+  LoggerNames["Engine"] = "livekit-engine";
+  LoggerNames["Signal"] = "livekit-signal";
+  LoggerNames["PCManager"] = "livekit-pc-manager";
+  LoggerNames["PCTransport"] = "livekit-pc-transport";
+  LoggerNames["E2EE"] = "lk-e2ee";
+})(LoggerNames || (LoggerNames = {}));
+let livekitLogger = loglevelExports.getLogger('livekit');
+const livekitLoggers = Object.values(LoggerNames).map(name => loglevelExports.getLogger(name));
+livekitLogger.setDefaultLevel(LogLevel.info);
+/**
+ * @internal
+ */
+function getLogger(name) {
+  const logger = loglevelExports.getLogger(name);
+  logger.setDefaultLevel(livekitLogger.getLevel());
+  return logger;
+}
+function setLogLevel(level, loggerName) {
+  if (loggerName) {
+    loglevelExports.getLogger(loggerName).setLevel(level);
+  }
+  for (const logger of livekitLoggers) {
+    logger.setLevel(level);
+  }
+}
+/**
+ * use this to hook into the logging function to allow sending internal livekit logs to third party services
+ * if set, the browser logs will lose their stacktrace information (see https://github.com/pimterry/loglevel#writing-plugins)
+ */
+function setLogExtension(extension, logger) {
+  const loggers = logger ? [logger] : livekitLoggers;
+  loggers.forEach(logR => {
+    const originalFactory = logR.methodFactory;
+    logR.methodFactory = (methodName, configLevel, loggerName) => {
+      const rawMethod = originalFactory(methodName, configLevel, loggerName);
+      const logLevel = LogLevel[methodName];
+      const needLog = logLevel >= configLevel && logLevel < LogLevel.silent;
+      return (msg, context) => {
+        if (context) rawMethod(msg, context);else rawMethod(msg);
+        if (needLog) {
+          extension(logLevel, msg, context);
+        }
+      };
+    };
+    logR.setLevel(logR.getLevel());
+  });
+}
+const workerLogger = loglevelExports.getLogger('lk-e2ee');
 
 const maxRetryDelay = 7000;
 const DEFAULT_RETRY_DELAYS_IN_MS = [0, 300, 2 * 2 * 300, 3 * 3 * 300, 4 * 4 * 300, maxRetryDelay, maxRetryDelay, maxRetryDelay, maxRetryDelay, maxRetryDelay];
@@ -6198,7 +6039,6 @@ EventEmitter.prototype.emit = function emit(type) {
     err.context = er;
     throw err; // Unhandled 'error' event
   }
-
   var handler = events[type];
   if (handler === undefined) return false;
   if (typeof handler === 'function') {
@@ -6831,7 +6671,6 @@ function shimGetUserMedia$2(window, browserDetails) {
             if (!dev && devices.length && matches.includes('back')) {
               dev = devices[devices.length - 1]; // more likely the back cam
             }
-
             if (dev) {
               constraints.video.deviceId = face.exact ? {
                 exact: dev.deviceId
@@ -7065,7 +6904,6 @@ function shimGetSendersWithDtmf(window) {
         this._senders = this._senders || [];
         return this._senders.slice(); // return a copy of the internal state.
       };
-
       const origAddTrack = window.RTCPeerConnection.prototype.addTrack;
       window.RTCPeerConnection.prototype.addTrack = function addTrack(track, stream) {
         let sender = origAddTrack.apply(this, arguments);
@@ -7562,18 +7400,18 @@ function fixNegotiationNeeded(window, browserDetails) {
 }
 
 var chromeShim = /*#__PURE__*/Object.freeze({
-	__proto__: null,
-	fixNegotiationNeeded: fixNegotiationNeeded,
-	shimAddTrackRemoveTrack: shimAddTrackRemoveTrack,
-	shimAddTrackRemoveTrackWithNative: shimAddTrackRemoveTrackWithNative,
-	shimGetDisplayMedia: shimGetDisplayMedia$1,
-	shimGetSendersWithDtmf: shimGetSendersWithDtmf,
-	shimGetStats: shimGetStats,
-	shimGetUserMedia: shimGetUserMedia$2,
-	shimMediaStream: shimMediaStream,
-	shimOnTrack: shimOnTrack$1,
-	shimPeerConnection: shimPeerConnection$1,
-	shimSenderReceiverGetStats: shimSenderReceiverGetStats
+    __proto__: null,
+    fixNegotiationNeeded: fixNegotiationNeeded,
+    shimAddTrackRemoveTrack: shimAddTrackRemoveTrack,
+    shimAddTrackRemoveTrackWithNative: shimAddTrackRemoveTrackWithNative,
+    shimGetDisplayMedia: shimGetDisplayMedia$1,
+    shimGetSendersWithDtmf: shimGetSendersWithDtmf,
+    shimGetStats: shimGetStats,
+    shimGetUserMedia: shimGetUserMedia$2,
+    shimMediaStream: shimMediaStream,
+    shimOnTrack: shimOnTrack$1,
+    shimPeerConnection: shimPeerConnection$1,
+    shimSenderReceiverGetStats: shimSenderReceiverGetStats
 });
 
 /*
@@ -7689,7 +7527,6 @@ function shimPeerConnection(window, browserDetails) {
   if (typeof window !== 'object' || !(window.RTCPeerConnection || window.mozRTCPeerConnection)) {
     return; // probably media.peerconnection.enabled=false in about:config
   }
-
   if (!window.RTCPeerConnection && window.mozRTCPeerConnection) {
     // very basic support for old versions.
     window.RTCPeerConnection = window.mozRTCPeerConnection;
@@ -7934,19 +7771,19 @@ function shimCreateAnswer(window) {
 }
 
 var firefoxShim = /*#__PURE__*/Object.freeze({
-	__proto__: null,
-	shimAddTransceiver: shimAddTransceiver,
-	shimCreateAnswer: shimCreateAnswer,
-	shimCreateOffer: shimCreateOffer,
-	shimGetDisplayMedia: shimGetDisplayMedia,
-	shimGetParameters: shimGetParameters,
-	shimGetUserMedia: shimGetUserMedia$1,
-	shimOnTrack: shimOnTrack,
-	shimPeerConnection: shimPeerConnection,
-	shimRTCDataChannel: shimRTCDataChannel,
-	shimReceiverGetStats: shimReceiverGetStats,
-	shimRemoveStream: shimRemoveStream,
-	shimSenderGetStats: shimSenderGetStats
+    __proto__: null,
+    shimAddTransceiver: shimAddTransceiver,
+    shimCreateAnswer: shimCreateAnswer,
+    shimCreateOffer: shimCreateOffer,
+    shimGetDisplayMedia: shimGetDisplayMedia,
+    shimGetParameters: shimGetParameters,
+    shimGetUserMedia: shimGetUserMedia$1,
+    shimOnTrack: shimOnTrack,
+    shimPeerConnection: shimPeerConnection,
+    shimRTCDataChannel: shimRTCDataChannel,
+    shimReceiverGetStats: shimReceiverGetStats,
+    shimRemoveStream: shimRemoveStream,
+    shimSenderGetStats: shimSenderGetStats
 });
 
 /*
@@ -8267,16 +8104,16 @@ function shimAudioContext(window) {
 }
 
 var safariShim = /*#__PURE__*/Object.freeze({
-	__proto__: null,
-	shimAudioContext: shimAudioContext,
-	shimCallbacksAPI: shimCallbacksAPI,
-	shimConstraints: shimConstraints,
-	shimCreateOfferLegacy: shimCreateOfferLegacy,
-	shimGetUserMedia: shimGetUserMedia,
-	shimLocalStreamsAPI: shimLocalStreamsAPI,
-	shimRTCIceServerUrls: shimRTCIceServerUrls,
-	shimRemoteStreamsAPI: shimRemoteStreamsAPI,
-	shimTrackEventTransceiver: shimTrackEventTransceiver
+    __proto__: null,
+    shimAudioContext: shimAudioContext,
+    shimCallbacksAPI: shimCallbacksAPI,
+    shimConstraints: shimConstraints,
+    shimCreateOfferLegacy: shimCreateOfferLegacy,
+    shimGetUserMedia: shimGetUserMedia,
+    shimLocalStreamsAPI: shimLocalStreamsAPI,
+    shimRTCIceServerUrls: shimRTCIceServerUrls,
+    shimRemoteStreamsAPI: shimRemoteStreamsAPI,
+    shimTrackEventTransceiver: shimTrackEventTransceiver
 });
 
 var sdp$1 = {exports: {}};
@@ -8428,7 +8265,6 @@ var sdp$1 = {exports: {}};
     const parsed = {
       payloadType: parseInt(parts.shift(), 10) // was: id
     };
-
     parts = parts[0].split('/');
     parsed.name = parts[0];
     parsed.clockRate = parseInt(parts[1], 10); // was: clockrate
@@ -8966,7 +8802,6 @@ var sdp$1 = {exports: {}};
         // FIXME: What should happen here?
       }
     }
-
     if (sessionpart) {
       return SDPUtils.getDirection(sessionpart);
     }
@@ -9015,7 +8850,6 @@ var sdp$1 = {exports: {}};
       }
       // TODO: check the modifier a bit more.
     }
-
     return true;
   };
 
@@ -9028,8 +8862,8 @@ var sdpExports = sdp$1.exports;
 var SDPUtils = /*@__PURE__*/getDefaultExportFromCjs(sdpExports);
 
 var sdp = /*#__PURE__*/_mergeNamespaces({
-	__proto__: null,
-	default: SDPUtils
+    __proto__: null,
+    default: SDPUtils
 }, [sdpExports]);
 
 /*
@@ -9449,15 +9283,15 @@ function shimParameterlessSetLocalDescription(window, browserDetails) {
 }
 
 var commonShim = /*#__PURE__*/Object.freeze({
-	__proto__: null,
-	removeExtmapAllowMixed: removeExtmapAllowMixed,
-	shimAddIceCandidateNullOrEmpty: shimAddIceCandidateNullOrEmpty,
-	shimConnectionState: shimConnectionState,
-	shimMaxMessageSize: shimMaxMessageSize,
-	shimParameterlessSetLocalDescription: shimParameterlessSetLocalDescription,
-	shimRTCIceCandidate: shimRTCIceCandidate,
-	shimRTCIceCandidateRelayProtocol: shimRTCIceCandidateRelayProtocol,
-	shimSendThrowTypeError: shimSendThrowTypeError
+    __proto__: null,
+    removeExtmapAllowMixed: removeExtmapAllowMixed,
+    shimAddIceCandidateNullOrEmpty: shimAddIceCandidateNullOrEmpty,
+    shimConnectionState: shimConnectionState,
+    shimMaxMessageSize: shimMaxMessageSize,
+    shimParameterlessSetLocalDescription: shimParameterlessSetLocalDescription,
+    shimRTCIceCandidate: shimRTCIceCandidate,
+    shimRTCIceCandidateRelayProtocol: shimRTCIceCandidateRelayProtocol,
+    shimSendThrowTypeError: shimSendThrowTypeError
 });
 
 /*
@@ -9599,2250 +9433,270 @@ adapterFactory({
   window: typeof window === 'undefined' ? undefined : window
 });
 
-// Copyright 2023 LiveKit, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-/**
- * @generated from enum livekit.SignalTarget
- */
-var SignalTarget;
-(function (SignalTarget) {
-  /**
-   * @generated from enum value: PUBLISHER = 0;
-   */
-  SignalTarget[SignalTarget["PUBLISHER"] = 0] = "PUBLISHER";
-  /**
-   * @generated from enum value: SUBSCRIBER = 1;
-   */
-  SignalTarget[SignalTarget["SUBSCRIBER"] = 1] = "SUBSCRIBER";
-})(SignalTarget || (SignalTarget = {}));
-// Retrieve enum metadata with: proto3.getEnumType(SignalTarget)
-proto3.util.setEnumType(SignalTarget, "livekit.SignalTarget", [{
-  no: 0,
-  name: "PUBLISHER"
-}, {
-  no: 1,
-  name: "SUBSCRIBER"
-}]);
-/**
- * @generated from enum livekit.StreamState
- */
-var StreamState;
-(function (StreamState) {
-  /**
-   * @generated from enum value: ACTIVE = 0;
-   */
-  StreamState[StreamState["ACTIVE"] = 0] = "ACTIVE";
-  /**
-   * @generated from enum value: PAUSED = 1;
-   */
-  StreamState[StreamState["PAUSED"] = 1] = "PAUSED";
-})(StreamState || (StreamState = {}));
-// Retrieve enum metadata with: proto3.getEnumType(StreamState)
-proto3.util.setEnumType(StreamState, "livekit.StreamState", [{
-  no: 0,
-  name: "ACTIVE"
-}, {
-  no: 1,
-  name: "PAUSED"
-}]);
-/**
- * @generated from enum livekit.CandidateProtocol
- */
-var CandidateProtocol;
-(function (CandidateProtocol) {
-  /**
-   * @generated from enum value: UDP = 0;
-   */
-  CandidateProtocol[CandidateProtocol["UDP"] = 0] = "UDP";
-  /**
-   * @generated from enum value: TCP = 1;
-   */
-  CandidateProtocol[CandidateProtocol["TCP"] = 1] = "TCP";
-  /**
-   * @generated from enum value: TLS = 2;
-   */
-  CandidateProtocol[CandidateProtocol["TLS"] = 2] = "TLS";
-})(CandidateProtocol || (CandidateProtocol = {}));
-// Retrieve enum metadata with: proto3.getEnumType(CandidateProtocol)
-proto3.util.setEnumType(CandidateProtocol, "livekit.CandidateProtocol", [{
-  no: 0,
-  name: "UDP"
-}, {
-  no: 1,
-  name: "TCP"
-}, {
-  no: 2,
-  name: "TLS"
-}]);
-/**
- * @generated from message livekit.SignalRequest
- */
-class SignalRequest extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from oneof livekit.SignalRequest.message
-     */
-    this.message = {
-      case: undefined
+const ENCRYPTION_ALGORITHM = 'AES-GCM';
+// How many consecutive frames can fail decrypting before a particular key gets marked as invalid
+const DECRYPTION_FAILURE_TOLERANCE = 10;
+// flag set to indicate that e2ee has been setup for sender/receiver;
+const E2EE_FLAG = 'lk_e2ee';
+const SALT = 'LKFrameEncryptionKey';
+const KEY_PROVIDER_DEFAULTS = {
+  sharedKey: false,
+  ratchetSalt: SALT,
+  ratchetWindowSize: 8,
+  failureTolerance: DECRYPTION_FAILURE_TOLERANCE,
+  keyringSize: 16
+};
+
+var KeyProviderEvent;
+(function (KeyProviderEvent) {
+  KeyProviderEvent["SetKey"] = "setKey";
+  KeyProviderEvent["RatchetRequest"] = "ratchetRequest";
+  KeyProviderEvent["KeyRatcheted"] = "keyRatcheted";
+})(KeyProviderEvent || (KeyProviderEvent = {}));
+var KeyHandlerEvent;
+(function (KeyHandlerEvent) {
+  KeyHandlerEvent["KeyRatcheted"] = "keyRatcheted";
+})(KeyHandlerEvent || (KeyHandlerEvent = {}));
+var EncryptionEvent;
+(function (EncryptionEvent) {
+  EncryptionEvent["ParticipantEncryptionStatusChanged"] = "participantEncryptionStatusChanged";
+  EncryptionEvent["EncryptionError"] = "encryptionError";
+})(EncryptionEvent || (EncryptionEvent = {}));
+var CryptorEvent;
+(function (CryptorEvent) {
+  CryptorEvent["Error"] = "cryptorError";
+})(CryptorEvent || (CryptorEvent = {}));
+
+function isE2EESupported() {
+  return isInsertableStreamSupported() || isScriptTransformSupported();
+}
+function isScriptTransformSupported() {
+  // @ts-ignore
+  return typeof window.RTCRtpScriptTransform !== 'undefined';
+}
+function isInsertableStreamSupported() {
+  return typeof window.RTCRtpSender !== 'undefined' &&
+  // @ts-ignore
+  typeof window.RTCRtpSender.prototype.createEncodedStreams !== 'undefined';
+}
+function isVideoFrame(frame) {
+  return 'type' in frame;
+}
+function importKey(keyBytes_1) {
+  return __awaiter(this, arguments, void 0, function (keyBytes) {
+    let algorithm = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {
+      name: ENCRYPTION_ALGORITHM
     };
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SignalRequest().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SignalRequest().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SignalRequest().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SignalRequest, a, b);
+    let usage = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 'encrypt';
+    return function* () {
+      // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey
+      return crypto.subtle.importKey('raw', keyBytes, algorithm, false, usage === 'derive' ? ['deriveBits', 'deriveKey'] : ['encrypt', 'decrypt']);
+    }();
+  });
+}
+function createKeyMaterialFromString(password) {
+  return __awaiter(this, void 0, void 0, function* () {
+    let enc = new TextEncoder();
+    const keyMaterial = yield crypto.subtle.importKey('raw', enc.encode(password), {
+      name: 'PBKDF2'
+    }, false, ['deriveBits', 'deriveKey']);
+    return keyMaterial;
+  });
+}
+function createKeyMaterialFromBuffer(cryptoBuffer) {
+  return __awaiter(this, void 0, void 0, function* () {
+    const keyMaterial = yield crypto.subtle.importKey('raw', cryptoBuffer, 'HKDF', false, ['deriveBits', 'deriveKey']);
+    return keyMaterial;
+  });
+}
+function getAlgoOptions(algorithmName, salt) {
+  const textEncoder = new TextEncoder();
+  const encodedSalt = textEncoder.encode(salt);
+  switch (algorithmName) {
+    case 'HKDF':
+      return {
+        name: 'HKDF',
+        salt: encodedSalt,
+        hash: 'SHA-256',
+        info: new ArrayBuffer(128)
+      };
+    case 'PBKDF2':
+      {
+        return {
+          name: 'PBKDF2',
+          salt: encodedSalt,
+          hash: 'SHA-256',
+          iterations: 100000
+        };
+      }
+    default:
+      throw new Error("algorithm ".concat(algorithmName, " is currently unsupported"));
   }
 }
-SignalRequest.runtime = proto3;
-SignalRequest.typeName = "livekit.SignalRequest";
-SignalRequest.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "offer",
-  kind: "message",
-  T: SessionDescription,
-  oneof: "message"
-}, {
-  no: 2,
-  name: "answer",
-  kind: "message",
-  T: SessionDescription,
-  oneof: "message"
-}, {
-  no: 3,
-  name: "trickle",
-  kind: "message",
-  T: TrickleRequest,
-  oneof: "message"
-}, {
-  no: 4,
-  name: "add_track",
-  kind: "message",
-  T: AddTrackRequest,
-  oneof: "message"
-}, {
-  no: 5,
-  name: "mute",
-  kind: "message",
-  T: MuteTrackRequest,
-  oneof: "message"
-}, {
-  no: 6,
-  name: "subscription",
-  kind: "message",
-  T: UpdateSubscription,
-  oneof: "message"
-}, {
-  no: 7,
-  name: "track_setting",
-  kind: "message",
-  T: UpdateTrackSettings,
-  oneof: "message"
-}, {
-  no: 8,
-  name: "leave",
-  kind: "message",
-  T: LeaveRequest,
-  oneof: "message"
-}, {
-  no: 10,
-  name: "update_layers",
-  kind: "message",
-  T: UpdateVideoLayers,
-  oneof: "message"
-}, {
-  no: 11,
-  name: "subscription_permission",
-  kind: "message",
-  T: SubscriptionPermission,
-  oneof: "message"
-}, {
-  no: 12,
-  name: "sync_state",
-  kind: "message",
-  T: SyncState,
-  oneof: "message"
-}, {
-  no: 13,
-  name: "simulate",
-  kind: "message",
-  T: SimulateScenario,
-  oneof: "message"
-}, {
-  no: 14,
-  name: "ping",
-  kind: "scalar",
-  T: 3 /* ScalarType.INT64 */,
-  oneof: "message"
-}, {
-  no: 15,
-  name: "update_metadata",
-  kind: "message",
-  T: UpdateParticipantMetadata,
-  oneof: "message"
-}, {
-  no: 16,
-  name: "ping_req",
-  kind: "message",
-  T: Ping,
-  oneof: "message"
-}]);
 /**
- * @generated from message livekit.SignalResponse
+ * Derives a set of keys from the master key.
+ * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.1
  */
-class SignalResponse extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from oneof livekit.SignalResponse.message
-     */
-    this.message = {
-      case: undefined
+function deriveKeys(material, salt) {
+  return __awaiter(this, void 0, void 0, function* () {
+    const algorithmOptions = getAlgoOptions(material.algorithm.name, salt);
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#HKDF
+    // https://developer.mozilla.org/en-US/docs/Web/API/HkdfParams
+    const encryptionKey = yield crypto.subtle.deriveKey(algorithmOptions, material, {
+      name: ENCRYPTION_ALGORITHM,
+      length: 128
+    }, false, ['encrypt', 'decrypt']);
+    return {
+      material,
+      encryptionKey
     };
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SignalResponse().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SignalResponse().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SignalResponse().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SignalResponse, a, b);
-  }
+  });
 }
-SignalResponse.runtime = proto3;
-SignalResponse.typeName = "livekit.SignalResponse";
-SignalResponse.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "join",
-  kind: "message",
-  T: JoinResponse,
-  oneof: "message"
-}, {
-  no: 2,
-  name: "answer",
-  kind: "message",
-  T: SessionDescription,
-  oneof: "message"
-}, {
-  no: 3,
-  name: "offer",
-  kind: "message",
-  T: SessionDescription,
-  oneof: "message"
-}, {
-  no: 4,
-  name: "trickle",
-  kind: "message",
-  T: TrickleRequest,
-  oneof: "message"
-}, {
-  no: 5,
-  name: "update",
-  kind: "message",
-  T: ParticipantUpdate,
-  oneof: "message"
-}, {
-  no: 6,
-  name: "track_published",
-  kind: "message",
-  T: TrackPublishedResponse,
-  oneof: "message"
-}, {
-  no: 8,
-  name: "leave",
-  kind: "message",
-  T: LeaveRequest,
-  oneof: "message"
-}, {
-  no: 9,
-  name: "mute",
-  kind: "message",
-  T: MuteTrackRequest,
-  oneof: "message"
-}, {
-  no: 10,
-  name: "speakers_changed",
-  kind: "message",
-  T: SpeakersChanged,
-  oneof: "message"
-}, {
-  no: 11,
-  name: "room_update",
-  kind: "message",
-  T: RoomUpdate,
-  oneof: "message"
-}, {
-  no: 12,
-  name: "connection_quality",
-  kind: "message",
-  T: ConnectionQualityUpdate,
-  oneof: "message"
-}, {
-  no: 13,
-  name: "stream_state_update",
-  kind: "message",
-  T: StreamStateUpdate,
-  oneof: "message"
-}, {
-  no: 14,
-  name: "subscribed_quality_update",
-  kind: "message",
-  T: SubscribedQualityUpdate,
-  oneof: "message"
-}, {
-  no: 15,
-  name: "subscription_permission_update",
-  kind: "message",
-  T: SubscriptionPermissionUpdate,
-  oneof: "message"
-}, {
-  no: 16,
-  name: "refresh_token",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */,
-  oneof: "message"
-}, {
-  no: 17,
-  name: "track_unpublished",
-  kind: "message",
-  T: TrackUnpublishedResponse,
-  oneof: "message"
-}, {
-  no: 18,
-  name: "pong",
-  kind: "scalar",
-  T: 3 /* ScalarType.INT64 */,
-  oneof: "message"
-}, {
-  no: 19,
-  name: "reconnect",
-  kind: "message",
-  T: ReconnectResponse,
-  oneof: "message"
-}, {
-  no: 20,
-  name: "pong_resp",
-  kind: "message",
-  T: Pong,
-  oneof: "message"
-}, {
-  no: 21,
-  name: "subscription_response",
-  kind: "message",
-  T: SubscriptionResponse,
-  oneof: "message"
-}]);
+function createE2EEKey() {
+  return window.crypto.getRandomValues(new Uint8Array(32));
+}
 /**
- * @generated from message livekit.SimulcastCodec
+ * Ratchets a key. See
+ * https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.5.1
  */
-class SimulcastCodec extends Message {
-  constructor(data) {
+function ratchet(material, salt) {
+  return __awaiter(this, void 0, void 0, function* () {
+    const algorithmOptions = getAlgoOptions(material.algorithm.name, salt);
+    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveBits
+    return crypto.subtle.deriveBits(algorithmOptions, material, 256);
+  });
+}
+function needsRbspUnescaping(frameData) {
+  for (var i = 0; i < frameData.length - 3; i++) {
+    if (frameData[i] == 0 && frameData[i + 1] == 0 && frameData[i + 2] == 3) return true;
+  }
+  return false;
+}
+function parseRbsp(stream) {
+  const dataOut = [];
+  var length = stream.length;
+  for (var i = 0; i < stream.length;) {
+    // Be careful about over/underflow here. byte_length_ - 3 can underflow, and
+    // i + 3 can overflow, but byte_length_ - i can't, because i < byte_length_
+    // above, and that expression will produce the number of bytes left in
+    // the stream including the byte at i.
+    if (length - i >= 3 && !stream[i] && !stream[i + 1] && stream[i + 2] == 3) {
+      // Two rbsp bytes.
+      dataOut.push(stream[i++]);
+      dataOut.push(stream[i++]);
+      // Skip the emulation byte.
+      i++;
+    } else {
+      // Single rbsp byte.
+      dataOut.push(stream[i++]);
+    }
+  }
+  return new Uint8Array(dataOut);
+}
+const kZerosInStartSequence = 2;
+const kEmulationByte = 3;
+function writeRbsp(data_in) {
+  const dataOut = [];
+  var numConsecutiveZeros = 0;
+  for (var i = 0; i < data_in.length; ++i) {
+    var byte = data_in[i];
+    if (byte <= kEmulationByte && numConsecutiveZeros >= kZerosInStartSequence) {
+      // Need to escape.
+      dataOut.push(kEmulationByte);
+      numConsecutiveZeros = 0;
+    }
+    dataOut.push(byte);
+    if (byte == 0) {
+      ++numConsecutiveZeros;
+    } else {
+      numConsecutiveZeros = 0;
+    }
+  }
+  return new Uint8Array(dataOut);
+}
+
+/**
+ * @experimental
+ */
+class BaseKeyProvider extends eventsExports.EventEmitter {
+  constructor() {
+    let options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
     super();
     /**
-     * @generated from field: string codec = 1;
-     */
-    this.codec = "";
-    /**
-     * @generated from field: string cid = 2;
-     */
-    this.cid = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SimulcastCodec().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SimulcastCodec().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SimulcastCodec().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SimulcastCodec, a, b);
-  }
-}
-SimulcastCodec.runtime = proto3;
-SimulcastCodec.typeName = "livekit.SimulcastCodec";
-SimulcastCodec.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "codec",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "cid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}]);
-/**
- * @generated from message livekit.AddTrackRequest
- */
-class AddTrackRequest extends Message {
-  constructor(data) {
-    super();
-    /**
-     * client ID of track, to match it when RTC track is received
-     *
-     * @generated from field: string cid = 1;
-     */
-    this.cid = "";
-    /**
-     * @generated from field: string name = 2;
-     */
-    this.name = "";
-    /**
-     * @generated from field: livekit.TrackType type = 3;
-     */
-    this.type = TrackType.AUDIO;
-    /**
-     * to be deprecated in favor of layers
-     *
-     * @generated from field: uint32 width = 4;
-     */
-    this.width = 0;
-    /**
-     * @generated from field: uint32 height = 5;
-     */
-    this.height = 0;
-    /**
-     * true to add track and initialize to muted
-     *
-     * @generated from field: bool muted = 6;
-     */
-    this.muted = false;
-    /**
-     * true if DTX (Discontinuous Transmission) is disabled for audio
-     *
-     * @generated from field: bool disable_dtx = 7;
-     */
-    this.disableDtx = false;
-    /**
-     * @generated from field: livekit.TrackSource source = 8;
-     */
-    this.source = TrackSource.UNKNOWN;
-    /**
-     * @generated from field: repeated livekit.VideoLayer layers = 9;
-     */
-    this.layers = [];
-    /**
-     * @generated from field: repeated livekit.SimulcastCodec simulcast_codecs = 10;
-     */
-    this.simulcastCodecs = [];
-    /**
-     * server ID of track, publish new codec to exist track
-     *
-     * @generated from field: string sid = 11;
-     */
-    this.sid = "";
-    /**
-     * @generated from field: bool stereo = 12;
-     */
-    this.stereo = false;
-    /**
-     * true if RED (Redundant Encoding) is disabled for audio
-     *
-     * @generated from field: bool disable_red = 13;
-     */
-    this.disableRed = false;
-    /**
-     * @generated from field: livekit.Encryption.Type encryption = 14;
-     */
-    this.encryption = Encryption_Type.NONE;
-    /**
-     * which stream the track belongs to, used to group tracks together.
-     * if not specified, server will infer it from track source to bundle camera/microphone, screenshare/audio together
-     *
-     * @generated from field: string stream = 15;
-     */
-    this.stream = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new AddTrackRequest().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new AddTrackRequest().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new AddTrackRequest().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(AddTrackRequest, a, b);
-  }
-}
-AddTrackRequest.runtime = proto3;
-AddTrackRequest.typeName = "livekit.AddTrackRequest";
-AddTrackRequest.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "cid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "name",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 3,
-  name: "type",
-  kind: "enum",
-  T: proto3.getEnumType(TrackType)
-}, {
-  no: 4,
-  name: "width",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 5,
-  name: "height",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 6,
-  name: "muted",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 7,
-  name: "disable_dtx",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 8,
-  name: "source",
-  kind: "enum",
-  T: proto3.getEnumType(TrackSource)
-}, {
-  no: 9,
-  name: "layers",
-  kind: "message",
-  T: VideoLayer,
-  repeated: true
-}, {
-  no: 10,
-  name: "simulcast_codecs",
-  kind: "message",
-  T: SimulcastCodec,
-  repeated: true
-}, {
-  no: 11,
-  name: "sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 12,
-  name: "stereo",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 13,
-  name: "disable_red",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 14,
-  name: "encryption",
-  kind: "enum",
-  T: proto3.getEnumType(Encryption_Type)
-}, {
-  no: 15,
-  name: "stream",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}]);
-/**
- * @generated from message livekit.TrickleRequest
- */
-class TrickleRequest extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string candidateInit = 1;
-     */
-    this.candidateInit = "";
-    /**
-     * @generated from field: livekit.SignalTarget target = 2;
-     */
-    this.target = SignalTarget.PUBLISHER;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new TrickleRequest().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new TrickleRequest().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new TrickleRequest().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(TrickleRequest, a, b);
-  }
-}
-TrickleRequest.runtime = proto3;
-TrickleRequest.typeName = "livekit.TrickleRequest";
-TrickleRequest.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "candidateInit",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "target",
-  kind: "enum",
-  T: proto3.getEnumType(SignalTarget)
-}]);
-/**
- * @generated from message livekit.MuteTrackRequest
- */
-class MuteTrackRequest extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string sid = 1;
-     */
-    this.sid = "";
-    /**
-     * @generated from field: bool muted = 2;
-     */
-    this.muted = false;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new MuteTrackRequest().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new MuteTrackRequest().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new MuteTrackRequest().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(MuteTrackRequest, a, b);
-  }
-}
-MuteTrackRequest.runtime = proto3;
-MuteTrackRequest.typeName = "livekit.MuteTrackRequest";
-MuteTrackRequest.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "muted",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}]);
-/**
- * @generated from message livekit.JoinResponse
- */
-class JoinResponse extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated livekit.ParticipantInfo other_participants = 3;
-     */
-    this.otherParticipants = [];
-    /**
-     * deprecated. use server_info.version instead.
-     *
-     * @generated from field: string server_version = 4;
-     */
-    this.serverVersion = "";
-    /**
-     * @generated from field: repeated livekit.ICEServer ice_servers = 5;
-     */
-    this.iceServers = [];
-    /**
-     * use subscriber as the primary PeerConnection
-     *
-     * @generated from field: bool subscriber_primary = 6;
-     */
-    this.subscriberPrimary = false;
-    /**
-     * when the current server isn't available, return alternate url to retry connection
-     * when this is set, the other fields will be largely empty
-     *
-     * @generated from field: string alternative_url = 7;
-     */
-    this.alternativeUrl = "";
-    /**
-     * deprecated. use server_info.region instead.
-     *
-     * @generated from field: string server_region = 9;
-     */
-    this.serverRegion = "";
-    /**
-     * @generated from field: int32 ping_timeout = 10;
-     */
-    this.pingTimeout = 0;
-    /**
-     * @generated from field: int32 ping_interval = 11;
-     */
-    this.pingInterval = 0;
-    /**
-     * Server-Injected-Frame byte trailer, used to identify unencrypted frames when e2ee is enabled
-     *
-     * @generated from field: bytes sif_trailer = 13;
-     */
-    this.sifTrailer = new Uint8Array(0);
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new JoinResponse().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new JoinResponse().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new JoinResponse().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(JoinResponse, a, b);
-  }
-}
-JoinResponse.runtime = proto3;
-JoinResponse.typeName = "livekit.JoinResponse";
-JoinResponse.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "room",
-  kind: "message",
-  T: Room$1
-}, {
-  no: 2,
-  name: "participant",
-  kind: "message",
-  T: ParticipantInfo
-}, {
-  no: 3,
-  name: "other_participants",
-  kind: "message",
-  T: ParticipantInfo,
-  repeated: true
-}, {
-  no: 4,
-  name: "server_version",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 5,
-  name: "ice_servers",
-  kind: "message",
-  T: ICEServer,
-  repeated: true
-}, {
-  no: 6,
-  name: "subscriber_primary",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 7,
-  name: "alternative_url",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 8,
-  name: "client_configuration",
-  kind: "message",
-  T: ClientConfiguration
-}, {
-  no: 9,
-  name: "server_region",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 10,
-  name: "ping_timeout",
-  kind: "scalar",
-  T: 5 /* ScalarType.INT32 */
-}, {
-  no: 11,
-  name: "ping_interval",
-  kind: "scalar",
-  T: 5 /* ScalarType.INT32 */
-}, {
-  no: 12,
-  name: "server_info",
-  kind: "message",
-  T: ServerInfo
-}, {
-  no: 13,
-  name: "sif_trailer",
-  kind: "scalar",
-  T: 12 /* ScalarType.BYTES */
-}]);
-/**
- * @generated from message livekit.ReconnectResponse
- */
-class ReconnectResponse extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated livekit.ICEServer ice_servers = 1;
-     */
-    this.iceServers = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ReconnectResponse().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ReconnectResponse().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ReconnectResponse().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ReconnectResponse, a, b);
-  }
-}
-ReconnectResponse.runtime = proto3;
-ReconnectResponse.typeName = "livekit.ReconnectResponse";
-ReconnectResponse.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "ice_servers",
-  kind: "message",
-  T: ICEServer,
-  repeated: true
-}, {
-  no: 2,
-  name: "client_configuration",
-  kind: "message",
-  T: ClientConfiguration
-}]);
-/**
- * @generated from message livekit.TrackPublishedResponse
- */
-class TrackPublishedResponse extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string cid = 1;
-     */
-    this.cid = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new TrackPublishedResponse().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new TrackPublishedResponse().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new TrackPublishedResponse().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(TrackPublishedResponse, a, b);
-  }
-}
-TrackPublishedResponse.runtime = proto3;
-TrackPublishedResponse.typeName = "livekit.TrackPublishedResponse";
-TrackPublishedResponse.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "cid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "track",
-  kind: "message",
-  T: TrackInfo
-}]);
-/**
- * @generated from message livekit.TrackUnpublishedResponse
- */
-class TrackUnpublishedResponse extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string track_sid = 1;
-     */
-    this.trackSid = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new TrackUnpublishedResponse().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new TrackUnpublishedResponse().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new TrackUnpublishedResponse().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(TrackUnpublishedResponse, a, b);
-  }
-}
-TrackUnpublishedResponse.runtime = proto3;
-TrackUnpublishedResponse.typeName = "livekit.TrackUnpublishedResponse";
-TrackUnpublishedResponse.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "track_sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}]);
-/**
- * @generated from message livekit.SessionDescription
- */
-class SessionDescription extends Message {
-  constructor(data) {
-    super();
-    /**
-     * "answer" | "offer" | "pranswer" | "rollback"
-     *
-     * @generated from field: string type = 1;
-     */
-    this.type = "";
-    /**
-     * @generated from field: string sdp = 2;
-     */
-    this.sdp = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SessionDescription().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SessionDescription().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SessionDescription().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SessionDescription, a, b);
-  }
-}
-SessionDescription.runtime = proto3;
-SessionDescription.typeName = "livekit.SessionDescription";
-SessionDescription.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "type",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "sdp",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}]);
-/**
- * @generated from message livekit.ParticipantUpdate
- */
-class ParticipantUpdate extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated livekit.ParticipantInfo participants = 1;
-     */
-    this.participants = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ParticipantUpdate().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ParticipantUpdate().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ParticipantUpdate().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ParticipantUpdate, a, b);
-  }
-}
-ParticipantUpdate.runtime = proto3;
-ParticipantUpdate.typeName = "livekit.ParticipantUpdate";
-ParticipantUpdate.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "participants",
-  kind: "message",
-  T: ParticipantInfo,
-  repeated: true
-}]);
-/**
- * @generated from message livekit.UpdateSubscription
- */
-class UpdateSubscription extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated string track_sids = 1;
-     */
-    this.trackSids = [];
-    /**
-     * @generated from field: bool subscribe = 2;
-     */
-    this.subscribe = false;
-    /**
-     * @generated from field: repeated livekit.ParticipantTracks participant_tracks = 3;
-     */
-    this.participantTracks = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new UpdateSubscription().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new UpdateSubscription().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new UpdateSubscription().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(UpdateSubscription, a, b);
-  }
-}
-UpdateSubscription.runtime = proto3;
-UpdateSubscription.typeName = "livekit.UpdateSubscription";
-UpdateSubscription.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "track_sids",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */,
-  repeated: true
-}, {
-  no: 2,
-  name: "subscribe",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 3,
-  name: "participant_tracks",
-  kind: "message",
-  T: ParticipantTracks,
-  repeated: true
-}]);
-/**
- * @generated from message livekit.UpdateTrackSettings
- */
-class UpdateTrackSettings extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated string track_sids = 1;
-     */
-    this.trackSids = [];
-    /**
-     * when true, the track is placed in a paused state, with no new data returned
-     *
-     * @generated from field: bool disabled = 3;
-     */
-    this.disabled = false;
-    /**
-     * deprecated in favor of width & height
-     *
-     * @generated from field: livekit.VideoQuality quality = 4;
-     */
-    this.quality = VideoQuality.LOW;
-    /**
-     * for video, width to receive
-     *
-     * @generated from field: uint32 width = 5;
-     */
-    this.width = 0;
-    /**
-     * for video, height to receive
-     *
-     * @generated from field: uint32 height = 6;
-     */
-    this.height = 0;
-    /**
-     * @generated from field: uint32 fps = 7;
-     */
-    this.fps = 0;
-    /**
-     * subscription priority. 1 being the highest (0 is unset)
-     * when unset, server sill assign priority based on the order of subscription
-     * server will use priority in the following ways:
-     * 1. when subscribed tracks exceed per-participant subscription limit, server will
-     *    pause the lowest priority tracks
-     * 2. when the network is congested, server will assign available bandwidth to
-     *    higher priority tracks first. lowest priority tracks can be paused
-     *
-     * @generated from field: uint32 priority = 8;
-     */
-    this.priority = 0;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new UpdateTrackSettings().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new UpdateTrackSettings().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new UpdateTrackSettings().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(UpdateTrackSettings, a, b);
-  }
-}
-UpdateTrackSettings.runtime = proto3;
-UpdateTrackSettings.typeName = "livekit.UpdateTrackSettings";
-UpdateTrackSettings.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "track_sids",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */,
-  repeated: true
-}, {
-  no: 3,
-  name: "disabled",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 4,
-  name: "quality",
-  kind: "enum",
-  T: proto3.getEnumType(VideoQuality)
-}, {
-  no: 5,
-  name: "width",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 6,
-  name: "height",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 7,
-  name: "fps",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 8,
-  name: "priority",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}]);
-/**
- * @generated from message livekit.LeaveRequest
- */
-class LeaveRequest extends Message {
-  constructor(data) {
-    super();
-    /**
-     * sent when server initiates the disconnect due to server-restart
-     * indicates clients should attempt full-reconnect sequence
-     *
-     * @generated from field: bool can_reconnect = 1;
-     */
-    this.canReconnect = false;
-    /**
-     * @generated from field: livekit.DisconnectReason reason = 2;
-     */
-    this.reason = DisconnectReason.UNKNOWN_REASON;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new LeaveRequest().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new LeaveRequest().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new LeaveRequest().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(LeaveRequest, a, b);
-  }
-}
-LeaveRequest.runtime = proto3;
-LeaveRequest.typeName = "livekit.LeaveRequest";
-LeaveRequest.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "can_reconnect",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 2,
-  name: "reason",
-  kind: "enum",
-  T: proto3.getEnumType(DisconnectReason)
-}]);
-/**
- * message to indicate published video track dimensions are changing
- *
- * @generated from message livekit.UpdateVideoLayers
- */
-class UpdateVideoLayers extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string track_sid = 1;
-     */
-    this.trackSid = "";
-    /**
-     * @generated from field: repeated livekit.VideoLayer layers = 2;
-     */
-    this.layers = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new UpdateVideoLayers().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new UpdateVideoLayers().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new UpdateVideoLayers().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(UpdateVideoLayers, a, b);
-  }
-}
-UpdateVideoLayers.runtime = proto3;
-UpdateVideoLayers.typeName = "livekit.UpdateVideoLayers";
-UpdateVideoLayers.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "track_sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "layers",
-  kind: "message",
-  T: VideoLayer,
-  repeated: true
-}]);
-/**
- * @generated from message livekit.UpdateParticipantMetadata
- */
-class UpdateParticipantMetadata extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string metadata = 1;
-     */
-    this.metadata = "";
-    /**
-     * @generated from field: string name = 2;
-     */
-    this.name = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new UpdateParticipantMetadata().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new UpdateParticipantMetadata().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new UpdateParticipantMetadata().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(UpdateParticipantMetadata, a, b);
-  }
-}
-UpdateParticipantMetadata.runtime = proto3;
-UpdateParticipantMetadata.typeName = "livekit.UpdateParticipantMetadata";
-UpdateParticipantMetadata.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "metadata",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "name",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}]);
-/**
- * @generated from message livekit.ICEServer
- */
-class ICEServer extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated string urls = 1;
-     */
-    this.urls = [];
-    /**
-     * @generated from field: string username = 2;
-     */
-    this.username = "";
-    /**
-     * @generated from field: string credential = 3;
-     */
-    this.credential = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ICEServer().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ICEServer().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ICEServer().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ICEServer, a, b);
-  }
-}
-ICEServer.runtime = proto3;
-ICEServer.typeName = "livekit.ICEServer";
-ICEServer.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "urls",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */,
-  repeated: true
-}, {
-  no: 2,
-  name: "username",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 3,
-  name: "credential",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}]);
-/**
- * @generated from message livekit.SpeakersChanged
- */
-class SpeakersChanged extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated livekit.SpeakerInfo speakers = 1;
-     */
-    this.speakers = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SpeakersChanged().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SpeakersChanged().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SpeakersChanged().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SpeakersChanged, a, b);
-  }
-}
-SpeakersChanged.runtime = proto3;
-SpeakersChanged.typeName = "livekit.SpeakersChanged";
-SpeakersChanged.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "speakers",
-  kind: "message",
-  T: SpeakerInfo,
-  repeated: true
-}]);
-/**
- * @generated from message livekit.RoomUpdate
- */
-class RoomUpdate extends Message {
-  constructor(data) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new RoomUpdate().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new RoomUpdate().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new RoomUpdate().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(RoomUpdate, a, b);
-  }
-}
-RoomUpdate.runtime = proto3;
-RoomUpdate.typeName = "livekit.RoomUpdate";
-RoomUpdate.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "room",
-  kind: "message",
-  T: Room$1
-}]);
-/**
- * @generated from message livekit.ConnectionQualityInfo
- */
-class ConnectionQualityInfo extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string participant_sid = 1;
-     */
-    this.participantSid = "";
-    /**
-     * @generated from field: livekit.ConnectionQuality quality = 2;
-     */
-    this.quality = ConnectionQuality$1.POOR;
-    /**
-     * @generated from field: float score = 3;
-     */
-    this.score = 0;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ConnectionQualityInfo().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ConnectionQualityInfo().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ConnectionQualityInfo().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ConnectionQualityInfo, a, b);
-  }
-}
-ConnectionQualityInfo.runtime = proto3;
-ConnectionQualityInfo.typeName = "livekit.ConnectionQualityInfo";
-ConnectionQualityInfo.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "participant_sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "quality",
-  kind: "enum",
-  T: proto3.getEnumType(ConnectionQuality$1)
-}, {
-  no: 3,
-  name: "score",
-  kind: "scalar",
-  T: 2 /* ScalarType.FLOAT */
-}]);
-/**
- * @generated from message livekit.ConnectionQualityUpdate
- */
-class ConnectionQualityUpdate extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated livekit.ConnectionQualityInfo updates = 1;
-     */
-    this.updates = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new ConnectionQualityUpdate().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new ConnectionQualityUpdate().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new ConnectionQualityUpdate().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(ConnectionQualityUpdate, a, b);
-  }
-}
-ConnectionQualityUpdate.runtime = proto3;
-ConnectionQualityUpdate.typeName = "livekit.ConnectionQualityUpdate";
-ConnectionQualityUpdate.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "updates",
-  kind: "message",
-  T: ConnectionQualityInfo,
-  repeated: true
-}]);
-/**
- * @generated from message livekit.StreamStateInfo
- */
-class StreamStateInfo extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string participant_sid = 1;
-     */
-    this.participantSid = "";
-    /**
-     * @generated from field: string track_sid = 2;
-     */
-    this.trackSid = "";
-    /**
-     * @generated from field: livekit.StreamState state = 3;
-     */
-    this.state = StreamState.ACTIVE;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new StreamStateInfo().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new StreamStateInfo().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new StreamStateInfo().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(StreamStateInfo, a, b);
-  }
-}
-StreamStateInfo.runtime = proto3;
-StreamStateInfo.typeName = "livekit.StreamStateInfo";
-StreamStateInfo.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "participant_sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "track_sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 3,
-  name: "state",
-  kind: "enum",
-  T: proto3.getEnumType(StreamState)
-}]);
-/**
- * @generated from message livekit.StreamStateUpdate
- */
-class StreamStateUpdate extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated livekit.StreamStateInfo stream_states = 1;
-     */
-    this.streamStates = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new StreamStateUpdate().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new StreamStateUpdate().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new StreamStateUpdate().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(StreamStateUpdate, a, b);
-  }
-}
-StreamStateUpdate.runtime = proto3;
-StreamStateUpdate.typeName = "livekit.StreamStateUpdate";
-StreamStateUpdate.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "stream_states",
-  kind: "message",
-  T: StreamStateInfo,
-  repeated: true
-}]);
-/**
- * @generated from message livekit.SubscribedQuality
- */
-class SubscribedQuality extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: livekit.VideoQuality quality = 1;
-     */
-    this.quality = VideoQuality.LOW;
-    /**
-     * @generated from field: bool enabled = 2;
-     */
-    this.enabled = false;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SubscribedQuality().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SubscribedQuality().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SubscribedQuality().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SubscribedQuality, a, b);
-  }
-}
-SubscribedQuality.runtime = proto3;
-SubscribedQuality.typeName = "livekit.SubscribedQuality";
-SubscribedQuality.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "quality",
-  kind: "enum",
-  T: proto3.getEnumType(VideoQuality)
-}, {
-  no: 2,
-  name: "enabled",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}]);
-/**
- * @generated from message livekit.SubscribedCodec
- */
-class SubscribedCodec extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string codec = 1;
-     */
-    this.codec = "";
-    /**
-     * @generated from field: repeated livekit.SubscribedQuality qualities = 2;
-     */
-    this.qualities = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SubscribedCodec().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SubscribedCodec().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SubscribedCodec().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SubscribedCodec, a, b);
-  }
-}
-SubscribedCodec.runtime = proto3;
-SubscribedCodec.typeName = "livekit.SubscribedCodec";
-SubscribedCodec.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "codec",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "qualities",
-  kind: "message",
-  T: SubscribedQuality,
-  repeated: true
-}]);
-/**
- * @generated from message livekit.SubscribedQualityUpdate
- */
-class SubscribedQualityUpdate extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string track_sid = 1;
-     */
-    this.trackSid = "";
-    /**
-     * @generated from field: repeated livekit.SubscribedQuality subscribed_qualities = 2;
-     */
-    this.subscribedQualities = [];
-    /**
-     * @generated from field: repeated livekit.SubscribedCodec subscribed_codecs = 3;
-     */
-    this.subscribedCodecs = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SubscribedQualityUpdate().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SubscribedQualityUpdate().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SubscribedQualityUpdate().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SubscribedQualityUpdate, a, b);
-  }
-}
-SubscribedQualityUpdate.runtime = proto3;
-SubscribedQualityUpdate.typeName = "livekit.SubscribedQualityUpdate";
-SubscribedQualityUpdate.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "track_sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "subscribed_qualities",
-  kind: "message",
-  T: SubscribedQuality,
-  repeated: true
-}, {
-  no: 3,
-  name: "subscribed_codecs",
-  kind: "message",
-  T: SubscribedCodec,
-  repeated: true
-}]);
-/**
- * @generated from message livekit.TrackPermission
- */
-class TrackPermission extends Message {
-  constructor(data) {
-    super();
-    /**
-     * permission could be granted either by participant sid or identity
-     *
-     * @generated from field: string participant_sid = 1;
-     */
-    this.participantSid = "";
-    /**
-     * @generated from field: bool all_tracks = 2;
-     */
-    this.allTracks = false;
-    /**
-     * @generated from field: repeated string track_sids = 3;
-     */
-    this.trackSids = [];
-    /**
-     * @generated from field: string participant_identity = 4;
-     */
-    this.participantIdentity = "";
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new TrackPermission().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new TrackPermission().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new TrackPermission().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(TrackPermission, a, b);
-  }
-}
-TrackPermission.runtime = proto3;
-TrackPermission.typeName = "livekit.TrackPermission";
-TrackPermission.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "participant_sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "all_tracks",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 3,
-  name: "track_sids",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */,
-  repeated: true
-}, {
-  no: 4,
-  name: "participant_identity",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}]);
-/**
- * @generated from message livekit.SubscriptionPermission
- */
-class SubscriptionPermission extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: bool all_participants = 1;
-     */
-    this.allParticipants = false;
-    /**
-     * @generated from field: repeated livekit.TrackPermission track_permissions = 2;
-     */
-    this.trackPermissions = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SubscriptionPermission().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SubscriptionPermission().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SubscriptionPermission().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SubscriptionPermission, a, b);
-  }
-}
-SubscriptionPermission.runtime = proto3;
-SubscriptionPermission.typeName = "livekit.SubscriptionPermission";
-SubscriptionPermission.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "all_participants",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}, {
-  no: 2,
-  name: "track_permissions",
-  kind: "message",
-  T: TrackPermission,
-  repeated: true
-}]);
-/**
- * @generated from message livekit.SubscriptionPermissionUpdate
- */
-class SubscriptionPermissionUpdate extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string participant_sid = 1;
-     */
-    this.participantSid = "";
-    /**
-     * @generated from field: string track_sid = 2;
-     */
-    this.trackSid = "";
-    /**
-     * @generated from field: bool allowed = 3;
-     */
-    this.allowed = false;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SubscriptionPermissionUpdate().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SubscriptionPermissionUpdate().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SubscriptionPermissionUpdate().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SubscriptionPermissionUpdate, a, b);
-  }
-}
-SubscriptionPermissionUpdate.runtime = proto3;
-SubscriptionPermissionUpdate.typeName = "livekit.SubscriptionPermissionUpdate";
-SubscriptionPermissionUpdate.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "participant_sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "track_sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 3,
-  name: "allowed",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */
-}]);
-/**
- * @generated from message livekit.SyncState
- */
-class SyncState extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated livekit.TrackPublishedResponse publish_tracks = 3;
-     */
-    this.publishTracks = [];
-    /**
-     * @generated from field: repeated livekit.DataChannelInfo data_channels = 4;
-     */
-    this.dataChannels = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SyncState().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SyncState().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SyncState().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SyncState, a, b);
-  }
-}
-SyncState.runtime = proto3;
-SyncState.typeName = "livekit.SyncState";
-SyncState.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "answer",
-  kind: "message",
-  T: SessionDescription
-}, {
-  no: 2,
-  name: "subscription",
-  kind: "message",
-  T: UpdateSubscription
-}, {
-  no: 3,
-  name: "publish_tracks",
-  kind: "message",
-  T: TrackPublishedResponse,
-  repeated: true
-}, {
-  no: 4,
-  name: "data_channels",
-  kind: "message",
-  T: DataChannelInfo,
-  repeated: true
-}, {
-  no: 5,
-  name: "offer",
-  kind: "message",
-  T: SessionDescription
-}]);
-/**
- * @generated from message livekit.DataChannelInfo
- */
-class DataChannelInfo extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string label = 1;
-     */
-    this.label = "";
-    /**
-     * @generated from field: uint32 id = 2;
-     */
-    this.id = 0;
-    /**
-     * @generated from field: livekit.SignalTarget target = 3;
-     */
-    this.target = SignalTarget.PUBLISHER;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new DataChannelInfo().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new DataChannelInfo().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new DataChannelInfo().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(DataChannelInfo, a, b);
-  }
-}
-DataChannelInfo.runtime = proto3;
-DataChannelInfo.typeName = "livekit.DataChannelInfo";
-DataChannelInfo.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "label",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "id",
-  kind: "scalar",
-  T: 13 /* ScalarType.UINT32 */
-}, {
-  no: 3,
-  name: "target",
-  kind: "enum",
-  T: proto3.getEnumType(SignalTarget)
-}]);
-/**
- * @generated from message livekit.SimulateScenario
- */
-class SimulateScenario extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from oneof livekit.SimulateScenario.scenario
-     */
-    this.scenario = {
-      case: undefined
+     * callback being invoked after a ratchet request has been performed on a participant
+     * that surfaces the new key material.
+     * @param material
+     * @param keyIndex
+     */
+    this.onKeyRatcheted = (material, keyIndex) => {
+      livekitLogger.debug('key ratcheted event received', {
+        material,
+        keyIndex
+      });
     };
-    proto3.util.initPartial(data, this);
+    this.keyInfoMap = new Map();
+    this.options = Object.assign(Object.assign({}, KEY_PROVIDER_DEFAULTS), options);
+    this.on(KeyProviderEvent.KeyRatcheted, this.onKeyRatcheted);
   }
-  static fromBinary(bytes, options) {
-    return new SimulateScenario().fromBinary(bytes, options);
+  /**
+   * callback to invoke once a key has been set for a participant
+   * @param key
+   * @param participantIdentity
+   * @param keyIndex
+   */
+  onSetEncryptionKey(key, participantIdentity, keyIndex) {
+    const keyInfo = {
+      key,
+      participantIdentity,
+      keyIndex
+    };
+    if (!this.options.sharedKey && !participantIdentity) {
+      throw new Error('participant identity needs to be passed for encryption key if sharedKey option is false');
+    }
+    this.keyInfoMap.set("".concat(participantIdentity !== null && participantIdentity !== void 0 ? participantIdentity : 'shared', "-").concat(keyIndex !== null && keyIndex !== void 0 ? keyIndex : 0), keyInfo);
+    this.emit(KeyProviderEvent.SetKey, keyInfo);
   }
-  static fromJson(jsonValue, options) {
-    return new SimulateScenario().fromJson(jsonValue, options);
+  getKeys() {
+    return Array.from(this.keyInfoMap.values());
   }
-  static fromJsonString(jsonString, options) {
-    return new SimulateScenario().fromJsonString(jsonString, options);
+  getOptions() {
+    return this.options;
   }
-  static equals(a, b) {
-    return proto3.util.equals(SimulateScenario, a, b);
+  ratchetKey(participantIdentity, keyIndex) {
+    this.emit(KeyProviderEvent.RatchetRequest, participantIdentity, keyIndex);
   }
 }
-SimulateScenario.runtime = proto3;
-SimulateScenario.typeName = "livekit.SimulateScenario";
-SimulateScenario.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "speaker_update",
-  kind: "scalar",
-  T: 5 /* ScalarType.INT32 */,
-  oneof: "scenario"
-}, {
-  no: 2,
-  name: "node_failure",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */,
-  oneof: "scenario"
-}, {
-  no: 3,
-  name: "migration",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */,
-  oneof: "scenario"
-}, {
-  no: 4,
-  name: "server_leave",
-  kind: "scalar",
-  T: 8 /* ScalarType.BOOL */,
-  oneof: "scenario"
-}, {
-  no: 5,
-  name: "switch_candidate_protocol",
-  kind: "enum",
-  T: proto3.getEnumType(CandidateProtocol),
-  oneof: "scenario"
-}, {
-  no: 6,
-  name: "subscriber_bandwidth",
-  kind: "scalar",
-  T: 3 /* ScalarType.INT64 */,
-  oneof: "scenario"
-}]);
 /**
- * @generated from message livekit.Ping
+ * A basic KeyProvider implementation intended for a single shared
+ * passphrase between all participants
+ * @experimental
  */
-class Ping extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: int64 timestamp = 1;
-     */
-    this.timestamp = protoInt64.zero;
-    /**
-     * rtt in milliseconds calculated by client
-     *
-     * @generated from field: int64 rtt = 2;
-     */
-    this.rtt = protoInt64.zero;
-    proto3.util.initPartial(data, this);
+class ExternalE2EEKeyProvider extends BaseKeyProvider {
+  constructor() {
+    let options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+    const opts = Object.assign(Object.assign({}, options), {
+      sharedKey: true,
+      // for a shared key provider failing to decrypt for a specific participant
+      // should not mark the key as invalid, so we accept wrong keys forever
+      // and won't try to auto-ratchet
+      ratchetWindowSize: 0,
+      failureTolerance: -1
+    });
+    super(opts);
   }
-  static fromBinary(bytes, options) {
-    return new Ping().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new Ping().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new Ping().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(Ping, a, b);
+  /**
+   * Accepts a passphrase that's used to create the crypto keys.
+   * When passing in a string, PBKDF2 is used.
+   * When passing in an Array buffer of cryptographically random numbers, HKDF is being used. (recommended)
+   * @param key
+   */
+  setKey(key) {
+    return __awaiter(this, void 0, void 0, function* () {
+      const derivedKey = typeof key === 'string' ? yield createKeyMaterialFromString(key) : yield createKeyMaterialFromBuffer(key);
+      this.onSetEncryptionKey(derivedKey);
+    });
   }
 }
-Ping.runtime = proto3;
-Ping.typeName = "livekit.Ping";
-Ping.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "timestamp",
-  kind: "scalar",
-  T: 3 /* ScalarType.INT64 */
-}, {
-  no: 2,
-  name: "rtt",
-  kind: "scalar",
-  T: 3 /* ScalarType.INT64 */
-}]);
-/**
- * @generated from message livekit.Pong
- */
-class Pong extends Message {
-  constructor(data) {
-    super();
-    /**
-     * timestamp field of last received ping request
-     *
-     * @generated from field: int64 last_ping_timestamp = 1;
-     */
-    this.lastPingTimestamp = protoInt64.zero;
-    /**
-     * @generated from field: int64 timestamp = 2;
-     */
-    this.timestamp = protoInt64.zero;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new Pong().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new Pong().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new Pong().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(Pong, a, b);
-  }
-}
-Pong.runtime = proto3;
-Pong.typeName = "livekit.Pong";
-Pong.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "last_ping_timestamp",
-  kind: "scalar",
-  T: 3 /* ScalarType.INT64 */
-}, {
-  no: 2,
-  name: "timestamp",
-  kind: "scalar",
-  T: 3 /* ScalarType.INT64 */
-}]);
-/**
- * @generated from message livekit.RegionSettings
- */
-class RegionSettings extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: repeated livekit.RegionInfo regions = 1;
-     */
-    this.regions = [];
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new RegionSettings().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new RegionSettings().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new RegionSettings().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(RegionSettings, a, b);
-  }
-}
-RegionSettings.runtime = proto3;
-RegionSettings.typeName = "livekit.RegionSettings";
-RegionSettings.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "regions",
-  kind: "message",
-  T: RegionInfo,
-  repeated: true
-}]);
-/**
- * @generated from message livekit.RegionInfo
- */
-class RegionInfo extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string region = 1;
-     */
-    this.region = "";
-    /**
-     * @generated from field: string url = 2;
-     */
-    this.url = "";
-    /**
-     * @generated from field: int64 distance = 3;
-     */
-    this.distance = protoInt64.zero;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new RegionInfo().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new RegionInfo().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new RegionInfo().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(RegionInfo, a, b);
-  }
-}
-RegionInfo.runtime = proto3;
-RegionInfo.typeName = "livekit.RegionInfo";
-RegionInfo.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "region",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "url",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 3,
-  name: "distance",
-  kind: "scalar",
-  T: 3 /* ScalarType.INT64 */
-}]);
-/**
- * @generated from message livekit.SubscriptionResponse
- */
-class SubscriptionResponse extends Message {
-  constructor(data) {
-    super();
-    /**
-     * @generated from field: string track_sid = 1;
-     */
-    this.trackSid = "";
-    /**
-     * @generated from field: livekit.SubscriptionError err = 2;
-     */
-    this.err = SubscriptionError.SE_UNKNOWN;
-    proto3.util.initPartial(data, this);
-  }
-  static fromBinary(bytes, options) {
-    return new SubscriptionResponse().fromBinary(bytes, options);
-  }
-  static fromJson(jsonValue, options) {
-    return new SubscriptionResponse().fromJson(jsonValue, options);
-  }
-  static fromJsonString(jsonString, options) {
-    return new SubscriptionResponse().fromJsonString(jsonString, options);
-  }
-  static equals(a, b) {
-    return proto3.util.equals(SubscriptionResponse, a, b);
-  }
-}
-SubscriptionResponse.runtime = proto3;
-SubscriptionResponse.typeName = "livekit.SubscriptionResponse";
-SubscriptionResponse.fields = proto3.util.newFieldList(() => [{
-  no: 1,
-  name: "track_sid",
-  kind: "scalar",
-  T: 9 /* ScalarType.STRING */
-}, {
-  no: 2,
-  name: "err",
-  kind: "enum",
-  T: proto3.getEnumType(SubscriptionError)
-}]);
 
 class LivekitError extends Error {
   constructor(code, message) {
@@ -11916,187 +9770,6 @@ var MediaDeviceFailure;
 })(MediaDeviceFailure || (MediaDeviceFailure = {}));
 
 /**
- * Timers that can be overridden with platform specific implementations
- * that ensure that they are fired. These should be used when it is critical
- * that the timer fires on time.
- */
-class CriticalTimers {}
-// eslint-disable-next-line @typescript-eslint/no-implied-eval
-CriticalTimers.setTimeout = function () {
-  return setTimeout(...arguments);
-};
-// eslint-disable-next-line @typescript-eslint/no-implied-eval
-CriticalTimers.setInterval = function () {
-  return setInterval(...arguments);
-};
-CriticalTimers.clearTimeout = function () {
-  return clearTimeout(...arguments);
-};
-CriticalTimers.clearInterval = function () {
-  return clearInterval(...arguments);
-};
-
-// tiny, simplified version of https://github.com/lancedikson/bowser/blob/master/src/parser-browsers.js
-// reduced to only differentiate Chrome(ium) based browsers / Firefox / Safari
-const commonVersionIdentifier = /version\/(\d+(\.?_?\d+)+)/i;
-let browserDetails;
-/**
- * @internal
- */
-function getBrowser(userAgent) {
-  let force = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
-  if (typeof userAgent === 'undefined' && typeof navigator === 'undefined') {
-    return;
-  }
-  const ua = (userAgent !== null && userAgent !== void 0 ? userAgent : navigator.userAgent).toLowerCase();
-  if (browserDetails === undefined || force) {
-    const browser = browsersList.find(_ref => {
-      let {
-        test
-      } = _ref;
-      return test.test(ua);
-    });
-    browserDetails = browser === null || browser === void 0 ? void 0 : browser.describe(ua);
-  }
-  return browserDetails;
-}
-const browsersList = [{
-  test: /firefox|iceweasel|fxios/i,
-  describe(ua) {
-    const browser = {
-      name: 'Firefox',
-      version: getMatch(/(?:firefox|iceweasel|fxios)[\s/](\d+(\.?_?\d+)+)/i, ua),
-      os: ua.toLowerCase().includes('fxios') ? 'iOS' : undefined
-    };
-    return browser;
-  }
-}, {
-  test: /chrom|crios|crmo/i,
-  describe(ua) {
-    const browser = {
-      name: 'Chrome',
-      version: getMatch(/(?:chrome|chromium|crios|crmo)\/(\d+(\.?_?\d+)+)/i, ua),
-      os: ua.toLowerCase().includes('crios') ? 'iOS' : undefined
-    };
-    return browser;
-  }
-}, /* Safari */
-{
-  test: /safari|applewebkit/i,
-  describe(ua) {
-    const browser = {
-      name: 'Safari',
-      version: getMatch(commonVersionIdentifier, ua),
-      os: ua.includes('mobile/') ? 'iOS' : 'macOS'
-    };
-    return browser;
-  }
-}];
-function getMatch(exp, ua) {
-  let id = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 1;
-  const match = ua.match(exp);
-  return match && match.length >= id && match[id] || '';
-}
-
-var version$1 = "1.14.2";
-
-const version = version$1;
-const protocolVersion = 10;
-
-class VideoPreset {
-  constructor(width, height, maxBitrate, maxFramerate, priority) {
-    this.width = width;
-    this.height = height;
-    this.encoding = {
-      maxBitrate,
-      maxFramerate,
-      priority
-    };
-  }
-  get resolution() {
-    return {
-      width: this.width,
-      height: this.height,
-      frameRate: this.encoding.maxFramerate,
-      aspectRatio: this.width / this.height
-    };
-  }
-}
-const backupCodecs = ['vp8', 'h264'];
-const videoCodecs = ['vp8', 'h264', 'vp9', 'av1'];
-function isBackupCodec(codec) {
-  return !!backupCodecs.find(backup => backup === codec);
-}
-var AudioPresets;
-(function (AudioPresets) {
-  AudioPresets.telephone = {
-    maxBitrate: 12000
-  };
-  AudioPresets.speech = {
-    maxBitrate: 20000
-  };
-  AudioPresets.music = {
-    maxBitrate: 32000
-  };
-  AudioPresets.musicStereo = {
-    maxBitrate: 48000
-  };
-  AudioPresets.musicHighQuality = {
-    maxBitrate: 64000
-  };
-  AudioPresets.musicHighQualityStereo = {
-    maxBitrate: 96000
-  };
-})(AudioPresets || (AudioPresets = {}));
-/**
- * Sane presets for video resolution/encoding
- */
-const VideoPresets = {
-  h90: new VideoPreset(160, 90, 90000, 20),
-  h180: new VideoPreset(320, 180, 160000, 20),
-  h216: new VideoPreset(384, 216, 180000, 20),
-  h360: new VideoPreset(640, 360, 450000, 20),
-  h540: new VideoPreset(960, 540, 800000, 25),
-  h720: new VideoPreset(1280, 720, 1700000, 30),
-  h1080: new VideoPreset(1920, 1080, 3000000, 30),
-  h1440: new VideoPreset(2560, 1440, 5000000, 30),
-  h2160: new VideoPreset(3840, 2160, 8000000, 30)
-};
-/**
- * Four by three presets
- */
-const VideoPresets43 = {
-  h120: new VideoPreset(160, 120, 70000, 20),
-  h180: new VideoPreset(240, 180, 125000, 20),
-  h240: new VideoPreset(320, 240, 140000, 20),
-  h360: new VideoPreset(480, 360, 330000, 20),
-  h480: new VideoPreset(640, 480, 500000, 20),
-  h540: new VideoPreset(720, 540, 600000, 25),
-  h720: new VideoPreset(960, 720, 1300000, 30),
-  h1080: new VideoPreset(1440, 1080, 2300000, 30),
-  h1440: new VideoPreset(1920, 1440, 3800000, 30)
-};
-const ScreenSharePresets = {
-  h360fps3: new VideoPreset(640, 360, 200000, 3, 'medium'),
-  h720fps5: new VideoPreset(1280, 720, 400000, 5, 'medium'),
-  h720fps15: new VideoPreset(1280, 720, 1500000, 15, 'medium'),
-  h720fps30: new VideoPreset(1280, 720, 2000000, 30, 'medium'),
-  h1080fps15: new VideoPreset(1920, 1080, 2500000, 15, 'medium'),
-  h1080fps30: new VideoPreset(1920, 1080, 4000000, 30, 'medium')
-};
-
-function cloneDeep(value) {
-  if (typeof value === 'undefined') {
-    return;
-  }
-  if (typeof structuredClone === 'function') {
-    return structuredClone(value);
-  } else {
-    return JSON.parse(JSON.stringify(value));
-  }
-}
-
-/**
  * Events are the primary way LiveKit notifies your application of changes.
  *
  * The following are events emitted by [[Room]], listen to room events like
@@ -12122,7 +9795,14 @@ var RoomEvent;
   RoomEvent["Reconnected"] = "reconnected";
   /**
    * When disconnected from room. This fires when room.disconnect() is called or
-   * when an unrecoverable connection issue had occured
+   * when an unrecoverable connection issue had occured.
+   *
+   * DisconnectReason can be used to determine why the participant was disconnected. Notable reasons are
+   * - DUPLICATE_IDENTITY: another client with the same identity has joined the room
+   * - PARTICIPANT_REMOVED: participant was removed by RemoveParticipant API
+   * - ROOM_DELETED: the room has ended via DeleteRoom API
+   *
+   * args: ([[DisconnectReason]])
    */
   RoomEvent["Disconnected"] = "disconnected";
   /**
@@ -12131,10 +9811,6 @@ var RoomEvent;
    * args: ([[ConnectionState]])
    */
   RoomEvent["ConnectionStateChanged"] = "connectionStateChanged";
-  /**
-   * @deprecated StateChanged has been renamed to ConnectionStateChanged
-   */
-  RoomEvent["StateChanged"] = "connectionStateChanged";
   /**
    * When input or output devices on the machine have changed.
    */
@@ -12315,6 +9991,12 @@ var RoomEvent;
    */
   RoomEvent["AudioPlaybackStatusChanged"] = "audioPlaybackChanged";
   /**
+   * LiveKit will attempt to autoplay all video tracks when you attach them to
+   * a video element. However, if that fails, we'll notify you via VideoPlaybackStatusChanged.
+   * Calling `room.startVideo()` in a user gesture event handler will resume the video playback.
+   */
+  RoomEvent["VideoPlaybackStatusChanged"] = "videoPlaybackChanged";
+  /**
    * When we have encountered an error while attempting to create a track.
    * The errors take place in getUserMedia().
    * Use MediaDeviceFailure.getFailure(error) to get the reason of failure.
@@ -12486,6 +10168,9 @@ var ParticipantEvent;
   // fired only on LocalParticipant
   /** @internal */
   ParticipantEvent["MediaDevicesError"] = "mediaDevicesError";
+  // fired only on LocalParticipant
+  /** @internal */
+  ParticipantEvent["AudioStreamAcquired"] = "audioStreamAcquired";
   /**
    * A participant's permission has changed. Currently only fired on LocalParticipant.
    * args: (prevPermissions: [[ParticipantPermission]])
@@ -12519,6 +10204,10 @@ var EngineEvent;
   EngineEvent["ConnectionQualityUpdate"] = "connectionQualityUpdate";
   EngineEvent["SubscriptionError"] = "subscriptionError";
   EngineEvent["SubscriptionPermissionUpdate"] = "subscriptionPermissionUpdate";
+  EngineEvent["RemoteMute"] = "remoteMute";
+  EngineEvent["SubscribedQualityUpdate"] = "subscribedQualityUpdate";
+  EngineEvent["LocalTrackUnpublished"] = "localTrackUnpublished";
+  EngineEvent["Offline"] = "offline";
 })(EngineEvent || (EngineEvent = {}));
 var TrackEvent;
 (function (TrackEvent) {
@@ -12550,6 +10239,10 @@ var TrackEvent;
   /** @internal */
   TrackEvent["VideoDimensionsChanged"] = "videoDimensionsChanged";
   /** @internal */
+  TrackEvent["VideoPlaybackStarted"] = "videoPlaybackStarted";
+  /** @internal */
+  TrackEvent["VideoPlaybackFailed"] = "videoPlaybackFailed";
+  /** @internal */
   TrackEvent["ElementAttached"] = "elementAttached";
   /** @internal */
   TrackEvent["ElementDetached"] = "elementDetached";
@@ -12576,14 +10269,272 @@ var TrackEvent;
    * Fires on RemoteTrackPublication
    */
   TrackEvent["SubscriptionFailed"] = "subscriptionFailed";
+  /**
+   * @internal
+   */
+  TrackEvent["TrackProcessorUpdate"] = "trackProcessorUpdate";
+  /**
+   * @internal
+   */
+  TrackEvent["AudioTrackFeatureUpdate"] = "audioTrackFeatureUpdate";
 })(TrackEvent || (TrackEvent = {}));
+
+function r(r, e, n) {
+  var i, t, o;
+  void 0 === e && (e = 50), void 0 === n && (n = {});
+  var a = null != (i = n.isImmediate) && i,
+    u = null != (t = n.callback) && t,
+    c = n.maxWait,
+    v = Date.now(),
+    l = [];
+  function f() {
+    if (void 0 !== c) {
+      var r = Date.now() - v;
+      if (r + e >= c) return c - r;
+    }
+    return e;
+  }
+  var d = function () {
+    var e = [].slice.call(arguments),
+      n = this;
+    return new Promise(function (i, t) {
+      var c = a && void 0 === o;
+      if (void 0 !== o && clearTimeout(o), o = setTimeout(function () {
+        if (o = void 0, v = Date.now(), !a) {
+          var i = r.apply(n, e);
+          u && u(i), l.forEach(function (r) {
+            return (0, r.resolve)(i);
+          }), l = [];
+        }
+      }, f()), c) {
+        var d = r.apply(n, e);
+        return u && u(d), i(d);
+      }
+      l.push({
+        resolve: i,
+        reject: t
+      });
+    });
+  };
+  return d.cancel = function (r) {
+    void 0 !== o && clearTimeout(o), l.forEach(function (e) {
+      return (0, e.reject)(r);
+    }), l = [];
+  }, d;
+}
+
+// tiny, simplified version of https://github.com/lancedikson/bowser/blob/master/src/parser-browsers.js
+// reduced to only differentiate Chrome(ium) based browsers / Firefox / Safari
+const commonVersionIdentifier = /version\/(\d+(\.?_?\d+)+)/i;
+let browserDetails;
+/**
+ * @internal
+ */
+function getBrowser(userAgent) {
+  let force = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+  if (typeof userAgent === 'undefined' && typeof navigator === 'undefined') {
+    return;
+  }
+  const ua = (userAgent !== null && userAgent !== void 0 ? userAgent : navigator.userAgent).toLowerCase();
+  if (browserDetails === undefined || force) {
+    const browser = browsersList.find(_ref => {
+      let {
+        test
+      } = _ref;
+      return test.test(ua);
+    });
+    browserDetails = browser === null || browser === void 0 ? void 0 : browser.describe(ua);
+  }
+  return browserDetails;
+}
+const browsersList = [{
+  test: /firefox|iceweasel|fxios/i,
+  describe(ua) {
+    const browser = {
+      name: 'Firefox',
+      version: getMatch(/(?:firefox|iceweasel|fxios)[\s/](\d+(\.?_?\d+)+)/i, ua),
+      os: ua.toLowerCase().includes('fxios') ? 'iOS' : undefined
+    };
+    return browser;
+  }
+}, {
+  test: /chrom|crios|crmo/i,
+  describe(ua) {
+    const browser = {
+      name: 'Chrome',
+      version: getMatch(/(?:chrome|chromium|crios|crmo)\/(\d+(\.?_?\d+)+)/i, ua),
+      os: ua.toLowerCase().includes('crios') ? 'iOS' : undefined
+    };
+    return browser;
+  }
+}, /* Safari */
+{
+  test: /safari|applewebkit/i,
+  describe(ua) {
+    const browser = {
+      name: 'Safari',
+      version: getMatch(commonVersionIdentifier, ua),
+      os: ua.includes('mobile/') ? 'iOS' : 'macOS'
+    };
+    return browser;
+  }
+}];
+function getMatch(exp, ua) {
+  let id = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 1;
+  const match = ua.match(exp);
+  return match && match.length >= id && match[id] || '';
+}
+
+var version$1 = "2.1.0";
+
+const version = version$1;
+const protocolVersion = 12;
+
+/**
+ * Timers that can be overridden with platform specific implementations
+ * that ensure that they are fired. These should be used when it is critical
+ * that the timer fires on time.
+ */
+class CriticalTimers {}
+// eslint-disable-next-line @typescript-eslint/no-implied-eval
+CriticalTimers.setTimeout = function () {
+  return setTimeout(...arguments);
+};
+// eslint-disable-next-line @typescript-eslint/no-implied-eval
+CriticalTimers.setInterval = function () {
+  return setInterval(...arguments);
+};
+CriticalTimers.clearTimeout = function () {
+  return clearTimeout(...arguments);
+};
+CriticalTimers.clearInterval = function () {
+  return clearInterval(...arguments);
+};
+
+class VideoPreset {
+  constructor(widthOrOptions, height, maxBitrate, maxFramerate, priority) {
+    if (typeof widthOrOptions === 'object') {
+      this.width = widthOrOptions.width;
+      this.height = widthOrOptions.height;
+      this.aspectRatio = widthOrOptions.aspectRatio;
+      this.encoding = {
+        maxBitrate: widthOrOptions.maxBitrate,
+        maxFramerate: widthOrOptions.maxFramerate,
+        priority: widthOrOptions.priority
+      };
+    } else if (height !== undefined && maxBitrate !== undefined) {
+      this.width = widthOrOptions;
+      this.height = height;
+      this.aspectRatio = widthOrOptions / height;
+      this.encoding = {
+        maxBitrate,
+        maxFramerate,
+        priority
+      };
+    } else {
+      throw new TypeError('Unsupported options: provide at least width, height and maxBitrate');
+    }
+  }
+  get resolution() {
+    return {
+      width: this.width,
+      height: this.height,
+      frameRate: this.encoding.maxFramerate,
+      aspectRatio: this.aspectRatio
+    };
+  }
+}
+const backupCodecs = ['vp8', 'h264'];
+const videoCodecs = ['vp8', 'h264', 'vp9', 'av1'];
+function isBackupCodec(codec) {
+  return !!backupCodecs.find(backup => backup === codec);
+}
+var AudioPresets;
+(function (AudioPresets) {
+  AudioPresets.telephone = {
+    maxBitrate: 12000
+  };
+  AudioPresets.speech = {
+    maxBitrate: 20000
+  };
+  AudioPresets.music = {
+    maxBitrate: 32000
+  };
+  AudioPresets.musicStereo = {
+    maxBitrate: 48000
+  };
+  AudioPresets.musicHighQuality = {
+    maxBitrate: 64000
+  };
+  AudioPresets.musicHighQualityStereo = {
+    maxBitrate: 96000
+  };
+})(AudioPresets || (AudioPresets = {}));
+/**
+ * Sane presets for video resolution/encoding
+ */
+const VideoPresets = {
+  h90: new VideoPreset(160, 90, 90000, 20),
+  h180: new VideoPreset(320, 180, 160000, 20),
+  h216: new VideoPreset(384, 216, 180000, 20),
+  h360: new VideoPreset(640, 360, 450000, 20),
+  h540: new VideoPreset(960, 540, 800000, 25),
+  h720: new VideoPreset(1280, 720, 1700000, 30),
+  h1080: new VideoPreset(1920, 1080, 3000000, 30),
+  h1440: new VideoPreset(2560, 1440, 5000000, 30),
+  h2160: new VideoPreset(3840, 2160, 8000000, 30)
+};
+/**
+ * Four by three presets
+ */
+const VideoPresets43 = {
+  h120: new VideoPreset(160, 120, 70000, 20),
+  h180: new VideoPreset(240, 180, 125000, 20),
+  h240: new VideoPreset(320, 240, 140000, 20),
+  h360: new VideoPreset(480, 360, 330000, 20),
+  h480: new VideoPreset(640, 480, 500000, 20),
+  h540: new VideoPreset(720, 540, 600000, 25),
+  h720: new VideoPreset(960, 720, 1300000, 30),
+  h1080: new VideoPreset(1440, 1080, 2300000, 30),
+  h1440: new VideoPreset(1920, 1440, 3800000, 30)
+};
+const ScreenSharePresets = {
+  h360fps3: new VideoPreset(640, 360, 200000, 3, 'medium'),
+  h360fps15: new VideoPreset(640, 360, 400000, 15, 'medium'),
+  h720fps5: new VideoPreset(1280, 720, 800000, 5, 'medium'),
+  h720fps15: new VideoPreset(1280, 720, 1500000, 15, 'medium'),
+  h720fps30: new VideoPreset(1280, 720, 2000000, 30, 'medium'),
+  h1080fps15: new VideoPreset(1920, 1080, 2500000, 15, 'medium'),
+  h1080fps30: new VideoPreset(1920, 1080, 5000000, 30, 'medium'),
+  // original resolution, without resizing
+  original: new VideoPreset(0, 0, 7000000, 30, 'medium')
+};
+
+function cloneDeep(value) {
+  if (typeof value === 'undefined') {
+    return;
+  }
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value);
+  } else {
+    return JSON.parse(JSON.stringify(value));
+  }
+}
 
 const BACKGROUND_REACTION_DELAY = 5000;
 // keep old audio elements when detached, we would re-use them since on iOS
 // Safari tracks which audio elements have been "blessed" by the user.
 const recycledElements = [];
+var VideoQuality;
+(function (VideoQuality) {
+  VideoQuality[VideoQuality["LOW"] = 0] = "LOW";
+  VideoQuality[VideoQuality["MEDIUM"] = 1] = "MEDIUM";
+  VideoQuality[VideoQuality["HIGH"] = 2] = "HIGH";
+})(VideoQuality || (VideoQuality = {}));
 class Track extends eventsExports.EventEmitter {
   constructor(mediaTrack, kind) {
+    let loggerOptions = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    var _a;
     super();
     this.attachedElements = [];
     this.isMuted = false;
@@ -12594,6 +10545,7 @@ class Track extends eventsExports.EventEmitter {
     this.streamState = Track.StreamState.Active;
     this.isInBackground = false;
     this._currentBitrate = 0;
+    this.log = livekitLogger;
     this.appVisibilityChangedListener = () => {
       if (this.backgroundTimeout) {
         clearTimeout(this.backgroundTimeout);
@@ -12606,11 +10558,17 @@ class Track extends eventsExports.EventEmitter {
         this.handleAppVisibilityChanged();
       }
     };
+    this.log = getLogger((_a = loggerOptions.loggerName) !== null && _a !== void 0 ? _a : LoggerNames.Track);
+    this.loggerContextCb = loggerOptions.loggerContextCb;
     this.setMaxListeners(100);
     this.kind = kind;
     this._mediaStreamTrack = mediaTrack;
     this._mediaStreamID = mediaTrack.id;
     this.source = Track.Source.Unknown;
+  }
+  get logContext() {
+    var _a;
+    return Object.assign(Object.assign({}, (_a = this.loggerContextCb) === null || _a === void 0 ? void 0 : _a.call(this)), getLogContextFromTrack(this));
   }
   /** current receive bits per second */
   get currentBitrate() {
@@ -12660,25 +10618,27 @@ class Track extends eventsExports.EventEmitter {
     attachToElement(this.mediaStreamTrack, element);
     // handle auto playback failures
     const allMediaStreamTracks = element.srcObject.getTracks();
-    if (allMediaStreamTracks.some(tr => tr.kind === 'audio')) {
-      // manually play audio to detect audio playback status
-      element.play().then(() => {
-        this.emit(TrackEvent.AudioPlaybackStarted);
-      }).catch(e => {
-        if (e.name === 'NotAllowedError') {
-          this.emit(TrackEvent.AudioPlaybackFailed, e);
-        } else {
-          livekitLogger.warn('could not playback audio', e);
-        }
-        // If audio playback isn't allowed make sure we still play back the video
-        if (element && allMediaStreamTracks.some(tr => tr.kind === 'video') && e.name === 'NotAllowedError') {
-          element.muted = true;
-          element.play().catch(() => {
-            // catch for Safari, exceeded options at this point to automatically play the media element
-          });
-        }
-      });
-    }
+    const hasAudio = allMediaStreamTracks.some(tr => tr.kind === 'audio');
+    // manually play media to detect auto playback status
+    element.play().then(() => {
+      this.emit(hasAudio ? TrackEvent.AudioPlaybackStarted : TrackEvent.VideoPlaybackStarted);
+    }).catch(e => {
+      if (e.name === 'NotAllowedError') {
+        this.emit(hasAudio ? TrackEvent.AudioPlaybackFailed : TrackEvent.VideoPlaybackFailed, e);
+      } else if (e.name === 'AbortError') {
+        // commonly triggered by another `play` request, only log for debugging purposes
+        livekitLogger.debug("".concat(hasAudio ? 'audio' : 'video', " playback aborted, likely due to new play request"));
+      } else {
+        livekitLogger.warn("could not playback ".concat(hasAudio ? 'audio' : 'video'), e);
+      }
+      // If audio playback isn't allowed make sure we still play back the video
+      if (hasAudio && element && allMediaStreamTracks.some(tr => tr.kind === 'video') && e.name === 'NotAllowedError') {
+        element.muted = true;
+        element.play().catch(() => {
+          // catch for Safari, exceeded options at this point to automatically play the media element
+        });
+      }
+    });
     this.emit(TrackEvent.ElementAttached, element);
     return element;
   }
@@ -12727,6 +10687,15 @@ class Track extends eventsExports.EventEmitter {
       clearInterval(this.monitorInterval);
     }
   }
+  /** @internal */
+  updateLoggerOptions(loggerOptions) {
+    if (loggerOptions.loggerName) {
+      this.log = getLogger(loggerOptions.loggerName);
+    }
+    if (loggerOptions.loggerContextCb) {
+      this.loggerContextCb = loggerOptions.loggerContextCb;
+    }
+  }
   recycleElement(element) {
     if (element instanceof HTMLAudioElement) {
       // we only need to re-use a single element
@@ -12745,6 +10714,11 @@ class Track extends eventsExports.EventEmitter {
   handleAppVisibilityChanged() {
     return __awaiter(this, void 0, void 0, function* () {
       this.isInBackground = document.visibilityState === 'hidden';
+      if (!this.isInBackground && this.kind === Track.Kind.Video) {
+        setTimeout(() => this.attachedElements.forEach(el => el.play().catch(() => {
+          /** catch clause necessary for Safari */
+        })), 0);
+      }
     });
   }
   addAppVisibilityListener() {
@@ -12761,7 +10735,6 @@ class Track extends eventsExports.EventEmitter {
     }
   }
 }
-/** @internal */
 function attachToElement(track, element) {
   let mediaStream;
   if (element.srcObject instanceof MediaStream) {
@@ -12782,7 +10755,12 @@ function attachToElement(track, element) {
     });
     mediaStream.addTrack(track);
   }
-  element.autoplay = true;
+  if (!isSafari() || !(element instanceof HTMLVideoElement)) {
+    // when in low power mode (applies to both macOS and iOS), Safari will show a play/pause overlay
+    // when a video starts that has the `autoplay` attribute is set.
+    // we work around this by _not_ setting the autoplay attribute on safari and instead call `setTimeout(() => el.play(),0)` further down
+    element.autoplay = true;
+  }
   // In case there are no audio tracks present on the mediastream, we set the element as muted to ensure autoplay works
   element.muted = mediaStream.getAudioTracks().length === 0;
   if (element instanceof HTMLVideoElement) {
@@ -12804,7 +10782,7 @@ function attachToElement(track, element) {
         // when the window is backgrounded before the first frame is drawn
         // manually calling play here seems to fix that
         element.play().catch(() => {
-          /* do nothing */
+          /** do nothing */
         });
       }, 0);
     }
@@ -12974,24 +10952,26 @@ function constraintsForOptions(options) {
  * This function detects silence on a given [[Track]] instance.
  * Returns true if the track seems to be entirely silent.
  */
-function detectSilence(track) {
-  let timeOffset = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 200;
-  return __awaiter(this, void 0, void 0, function* () {
-    const ctx = getNewAudioContext();
-    if (ctx) {
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      const source = ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
-      source.connect(analyser);
-      yield sleep(timeOffset);
-      analyser.getByteTimeDomainData(dataArray);
-      const someNoise = dataArray.some(sample => sample !== 128 && sample !== 0);
-      ctx.close();
-      return !someNoise;
-    }
-    return false;
+function detectSilence(track_1) {
+  return __awaiter(this, arguments, void 0, function (track) {
+    let timeOffset = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 200;
+    return function* () {
+      const ctx = getNewAudioContext();
+      if (ctx) {
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        const source = ctx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+        source.connect(analyser);
+        yield sleep(timeOffset);
+        analyser.getByteTimeDomainData(dataArray);
+        const someNoise = dataArray.some(sample => sample !== 128 && sample !== 0);
+        ctx.close();
+        return !someNoise;
+      }
+      return false;
+    }();
   });
 }
 /**
@@ -13025,7 +11005,8 @@ function sourceToKind(source) {
 function screenCaptureToDisplayMediaStreamOptions(options) {
   var _a, _b;
   let videoConstraints = (_a = options.video) !== null && _a !== void 0 ? _a : true;
-  if (options.resolution) {
+  // treat 0 as uncapped
+  if (options.resolution && options.resolution.width > 0 && options.resolution.height > 0) {
     videoConstraints = typeof videoConstraints === 'boolean' ? {} : videoConstraints;
     if (isSafari()) {
       videoConstraints = Object.assign(Object.assign({}, videoConstraints), {
@@ -13056,7 +11037,8 @@ function screenCaptureToDisplayMediaStreamOptions(options) {
     controller: options.controller,
     selfBrowserSurface: options.selfBrowserSurface,
     surfaceSwitching: options.surfaceSwitching,
-    systemAudio: options.systemAudio
+    systemAudio: options.systemAudio,
+    preferCurrentTab: options.preferCurrentTab
   };
 }
 function mimeTypeToVideoCodecString(mimeType) {
@@ -13065,6 +11047,44 @@ function mimeTypeToVideoCodecString(mimeType) {
     throw Error("Video codec not supported: ".concat(codec));
   }
   return codec;
+}
+function getTrackPublicationInfo(tracks) {
+  const infos = [];
+  tracks.forEach(track => {
+    if (track.track !== undefined) {
+      infos.push(new TrackPublishedResponse({
+        cid: track.track.mediaStreamID,
+        track: track.trackInfo
+      }));
+    }
+  });
+  return infos;
+}
+function getLogContextFromTrack(track) {
+  if (track instanceof Track) {
+    return {
+      trackID: track.sid,
+      source: track.source,
+      muted: track.isMuted,
+      enabled: track.mediaStreamTrack.enabled,
+      kind: track.kind,
+      streamID: track.mediaStreamID,
+      streamTrackID: track.mediaStreamTrack.id
+    };
+  } else {
+    return {
+      trackID: track.trackSid,
+      enabled: track.isEnabled,
+      muted: track.isMuted,
+      trackInfo: Object.assign({
+        mimeType: track.mimeType,
+        name: track.trackName,
+        encrypted: track.isEncrypted,
+        kind: track.kind,
+        source: track.source
+      }, track.track ? getLogContextFromTrack(track.track) : {})
+    };
+  }
 }
 
 const separator = '|';
@@ -13078,7 +11098,7 @@ function unpackStreamId(packed) {
 }
 function sleep(duration) {
   return __awaiter(this, void 0, void 0, function* () {
-    return new Promise(resolve => setTimeout(resolve, duration));
+    return new Promise(resolve => CriticalTimers.setTimeout(resolve, duration));
   });
 }
 /** @internal */
@@ -13097,6 +11117,10 @@ function supportsDynacast() {
 }
 function supportsAV1() {
   if (!('getCapabilities' in RTCRtpSender)) {
+    return false;
+  }
+  if (isSafari()) {
+    // Safari 17 on iPhone14 reports AV1 capability, but does not actually support it
     return false;
   }
   const capabilities = RTCRtpSender.getCapabilities('video');
@@ -13119,6 +11143,13 @@ function supportsVP9() {
     // technically speaking FireFox supports VP9, but SVC publishing is broken
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
     return false;
+  }
+  if (isSafari()) {
+    const browser = getBrowser();
+    if ((browser === null || browser === void 0 ? void 0 : browser.version) && compareVersions(browser.version, '16') < 0) {
+      // Safari 16 and below does not support VP9
+      return false;
+    }
   }
   const capabilities = RTCRtpSender.getCapabilities('video');
   let hasVP9 = false;
@@ -13168,19 +11199,22 @@ function supportsSetCodecPreferences(transceiver) {
   return false;
 }
 function isBrowserSupported() {
+  if (typeof RTCPeerConnection === 'undefined') {
+    return false;
+  }
   return supportsTransceiver() || supportsAddTrack();
 }
 function isFireFox() {
   var _a;
   return ((_a = getBrowser()) === null || _a === void 0 ? void 0 : _a.name) === 'Firefox';
 }
-function isChromiumBased() {
-  var _a;
-  return ((_a = getBrowser()) === null || _a === void 0 ? void 0 : _a.name) === 'Chrome';
-}
 function isSafari() {
   var _a;
   return ((_a = getBrowser()) === null || _a === void 0 ? void 0 : _a.name) === 'Safari';
+}
+function isSafari17() {
+  const b = getBrowser();
+  return (b === null || b === void 0 ? void 0 : b.name) === 'Safari' && b.version.startsWith('17.');
 }
 function isMobile() {
   if (!isWeb()) return false;
@@ -13401,6 +11435,9 @@ function createAudioAnalyser(track, options) {
     cleanup
   };
 }
+/**
+ * @internal
+ */
 class Mutex {
   constructor() {
     this._locking = Promise.resolve();
@@ -13458,930 +11495,6 @@ function toHttpUrl(url) {
   return url;
 }
 
-var QueueTaskStatus;
-(function (QueueTaskStatus) {
-  QueueTaskStatus[QueueTaskStatus["WAITING"] = 0] = "WAITING";
-  QueueTaskStatus[QueueTaskStatus["RUNNING"] = 1] = "RUNNING";
-  QueueTaskStatus[QueueTaskStatus["COMPLETED"] = 2] = "COMPLETED";
-})(QueueTaskStatus || (QueueTaskStatus = {}));
-class AsyncQueue {
-  constructor() {
-    this.pendingTasks = new Map();
-    this.taskMutex = new Mutex();
-    this.nextTaskIndex = 0;
-  }
-  run(task) {
-    return __awaiter(this, void 0, void 0, function* () {
-      const taskInfo = {
-        id: this.nextTaskIndex++,
-        enqueuedAt: Date.now(),
-        status: QueueTaskStatus.WAITING
-      };
-      this.pendingTasks.set(taskInfo.id, taskInfo);
-      const unlock = yield this.taskMutex.lock();
-      try {
-        taskInfo.executedAt = Date.now();
-        taskInfo.status = QueueTaskStatus.RUNNING;
-        return yield task();
-      } finally {
-        taskInfo.status = QueueTaskStatus.COMPLETED;
-        this.pendingTasks.delete(taskInfo.id);
-        unlock();
-      }
-    });
-  }
-  flush() {
-    return __awaiter(this, void 0, void 0, function* () {
-      return this.run(() => __awaiter(this, void 0, void 0, function* () {}));
-    });
-  }
-  snapshot() {
-    return Array.from(this.pendingTasks.values());
-  }
-}
-
-const passThroughQueueSignals = ['syncState', 'trickle', 'offer', 'answer', 'simulate', 'leave'];
-function canPassThroughQueue(req) {
-  const canPass = passThroughQueueSignals.indexOf(req.case) >= 0;
-  livekitLogger.trace('request allowed to bypass queue:', {
-    canPass,
-    req
-  });
-  return canPass;
-}
-/** @internal */
-class SignalClient {
-  constructor() {
-    let useJSON = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
-    /** signal rtt in milliseconds */
-    this.rtt = 0;
-    /** @internal */
-    this.resetCallbacks = () => {
-      this.onAnswer = undefined;
-      this.onLeave = undefined;
-      this.onLocalTrackPublished = undefined;
-      this.onLocalTrackUnpublished = undefined;
-      this.onNegotiateRequested = undefined;
-      this.onOffer = undefined;
-      this.onRemoteMuteChanged = undefined;
-      this.onSubscribedQualityUpdate = undefined;
-      this.onTokenRefresh = undefined;
-      this.onTrickle = undefined;
-      this.onClose = undefined;
-    };
-    this.isConnected = false;
-    this.isReconnecting = false;
-    this.useJSON = useJSON;
-    this.requestQueue = new AsyncQueue();
-    this.queuedRequests = [];
-    this.closingLock = new Mutex();
-  }
-  join(url, token, opts, abortSignal) {
-    return __awaiter(this, void 0, void 0, function* () {
-      // during a full reconnect, we'd want to start the sequence even if currently
-      // connected
-      this.isConnected = false;
-      this.options = opts;
-      const res = yield this.connect(url, token, opts, abortSignal);
-      return res;
-    });
-  }
-  reconnect(url, token, sid, reason) {
-    return __awaiter(this, void 0, void 0, function* () {
-      if (!this.options) {
-        livekitLogger.warn('attempted to reconnect without signal options being set, ignoring');
-        return;
-      }
-      this.isReconnecting = true;
-      // clear ping interval and restart it once reconnected
-      this.clearPingInterval();
-      const res = yield this.connect(url, token, Object.assign(Object.assign({}, this.options), {
-        reconnect: true,
-        sid,
-        reconnectReason: reason
-      }));
-      return res;
-    });
-  }
-  connect(url, token, opts, abortSignal) {
-    this.connectOptions = opts;
-    url = toWebsocketUrl(url);
-    // strip trailing slash
-    url = url.replace(/\/$/, '');
-    url += '/rtc';
-    const clientInfo = getClientInfo();
-    const params = createConnectionParams(token, clientInfo, opts);
-    return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
-      const abortHandler = () => __awaiter(this, void 0, void 0, function* () {
-        this.close();
-        clearTimeout(wsTimeout);
-        reject(new ConnectionError('room connection has been cancelled (signal)'));
-      });
-      const wsTimeout = setTimeout(() => {
-        this.close();
-        reject(new ConnectionError('room connection has timed out (signal)'));
-      }, opts.websocketTimeout);
-      if (abortSignal === null || abortSignal === void 0 ? void 0 : abortSignal.aborted) {
-        abortHandler();
-      }
-      abortSignal === null || abortSignal === void 0 ? void 0 : abortSignal.addEventListener('abort', abortHandler);
-      livekitLogger.debug("connecting to ".concat(url + params));
-      if (this.ws) {
-        yield this.close();
-      }
-      this.ws = new WebSocket(url + params);
-      this.ws.binaryType = 'arraybuffer';
-      this.ws.onopen = () => {
-        clearTimeout(wsTimeout);
-      };
-      this.ws.onerror = ev => __awaiter(this, void 0, void 0, function* () {
-        if (!this.isConnected) {
-          clearTimeout(wsTimeout);
-          try {
-            const resp = yield fetch("http".concat(url.substring(2), "/validate").concat(params));
-            if (resp.status.toFixed(0).startsWith('4')) {
-              const msg = yield resp.text();
-              reject(new ConnectionError(msg, 0 /* ConnectionErrorReason.NotAllowed */, resp.status));
-            } else {
-              reject(new ConnectionError('Internal error', 2 /* ConnectionErrorReason.InternalError */, resp.status));
-            }
-          } catch (e) {
-            reject(new ConnectionError('server was not reachable', 1 /* ConnectionErrorReason.ServerUnreachable */));
-          }
-
-          return;
-        }
-        // other errors, handle
-        this.handleWSError(ev);
-      });
-      this.ws.onmessage = ev => __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d;
-        // not considered connected until JoinResponse is received
-        let resp;
-        if (typeof ev.data === 'string') {
-          const json = JSON.parse(ev.data);
-          resp = SignalResponse.fromJson(json);
-        } else if (ev.data instanceof ArrayBuffer) {
-          resp = SignalResponse.fromBinary(new Uint8Array(ev.data));
-        } else {
-          livekitLogger.error("could not decode websocket message: ".concat(typeof ev.data));
-          return;
-        }
-        if (!this.isConnected) {
-          let shouldProcessMessage = false;
-          // handle join message only
-          if (((_a = resp.message) === null || _a === void 0 ? void 0 : _a.case) === 'join') {
-            this.isConnected = true;
-            abortSignal === null || abortSignal === void 0 ? void 0 : abortSignal.removeEventListener('abort', abortHandler);
-            this.pingTimeoutDuration = resp.message.value.pingTimeout;
-            this.pingIntervalDuration = resp.message.value.pingInterval;
-            if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
-              livekitLogger.debug('ping config', {
-                timeout: this.pingTimeoutDuration,
-                interval: this.pingIntervalDuration
-              });
-              this.startPingInterval();
-            }
-            resolve(resp.message.value);
-          } else if (opts.reconnect) {
-            // in reconnecting, any message received means signal reconnected
-            this.isConnected = true;
-            abortSignal === null || abortSignal === void 0 ? void 0 : abortSignal.removeEventListener('abort', abortHandler);
-            this.startPingInterval();
-            if (((_b = resp.message) === null || _b === void 0 ? void 0 : _b.case) === 'reconnect') {
-              resolve((_c = resp.message) === null || _c === void 0 ? void 0 : _c.value);
-            } else {
-              resolve();
-              shouldProcessMessage = true;
-            }
-          } else if (!opts.reconnect) {
-            // non-reconnect case, should receive join response first
-            reject(new ConnectionError("did not receive join response, got ".concat((_d = resp.message) === null || _d === void 0 ? void 0 : _d.case, " instead")));
-          }
-          if (!shouldProcessMessage) {
-            return;
-          }
-        }
-        if (this.signalLatency) {
-          yield sleep(this.signalLatency);
-        }
-        this.handleSignalResponse(resp);
-      });
-      this.ws.onclose = ev => {
-        livekitLogger.warn("websocket closed", {
-          ev
-        });
-        this.handleOnClose(ev.reason);
-      };
-    }));
-  }
-  close() {
-    return __awaiter(this, void 0, void 0, function* () {
-      const unlock = yield this.closingLock.lock();
-      try {
-        this.isConnected = false;
-        if (this.ws) {
-          this.ws.onmessage = null;
-          this.ws.onopen = null;
-          this.ws.onclose = null;
-          // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
-          const closePromise = new Promise(resolve => {
-            if (this.ws) {
-              this.ws.onclose = () => {
-                resolve();
-              };
-            } else {
-              resolve();
-            }
-          });
-          if (this.ws.readyState < this.ws.CLOSING) {
-            this.ws.close();
-            // 250ms grace period for ws to close gracefully
-            yield Promise.race([closePromise, sleep(250)]);
-          }
-          this.ws = undefined;
-        }
-      } finally {
-        this.clearPingInterval();
-        unlock();
-      }
-    });
-  }
-  // initial offer after joining
-  sendOffer(offer) {
-    livekitLogger.debug('sending offer', offer);
-    this.sendRequest({
-      case: 'offer',
-      value: toProtoSessionDescription(offer)
-    });
-  }
-  // answer a server-initiated offer
-  sendAnswer(answer) {
-    livekitLogger.debug('sending answer');
-    return this.sendRequest({
-      case: 'answer',
-      value: toProtoSessionDescription(answer)
-    });
-  }
-  sendIceCandidate(candidate, target) {
-    livekitLogger.trace('sending ice candidate', candidate);
-    return this.sendRequest({
-      case: 'trickle',
-      value: new TrickleRequest({
-        candidateInit: JSON.stringify(candidate),
-        target
-      })
-    });
-  }
-  sendMuteTrack(trackSid, muted) {
-    return this.sendRequest({
-      case: 'mute',
-      value: new MuteTrackRequest({
-        sid: trackSid,
-        muted
-      })
-    });
-  }
-  sendAddTrack(req) {
-    return this.sendRequest({
-      case: 'addTrack',
-      value: req
-    });
-  }
-  sendUpdateLocalMetadata(metadata, name) {
-    return this.sendRequest({
-      case: 'updateMetadata',
-      value: new UpdateParticipantMetadata({
-        metadata,
-        name
-      })
-    });
-  }
-  sendUpdateTrackSettings(settings) {
-    this.sendRequest({
-      case: 'trackSetting',
-      value: settings
-    });
-  }
-  sendUpdateSubscription(sub) {
-    return this.sendRequest({
-      case: 'subscription',
-      value: sub
-    });
-  }
-  sendSyncState(sync) {
-    return this.sendRequest({
-      case: 'syncState',
-      value: sync
-    });
-  }
-  sendUpdateVideoLayers(trackSid, layers) {
-    return this.sendRequest({
-      case: 'updateLayers',
-      value: new UpdateVideoLayers({
-        trackSid,
-        layers
-      })
-    });
-  }
-  sendUpdateSubscriptionPermissions(allParticipants, trackPermissions) {
-    return this.sendRequest({
-      case: 'subscriptionPermission',
-      value: new SubscriptionPermission({
-        allParticipants,
-        trackPermissions
-      })
-    });
-  }
-  sendSimulateScenario(scenario) {
-    return this.sendRequest({
-      case: 'simulate',
-      value: scenario
-    });
-  }
-  sendPing() {
-    /** send both of ping and pingReq for compatibility to old and new server */
-    return Promise.all([this.sendRequest({
-      case: 'ping',
-      value: protoInt64.parse(Date.now())
-    }), this.sendRequest({
-      case: 'pingReq',
-      value: new Ping({
-        timestamp: protoInt64.parse(Date.now()),
-        rtt: protoInt64.parse(this.rtt)
-      })
-    })]);
-  }
-  sendLeave() {
-    return this.sendRequest({
-      case: 'leave',
-      value: new LeaveRequest({
-        canReconnect: false,
-        reason: DisconnectReason.CLIENT_INITIATED
-      })
-    });
-  }
-  sendRequest(message) {
-    let fromQueue = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
-    return __awaiter(this, void 0, void 0, function* () {
-      // capture all requests while reconnecting and put them in a queue
-      // unless the request originates from the queue, then don't enqueue again
-      const canQueue = !fromQueue && !canPassThroughQueue(message);
-      if (canQueue && this.isReconnecting) {
-        this.queuedRequests.push(() => __awaiter(this, void 0, void 0, function* () {
-          yield this.sendRequest(message, true);
-        }));
-        return;
-      }
-      // make sure previously queued requests are being sent first
-      if (!fromQueue) {
-        yield this.requestQueue.flush();
-      }
-      if (this.signalLatency) {
-        yield sleep(this.signalLatency);
-      }
-      if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
-        livekitLogger.error("cannot send signal request before connected, type: ".concat(message === null || message === void 0 ? void 0 : message.case));
-        return;
-      }
-      const req = new SignalRequest({
-        message
-      });
-      try {
-        if (this.useJSON) {
-          this.ws.send(req.toJsonString());
-        } else {
-          this.ws.send(req.toBinary());
-        }
-      } catch (e) {
-        livekitLogger.error('error sending signal message', {
-          error: e
-        });
-      }
-    });
-  }
-  handleSignalResponse(res) {
-    var _a, _b;
-    const msg = res.message;
-    if (msg == undefined) {
-      livekitLogger.debug('received unsupported message');
-      return;
-    }
-    if (msg.case === 'answer') {
-      const sd = fromProtoSessionDescription(msg.value);
-      if (this.onAnswer) {
-        this.onAnswer(sd);
-      }
-    } else if (msg.case === 'offer') {
-      const sd = fromProtoSessionDescription(msg.value);
-      if (this.onOffer) {
-        this.onOffer(sd);
-      }
-    } else if (msg.case === 'trickle') {
-      const candidate = JSON.parse(msg.value.candidateInit);
-      if (this.onTrickle) {
-        this.onTrickle(candidate, msg.value.target);
-      }
-    } else if (msg.case === 'update') {
-      if (this.onParticipantUpdate) {
-        this.onParticipantUpdate((_a = msg.value.participants) !== null && _a !== void 0 ? _a : []);
-      }
-    } else if (msg.case === 'trackPublished') {
-      if (this.onLocalTrackPublished) {
-        this.onLocalTrackPublished(msg.value);
-      }
-    } else if (msg.case === 'speakersChanged') {
-      if (this.onSpeakersChanged) {
-        this.onSpeakersChanged((_b = msg.value.speakers) !== null && _b !== void 0 ? _b : []);
-      }
-    } else if (msg.case === 'leave') {
-      if (this.onLeave) {
-        this.onLeave(msg.value);
-      }
-    } else if (msg.case === 'mute') {
-      if (this.onRemoteMuteChanged) {
-        this.onRemoteMuteChanged(msg.value.sid, msg.value.muted);
-      }
-    } else if (msg.case === 'roomUpdate') {
-      if (this.onRoomUpdate && msg.value.room) {
-        this.onRoomUpdate(msg.value.room);
-      }
-    } else if (msg.case === 'connectionQuality') {
-      if (this.onConnectionQuality) {
-        this.onConnectionQuality(msg.value);
-      }
-    } else if (msg.case === 'streamStateUpdate') {
-      if (this.onStreamStateUpdate) {
-        this.onStreamStateUpdate(msg.value);
-      }
-    } else if (msg.case === 'subscribedQualityUpdate') {
-      if (this.onSubscribedQualityUpdate) {
-        this.onSubscribedQualityUpdate(msg.value);
-      }
-    } else if (msg.case === 'subscriptionPermissionUpdate') {
-      if (this.onSubscriptionPermissionUpdate) {
-        this.onSubscriptionPermissionUpdate(msg.value);
-      }
-    } else if (msg.case === 'refreshToken') {
-      if (this.onTokenRefresh) {
-        this.onTokenRefresh(msg.value);
-      }
-    } else if (msg.case === 'trackUnpublished') {
-      if (this.onLocalTrackUnpublished) {
-        this.onLocalTrackUnpublished(msg.value);
-      }
-    } else if (msg.case === 'subscriptionResponse') {
-      if (this.onSubscriptionError) {
-        this.onSubscriptionError(msg.value);
-      }
-    } else if (msg.case === 'pong') {
-      this.resetPingTimeout();
-    } else if (msg.case === 'pongResp') {
-      this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
-      this.resetPingTimeout();
-    } else {
-      livekitLogger.debug('unsupported message', msg);
-    }
-  }
-  setReconnected() {
-    while (this.queuedRequests.length > 0) {
-      const req = this.queuedRequests.shift();
-      if (req) {
-        this.requestQueue.run(req);
-      }
-    }
-    this.isReconnecting = false;
-  }
-  handleOnClose(reason) {
-    return __awaiter(this, void 0, void 0, function* () {
-      if (!this.isConnected) return;
-      const onCloseCallback = this.onClose;
-      yield this.close();
-      livekitLogger.debug("websocket connection closed: ".concat(reason));
-      if (onCloseCallback) {
-        onCloseCallback(reason);
-      }
-    });
-  }
-  handleWSError(ev) {
-    livekitLogger.error('websocket error', ev);
-  }
-  /**
-   * Resets the ping timeout and starts a new timeout.
-   * Call this after receiving a pong message
-   */
-  resetPingTimeout() {
-    this.clearPingTimeout();
-    if (!this.pingTimeoutDuration) {
-      livekitLogger.warn('ping timeout duration not set');
-      return;
-    }
-    this.pingTimeout = CriticalTimers.setTimeout(() => {
-      livekitLogger.warn("ping timeout triggered. last pong received at: ".concat(new Date(Date.now() - this.pingTimeoutDuration * 1000).toUTCString()));
-      this.handleOnClose('ping timeout');
-    }, this.pingTimeoutDuration * 1000);
-  }
-  /**
-   * Clears ping timeout (does not start a new timeout)
-   */
-  clearPingTimeout() {
-    if (this.pingTimeout) {
-      CriticalTimers.clearTimeout(this.pingTimeout);
-    }
-  }
-  startPingInterval() {
-    this.clearPingInterval();
-    this.resetPingTimeout();
-    if (!this.pingIntervalDuration) {
-      livekitLogger.warn('ping interval duration not set');
-      return;
-    }
-    livekitLogger.debug('start ping interval');
-    this.pingInterval = CriticalTimers.setInterval(() => {
-      this.sendPing();
-    }, this.pingIntervalDuration * 1000);
-  }
-  clearPingInterval() {
-    livekitLogger.debug('clearing ping interval');
-    this.clearPingTimeout();
-    if (this.pingInterval) {
-      CriticalTimers.clearInterval(this.pingInterval);
-    }
-  }
-}
-function fromProtoSessionDescription(sd) {
-  const rsd = {
-    type: 'offer',
-    sdp: sd.sdp
-  };
-  switch (sd.type) {
-    case 'answer':
-    case 'offer':
-    case 'pranswer':
-    case 'rollback':
-      rsd.type = sd.type;
-      break;
-  }
-  return rsd;
-}
-function toProtoSessionDescription(rsd) {
-  const sd = new SessionDescription({
-    sdp: rsd.sdp,
-    type: rsd.type
-  });
-  return sd;
-}
-function createConnectionParams(token, info, opts) {
-  var _a;
-  const params = new URLSearchParams();
-  params.set('access_token', token);
-  // opts
-  if (opts.reconnect) {
-    params.set('reconnect', '1');
-    if (opts.sid) {
-      params.set('sid', opts.sid);
-    }
-  }
-  params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
-  // ClientInfo
-  params.set('sdk', isReactNative() ? 'reactnative' : 'js');
-  params.set('version', info.version);
-  params.set('protocol', info.protocol.toString());
-  if (info.deviceModel) {
-    params.set('device_model', info.deviceModel);
-  }
-  if (info.os) {
-    params.set('os', info.os);
-  }
-  if (info.osVersion) {
-    params.set('os_version', info.osVersion);
-  }
-  if (info.browser) {
-    params.set('browser', info.browser);
-  }
-  if (info.browserVersion) {
-    params.set('browser_version', info.browserVersion);
-  }
-  if (opts.publishOnly !== undefined) {
-    params.set('publish', opts.publishOnly);
-  }
-  if (opts.adaptiveStream) {
-    params.set('adaptive_stream', '1');
-  }
-  if (opts.reconnectReason) {
-    params.set('reconnect_reason', opts.reconnectReason.toString());
-  }
-  // @ts-ignore
-  if ((_a = navigator.connection) === null || _a === void 0 ? void 0 : _a.type) {
-    // @ts-ignore
-    params.set('network', navigator.connection.type);
-  }
-  return "?".concat(params.toString());
-}
-
-const ENCRYPTION_ALGORITHM = 'AES-GCM';
-// How many consecutive frames can fail decrypting before a particular key gets marked as invalid
-const DECRYPTION_FAILURE_TOLERANCE = 10;
-// flag set to indicate that e2ee has been setup for sender/receiver;
-const E2EE_FLAG = 'lk_e2ee';
-const SALT = 'LKFrameEncryptionKey';
-const KEY_PROVIDER_DEFAULTS = {
-  sharedKey: false,
-  ratchetSalt: SALT,
-  ratchetWindowSize: 8,
-  failureTolerance: DECRYPTION_FAILURE_TOLERANCE
-};
-
-var KeyProviderEvent;
-(function (KeyProviderEvent) {
-  KeyProviderEvent["SetKey"] = "setKey";
-  KeyProviderEvent["RatchetRequest"] = "ratchetRequest";
-  KeyProviderEvent["KeyRatcheted"] = "keyRatcheted";
-})(KeyProviderEvent || (KeyProviderEvent = {}));
-var KeyHandlerEvent;
-(function (KeyHandlerEvent) {
-  KeyHandlerEvent["KeyRatcheted"] = "keyRatcheted";
-})(KeyHandlerEvent || (KeyHandlerEvent = {}));
-var EncryptionEvent;
-(function (EncryptionEvent) {
-  EncryptionEvent["ParticipantEncryptionStatusChanged"] = "participantEncryptionStatusChanged";
-  EncryptionEvent["EncryptionError"] = "encryptionError";
-})(EncryptionEvent || (EncryptionEvent = {}));
-var CryptorEvent;
-(function (CryptorEvent) {
-  CryptorEvent["Error"] = "cryptorError";
-})(CryptorEvent || (CryptorEvent = {}));
-
-function isE2EESupported() {
-  return isInsertableStreamSupported() || isScriptTransformSupported();
-}
-function isScriptTransformSupported() {
-  // @ts-ignore
-  return typeof window.RTCRtpScriptTransform !== 'undefined';
-}
-function isInsertableStreamSupported() {
-  return typeof window.RTCRtpSender !== 'undefined' &&
-  // @ts-ignore
-  typeof window.RTCRtpSender.prototype.createEncodedStreams !== 'undefined';
-}
-function isVideoFrame(frame) {
-  return 'type' in frame;
-}
-function importKey(keyBytes) {
-  let algorithm = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {
-    name: ENCRYPTION_ALGORITHM
-  };
-  let usage = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 'encrypt';
-  return __awaiter(this, void 0, void 0, function* () {
-    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey
-    return crypto.subtle.importKey('raw', keyBytes, algorithm, false, usage === 'derive' ? ['deriveBits', 'deriveKey'] : ['encrypt', 'decrypt']);
-  });
-}
-function createKeyMaterialFromString(password) {
-  return __awaiter(this, void 0, void 0, function* () {
-    let enc = new TextEncoder();
-    const keyMaterial = yield crypto.subtle.importKey('raw', enc.encode(password), {
-      name: 'PBKDF2'
-    }, false, ['deriveBits', 'deriveKey']);
-    return keyMaterial;
-  });
-}
-function createKeyMaterialFromBuffer(cryptoBuffer) {
-  return __awaiter(this, void 0, void 0, function* () {
-    const keyMaterial = yield crypto.subtle.importKey('raw', cryptoBuffer, 'HKDF', false, ['deriveBits', 'deriveKey']);
-    return keyMaterial;
-  });
-}
-function getAlgoOptions(algorithmName, salt) {
-  const textEncoder = new TextEncoder();
-  const encodedSalt = textEncoder.encode(salt);
-  switch (algorithmName) {
-    case 'HKDF':
-      return {
-        name: 'HKDF',
-        salt: encodedSalt,
-        hash: 'SHA-256',
-        info: new ArrayBuffer(128)
-      };
-    case 'PBKDF2':
-      {
-        return {
-          name: 'PBKDF2',
-          salt: encodedSalt,
-          hash: 'SHA-256',
-          iterations: 100000
-        };
-      }
-    default:
-      throw new Error("algorithm ".concat(algorithmName, " is currently unsupported"));
-  }
-}
-/**
- * Derives a set of keys from the master key.
- * See https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.1
- */
-function deriveKeys(material, salt) {
-  return __awaiter(this, void 0, void 0, function* () {
-    const algorithmOptions = getAlgoOptions(material.algorithm.name, salt);
-    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#HKDF
-    // https://developer.mozilla.org/en-US/docs/Web/API/HkdfParams
-    const encryptionKey = yield crypto.subtle.deriveKey(algorithmOptions, material, {
-      name: ENCRYPTION_ALGORITHM,
-      length: 128
-    }, false, ['encrypt', 'decrypt']);
-    return {
-      material,
-      encryptionKey
-    };
-  });
-}
-function createE2EEKey() {
-  return window.crypto.getRandomValues(new Uint8Array(32));
-}
-/**
- * Ratchets a key. See
- * https://tools.ietf.org/html/draft-omara-sframe-00#section-4.3.5.1
- */
-function ratchet(material, salt) {
-  return __awaiter(this, void 0, void 0, function* () {
-    const algorithmOptions = getAlgoOptions(material.algorithm.name, salt);
-    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveBits
-    return crypto.subtle.deriveBits(algorithmOptions, material, 256);
-  });
-}
-function needsRbspUnescaping(frameData) {
-  for (var i = 0; i < frameData.length - 3; i++) {
-    if (frameData[i] == 0 && frameData[i + 1] == 0 && frameData[i + 2] == 3) return true;
-  }
-  return false;
-}
-function parseRbsp(stream) {
-  const dataOut = [];
-  var length = stream.length;
-  for (var i = 0; i < stream.length;) {
-    // Be careful about over/underflow here. byte_length_ - 3 can underflow, and
-    // i + 3 can overflow, but byte_length_ - i can't, because i < byte_length_
-    // above, and that expression will produce the number of bytes left in
-    // the stream including the byte at i.
-    if (length - i >= 3 && !stream[i] && !stream[i + 1] && stream[i + 2] == 3) {
-      // Two rbsp bytes.
-      dataOut.push(stream[i++]);
-      dataOut.push(stream[i++]);
-      // Skip the emulation byte.
-      i++;
-    } else {
-      // Single rbsp byte.
-      dataOut.push(stream[i++]);
-    }
-  }
-  return new Uint8Array(dataOut);
-}
-const kZerosInStartSequence = 2;
-const kEmulationByte = 3;
-function writeRbsp(data_in) {
-  const dataOut = [];
-  var numConsecutiveZeros = 0;
-  for (var i = 0; i < data_in.length; ++i) {
-    var byte = data_in[i];
-    if (byte <= kEmulationByte && numConsecutiveZeros >= kZerosInStartSequence) {
-      // Need to escape.
-      dataOut.push(kEmulationByte);
-      numConsecutiveZeros = 0;
-    }
-    dataOut.push(byte);
-    if (byte == 0) {
-      ++numConsecutiveZeros;
-    } else {
-      numConsecutiveZeros = 0;
-    }
-  }
-  return new Uint8Array(dataOut);
-}
-
-/**
- * @experimental
- */
-class BaseKeyProvider extends eventsExports.EventEmitter {
-  constructor() {
-    let options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-    super();
-    /**
-     * callback being invoked after a ratchet request has been performed on a participant
-     * that surfaces the new key material.
-     * @param material
-     * @param keyIndex
-     */
-    this.onKeyRatcheted = (material, keyIndex) => {
-      livekitLogger.debug('key ratcheted event received', {
-        material,
-        keyIndex
-      });
-    };
-    this.keyInfoMap = new Map();
-    this.options = Object.assign(Object.assign({}, KEY_PROVIDER_DEFAULTS), options);
-    this.on(KeyProviderEvent.KeyRatcheted, this.onKeyRatcheted);
-  }
-  /**
-   * callback to invoke once a key has been set for a participant
-   * @param key
-   * @param participantIdentity
-   * @param keyIndex
-   */
-  onSetEncryptionKey(key, participantIdentity, keyIndex) {
-    const keyInfo = {
-      key,
-      participantIdentity,
-      keyIndex
-    };
-    this.keyInfoMap.set("".concat(participantIdentity !== null && participantIdentity !== void 0 ? participantIdentity : 'shared', "-").concat(keyIndex !== null && keyIndex !== void 0 ? keyIndex : 0), keyInfo);
-    this.emit(KeyProviderEvent.SetKey, keyInfo);
-  }
-  getKeys() {
-    return Array.from(this.keyInfoMap.values());
-  }
-  getOptions() {
-    return this.options;
-  }
-  ratchetKey(participantIdentity, keyIndex) {
-    this.emit(KeyProviderEvent.RatchetRequest, participantIdentity, keyIndex);
-  }
-}
-/**
- * A basic KeyProvider implementation intended for a single shared
- * passphrase between all participants
- * @experimental
- */
-class ExternalE2EEKeyProvider extends BaseKeyProvider {
-  constructor() {
-    let options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
-    const opts = Object.assign(Object.assign({}, options), {
-      sharedKey: true,
-      // for a shared key provider failing to decrypt for a specific participant
-      // should not mark the key as invalid, so we accept wrong keys forever
-      // and won't try to auto-ratchet
-      ratchetWindowSize: 0,
-      failureTolerance: -1
-    });
-    super(opts);
-  }
-  /**
-   * Accepts a passphrase that's used to create the crypto keys.
-   * When passing in a string, PBKDF2 is used.
-   * When passing in an Array buffer of cryptographically random numbers, HKDF is being used. (recommended)
-   * @param key
-   */
-  setKey(key) {
-    return __awaiter(this, void 0, void 0, function* () {
-      const derivedKey = typeof key === 'string' ? yield createKeyMaterialFromString(key) : yield createKeyMaterialFromBuffer(key);
-      this.onSetEncryptionKey(derivedKey);
-    });
-  }
-}
-
-function r(r, e, n) {
-  var i, t, o;
-  void 0 === e && (e = 50), void 0 === n && (n = {});
-  var a = null != (i = n.isImmediate) && i,
-    u = null != (t = n.callback) && t,
-    c = n.maxWait,
-    v = Date.now(),
-    l = [];
-  function f() {
-    if (void 0 !== c) {
-      var r = Date.now() - v;
-      if (r + e >= c) return c - r;
-    }
-    return e;
-  }
-  var d = function () {
-    var e = [].slice.call(arguments),
-      n = this;
-    return new Promise(function (i, t) {
-      var c = a && void 0 === o;
-      if (void 0 !== o && clearTimeout(o), o = setTimeout(function () {
-        if (o = void 0, v = Date.now(), !a) {
-          var i = r.apply(n, e);
-          u && u(i), l.forEach(function (r) {
-            return (0, r.resolve)(i);
-          }), l = [];
-        }
-      }, f()), c) {
-        var d = r.apply(n, e);
-        return u && u(d), i(d);
-      }
-      l.push({
-        resolve: i,
-        reject: t
-      });
-    });
-  };
-  return d.cancel = function (r) {
-    void 0 !== o && clearTimeout(o), l.forEach(function (e) {
-      return (0, e.reject)(r);
-    }), l = [];
-  }, d;
-}
-
 const defaultId = 'default';
 class DeviceManager {
   static getInstance() {
@@ -14390,47 +11503,50 @@ class DeviceManager {
     }
     return this.instance;
   }
-  getDevices(kind) {
-    let requestPermissions = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
-    var _a;
-    return __awaiter(this, void 0, void 0, function* () {
-      if (((_a = DeviceManager.userMediaPromiseMap) === null || _a === void 0 ? void 0 : _a.size) > 0) {
-        livekitLogger.debug('awaiting getUserMedia promise');
-        try {
-          if (kind) {
-            yield DeviceManager.userMediaPromiseMap.get(kind);
-          } else {
-            yield Promise.all(DeviceManager.userMediaPromiseMap.values());
+  getDevices(kind_1) {
+    return __awaiter(this, arguments, void 0, function (kind) {
+      var _this = this;
+      let requestPermissions = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+      return function* () {
+        var _a;
+        if (((_a = DeviceManager.userMediaPromiseMap) === null || _a === void 0 ? void 0 : _a.size) > 0) {
+          livekitLogger.debug('awaiting getUserMedia promise');
+          try {
+            if (kind) {
+              yield DeviceManager.userMediaPromiseMap.get(kind);
+            } else {
+              yield Promise.all(DeviceManager.userMediaPromiseMap.values());
+            }
+          } catch (e) {
+            livekitLogger.warn('error waiting for media permissons');
           }
-        } catch (e) {
-          livekitLogger.warn('error waiting for media permissons');
         }
-      }
-      let devices = yield navigator.mediaDevices.enumerateDevices();
-      if (requestPermissions &&
-      // for safari we need to skip this check, as otherwise it will re-acquire user media and fail on iOS https://bugs.webkit.org/show_bug.cgi?id=179363
-      !(isSafari() && this.hasDeviceInUse(kind))) {
-        const isDummyDeviceOrEmpty = devices.length === 0 || devices.some(device => {
-          const noLabel = device.label === '';
-          const isRelevant = kind ? device.kind === kind : true;
-          return noLabel && isRelevant;
-        });
-        if (isDummyDeviceOrEmpty) {
-          const permissionsToAcquire = {
-            video: kind !== 'audioinput' && kind !== 'audiooutput',
-            audio: kind !== 'videoinput'
-          };
-          const stream = yield navigator.mediaDevices.getUserMedia(permissionsToAcquire);
-          devices = yield navigator.mediaDevices.enumerateDevices();
-          stream.getTracks().forEach(track => {
-            track.stop();
+        let devices = yield navigator.mediaDevices.enumerateDevices();
+        if (requestPermissions &&
+        // for safari we need to skip this check, as otherwise it will re-acquire user media and fail on iOS https://bugs.webkit.org/show_bug.cgi?id=179363
+        !(isSafari() && _this.hasDeviceInUse(kind))) {
+          const isDummyDeviceOrEmpty = devices.length === 0 || devices.some(device => {
+            const noLabel = device.label === '';
+            const isRelevant = kind ? device.kind === kind : true;
+            return noLabel && isRelevant;
           });
+          if (isDummyDeviceOrEmpty) {
+            const permissionsToAcquire = {
+              video: kind !== 'audioinput' && kind !== 'audiooutput',
+              audio: kind !== 'videoinput'
+            };
+            const stream = yield navigator.mediaDevices.getUserMedia(permissionsToAcquire);
+            devices = yield navigator.mediaDevices.enumerateDevices();
+            stream.getTracks().forEach(track => {
+              track.stop();
+            });
+          }
         }
-      }
-      if (kind) {
-        devices = devices.filter(device => device.kind === kind);
-      }
-      return devices;
+        if (kind) {
+          devices = devices.filter(device => device.kind === kind);
+        }
+        return devices;
+      }();
     });
   }
   normalizeDeviceId(kind, deviceId, groupId) {
@@ -14441,7 +11557,16 @@ class DeviceManager {
       // resolve actual device id if it's 'default': Chrome returns it when no
       // device has been chosen
       const devices = yield this.getDevices(kind);
-      const device = devices.find(d => d.groupId === groupId && d.deviceId !== defaultId);
+      // `default` devices will have the same groupId as the entry with the actual device id so we store the counts for each group id
+      const groupIdCounts = new Map(devices.map(d => [d.groupId, 0]));
+      devices.forEach(d => {
+        var _a;
+        return groupIdCounts.set(d.groupId, ((_a = groupIdCounts.get(d.groupId)) !== null && _a !== void 0 ? _a : 0) + 1);
+      });
+      const device = devices.find(d => {
+        var _a;
+        return (groupId === d.groupId || ((_a = groupIdCounts.get(d.groupId)) !== null && _a !== void 0 ? _a : 0) > 1) && d.deviceId !== defaultId;
+      });
       return device === null || device === void 0 ? void 0 : device.deviceId;
     });
   }
@@ -14466,9 +11591,10 @@ class LocalTrack extends Track {
    */
   constructor(mediaTrack, kind, constraints) {
     let userProvidedTrack = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : false;
-    super(mediaTrack, kind);
+    let loggerOptions = arguments.length > 4 ? arguments[4] : undefined;
+    super(mediaTrack, kind, loggerOptions);
     this._isUpstreamPaused = false;
-    this.handleTrackMuteEvent = () => this.debouncedTrackMuteHandler().catch(() => livekitLogger.debug('track mute bounce got cancelled by an unmute event'));
+    this.handleTrackMuteEvent = () => this.debouncedTrackMuteHandler().catch(() => this.log.debug('track mute bounce got cancelled by an unmute event', this.logContext));
     this.debouncedTrackMuteHandler = r(() => __awaiter(this, void 0, void 0, function* () {
       yield this.pauseUpstream();
     }), 5000);
@@ -14489,6 +11615,7 @@ class LocalTrack extends Track {
     this.muteLock = new Mutex();
     this.pauseUpstreamLock = new Mutex();
     this.processorLock = new Mutex();
+    this.restartLock = new Mutex();
     this.setMediaStreamTrack(mediaTrack, true);
     // added to satisfy TS compiler, constraints are synced with MediaStreamTrack
     this._constraints = mediaTrack.getConstraints();
@@ -14535,12 +11662,10 @@ class LocalTrack extends Track {
         this.attachedElements.forEach(el => {
           detachTrack(this._mediaStreamTrack, el);
         });
+        this.debouncedTrackMuteHandler.cancel('new-track');
         this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
         this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
         this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
-        if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
-          this._mediaStreamTrack.stop();
-        }
       }
       this.mediaStream = new MediaStream([newTrack]);
       if (newTrack) {
@@ -14555,21 +11680,35 @@ class LocalTrack extends Track {
         this._constraints = newTrack.getConstraints();
       }
       let processedTrack;
-      if (this.processor && newTrack && this.processorElement) {
-        livekitLogger.debug('restarting processor');
-        if (this.kind === 'unknown') {
-          throw TypeError('cannot set processor on track of unknown kind');
+      if (this.processor && newTrack) {
+        const unlock = yield this.processorLock.lock();
+        try {
+          this.log.debug('restarting processor', this.logContext);
+          if (this.kind === 'unknown') {
+            throw TypeError('cannot set processor on track of unknown kind');
+          }
+          if (this.processorElement) {
+            attachToElement(newTrack, this.processorElement);
+            // ensure the processorElement itself stays muted
+            this.processorElement.muted = true;
+          }
+          yield this.processor.restart({
+            track: newTrack,
+            kind: this.kind,
+            element: this.processorElement
+          });
+          processedTrack = this.processor.processedTrack;
+        } finally {
+          unlock();
         }
-        attachToElement(newTrack, this.processorElement);
-        yield this.processor.restart({
-          track: newTrack,
-          kind: this.kind,
-          element: this.processorElement
-        });
-        processedTrack = this.processor.processedTrack;
       }
       if (this.sender) {
         yield this.sender.replaceTrack(processedTrack !== null && processedTrack !== void 0 ? processedTrack : newTrack);
+      }
+      // if `newTrack` is different from the existing track, stop the
+      // older track just before replacing it
+      if (!this.providedByUser && this._mediaStreamTrack !== newTrack) {
+        this._mediaStreamTrack.stop();
       }
       this._mediaStreamTrack = newTrack;
       if (newTrack) {
@@ -14584,26 +11723,29 @@ class LocalTrack extends Track {
     });
   }
   waitForDimensions() {
-    let timeout = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultDimensionsTimeout;
-    var _a;
-    return __awaiter(this, void 0, void 0, function* () {
-      if (this.kind === Track.Kind.Audio) {
-        throw new Error('cannot get dimensions for audio tracks');
-      }
-      if (((_a = getBrowser()) === null || _a === void 0 ? void 0 : _a.os) === 'iOS') {
-        // browsers report wrong initial resolution on iOS.
-        // when slightly delaying the call to .getSettings(), the correct resolution is being reported
-        yield sleep(10);
-      }
-      const started = Date.now();
-      while (Date.now() - started < timeout) {
-        const dims = this.dimensions;
-        if (dims) {
-          return dims;
+    return __awaiter(this, arguments, void 0, function () {
+      var _this = this;
+      let timeout = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : defaultDimensionsTimeout;
+      return function* () {
+        var _a;
+        if (_this.kind === Track.Kind.Audio) {
+          throw new Error('cannot get dimensions for audio tracks');
         }
-        yield sleep(50);
-      }
-      throw new TrackInvalidError('unable to get track dimensions after timeout');
+        if (((_a = getBrowser()) === null || _a === void 0 ? void 0 : _a.os) === 'iOS') {
+          // browsers report wrong initial resolution on iOS.
+          // when slightly delaying the call to .getSettings(), the correct resolution is being reported
+          yield sleep(10);
+        }
+        const started = Date.now();
+        while (Date.now() - started < timeout) {
+          const dims = _this.dimensions;
+          if (dims) {
+            return dims;
+          }
+          yield sleep(50);
+        }
+        throw new TrackInvalidError('unable to get track dimensions after timeout');
+      }();
     });
   }
   /**
@@ -14635,18 +11777,25 @@ class LocalTrack extends Track {
       return this;
     });
   }
-  replaceTrack(track) {
-    let userProvidedTrack = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+  replaceTrack(track, userProvidedOrOptions) {
     return __awaiter(this, void 0, void 0, function* () {
       if (!this.sender) {
         throw new TrackInvalidError('unable to replace an unpublished track');
       }
-      livekitLogger.debug('replace MediaStreamTrack');
+      let userProvidedTrack;
+      let stopProcessor;
+      if (typeof userProvidedOrOptions === 'boolean') {
+        userProvidedTrack = userProvidedOrOptions;
+      } else if (userProvidedOrOptions !== undefined) {
+        userProvidedTrack = userProvidedOrOptions.userProvidedTrack;
+        stopProcessor = userProvidedOrOptions.stopProcessor;
+      }
+      this.providedByUser = userProvidedTrack !== null && userProvidedTrack !== void 0 ? userProvidedTrack : true;
+      this.log.debug('replace MediaStreamTrack', this.logContext);
       yield this.setMediaStreamTrack(track);
       // this must be synced *after* setting mediaStreamTrack above, since it relies
       // on the previous state in order to cleanup
-      this.providedByUser = userProvidedTrack;
-      if (this.processor) {
+      if (stopProcessor && this.processor) {
         yield this.stopProcessor();
       }
       return this;
@@ -14654,42 +11803,49 @@ class LocalTrack extends Track {
   }
   restart(constraints) {
     return __awaiter(this, void 0, void 0, function* () {
-      if (!constraints) {
-        constraints = this._constraints;
+      const unlock = yield this.restartLock.lock();
+      try {
+        if (!constraints) {
+          constraints = this._constraints;
+        }
+        this.log.debug('restarting track with constraints', Object.assign(Object.assign({}, this.logContext), {
+          constraints
+        }));
+        const streamConstraints = {
+          audio: false,
+          video: false
+        };
+        if (this.kind === Track.Kind.Video) {
+          streamConstraints.video = constraints;
+        } else {
+          streamConstraints.audio = constraints;
+        }
+        // these steps are duplicated from setMediaStreamTrack because we must stop
+        // the previous tracks before new tracks can be acquired
+        this.attachedElements.forEach(el => {
+          detachTrack(this.mediaStreamTrack, el);
+        });
+        this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
+        // on Safari, the old audio track must be stopped before attempting to acquire
+        // the new track, otherwise the new track will stop with
+        // 'A MediaStreamTrack ended due to a capture failure`
+        this._mediaStreamTrack.stop();
+        // create new track and attach
+        const mediaStream = yield navigator.mediaDevices.getUserMedia(streamConstraints);
+        const newTrack = mediaStream.getTracks()[0];
+        newTrack.addEventListener('ended', this.handleEnded);
+        this.log.debug('re-acquired MediaStreamTrack', this.logContext);
+        yield this.setMediaStreamTrack(newTrack);
+        this._constraints = constraints;
+        this.emit(TrackEvent.Restarted, this);
+        return this;
+      } finally {
+        unlock();
       }
-      livekitLogger.debug('restarting track with constraints', constraints);
-      const streamConstraints = {
-        audio: false,
-        video: false
-      };
-      if (this.kind === Track.Kind.Video) {
-        streamConstraints.video = constraints;
-      } else {
-        streamConstraints.audio = constraints;
-      }
-      // these steps are duplicated from setMediaStreamTrack because we must stop
-      // the previous tracks before new tracks can be acquired
-      this.attachedElements.forEach(el => {
-        detachTrack(this.mediaStreamTrack, el);
-      });
-      this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
-      // on Safari, the old audio track must be stopped before attempting to acquire
-      // the new track, otherwise the new track will stop with
-      // 'A MediaStreamTrack ended due to a capture failure`
-      this._mediaStreamTrack.stop();
-      // create new track and attach
-      const mediaStream = yield navigator.mediaDevices.getUserMedia(streamConstraints);
-      const newTrack = mediaStream.getTracks()[0];
-      newTrack.addEventListener('ended', this.handleEnded);
-      livekitLogger.debug('re-acquired MediaStreamTrack');
-      yield this.setMediaStreamTrack(newTrack);
-      this._constraints = constraints;
-      this.emit(TrackEvent.Restarted, this);
-      return this;
     });
   }
   setTrackMuted(muted) {
-    livekitLogger.debug("setting ".concat(this.kind, " track ").concat(muted ? 'muted' : 'unmuted'));
+    this.log.debug("setting ".concat(this.kind, " track ").concat(muted ? 'muted' : 'unmuted'), this.logContext);
     if (this.isMuted === muted && this._mediaStreamTrack.enabled !== muted) {
       return;
     }
@@ -14709,9 +11865,9 @@ class LocalTrack extends Track {
     return __awaiter(this, void 0, void 0, function* () {
       yield _super.handleAppVisibilityChanged.call(this);
       if (!isMobile()) return;
-      livekitLogger.debug("visibility changed, is in Background: ".concat(this.isInBackground));
+      this.log.debug("visibility changed, is in Background: ".concat(this.isInBackground), this.logContext);
       if (!this.isInBackground && this.needsReAcquisition && !this.isUserProvided && !this.isMuted) {
-        livekitLogger.debug("track needs to be reacquired, restarting ".concat(this.source));
+        this.log.debug("track needs to be reacquired, restarting ".concat(this.source), this.logContext);
         yield this.restart();
         this.reacquireTrack = false;
       }
@@ -14740,7 +11896,7 @@ class LocalTrack extends Track {
           return;
         }
         if (!this.sender) {
-          livekitLogger.warn('unable to pause upstream for an unpublished track');
+          this.log.warn('unable to pause upstream for an unpublished track', this.logContext);
           return;
         }
         this._isUpstreamPaused = true;
@@ -14764,7 +11920,7 @@ class LocalTrack extends Track {
           return;
         }
         if (!this.sender) {
-          livekitLogger.warn('unable to resume upstream for an unpublished track');
+          this.log.warn('unable to resume upstream for an unpublished track', this.logContext);
           return;
         }
         this._isUpstreamPaused = false;
@@ -14783,8 +11939,8 @@ class LocalTrack extends Track {
    * @returns Promise<RTCStatsReport> | undefined
    */
   getRTCStatsReport() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       if (!((_a = this.sender) === null || _a === void 0 ? void 0 : _a.getStats)) {
         return;
       }
@@ -14802,44 +11958,49 @@ class LocalTrack extends Track {
    * @param showProcessedStreamLocally
    * @returns
    */
-  setProcessor(processor) {
-    let showProcessedStreamLocally = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
-    var _a, _b;
-    return __awaiter(this, void 0, void 0, function* () {
-      const unlock = yield this.processorLock.lock();
-      try {
-        livekitLogger.debug('setting up processor');
-        if (this.processor) {
-          yield this.stopProcessor();
-        }
-        if (this.kind === 'unknown') {
-          throw TypeError('cannot set processor on track of unknown kind');
-        }
-        this.processorElement = (_a = this.processorElement) !== null && _a !== void 0 ? _a : document.createElement(this.kind);
-        this.processorElement.muted = true;
-        attachToElement(this._mediaStreamTrack, this.processorElement);
-        this.processorElement.play().catch(error => livekitLogger.error('failed to play processor element', {
-          error
-        }));
-        const processorOptions = {
-          kind: this.kind,
-          track: this._mediaStreamTrack,
-          element: this.processorElement
-        };
-        yield processor.init(processorOptions);
-        this.processor = processor;
-        if (this.processor.processedTrack) {
-          for (const el of this.attachedElements) {
-            if (el !== this.processorElement && showProcessedStreamLocally) {
-              detachTrack(this._mediaStreamTrack, el);
-              attachToElement(this.processor.processedTrack, el);
-            }
+  setProcessor(processor_1) {
+    return __awaiter(this, arguments, void 0, function (processor) {
+      var _this2 = this;
+      let showProcessedStreamLocally = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+      return function* () {
+        var _a, _b;
+        const unlock = yield _this2.processorLock.lock();
+        try {
+          _this2.log.debug('setting up processor', _this2.logContext);
+          _this2.processorElement = (_a = _this2.processorElement) !== null && _a !== void 0 ? _a : document.createElement(_this2.kind);
+          const processorOptions = {
+            kind: _this2.kind,
+            track: _this2._mediaStreamTrack,
+            element: _this2.processorElement,
+            audioContext: _this2.audioContext
+          };
+          yield processor.init(processorOptions);
+          if (_this2.processor) {
+            yield _this2.stopProcessor();
           }
-          yield (_b = this.sender) === null || _b === void 0 ? void 0 : _b.replaceTrack(this.processor.processedTrack);
+          if (_this2.kind === 'unknown') {
+            throw TypeError('cannot set processor on track of unknown kind');
+          }
+          attachToElement(_this2._mediaStreamTrack, _this2.processorElement);
+          _this2.processorElement.muted = true;
+          _this2.processorElement.play().catch(error => _this2.log.error('failed to play processor element', Object.assign(Object.assign({}, _this2.logContext), {
+            error
+          })));
+          _this2.processor = processor;
+          if (_this2.processor.processedTrack) {
+            for (const el of _this2.attachedElements) {
+              if (el !== _this2.processorElement && showProcessedStreamLocally) {
+                detachTrack(_this2._mediaStreamTrack, el);
+                attachToElement(_this2.processor.processedTrack, el);
+              }
+            }
+            yield (_b = _this2.sender) === null || _b === void 0 ? void 0 : _b.replaceTrack(_this2.processor.processedTrack);
+          }
+          _this2.emit(TrackEvent.TrackProcessorUpdate, _this2.processor);
+        } finally {
+          unlock();
         }
-      } finally {
-        unlock();
-      }
+      }();
     });
   }
   getProcessor() {
@@ -14853,16 +12014,20 @@ class LocalTrack extends Track {
    * @returns
    */
   stopProcessor() {
-    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b;
       if (!this.processor) return;
-      livekitLogger.debug('stopping processor');
+      this.log.debug('stopping processor', this.logContext);
       (_a = this.processor.processedTrack) === null || _a === void 0 ? void 0 : _a.stop();
       yield this.processor.destroy();
       this.processor = undefined;
       (_b = this.processorElement) === null || _b === void 0 ? void 0 : _b.remove();
       this.processorElement = undefined;
-      yield this.restart();
+      // apply original track constraints in case the processor changed them
+      yield this._mediaStreamTrack.applyConstraints(this._constraints);
+      // force re-setting of the mediaStreamTrack on the sender
+      yield this.setMediaStreamTrack(this._mediaStreamTrack, true);
+      this.emit(TrackEvent.TrackProcessorUpdate);
     });
   }
 }
@@ -14938,7 +12103,8 @@ class E2EEManager extends eventsExports.EventEmitter {
       const msg = {
         kind: 'init',
         data: {
-          keyProviderOptions: this.keyProvider.getOptions()
+          keyProviderOptions: this.keyProvider.getOptions(),
+          loglevel: workerLogger.getLevel()
         }
       };
       if (this.worker) {
@@ -14977,8 +12143,8 @@ class E2EEManager extends eventsExports.EventEmitter {
     room.on(RoomEvent.TrackPublished, (pub, participant) => this.setParticipantCryptorEnabled(pub.trackInfo.encryption !== Encryption_Type.NONE, participant.identity));
     room.on(RoomEvent.ConnectionStateChanged, state => {
       if (state === ConnectionState.Connected) {
-        room.participants.forEach(participant => {
-          participant.tracks.forEach(pub => {
+        room.remoteParticipants.forEach(participant => {
+          participant.trackPublications.forEach(pub => {
             this.setParticipantCryptorEnabled(pub.trackInfo.encryption !== Encryption_Type.NONE, participant.identity);
           });
         });
@@ -15207,6 +12373,702 @@ class E2EEManager extends eventsExports.EventEmitter {
     // @ts-ignore
     sender[E2EE_FLAG] = true;
   }
+}
+
+var QueueTaskStatus;
+(function (QueueTaskStatus) {
+  QueueTaskStatus[QueueTaskStatus["WAITING"] = 0] = "WAITING";
+  QueueTaskStatus[QueueTaskStatus["RUNNING"] = 1] = "RUNNING";
+  QueueTaskStatus[QueueTaskStatus["COMPLETED"] = 2] = "COMPLETED";
+})(QueueTaskStatus || (QueueTaskStatus = {}));
+class AsyncQueue {
+  constructor() {
+    this.pendingTasks = new Map();
+    this.taskMutex = new Mutex();
+    this.nextTaskIndex = 0;
+  }
+  run(task) {
+    return __awaiter(this, void 0, void 0, function* () {
+      const taskInfo = {
+        id: this.nextTaskIndex++,
+        enqueuedAt: Date.now(),
+        status: QueueTaskStatus.WAITING
+      };
+      this.pendingTasks.set(taskInfo.id, taskInfo);
+      const unlock = yield this.taskMutex.lock();
+      try {
+        taskInfo.executedAt = Date.now();
+        taskInfo.status = QueueTaskStatus.RUNNING;
+        return yield task();
+      } finally {
+        taskInfo.status = QueueTaskStatus.COMPLETED;
+        this.pendingTasks.delete(taskInfo.id);
+        unlock();
+      }
+    });
+  }
+  flush() {
+    return __awaiter(this, void 0, void 0, function* () {
+      return this.run(() => __awaiter(this, void 0, void 0, function* () {}));
+    });
+  }
+  snapshot() {
+    return Array.from(this.pendingTasks.values());
+  }
+}
+
+const passThroughQueueSignals = ['syncState', 'trickle', 'offer', 'answer', 'simulate', 'leave'];
+function canPassThroughQueue(req) {
+  const canPass = passThroughQueueSignals.indexOf(req.case) >= 0;
+  livekitLogger.trace('request allowed to bypass queue:', {
+    canPass,
+    req
+  });
+  return canPass;
+}
+var SignalConnectionState;
+(function (SignalConnectionState) {
+  SignalConnectionState[SignalConnectionState["CONNECTING"] = 0] = "CONNECTING";
+  SignalConnectionState[SignalConnectionState["CONNECTED"] = 1] = "CONNECTED";
+  SignalConnectionState[SignalConnectionState["RECONNECTING"] = 2] = "RECONNECTING";
+  SignalConnectionState[SignalConnectionState["DISCONNECTING"] = 3] = "DISCONNECTING";
+  SignalConnectionState[SignalConnectionState["DISCONNECTED"] = 4] = "DISCONNECTED";
+})(SignalConnectionState || (SignalConnectionState = {}));
+/** @internal */
+class SignalClient {
+  get currentState() {
+    return this.state;
+  }
+  get isDisconnected() {
+    return this.state === SignalConnectionState.DISCONNECTING || this.state === SignalConnectionState.DISCONNECTED;
+  }
+  get isEstablishingConnection() {
+    return this.state === SignalConnectionState.CONNECTING || this.state === SignalConnectionState.RECONNECTING;
+  }
+  constructor() {
+    let useJSON = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
+    let loggerOptions = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    var _a;
+    /** signal rtt in milliseconds */
+    this.rtt = 0;
+    this.state = SignalConnectionState.DISCONNECTED;
+    this.log = livekitLogger;
+    /** @internal */
+    this.resetCallbacks = () => {
+      this.onAnswer = undefined;
+      this.onLeave = undefined;
+      this.onLocalTrackPublished = undefined;
+      this.onLocalTrackUnpublished = undefined;
+      this.onNegotiateRequested = undefined;
+      this.onOffer = undefined;
+      this.onRemoteMuteChanged = undefined;
+      this.onSubscribedQualityUpdate = undefined;
+      this.onTokenRefresh = undefined;
+      this.onTrickle = undefined;
+      this.onClose = undefined;
+    };
+    this.log = getLogger((_a = loggerOptions.loggerName) !== null && _a !== void 0 ? _a : LoggerNames.Signal);
+    this.loggerContextCb = loggerOptions.loggerContextCb;
+    this.useJSON = useJSON;
+    this.requestQueue = new AsyncQueue();
+    this.queuedRequests = [];
+    this.closingLock = new Mutex();
+    this.connectionLock = new Mutex();
+    this.state = SignalConnectionState.DISCONNECTED;
+  }
+  get logContext() {
+    var _a, _b;
+    return (_b = (_a = this.loggerContextCb) === null || _a === void 0 ? void 0 : _a.call(this)) !== null && _b !== void 0 ? _b : {};
+  }
+  join(url, token, opts, abortSignal) {
+    return __awaiter(this, void 0, void 0, function* () {
+      // during a full reconnect, we'd want to start the sequence even if currently
+      // connected
+      this.state = SignalConnectionState.CONNECTING;
+      this.options = opts;
+      const res = yield this.connect(url, token, opts, abortSignal);
+      return res;
+    });
+  }
+  reconnect(url, token, sid, reason) {
+    return __awaiter(this, void 0, void 0, function* () {
+      if (!this.options) {
+        this.log.warn('attempted to reconnect without signal options being set, ignoring', this.logContext);
+        return;
+      }
+      this.state = SignalConnectionState.RECONNECTING;
+      // clear ping interval and restart it once reconnected
+      this.clearPingInterval();
+      const res = yield this.connect(url, token, Object.assign(Object.assign({}, this.options), {
+        reconnect: true,
+        sid,
+        reconnectReason: reason
+      }));
+      return res;
+    });
+  }
+  connect(url, token, opts, abortSignal) {
+    this.connectOptions = opts;
+    url = toWebsocketUrl(url);
+    // strip trailing slash
+    url = url.replace(/\/$/, '');
+    url += '/rtc';
+    const clientInfo = getClientInfo();
+    const params = createConnectionParams(token, clientInfo, opts);
+    return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
+      const unlock = yield this.connectionLock.lock();
+      try {
+        const abortHandler = () => __awaiter(this, void 0, void 0, function* () {
+          this.close();
+          clearTimeout(wsTimeout);
+          reject(new ConnectionError('room connection has been cancelled (signal)'));
+        });
+        const wsTimeout = setTimeout(() => {
+          this.close();
+          reject(new ConnectionError('room connection has timed out (signal)'));
+        }, opts.websocketTimeout);
+        if (abortSignal === null || abortSignal === void 0 ? void 0 : abortSignal.aborted) {
+          abortHandler();
+        }
+        abortSignal === null || abortSignal === void 0 ? void 0 : abortSignal.addEventListener('abort', abortHandler);
+        this.log.debug("connecting to ".concat(url + params), this.logContext);
+        if (this.ws) {
+          yield this.close(false);
+        }
+        this.ws = new WebSocket(url + params);
+        this.ws.binaryType = 'arraybuffer';
+        this.ws.onopen = () => {
+          clearTimeout(wsTimeout);
+        };
+        this.ws.onerror = ev => __awaiter(this, void 0, void 0, function* () {
+          if (this.state !== SignalConnectionState.CONNECTED) {
+            this.state = SignalConnectionState.DISCONNECTED;
+            clearTimeout(wsTimeout);
+            try {
+              const resp = yield fetch("http".concat(url.substring(2), "/validate").concat(params));
+              if (resp.status.toFixed(0).startsWith('4')) {
+                const msg = yield resp.text();
+                reject(new ConnectionError(msg, 0 /* ConnectionErrorReason.NotAllowed */, resp.status));
+              } else {
+                reject(new ConnectionError('Internal error', 2 /* ConnectionErrorReason.InternalError */, resp.status));
+              }
+            } catch (e) {
+              reject(new ConnectionError('server was not reachable', 1 /* ConnectionErrorReason.ServerUnreachable */));
+            }
+            return;
+          }
+          // other errors, handle
+          this.handleWSError(ev);
+        });
+        this.ws.onmessage = ev => __awaiter(this, void 0, void 0, function* () {
+          var _a, _b, _c;
+          // not considered connected until JoinResponse is received
+          let resp;
+          if (typeof ev.data === 'string') {
+            const json = JSON.parse(ev.data);
+            resp = SignalResponse.fromJson(json, {
+              ignoreUnknownFields: true
+            });
+          } else if (ev.data instanceof ArrayBuffer) {
+            resp = SignalResponse.fromBinary(new Uint8Array(ev.data));
+          } else {
+            this.log.error("could not decode websocket message: ".concat(typeof ev.data), this.logContext);
+            return;
+          }
+          if (this.state !== SignalConnectionState.CONNECTED) {
+            let shouldProcessMessage = false;
+            // handle join message only
+            if (((_a = resp.message) === null || _a === void 0 ? void 0 : _a.case) === 'join') {
+              this.state = SignalConnectionState.CONNECTED;
+              abortSignal === null || abortSignal === void 0 ? void 0 : abortSignal.removeEventListener('abort', abortHandler);
+              this.pingTimeoutDuration = resp.message.value.pingTimeout;
+              this.pingIntervalDuration = resp.message.value.pingInterval;
+              if (this.pingTimeoutDuration && this.pingTimeoutDuration > 0) {
+                this.log.debug('ping config', Object.assign(Object.assign({}, this.logContext), {
+                  timeout: this.pingTimeoutDuration,
+                  interval: this.pingIntervalDuration
+                }));
+                this.startPingInterval();
+              }
+              resolve(resp.message.value);
+            } else if (this.state === SignalConnectionState.RECONNECTING && resp.message.case !== 'leave') {
+              // in reconnecting, any message received means signal reconnected
+              this.state = SignalConnectionState.CONNECTED;
+              abortSignal === null || abortSignal === void 0 ? void 0 : abortSignal.removeEventListener('abort', abortHandler);
+              this.startPingInterval();
+              if (((_b = resp.message) === null || _b === void 0 ? void 0 : _b.case) === 'reconnect') {
+                resolve(resp.message.value);
+              } else {
+                this.log.debug('declaring signal reconnected without reconnect response received', this.logContext);
+                resolve(undefined);
+                shouldProcessMessage = true;
+              }
+            } else if (this.isEstablishingConnection && resp.message.case === 'leave') {
+              reject(new ConnectionError('Received leave request while trying to (re)connect', 4 /* ConnectionErrorReason.LeaveRequest */));
+            } else if (!opts.reconnect) {
+              // non-reconnect case, should receive join response first
+              reject(new ConnectionError("did not receive join response, got ".concat((_c = resp.message) === null || _c === void 0 ? void 0 : _c.case, " instead")));
+            }
+            if (!shouldProcessMessage) {
+              return;
+            }
+          }
+          if (this.signalLatency) {
+            yield sleep(this.signalLatency);
+          }
+          this.handleSignalResponse(resp);
+        });
+        this.ws.onclose = ev => {
+          if (this.isEstablishingConnection) {
+            reject(new ConnectionError('Websocket got closed during a (re)connection attempt'));
+          }
+          this.log.warn("websocket closed", Object.assign(Object.assign({}, this.logContext), {
+            reason: ev.reason,
+            code: ev.code,
+            wasClean: ev.wasClean,
+            state: this.state
+          }));
+          this.handleOnClose(ev.reason);
+        };
+      } finally {
+        unlock();
+      }
+    }));
+  }
+  close() {
+    return __awaiter(this, arguments, void 0, function () {
+      var _this = this;
+      let updateState = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
+      return function* () {
+        const unlock = yield _this.closingLock.lock();
+        try {
+          if (updateState) {
+            _this.state = SignalConnectionState.DISCONNECTING;
+          }
+          if (_this.ws) {
+            _this.ws.onmessage = null;
+            _this.ws.onopen = null;
+            _this.ws.onclose = null;
+            // calling `ws.close()` only starts the closing handshake (CLOSING state), prefer to wait until state is actually CLOSED
+            const closePromise = new Promise(resolve => {
+              if (_this.ws) {
+                _this.ws.onclose = () => {
+                  resolve();
+                };
+              } else {
+                resolve();
+              }
+            });
+            if (_this.ws.readyState < _this.ws.CLOSING) {
+              _this.ws.close();
+              // 250ms grace period for ws to close gracefully
+              yield Promise.race([closePromise, sleep(250)]);
+            }
+            _this.ws = undefined;
+          }
+        } finally {
+          if (updateState) {
+            _this.state = SignalConnectionState.DISCONNECTED;
+          }
+          _this.clearPingInterval();
+          unlock();
+        }
+      }();
+    });
+  }
+  // initial offer after joining
+  sendOffer(offer) {
+    this.log.debug('sending offer', Object.assign(Object.assign({}, this.logContext), {
+      offerSdp: offer.sdp
+    }));
+    this.sendRequest({
+      case: 'offer',
+      value: toProtoSessionDescription(offer)
+    });
+  }
+  // answer a server-initiated offer
+  sendAnswer(answer) {
+    this.log.debug('sending answer', Object.assign(Object.assign({}, this.logContext), {
+      answerSdp: answer.sdp
+    }));
+    return this.sendRequest({
+      case: 'answer',
+      value: toProtoSessionDescription(answer)
+    });
+  }
+  sendIceCandidate(candidate, target) {
+    this.log.trace('sending ice candidate', Object.assign(Object.assign({}, this.logContext), {
+      candidate
+    }));
+    return this.sendRequest({
+      case: 'trickle',
+      value: new TrickleRequest({
+        candidateInit: JSON.stringify(candidate),
+        target
+      })
+    });
+  }
+  sendMuteTrack(trackSid, muted) {
+    return this.sendRequest({
+      case: 'mute',
+      value: new MuteTrackRequest({
+        sid: trackSid,
+        muted
+      })
+    });
+  }
+  sendAddTrack(req) {
+    return this.sendRequest({
+      case: 'addTrack',
+      value: req
+    });
+  }
+  sendUpdateLocalMetadata(metadata, name) {
+    return this.sendRequest({
+      case: 'updateMetadata',
+      value: new UpdateParticipantMetadata({
+        metadata,
+        name
+      })
+    });
+  }
+  sendUpdateTrackSettings(settings) {
+    this.sendRequest({
+      case: 'trackSetting',
+      value: settings
+    });
+  }
+  sendUpdateSubscription(sub) {
+    return this.sendRequest({
+      case: 'subscription',
+      value: sub
+    });
+  }
+  sendSyncState(sync) {
+    return this.sendRequest({
+      case: 'syncState',
+      value: sync
+    });
+  }
+  sendUpdateVideoLayers(trackSid, layers) {
+    return this.sendRequest({
+      case: 'updateLayers',
+      value: new UpdateVideoLayers({
+        trackSid,
+        layers
+      })
+    });
+  }
+  sendUpdateSubscriptionPermissions(allParticipants, trackPermissions) {
+    return this.sendRequest({
+      case: 'subscriptionPermission',
+      value: new SubscriptionPermission({
+        allParticipants,
+        trackPermissions
+      })
+    });
+  }
+  sendSimulateScenario(scenario) {
+    return this.sendRequest({
+      case: 'simulate',
+      value: scenario
+    });
+  }
+  sendPing() {
+    /** send both of ping and pingReq for compatibility to old and new server */
+    return Promise.all([this.sendRequest({
+      case: 'ping',
+      value: protoInt64.parse(Date.now())
+    }), this.sendRequest({
+      case: 'pingReq',
+      value: new Ping({
+        timestamp: protoInt64.parse(Date.now()),
+        rtt: protoInt64.parse(this.rtt)
+      })
+    })]);
+  }
+  sendUpdateLocalAudioTrack(trackSid, features) {
+    return this.sendRequest({
+      case: 'updateAudioTrack',
+      value: new UpdateLocalAudioTrack({
+        trackSid,
+        features
+      })
+    });
+  }
+  sendLeave() {
+    return this.sendRequest({
+      case: 'leave',
+      value: new LeaveRequest({
+        canReconnect: false,
+        reason: DisconnectReason.CLIENT_INITIATED
+      })
+    });
+  }
+  sendRequest(message_1) {
+    return __awaiter(this, arguments, void 0, function (message) {
+      var _this2 = this;
+      let fromQueue = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+      return function* () {
+        // capture all requests while reconnecting and put them in a queue
+        // unless the request originates from the queue, then don't enqueue again
+        const canQueue = !fromQueue && !canPassThroughQueue(message);
+        if (canQueue && _this2.state === SignalConnectionState.RECONNECTING) {
+          _this2.queuedRequests.push(() => __awaiter(_this2, void 0, void 0, function* () {
+            yield this.sendRequest(message, true);
+          }));
+          return;
+        }
+        // make sure previously queued requests are being sent first
+        if (!fromQueue) {
+          yield _this2.requestQueue.flush();
+        }
+        if (_this2.signalLatency) {
+          yield sleep(_this2.signalLatency);
+        }
+        if (!_this2.ws || _this2.ws.readyState !== _this2.ws.OPEN) {
+          _this2.log.error("cannot send signal request before connected, type: ".concat(message === null || message === void 0 ? void 0 : message.case), _this2.logContext);
+          return;
+        }
+        const req = new SignalRequest({
+          message
+        });
+        try {
+          if (_this2.useJSON) {
+            _this2.ws.send(req.toJsonString());
+          } else {
+            _this2.ws.send(req.toBinary());
+          }
+        } catch (e) {
+          _this2.log.error('error sending signal message', Object.assign(Object.assign({}, _this2.logContext), {
+            error: e
+          }));
+        }
+      }();
+    });
+  }
+  handleSignalResponse(res) {
+    var _a, _b;
+    const msg = res.message;
+    if (msg == undefined) {
+      this.log.debug('received unsupported message', this.logContext);
+      return;
+    }
+    let pingHandled = false;
+    if (msg.case === 'answer') {
+      const sd = fromProtoSessionDescription(msg.value);
+      if (this.onAnswer) {
+        this.onAnswer(sd);
+      }
+    } else if (msg.case === 'offer') {
+      const sd = fromProtoSessionDescription(msg.value);
+      if (this.onOffer) {
+        this.onOffer(sd);
+      }
+    } else if (msg.case === 'trickle') {
+      const candidate = JSON.parse(msg.value.candidateInit);
+      if (this.onTrickle) {
+        this.onTrickle(candidate, msg.value.target);
+      }
+    } else if (msg.case === 'update') {
+      if (this.onParticipantUpdate) {
+        this.onParticipantUpdate((_a = msg.value.participants) !== null && _a !== void 0 ? _a : []);
+      }
+    } else if (msg.case === 'trackPublished') {
+      if (this.onLocalTrackPublished) {
+        this.onLocalTrackPublished(msg.value);
+      }
+    } else if (msg.case === 'speakersChanged') {
+      if (this.onSpeakersChanged) {
+        this.onSpeakersChanged((_b = msg.value.speakers) !== null && _b !== void 0 ? _b : []);
+      }
+    } else if (msg.case === 'leave') {
+      if (this.onLeave) {
+        this.onLeave(msg.value);
+      }
+    } else if (msg.case === 'mute') {
+      if (this.onRemoteMuteChanged) {
+        this.onRemoteMuteChanged(msg.value.sid, msg.value.muted);
+      }
+    } else if (msg.case === 'roomUpdate') {
+      if (this.onRoomUpdate && msg.value.room) {
+        this.onRoomUpdate(msg.value.room);
+      }
+    } else if (msg.case === 'connectionQuality') {
+      if (this.onConnectionQuality) {
+        this.onConnectionQuality(msg.value);
+      }
+    } else if (msg.case === 'streamStateUpdate') {
+      if (this.onStreamStateUpdate) {
+        this.onStreamStateUpdate(msg.value);
+      }
+    } else if (msg.case === 'subscribedQualityUpdate') {
+      if (this.onSubscribedQualityUpdate) {
+        this.onSubscribedQualityUpdate(msg.value);
+      }
+    } else if (msg.case === 'subscriptionPermissionUpdate') {
+      if (this.onSubscriptionPermissionUpdate) {
+        this.onSubscriptionPermissionUpdate(msg.value);
+      }
+    } else if (msg.case === 'refreshToken') {
+      if (this.onTokenRefresh) {
+        this.onTokenRefresh(msg.value);
+      }
+    } else if (msg.case === 'trackUnpublished') {
+      if (this.onLocalTrackUnpublished) {
+        this.onLocalTrackUnpublished(msg.value);
+      }
+    } else if (msg.case === 'subscriptionResponse') {
+      if (this.onSubscriptionError) {
+        this.onSubscriptionError(msg.value);
+      }
+    } else if (msg.case === 'pong') ; else if (msg.case === 'pongResp') {
+      this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
+      this.resetPingTimeout();
+      pingHandled = true;
+    } else {
+      this.log.debug('unsupported message', Object.assign(Object.assign({}, this.logContext), {
+        msgCase: msg.case
+      }));
+    }
+    if (!pingHandled) {
+      this.resetPingTimeout();
+    }
+  }
+  setReconnected() {
+    while (this.queuedRequests.length > 0) {
+      const req = this.queuedRequests.shift();
+      if (req) {
+        this.requestQueue.run(req);
+      }
+    }
+  }
+  handleOnClose(reason) {
+    return __awaiter(this, void 0, void 0, function* () {
+      if (this.state === SignalConnectionState.DISCONNECTED) return;
+      const onCloseCallback = this.onClose;
+      yield this.close();
+      this.log.debug("websocket connection closed: ".concat(reason), Object.assign(Object.assign({}, this.logContext), {
+        reason
+      }));
+      if (onCloseCallback) {
+        onCloseCallback(reason);
+      }
+    });
+  }
+  handleWSError(ev) {
+    this.log.error('websocket error', Object.assign(Object.assign({}, this.logContext), {
+      error: ev
+    }));
+  }
+  /**
+   * Resets the ping timeout and starts a new timeout.
+   * Call this after receiving a pong message
+   */
+  resetPingTimeout() {
+    this.clearPingTimeout();
+    if (!this.pingTimeoutDuration) {
+      this.log.warn('ping timeout duration not set', this.logContext);
+      return;
+    }
+    this.pingTimeout = CriticalTimers.setTimeout(() => {
+      this.log.warn("ping timeout triggered. last pong received at: ".concat(new Date(Date.now() - this.pingTimeoutDuration * 1000).toUTCString()), this.logContext);
+      this.handleOnClose('ping timeout');
+    }, this.pingTimeoutDuration * 1000);
+  }
+  /**
+   * Clears ping timeout (does not start a new timeout)
+   */
+  clearPingTimeout() {
+    if (this.pingTimeout) {
+      CriticalTimers.clearTimeout(this.pingTimeout);
+    }
+  }
+  startPingInterval() {
+    this.clearPingInterval();
+    this.resetPingTimeout();
+    if (!this.pingIntervalDuration) {
+      this.log.warn('ping interval duration not set', this.logContext);
+      return;
+    }
+    this.log.debug('start ping interval', this.logContext);
+    this.pingInterval = CriticalTimers.setInterval(() => {
+      this.sendPing();
+    }, this.pingIntervalDuration * 1000);
+  }
+  clearPingInterval() {
+    this.log.debug('clearing ping interval', this.logContext);
+    this.clearPingTimeout();
+    if (this.pingInterval) {
+      CriticalTimers.clearInterval(this.pingInterval);
+    }
+  }
+}
+function fromProtoSessionDescription(sd) {
+  const rsd = {
+    type: 'offer',
+    sdp: sd.sdp
+  };
+  switch (sd.type) {
+    case 'answer':
+    case 'offer':
+    case 'pranswer':
+    case 'rollback':
+      rsd.type = sd.type;
+      break;
+  }
+  return rsd;
+}
+function toProtoSessionDescription(rsd) {
+  const sd = new SessionDescription({
+    sdp: rsd.sdp,
+    type: rsd.type
+  });
+  return sd;
+}
+function createConnectionParams(token, info, opts) {
+  var _a;
+  const params = new URLSearchParams();
+  params.set('access_token', token);
+  // opts
+  if (opts.reconnect) {
+    params.set('reconnect', '1');
+    if (opts.sid) {
+      params.set('sid', opts.sid);
+    }
+  }
+  params.set('auto_subscribe', opts.autoSubscribe ? '1' : '0');
+  // ClientInfo
+  params.set('sdk', isReactNative() ? 'reactnative' : 'js');
+  params.set('version', info.version);
+  params.set('protocol', info.protocol.toString());
+  if (info.deviceModel) {
+    params.set('device_model', info.deviceModel);
+  }
+  if (info.os) {
+    params.set('os', info.os);
+  }
+  if (info.osVersion) {
+    params.set('os_version', info.osVersion);
+  }
+  if (info.browser) {
+    params.set('browser', info.browser);
+  }
+  if (info.browserVersion) {
+    params.set('browser_version', info.browserVersion);
+  }
+  if (opts.adaptiveStream) {
+    params.set('adaptive_stream', '1');
+  }
+  if (opts.reconnectReason) {
+    params.set('reconnect_reason', opts.reconnectReason.toString());
+  }
+  // @ts-ignore
+  if ((_a = navigator.connection) === null || _a === void 0 ? void 0 : _a.type) {
+    // @ts-ignore
+    params.set('network', navigator.connection.type);
+  }
+  return "?".concat(params.toString());
 }
 
 var parser$1 = {};
@@ -15700,7 +13562,6 @@ var grammarExports = grammar$2.exports;
         });
         location = media[media.length - 1]; // point at latest media line
       }
-
       for (var j = 0; j < (grammar[type] || []).length; j += 1) {
         var obj = grammar[type][j];
         if (obj.reg.test(content)) {
@@ -15778,7 +13639,6 @@ var format = function (formatStr) {
     if (i >= len) {
       return x; // missing argument
     }
-
     var arg = args[i];
     i += 1;
     switch (x) {
@@ -15794,7 +13654,6 @@ var format = function (formatStr) {
   });
   // NB: we discard excess arguments - they are typically undefined from makeLine
 };
-
 var makeLine = function (type, obj, location) {
   var str = obj.format instanceof Function ? obj.format(obj.push ? location : location[obj.name]) : obj.format;
   var args = [type + '=' + str];
@@ -15824,11 +13683,9 @@ var writer$1 = function (session, opts) {
   if (session.version == null) {
     session.version = 0; // 'v=0' must be there (only defined version atm)
   }
-
   if (session.name == null) {
     session.name = ' '; // 's= ' must be there if no meaningful name set
   }
-
   session.media.forEach(function (mLine) {
     if (mLine.payloads == null) {
       mLine.payloads = '';
@@ -15895,12 +13752,16 @@ const PCEvents = {
 /** @internal */
 class PCTransport extends eventsExports.EventEmitter {
   get pc() {
-    if (this._pc) return this._pc;
-    throw new UnexpectedConnectionState('Expected peer connection to be available');
+    if (!this._pc) {
+      this._pc = this.createPC();
+    }
+    return this._pc;
   }
   constructor(config) {
-    let mediaConstraints = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    let loggerOptions = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    var _a;
     super();
+    this.log = livekitLogger;
     this.pendingCandidates = [];
     this.restartingIce = false;
     this.renegotiate = false;
@@ -15908,10 +13769,10 @@ class PCTransport extends eventsExports.EventEmitter {
     this.remoteStereoMids = [];
     this.remoteNackMids = [];
     // debounced negotiate interface
-    this.negotiate = r(onError => {
+    this.negotiate = r(onError => __awaiter(this, void 0, void 0, function* () {
       this.emit(PCEvents.NegotiationStarted);
       try {
-        this.createAndSendOffer();
+        yield this.createAndSendOffer();
       } catch (e) {
         if (onError) {
           onError(e);
@@ -15919,31 +13780,66 @@ class PCTransport extends eventsExports.EventEmitter {
           throw e;
         }
       }
-    }, 100);
-    this._pc = isChromiumBased() ?
-    // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
-    new RTCPeerConnection(config, mediaConstraints) : new RTCPeerConnection(config);
-    this._pc.onicecandidate = ev => {
+    }), 100);
+    this.close = () => {
+      if (!this._pc) {
+        return;
+      }
+      this._pc.close();
+      this._pc.onconnectionstatechange = null;
+      this._pc.oniceconnectionstatechange = null;
+      this._pc.onicegatheringstatechange = null;
+      this._pc.ondatachannel = null;
+      this._pc.onnegotiationneeded = null;
+      this._pc.onsignalingstatechange = null;
+      this._pc.onicecandidate = null;
+      this._pc.ondatachannel = null;
+      this._pc.ontrack = null;
+      this._pc.onconnectionstatechange = null;
+      this._pc.oniceconnectionstatechange = null;
+      this._pc = null;
+    };
+    this.log = getLogger((_a = loggerOptions.loggerName) !== null && _a !== void 0 ? _a : LoggerNames.PCTransport);
+    this.loggerOptions = loggerOptions;
+    this.config = config;
+    this._pc = this.createPC();
+  }
+  createPC() {
+    const pc = new RTCPeerConnection(this.config);
+    pc.onicecandidate = ev => {
       var _a;
       if (!ev.candidate) return;
       (_a = this.onIceCandidate) === null || _a === void 0 ? void 0 : _a.call(this, ev.candidate);
     };
-    this._pc.onicecandidateerror = ev => {
+    pc.onicecandidateerror = ev => {
       var _a;
       (_a = this.onIceCandidateError) === null || _a === void 0 ? void 0 : _a.call(this, ev);
     };
-    this._pc.onconnectionstatechange = () => {
-      var _a, _b, _c;
-      (_a = this.onConnectionStateChange) === null || _a === void 0 ? void 0 : _a.call(this, (_c = (_b = this._pc) === null || _b === void 0 ? void 0 : _b.connectionState) !== null && _c !== void 0 ? _c : 'closed');
+    pc.oniceconnectionstatechange = () => {
+      var _a;
+      (_a = this.onIceConnectionStateChange) === null || _a === void 0 ? void 0 : _a.call(this, pc.iceConnectionState);
     };
-    this._pc.ondatachannel = ev => {
+    pc.onsignalingstatechange = () => {
+      var _a;
+      (_a = this.onSignalingStatechange) === null || _a === void 0 ? void 0 : _a.call(this, pc.signalingState);
+    };
+    pc.onconnectionstatechange = () => {
+      var _a;
+      (_a = this.onConnectionStateChange) === null || _a === void 0 ? void 0 : _a.call(this, pc.connectionState);
+    };
+    pc.ondatachannel = ev => {
       var _a;
       (_a = this.onDataChannel) === null || _a === void 0 ? void 0 : _a.call(this, ev);
     };
-    this._pc.ontrack = ev => {
+    pc.ontrack = ev => {
       var _a;
       (_a = this.onTrack) === null || _a === void 0 ? void 0 : _a.call(this, ev);
     };
+    return pc;
+  }
+  get logContext() {
+    var _a, _b;
+    return Object.assign({}, (_b = (_a = this.loggerOptions).loggerContextCb) === null || _b === void 0 ? void 0 : _b.call(_a));
   }
   get isICEConnected() {
     return this._pc !== null && (this.pc.iceConnectionState === 'connected' || this.pc.iceConnectionState === 'completed');
@@ -15957,8 +13853,8 @@ class PCTransport extends eventsExports.EventEmitter {
     });
   }
   setRemoteDescription(sd) {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       let mungedSDP = undefined;
       if (sd.type === 'offer') {
         let {
@@ -16020,7 +13916,7 @@ class PCTransport extends eventsExports.EventEmitter {
       this.restartingIce = false;
       if (this.renegotiate) {
         this.renegotiate = false;
-        this.createAndSendOffer();
+        yield this.createAndSendOffer();
       } else if (sd.type === 'answer') {
         this.emit(PCEvents.NegotiationComplete);
         if (sd.sdp) {
@@ -16035,33 +13931,33 @@ class PCTransport extends eventsExports.EventEmitter {
     });
   }
   createAndSendOffer(options) {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       if (this.onOffer === undefined) {
         return;
       }
       if (options === null || options === void 0 ? void 0 : options.iceRestart) {
-        livekitLogger.debug('restarting ICE');
+        this.log.debug('restarting ICE', this.logContext);
         this.restartingIce = true;
       }
       if (this._pc && this._pc.signalingState === 'have-local-offer') {
         // we're waiting for the peer to accept our offer, so we'll just wait
         // the only exception to this is when ICE restart is needed
-        const currentSD = this.pc.remoteDescription;
+        const currentSD = this._pc.remoteDescription;
         if ((options === null || options === void 0 ? void 0 : options.iceRestart) && currentSD) {
           // TODO: handle when ICE restart is needed but we don't have a remote description
           // the best thing to do is to recreate the peerconnection
-          yield this.pc.setRemoteDescription(currentSD);
+          yield this._pc.setRemoteDescription(currentSD);
         } else {
           this.renegotiate = true;
           return;
         }
       } else if (!this._pc || this._pc.signalingState === 'closed') {
-        livekitLogger.warn('could not createOffer with closed peer connection');
+        this.log.warn('could not createOffer with closed peer connection', this.logContext);
         return;
       }
       // actually negotiate
-      livekitLogger.debug('starting to negotiate');
+      this.log.debug('starting to negotiate', this.logContext);
       const offer = yield this.pc.createOffer(options);
       const sdpParsed = parse((_a = offer.sdp) !== null && _a !== void 0 ? _a : '');
       sdpParsed.media.forEach(media => {
@@ -16085,24 +13981,17 @@ class PCTransport extends eventsExports.EventEmitter {
             if (codecPayload === 0) {
               return true;
             }
-            let fmtpFound = false;
+            const startBitrate = Math.round(trackbr.maxbr * startBitrateForSVC);
             for (const fmtp of media.fmtp) {
               if (fmtp.payload === codecPayload) {
+                // if another track's fmtp already is set, we cannot override the bitrate
+                // this has the unfortunate consequence of being forced to use the
+                // initial track's bitrate for all tracks
                 if (!fmtp.config.includes('x-google-start-bitrate')) {
-                  fmtp.config += ";x-google-start-bitrate=".concat(trackbr.maxbr * startBitrateForSVC);
+                  fmtp.config += ";x-google-start-bitrate=".concat(startBitrate);
                 }
-                if (!fmtp.config.includes('x-google-max-bitrate')) {
-                  fmtp.config += ";x-google-max-bitrate=".concat(trackbr.maxbr);
-                }
-                fmtpFound = true;
                 break;
               }
-            }
-            if (!fmtpFound) {
-              media.fmtp.push({
-                payload: codecPayload,
-                config: "x-google-start-bitrate=".concat(trackbr.maxbr * startBitrateForSVC, ";x-google-max-bitrate=").concat(trackbr.maxbr)
-              });
             }
             return true;
           });
@@ -16113,8 +14002,8 @@ class PCTransport extends eventsExports.EventEmitter {
     });
   }
   createAndSetAnswer() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       const answer = yield this.pc.createAnswer();
       const sdpParsed = parse((_a = answer.sdp) !== null && _a !== void 0 ? _a : '');
       sdpParsed.media.forEach(media => {
@@ -16133,44 +14022,63 @@ class PCTransport extends eventsExports.EventEmitter {
     return this.pc.addTransceiver(mediaStreamTrack, transceiverInit);
   }
   addTrack(track) {
-    return this.pc.addTrack(track);
+    if (!this._pc) {
+      throw new UnexpectedConnectionState('PC closed, cannot add track');
+    }
+    return this._pc.addTrack(track);
   }
   setTrackCodecBitrate(info) {
     this.trackBitrates.push(info);
   }
   setConfiguration(rtcConfig) {
-    return this.pc.setConfiguration(rtcConfig);
+    var _a;
+    if (!this._pc) {
+      throw new UnexpectedConnectionState('PC closed, cannot configure');
+    }
+    return (_a = this._pc) === null || _a === void 0 ? void 0 : _a.setConfiguration(rtcConfig);
   }
   canRemoveTrack() {
-    return !!this.pc.removeTrack;
+    var _a;
+    return !!((_a = this._pc) === null || _a === void 0 ? void 0 : _a.removeTrack);
   }
   removeTrack(sender) {
-    return this.pc.removeTrack(sender);
+    var _a;
+    return (_a = this._pc) === null || _a === void 0 ? void 0 : _a.removeTrack(sender);
   }
   getConnectionState() {
-    return this.pc.connectionState;
+    var _a, _b;
+    return (_b = (_a = this._pc) === null || _a === void 0 ? void 0 : _a.connectionState) !== null && _b !== void 0 ? _b : 'closed';
   }
   getICEConnectionState() {
-    return this.pc.iceConnectionState;
+    var _a, _b;
+    return (_b = (_a = this._pc) === null || _a === void 0 ? void 0 : _a.iceConnectionState) !== null && _b !== void 0 ? _b : 'closed';
   }
   getSignallingState() {
-    return this.pc.signalingState;
+    var _a, _b;
+    return (_b = (_a = this._pc) === null || _a === void 0 ? void 0 : _a.signalingState) !== null && _b !== void 0 ? _b : 'closed';
   }
   getTransceivers() {
-    return this.pc.getTransceivers();
+    var _a, _b;
+    return (_b = (_a = this._pc) === null || _a === void 0 ? void 0 : _a.getTransceivers()) !== null && _b !== void 0 ? _b : [];
   }
   getSenders() {
-    return this.pc.getSenders();
+    var _a, _b;
+    return (_b = (_a = this._pc) === null || _a === void 0 ? void 0 : _a.getSenders()) !== null && _b !== void 0 ? _b : [];
   }
   getLocalDescription() {
-    return this.pc.localDescription;
+    var _a;
+    return (_a = this._pc) === null || _a === void 0 ? void 0 : _a.localDescription;
   }
   getRemoteDescription() {
-    return this.pc.remoteDescription;
+    var _a;
+    return (_a = this.pc) === null || _a === void 0 ? void 0 : _a.remoteDescription;
+  }
+  getStats() {
+    return this.pc.getStats();
   }
   getConnectedAddress() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       if (!this._pc) {
         return;
       }
@@ -16205,31 +14113,13 @@ class PCTransport extends eventsExports.EventEmitter {
       return candidates.get(selectedID);
     });
   }
-  close() {
-    if (!this._pc) {
-      return;
-    }
-    this._pc.close();
-    this._pc.onconnectionstatechange = null;
-    this._pc.oniceconnectionstatechange = null;
-    this._pc.onicegatheringstatechange = null;
-    this._pc.ondatachannel = null;
-    this._pc.onnegotiationneeded = null;
-    this._pc.onsignalingstatechange = null;
-    this._pc.onicecandidate = null;
-    this._pc.ondatachannel = null;
-    this._pc.ontrack = null;
-    this._pc.onconnectionstatechange = null;
-    this._pc.oniceconnectionstatechange = null;
-    this._pc = null;
-  }
   setMungedSDP(sd, munged, remote) {
     return __awaiter(this, void 0, void 0, function* () {
       if (munged) {
         const originalSdp = sd.sdp;
         sd.sdp = munged;
         try {
-          livekitLogger.debug("setting munged ".concat(remote ? 'remote' : 'local', " description"));
+          this.log.debug("setting munged ".concat(remote ? 'remote' : 'local', " description"), this.logContext);
           if (remote) {
             yield this.pc.setRemoteDescription(sd);
           } else {
@@ -16237,10 +14127,10 @@ class PCTransport extends eventsExports.EventEmitter {
           }
           return;
         } catch (e) {
-          livekitLogger.warn("not able to set ".concat(sd.type, ", falling back to unmodified sdp"), {
+          this.log.warn("not able to set ".concat(sd.type, ", falling back to unmodified sdp"), Object.assign(Object.assign({}, this.logContext), {
             error: e,
             sdp: munged
-          });
+          }));
           sd.sdp = originalSdp;
         }
       }
@@ -16266,7 +14156,9 @@ class PCTransport extends eventsExports.EventEmitter {
         if (!remote && this.pc.remoteDescription) {
           fields.remoteSdp = this.pc.remoteDescription;
         }
-        livekitLogger.error("unable to set ".concat(sd.type), fields);
+        this.log.error("unable to set ".concat(sd.type), Object.assign(Object.assign({}, this.logContext), {
+          fields
+        }));
         throw new NegotiationError(msg);
       }
     });
@@ -16367,10 +14259,6 @@ function extractStereoAndNackAudioFromOffer(offer) {
 
 const defaultVideoCodec = 'vp8';
 const publishDefaults = {
-  /**
-   * @deprecated
-   */
-  audioBitrate: AudioPresets.music.maxBitrate,
   audioPreset: AudioPresets.music,
   dtx: true,
   red: true,
@@ -16379,7 +14267,7 @@ const publishDefaults = {
   screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
   stopMicTrackOnMute: false,
   videoCodec: defaultVideoCodec,
-  backupCodec: false
+  backupCodec: true
 };
 const audioDefaults = {
   autoGainControl: true,
@@ -16395,7 +14283,7 @@ const roomOptionDefaults = {
   stopLocalTrackOnUnpublish: true,
   reconnectPolicy: new DefaultReconnectPolicy(),
   disconnectOnPageLeave: true,
-  expWebAudioMix: false
+  webAudioMix: true
 };
 const roomConnectOptionDefaults = {
   autoSubscribe: true,
@@ -16403,6 +14291,282 @@ const roomConnectOptionDefaults = {
   peerConnectionTimeout: 15000,
   websocketTimeout: 15000
 };
+
+var PCTransportState;
+(function (PCTransportState) {
+  PCTransportState[PCTransportState["NEW"] = 0] = "NEW";
+  PCTransportState[PCTransportState["CONNECTING"] = 1] = "CONNECTING";
+  PCTransportState[PCTransportState["CONNECTED"] = 2] = "CONNECTED";
+  PCTransportState[PCTransportState["FAILED"] = 3] = "FAILED";
+  PCTransportState[PCTransportState["CLOSING"] = 4] = "CLOSING";
+  PCTransportState[PCTransportState["CLOSED"] = 5] = "CLOSED";
+})(PCTransportState || (PCTransportState = {}));
+class PCTransportManager {
+  get needsPublisher() {
+    return this.isPublisherConnectionRequired;
+  }
+  get needsSubscriber() {
+    return this.isSubscriberConnectionRequired;
+  }
+  get currentState() {
+    return this.state;
+  }
+  constructor(rtcConfig, subscriberPrimary, loggerOptions) {
+    var _a;
+    this.peerConnectionTimeout = roomConnectOptionDefaults.peerConnectionTimeout;
+    this.log = livekitLogger;
+    this.updateState = () => {
+      var _a;
+      const previousState = this.state;
+      const connectionStates = this.requiredTransports.map(tr => tr.getConnectionState());
+      if (connectionStates.every(st => st === 'connected')) {
+        this.state = PCTransportState.CONNECTED;
+      } else if (connectionStates.some(st => st === 'failed')) {
+        this.state = PCTransportState.FAILED;
+      } else if (connectionStates.some(st => st === 'connecting')) {
+        this.state = PCTransportState.CONNECTING;
+      } else if (connectionStates.every(st => st === 'closed')) {
+        this.state = PCTransportState.CLOSED;
+      } else if (connectionStates.some(st => st === 'closed')) {
+        this.state = PCTransportState.CLOSING;
+      } else if (connectionStates.every(st => st === 'new')) {
+        this.state = PCTransportState.NEW;
+      }
+      if (previousState !== this.state) {
+        this.log.debug("pc state change: from ".concat(PCTransportState[previousState], " to ").concat(PCTransportState[this.state]), this.logContext);
+        (_a = this.onStateChange) === null || _a === void 0 ? void 0 : _a.call(this, this.state, this.publisher.getConnectionState(), this.subscriber.getConnectionState());
+      }
+    };
+    this.log = getLogger((_a = loggerOptions.loggerName) !== null && _a !== void 0 ? _a : LoggerNames.PCManager);
+    this.loggerOptions = loggerOptions;
+    this.isPublisherConnectionRequired = !subscriberPrimary;
+    this.isSubscriberConnectionRequired = subscriberPrimary;
+    this.publisher = new PCTransport(rtcConfig, loggerOptions);
+    this.subscriber = new PCTransport(rtcConfig, loggerOptions);
+    this.publisher.onConnectionStateChange = this.updateState;
+    this.subscriber.onConnectionStateChange = this.updateState;
+    this.publisher.onIceConnectionStateChange = this.updateState;
+    this.subscriber.onIceConnectionStateChange = this.updateState;
+    this.publisher.onSignalingStatechange = this.updateState;
+    this.subscriber.onSignalingStatechange = this.updateState;
+    this.publisher.onIceCandidate = candidate => {
+      var _a;
+      (_a = this.onIceCandidate) === null || _a === void 0 ? void 0 : _a.call(this, candidate, SignalTarget.PUBLISHER);
+    };
+    this.subscriber.onIceCandidate = candidate => {
+      var _a;
+      (_a = this.onIceCandidate) === null || _a === void 0 ? void 0 : _a.call(this, candidate, SignalTarget.SUBSCRIBER);
+    };
+    // in subscriber primary mode, server side opens sub data channels.
+    this.subscriber.onDataChannel = ev => {
+      var _a;
+      (_a = this.onDataChannel) === null || _a === void 0 ? void 0 : _a.call(this, ev);
+    };
+    this.subscriber.onTrack = ev => {
+      var _a;
+      (_a = this.onTrack) === null || _a === void 0 ? void 0 : _a.call(this, ev);
+    };
+    this.publisher.onOffer = offer => {
+      var _a;
+      (_a = this.onPublisherOffer) === null || _a === void 0 ? void 0 : _a.call(this, offer);
+    };
+    this.state = PCTransportState.NEW;
+    this.connectionLock = new Mutex();
+  }
+  get logContext() {
+    var _a, _b;
+    return Object.assign({}, (_b = (_a = this.loggerOptions).loggerContextCb) === null || _b === void 0 ? void 0 : _b.call(_a));
+  }
+  requirePublisher() {
+    let require = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
+    this.isPublisherConnectionRequired = require;
+    this.updateState();
+  }
+  requireSubscriber() {
+    let require = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
+    this.isSubscriberConnectionRequired = require;
+    this.updateState();
+  }
+  createAndSendPublisherOffer(options) {
+    return this.publisher.createAndSendOffer(options);
+  }
+  setPublisherAnswer(sd) {
+    return this.publisher.setRemoteDescription(sd);
+  }
+  removeTrack(sender) {
+    return this.publisher.removeTrack(sender);
+  }
+  close() {
+    return __awaiter(this, void 0, void 0, function* () {
+      if (this.publisher && this.publisher.getSignallingState() !== 'closed') {
+        const publisher = this.publisher;
+        for (const sender of publisher.getSenders()) {
+          try {
+            // TODO: react-native-webrtc doesn't have removeTrack yet.
+            if (publisher.canRemoveTrack()) {
+              publisher.removeTrack(sender);
+            }
+          } catch (e) {
+            this.log.warn('could not removeTrack', Object.assign(Object.assign({}, this.logContext), {
+              error: e
+            }));
+          }
+        }
+      }
+      yield Promise.all([this.publisher.close(), this.subscriber.close()]);
+      this.updateState();
+    });
+  }
+  triggerIceRestart() {
+    return __awaiter(this, void 0, void 0, function* () {
+      this.subscriber.restartingIce = true;
+      // only restart publisher if it's needed
+      if (this.needsPublisher) {
+        yield this.createAndSendPublisherOffer({
+          iceRestart: true
+        });
+      }
+    });
+  }
+  addIceCandidate(candidate, target) {
+    return __awaiter(this, void 0, void 0, function* () {
+      if (target === SignalTarget.PUBLISHER) {
+        yield this.publisher.addIceCandidate(candidate);
+      } else {
+        yield this.subscriber.addIceCandidate(candidate);
+      }
+    });
+  }
+  createSubscriberAnswerFromOffer(sd) {
+    return __awaiter(this, void 0, void 0, function* () {
+      this.log.debug('received server offer', Object.assign(Object.assign({}, this.logContext), {
+        RTCSdpType: sd.type,
+        sdp: sd.sdp,
+        signalingState: this.subscriber.getSignallingState().toString()
+      }));
+      yield this.subscriber.setRemoteDescription(sd);
+      // answer the offer
+      const answer = yield this.subscriber.createAndSetAnswer();
+      return answer;
+    });
+  }
+  updateConfiguration(config, iceRestart) {
+    this.publisher.setConfiguration(config);
+    this.subscriber.setConfiguration(config);
+    if (iceRestart) {
+      this.triggerIceRestart();
+    }
+  }
+  ensurePCTransportConnection(abortController, timeout) {
+    return __awaiter(this, void 0, void 0, function* () {
+      var _a;
+      const unlock = yield this.connectionLock.lock();
+      try {
+        if (this.isPublisherConnectionRequired && this.publisher.getConnectionState() !== 'connected' && this.publisher.getConnectionState() !== 'connecting') {
+          this.log.debug('negotiation required, start negotiating', this.logContext);
+          this.publisher.negotiate();
+        }
+        yield Promise.all((_a = this.requiredTransports) === null || _a === void 0 ? void 0 : _a.map(transport => this.ensureTransportConnected(transport, abortController, timeout)));
+      } finally {
+        unlock();
+      }
+    });
+  }
+  negotiate(abortController) {
+    return __awaiter(this, void 0, void 0, function* () {
+      return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
+        const negotiationTimeout = setTimeout(() => {
+          reject('negotiation timed out');
+        }, this.peerConnectionTimeout);
+        const abortHandler = () => {
+          clearTimeout(negotiationTimeout);
+          reject('negotiation aborted');
+        };
+        abortController.signal.addEventListener('abort', abortHandler);
+        this.publisher.once(PCEvents.NegotiationStarted, () => {
+          if (abortController.signal.aborted) {
+            return;
+          }
+          this.publisher.once(PCEvents.NegotiationComplete, () => {
+            clearTimeout(negotiationTimeout);
+            resolve();
+          });
+        });
+        yield this.publisher.negotiate(e => {
+          clearTimeout(negotiationTimeout);
+          reject(e);
+        });
+      }));
+    });
+  }
+  addPublisherTransceiver(track, transceiverInit) {
+    return this.publisher.addTransceiver(track, transceiverInit);
+  }
+  addPublisherTrack(track) {
+    return this.publisher.addTrack(track);
+  }
+  createPublisherDataChannel(label, dataChannelDict) {
+    return this.publisher.createDataChannel(label, dataChannelDict);
+  }
+  /**
+   * Returns the first required transport's address if no explicit target is specified
+   */
+  getConnectedAddress(target) {
+    if (target === SignalTarget.PUBLISHER) {
+      return this.publisher.getConnectedAddress();
+    } else if (target === SignalTarget.SUBSCRIBER) {
+      return this.publisher.getConnectedAddress();
+    }
+    return this.requiredTransports[0].getConnectedAddress();
+  }
+  get requiredTransports() {
+    const transports = [];
+    if (this.isPublisherConnectionRequired) {
+      transports.push(this.publisher);
+    }
+    if (this.isSubscriberConnectionRequired) {
+      transports.push(this.subscriber);
+    }
+    return transports;
+  }
+  ensureTransportConnected(pcTransport_1, abortController_1) {
+    return __awaiter(this, arguments, void 0, function (pcTransport, abortController) {
+      var _this = this;
+      let timeout = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : this.peerConnectionTimeout;
+      return function* () {
+        const connectionState = pcTransport.getConnectionState();
+        if (connectionState === 'connected') {
+          return;
+        }
+        return new Promise((resolve, reject) => __awaiter(_this, void 0, void 0, function* () {
+          const abortHandler = () => {
+            this.log.warn('abort transport connection', this.logContext);
+            CriticalTimers.clearTimeout(connectTimeout);
+            reject(new ConnectionError('room connection has been cancelled', 3 /* ConnectionErrorReason.Cancelled */));
+          };
+          if (abortController === null || abortController === void 0 ? void 0 : abortController.signal.aborted) {
+            abortHandler();
+          }
+          abortController === null || abortController === void 0 ? void 0 : abortController.signal.addEventListener('abort', abortHandler);
+          const connectTimeout = CriticalTimers.setTimeout(() => {
+            abortController === null || abortController === void 0 ? void 0 : abortController.signal.removeEventListener('abort', abortHandler);
+            reject(new ConnectionError('could not establish pc connection'));
+          }, timeout);
+          while (this.state !== PCTransportState.CONNECTED) {
+            yield sleep(50); // FIXME we shouldn't rely on `sleep` in the connection paths, as it invokes `setTimeout` which can be drastically throttled by browser implementations
+            if (abortController === null || abortController === void 0 ? void 0 : abortController.signal.aborted) {
+              reject(new ConnectionError('room connection has been cancelled', 3 /* ConnectionErrorReason.Cancelled */));
+              return;
+            }
+          }
+          CriticalTimers.clearTimeout(connectTimeout);
+          abortController === null || abortController === void 0 ? void 0 : abortController.signal.removeEventListener('abort', abortHandler);
+          resolve();
+        }));
+      }();
+    });
+  }
+}
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -16421,7 +14585,11 @@ class RTCEngine extends eventsExports.EventEmitter {
   get isClosed() {
     return this._isClosed;
   }
+  get pendingReconnect() {
+    return !!this.reconnectTimeout;
+  }
   constructor(options) {
+    var _a;
     super();
     this.options = options;
     this.rtcConfig = {};
@@ -16431,9 +14599,6 @@ class RTCEngine extends eventsExports.EventEmitter {
     this.pcState = PCState.New;
     this._isClosed = true;
     this.pendingTrackResolvers = {};
-    // true if publisher connection has already been established.
-    // this is helpful to know if we need to restart ICE on the publisher connection
-    this.hasPublished = false;
     this.reconnectAttempts = 0;
     this.reconnectStart = 0;
     this.attemptingReconnect = false;
@@ -16442,27 +14607,29 @@ class RTCEngine extends eventsExports.EventEmitter {
     /** specifies how often an initial join connection is allowed to retry */
     this.maxJoinAttempts = 1;
     this.shouldFailNext = false;
-    this.handleDataChannel = _ref => {
+    this.log = livekitLogger;
+    this.handleDataChannel = _b => __awaiter(this, [_b], void 0, function (_ref) {
+      var _this = this;
       let {
         channel
       } = _ref;
-      return __awaiter(this, void 0, void 0, function* () {
+      return function* () {
         if (!channel) {
           return;
         }
         if (channel.label === reliableDataChannel) {
-          this.reliableDCSub = channel;
+          _this.reliableDCSub = channel;
         } else if (channel.label === lossyDataChannel) {
-          this.lossyDCSub = channel;
+          _this.lossyDCSub = channel;
         } else {
           return;
         }
-        livekitLogger.debug("on data channel ".concat(channel.id, ", ").concat(channel.label));
-        channel.onmessage = this.handleDataMessage;
-      });
-    };
+        _this.log.debug("on data channel ".concat(channel.id, ", ").concat(channel.label), _this.logContext);
+        channel.onmessage = _this.handleDataMessage;
+      }();
+    });
     this.handleDataMessage = message => __awaiter(this, void 0, void 0, function* () {
-      var _a, _b;
+      var _c, _d;
       // make sure to respect incoming data message order by processing message events one after the other
       const unlock = yield this.dataProcessLock.lock();
       try {
@@ -16473,14 +14640,16 @@ class RTCEngine extends eventsExports.EventEmitter {
         } else if (message.data instanceof Blob) {
           buffer = yield message.data.arrayBuffer();
         } else {
-          livekitLogger.error('unsupported data type', message.data);
+          this.log.error('unsupported data type', Object.assign(Object.assign({}, this.logContext), {
+            data: message.data
+          }));
           return;
         }
         const dp = DataPacket.fromBinary(new Uint8Array(buffer));
-        if (((_a = dp.value) === null || _a === void 0 ? void 0 : _a.case) === 'speaker') {
+        if (((_c = dp.value) === null || _c === void 0 ? void 0 : _c.case) === 'speaker') {
           // dispatch speaker updates
           this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
-        } else if (((_b = dp.value) === null || _b === void 0 ? void 0 : _b.case) === 'user') {
+        } else if (((_d = dp.value) === null || _d === void 0 ? void 0 : _d.case) === 'user') {
           this.emit(EngineEvent.DataPacketReceived, dp.value.value, dp.kind);
         }
       } finally {
@@ -16494,9 +14663,13 @@ class RTCEngine extends eventsExports.EventEmitter {
         const {
           error
         } = event.error;
-        livekitLogger.error("DataChannel error on ".concat(channelKind, ": ").concat(event.message), error);
+        this.log.error("DataChannel error on ".concat(channelKind, ": ").concat(event.message), Object.assign(Object.assign({}, this.logContext), {
+          error
+        }));
       } else {
-        livekitLogger.error("Unknown DataChannel error on ".concat(channelKind), event);
+        this.log.error("Unknown DataChannel error on ".concat(channelKind), Object.assign(Object.assign({}, this.logContext), {
+          event
+        }));
       }
     };
     this.handleBufferedAmountLow = event => {
@@ -16511,13 +14684,13 @@ class RTCEngine extends eventsExports.EventEmitter {
       if (this._isClosed) {
         return;
       }
-      livekitLogger.warn("".concat(connection, " disconnected"));
+      this.log.warn("".concat(connection, " disconnected"), this.logContext);
       if (this.reconnectAttempts === 0) {
         // only reset start time on the first try
         this.reconnectStart = Date.now();
       }
       const disconnect = duration => {
-        livekitLogger.warn("could not recover connection after ".concat(this.reconnectAttempts, " attempts, ").concat(duration, "ms. giving up"));
+        this.log.warn("could not recover connection after ".concat(this.reconnectAttempts, " attempts, ").concat(duration, "ms. giving up"), this.logContext);
         this.emit(EngineEvent.Disconnected);
         this.close();
       };
@@ -16533,14 +14706,14 @@ class RTCEngine extends eventsExports.EventEmitter {
       if (connection === leaveReconnect) {
         delay = 0;
       }
-      livekitLogger.debug("reconnecting in ".concat(delay, "ms"));
+      this.log.debug("reconnecting in ".concat(delay, "ms"), this.logContext);
       this.clearReconnectTimeout();
       if (this.token && this.regionUrlProvider) {
         // token may have been refreshed, we do not want to recreate the regionUrlProvider
         // since the current engine may have inherited a regional url
         this.regionUrlProvider.updateToken(this.token);
       }
-      this.reconnectTimeout = CriticalTimers.setTimeout(() => this.attemptReconnect(disconnectReason), delay);
+      this.reconnectTimeout = CriticalTimers.setTimeout(() => this.attemptReconnect(disconnectReason).finally(() => this.reconnectTimeout = undefined), delay);
     };
     this.waitForRestarted = () => {
       return new Promise((resolve, reject) => {
@@ -16574,12 +14747,17 @@ class RTCEngine extends eventsExports.EventEmitter {
     };
     this.handleBrowserOnLine = () => {
       // in case the engine is currently reconnecting, attempt a reconnect immediately after the browser state has changed to 'onLine'
-      if (this.client.isReconnecting) {
+      if (this.client.currentState === SignalConnectionState.RECONNECTING) {
         this.clearReconnectTimeout();
         this.attemptReconnect(ReconnectReason.RR_SIGNAL_DISCONNECTED);
       }
     };
-    this.client = new SignalClient();
+    this.log = getLogger((_a = options.loggerName) !== null && _a !== void 0 ? _a : LoggerNames.Engine);
+    this.loggerOptions = {
+      loggerName: options.loggerName,
+      loggerContextCb: () => this.logContext
+    };
+    this.client = new SignalClient(undefined, this.loggerOptions);
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
     this.registerOnLineListener();
@@ -16594,6 +14772,16 @@ class RTCEngine extends eventsExports.EventEmitter {
     this.client.onSpeakersChanged = update => this.emit(EngineEvent.SpeakersChanged, update);
     this.client.onStreamStateUpdate = update => this.emit(EngineEvent.StreamStateChanged, update);
   }
+  /** @internal */
+  get logContext() {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    return {
+      room: (_b = (_a = this.latestJoinResponse) === null || _a === void 0 ? void 0 : _a.room) === null || _b === void 0 ? void 0 : _b.name,
+      roomID: (_d = (_c = this.latestJoinResponse) === null || _c === void 0 ? void 0 : _c.room) === null || _d === void 0 ? void 0 : _d.sid,
+      participant: (_f = (_e = this.latestJoinResponse) === null || _e === void 0 ? void 0 : _e.participant) === null || _f === void 0 ? void 0 : _f.identity,
+      pID: (_h = (_g = this.latestJoinResponse) === null || _g === void 0 ? void 0 : _g.participant) === null || _h === void 0 ? void 0 : _h.sid
+    };
+  }
   join(url, token, opts, abortSignal) {
     return __awaiter(this, void 0, void 0, function* () {
       this.url = url;
@@ -16607,8 +14795,8 @@ class RTCEngine extends eventsExports.EventEmitter {
         this._isClosed = false;
         this.latestJoinResponse = joinResponse;
         this.subscriberPrimary = joinResponse.subscriberPrimary;
-        if (!this.publisher) {
-          this.configure(joinResponse);
+        if (!this.pcManager) {
+          yield this.configure(joinResponse);
         }
         // create offer
         if (!this.subscriberPrimary) {
@@ -16619,7 +14807,7 @@ class RTCEngine extends eventsExports.EventEmitter {
       } catch (e) {
         if (e instanceof ConnectionError) {
           if (e.reason === 1 /* ConnectionErrorReason.ServerUnreachable */) {
-            livekitLogger.warn("Couldn't connect to server, attempt ".concat(this.joinAttempts, " of ").concat(this.maxJoinAttempts));
+            this.log.warn("Couldn't connect to server, attempt ".concat(this.joinAttempts, " of ").concat(this.maxJoinAttempts), this.logContext);
             if (this.joinAttempts < this.maxJoinAttempts) {
               return this.join(url, token, opts, abortSignal);
             }
@@ -16651,31 +14839,9 @@ class RTCEngine extends eventsExports.EventEmitter {
   }
   cleanupPeerConnections() {
     return __awaiter(this, void 0, void 0, function* () {
-      if (this.publisher && this.publisher.getSignallingState() !== 'closed') {
-        this.publisher.getSenders().forEach(sender => {
-          var _a, _b;
-          try {
-            // TODO: react-native-webrtc doesn't have removeTrack yet.
-            if ((_a = this.publisher) === null || _a === void 0 ? void 0 : _a.canRemoveTrack()) {
-              (_b = this.publisher) === null || _b === void 0 ? void 0 : _b.removeTrack(sender);
-            }
-          } catch (e) {
-            livekitLogger.warn('could not removeTrack', {
-              error: e
-            });
-          }
-        });
-      }
-      if (this.publisher) {
-        this.publisher.close();
-        this.publisher = undefined;
-      }
-      if (this.subscriber) {
-        this.subscriber.close();
-        this.subscriber = undefined;
-      }
-      this.hasPublished = false;
-      this.primaryTransport = undefined;
+      var _a;
+      yield (_a = this.pcManager) === null || _a === void 0 ? void 0 : _a.close();
+      this.pcManager = undefined;
       const dcCleanup = dc => {
         if (!dc) return;
         dc.close();
@@ -16731,7 +14897,6 @@ class RTCEngine extends eventsExports.EventEmitter {
    * @returns
    */
   removeTrack(sender) {
-    var _a;
     if (sender.track && this.pendingTrackResolvers[sender.track.id]) {
       const {
         reject
@@ -16742,13 +14907,12 @@ class RTCEngine extends eventsExports.EventEmitter {
       delete this.pendingTrackResolvers[sender.track.id];
     }
     try {
-      (_a = this.publisher) === null || _a === void 0 ? void 0 : _a.removeTrack(sender);
+      this.pcManager.removeTrack(sender);
       return true;
     } catch (e) {
-      livekitLogger.warn('failed to remove track', {
-        error: e,
-        method: 'removeTrack'
-      });
+      this.log.warn('failed to remove track', Object.assign(Object.assign({}, this.logContext), {
+        error: e
+      }));
     }
     return false;
   }
@@ -16761,10 +14925,8 @@ class RTCEngine extends eventsExports.EventEmitter {
   }
   getConnectedServerAddress() {
     return __awaiter(this, void 0, void 0, function* () {
-      if (this.primaryTransport === undefined) {
-        return undefined;
-      }
-      return this.primaryTransport.getConnectedAddress();
+      var _a;
+      return (_a = this.pcManager) === null || _a === void 0 ? void 0 : _a.getConnectedAddress();
     });
   }
   /* @internal */
@@ -16772,120 +14934,95 @@ class RTCEngine extends eventsExports.EventEmitter {
     this.regionUrlProvider = provider;
   }
   configure(joinResponse) {
-    var _a, _b;
-    // already configured
-    if (this.publisher || this.subscriber) {
-      return;
-    }
-    this.participantSid = (_a = joinResponse.participant) === null || _a === void 0 ? void 0 : _a.sid;
-    const rtcConfig = this.makeRTCConfiguration(joinResponse);
-    if ((_b = this.signalOpts) === null || _b === void 0 ? void 0 : _b.e2eeEnabled) {
-      livekitLogger.debug('E2EE - setting up transports with insertable streams');
-      //  this makes sure that no data is sent before the transforms are ready
-      // @ts-ignore
-      rtcConfig.encodedInsertableStreams = true;
-    }
-    const googConstraints = {
-      optional: [{
-        googDscp: true
-      }]
-    };
-    this.publisher = new PCTransport(rtcConfig, googConstraints);
-    this.subscriber = new PCTransport(rtcConfig);
-    this.emit(EngineEvent.TransportsCreated, this.publisher, this.subscriber);
-    this.publisher.onIceCandidate = candidate => {
-      livekitLogger.trace('adding ICE candidate for peer', candidate);
-      this.client.sendIceCandidate(candidate, SignalTarget.PUBLISHER);
-    };
-    this.subscriber.onIceCandidate = candidate => {
-      this.client.sendIceCandidate(candidate, SignalTarget.SUBSCRIBER);
-    };
-    this.publisher.onOffer = offer => {
-      this.client.sendOffer(offer);
-    };
-    let primaryTransport = this.publisher;
-    let secondaryTransport = this.subscriber;
-    let subscriberPrimary = joinResponse.subscriberPrimary;
-    if (subscriberPrimary) {
-      primaryTransport = this.subscriber;
-      secondaryTransport = this.publisher;
-      // in subscriber primary mode, server side opens sub data channels.
-      this.subscriber.onDataChannel = this.handleDataChannel;
-    }
-    this.primaryTransport = primaryTransport;
-    primaryTransport.onConnectionStateChange = connectionState => __awaiter(this, void 0, void 0, function* () {
-      livekitLogger.debug("primary PC state changed ".concat(connectionState));
-      if (connectionState === 'connected') {
-        const shouldEmit = this.pcState === PCState.New;
-        this.pcState = PCState.Connected;
-        if (shouldEmit) {
-          this.emit(EngineEvent.Connected, joinResponse);
-        }
-      } else if (connectionState === 'failed') {
-        // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
-        if (this.pcState === PCState.Connected) {
-          this.pcState = PCState.Disconnected;
-          this.handleDisconnect('primary peerconnection', subscriberPrimary ? ReconnectReason.RR_SUBSCRIBER_FAILED : ReconnectReason.RR_PUBLISHER_FAILED);
-        }
+    return __awaiter(this, void 0, void 0, function* () {
+      var _a;
+      // already configured
+      if (this.pcManager && this.pcManager.currentState !== PCTransportState.NEW) {
+        return;
       }
+      this.participantSid = (_a = joinResponse.participant) === null || _a === void 0 ? void 0 : _a.sid;
+      const rtcConfig = this.makeRTCConfiguration(joinResponse);
+      this.pcManager = new PCTransportManager(rtcConfig, joinResponse.subscriberPrimary, this.loggerOptions);
+      this.emit(EngineEvent.TransportsCreated, this.pcManager.publisher, this.pcManager.subscriber);
+      this.pcManager.onIceCandidate = (candidate, target) => {
+        this.client.sendIceCandidate(candidate, target);
+      };
+      this.pcManager.onPublisherOffer = offer => {
+        this.client.sendOffer(offer);
+      };
+      this.pcManager.onDataChannel = this.handleDataChannel;
+      this.pcManager.onStateChange = (connectionState, publisherState, subscriberState) => __awaiter(this, void 0, void 0, function* () {
+        this.log.debug("primary PC state changed ".concat(connectionState), this.logContext);
+        if (['closed', 'disconnected', 'failed'].includes(publisherState)) {
+          // reset publisher connection promise
+          this.publisherConnectionPromise = undefined;
+        }
+        if (connectionState === PCTransportState.CONNECTED) {
+          const shouldEmit = this.pcState === PCState.New;
+          this.pcState = PCState.Connected;
+          if (shouldEmit) {
+            this.emit(EngineEvent.Connected, joinResponse);
+          }
+        } else if (connectionState === PCTransportState.FAILED) {
+          // on Safari, PeerConnection will switch to 'disconnected' during renegotiation
+          if (this.pcState === PCState.Connected) {
+            this.pcState = PCState.Disconnected;
+            this.handleDisconnect('peerconnection failed', subscriberState === 'failed' ? ReconnectReason.RR_SUBSCRIBER_FAILED : ReconnectReason.RR_PUBLISHER_FAILED);
+          }
+        }
+        // detect cases where both signal client and peer connection are severed and assume that user has lost network connection
+        const isSignalSevered = this.client.isDisconnected || this.client.currentState === SignalConnectionState.RECONNECTING;
+        const isPCSevered = [PCTransportState.FAILED, PCTransportState.CLOSING, PCTransportState.CLOSED].includes(connectionState);
+        if (isSignalSevered && isPCSevered && !this._isClosed) {
+          this.emit(EngineEvent.Offline);
+        }
+      });
+      this.pcManager.onTrack = ev => {
+        this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
+      };
+      this.createDataChannels();
     });
-    secondaryTransport.onConnectionStateChange = connectionState => __awaiter(this, void 0, void 0, function* () {
-      livekitLogger.debug("secondary PC state changed ".concat(connectionState));
-      // also reconnect if secondary peerconnection fails
-      if (connectionState === 'failed') {
-        this.handleDisconnect('secondary peerconnection', subscriberPrimary ? ReconnectReason.RR_PUBLISHER_FAILED : ReconnectReason.RR_SUBSCRIBER_FAILED);
-      }
-    });
-    this.subscriber.onTrack = ev => {
-      this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
-    };
-    this.createDataChannels();
   }
   setupSignalClientCallbacks() {
     // configure signaling client
     this.client.onAnswer = sd => __awaiter(this, void 0, void 0, function* () {
-      if (!this.publisher) {
+      if (!this.pcManager) {
         return;
       }
-      livekitLogger.debug('received server answer', {
-        RTCSdpType: sd.type,
-        signalingState: this.publisher.getSignallingState().toString()
-      });
-      yield this.publisher.setRemoteDescription(sd);
+      this.log.debug('received server answer', Object.assign(Object.assign({}, this.logContext), {
+        RTCSdpType: sd.type
+      }));
+      yield this.pcManager.setPublisherAnswer(sd);
     });
     // add candidate on trickle
     this.client.onTrickle = (candidate, target) => {
-      if (!this.publisher || !this.subscriber) {
+      if (!this.pcManager) {
         return;
       }
-      livekitLogger.trace('got ICE candidate from peer', {
+      this.log.trace('got ICE candidate from peer', Object.assign(Object.assign({}, this.logContext), {
         candidate,
         target
-      });
-      if (target === SignalTarget.PUBLISHER) {
-        this.publisher.addIceCandidate(candidate);
-      } else {
-        this.subscriber.addIceCandidate(candidate);
-      }
+      }));
+      this.pcManager.addIceCandidate(candidate, target);
     };
     // when server creates an offer for the client
     this.client.onOffer = sd => __awaiter(this, void 0, void 0, function* () {
-      if (!this.subscriber) {
+      if (!this.pcManager) {
         return;
       }
-      livekitLogger.debug('received server offer', {
-        RTCSdpType: sd.type,
-        signalingState: this.subscriber.getSignallingState().toString()
-      });
-      yield this.subscriber.setRemoteDescription(sd);
-      // answer the offer
-      const answer = yield this.subscriber.createAndSetAnswer();
+      const answer = yield this.pcManager.createSubscriberAnswerFromOffer(sd);
       this.client.sendAnswer(answer);
     });
     this.client.onLocalTrackPublished = res => {
-      livekitLogger.debug('received trackPublishedResponse', res);
+      var _a;
+      this.log.debug('received trackPublishedResponse', Object.assign(Object.assign({}, this.logContext), {
+        cid: res.cid,
+        track: (_a = res.track) === null || _a === void 0 ? void 0 : _a.sid
+      }));
       if (!this.pendingTrackResolvers[res.cid]) {
-        livekitLogger.error("missing track resolver for ".concat(res.cid));
+        this.log.error("missing track resolver for ".concat(res.cid), Object.assign(Object.assign({}, this.logContext), {
+          cid: res.cid
+        }));
         return;
       }
       const {
@@ -16894,8 +15031,17 @@ class RTCEngine extends eventsExports.EventEmitter {
       delete this.pendingTrackResolvers[res.cid];
       resolve(res.track);
     };
+    this.client.onLocalTrackUnpublished = response => {
+      this.emit(EngineEvent.LocalTrackUnpublished, response);
+    };
     this.client.onTokenRefresh = token => {
       // this.token = token;
+    };
+    this.client.onRemoteMuteChanged = (trackSid, muted) => {
+      this.emit(EngineEvent.RemoteMute, trackSid, muted);
+    };
+    this.client.onSubscribedQualityUpdate = update => {
+      this.emit(EngineEvent.SubscribedQualityUpdate, update);
     };
     this.client.onClose = () => {
       this.handleDisconnect('signal', ReconnectReason.RR_SIGNAL_DISCONNECTED);
@@ -16903,20 +15049,26 @@ class RTCEngine extends eventsExports.EventEmitter {
     this.client.onLeave = leave => {
       if (leave === null || leave === void 0 ? void 0 : leave.canReconnect) {
         this.fullReconnectOnNext = true;
-        this.primaryTransport = undefined;
         // reconnect immediately instead of waiting for next attempt
         this.handleDisconnect(leaveReconnect);
       } else {
         this.emit(EngineEvent.Disconnected, leave === null || leave === void 0 ? void 0 : leave.reason);
         this.close();
       }
-      livekitLogger.trace('leave request', {
-        leave
-      });
+      this.log.debug('client leave request', Object.assign(Object.assign({}, this.logContext), {
+        reason: leave === null || leave === void 0 ? void 0 : leave.reason
+      }));
     };
   }
   makeRTCConfiguration(serverResponse) {
+    var _a;
     const rtcConfig = Object.assign({}, this.rtcConfig);
+    if ((_a = this.signalOpts) === null || _a === void 0 ? void 0 : _a.e2eeEnabled) {
+      this.log.debug('E2EE - setting up transports with insertable streams', this.logContext);
+      //  this makes sure that no data is sent before the transforms are ready
+      // @ts-ignore
+      rtcConfig.encodedInsertableStreams = true;
+    }
     // update ICE servers before creating PeerConnection
     if (serverResponse.iceServers && !rtcConfig.iceServers) {
       const rtcIceServers = [];
@@ -16942,7 +15094,7 @@ class RTCEngine extends eventsExports.EventEmitter {
     return rtcConfig;
   }
   createDataChannels() {
-    if (!this.publisher) {
+    if (!this.pcManager) {
       return;
     }
     // clear old data channel callbacks if recreate
@@ -16955,12 +15107,12 @@ class RTCEngine extends eventsExports.EventEmitter {
       this.reliableDC.onerror = null;
     }
     // create data channels
-    this.lossyDC = this.publisher.createDataChannel(lossyDataChannel, {
+    this.lossyDC = this.pcManager.createPublisherDataChannel(lossyDataChannel, {
       // will drop older packets that arrive
       ordered: true,
       maxRetransmits: 0
     });
-    this.reliableDC = this.publisher.createDataChannel(reliableDataChannel, {
+    this.reliableDC = this.pcManager.createPublisherDataChannel(reliableDataChannel, {
       ordered: true
     });
     // also handle messages over the pub channel, for backwards compatibility
@@ -16977,12 +15129,15 @@ class RTCEngine extends eventsExports.EventEmitter {
     this.reliableDC.onbufferedamountlow = this.handleBufferedAmountLow;
   }
   setPreferredCodec(transceiver, kind, videoCodec) {
-    if (!('getCapabilities' in RTCRtpSender)) {
+    if (!('getCapabilities' in RTCRtpReceiver)) {
       return;
     }
-    const cap = RTCRtpSender.getCapabilities(kind);
+    // when setting codec preferences, the capabilites need to be read from the RTCRtpReceiver
+    const cap = RTCRtpReceiver.getCapabilities(kind);
     if (!cap) return;
-    livekitLogger.debug('get capabilities', cap);
+    this.log.debug('get receiver capabilities', Object.assign(Object.assign({}, this.logContext), {
+      cap
+    }));
     const matched = [];
     const partialMatched = [];
     const unmatched = [];
@@ -17020,7 +15175,7 @@ class RTCEngine extends eventsExports.EventEmitter {
         return sender;
       }
       if (supportsAddTrack()) {
-        livekitLogger.warn('using add-track fallback');
+        this.log.warn('using add-track fallback', this.logContext);
         const sender = yield this.createRTCRtpSender(track.mediaStreamTrack);
         return sender;
       }
@@ -17034,7 +15189,7 @@ class RTCEngine extends eventsExports.EventEmitter {
         return this.createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings);
       }
       if (supportsAddTrack()) {
-        livekitLogger.debug('using add-track fallback');
+        this.log.debug('using add-track fallback', this.logContext);
         return this.createRTCRtpSender(track.mediaStreamTrack);
       }
       throw new UnexpectedConnectionState('Cannot stream on this device');
@@ -17042,7 +15197,7 @@ class RTCEngine extends eventsExports.EventEmitter {
   }
   createTransceiverRTCRtpSender(track, opts, encodings) {
     return __awaiter(this, void 0, void 0, function* () {
-      if (!this.publisher) {
+      if (!this.pcManager) {
         throw new UnexpectedConnectionState('publisher is closed');
       }
       const streams = [];
@@ -17057,7 +15212,7 @@ class RTCEngine extends eventsExports.EventEmitter {
         transceiverInit.sendEncodings = encodings;
       }
       // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-      const transceiver = yield this.publisher.addTransceiver(track.mediaStreamTrack, transceiverInit);
+      const transceiver = yield this.pcManager.addPublisherTransceiver(track.mediaStreamTrack, transceiverInit);
       if (track.kind === Track.Kind.Video && opts.videoCodec) {
         this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
         track.codec = opts.videoCodec;
@@ -17067,7 +15222,7 @@ class RTCEngine extends eventsExports.EventEmitter {
   }
   createSimulcastTransceiverSender(track, simulcastTrack, opts, encodings) {
     return __awaiter(this, void 0, void 0, function* () {
-      if (!this.publisher) {
+      if (!this.pcManager) {
         throw new UnexpectedConnectionState('publisher is closed');
       }
       const transceiverInit = {
@@ -17077,7 +15232,7 @@ class RTCEngine extends eventsExports.EventEmitter {
         transceiverInit.sendEncodings = encodings;
       }
       // addTransceiver for react-native is async. web is synchronous, but await won't effect it.
-      const transceiver = yield this.publisher.addTransceiver(simulcastTrack.mediaStreamTrack, transceiverInit);
+      const transceiver = yield this.pcManager.addPublisherTransceiver(simulcastTrack.mediaStreamTrack, transceiverInit);
       if (!opts.videoCodec) {
         return;
       }
@@ -17088,26 +15243,27 @@ class RTCEngine extends eventsExports.EventEmitter {
   }
   createRTCRtpSender(track) {
     return __awaiter(this, void 0, void 0, function* () {
-      if (!this.publisher) {
+      if (!this.pcManager) {
         throw new UnexpectedConnectionState('publisher is closed');
       }
-      return this.publisher.addTrack(track);
+      return this.pcManager.addPublisherTrack(track);
     });
   }
   attemptReconnect(reason) {
-    var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b, _c;
       if (this._isClosed) {
         return;
       }
       // guard for attempting reconnection multiple times while one attempt is still not finished
       if (this.attemptingReconnect) {
+        livekitLogger.warn('already attempting reconnect, returning early', this.logContext);
         return;
       }
       if (((_a = this.clientConfiguration) === null || _a === void 0 ? void 0 : _a.resumeConnection) === ClientConfigSetting.DISABLED ||
       // signaling state could change to closed due to hardware sleep
       // those connections cannot be resumed
-      ((_c = (_b = this.primaryTransport) === null || _b === void 0 ? void 0 : _b.getSignallingState()) !== null && _c !== void 0 ? _c : 'closed') === 'closed') {
+      ((_c = (_b = this.pcManager) === null || _b === void 0 ? void 0 : _b.currentState) !== null && _c !== void 0 ? _c : PCTransportState.NEW) === PCTransportState.NEW) {
         this.fullReconnectOnNext = true;
       }
       try {
@@ -17123,9 +15279,9 @@ class RTCEngine extends eventsExports.EventEmitter {
         this.reconnectAttempts += 1;
         let recoverable = true;
         if (e instanceof UnexpectedConnectionState) {
-          livekitLogger.debug('received unrecoverable error', {
+          this.log.debug('received unrecoverable error', Object.assign(Object.assign({}, this.logContext), {
             error: e
-          });
+          }));
           // unrecoverable
           recoverable = false;
         } else if (!(e instanceof SignalReconnectError)) {
@@ -17135,7 +15291,7 @@ class RTCEngine extends eventsExports.EventEmitter {
         if (recoverable) {
           this.handleDisconnect('reconnect', ReconnectReason.RR_UNKNOWN);
         } else {
-          livekitLogger.info("could not recover connection after ".concat(this.reconnectAttempts, " attempts, ").concat(Date.now() - this.reconnectStart, "ms. giving up"));
+          this.log.info("could not recover connection after ".concat(this.reconnectAttempts, " attempts, ").concat(Date.now() - this.reconnectStart, "ms. giving up"), this.logContext);
           this.emit(EngineEvent.Disconnected);
           yield this.close();
         }
@@ -17148,24 +15304,24 @@ class RTCEngine extends eventsExports.EventEmitter {
     try {
       return this.reconnectPolicy.nextRetryDelayInMs(context);
     } catch (e) {
-      livekitLogger.warn('encountered error in reconnect policy', {
+      this.log.warn('encountered error in reconnect policy', Object.assign(Object.assign({}, this.logContext), {
         error: e
-      });
+      }));
     }
     // error in user code with provided reconnect policy, stop reconnecting
     return null;
   }
   restartConnection(regionUrl) {
-    var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b, _c;
       try {
         if (!this.url || !this.token) {
           // permanent failure, don't attempt reconnection
           throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
         }
-        livekitLogger.info("reconnecting, attempt: ".concat(this.reconnectAttempts));
+        this.log.info("reconnecting, attempt: ".concat(this.reconnectAttempts), this.logContext);
         this.emit(EngineEvent.Restarting);
-        if (this.client.isConnected) {
+        if (!this.client.isDisconnected) {
           yield this.client.sendLeave();
         }
         yield this.cleanupPeerConnections();
@@ -17173,7 +15329,7 @@ class RTCEngine extends eventsExports.EventEmitter {
         let joinResponse;
         try {
           if (!this.signalOpts) {
-            livekitLogger.warn('attempted connection restart, without signal options present');
+            this.log.warn('attempted connection restart, without signal options present', this.logContext);
             throw new SignalReconnectError();
           }
           // in case a regionUrl is passed, the region URL takes precedence
@@ -17191,6 +15347,10 @@ class RTCEngine extends eventsExports.EventEmitter {
         this.client.setReconnected();
         this.emit(EngineEvent.SignalRestarted, joinResponse);
         yield this.waitForPCReconnected();
+        // re-check signal connection state before setting engine as resumed
+        if (this.client.currentState !== SignalConnectionState.CONNECTED) {
+          throw new SignalReconnectError('Signal connection got severed during reconnect');
+        }
         (_a = this.regionUrlProvider) === null || _a === void 0 ? void 0 : _a.resetAttempts();
         // reconnect success
         this.emit(EngineEvent.Restarted);
@@ -17208,49 +15368,55 @@ class RTCEngine extends eventsExports.EventEmitter {
     });
   }
   resumeConnection(reason) {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       if (!this.url || !this.token) {
         // permanent failure, don't attempt reconnection
         throw new UnexpectedConnectionState('could not reconnect, url or token not saved');
       }
       // trigger publisher reconnect
-      if (!this.publisher || !this.subscriber) {
+      if (!this.pcManager) {
         throw new UnexpectedConnectionState('publisher and subscriber connections unset');
       }
-      livekitLogger.info("resuming signal connection, attempt ".concat(this.reconnectAttempts));
+      this.log.info("resuming signal connection, attempt ".concat(this.reconnectAttempts), this.logContext);
       this.emit(EngineEvent.Resuming);
+      let res;
       try {
         this.setupSignalClientCallbacks();
-        const res = yield this.client.reconnect(this.url, this.token, this.participantSid, reason);
-        if (res) {
-          const rtcConfig = this.makeRTCConfiguration(res);
-          this.publisher.setConfiguration(rtcConfig);
-          this.subscriber.setConfiguration(rtcConfig);
-        }
-      } catch (e) {
+        res = yield this.client.reconnect(this.url, this.token, this.participantSid, reason);
+      } catch (error) {
         let message = '';
-        if (e instanceof Error) {
-          message = e.message;
+        if (error instanceof Error) {
+          message = error.message;
+          this.log.error(error.message, Object.assign(Object.assign({}, this.logContext), {
+            error
+          }));
         }
-        if (e instanceof ConnectionError && e.reason === 0 /* ConnectionErrorReason.NotAllowed */) {
+        if (error instanceof ConnectionError && error.reason === 0 /* ConnectionErrorReason.NotAllowed */) {
           throw new UnexpectedConnectionState('could not reconnect, token might be expired');
+        }
+        if (error instanceof ConnectionError && error.reason === 4 /* ConnectionErrorReason.LeaveRequest */) {
+          throw error;
         }
         throw new SignalReconnectError(message);
       }
       this.emit(EngineEvent.SignalResumed);
+      if (res) {
+        const rtcConfig = this.makeRTCConfiguration(res);
+        this.pcManager.updateConfiguration(rtcConfig);
+      } else {
+        this.log.warn('Did not receive reconnect response', this.logContext);
+      }
       if (this.shouldFailNext) {
         this.shouldFailNext = false;
         throw new Error('simulated failure');
       }
-      this.subscriber.restartingIce = true;
-      // only restart publisher if it's needed
-      if (this.hasPublished) {
-        yield this.publisher.createAndSendOffer({
-          iceRestart: true
-        });
-      }
+      yield this.pcManager.triggerIceRestart();
       yield this.waitForPCReconnected();
+      // re-check signal connection state before setting engine as resumed
+      if (this.client.currentState !== SignalConnectionState.CONNECTED) {
+        throw new SignalReconnectError('Signal connection got severed during reconnect');
+      }
       this.client.setReconnected();
       // recreate publish datachannel if it's id is null
       // (for safari https://bugs.webkit.org/show_bug.cgi?id=184688)
@@ -17263,62 +15429,28 @@ class RTCEngine extends eventsExports.EventEmitter {
   }
   waitForPCInitialConnection(timeout, abortController) {
     return __awaiter(this, void 0, void 0, function* () {
-      if (this.pcState === PCState.Connected) {
-        return;
+      if (!this.pcManager) {
+        throw new UnexpectedConnectionState('PC manager is closed');
       }
-      if (this.pcState !== PCState.New) {
-        throw new UnexpectedConnectionState('Expected peer connection to be new on initial connection');
-      }
-      return new Promise((resolve, reject) => {
-        const abortHandler = () => {
-          livekitLogger.warn('closing engine');
-          CriticalTimers.clearTimeout(connectTimeout);
-          reject(new ConnectionError('room connection has been cancelled', 3 /* ConnectionErrorReason.Cancelled */));
-        };
-
-        if (abortController === null || abortController === void 0 ? void 0 : abortController.signal.aborted) {
-          abortHandler();
-        }
-        abortController === null || abortController === void 0 ? void 0 : abortController.signal.addEventListener('abort', abortHandler);
-        const onConnected = () => {
-          CriticalTimers.clearTimeout(connectTimeout);
-          abortController === null || abortController === void 0 ? void 0 : abortController.signal.removeEventListener('abort', abortHandler);
-          resolve();
-        };
-        const connectTimeout = CriticalTimers.setTimeout(() => {
-          this.off(EngineEvent.Connected, onConnected);
-          reject(new ConnectionError('could not establish pc connection'));
-        }, timeout !== null && timeout !== void 0 ? timeout : this.peerConnectionTimeout);
-        this.once(EngineEvent.Connected, onConnected);
-      });
+      yield this.pcManager.ensurePCTransportConnection(abortController, timeout);
     });
   }
   waitForPCReconnected() {
-    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
-      const startTime = Date.now();
-      let now = startTime;
       this.pcState = PCState.Reconnecting;
-      livekitLogger.debug('waiting for peer connection to reconnect');
-      while (now - startTime < this.peerConnectionTimeout) {
-        if (this.primaryTransport === undefined) {
-          // we can abort early, connection is hosed
-          break;
-        } else if (
-        // on Safari, we don't get a connectionstatechanged event during ICE restart
-        // this means we'd have to check its status manually and update address
-        // manually
-        now - startTime > minReconnectWait && ((_a = this.primaryTransport) === null || _a === void 0 ? void 0 : _a.getConnectionState()) === 'connected' && (!this.hasPublished || ((_b = this.publisher) === null || _b === void 0 ? void 0 : _b.getConnectionState()) === 'connected')) {
-          this.pcState = PCState.Connected;
+      this.log.debug('waiting for peer connection to reconnect', this.logContext);
+      try {
+        yield sleep(minReconnectWait); // FIXME setTimeout again not ideal for a connection critical path
+        if (!this.pcManager) {
+          throw new UnexpectedConnectionState('PC manager is closed');
         }
-        if (this.pcState === PCState.Connected) {
-          return;
-        }
-        yield sleep(100);
-        now = Date.now();
+        yield this.pcManager.ensurePCTransportConnection(undefined, this.peerConnectionTimeout);
+        this.pcState = PCState.Connected;
+      } catch (e) {
+        // TODO do we need a `failed` state here for the PC?
+        this.pcState = PCState.Disconnected;
+        throw new ConnectionError("could not establish PC connection, ".concat(e.message));
       }
-      // have not reconnected, throw
-      throw new ConnectionError('could not establish PC connection');
     });
   }
   /* @internal */
@@ -17337,56 +15469,56 @@ class RTCEngine extends eventsExports.EventEmitter {
   /**
    * @internal
    */
-  ensureDataTransportConnected(kind) {
-    let subscriber = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : this.subscriberPrimary;
-    var _a, _b, _c;
-    return __awaiter(this, void 0, void 0, function* () {
-      const transport = subscriber ? this.subscriber : this.publisher;
-      const transportName = subscriber ? 'Subscriber' : 'Publisher';
-      if (!transport) {
-        throw new ConnectionError("".concat(transportName, " connection not set"));
-      }
-      if (!subscriber && !((_a = this.publisher) === null || _a === void 0 ? void 0 : _a.isICEConnected) && ((_b = this.publisher) === null || _b === void 0 ? void 0 : _b.getICEConnectionState()) !== 'checking') {
-        // start negotiation
-        this.negotiate();
-      }
-      const targetChannel = this.dataChannelForKind(kind, subscriber);
-      if ((targetChannel === null || targetChannel === void 0 ? void 0 : targetChannel.readyState) === 'open') {
-        return;
-      }
-      // wait until ICE connected
-      const endTime = new Date().getTime() + this.peerConnectionTimeout;
-      while (new Date().getTime() < endTime) {
-        if (transport.isICEConnected && ((_c = this.dataChannelForKind(kind, subscriber)) === null || _c === void 0 ? void 0 : _c.readyState) === 'open') {
+  ensureDataTransportConnected(kind_1) {
+    return __awaiter(this, arguments, void 0, function (kind) {
+      var _this2 = this;
+      let subscriber = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : this.subscriberPrimary;
+      return function* () {
+        var _a;
+        if (!_this2.pcManager) {
+          throw new UnexpectedConnectionState('PC manager is closed');
+        }
+        const transport = subscriber ? _this2.pcManager.subscriber : _this2.pcManager.publisher;
+        const transportName = subscriber ? 'Subscriber' : 'Publisher';
+        if (!transport) {
+          throw new ConnectionError("".concat(transportName, " connection not set"));
+        }
+        if (!subscriber && !_this2.pcManager.publisher.isICEConnected && _this2.pcManager.publisher.getICEConnectionState() !== 'checking') {
+          // start negotiation
+          _this2.negotiate();
+        }
+        const targetChannel = _this2.dataChannelForKind(kind, subscriber);
+        if ((targetChannel === null || targetChannel === void 0 ? void 0 : targetChannel.readyState) === 'open') {
           return;
         }
-        yield sleep(50);
-      }
-      throw new ConnectionError("could not establish ".concat(transportName, " connection, state: ").concat(transport.getICEConnectionState()));
+        // wait until ICE connected
+        const endTime = new Date().getTime() + _this2.peerConnectionTimeout;
+        while (new Date().getTime() < endTime) {
+          if (transport.isICEConnected && ((_a = _this2.dataChannelForKind(kind, subscriber)) === null || _a === void 0 ? void 0 : _a.readyState) === 'open') {
+            return;
+          }
+          yield sleep(50);
+        }
+        throw new ConnectionError("could not establish ".concat(transportName, " connection, state: ").concat(transport.getICEConnectionState()));
+      }();
     });
   }
   ensurePublisherConnected(kind) {
     return __awaiter(this, void 0, void 0, function* () {
-      yield this.ensureDataTransportConnected(kind, false);
+      if (!this.publisherConnectionPromise) {
+        this.publisherConnectionPromise = this.ensureDataTransportConnected(kind, false);
+      }
+      yield this.publisherConnectionPromise;
     });
   }
   /* @internal */
   verifyTransport() {
+    if (!this.pcManager) {
+      return false;
+    }
     // primary connection
-    if (!this.primaryTransport) {
+    if (this.pcManager.currentState !== PCTransportState.CONNECTED) {
       return false;
-    }
-    if (this.primaryTransport.getConnectionState() === 'closed' || this.primaryTransport.getConnectionState() === 'failed') {
-      return false;
-    }
-    // also verify publisher connection if it's needed or different
-    if (this.hasPublished && this.subscriberPrimary) {
-      if (!this.publisher) {
-        return false;
-      }
-      if (this.publisher.getConnectionState() === 'closed' || this.publisher.getConnectionState() === 'failed') {
-        return false;
-      }
     }
     // ensure signal is connected
     if (!this.client.ws || this.client.ws.readyState === WebSocket.CLOSED) {
@@ -17396,56 +15528,48 @@ class RTCEngine extends eventsExports.EventEmitter {
   }
   /** @internal */
   negotiate() {
-    // observe signal state
-    return new Promise((resolve, reject) => {
-      if (!this.publisher) {
-        reject(new NegotiationError('publisher is not defined'));
-        return;
-      }
-      this.hasPublished = true;
-      const handleClosed = () => {
-        livekitLogger.debug('engine disconnected while negotiation was ongoing');
-        cleanup();
-        resolve();
-        return;
-      };
-      if (this.isClosed) {
-        reject('cannot negotiate on closed engine');
-      }
-      this.on(EngineEvent.Closing, handleClosed);
-      const negotiationTimeout = setTimeout(() => {
-        reject('negotiation timed out');
-        this.handleDisconnect('negotiation', ReconnectReason.RR_SIGNAL_DISCONNECTED);
-      }, this.peerConnectionTimeout);
-      const cleanup = () => {
-        clearTimeout(negotiationTimeout);
-        this.off(EngineEvent.Closing, handleClosed);
-      };
-      this.publisher.once(PCEvents.NegotiationStarted, () => {
-        var _a;
-        (_a = this.publisher) === null || _a === void 0 ? void 0 : _a.once(PCEvents.NegotiationComplete, () => {
-          cleanup();
-          resolve();
-        });
-      });
-      this.publisher.once(PCEvents.RTPVideoPayloadTypes, rtpTypes => {
-        const rtpMap = new Map();
-        rtpTypes.forEach(rtp => {
-          const codec = rtp.codec.toLowerCase();
-          if (isVideoCodec(codec)) {
-            rtpMap.set(rtp.payload, codec);
-          }
-        });
-        this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
-      });
-      this.publisher.negotiate(e => {
-        cleanup();
-        reject(e);
-        if (e instanceof NegotiationError) {
-          this.fullReconnectOnNext = true;
+    return __awaiter(this, void 0, void 0, function* () {
+      // observe signal state
+      return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
+        if (!this.pcManager) {
+          reject(new NegotiationError('PC manager is closed'));
+          return;
         }
-        this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
-      });
+        this.pcManager.requirePublisher();
+        const abortController = new AbortController();
+        const handleClosed = () => {
+          abortController.abort();
+          this.log.debug('engine disconnected while negotiation was ongoing', this.logContext);
+          resolve();
+          return;
+        };
+        if (this.isClosed) {
+          reject('cannot negotiate on closed engine');
+        }
+        this.on(EngineEvent.Closing, handleClosed);
+        this.pcManager.publisher.once(PCEvents.RTPVideoPayloadTypes, rtpTypes => {
+          const rtpMap = new Map();
+          rtpTypes.forEach(rtp => {
+            const codec = rtp.codec.toLowerCase();
+            if (isVideoCodec(codec)) {
+              rtpMap.set(rtp.payload, codec);
+            }
+          });
+          this.emit(EngineEvent.RTPVideoMapUpdate, rtpMap);
+        });
+        try {
+          yield this.pcManager.negotiate(abortController);
+          resolve();
+        } catch (e) {
+          if (e instanceof NegotiationError) {
+            this.fullReconnectOnNext = true;
+          }
+          this.handleDisconnect('negotiation', ReconnectReason.RR_UNKNOWN);
+          reject(e);
+        } finally {
+          this.off(EngineEvent.Closing, handleClosed);
+        }
+      }));
     });
   }
   dataChannelForKind(kind, sub) {
@@ -17465,10 +15589,71 @@ class RTCEngine extends eventsExports.EventEmitter {
       }
     }
   }
+  /** @internal */
+  sendSyncState(remoteTracks, localTracks) {
+    var _a, _b;
+    if (!this.pcManager) {
+      this.log.warn('sync state cannot be sent without peer connection setup', this.logContext);
+      return;
+    }
+    const previousAnswer = this.pcManager.subscriber.getLocalDescription();
+    const previousOffer = this.pcManager.subscriber.getRemoteDescription();
+    /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
+          in this case, we send unsub tracks, so server add all tracks to this
+          subscribe pc and unsub special tracks from it.
+       2. autosubscribe off, we send subscribed tracks.
+    */
+    const autoSubscribe = (_b = (_a = this.signalOpts) === null || _a === void 0 ? void 0 : _a.autoSubscribe) !== null && _b !== void 0 ? _b : true;
+    const trackSids = new Array();
+    const trackSidsDisabled = new Array();
+    remoteTracks.forEach(track => {
+      if (track.isDesired !== autoSubscribe) {
+        trackSids.push(track.trackSid);
+      }
+      if (!track.isEnabled) {
+        trackSidsDisabled.push(track.trackSid);
+      }
+    });
+    this.client.sendSyncState(new SyncState({
+      answer: previousAnswer ? toProtoSessionDescription({
+        sdp: previousAnswer.sdp,
+        type: previousAnswer.type
+      }) : undefined,
+      offer: previousOffer ? toProtoSessionDescription({
+        sdp: previousOffer.sdp,
+        type: previousOffer.type
+      }) : undefined,
+      subscription: new UpdateSubscription({
+        trackSids,
+        subscribe: !autoSubscribe,
+        participantTracks: []
+      }),
+      publishTracks: getTrackPublicationInfo(localTracks),
+      dataChannels: this.dataChannelsInfo(),
+      trackSidsDisabled
+    }));
+  }
   /* @internal */
   failNext() {
     // debugging method to fail the next reconnect/resume attempt
     this.shouldFailNext = true;
+  }
+  dataChannelsInfo() {
+    const infos = [];
+    const getInfo = (dc, target) => {
+      if ((dc === null || dc === void 0 ? void 0 : dc.id) !== undefined && dc.id !== null) {
+        infos.push(new DataChannelInfo({
+          label: dc.label,
+          id: dc.id,
+          target
+        }));
+      }
+    };
+    getInfo(this.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
+    getInfo(this.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
+    getInfo(this.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
+    getInfo(this.dataChannelForKind(DataPacket_Kind.RELIABLE, true), SignalTarget.SUBSCRIBER);
+    return infos;
   }
   clearReconnectTimeout() {
     if (this.reconnectTimeout) {
@@ -17576,6 +15761,12 @@ function computeBitrate(currentStats, prevStats) {
 
 class LocalAudioTrack extends LocalTrack {
   /**
+   * boolean indicating whether enhanced noise cancellation is currently being used on this track
+   */
+  get enhancedNoiseCancellation() {
+    return this.isKrispNoiseFilterEnabled;
+  }
+  /**
    *
    * @param mediaTrack
    * @param constraints MediaTrackConstraints that are being used when restarting or reacquiring tracks
@@ -17584,9 +15775,11 @@ class LocalAudioTrack extends LocalTrack {
   constructor(mediaTrack, constraints) {
     let userProvidedTrack = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
     let audioContext = arguments.length > 3 ? arguments[3] : undefined;
-    super(mediaTrack, Track.Kind.Audio, constraints, userProvidedTrack);
+    let loggerOptions = arguments.length > 4 ? arguments[4] : undefined;
+    super(mediaTrack, Track.Kind.Audio, constraints, userProvidedTrack, loggerOptions);
     /** @internal */
     this.stopOnMute = false;
+    this.isKrispNoiseFilterEnabled = false;
     this.monitorSender = () => __awaiter(this, void 0, void 0, function* () {
       if (!this.sender) {
         this._currentBitrate = 0;
@@ -17596,9 +15789,9 @@ class LocalAudioTrack extends LocalTrack {
       try {
         stats = yield this.getSenderStats();
       } catch (e) {
-        livekitLogger.error('could not get audio sender stats', {
+        this.log.error('could not get audio sender stats', Object.assign(Object.assign({}, this.logContext), {
           error: e
-        });
+        }));
         return;
       }
       if (stats && this.prevStats) {
@@ -17606,19 +15799,29 @@ class LocalAudioTrack extends LocalTrack {
       }
       this.prevStats = stats;
     });
+    this.handleKrispNoiseFilterEnable = () => {
+      this.isKrispNoiseFilterEnabled = true;
+      this.log.debug("Krisp noise filter enabled", this.logContext);
+      this.emit(TrackEvent.AudioTrackFeatureUpdate, this, AudioTrackFeature.TF_ENHANCED_NOISE_CANCELLATION, true);
+    };
+    this.handleKrispNoiseFilterDisable = () => {
+      this.isKrispNoiseFilterEnabled = false;
+      this.log.debug("Krisp noise filter disabled", this.logContext);
+      this.emit(TrackEvent.AudioTrackFeatureUpdate, this, AudioTrackFeature.TF_ENHANCED_NOISE_CANCELLATION, false);
+    };
     this.audioContext = audioContext;
     this.checkForSilence();
   }
   setDeviceId(deviceId) {
     return __awaiter(this, void 0, void 0, function* () {
-      if (this._constraints.deviceId === deviceId) {
+      if (this._constraints.deviceId === deviceId && this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)) {
         return true;
       }
       this._constraints.deviceId = deviceId;
       if (!this.isMuted) {
         yield this.restartTrack();
       }
-      return this.isMuted || unwrapConstraint(deviceId) === this.mediaStreamTrack.getSettings().deviceId;
+      return this.isMuted || unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId;
     });
   }
   mute() {
@@ -17630,9 +15833,13 @@ class LocalAudioTrack extends LocalTrack {
     return __awaiter(this, void 0, void 0, function* () {
       const unlock = yield this.muteLock.lock();
       try {
+        if (this.isMuted) {
+          this.log.debug('Track already muted', this.logContext);
+          return this;
+        }
         // disabled special handling as it will cause BT headsets to switch communication modes
         if (this.source === Track.Source.Microphone && this.stopOnMute && !this.isUserProvided) {
-          livekitLogger.debug('stopping mic track');
+          this.log.debug('stopping mic track', this.logContext);
           // also stop the track, so that microphone indicator is turned off
           this._mediaStreamTrack.stop();
         }
@@ -17652,9 +15859,13 @@ class LocalAudioTrack extends LocalTrack {
     return __awaiter(this, void 0, void 0, function* () {
       const unlock = yield this.muteLock.lock();
       try {
+        if (!this.isMuted) {
+          this.log.debug('Track already unmuted', this.logContext);
+          return this;
+        }
         const deviceHasChanged = this._constraints.deviceId && this._mediaStreamTrack.getSettings().deviceId !== unwrapConstraint(this._constraints.deviceId);
         if (this.source === Track.Source.Microphone && (this.stopOnMute || this._mediaStreamTrack.readyState === 'ended' || deviceHasChanged) && !this.isUserProvided) {
-          livekitLogger.debug('reacquiring mic track');
+          this.log.debug('reacquiring mic track', this.logContext);
           yield this.restartTrack();
         }
         yield _super.unmute.call(this);
@@ -17703,8 +15914,8 @@ class LocalAudioTrack extends LocalTrack {
     }, monitorFrequency);
   }
   setProcessor(processor) {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       const unlock = yield this.processorLock.lock();
       try {
         if (!this.audioContext) {
@@ -17713,20 +15924,20 @@ class LocalAudioTrack extends LocalTrack {
         if (this.processor) {
           yield this.stopProcessor();
         }
-        if (this.kind === 'unknown') {
-          throw TypeError('cannot set processor on track of unknown kind');
-        }
         const processorOptions = {
           kind: this.kind,
           track: this._mediaStreamTrack,
           audioContext: this.audioContext
         };
-        livekitLogger.debug("setting up audio processor ".concat(processor.name));
+        this.log.debug("setting up audio processor ".concat(processor.name), this.logContext);
         yield processor.init(processorOptions);
         this.processor = processor;
         if (this.processor.processedTrack) {
           yield (_a = this.sender) === null || _a === void 0 ? void 0 : _a.replaceTrack(this.processor.processedTrack);
+          this.processor.processedTrack.addEventListener('enable-lk-krisp-noise-filter', this.handleKrispNoiseFilterEnable);
+          this.processor.processedTrack.addEventListener('disable-lk-krisp-noise-filter', this.handleKrispNoiseFilterDisable);
         }
+        this.emit(TrackEvent.TrackProcessorUpdate, this.processor);
       } finally {
         unlock();
       }
@@ -17740,8 +15951,8 @@ class LocalAudioTrack extends LocalTrack {
     this.audioContext = audioContext;
   }
   getSenderStats() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       if (!((_a = this.sender) === null || _a === void 0 ? void 0 : _a.getStats)) {
         return undefined;
       }
@@ -17769,7 +15980,7 @@ class LocalAudioTrack extends LocalTrack {
       const trackIsSilent = yield detectSilence(this);
       if (trackIsSilent) {
         if (!this.isMuted) {
-          livekitLogger.warn('silence detected on local audio track');
+          this.log.warn('silence detected on local audio track', this.logContext);
         }
         this.emit(TrackEvent.AudioSilenceDetected);
       }
@@ -17779,12 +15990,12 @@ class LocalAudioTrack extends LocalTrack {
 }
 
 /** @internal */
-function mediaTrackToLocalTrack(mediaStreamTrack, constraints) {
+function mediaTrackToLocalTrack(mediaStreamTrack, constraints, loggerOptions) {
   switch (mediaStreamTrack.kind) {
     case 'audio':
-      return new LocalAudioTrack(mediaStreamTrack, constraints, false);
+      return new LocalAudioTrack(mediaStreamTrack, constraints, false, undefined, loggerOptions);
     case 'video':
-      return new LocalVideoTrack(mediaStreamTrack, constraints, false);
+      return new LocalVideoTrack(mediaStreamTrack, constraints, false, loggerOptions);
     default:
       throw new TrackInvalidError("unsupported track type: ".concat(mediaStreamTrack.kind));
   }
@@ -17803,11 +16014,11 @@ const defaultSimulcastPresets43 = [VideoPresets43.h180, VideoPresets43.h360];
 const computeDefaultScreenShareSimulcastPresets = fromPreset => {
   const layers = [{
     scaleResolutionDownBy: 2,
-    fps: 3
+    fps: fromPreset.encoding.maxFramerate
   }];
   return layers.map(t => {
-    var _a;
-    return new VideoPreset(Math.floor(fromPreset.width / t.scaleResolutionDownBy), Math.floor(fromPreset.height / t.scaleResolutionDownBy), Math.max(150000, Math.floor(fromPreset.encoding.maxBitrate / (Math.pow(t.scaleResolutionDownBy, 2) * (((_a = fromPreset.encoding.maxFramerate) !== null && _a !== void 0 ? _a : 30) / t.fps)))), t.fps, fromPreset.encoding.priority);
+    var _a, _b;
+    return new VideoPreset(Math.floor(fromPreset.width / t.scaleResolutionDownBy), Math.floor(fromPreset.height / t.scaleResolutionDownBy), Math.max(150000, Math.floor(fromPreset.encoding.maxBitrate / (Math.pow(t.scaleResolutionDownBy, 2) * (((_a = fromPreset.encoding.maxFramerate) !== null && _a !== void 0 ? _a : 30) / ((_b = t.fps) !== null && _b !== void 0 ? _b : 30))))), t.fps, fromPreset.encoding.priority);
   });
 };
 // /**
@@ -17851,23 +16062,41 @@ function computeVideoEncodings(isScreenShare, width, height, options) {
   }
   const original = new VideoPreset(width, height, videoEncoding.maxBitrate, videoEncoding.maxFramerate, videoEncoding.priority);
   if (scalabilityMode && isSVCCodec(videoCodec)) {
-    livekitLogger.debug("using svc with scalabilityMode ".concat(scalabilityMode));
     const sm = new ScalabilityMode(scalabilityMode);
     const encodings = [];
     if (sm.spatial > 3) {
       throw new Error("unsupported scalabilityMode: ".concat(scalabilityMode));
     }
-    for (let i = 0; i < sm.spatial; i += 1) {
+    // Before M113 in Chrome, defining multiple encodings with an SVC codec indicated
+    // that SVC mode should be used. Safari still works this way.
+    // This is a bit confusing but is due to how libwebrtc interpreted the encodings field
+    // before M113.
+    // Announced here: https://groups.google.com/g/discuss-webrtc/c/-QQ3pxrl-fw?pli=1
+    const browser = getBrowser();
+    if (isSafari() || (browser === null || browser === void 0 ? void 0 : browser.name) === 'Chrome' && compareVersions(browser === null || browser === void 0 ? void 0 : browser.version, '113') < 0) {
+      const bitratesRatio = sm.suffix == 'h' ? 2 : 3;
+      for (let i = 0; i < sm.spatial; i += 1) {
+        // in legacy SVC, scaleResolutionDownBy cannot be set
+        encodings.push({
+          rid: videoRids[2 - i],
+          maxBitrate: videoEncoding.maxBitrate / Math.pow(bitratesRatio, i),
+          maxFramerate: original.encoding.maxFramerate
+        });
+      }
+      // legacy SVC, scalabilityMode is set only on the first encoding
+      /* @ts-ignore */
+      encodings[0].scalabilityMode = scalabilityMode;
+    } else {
       encodings.push({
-        rid: videoRids[2 - i],
-        maxBitrate: videoEncoding.maxBitrate / Math.pow(3, i),
+        maxBitrate: videoEncoding.maxBitrate,
+        maxFramerate: original.encoding.maxFramerate,
         /* @ts-ignore */
-        maxFramerate: original.encoding.maxFramerate
+        scalabilityMode: scalabilityMode
       });
     }
-    /* @ts-ignore */
-    encodings[0].scalabilityMode = scalabilityMode;
-    livekitLogger.debug('encodings', encodings);
+    livekitLogger.debug("using svc encoding", {
+      encodings
+    });
     return encodings;
   }
   if (!useSimulcast) {
@@ -17891,7 +16120,7 @@ function computeVideoEncodings(isScreenShare, width, height, options) {
     //      to disable when CPU constrained.
     //      So encodings should be ordered in increasing spatial
     //      resolution order.
-    //   2. ion-sfu translates rids into layers. So, all encodings
+    //   2. livekit-server translates rids into layers. So, all encodings
     //      should have the base layer `q` and then more added
     //      based on other conditions.
     const size = Math.max(width, height);
@@ -17906,7 +16135,8 @@ function computeVideoEncodings(isScreenShare, width, height, options) {
 }
 function computeTrackBackupEncodings(track, videoCodec, opts) {
   var _a, _b, _c, _d;
-  if (!opts.backupCodec || opts.backupCodec.codec === opts.videoCodec) {
+  // backupCodec should not be true anymore, default codec is set in LocalParticipant.publish
+  if (!opts.backupCodec || opts.backupCodec === true || opts.backupCodec.codec === opts.videoCodec) {
     // backup codec publishing is disabled
     return;
   }
@@ -18088,7 +16318,8 @@ class LocalVideoTrack extends LocalTrack {
    */
   constructor(mediaTrack, constraints) {
     let userProvidedTrack = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : true;
-    super(mediaTrack, Track.Kind.Video, constraints, userProvidedTrack);
+    let loggerOptions = arguments.length > 3 ? arguments[3] : undefined;
+    super(mediaTrack, Track.Kind.Video, constraints, userProvidedTrack, loggerOptions);
     /* @internal */
     this.simulcastCodecs = new Map();
     this.monitorSender = () => __awaiter(this, void 0, void 0, function* () {
@@ -18100,9 +16331,9 @@ class LocalVideoTrack extends LocalTrack {
       try {
         stats = yield this.getSenderStats();
       } catch (e) {
-        livekitLogger.error('could not get audio sender stats', {
+        this.log.error('could not get audio sender stats', Object.assign(Object.assign({}, this.logContext), {
           error: e
-        });
+        }));
         return;
       }
       const statsMap = new Map(stats.map(s => [s.rid, s]));
@@ -18158,9 +16389,9 @@ class LocalVideoTrack extends LocalTrack {
         get: () => super.pauseUpstream
       }
     });
-    var _a, e_1, _b, _c;
-    var _d;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a, e_1, _b, _c;
+      var _d;
       yield _super.pauseUpstream.call(this);
       try {
         for (var _e = true, _f = __asyncValues(this.simulcastCodecs.values()), _g; _g = yield _f.next(), _a = _g.done, !_a; _e = true) {
@@ -18188,9 +16419,9 @@ class LocalVideoTrack extends LocalTrack {
         get: () => super.resumeUpstream
       }
     });
-    var _a, e_2, _b, _c;
-    var _d;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a, e_2, _b, _c;
+      var _d;
       yield _super.resumeUpstream.call(this);
       try {
         for (var _e = true, _f = __asyncValues(this.simulcastCodecs.values()), _g; _g = yield _f.next(), _a = _g.done, !_a; _e = true) {
@@ -18221,8 +16452,12 @@ class LocalVideoTrack extends LocalTrack {
     return __awaiter(this, void 0, void 0, function* () {
       const unlock = yield this.muteLock.lock();
       try {
+        if (this.isMuted) {
+          this.log.debug('Track already muted', this.logContext);
+          return this;
+        }
         if (this.source === Track.Source.Camera && !this.isUserProvided) {
-          livekitLogger.debug('stopping camera track');
+          this.log.debug('stopping camera track', this.logContext);
           // also stop the track, so that camera indicator is turned off
           this._mediaStreamTrack.stop();
         }
@@ -18242,8 +16477,12 @@ class LocalVideoTrack extends LocalTrack {
     return __awaiter(this, void 0, void 0, function* () {
       const unlock = yield this.muteLock.lock();
       try {
+        if (!this.isMuted) {
+          this.log.debug('Track already unmuted', this.logContext);
+          return this;
+        }
         if (this.source === Track.Source.Camera && !this.isUserProvided) {
-          livekitLogger.debug('reacquiring camera track');
+          this.log.debug('reacquiring camera track', this.logContext);
           yield this.restartTrack();
         }
         yield _super.unmute.call(this);
@@ -18260,8 +16499,8 @@ class LocalVideoTrack extends LocalTrack {
     }
   }
   getSenderStats() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       if (!((_a = this.sender) === null || _a === void 0 ? void 0 : _a.getStats)) {
         return [];
       }
@@ -18275,17 +16514,20 @@ class LocalVideoTrack extends LocalTrack {
             streamId: v.id,
             frameHeight: v.frameHeight,
             frameWidth: v.frameWidth,
+            framesPerSecond: v.framesPerSecond,
+            framesSent: v.framesSent,
             firCount: v.firCount,
             pliCount: v.pliCount,
             nackCount: v.nackCount,
             packetsSent: v.packetsSent,
             bytesSent: v.bytesSent,
-            framesSent: v.framesSent,
-            timestamp: v.timestamp,
+            qualityLimitationReason: v.qualityLimitationReason,
+            qualityLimitationDurations: v.qualityLimitationDurations,
+            qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges,
             rid: (_a = v.rid) !== null && _a !== void 0 ? _a : v.id,
             retransmittedPacketsSent: v.retransmittedPacketsSent,
-            qualityLimitationReason: v.qualityLimitationReason,
-            qualityLimitationResolutionChanges: v.qualityLimitationResolutionChanges
+            targetBitrate: v.targetBitrate,
+            timestamp: v.timestamp
           };
           // locate the appropriate remote-inbound-rtp item
           const r = stats.get(v.remoteId);
@@ -18296,6 +16538,11 @@ class LocalVideoTrack extends LocalTrack {
           }
           items.push(vs);
         }
+      });
+      // make sure highest res layer is always first
+      items.sort((a, b) => {
+        var _a, _b;
+        return ((_a = b.frameWidth) !== null && _a !== void 0 ? _a : 0) - ((_b = a.frameWidth) !== null && _b !== void 0 ? _b : 0);
       });
       return items;
     });
@@ -18308,7 +16555,7 @@ class LocalVideoTrack extends LocalTrack {
         enabled: q <= maxQuality
       }));
     }
-    livekitLogger.debug("setting publishing quality. max quality ".concat(maxQuality));
+    this.log.debug("setting publishing quality. max quality ".concat(maxQuality), this.logContext);
     this.setPublishingLayers(qualities);
   }
   setDeviceId(deviceId) {
@@ -18326,8 +16573,8 @@ class LocalVideoTrack extends LocalTrack {
     });
   }
   restartTrack(options) {
-    var _a, e_3, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a, e_3, _b, _c;
       let constraints;
       if (options) {
         const streamConstraints = constraintsForOptions({
@@ -18361,42 +16608,46 @@ class LocalVideoTrack extends LocalTrack {
       }
     });
   }
-  setProcessor(processor) {
-    let showProcessedStreamLocally = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+  setProcessor(processor_1) {
     const _super = Object.create(null, {
       setProcessor: {
         get: () => super.setProcessor
       }
     });
-    var _a, e_4, _b, _c;
-    var _d, _e;
-    return __awaiter(this, void 0, void 0, function* () {
-      yield _super.setProcessor.call(this, processor, showProcessedStreamLocally);
-      if ((_d = this.processor) === null || _d === void 0 ? void 0 : _d.processedTrack) {
-        try {
-          for (var _f = true, _g = __asyncValues(this.simulcastCodecs.values()), _h; _h = yield _g.next(), _a = _h.done, !_a; _f = true) {
-            _c = _h.value;
-            _f = false;
-            const sc = _c;
-            yield (_e = sc.sender) === null || _e === void 0 ? void 0 : _e.replaceTrack(this.processor.processedTrack);
-          }
-        } catch (e_4_1) {
-          e_4 = {
-            error: e_4_1
-          };
-        } finally {
+    return __awaiter(this, arguments, void 0, function (processor) {
+      var _this = this;
+      let showProcessedStreamLocally = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+      return function* () {
+        var _a, e_4, _b, _c;
+        var _d, _e;
+        yield _super.setProcessor.call(_this, processor, showProcessedStreamLocally);
+        if ((_d = _this.processor) === null || _d === void 0 ? void 0 : _d.processedTrack) {
           try {
-            if (!_f && !_a && (_b = _g.return)) yield _b.call(_g);
+            for (var _f = true, _g = __asyncValues(_this.simulcastCodecs.values()), _h; _h = yield _g.next(), _a = _h.done, !_a; _f = true) {
+              _c = _h.value;
+              _f = false;
+              const sc = _c;
+              yield (_e = sc.sender) === null || _e === void 0 ? void 0 : _e.replaceTrack(_this.processor.processedTrack);
+            }
+          } catch (e_4_1) {
+            e_4 = {
+              error: e_4_1
+            };
           } finally {
-            if (e_4) throw e_4.error;
+            try {
+              if (!_f && !_a && (_b = _g.return)) yield _b.call(_g);
+            } finally {
+              if (e_4) throw e_4.error;
+            }
           }
         }
-      }
+      }();
     });
   }
   addSimulcastTrack(codec, encodings) {
     if (this.simulcastCodecs.has(codec)) {
-      throw new Error("".concat(codec, " already added"));
+      this.log.error("".concat(codec, " already added, skipping adding simulcast codec"), this.logContext);
+      return;
     }
     const simulcastCodecInfo = {
       codec,
@@ -18427,13 +16678,13 @@ class LocalVideoTrack extends LocalTrack {
    * been published
    */
   setPublishingCodecs(codecs) {
-    var _a, codecs_1, codecs_1_1;
-    var _b, e_5, _c, _d;
     return __awaiter(this, void 0, void 0, function* () {
-      livekitLogger.debug('setting publishing codecs', {
+      var _a, codecs_1, codecs_1_1;
+      var _b, e_5, _c, _d;
+      this.log.debug('setting publishing codecs', Object.assign(Object.assign({}, this.logContext), {
         codecs,
         currentCodec: this.codec
-      });
+      }));
       // only enable simulcast codec for preference codec setted
       if (!this.codec && codecs.length > 0) {
         yield this.setPublishingLayers(codecs[0].qualities);
@@ -18450,7 +16701,9 @@ class LocalVideoTrack extends LocalTrack {
             yield this.setPublishingLayers(codec.qualities);
           } else {
             const simulcastCodecInfo = this.simulcastCodecs.get(codec.codec);
-            livekitLogger.debug("try setPublishingCodec for ".concat(codec.codec), simulcastCodecInfo);
+            this.log.debug("try setPublishingCodec for ".concat(codec.codec), Object.assign(Object.assign({}, this.logContext), {
+              simulcastCodecInfo
+            }));
             if (!simulcastCodecInfo || !simulcastCodecInfo.sender) {
               for (const q of codec.qualities) {
                 if (q.enabled) {
@@ -18459,8 +16712,8 @@ class LocalVideoTrack extends LocalTrack {
                 }
               }
             } else if (simulcastCodecInfo.encodings) {
-              livekitLogger.debug("try setPublishingLayersForSender ".concat(codec.codec));
-              yield setPublishingLayersForSender(simulcastCodecInfo.sender, simulcastCodecInfo.encodings, codec.qualities, this.senderLock);
+              this.log.debug("try setPublishingLayersForSender ".concat(codec.codec), this.logContext);
+              yield setPublishingLayersForSender(simulcastCodecInfo.sender, simulcastCodecInfo.encodings, codec.qualities, this.senderLock, this.log, this.logContext);
             }
           }
         }
@@ -18484,11 +16737,13 @@ class LocalVideoTrack extends LocalTrack {
    */
   setPublishingLayers(qualities) {
     return __awaiter(this, void 0, void 0, function* () {
-      livekitLogger.debug('setting publishing layers', qualities);
+      this.log.debug('setting publishing layers', Object.assign(Object.assign({}, this.logContext), {
+        qualities
+      }));
       if (!this.sender || !this.encodings) {
         return;
       }
-      yield setPublishingLayersForSender(this.sender, this.encodings, qualities, this.senderLock);
+      yield setPublishingLayersForSender(this.sender, this.encodings, qualities, this.senderLock, this.log, this.logContext);
     });
   }
   handleAppVisibilityChanged() {
@@ -18506,14 +16761,14 @@ class LocalVideoTrack extends LocalTrack {
     });
   }
 }
-function setPublishingLayersForSender(sender, senderEncodings, qualities, senderLock) {
+function setPublishingLayersForSender(sender, senderEncodings, qualities, senderLock, log, logContext) {
   return __awaiter(this, void 0, void 0, function* () {
     const unlock = yield senderLock.lock();
-    livekitLogger.debug('setPublishingLayersForSender', {
+    log.debug('setPublishingLayersForSender', Object.assign(Object.assign({}, logContext), {
       sender,
       qualities,
       senderEncodings
-    });
+    }));
     try {
       const params = sender.getParameters();
       const {
@@ -18523,7 +16778,10 @@ function setPublishingLayersForSender(sender, senderEncodings, qualities, sender
         return;
       }
       if (encodings.length !== senderEncodings.length) {
-        livekitLogger.warn('cannot set publishing layers, encodings mismatch');
+        log.warn('cannot set publishing layers, encodings mismatch', Object.assign(Object.assign({}, logContext), {
+          encodings,
+          senderEncodings
+        }));
         return;
       }
       let hasChanged = false;
@@ -18549,7 +16807,7 @@ function setPublishingLayersForSender(sender, senderEncodings, qualities, sender
           if (encoding.active !== subscribedQuality.enabled) {
             hasChanged = true;
             encoding.active = subscribedQuality.enabled;
-            livekitLogger.debug("setting layer ".concat(subscribedQuality.quality, " to ").concat(encoding.active ? 'enabled' : 'disabled'));
+            log.debug("setting layer ".concat(subscribedQuality.quality, " to ").concat(encoding.active ? 'enabled' : 'disabled'), logContext);
             // FireFox does not support setting encoding.active to false, so we
             // have a workaround of lowering its bitrate and resolution to the min.
             if (isFireFox()) {
@@ -18570,7 +16828,9 @@ function setPublishingLayersForSender(sender, senderEncodings, qualities, sender
       }
       if (hasChanged) {
         params.encodings = encodings;
-        livekitLogger.debug("setting encodings", params.encodings);
+        log.debug("setting encodings", Object.assign(Object.assign({}, logContext), {
+          encodings: params.encodings
+        }));
         yield sender.setParameters(params);
       }
     } finally {
@@ -18607,12 +16867,14 @@ function videoLayersFromEncodings(width, height, encodings, svc) {
     const encodingSM = encodings[0].scalabilityMode;
     const sm = new ScalabilityMode(encodingSM);
     const layers = [];
+    const resRatio = sm.suffix == 'h' ? 1.5 : 2;
+    const bitratesRatio = sm.suffix == 'h' ? 2 : 3;
     for (let i = 0; i < sm.spatial; i += 1) {
       layers.push(new VideoLayer({
         quality: VideoQuality.HIGH - i,
-        width: Math.ceil(width / Math.pow(2, i)),
-        height: Math.ceil(height / Math.pow(2, i)),
-        bitrate: encodings[0].maxBitrate ? Math.ceil(encodings[0].maxBitrate / Math.pow(3, i)) : 0,
+        width: Math.ceil(width / Math.pow(resRatio, i)),
+        height: Math.ceil(height / Math.pow(resRatio, i)),
+        bitrate: encodings[0].maxBitrate ? Math.ceil(encodings[0].maxBitrate / Math.pow(bitratesRatio, i)) : 0,
         ssrc: 0
       }));
     }
@@ -18633,8 +16895,8 @@ function videoLayersFromEncodings(width, height, encodings, svc) {
 }
 
 class RemoteTrack extends Track {
-  constructor(mediaTrack, sid, kind, receiver) {
-    super(mediaTrack, kind);
+  constructor(mediaTrack, sid, kind, receiver, loggerOptions) {
+    super(mediaTrack, kind, loggerOptions);
     this.sid = sid;
     this.receiver = receiver;
   }
@@ -18677,8 +16939,8 @@ class RemoteTrack extends Track {
    * @returns Promise<RTCStatsReport> | undefined
    */
   getRTCStatsReport() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       if (!((_a = this.receiver) === null || _a === void 0 ? void 0 : _a.getStats)) {
         return;
       }
@@ -18695,8 +16957,8 @@ class RemoteTrack extends Track {
 }
 
 class RemoteAudioTrack extends RemoteTrack {
-  constructor(mediaTrack, sid, receiver, audioContext, audioOutput) {
-    super(mediaTrack, sid, Track.Kind.Audio, receiver);
+  constructor(mediaTrack, sid, receiver, audioContext, audioOutput, loggerOptions) {
+    super(mediaTrack, sid, Track.Kind.Audio, receiver, loggerOptions);
     this.monitorReceiver = () => __awaiter(this, void 0, void 0, function* () {
       if (!this.receiver) {
         this._currentBitrate = 0;
@@ -18774,18 +17036,19 @@ class RemoteAudioTrack extends RemoteTrack {
     } else {
       super.attach(element);
     }
-    if (this.elementVolume) {
-      element.volume = this.elementVolume;
-    }
     if (this.sinkId && supportsSetSinkId(element)) {
       /* @ts-ignore */
       element.setSinkId(this.sinkId);
     }
     if (this.audioContext && needsNewWebAudioConnection) {
-      livekitLogger.debug('using audio context mapping');
+      this.log.debug('using audio context mapping', this.logContext);
       this.connectWebAudio(this.audioContext, element);
       element.volume = 0;
       element.muted = true;
+    }
+    if (this.elementVolume) {
+      // make sure volume setting is being applied to the newly attached element
+      this.setVolume(this.elementVolume);
     }
     return element;
   }
@@ -18894,8 +17157,8 @@ class RemoteAudioTrack extends RemoteTrack {
 
 const REACTION_DELAY = 100;
 class RemoteVideoTrack extends RemoteTrack {
-  constructor(mediaTrack, sid, receiver, adaptiveStreamSettings) {
-    super(mediaTrack, sid, Track.Kind.Video, receiver);
+  constructor(mediaTrack, sid, receiver, adaptiveStreamSettings, loggerOptions) {
+    super(mediaTrack, sid, Track.Kind.Video, receiver, loggerOptions);
     this.elementInfos = [];
     this.monitorReceiver = () => __awaiter(this, void 0, void 0, function* () {
       if (!this.receiver) {
@@ -18969,7 +17232,7 @@ class RemoteVideoTrack extends RemoteTrack {
       this.debouncedHandleResize();
       this.updateVisibility();
     } else {
-      livekitLogger.warn('visibility resize observer not triggered');
+      this.log.warn('visibility resize observer not triggered', this.logContext);
     }
   }
   /**
@@ -18979,7 +17242,7 @@ class RemoteVideoTrack extends RemoteTrack {
    */
   stopObservingElementInfo(elementInfo) {
     if (!this.isAdaptiveStream) {
-      livekitLogger.warn('stopObservingElementInfo ignored');
+      this.log.warn('stopObservingElementInfo ignored', this.logContext);
       return;
     }
     const stopElementInfos = this.elementInfos.filter(info => info === elementInfo);
@@ -19014,8 +17277,11 @@ class RemoteVideoTrack extends RemoteTrack {
       }
       const stats = yield this.receiver.getStats();
       let receiverStats;
+      let codecID = '';
+      let codecs = new Map();
       stats.forEach(v => {
         if (v.type === 'inbound-rtp') {
+          codecID = v.codecId;
           receiverStats = {
             type: 'video',
             framesDecoded: v.framesDecoded,
@@ -19033,8 +17299,13 @@ class RemoteVideoTrack extends RemoteTrack {
             bytesReceived: v.bytesReceived,
             decoderImplementation: v.decoderImplementation
           };
+        } else if (v.type === 'codec') {
+          codecs.set(v.id, v);
         }
       });
+      if (receiverStats && codecID !== '' && codecs.get(codecID)) {
+        receiverStats.mimeType = codecs.get(codecID).mimeType;
+      }
       return receiverStats;
     });
   }
@@ -19202,16 +17473,20 @@ function isElementInViewport(el) {
 }
 
 class TrackPublication extends eventsExports.EventEmitter {
-  constructor(kind, id, name) {
+  constructor(kind, id, name, loggerOptions) {
+    var _a;
     super();
     this.metadataMuted = false;
     this.encryption = Encryption_Type.NONE;
+    this.log = livekitLogger;
     this.handleMuted = () => {
       this.emit(TrackEvent.Muted);
     };
     this.handleUnmuted = () => {
       this.emit(TrackEvent.Unmuted);
     };
+    this.log = getLogger((_a = loggerOptions === null || loggerOptions === void 0 ? void 0 : loggerOptions.loggerName) !== null && _a !== void 0 ? _a : LoggerNames.Publication);
+    this.loggerContextCb = this.loggerContextCb;
     this.setMaxListeners(100);
     this.kind = kind;
     this.trackSid = id;
@@ -19230,6 +17505,10 @@ class TrackPublication extends eventsExports.EventEmitter {
       track.on(TrackEvent.Muted, this.handleMuted);
       track.on(TrackEvent.Unmuted, this.handleUnmuted);
     }
+  }
+  get logContext() {
+    var _a;
+    return Object.assign(Object.assign({}, (_a = this.loggerContextCb) === null || _a === void 0 ? void 0 : _a.call(this)), getLogContextFromTrack(this));
   }
   get isMuted() {
     return this.metadataMuted;
@@ -19274,9 +17553,9 @@ class TrackPublication extends eventsExports.EventEmitter {
     }
     this.encryption = info.encryption;
     this.trackInfo = info;
-    livekitLogger.debug('update publication info', {
+    this.log.debug('update publication info', Object.assign(Object.assign({}, this.logContext), {
       info
-    });
+    }));
   }
 }
 (function (TrackPublication) {
@@ -19296,8 +17575,8 @@ class LocalTrackPublication extends TrackPublication {
     var _a;
     return (_a = this.track) === null || _a === void 0 ? void 0 : _a.isUpstreamPaused;
   }
-  constructor(kind, ti, track) {
-    super(kind, ti.sid, ti.name);
+  constructor(kind, ti, track, loggerOptions) {
+    super(kind, ti.sid, ti.name, loggerOptions);
     this.track = undefined;
     this.handleTrackEnded = () => {
       this.emit(TrackEvent.Ended);
@@ -19330,8 +17609,8 @@ class LocalTrackPublication extends TrackPublication {
    * Mute the track associated with this publication
    */
   mute() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       return (_a = this.track) === null || _a === void 0 ? void 0 : _a.mute();
     });
   }
@@ -19339,8 +17618,8 @@ class LocalTrackPublication extends TrackPublication {
    * Unmute track associated with this publication
    */
   unmute() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       return (_a = this.track) === null || _a === void 0 ? void 0 : _a.unmute();
     });
   }
@@ -19350,8 +17629,8 @@ class LocalTrackPublication extends TrackPublication {
    * Useful if you want to pause the stream without pausing the local media stream track
    */
   pauseUpstream() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       yield (_a = this.track) === null || _a === void 0 ? void 0 : _a.pauseUpstream();
     });
   }
@@ -19360,10 +17639,36 @@ class LocalTrackPublication extends TrackPublication {
    * and signals "unmuted" event to other participants (unless the track is explicitly muted)
    */
   resumeUpstream() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       yield (_a = this.track) === null || _a === void 0 ? void 0 : _a.resumeUpstream();
     });
+  }
+  getTrackFeatures() {
+    var _a;
+    if (this.track instanceof LocalAudioTrack) {
+      const settings = this.track.mediaStreamTrack.getSettings();
+      const features = new Set();
+      if (settings.autoGainControl) {
+        features.add(AudioTrackFeature.TF_AUTO_GAIN_CONTROL);
+      }
+      if (settings.echoCancellation) {
+        features.add(AudioTrackFeature.TF_ECHO_CANCELLATION);
+      }
+      if (settings.noiseSuppression) {
+        features.add(AudioTrackFeature.TF_NOISE_SUPPRESSION);
+      }
+      if (settings.channelCount && settings.channelCount > 1) {
+        features.add(AudioTrackFeature.TF_STEREO);
+      }
+      if (!((_a = this.options) === null || _a === void 0 ? void 0 : _a.dtx)) {
+        features.add(AudioTrackFeature.TF_STEREO);
+      }
+      if (this.track.enhancedNoiseCancellation) {
+        features.add(AudioTrackFeature.TF_ENHANCED_NOISE_CANCELLATION);
+      }
+      return Array.from(features.values());
+    } else return [];
   }
 }
 
@@ -19372,6 +17677,11 @@ var ConnectionQuality;
   ConnectionQuality["Excellent"] = "excellent";
   ConnectionQuality["Good"] = "good";
   ConnectionQuality["Poor"] = "poor";
+  /**
+   * Indicates that a participant has temporarily (or permanently) lost connection to LiveKit.
+   * For permanent disconnection a `ParticipantDisconnected` event will be emitted after a timeout
+   */
+  ConnectionQuality["Lost"] = "lost";
   ConnectionQuality["Unknown"] = "unknown";
 })(ConnectionQuality || (ConnectionQuality = {}));
 function qualityFromProto(q) {
@@ -19382,42 +17692,54 @@ function qualityFromProto(q) {
       return ConnectionQuality.Good;
     case ConnectionQuality$1.POOR:
       return ConnectionQuality.Poor;
+    case ConnectionQuality$1.LOST:
+      return ConnectionQuality.Lost;
     default:
       return ConnectionQuality.Unknown;
   }
 }
 class Participant extends eventsExports.EventEmitter {
+  get logContext() {
+    var _a, _b;
+    return Object.assign({}, (_b = (_a = this.loggerOptions) === null || _a === void 0 ? void 0 : _a.loggerContextCb) === null || _b === void 0 ? void 0 : _b.call(_a));
+  }
   get isEncrypted() {
-    return this.tracks.size > 0 && Array.from(this.tracks.values()).every(tr => tr.isEncrypted);
+    return this.trackPublications.size > 0 && Array.from(this.trackPublications.values()).every(tr => tr.isEncrypted);
+  }
+  get isAgent() {
+    var _a, _b;
+    return (_b = (_a = this.permissions) === null || _a === void 0 ? void 0 : _a.agent) !== null && _b !== void 0 ? _b : false;
   }
   /** @internal */
-  constructor(sid, identity, name, metadata) {
+  constructor(sid, identity, name, metadata, loggerOptions) {
+    var _a;
     super();
     /** audio level between 0-1.0, 1 being loudest, 0 being softest */
     this.audioLevel = 0;
     /** if participant is currently speaking */
     this.isSpeaking = false;
     this._connectionQuality = ConnectionQuality.Unknown;
+    this.log = livekitLogger;
+    this.log = getLogger((_a = loggerOptions === null || loggerOptions === void 0 ? void 0 : loggerOptions.loggerName) !== null && _a !== void 0 ? _a : LoggerNames.Participant);
+    this.loggerOptions = loggerOptions;
     this.setMaxListeners(100);
     this.sid = sid;
     this.identity = identity;
     this.name = name;
     this.metadata = metadata;
-    this.audioTracks = new Map();
-    this.videoTracks = new Map();
-    this.tracks = new Map();
+    this.audioTrackPublications = new Map();
+    this.videoTrackPublications = new Map();
+    this.trackPublications = new Map();
   }
-  getTracks() {
-    return Array.from(this.tracks.values());
+  getTrackPublications() {
+    return Array.from(this.trackPublications.values());
   }
   /**
    * Finds the first track that matches the source filter, for example, getting
    * the user's camera track with getTrackBySource(Track.Source.Camera).
-   * @param source
-   * @returns
    */
-  getTrack(source) {
-    for (const [, pub] of this.tracks) {
+  getTrackPublication(source) {
+    for (const [, pub] of this.trackPublications) {
       if (pub.source === source) {
         return pub;
       }
@@ -19425,11 +17747,9 @@ class Participant extends eventsExports.EventEmitter {
   }
   /**
    * Finds the first track that matches the track's name.
-   * @param name
-   * @returns
    */
-  getTrackByName(name) {
-    for (const [, pub] of this.tracks) {
+  getTrackPublicationByName(name) {
+    for (const [, pub] of this.trackPublications) {
       if (pub.trackName === name) {
         return pub;
       }
@@ -19440,16 +17760,16 @@ class Participant extends eventsExports.EventEmitter {
   }
   get isCameraEnabled() {
     var _a;
-    const track = this.getTrack(Track.Source.Camera);
+    const track = this.getTrackPublication(Track.Source.Camera);
     return !((_a = track === null || track === void 0 ? void 0 : track.isMuted) !== null && _a !== void 0 ? _a : true);
   }
   get isMicrophoneEnabled() {
     var _a;
-    const track = this.getTrack(Track.Source.Microphone);
+    const track = this.getTrackPublication(Track.Source.Microphone);
     return !((_a = track === null || track === void 0 ? void 0 : track.isMuted) !== null && _a !== void 0 ? _a : true);
   }
   get isScreenShareEnabled() {
-    const track = this.getTrack(Track.Source.ScreenShare);
+    const track = this.getTrackPublication(Track.Source.ScreenShare);
     return !!track;
   }
   get isLocal() {
@@ -19482,9 +17802,9 @@ class Participant extends eventsExports.EventEmitter {
     }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
-    livekitLogger.trace('update participant info', {
+    this.log.trace('update participant info', Object.assign(Object.assign({}, this.logContext), {
       info
-    });
+    }));
     return true;
   }
   /**
@@ -19543,7 +17863,7 @@ class Participant extends eventsExports.EventEmitter {
    */
   setAudioContext(ctx) {
     this.audioContext = ctx;
-    this.audioTracks.forEach(track => (track.track instanceof RemoteAudioTrack || track.track instanceof LocalAudioTrack) && track.track.setAudioContext(ctx));
+    this.audioTrackPublications.forEach(track => (track.track instanceof RemoteAudioTrack || track.track instanceof LocalAudioTrack) && track.track.setAudioContext(ctx));
   }
   addTrackPublication(publication) {
     // forward publication driven events
@@ -19557,13 +17877,13 @@ class Participant extends eventsExports.EventEmitter {
     if (pub.track) {
       pub.track.sid = publication.trackSid;
     }
-    this.tracks.set(publication.trackSid, publication);
+    this.trackPublications.set(publication.trackSid, publication);
     switch (publication.kind) {
       case Track.Kind.Audio:
-        this.audioTracks.set(publication.trackSid, publication);
+        this.audioTrackPublications.set(publication.trackSid, publication);
         break;
       case Track.Kind.Video:
-        this.videoTracks.set(publication.trackSid, publication);
+        this.videoTrackPublications.set(publication.trackSid, publication);
         break;
     }
   }
@@ -19582,9 +17902,1097 @@ function trackPermissionToProto(perms) {
   });
 }
 
+class LocalParticipant extends Participant {
+  /** @internal */
+  constructor(sid, identity, engine, options) {
+    super(sid, identity, undefined, undefined, {
+      loggerName: options.loggerName,
+      loggerContextCb: () => this.engine.logContext
+    });
+    this.pendingPublishing = new Set();
+    this.pendingPublishPromises = new Map();
+    this.participantTrackPermissions = [];
+    this.allParticipantsAllowedToSubscribe = true;
+    this.encryptionType = Encryption_Type.NONE;
+    this.handleReconnecting = () => {
+      if (!this.reconnectFuture) {
+        this.reconnectFuture = new Future();
+      }
+    };
+    this.handleReconnected = () => {
+      var _a, _b;
+      (_b = (_a = this.reconnectFuture) === null || _a === void 0 ? void 0 : _a.resolve) === null || _b === void 0 ? void 0 : _b.call(_a);
+      this.reconnectFuture = undefined;
+      this.updateTrackSubscriptionPermissions();
+    };
+    this.handleDisconnected = () => {
+      var _a, _b;
+      if (this.reconnectFuture) {
+        this.reconnectFuture.promise.catch(e => this.log.warn(e.message, this.logContext));
+        (_b = (_a = this.reconnectFuture) === null || _a === void 0 ? void 0 : _a.reject) === null || _b === void 0 ? void 0 : _b.call(_a, 'Got disconnected during reconnection attempt');
+        this.reconnectFuture = undefined;
+      }
+    };
+    this.updateTrackSubscriptionPermissions = () => {
+      this.log.debug('updating track subscription permissions', Object.assign(Object.assign({}, this.logContext), {
+        allParticipantsAllowed: this.allParticipantsAllowedToSubscribe,
+        participantTrackPermissions: this.participantTrackPermissions
+      }));
+      this.engine.client.sendUpdateSubscriptionPermissions(this.allParticipantsAllowedToSubscribe, this.participantTrackPermissions.map(p => trackPermissionToProto(p)));
+    };
+    /** @internal */
+    this.onTrackUnmuted = track => {
+      this.onTrackMuted(track, track.isUpstreamPaused);
+    };
+    // when the local track changes in mute status, we'll notify server as such
+    /** @internal */
+    this.onTrackMuted = (track, muted) => {
+      if (muted === undefined) {
+        muted = true;
+      }
+      if (!track.sid) {
+        this.log.error('could not update mute status for unpublished track', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+        return;
+      }
+      this.engine.updateMuteStatus(track.sid, muted);
+    };
+    this.onTrackUpstreamPaused = track => {
+      this.log.debug('upstream paused', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+      this.onTrackMuted(track, true);
+    };
+    this.onTrackUpstreamResumed = track => {
+      this.log.debug('upstream resumed', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+      this.onTrackMuted(track, track.isMuted);
+    };
+    this.onTrackFeatureUpdate = track => {
+      const pub = this.audioTrackPublications.get(track.sid);
+      if (!pub) {
+        this.log.warn("Could not update local audio track settings, missing publication for track ".concat(track.sid), this.logContext);
+        return;
+      }
+      this.engine.client.sendUpdateLocalAudioTrack(pub.trackSid, pub.getTrackFeatures());
+    };
+    this.handleSubscribedQualityUpdate = update => __awaiter(this, void 0, void 0, function* () {
+      var _a, e_1, _b, _c;
+      var _d, _e;
+      if (!((_d = this.roomOptions) === null || _d === void 0 ? void 0 : _d.dynacast)) {
+        return;
+      }
+      const pub = this.videoTrackPublications.get(update.trackSid);
+      if (!pub) {
+        this.log.warn('received subscribed quality update for unknown track', Object.assign(Object.assign({}, this.logContext), {
+          trackSid: update.trackSid
+        }));
+        return;
+      }
+      if (update.subscribedCodecs.length > 0) {
+        if (!pub.videoTrack) {
+          return;
+        }
+        const newCodecs = yield pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
+        try {
+          for (var _f = true, newCodecs_1 = __asyncValues(newCodecs), newCodecs_1_1; newCodecs_1_1 = yield newCodecs_1.next(), _a = newCodecs_1_1.done, !_a; _f = true) {
+            _c = newCodecs_1_1.value;
+            _f = false;
+            const codec = _c;
+            if (isBackupCodec(codec)) {
+              this.log.debug("publish ".concat(codec, " for ").concat(pub.videoTrack.sid), Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(pub)));
+              yield this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
+            }
+          }
+        } catch (e_1_1) {
+          e_1 = {
+            error: e_1_1
+          };
+        } finally {
+          try {
+            if (!_f && !_a && (_b = newCodecs_1.return)) yield _b.call(newCodecs_1);
+          } finally {
+            if (e_1) throw e_1.error;
+          }
+        }
+      } else if (update.subscribedQualities.length > 0) {
+        yield (_e = pub.videoTrack) === null || _e === void 0 ? void 0 : _e.setPublishingLayers(update.subscribedQualities);
+      }
+    });
+    this.handleLocalTrackUnpublished = unpublished => {
+      const track = this.trackPublications.get(unpublished.trackSid);
+      if (!track) {
+        this.log.warn('received unpublished event for unknown track', Object.assign(Object.assign({}, this.logContext), {
+          trackSid: unpublished.trackSid
+        }));
+        return;
+      }
+      this.unpublishTrack(track.track);
+    };
+    this.handleTrackEnded = track => __awaiter(this, void 0, void 0, function* () {
+      if (track.source === Track.Source.ScreenShare || track.source === Track.Source.ScreenShareAudio) {
+        this.log.debug('unpublishing local track due to TrackEnded', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+        this.unpublishTrack(track);
+      } else if (track.isUserProvided) {
+        yield track.mute();
+      } else if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
+        try {
+          if (isWeb()) {
+            try {
+              const currentPermissions = yield navigator === null || navigator === void 0 ? void 0 : navigator.permissions.query({
+                // the permission query for camera and microphone currently not supported in Safari and Firefox
+                // @ts-ignore
+                name: track.source === Track.Source.Camera ? 'camera' : 'microphone'
+              });
+              if (currentPermissions && currentPermissions.state === 'denied') {
+                this.log.warn("user has revoked access to ".concat(track.source), Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+                // detect granted change after permissions were denied to try and resume then
+                currentPermissions.onchange = () => {
+                  if (currentPermissions.state !== 'denied') {
+                    if (!track.isMuted) {
+                      track.restartTrack();
+                    }
+                    currentPermissions.onchange = null;
+                  }
+                };
+                throw new Error('GetUserMedia Permission denied');
+              }
+            } catch (e) {
+              // permissions query fails for firefox, we continue and try to restart the track
+            }
+          }
+          if (!track.isMuted) {
+            this.log.debug('track ended, attempting to use a different device', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+            yield track.restartTrack();
+          }
+        } catch (e) {
+          this.log.warn("could not restart track, muting instead", Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+          yield track.mute();
+        }
+      }
+    });
+    this.audioTrackPublications = new Map();
+    this.videoTrackPublications = new Map();
+    this.trackPublications = new Map();
+    this.engine = engine;
+    this.roomOptions = options;
+    this.setupEngine(engine);
+    this.activeDeviceMap = new Map();
+  }
+  get lastCameraError() {
+    return this.cameraError;
+  }
+  get lastMicrophoneError() {
+    return this.microphoneError;
+  }
+  get isE2EEEnabled() {
+    return this.encryptionType !== Encryption_Type.NONE;
+  }
+  getTrackPublication(source) {
+    const track = super.getTrackPublication(source);
+    if (track) {
+      return track;
+    }
+  }
+  getTrackPublicationByName(name) {
+    const track = super.getTrackPublicationByName(name);
+    if (track) {
+      return track;
+    }
+  }
+  /**
+   * @internal
+   */
+  setupEngine(engine) {
+    this.engine = engine;
+    this.engine.on(EngineEvent.RemoteMute, (trackSid, muted) => {
+      const pub = this.trackPublications.get(trackSid);
+      if (!pub || !pub.track) {
+        return;
+      }
+      if (muted) {
+        pub.mute();
+      } else {
+        pub.unmute();
+      }
+    });
+    this.engine.on(EngineEvent.Connected, this.handleReconnected).on(EngineEvent.SignalRestarted, this.handleReconnected).on(EngineEvent.SignalResumed, this.handleReconnected).on(EngineEvent.Restarting, this.handleReconnecting).on(EngineEvent.Resuming, this.handleReconnecting).on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished).on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate).on(EngineEvent.Disconnected, this.handleDisconnected);
+  }
+  /**
+   * Sets and updates the metadata of the local participant.
+   * The change does not take immediate effect.
+   * If successful, a `ParticipantEvent.MetadataChanged` event will be emitted on the local participant.
+   * Note: this requires `canUpdateOwnMetadata` permission.
+   * @param metadata
+   */
+  setMetadata(metadata) {
+    var _a;
+    this.engine.client.sendUpdateLocalMetadata(metadata, (_a = this.name) !== null && _a !== void 0 ? _a : '');
+  }
+  /**
+   * Sets and updates the name of the local participant.
+   * The change does not take immediate effect.
+   * If successful, a `ParticipantEvent.ParticipantNameChanged` event will be emitted on the local participant.
+   * Note: this requires `canUpdateOwnMetadata` permission.
+   * @param metadata
+   */
+  setName(name) {
+    var _a;
+    this.engine.client.sendUpdateLocalMetadata((_a = this.metadata) !== null && _a !== void 0 ? _a : '', name);
+  }
+  /**
+   * Enable or disable a participant's camera track.
+   *
+   * If a track has already published, it'll mute or unmute the track.
+   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
+   */
+  setCameraEnabled(enabled, options, publishOptions) {
+    return this.setTrackEnabled(Track.Source.Camera, enabled, options, publishOptions);
+  }
+  /**
+   * Enable or disable a participant's microphone track.
+   *
+   * If a track has already published, it'll mute or unmute the track.
+   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
+   */
+  setMicrophoneEnabled(enabled, options, publishOptions) {
+    return this.setTrackEnabled(Track.Source.Microphone, enabled, options, publishOptions);
+  }
+  /**
+   * Start or stop sharing a participant's screen
+   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
+   */
+  setScreenShareEnabled(enabled, options, publishOptions) {
+    return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options, publishOptions);
+  }
+  /** @internal */
+  setPermissions(permissions) {
+    const prevPermissions = this.permissions;
+    const changed = super.setPermissions(permissions);
+    if (changed && prevPermissions) {
+      this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
+    }
+    return changed;
+  }
+  /** @internal */
+  setE2EEEnabled(enabled) {
+    return __awaiter(this, void 0, void 0, function* () {
+      this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
+      yield this.republishAllTracks(undefined, false);
+    });
+  }
+  setTrackEnabled(source, enabled, options, publishOptions) {
+    return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b;
+      this.log.debug('setTrackEnabled', Object.assign(Object.assign({}, this.logContext), {
+        source,
+        enabled
+      }));
+      let track = this.getTrackPublication(source);
+      if (enabled) {
+        if (track) {
+          yield track.unmute();
+        } else {
+          let localTracks;
+          if (this.pendingPublishing.has(source)) {
+            this.log.info('skipping duplicate published source', Object.assign(Object.assign({}, this.logContext), {
+              source
+            }));
+            // no-op it's already been requested
+            return;
+          }
+          this.pendingPublishing.add(source);
+          try {
+            switch (source) {
+              case Track.Source.Camera:
+                localTracks = yield this.createTracks({
+                  video: (_a = options) !== null && _a !== void 0 ? _a : true
+                });
+                break;
+              case Track.Source.Microphone:
+                localTracks = yield this.createTracks({
+                  audio: (_b = options) !== null && _b !== void 0 ? _b : true
+                });
+                break;
+              case Track.Source.ScreenShare:
+                localTracks = yield this.createScreenTracks(Object.assign({}, options));
+                break;
+              default:
+                throw new TrackInvalidError(source);
+            }
+            const publishPromises = [];
+            for (const localTrack of localTracks) {
+              this.log.info('publishing track', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(localTrack)));
+              publishPromises.push(this.publishTrack(localTrack, publishOptions));
+            }
+            const publishedTracks = yield Promise.all(publishPromises);
+            // for screen share publications including audio, this will only return the screen share publication, not the screen share audio one
+            // revisit if we want to return an array of tracks instead for v2
+            [track] = publishedTracks;
+          } catch (e) {
+            localTracks === null || localTracks === void 0 ? void 0 : localTracks.forEach(tr => {
+              tr.stop();
+            });
+            if (e instanceof Error && !(e instanceof TrackInvalidError)) {
+              this.emit(ParticipantEvent.MediaDevicesError, e);
+            }
+            throw e;
+          } finally {
+            this.pendingPublishing.delete(source);
+          }
+        }
+      } else if (track && track.track) {
+        // screenshare cannot be muted, unpublish instead
+        if (source === Track.Source.ScreenShare) {
+          track = yield this.unpublishTrack(track.track);
+          const screenAudioTrack = this.getTrackPublication(Track.Source.ScreenShareAudio);
+          if (screenAudioTrack && screenAudioTrack.track) {
+            this.unpublishTrack(screenAudioTrack.track);
+          }
+        } else {
+          yield track.mute();
+        }
+      }
+      return track;
+    });
+  }
+  /**
+   * Publish both camera and microphone at the same time. This is useful for
+   * displaying a single Permission Dialog box to the end user.
+   */
+  enableCameraAndMicrophone() {
+    return __awaiter(this, void 0, void 0, function* () {
+      if (this.pendingPublishing.has(Track.Source.Camera) || this.pendingPublishing.has(Track.Source.Microphone)) {
+        // no-op it's already been requested
+        return;
+      }
+      this.pendingPublishing.add(Track.Source.Camera);
+      this.pendingPublishing.add(Track.Source.Microphone);
+      try {
+        const tracks = yield this.createTracks({
+          audio: true,
+          video: true
+        });
+        yield Promise.all(tracks.map(track => this.publishTrack(track)));
+      } finally {
+        this.pendingPublishing.delete(Track.Source.Camera);
+        this.pendingPublishing.delete(Track.Source.Microphone);
+      }
+    });
+  }
+  /**
+   * Create local camera and/or microphone tracks
+   * @param options
+   * @returns
+   */
+  createTracks(options) {
+    return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b;
+      const opts = mergeDefaultOptions(options, (_a = this.roomOptions) === null || _a === void 0 ? void 0 : _a.audioCaptureDefaults, (_b = this.roomOptions) === null || _b === void 0 ? void 0 : _b.videoCaptureDefaults);
+      const constraints = constraintsForOptions(opts);
+      let stream;
+      try {
+        stream = yield navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        if (err instanceof Error) {
+          if (constraints.audio) {
+            this.microphoneError = err;
+          }
+          if (constraints.video) {
+            this.cameraError = err;
+          }
+        }
+        throw err;
+      }
+      if (constraints.audio) {
+        this.microphoneError = undefined;
+        this.emit(ParticipantEvent.AudioStreamAcquired);
+      }
+      if (constraints.video) {
+        this.cameraError = undefined;
+      }
+      return stream.getTracks().map(mediaStreamTrack => {
+        const isAudio = mediaStreamTrack.kind === 'audio';
+        isAudio ? options.audio : options.video;
+        let trackConstraints;
+        const conOrBool = isAudio ? constraints.audio : constraints.video;
+        if (typeof conOrBool !== 'boolean') {
+          trackConstraints = conOrBool;
+        }
+        const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints, {
+          loggerName: this.roomOptions.loggerName,
+          loggerContextCb: () => this.logContext
+        });
+        if (track.kind === Track.Kind.Video) {
+          track.source = Track.Source.Camera;
+        } else if (track.kind === Track.Kind.Audio) {
+          track.source = Track.Source.Microphone;
+        }
+        track.mediaStream = stream;
+        return track;
+      });
+    });
+  }
+  /**
+   * Creates a screen capture tracks with getDisplayMedia().
+   * A LocalVideoTrack is always created and returned.
+   * If { audio: true }, and the browser supports audio capture, a LocalAudioTrack is also created.
+   */
+  createScreenTracks(options) {
+    return __awaiter(this, void 0, void 0, function* () {
+      if (options === undefined) {
+        options = {};
+      }
+      if (navigator.mediaDevices.getDisplayMedia === undefined) {
+        throw new DeviceUnsupportedError('getDisplayMedia not supported');
+      }
+      if (options.resolution === undefined && !isSafari17()) {
+        // we need to constrain the dimensions, otherwise it could lead to low bitrate
+        // due to encoding a huge video. Encoding such large surfaces is really expensive
+        // unfortunately Safari 17 has a but and cannot be constrained by default
+        options.resolution = ScreenSharePresets.h1080fps30.resolution;
+      }
+      const constraints = screenCaptureToDisplayMediaStreamOptions(options);
+      const stream = yield navigator.mediaDevices.getDisplayMedia(constraints);
+      const tracks = stream.getVideoTracks();
+      if (tracks.length === 0) {
+        throw new TrackInvalidError('no video track found');
+      }
+      const screenVideo = new LocalVideoTrack(tracks[0], undefined, false, {
+        loggerName: this.roomOptions.loggerName,
+        loggerContextCb: () => this.logContext
+      });
+      screenVideo.source = Track.Source.ScreenShare;
+      if (options.contentHint) {
+        screenVideo.mediaStreamTrack.contentHint = options.contentHint;
+      }
+      const localTracks = [screenVideo];
+      if (stream.getAudioTracks().length > 0) {
+        this.emit(ParticipantEvent.AudioStreamAcquired);
+        const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0], undefined, false, this.audioContext, {
+          loggerName: this.roomOptions.loggerName,
+          loggerContextCb: () => this.logContext
+        });
+        screenAudio.source = Track.Source.ScreenShareAudio;
+        localTracks.push(screenAudio);
+      }
+      return localTracks;
+    });
+  }
+  /**
+   * Publish a new track to the room
+   * @param track
+   * @param options
+   */
+  publishTrack(track, options) {
+    return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b, _c, _d;
+      if (track instanceof LocalAudioTrack) {
+        track.setAudioContext(this.audioContext);
+      }
+      yield (_a = this.reconnectFuture) === null || _a === void 0 ? void 0 : _a.promise;
+      if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
+        yield this.pendingPublishPromises.get(track);
+      }
+      let defaultConstraints;
+      if (track instanceof MediaStreamTrack) {
+        defaultConstraints = track.getConstraints();
+      } else {
+        // we want to access constraints directly as `track.mediaStreamTrack`
+        // might be pointing to a non-device track (e.g. processed track) already
+        defaultConstraints = track.constraints;
+        let deviceKind = undefined;
+        switch (track.source) {
+          case Track.Source.Microphone:
+            deviceKind = 'audioinput';
+            break;
+          case Track.Source.Camera:
+            deviceKind = 'videoinput';
+        }
+        if (deviceKind && this.activeDeviceMap.has(deviceKind)) {
+          defaultConstraints = Object.assign(Object.assign({}, defaultConstraints), {
+            deviceId: this.activeDeviceMap.get(deviceKind)
+          });
+        }
+      }
+      // convert raw media track into audio or video track
+      if (track instanceof MediaStreamTrack) {
+        switch (track.kind) {
+          case 'audio':
+            track = new LocalAudioTrack(track, defaultConstraints, true, this.audioContext, {
+              loggerName: this.roomOptions.loggerName,
+              loggerContextCb: () => this.logContext
+            });
+            break;
+          case 'video':
+            track = new LocalVideoTrack(track, defaultConstraints, true, {
+              loggerName: this.roomOptions.loggerName,
+              loggerContextCb: () => this.logContext
+            });
+            break;
+          default:
+            throw new TrackInvalidError("unsupported MediaStreamTrack kind ".concat(track.kind));
+        }
+      } else {
+        track.updateLoggerOptions({
+          loggerName: this.roomOptions.loggerName,
+          loggerContextCb: () => this.logContext
+        });
+      }
+      // is it already published? if so skip
+      let existingPublication;
+      this.trackPublications.forEach(publication => {
+        if (!publication.track) {
+          return;
+        }
+        if (publication.track === track) {
+          existingPublication = publication;
+        }
+      });
+      if (existingPublication) {
+        this.log.warn('track has already been published, skipping', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(existingPublication)));
+        return existingPublication;
+      }
+      const isStereoInput = 'channelCount' in track.mediaStreamTrack.getSettings() &&
+      // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
+      track.mediaStreamTrack.getSettings().channelCount === 2 || track.mediaStreamTrack.getConstraints().channelCount === 2;
+      const isStereo = (_b = options === null || options === void 0 ? void 0 : options.forceStereo) !== null && _b !== void 0 ? _b : isStereoInput;
+      // disable dtx for stereo track if not enabled explicitly
+      if (isStereo) {
+        if (!options) {
+          options = {};
+        }
+        if (options.dtx === undefined) {
+          this.log.info("Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.", Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+        }
+        if (options.red === undefined) {
+          this.log.info("Opus RED will be disabled for stereo tracks by default. Enable them explicitly to make it work.");
+        }
+        (_c = options.dtx) !== null && _c !== void 0 ? _c : options.dtx = false;
+        (_d = options.red) !== null && _d !== void 0 ? _d : options.red = false;
+      }
+      const opts = Object.assign(Object.assign({}, this.roomOptions.publishDefaults), options);
+      // disable simulcast if e2ee is set on safari
+      if (isSafari() && this.roomOptions.e2ee) {
+        this.log.info("End-to-end encryption is set up, simulcast publishing will be disabled on Safari", Object.assign({}, this.logContext));
+        opts.simulcast = false;
+      }
+      if (opts.source) {
+        track.source = opts.source;
+      }
+      const publishPromise = this.publish(track, opts, isStereo);
+      this.pendingPublishPromises.set(track, publishPromise);
+      try {
+        const publication = yield publishPromise;
+        return publication;
+      } catch (e) {
+        throw e;
+      } finally {
+        this.pendingPublishPromises.delete(track);
+      }
+    });
+  }
+  publish(track, opts, isStereo) {
+    return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+      const existingTrackOfSource = Array.from(this.trackPublications.values()).find(publishedTrack => track instanceof LocalTrack && publishedTrack.source === track.source);
+      if (existingTrackOfSource && track.source !== Track.Source.Unknown) {
+        this.log.info("publishing a second track with the same source: ".concat(track.source), Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+      }
+      if (opts.stopMicTrackOnMute && track instanceof LocalAudioTrack) {
+        track.stopOnMute = true;
+      }
+      if (track.source === Track.Source.ScreenShare && isFireFox()) {
+        // Firefox does not work well with simulcasted screen share
+        // we frequently get no data on layer 0 when enabled
+        opts.simulcast = false;
+      }
+      // require full AV1/VP9 SVC support prior to using it
+      if (opts.videoCodec === 'av1' && !supportsAV1()) {
+        opts.videoCodec = undefined;
+      }
+      if (opts.videoCodec === 'vp9' && !supportsVP9()) {
+        opts.videoCodec = undefined;
+      }
+      if (opts.videoCodec === undefined) {
+        opts.videoCodec = defaultVideoCodec;
+      }
+      const videoCodec = opts.videoCodec;
+      // handle track actions
+      track.on(TrackEvent.Muted, this.onTrackMuted);
+      track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
+      track.on(TrackEvent.Ended, this.handleTrackEnded);
+      track.on(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
+      track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
+      track.on(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
+      // create track publication from track
+      const req = new AddTrackRequest({
+        // get local track id for use during publishing
+        cid: track.mediaStreamTrack.id,
+        name: opts.name,
+        type: Track.kindToProto(track.kind),
+        muted: track.isMuted,
+        source: Track.sourceToProto(track.source),
+        disableDtx: !((_a = opts.dtx) !== null && _a !== void 0 ? _a : true),
+        encryption: this.encryptionType,
+        stereo: isStereo,
+        disableRed: this.isE2EEEnabled || !((_b = opts.red) !== null && _b !== void 0 ? _b : true),
+        stream: opts === null || opts === void 0 ? void 0 : opts.stream
+      });
+      // compute encodings and layers for video
+      let encodings;
+      if (track.kind === Track.Kind.Video) {
+        let dims = {
+          width: 0,
+          height: 0
+        };
+        try {
+          dims = yield track.waitForDimensions();
+        } catch (e) {
+          // use defaults, it's quite painful for congestion control without simulcast
+          // so using default dims according to publish settings
+          const defaultRes = (_d = (_c = this.roomOptions.videoCaptureDefaults) === null || _c === void 0 ? void 0 : _c.resolution) !== null && _d !== void 0 ? _d : VideoPresets.h720.resolution;
+          dims = {
+            width: defaultRes.width,
+            height: defaultRes.height
+          };
+          // log failure
+          this.log.error('could not determine track dimensions, using defaults', Object.assign(Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)), {
+            dims
+          }));
+        }
+        // width and height should be defined for video
+        req.width = dims.width;
+        req.height = dims.height;
+        // for svc codecs, disable simulcast and use vp8 for backup codec
+        if (track instanceof LocalVideoTrack) {
+          if (isSVCCodec(videoCodec)) {
+            if (track.source === Track.Source.ScreenShare) {
+              // vp9 svc with screenshare cannot encode multiple spatial layers
+              // doing so reduces publish resolution to minimal resolution
+              opts.scalabilityMode = 'L1T3';
+              // Chrome does not allow more than 5 fps with L1T3, and it has encoding bugs with L3T3
+              // It has a different path for screenshare handling and it seems to be untested/buggy
+              // As a workaround, we are setting contentHint to force it to go through the same
+              // path as regular camera video. While this is not optimal, it delivers the performance
+              // that we need
+              if ('contentHint' in track.mediaStreamTrack) {
+                track.mediaStreamTrack.contentHint = 'motion';
+                this.log.info('forcing contentHint to motion for screenshare with SVC codecs', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+              }
+            }
+            // set scalabilityMode to 'L3T3_KEY' by default
+            opts.scalabilityMode = (_e = opts.scalabilityMode) !== null && _e !== void 0 ? _e : 'L3T3_KEY';
+          }
+          req.simulcastCodecs = [new SimulcastCodec({
+            codec: videoCodec,
+            cid: track.mediaStreamTrack.id
+          })];
+          // set up backup
+          if (opts.backupCodec === true) {
+            opts.backupCodec = {
+              codec: defaultVideoCodec
+            };
+          }
+          if (opts.backupCodec && videoCodec !== opts.backupCodec.codec &&
+          // TODO remove this once e2ee is supported for backup codecs
+          req.encryption === Encryption_Type.NONE) {
+            // multi-codec simulcast requires dynacast
+            if (!this.roomOptions.dynacast) {
+              this.roomOptions.dynacast = true;
+            }
+            req.simulcastCodecs.push(new SimulcastCodec({
+              codec: opts.backupCodec.codec,
+              cid: ''
+            }));
+          }
+        }
+        encodings = computeVideoEncodings(track.source === Track.Source.ScreenShare, req.width, req.height, opts);
+        req.layers = videoLayersFromEncodings(req.width, req.height, encodings, isSVCCodec(opts.videoCodec));
+      } else if (track.kind === Track.Kind.Audio) {
+        encodings = [{
+          maxBitrate: (_f = opts.audioPreset) === null || _f === void 0 ? void 0 : _f.maxBitrate,
+          priority: (_h = (_g = opts.audioPreset) === null || _g === void 0 ? void 0 : _g.priority) !== null && _h !== void 0 ? _h : 'high',
+          networkPriority: (_k = (_j = opts.audioPreset) === null || _j === void 0 ? void 0 : _j.priority) !== null && _k !== void 0 ? _k : 'high'
+        }];
+      }
+      if (!this.engine || this.engine.isClosed) {
+        throw new UnexpectedConnectionState('cannot publish track when not connected');
+      }
+      const ti = yield this.engine.addTrack(req);
+      // server might not support the codec the client has requested, in that case, fallback
+      // to a supported codec
+      let primaryCodecMime;
+      ti.codecs.forEach(codec => {
+        if (primaryCodecMime === undefined) {
+          primaryCodecMime = codec.mimeType;
+        }
+      });
+      if (primaryCodecMime && track.kind === Track.Kind.Video) {
+        const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
+        if (updatedCodec !== videoCodec) {
+          this.log.debug('falling back to server selected codec', Object.assign(Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)), {
+            codec: updatedCodec
+          }));
+          /* @ts-ignore */
+          opts.videoCodec = updatedCodec;
+          // recompute encodings since bitrates/etc could have changed
+          encodings = computeVideoEncodings(track.source === Track.Source.ScreenShare, req.width, req.height, opts);
+        }
+      }
+      const publication = new LocalTrackPublication(track.kind, ti, track, {
+        loggerName: this.roomOptions.loggerName,
+        loggerContextCb: () => this.logContext
+      });
+      // save options for when it needs to be republished again
+      publication.options = opts;
+      track.sid = ti.sid;
+      if (!this.engine.pcManager) {
+        throw new UnexpectedConnectionState('pcManager is not ready');
+      }
+      this.log.debug("publishing ".concat(track.kind, " with encodings"), Object.assign(Object.assign({}, this.logContext), {
+        encodings,
+        trackInfo: ti
+      }));
+      track.sender = yield this.engine.createSender(track, opts, encodings);
+      if (encodings) {
+        if (isFireFox() && track.kind === Track.Kind.Audio) {
+          /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
+             livekit-server uses maxaveragebitrate=510000 in the answer sdp to permit client to
+             publish high quality audio track. But firefox always uses this value as the actual
+             bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
+             So the client need to modify maxaverragebitrates in answer sdp to user provided value to
+             fix the issue.
+           */
+          let trackTransceiver = undefined;
+          for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
+            if (transceiver.sender === track.sender) {
+              trackTransceiver = transceiver;
+              break;
+            }
+          }
+          if (trackTransceiver) {
+            this.engine.pcManager.publisher.setTrackCodecBitrate({
+              transceiver: trackTransceiver,
+              codec: 'opus',
+              maxbr: ((_l = encodings[0]) === null || _l === void 0 ? void 0 : _l.maxBitrate) ? encodings[0].maxBitrate / 1000 : 0
+            });
+          }
+        } else if (track.codec && track.codec == 'av1' && ((_m = encodings[0]) === null || _m === void 0 ? void 0 : _m.maxBitrate)) {
+          // AV1 requires setting x-start-bitrate in SDP
+          this.engine.pcManager.publisher.setTrackCodecBitrate({
+            cid: req.cid,
+            codec: track.codec,
+            maxbr: encodings[0].maxBitrate / 1000
+          });
+        }
+      }
+      if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
+        // a few of reasons we are forcing this setting without allowing overrides:
+        // 1. without this, Chrome seems to aggressively resize the SVC video stating `quality-limitation: bandwidth` even when BW isn't an issue
+        // 2. since we are overriding contentHint to motion (to workaround L1T3 publishing), it overrides the default degradationPreference to `balanced`
+        try {
+          this.log.debug("setting degradationPreference to maintain-resolution");
+          const params = track.sender.getParameters();
+          params.degradationPreference = 'maintain-resolution';
+          yield track.sender.setParameters(params);
+        } catch (e) {
+          this.log.warn("failed to set degradationPreference: ".concat(e));
+        }
+      }
+      yield this.engine.negotiate();
+      if (track instanceof LocalVideoTrack) {
+        track.startMonitor(this.engine.client);
+      } else if (track instanceof LocalAudioTrack) {
+        track.startMonitor();
+      }
+      this.addTrackPublication(publication);
+      // send event for publication
+      this.emit(ParticipantEvent.LocalTrackPublished, publication);
+      return publication;
+    });
+  }
+  get isLocal() {
+    return true;
+  }
+  /** @internal
+   * publish additional codec to existing track
+   */
+  publishAdditionalCodecForTrack(track, videoCodec, options) {
+    return __awaiter(this, void 0, void 0, function* () {
+      var _a;
+      // TODO remove once e2ee is supported for backup tracks
+      if (this.encryptionType !== Encryption_Type.NONE) {
+        return;
+      }
+      // is it not published? if so skip
+      let existingPublication;
+      this.trackPublications.forEach(publication => {
+        if (!publication.track) {
+          return;
+        }
+        if (publication.track === track) {
+          existingPublication = publication;
+        }
+      });
+      if (!existingPublication) {
+        throw new TrackInvalidError('track is not published');
+      }
+      if (!(track instanceof LocalVideoTrack)) {
+        throw new TrackInvalidError('track is not a video track');
+      }
+      const opts = Object.assign(Object.assign({}, (_a = this.roomOptions) === null || _a === void 0 ? void 0 : _a.publishDefaults), options);
+      const encodings = computeTrackBackupEncodings(track, videoCodec, opts);
+      if (!encodings) {
+        this.log.info("backup codec has been disabled, ignoring request to add additional codec for track", Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(track)));
+        return;
+      }
+      const simulcastTrack = track.addSimulcastTrack(videoCodec, encodings);
+      if (!simulcastTrack) {
+        return;
+      }
+      const req = new AddTrackRequest({
+        cid: simulcastTrack.mediaStreamTrack.id,
+        type: Track.kindToProto(track.kind),
+        muted: track.isMuted,
+        source: Track.sourceToProto(track.source),
+        sid: track.sid,
+        simulcastCodecs: [{
+          codec: opts.videoCodec,
+          cid: simulcastTrack.mediaStreamTrack.id
+        }]
+      });
+      req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
+      if (!this.engine || this.engine.isClosed) {
+        throw new UnexpectedConnectionState('cannot publish track when not connected');
+      }
+      const ti = yield this.engine.addTrack(req);
+      yield this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
+      yield this.engine.negotiate();
+      this.log.debug("published ".concat(videoCodec, " for track ").concat(track.sid), Object.assign(Object.assign({}, this.logContext), {
+        encodings,
+        trackInfo: ti
+      }));
+    });
+  }
+  unpublishTrack(track, stopOnUnpublish) {
+    return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b;
+      // look through all published tracks to find the right ones
+      const publication = this.getPublicationForTrack(track);
+      const pubLogContext = publication ? getLogContextFromTrack(publication) : undefined;
+      this.log.debug('unpublishing track', Object.assign(Object.assign({}, this.logContext), pubLogContext));
+      if (!publication || !publication.track) {
+        this.log.warn('track was not unpublished because no publication was found', Object.assign(Object.assign({}, this.logContext), pubLogContext));
+        return undefined;
+      }
+      track = publication.track;
+      track.off(TrackEvent.Muted, this.onTrackMuted);
+      track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
+      track.off(TrackEvent.Ended, this.handleTrackEnded);
+      track.off(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
+      track.off(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
+      track.off(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
+      if (stopOnUnpublish === undefined) {
+        stopOnUnpublish = (_b = (_a = this.roomOptions) === null || _a === void 0 ? void 0 : _a.stopLocalTrackOnUnpublish) !== null && _b !== void 0 ? _b : true;
+      }
+      if (stopOnUnpublish) {
+        track.stop();
+      }
+      let negotiationNeeded = false;
+      const trackSender = track.sender;
+      track.sender = undefined;
+      if (this.engine.pcManager && this.engine.pcManager.currentState < PCTransportState.FAILED && trackSender) {
+        try {
+          for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
+            // if sender is not currently sending (after replaceTrack(null))
+            // removeTrack would have no effect.
+            // to ensure we end up successfully removing the track, manually set
+            // the transceiver to inactive
+            if (transceiver.sender === trackSender) {
+              transceiver.direction = 'inactive';
+              negotiationNeeded = true;
+            }
+          }
+          if (this.engine.removeTrack(trackSender)) {
+            negotiationNeeded = true;
+          }
+          if (track instanceof LocalVideoTrack) {
+            for (const [, trackInfo] of track.simulcastCodecs) {
+              if (trackInfo.sender) {
+                if (this.engine.removeTrack(trackInfo.sender)) {
+                  negotiationNeeded = true;
+                }
+                trackInfo.sender = undefined;
+              }
+            }
+            track.simulcastCodecs.clear();
+          }
+        } catch (e) {
+          this.log.warn('failed to unpublish track', Object.assign(Object.assign(Object.assign({}, this.logContext), pubLogContext), {
+            error: e
+          }));
+        }
+      }
+      // remove from our maps
+      this.trackPublications.delete(publication.trackSid);
+      switch (publication.kind) {
+        case Track.Kind.Audio:
+          this.audioTrackPublications.delete(publication.trackSid);
+          break;
+        case Track.Kind.Video:
+          this.videoTrackPublications.delete(publication.trackSid);
+          break;
+      }
+      this.emit(ParticipantEvent.LocalTrackUnpublished, publication);
+      publication.setTrack(undefined);
+      if (negotiationNeeded) {
+        yield this.engine.negotiate();
+      }
+      return publication;
+    });
+  }
+  unpublishTracks(tracks) {
+    return __awaiter(this, void 0, void 0, function* () {
+      const results = yield Promise.all(tracks.map(track => this.unpublishTrack(track)));
+      return results.filter(track => track instanceof LocalTrackPublication);
+    });
+  }
+  republishAllTracks(options_1) {
+    return __awaiter(this, arguments, void 0, function (options) {
+      var _this = this;
+      let restartTracks = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+      return function* () {
+        const localPubs = [];
+        _this.trackPublications.forEach(pub => {
+          if (pub.track) {
+            if (options) {
+              pub.options = Object.assign(Object.assign({}, pub.options), options);
+            }
+            localPubs.push(pub);
+          }
+        });
+        yield Promise.all(localPubs.map(pub => __awaiter(_this, void 0, void 0, function* () {
+          const track = pub.track;
+          yield this.unpublishTrack(track, false);
+          if (restartTracks && !track.isMuted && track.source !== Track.Source.ScreenShare && track.source !== Track.Source.ScreenShareAudio && (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) && !track.isUserProvided) {
+            // generally we need to restart the track before publishing, often a full reconnect
+            // is necessary because computer had gone to sleep.
+            this.log.debug('restarting existing track', Object.assign(Object.assign({}, this.logContext), {
+              track: pub.trackSid
+            }));
+            yield track.restartTrack();
+          }
+          yield this.publishTrack(track, pub.options);
+        })));
+      }();
+    });
+  }
+  /**
+   * Publish a new data payload to the room. Data will be forwarded to each
+   * participant in the room if the destination field in publishOptions is empty
+   *
+   * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
+   * @param options optionally specify a `reliable`, `topic` and `destination`
+   */
+  publishData(data_1) {
+    return __awaiter(this, arguments, void 0, function (data) {
+      var _this2 = this;
+      let options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      return function* () {
+        const kind = options.reliable ? DataPacket_Kind.RELIABLE : DataPacket_Kind.LOSSY;
+        const destinationIdentities = options.destinationIdentities;
+        const topic = options.topic;
+        const packet = new DataPacket({
+          kind: kind,
+          value: {
+            case: 'user',
+            value: new UserPacket({
+              participantIdentity: _this2.identity,
+              payload: data,
+              destinationIdentities,
+              topic
+            })
+          }
+        });
+        yield _this2.engine.sendDataPacket(packet, kind);
+      }();
+    });
+  }
+  /**
+   * Control who can subscribe to LocalParticipant's published tracks.
+   *
+   * By default, all participants can subscribe. This allows fine-grained control over
+   * who is able to subscribe at a participant and track level.
+   *
+   * Note: if access is given at a track-level (i.e. both [allParticipantsAllowed] and
+   * [ParticipantTrackPermission.allTracksAllowed] are false), any newer published tracks
+   * will not grant permissions to any participants and will require a subsequent
+   * permissions update to allow subscription.
+   *
+   * @param allParticipantsAllowed Allows all participants to subscribe all tracks.
+   *  Takes precedence over [[participantTrackPermissions]] if set to true.
+   *  By default this is set to true.
+   * @param participantTrackPermissions Full list of individual permissions per
+   *  participant/track. Any omitted participants will not receive any permissions.
+   */
+  setTrackSubscriptionPermissions(allParticipantsAllowed) {
+    let participantTrackPermissions = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+    this.participantTrackPermissions = participantTrackPermissions;
+    this.allParticipantsAllowedToSubscribe = allParticipantsAllowed;
+    if (!this.engine.client.isDisconnected) {
+      this.updateTrackSubscriptionPermissions();
+    }
+  }
+  /** @internal */
+  updateInfo(info) {
+    if (info.sid !== this.sid) {
+      // drop updates that specify a wrong sid.
+      // the sid for local participant is only explicitly set on join and full reconnect
+      return false;
+    }
+    if (!super.updateInfo(info)) {
+      return false;
+    }
+    // reconcile track mute status.
+    // if server's track mute status doesn't match actual, we'll have to update
+    // the server's copy
+    info.tracks.forEach(ti => {
+      var _a, _b;
+      const pub = this.trackPublications.get(ti.sid);
+      if (pub) {
+        const mutedOnServer = pub.isMuted || ((_b = (_a = pub.track) === null || _a === void 0 ? void 0 : _a.isUpstreamPaused) !== null && _b !== void 0 ? _b : false);
+        if (mutedOnServer !== ti.muted) {
+          this.log.debug('updating server mute state after reconcile', Object.assign(Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(pub)), {
+            mutedOnServer
+          }));
+          this.engine.client.sendMuteTrack(ti.sid, mutedOnServer);
+        }
+      }
+    });
+    return true;
+  }
+  getPublicationForTrack(track) {
+    let publication;
+    this.trackPublications.forEach(pub => {
+      const localTrack = pub.track;
+      if (!localTrack) {
+        return;
+      }
+      // this looks overly complicated due to this object tree
+      if (track instanceof MediaStreamTrack) {
+        if (localTrack instanceof LocalAudioTrack || localTrack instanceof LocalVideoTrack) {
+          if (localTrack.mediaStreamTrack === track) {
+            publication = pub;
+          }
+        }
+      } else if (track === localTrack) {
+        publication = pub;
+      }
+    });
+    return publication;
+  }
+}
+
 class RemoteTrackPublication extends TrackPublication {
-  constructor(kind, ti, autoSubscribe) {
-    super(kind, ti.sid, ti.name);
+  constructor(kind, ti, autoSubscribe, loggerOptions) {
+    super(kind, ti.sid, ti.name, loggerOptions);
     this.track = undefined;
     /** @internal */
     this.allowed = true;
@@ -19595,16 +19003,12 @@ class RemoteTrackPublication extends TrackPublication {
       this.emit(TrackEvent.Ended, track);
     };
     this.handleVisibilityChange = visible => {
-      livekitLogger.debug("adaptivestream video visibility ".concat(this.trackSid, ", visible=").concat(visible), {
-        trackSid: this.trackSid
-      });
+      this.log.debug("adaptivestream video visibility ".concat(this.trackSid, ", visible=").concat(visible), this.logContext);
       this.disabled = !visible;
       this.emitTrackUpdate();
     };
     this.handleVideoDimensionsChange = dimensions => {
-      livekitLogger.debug("adaptivestream video dimensions ".concat(dimensions.width, "x").concat(dimensions.height), {
-        trackSid: this.trackSid
-      });
+      this.log.debug("adaptivestream video dimensions ".concat(dimensions.width, "x").concat(dimensions.height), this.logContext);
       this.videoDimensions = dimensions;
       this.emitTrackUpdate();
     };
@@ -19790,15 +19194,11 @@ class RemoteTrackPublication extends TrackPublication {
   }
   isManualOperationAllowed() {
     if (this.kind === Track.Kind.Video && this.isAdaptiveStream) {
-      livekitLogger.warn('adaptive stream is enabled, cannot change video track settings', {
-        trackSid: this.trackSid
-      });
+      this.log.warn('adaptive stream is enabled, cannot change video track settings', this.logContext);
       return false;
     }
     if (!this.isDesired) {
-      livekitLogger.warn('cannot update track settings when not subscribed', {
-        trackSid: this.trackSid
-      });
+      this.log.warn('cannot update track settings when not subscribed', this.logContext);
       return false;
     }
     return true;
@@ -19831,20 +19231,26 @@ class RemoteParticipant extends Participant {
   static fromParticipantInfo(signalClient, pi) {
     return new RemoteParticipant(signalClient, pi.sid, pi.identity, pi.name, pi.metadata);
   }
+  get logContext() {
+    return Object.assign(Object.assign({}, super.logContext), {
+      rpID: this.sid,
+      remoteParticipant: this.identity
+    });
+  }
   /** @internal */
-  constructor(signalClient, sid, identity, name, metadata) {
-    super(sid, identity || '', name, metadata);
+  constructor(signalClient, sid, identity, name, metadata, loggerOptions) {
+    super(sid, identity || '', name, metadata, loggerOptions);
     this.signalClient = signalClient;
-    this.tracks = new Map();
-    this.audioTracks = new Map();
-    this.videoTracks = new Map();
+    this.trackPublications = new Map();
+    this.audioTrackPublications = new Map();
+    this.videoTrackPublications = new Map();
     this.volumeMap = new Map();
   }
   addTrackPublication(publication) {
     super.addTrackPublication(publication);
     // register action events
     publication.on(TrackEvent.UpdateSettings, settings => {
-      livekitLogger.debug('send update settings', settings);
+      this.log.debug('send update settings', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(publication)));
       this.signalClient.sendUpdateTrackSettings(settings);
     });
     publication.on(TrackEvent.UpdateSubscription, sub => {
@@ -19869,14 +19275,14 @@ class RemoteParticipant extends Participant {
       this.emit(ParticipantEvent.TrackSubscriptionFailed, publication.trackSid, error);
     });
   }
-  getTrack(source) {
-    const track = super.getTrack(source);
+  getTrackPublication(source) {
+    const track = super.getTrackPublication(source);
     if (track) {
       return track;
     }
   }
-  getTrackByName(name) {
-    const track = super.getTrackByName(name);
+  getTrackPublicationByName(name) {
+    const track = super.getTrackPublicationByName(name);
     if (track) {
       return track;
     }
@@ -19890,7 +19296,7 @@ class RemoteParticipant extends Participant {
   setVolume(volume) {
     let source = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : Track.Source.Microphone;
     this.volumeMap.set(source, volume);
-    const audioPublication = this.getTrack(source);
+    const audioPublication = this.getTrackPublication(source);
     if (audioPublication && audioPublication.track) {
       audioPublication.track.setVolume(volume);
     }
@@ -19900,7 +19306,7 @@ class RemoteParticipant extends Participant {
    */
   getVolume() {
     let source = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : Track.Source.Microphone;
-    const audioPublication = this.getTrack(source);
+    const audioPublication = this.getTrackPublication(source);
     if (audioPublication && audioPublication.track) {
       return audioPublication.track.getVolume();
     }
@@ -19910,13 +19316,13 @@ class RemoteParticipant extends Participant {
   addSubscribedMediaTrack(mediaTrack, sid, mediaStream, receiver, adaptiveStreamSettings, triesLeft) {
     // find the track publication
     // it's possible for the media track to arrive before participant info
-    let publication = this.getTrackPublication(sid);
+    let publication = this.getTrackPublicationBySid(sid);
     // it's also possible that the browser didn't honor our original track id
     // FireFox would use its own local uuid instead of server track id
     if (!publication) {
       if (!sid.startsWith('TR')) {
         // find the first track that matches type
-        this.tracks.forEach(p => {
+        this.trackPublications.forEach(p => {
           if (!publication && mediaTrack.kind === p.kind.toString()) {
             publication = p;
           }
@@ -19927,10 +19333,9 @@ class RemoteParticipant extends Participant {
     // yet arrived. Wait a bit longer for it to arrive, or fire an error
     if (!publication) {
       if (triesLeft === 0) {
-        livekitLogger.error('could not find published track', {
-          participant: this.sid,
+        this.log.error('could not find published track', Object.assign(Object.assign({}, this.logContext), {
           trackSid: sid
-        });
+        }));
         this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
         return;
       }
@@ -19941,10 +19346,7 @@ class RemoteParticipant extends Participant {
       return;
     }
     if (mediaTrack.readyState === 'ended') {
-      livekitLogger.error('unable to subscribe because MediaStreamTrack is ended. Do not call MediaStreamTrack.stop()', {
-        participant: this.sid,
-        trackSid: sid
-      });
+      this.log.error('unable to subscribe because MediaStreamTrack is ended. Do not call MediaStreamTrack.stop()', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(publication)));
       this.emit(ParticipantEvent.TrackSubscriptionFailed, sid);
       return;
     }
@@ -19972,8 +19374,11 @@ class RemoteParticipant extends Participant {
   get hasMetadata() {
     return !!this.participantInfo;
   }
-  getTrackPublication(sid) {
-    return this.tracks.get(sid);
+  /**
+   * @internal
+   */
+  getTrackPublicationBySid(sid) {
+    return this.trackPublications.get(sid);
   }
   /** @internal */
   updateInfo(info) {
@@ -19987,25 +19392,26 @@ class RemoteParticipant extends Participant {
     const validTracks = new Map();
     const newTracks = new Map();
     info.tracks.forEach(ti => {
-      var _a;
-      let publication = this.getTrackPublication(ti.sid);
+      var _a, _b;
+      let publication = this.getTrackPublicationBySid(ti.sid);
       if (!publication) {
         // new publication
         const kind = Track.kindFromProto(ti.type);
         if (!kind) {
           return;
         }
-        publication = new RemoteTrackPublication(kind, ti, (_a = this.signalClient.connectOptions) === null || _a === void 0 ? void 0 : _a.autoSubscribe);
+        publication = new RemoteTrackPublication(kind, ti, (_a = this.signalClient.connectOptions) === null || _a === void 0 ? void 0 : _a.autoSubscribe, {
+          loggerContextCb: () => this.logContext,
+          loggerName: (_b = this.loggerOptions) === null || _b === void 0 ? void 0 : _b.loggerName
+        });
         publication.updateInfo(ti);
         newTracks.set(ti.sid, publication);
-        const existingTrackOfSource = Array.from(this.tracks.values()).find(publishedTrack => publishedTrack.source === (publication === null || publication === void 0 ? void 0 : publication.source));
+        const existingTrackOfSource = Array.from(this.trackPublications.values()).find(publishedTrack => publishedTrack.source === (publication === null || publication === void 0 ? void 0 : publication.source));
         if (existingTrackOfSource && publication.source !== Track.Source.Unknown) {
-          livekitLogger.debug("received a second track publication for ".concat(this.identity, " with the same source: ").concat(publication.source), {
-            oldTrack: existingTrackOfSource,
-            newTrack: publication,
-            participant: this,
-            participantInfo: info
-          });
+          this.log.debug("received a second track publication for ".concat(this.identity, " with the same source: ").concat(publication.source), Object.assign(Object.assign({}, this.logContext), {
+            oldTrack: getLogContextFromTrack(existingTrackOfSource),
+            newTrack: getLogContextFromTrack(publication)
+          }));
         }
         this.addTrackPublication(publication);
       } else {
@@ -20014,12 +19420,9 @@ class RemoteParticipant extends Participant {
       validTracks.set(ti.sid, publication);
     });
     // detect removed tracks
-    this.tracks.forEach(publication => {
+    this.trackPublications.forEach(publication => {
       if (!validTracks.has(publication.trackSid)) {
-        livekitLogger.trace('detected removed track on remote participant, unpublishing', {
-          publication,
-          participantSid: this.sid
-        });
+        this.log.trace('detected removed track on remote participant, unpublishing', Object.assign(Object.assign({}, this.logContext), getLogContextFromTrack(publication)));
         this.unpublishTrack(publication.trackSid, true);
       }
     });
@@ -20031,7 +19434,7 @@ class RemoteParticipant extends Participant {
   }
   /** @internal */
   unpublishTrack(sid, sendUnpublish) {
-    const publication = this.tracks.get(sid);
+    const publication = this.trackPublications.get(sid);
     if (!publication) {
       return;
     }
@@ -20044,14 +19447,14 @@ class RemoteParticipant extends Participant {
       publication.setTrack(undefined);
     }
     // remove track from maps only after unsubscribed has been fired
-    this.tracks.delete(sid);
+    this.trackPublications.delete(sid);
     // remove from the right type map
     switch (publication.kind) {
       case Track.Kind.Audio:
-        this.audioTracks.delete(sid);
+        this.audioTrackPublications.delete(sid);
         break;
       case Track.Kind.Video:
-        this.videoTracks.delete(sid);
+        this.videoTrackPublications.delete(sid);
         break;
     }
     if (sendUnpublish) {
@@ -20065,7 +19468,7 @@ class RemoteParticipant extends Participant {
     return __awaiter(this, void 0, void 0, function* () {
       this.audioOutput = output;
       const promises = [];
-      this.audioTracks.forEach(pub => {
+      this.audioTrackPublications.forEach(pub => {
         var _a;
         if (pub.track instanceof RemoteAudioTrack) {
           promises.push(pub.track.setSinkId((_a = output.deviceId) !== null && _a !== void 0 ? _a : 'default'));
@@ -20079,1065 +19482,11 @@ class RemoteParticipant extends Participant {
     for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
       args[_key - 1] = arguments[_key];
     }
-    livekitLogger.trace('participant event', {
-      participant: this.sid,
+    this.log.trace('participant event', Object.assign(Object.assign({}, this.logContext), {
       event,
       args
-    });
+    }));
     return super.emit(event, ...args);
-  }
-}
-
-class LocalParticipant extends Participant {
-  /** @internal */
-  constructor(sid, identity, engine, options) {
-    super(sid, identity);
-    this.pendingPublishing = new Set();
-    this.pendingPublishPromises = new Map();
-    this.participantTrackPermissions = [];
-    this.allParticipantsAllowedToSubscribe = true;
-    this.encryptionType = Encryption_Type.NONE;
-    this.handleReconnecting = () => {
-      if (!this.reconnectFuture) {
-        this.reconnectFuture = new Future();
-      }
-    };
-    this.handleReconnected = () => {
-      var _a, _b;
-      (_b = (_a = this.reconnectFuture) === null || _a === void 0 ? void 0 : _a.resolve) === null || _b === void 0 ? void 0 : _b.call(_a);
-      this.reconnectFuture = undefined;
-      this.updateTrackSubscriptionPermissions();
-    };
-    this.handleDisconnected = () => {
-      var _a, _b;
-      if (this.reconnectFuture) {
-        this.reconnectFuture.promise.catch(e => livekitLogger.warn(e));
-        (_b = (_a = this.reconnectFuture) === null || _a === void 0 ? void 0 : _a.reject) === null || _b === void 0 ? void 0 : _b.call(_a, 'Got disconnected during reconnection attempt');
-        this.reconnectFuture = undefined;
-      }
-    };
-    this.updateTrackSubscriptionPermissions = () => {
-      livekitLogger.debug('updating track subscription permissions', {
-        allParticipantsAllowed: this.allParticipantsAllowedToSubscribe,
-        participantTrackPermissions: this.participantTrackPermissions
-      });
-      this.engine.client.sendUpdateSubscriptionPermissions(this.allParticipantsAllowedToSubscribe, this.participantTrackPermissions.map(p => trackPermissionToProto(p)));
-    };
-    /** @internal */
-    this.onTrackUnmuted = track => {
-      this.onTrackMuted(track, track.isUpstreamPaused);
-    };
-    // when the local track changes in mute status, we'll notify server as such
-    /** @internal */
-    this.onTrackMuted = (track, muted) => {
-      if (muted === undefined) {
-        muted = true;
-      }
-      if (!track.sid) {
-        livekitLogger.error('could not update mute status for unpublished track', track);
-        return;
-      }
-      this.engine.updateMuteStatus(track.sid, muted);
-    };
-    this.onTrackUpstreamPaused = track => {
-      livekitLogger.debug('upstream paused');
-      this.onTrackMuted(track, true);
-    };
-    this.onTrackUpstreamResumed = track => {
-      livekitLogger.debug('upstream resumed');
-      this.onTrackMuted(track, track.isMuted);
-    };
-    this.handleSubscribedQualityUpdate = update => __awaiter(this, void 0, void 0, function* () {
-      var _a, e_1, _b, _c;
-      var _d, _e;
-      if (!((_d = this.roomOptions) === null || _d === void 0 ? void 0 : _d.dynacast)) {
-        return;
-      }
-      const pub = this.videoTracks.get(update.trackSid);
-      if (!pub) {
-        livekitLogger.warn('received subscribed quality update for unknown track', {
-          method: 'handleSubscribedQualityUpdate',
-          sid: update.trackSid
-        });
-        return;
-      }
-      if (update.subscribedCodecs.length > 0) {
-        if (!pub.videoTrack) {
-          return;
-        }
-        const newCodecs = yield pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
-        try {
-          for (var _f = true, newCodecs_1 = __asyncValues(newCodecs), newCodecs_1_1; newCodecs_1_1 = yield newCodecs_1.next(), _a = newCodecs_1_1.done, !_a; _f = true) {
-            _c = newCodecs_1_1.value;
-            _f = false;
-            const codec = _c;
-            if (isBackupCodec(codec)) {
-              livekitLogger.debug("publish ".concat(codec, " for ").concat(pub.videoTrack.sid));
-              yield this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
-            }
-          }
-        } catch (e_1_1) {
-          e_1 = {
-            error: e_1_1
-          };
-        } finally {
-          try {
-            if (!_f && !_a && (_b = newCodecs_1.return)) yield _b.call(newCodecs_1);
-          } finally {
-            if (e_1) throw e_1.error;
-          }
-        }
-      } else if (update.subscribedQualities.length > 0) {
-        yield (_e = pub.videoTrack) === null || _e === void 0 ? void 0 : _e.setPublishingLayers(update.subscribedQualities);
-      }
-    });
-    this.handleLocalTrackUnpublished = unpublished => {
-      const track = this.tracks.get(unpublished.trackSid);
-      if (!track) {
-        livekitLogger.warn('received unpublished event for unknown track', {
-          method: 'handleLocalTrackUnpublished',
-          trackSid: unpublished.trackSid
-        });
-        return;
-      }
-      this.unpublishTrack(track.track);
-    };
-    this.handleTrackEnded = track => __awaiter(this, void 0, void 0, function* () {
-      if (track.source === Track.Source.ScreenShare || track.source === Track.Source.ScreenShareAudio) {
-        livekitLogger.debug('unpublishing local track due to TrackEnded', {
-          track: track.sid
-        });
-        this.unpublishTrack(track);
-      } else if (track.isUserProvided) {
-        yield track.mute();
-      } else if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
-        try {
-          if (isWeb()) {
-            try {
-              const currentPermissions = yield navigator === null || navigator === void 0 ? void 0 : navigator.permissions.query({
-                // the permission query for camera and microphone currently not supported in Safari and Firefox
-                // @ts-ignore
-                name: track.source === Track.Source.Camera ? 'camera' : 'microphone'
-              });
-              if (currentPermissions && currentPermissions.state === 'denied') {
-                livekitLogger.warn("user has revoked access to ".concat(track.source));
-                // detect granted change after permissions were denied to try and resume then
-                currentPermissions.onchange = () => {
-                  if (currentPermissions.state !== 'denied') {
-                    if (!track.isMuted) {
-                      track.restartTrack();
-                    }
-                    currentPermissions.onchange = null;
-                  }
-                };
-                throw new Error('GetUserMedia Permission denied');
-              }
-            } catch (e) {
-              // permissions query fails for firefox, we continue and try to restart the track
-            }
-          }
-          if (!track.isMuted) {
-            livekitLogger.debug('track ended, attempting to use a different device');
-            yield track.restartTrack();
-          }
-        } catch (e) {
-          livekitLogger.warn("could not restart track, muting instead");
-          yield track.mute();
-        }
-      }
-    });
-    this.audioTracks = new Map();
-    this.videoTracks = new Map();
-    this.tracks = new Map();
-    this.engine = engine;
-    this.roomOptions = options;
-    this.setupEngine(engine);
-    this.activeDeviceMap = new Map();
-  }
-  get lastCameraError() {
-    return this.cameraError;
-  }
-  get lastMicrophoneError() {
-    return this.microphoneError;
-  }
-  get isE2EEEnabled() {
-    return this.encryptionType !== Encryption_Type.NONE;
-  }
-  getTrack(source) {
-    const track = super.getTrack(source);
-    if (track) {
-      return track;
-    }
-  }
-  getTrackByName(name) {
-    const track = super.getTrackByName(name);
-    if (track) {
-      return track;
-    }
-  }
-  /**
-   * @internal
-   */
-  setupEngine(engine) {
-    this.engine = engine;
-    this.engine.client.onRemoteMuteChanged = (trackSid, muted) => {
-      const pub = this.tracks.get(trackSid);
-      if (!pub || !pub.track) {
-        return;
-      }
-      if (muted) {
-        pub.mute();
-      } else {
-        pub.unmute();
-      }
-    };
-    this.engine.client.onSubscribedQualityUpdate = this.handleSubscribedQualityUpdate;
-    this.engine.client.onLocalTrackUnpublished = this.handleLocalTrackUnpublished;
-    this.engine.on(EngineEvent.Connected, this.handleReconnected).on(EngineEvent.SignalRestarted, this.handleReconnected).on(EngineEvent.SignalResumed, this.handleReconnected).on(EngineEvent.Restarting, this.handleReconnecting).on(EngineEvent.Resuming, this.handleReconnecting).on(EngineEvent.Disconnected, this.handleDisconnected);
-  }
-  /**
-   * Sets and updates the metadata of the local participant.
-   * The change does not take immediate effect.
-   * If successful, a `ParticipantEvent.MetadataChanged` event will be emitted on the local participant.
-   * Note: this requires `canUpdateOwnMetadata` permission.
-   * @param metadata
-   */
-  setMetadata(metadata) {
-    var _a;
-    this.engine.client.sendUpdateLocalMetadata(metadata, (_a = this.name) !== null && _a !== void 0 ? _a : '');
-  }
-  /**
-   * Sets and updates the name of the local participant.
-   * The change does not take immediate effect.
-   * If successful, a `ParticipantEvent.ParticipantNameChanged` event will be emitted on the local participant.
-   * Note: this requires `canUpdateOwnMetadata` permission.
-   * @param metadata
-   */
-  setName(name) {
-    var _a;
-    this.engine.client.sendUpdateLocalMetadata((_a = this.metadata) !== null && _a !== void 0 ? _a : '', name);
-  }
-  /**
-   * Enable or disable a participant's camera track.
-   *
-   * If a track has already published, it'll mute or unmute the track.
-   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
-   */
-  setCameraEnabled(enabled, options, publishOptions) {
-    return this.setTrackEnabled(Track.Source.Camera, enabled, options, publishOptions);
-  }
-  /**
-   * Enable or disable a participant's microphone track.
-   *
-   * If a track has already published, it'll mute or unmute the track.
-   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
-   */
-  setMicrophoneEnabled(enabled, options, publishOptions) {
-    return this.setTrackEnabled(Track.Source.Microphone, enabled, options, publishOptions);
-  }
-  /**
-   * Start or stop sharing a participant's screen
-   * Resolves with a `LocalTrackPublication` instance if successful and `undefined` otherwise
-   */
-  setScreenShareEnabled(enabled, options, publishOptions) {
-    return this.setTrackEnabled(Track.Source.ScreenShare, enabled, options, publishOptions);
-  }
-  /** @internal */
-  setPermissions(permissions) {
-    const prevPermissions = this.permissions;
-    const changed = super.setPermissions(permissions);
-    if (changed && prevPermissions) {
-      this.emit(ParticipantEvent.ParticipantPermissionsChanged, prevPermissions);
-    }
-    return changed;
-  }
-  /** @internal */
-  setE2EEEnabled(enabled) {
-    return __awaiter(this, void 0, void 0, function* () {
-      this.encryptionType = enabled ? Encryption_Type.GCM : Encryption_Type.NONE;
-      yield this.republishAllTracks(undefined, false);
-    });
-  }
-  setTrackEnabled(source, enabled, options, publishOptions) {
-    var _a, _b;
-    return __awaiter(this, void 0, void 0, function* () {
-      livekitLogger.debug('setTrackEnabled', {
-        source,
-        enabled
-      });
-      let track = this.getTrack(source);
-      if (enabled) {
-        if (track) {
-          yield track.unmute();
-        } else {
-          let localTracks;
-          if (this.pendingPublishing.has(source)) {
-            livekitLogger.info('skipping duplicate published source', {
-              source
-            });
-            // no-op it's already been requested
-            return;
-          }
-          this.pendingPublishing.add(source);
-          try {
-            switch (source) {
-              case Track.Source.Camera:
-                localTracks = yield this.createTracks({
-                  video: (_a = options) !== null && _a !== void 0 ? _a : true
-                });
-                break;
-              case Track.Source.Microphone:
-                localTracks = yield this.createTracks({
-                  audio: (_b = options) !== null && _b !== void 0 ? _b : true
-                });
-                break;
-              case Track.Source.ScreenShare:
-                localTracks = yield this.createScreenTracks(Object.assign({}, options));
-                break;
-              default:
-                throw new TrackInvalidError(source);
-            }
-            const publishPromises = [];
-            for (const localTrack of localTracks) {
-              livekitLogger.info('publishing track', {
-                localTrack
-              });
-              publishPromises.push(this.publishTrack(localTrack, publishOptions));
-            }
-            const publishedTracks = yield Promise.all(publishPromises);
-            // for screen share publications including audio, this will only return the screen share publication, not the screen share audio one
-            // revisit if we want to return an array of tracks instead for v2
-            [track] = publishedTracks;
-          } catch (e) {
-            localTracks === null || localTracks === void 0 ? void 0 : localTracks.forEach(tr => {
-              tr.stop();
-            });
-            if (e instanceof Error && !(e instanceof TrackInvalidError)) {
-              this.emit(ParticipantEvent.MediaDevicesError, e);
-            }
-            throw e;
-          } finally {
-            this.pendingPublishing.delete(source);
-          }
-        }
-      } else if (track && track.track) {
-        // screenshare cannot be muted, unpublish instead
-        if (source === Track.Source.ScreenShare) {
-          track = yield this.unpublishTrack(track.track);
-          const screenAudioTrack = this.getTrack(Track.Source.ScreenShareAudio);
-          if (screenAudioTrack && screenAudioTrack.track) {
-            this.unpublishTrack(screenAudioTrack.track);
-          }
-        } else {
-          yield track.mute();
-        }
-      }
-      return track;
-    });
-  }
-  /**
-   * Publish both camera and microphone at the same time. This is useful for
-   * displaying a single Permission Dialog box to the end user.
-   */
-  enableCameraAndMicrophone() {
-    return __awaiter(this, void 0, void 0, function* () {
-      if (this.pendingPublishing.has(Track.Source.Camera) || this.pendingPublishing.has(Track.Source.Microphone)) {
-        // no-op it's already been requested
-        return;
-      }
-      this.pendingPublishing.add(Track.Source.Camera);
-      this.pendingPublishing.add(Track.Source.Microphone);
-      try {
-        const tracks = yield this.createTracks({
-          audio: true,
-          video: true
-        });
-        yield Promise.all(tracks.map(track => this.publishTrack(track)));
-      } finally {
-        this.pendingPublishing.delete(Track.Source.Camera);
-        this.pendingPublishing.delete(Track.Source.Microphone);
-      }
-    });
-  }
-  /**
-   * Create local camera and/or microphone tracks
-   * @param options
-   * @returns
-   */
-  createTracks(options) {
-    var _a, _b;
-    return __awaiter(this, void 0, void 0, function* () {
-      const opts = mergeDefaultOptions(options, (_a = this.roomOptions) === null || _a === void 0 ? void 0 : _a.audioCaptureDefaults, (_b = this.roomOptions) === null || _b === void 0 ? void 0 : _b.videoCaptureDefaults);
-      const constraints = constraintsForOptions(opts);
-      let stream;
-      try {
-        stream = yield navigator.mediaDevices.getUserMedia(constraints);
-      } catch (err) {
-        if (err instanceof Error) {
-          if (constraints.audio) {
-            this.microphoneError = err;
-          }
-          if (constraints.video) {
-            this.cameraError = err;
-          }
-        }
-        throw err;
-      }
-      if (constraints.audio) {
-        this.microphoneError = undefined;
-      }
-      if (constraints.video) {
-        this.cameraError = undefined;
-      }
-      return stream.getTracks().map(mediaStreamTrack => {
-        const isAudio = mediaStreamTrack.kind === 'audio';
-        isAudio ? options.audio : options.video;
-        let trackConstraints;
-        const conOrBool = isAudio ? constraints.audio : constraints.video;
-        if (typeof conOrBool !== 'boolean') {
-          trackConstraints = conOrBool;
-        }
-        const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
-        if (track.kind === Track.Kind.Video) {
-          track.source = Track.Source.Camera;
-        } else if (track.kind === Track.Kind.Audio) {
-          track.source = Track.Source.Microphone;
-        }
-        track.mediaStream = stream;
-        return track;
-      });
-    });
-  }
-  /**
-   * Creates a screen capture tracks with getDisplayMedia().
-   * A LocalVideoTrack is always created and returned.
-   * If { audio: true }, and the browser supports audio capture, a LocalAudioTrack is also created.
-   */
-  createScreenTracks(options) {
-    return __awaiter(this, void 0, void 0, function* () {
-      if (options === undefined) {
-        options = {};
-      }
-      if (navigator.mediaDevices.getDisplayMedia === undefined) {
-        throw new DeviceUnsupportedError('getDisplayMedia not supported');
-      }
-      const constraints = screenCaptureToDisplayMediaStreamOptions(options);
-      const stream = yield navigator.mediaDevices.getDisplayMedia(constraints);
-      const tracks = stream.getVideoTracks();
-      if (tracks.length === 0) {
-        throw new TrackInvalidError('no video track found');
-      }
-      const screenVideo = new LocalVideoTrack(tracks[0], undefined, false);
-      screenVideo.source = Track.Source.ScreenShare;
-      const localTracks = [screenVideo];
-      if (stream.getAudioTracks().length > 0) {
-        const screenAudio = new LocalAudioTrack(stream.getAudioTracks()[0], undefined, false, this.audioContext);
-        screenAudio.source = Track.Source.ScreenShareAudio;
-        localTracks.push(screenAudio);
-      }
-      return localTracks;
-    });
-  }
-  /**
-   * Publish a new track to the room
-   * @param track
-   * @param options
-   */
-  publishTrack(track, options) {
-    var _a, _b, _c, _d;
-    return __awaiter(this, void 0, void 0, function* () {
-      yield (_a = this.reconnectFuture) === null || _a === void 0 ? void 0 : _a.promise;
-      if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
-        yield this.pendingPublishPromises.get(track);
-      }
-      let defaultConstraints;
-      if (track instanceof MediaStreamTrack) {
-        defaultConstraints = track.getConstraints();
-      } else {
-        // we want to access constraints directly as `track.mediaStreamTrack`
-        // might be pointing to a non-device track (e.g. processed track) already
-        defaultConstraints = track.constraints;
-        let deviceKind = undefined;
-        switch (track.source) {
-          case Track.Source.Microphone:
-            deviceKind = 'audioinput';
-            break;
-          case Track.Source.Camera:
-            deviceKind = 'videoinput';
-        }
-        if (deviceKind && this.activeDeviceMap.has(deviceKind)) {
-          defaultConstraints = Object.assign(Object.assign({}, defaultConstraints), {
-            deviceId: this.activeDeviceMap.get(deviceKind)
-          });
-        }
-      }
-      // convert raw media track into audio or video track
-      if (track instanceof MediaStreamTrack) {
-        switch (track.kind) {
-          case 'audio':
-            track = new LocalAudioTrack(track, defaultConstraints, true, this.audioContext);
-            break;
-          case 'video':
-            track = new LocalVideoTrack(track, defaultConstraints, true);
-            break;
-          default:
-            throw new TrackInvalidError("unsupported MediaStreamTrack kind ".concat(track.kind));
-        }
-      }
-      if (track instanceof LocalAudioTrack) {
-        track.setAudioContext(this.audioContext);
-      }
-      // is it already published? if so skip
-      let existingPublication;
-      this.tracks.forEach(publication => {
-        if (!publication.track) {
-          return;
-        }
-        if (publication.track === track) {
-          existingPublication = publication;
-        }
-      });
-      if (existingPublication) {
-        livekitLogger.warn('track has already been published, skipping');
-        return existingPublication;
-      }
-      const isStereoInput = 'channelCount' in track.mediaStreamTrack.getSettings() &&
-      // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
-      track.mediaStreamTrack.getSettings().channelCount === 2 || track.mediaStreamTrack.getConstraints().channelCount === 2;
-      const isStereo = (_b = options === null || options === void 0 ? void 0 : options.forceStereo) !== null && _b !== void 0 ? _b : isStereoInput;
-      // disable dtx for stereo track if not enabled explicitly
-      if (isStereo) {
-        if (!options) {
-          options = {};
-        }
-        if (options.dtx === undefined) {
-          livekitLogger.info("Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.");
-        }
-        if (options.red === undefined) {
-          livekitLogger.info("Opus RED will be disabled for stereo tracks by default. Enable them explicitly to make it work.");
-        }
-        (_c = options.dtx) !== null && _c !== void 0 ? _c : options.dtx = false;
-        (_d = options.red) !== null && _d !== void 0 ? _d : options.red = false;
-      }
-      const opts = Object.assign(Object.assign({}, this.roomOptions.publishDefaults), options);
-      // disable simulcast if e2ee is set on safari
-      if (isSafari() && this.roomOptions.e2ee) {
-        livekitLogger.info("End-to-end encryption is set up, simulcast publishing will be disabled on Safari");
-        opts.simulcast = false;
-      }
-      if (opts.source) {
-        track.source = opts.source;
-      }
-      const publishPromise = this.publish(track, opts, isStereo);
-      this.pendingPublishPromises.set(track, publishPromise);
-      try {
-        const publication = yield publishPromise;
-        return publication;
-      } catch (e) {
-        throw e;
-      } finally {
-        this.pendingPublishPromises.delete(track);
-      }
-    });
-  }
-  publish(track, opts, isStereo) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
-    return __awaiter(this, void 0, void 0, function* () {
-      const existingTrackOfSource = Array.from(this.tracks.values()).find(publishedTrack => track instanceof LocalTrack && publishedTrack.source === track.source);
-      if (existingTrackOfSource && track.source !== Track.Source.Unknown) {
-        try {
-          // throw an Error in order to capture the stack trace
-          throw Error("publishing a second track with the same source: ".concat(track.source));
-        } catch (e) {
-          if (e instanceof Error) {
-            livekitLogger.warn(e.message, {
-              oldTrack: existingTrackOfSource,
-              newTrack: track,
-              trace: e.stack
-            });
-          }
-        }
-      }
-      if (opts.stopMicTrackOnMute && track instanceof LocalAudioTrack) {
-        track.stopOnMute = true;
-      }
-      if (track.source === Track.Source.ScreenShare && isFireFox()) {
-        // Firefox does not work well with simulcasted screen share
-        // we frequently get no data on layer 0 when enabled
-        opts.simulcast = false;
-      }
-      // require full AV1/VP9 SVC support prior to using it
-      if (opts.videoCodec === 'av1' && !supportsAV1()) {
-        opts.videoCodec = undefined;
-      }
-      if (opts.videoCodec === 'vp9' && !supportsVP9()) {
-        opts.videoCodec = undefined;
-      }
-      if (opts.videoCodec === undefined) {
-        opts.videoCodec = defaultVideoCodec;
-      }
-      const videoCodec = opts.videoCodec;
-      // handle track actions
-      track.on(TrackEvent.Muted, this.onTrackMuted);
-      track.on(TrackEvent.Unmuted, this.onTrackUnmuted);
-      track.on(TrackEvent.Ended, this.handleTrackEnded);
-      track.on(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
-      track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
-      // create track publication from track
-      const req = new AddTrackRequest({
-        // get local track id for use during publishing
-        cid: track.mediaStreamTrack.id,
-        name: opts.name,
-        type: Track.kindToProto(track.kind),
-        muted: track.isMuted,
-        source: Track.sourceToProto(track.source),
-        disableDtx: !((_a = opts.dtx) !== null && _a !== void 0 ? _a : true),
-        encryption: this.encryptionType,
-        stereo: isStereo,
-        disableRed: this.isE2EEEnabled || !((_b = opts.red) !== null && _b !== void 0 ? _b : true),
-        stream: opts === null || opts === void 0 ? void 0 : opts.stream
-      });
-      // compute encodings and layers for video
-      let encodings;
-      if (track.kind === Track.Kind.Video) {
-        let dims = {
-          width: 0,
-          height: 0
-        };
-        try {
-          dims = yield track.waitForDimensions();
-        } catch (e) {
-          // use defaults, it's quite painful for congestion control without simulcast
-          // so using default dims according to publish settings
-          const defaultRes = (_d = (_c = this.roomOptions.videoCaptureDefaults) === null || _c === void 0 ? void 0 : _c.resolution) !== null && _d !== void 0 ? _d : VideoPresets.h720.resolution;
-          dims = {
-            width: defaultRes.width,
-            height: defaultRes.height
-          };
-          // log failure
-          livekitLogger.error('could not determine track dimensions, using defaults', dims);
-        }
-        // width and height should be defined for video
-        req.width = dims.width;
-        req.height = dims.height;
-        // for svc codecs, disable simulcast and use vp8 for backup codec
-        if (track instanceof LocalVideoTrack) {
-          if (isSVCCodec(videoCodec)) {
-            // vp9 svc with screenshare has problem to encode, always use L1T3 here
-            if (track.source === Track.Source.ScreenShare && videoCodec === 'vp9') {
-              opts.scalabilityMode = 'L1T3';
-            }
-            // set scalabilityMode to 'L3T3_KEY' by default
-            opts.scalabilityMode = (_e = opts.scalabilityMode) !== null && _e !== void 0 ? _e : 'L3T3_KEY';
-          }
-          req.simulcastCodecs = [new SimulcastCodec({
-            codec: videoCodec,
-            cid: track.mediaStreamTrack.id
-          })];
-          // set up backup
-          if (opts.backupCodec && videoCodec !== opts.backupCodec.codec) {
-            if (!this.roomOptions.dynacast) {
-              this.roomOptions.dynacast = true;
-            }
-            req.simulcastCodecs.push(new SimulcastCodec({
-              codec: opts.backupCodec.codec,
-              cid: ''
-            }));
-          }
-        }
-        encodings = computeVideoEncodings(track.source === Track.Source.ScreenShare, req.width, req.height, opts);
-        req.layers = videoLayersFromEncodings(req.width, req.height, encodings, isSVCCodec(opts.videoCodec));
-      } else if (track.kind === Track.Kind.Audio) {
-        encodings = [{
-          maxBitrate: (_g = (_f = opts.audioPreset) === null || _f === void 0 ? void 0 : _f.maxBitrate) !== null && _g !== void 0 ? _g : opts.audioBitrate,
-          priority: (_j = (_h = opts.audioPreset) === null || _h === void 0 ? void 0 : _h.priority) !== null && _j !== void 0 ? _j : 'high',
-          networkPriority: (_l = (_k = opts.audioPreset) === null || _k === void 0 ? void 0 : _k.priority) !== null && _l !== void 0 ? _l : 'high'
-        }];
-      }
-      if (!this.engine || this.engine.isClosed) {
-        throw new UnexpectedConnectionState('cannot publish track when not connected');
-      }
-      const ti = yield this.engine.addTrack(req);
-      // server might not support the codec the client has requested, in that case, fallback
-      // to a supported codec
-      let primaryCodecMime;
-      ti.codecs.forEach(codec => {
-        if (primaryCodecMime === undefined) {
-          primaryCodecMime = codec.mimeType;
-        }
-      });
-      if (primaryCodecMime && track.kind === Track.Kind.Video) {
-        const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
-        if (updatedCodec !== videoCodec) {
-          livekitLogger.debug('falling back to server selected codec', {
-            codec: updatedCodec
-          });
-          /* @ts-ignore */
-          opts.videoCodec = updatedCodec;
-          // recompute encodings since bitrates/etc could have changed
-          encodings = computeVideoEncodings(track.source === Track.Source.ScreenShare, req.width, req.height, opts);
-        }
-      }
-      const publication = new LocalTrackPublication(track.kind, ti, track);
-      // save options for when it needs to be republished again
-      publication.options = opts;
-      track.sid = ti.sid;
-      if (!this.engine.publisher) {
-        throw new UnexpectedConnectionState('publisher is closed');
-      }
-      livekitLogger.debug("publishing ".concat(track.kind, " with encodings"), {
-        encodings,
-        trackInfo: ti
-      });
-      track.sender = yield this.engine.createSender(track, opts, encodings);
-      if (encodings) {
-        if (isFireFox() && track.kind === Track.Kind.Audio) {
-          /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
-             livekit-server uses maxaveragebitrate=510000 in the answer sdp to permit client to
-             publish high quality audio track. But firefox always uses this value as the actual
-             bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
-             So the client need to modify maxaverragebitrates in answer sdp to user provided value to
-             fix the issue.
-           */
-          let trackTransceiver = undefined;
-          for (const transceiver of this.engine.publisher.getTransceivers()) {
-            if (transceiver.sender === track.sender) {
-              trackTransceiver = transceiver;
-              break;
-            }
-          }
-          if (trackTransceiver) {
-            this.engine.publisher.setTrackCodecBitrate({
-              transceiver: trackTransceiver,
-              codec: 'opus',
-              maxbr: ((_m = encodings[0]) === null || _m === void 0 ? void 0 : _m.maxBitrate) ? encodings[0].maxBitrate / 1000 : 0
-            });
-          }
-        } else if (track.codec && isSVCCodec(track.codec) && ((_o = encodings[0]) === null || _o === void 0 ? void 0 : _o.maxBitrate)) {
-          this.engine.publisher.setTrackCodecBitrate({
-            cid: req.cid,
-            codec: track.codec,
-            maxbr: encodings[0].maxBitrate / 1000
-          });
-        }
-      }
-      yield this.engine.negotiate();
-      if (track instanceof LocalVideoTrack) {
-        track.startMonitor(this.engine.client);
-      } else if (track instanceof LocalAudioTrack) {
-        track.startMonitor();
-      }
-      this.addTrackPublication(publication);
-      // send event for publication
-      this.emit(ParticipantEvent.LocalTrackPublished, publication);
-      return publication;
-    });
-  }
-  get isLocal() {
-    return true;
-  }
-  /** @internal
-   * publish additional codec to existing track
-   */
-  publishAdditionalCodecForTrack(track, videoCodec, options) {
-    var _a;
-    return __awaiter(this, void 0, void 0, function* () {
-      // is it not published? if so skip
-      let existingPublication;
-      this.tracks.forEach(publication => {
-        if (!publication.track) {
-          return;
-        }
-        if (publication.track === track) {
-          existingPublication = publication;
-        }
-      });
-      if (!existingPublication) {
-        throw new TrackInvalidError('track is not published');
-      }
-      if (!(track instanceof LocalVideoTrack)) {
-        throw new TrackInvalidError('track is not a video track');
-      }
-      const opts = Object.assign(Object.assign({}, (_a = this.roomOptions) === null || _a === void 0 ? void 0 : _a.publishDefaults), options);
-      const encodings = computeTrackBackupEncodings(track, videoCodec, opts);
-      if (!encodings) {
-        livekitLogger.info("backup codec has been disabled, ignoring request to add additional codec for track");
-        return;
-      }
-      const simulcastTrack = track.addSimulcastTrack(videoCodec, encodings);
-      const req = new AddTrackRequest({
-        cid: simulcastTrack.mediaStreamTrack.id,
-        type: Track.kindToProto(track.kind),
-        muted: track.isMuted,
-        source: Track.sourceToProto(track.source),
-        sid: track.sid,
-        simulcastCodecs: [{
-          codec: opts.videoCodec,
-          cid: simulcastTrack.mediaStreamTrack.id
-        }]
-      });
-      req.layers = videoLayersFromEncodings(req.width, req.height, encodings);
-      if (!this.engine || this.engine.isClosed) {
-        throw new UnexpectedConnectionState('cannot publish track when not connected');
-      }
-      const ti = yield this.engine.addTrack(req);
-      yield this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
-      yield this.engine.negotiate();
-      livekitLogger.debug("published ".concat(videoCodec, " for track ").concat(track.sid), {
-        encodings,
-        trackInfo: ti
-      });
-    });
-  }
-  unpublishTrack(track, stopOnUnpublish) {
-    var _a, _b;
-    return __awaiter(this, void 0, void 0, function* () {
-      // look through all published tracks to find the right ones
-      const publication = this.getPublicationForTrack(track);
-      livekitLogger.debug('unpublishing track', {
-        track,
-        method: 'unpublishTrack'
-      });
-      if (!publication || !publication.track) {
-        livekitLogger.warn('track was not unpublished because no publication was found', {
-          track,
-          method: 'unpublishTrack'
-        });
-        return undefined;
-      }
-      track = publication.track;
-      track.off(TrackEvent.Muted, this.onTrackMuted);
-      track.off(TrackEvent.Unmuted, this.onTrackUnmuted);
-      track.off(TrackEvent.Ended, this.handleTrackEnded);
-      track.off(TrackEvent.UpstreamPaused, this.onTrackUpstreamPaused);
-      track.off(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
-      if (stopOnUnpublish === undefined) {
-        stopOnUnpublish = (_b = (_a = this.roomOptions) === null || _a === void 0 ? void 0 : _a.stopLocalTrackOnUnpublish) !== null && _b !== void 0 ? _b : true;
-      }
-      if (stopOnUnpublish) {
-        track.stop();
-      }
-      let negotiationNeeded = false;
-      const trackSender = track.sender;
-      track.sender = undefined;
-      if (this.engine.publisher && this.engine.publisher.getConnectionState() !== 'closed' && trackSender) {
-        try {
-          for (const transceiver of this.engine.publisher.getTransceivers()) {
-            // if sender is not currently sending (after replaceTrack(null))
-            // removeTrack would have no effect.
-            // to ensure we end up successfully removing the track, manually set
-            // the transceiver to inactive
-            if (transceiver.sender === trackSender) {
-              transceiver.direction = 'inactive';
-              negotiationNeeded = true;
-            }
-          }
-          if (this.engine.removeTrack(trackSender)) {
-            negotiationNeeded = true;
-          }
-          if (track instanceof LocalVideoTrack) {
-            for (const [, trackInfo] of track.simulcastCodecs) {
-              if (trackInfo.sender) {
-                if (this.engine.removeTrack(trackInfo.sender)) {
-                  negotiationNeeded = true;
-                }
-                trackInfo.sender = undefined;
-              }
-            }
-            track.simulcastCodecs.clear();
-          }
-        } catch (e) {
-          livekitLogger.warn('failed to unpublish track', {
-            error: e,
-            method: 'unpublishTrack'
-          });
-        }
-      }
-      // remove from our maps
-      this.tracks.delete(publication.trackSid);
-      switch (publication.kind) {
-        case Track.Kind.Audio:
-          this.audioTracks.delete(publication.trackSid);
-          break;
-        case Track.Kind.Video:
-          this.videoTracks.delete(publication.trackSid);
-          break;
-      }
-      this.emit(ParticipantEvent.LocalTrackUnpublished, publication);
-      publication.setTrack(undefined);
-      if (negotiationNeeded) {
-        yield this.engine.negotiate();
-      }
-      return publication;
-    });
-  }
-  unpublishTracks(tracks) {
-    return __awaiter(this, void 0, void 0, function* () {
-      const results = yield Promise.all(tracks.map(track => this.unpublishTrack(track)));
-      return results.filter(track => track instanceof LocalTrackPublication);
-    });
-  }
-  republishAllTracks(options) {
-    let restartTracks = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
-    return __awaiter(this, void 0, void 0, function* () {
-      const localPubs = [];
-      this.tracks.forEach(pub => {
-        if (pub.track) {
-          if (options) {
-            pub.options = Object.assign(Object.assign({}, pub.options), options);
-          }
-          localPubs.push(pub);
-        }
-      });
-      yield Promise.all(localPubs.map(pub => __awaiter(this, void 0, void 0, function* () {
-        const track = pub.track;
-        yield this.unpublishTrack(track, false);
-        if (restartTracks && !track.isMuted && (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) && !track.isUserProvided) {
-          // generally we need to restart the track before publishing, often a full reconnect
-          // is necessary because computer had gone to sleep.
-          livekitLogger.debug('restarting existing track', {
-            track: pub.trackSid
-          });
-          yield track.restartTrack();
-        }
-        yield this.publishTrack(track, pub.options);
-      })));
-    });
-  }
-  publishData(data, kind) {
-    let publishOptions = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
-    return __awaiter(this, void 0, void 0, function* () {
-      const destination = Array.isArray(publishOptions) ? publishOptions : publishOptions === null || publishOptions === void 0 ? void 0 : publishOptions.destination;
-      const destinationSids = [];
-      const topic = !Array.isArray(publishOptions) ? publishOptions.topic : undefined;
-      if (destination !== undefined) {
-        destination.forEach(val => {
-          if (val instanceof RemoteParticipant) {
-            destinationSids.push(val.sid);
-          } else {
-            destinationSids.push(val);
-          }
-        });
-      }
-      const packet = new DataPacket({
-        kind,
-        value: {
-          case: 'user',
-          value: new UserPacket({
-            participantSid: this.sid,
-            payload: data,
-            destinationSids: destinationSids,
-            topic
-          })
-        }
-      });
-      yield this.engine.sendDataPacket(packet, kind);
-    });
-  }
-  /**
-   * Control who can subscribe to LocalParticipant's published tracks.
-   *
-   * By default, all participants can subscribe. This allows fine-grained control over
-   * who is able to subscribe at a participant and track level.
-   *
-   * Note: if access is given at a track-level (i.e. both [allParticipantsAllowed] and
-   * [ParticipantTrackPermission.allTracksAllowed] are false), any newer published tracks
-   * will not grant permissions to any participants and will require a subsequent
-   * permissions update to allow subscription.
-   *
-   * @param allParticipantsAllowed Allows all participants to subscribe all tracks.
-   *  Takes precedence over [[participantTrackPermissions]] if set to true.
-   *  By default this is set to true.
-   * @param participantTrackPermissions Full list of individual permissions per
-   *  participant/track. Any omitted participants will not receive any permissions.
-   */
-  setTrackSubscriptionPermissions(allParticipantsAllowed) {
-    let participantTrackPermissions = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
-    this.participantTrackPermissions = participantTrackPermissions;
-    this.allParticipantsAllowedToSubscribe = allParticipantsAllowed;
-    if (this.engine.client.isConnected) {
-      this.updateTrackSubscriptionPermissions();
-    }
-  }
-  /** @internal */
-  updateInfo(info) {
-    if (info.sid !== this.sid) {
-      // drop updates that specify a wrong sid.
-      // the sid for local participant is only explicitly set on join and full reconnect
-      return false;
-    }
-    if (!super.updateInfo(info)) {
-      return false;
-    }
-    // reconcile track mute status.
-    // if server's track mute status doesn't match actual, we'll have to update
-    // the server's copy
-    info.tracks.forEach(ti => {
-      var _a, _b;
-      const pub = this.tracks.get(ti.sid);
-      if (pub) {
-        const mutedOnServer = pub.isMuted || ((_b = (_a = pub.track) === null || _a === void 0 ? void 0 : _a.isUpstreamPaused) !== null && _b !== void 0 ? _b : false);
-        if (mutedOnServer !== ti.muted) {
-          livekitLogger.debug('updating server mute state after reconcile', {
-            sid: ti.sid,
-            muted: mutedOnServer
-          });
-          this.engine.client.sendMuteTrack(ti.sid, mutedOnServer);
-        }
-      }
-    });
-    return true;
-  }
-  getPublicationForTrack(track) {
-    let publication;
-    this.tracks.forEach(pub => {
-      const localTrack = pub.track;
-      if (!localTrack) {
-        return;
-      }
-      // this looks overly complicated due to this object tree
-      if (track instanceof MediaStreamTrack) {
-        if (localTrack instanceof LocalAudioTrack || localTrack instanceof LocalVideoTrack) {
-          if (localTrack.mediaStreamTrack === track) {
-            publication = pub;
-          }
-        }
-      } else if (track === localTrack) {
-        publication = pub;
-      }
-    });
-    return publication;
-  }
-  /** @internal */
-  publishedTracksInfo() {
-    const infos = [];
-    this.tracks.forEach(track => {
-      if (track.track !== undefined) {
-        infos.push(new TrackPublishedResponse({
-          cid: track.track.mediaStreamID,
-          track: track.trackInfo
-        }));
-      }
-    });
-    return infos;
-  }
-  /** @internal */
-  dataChannelsInfo() {
-    const infos = [];
-    const getInfo = (dc, target) => {
-      if ((dc === null || dc === void 0 ? void 0 : dc.id) !== undefined && dc.id !== null) {
-        infos.push(new DataChannelInfo({
-          label: dc.label,
-          id: dc.id,
-          target
-        }));
-      }
-    };
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY), SignalTarget.PUBLISHER);
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE), SignalTarget.PUBLISHER);
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.LOSSY, true), SignalTarget.SUBSCRIBER);
-    getInfo(this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE, true), SignalTarget.SUBSCRIBER);
-    return infos;
   }
 }
 
@@ -21149,8 +19498,6 @@ var ConnectionState;
   ConnectionState["Reconnecting"] = "reconnecting";
 })(ConnectionState || (ConnectionState = {}));
 const connectionReconcileFrequency = 2 * 1000;
-/** @deprecated RoomState has been renamed to [[ConnectionState]] */
-const RoomState = ConnectionState;
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
  * Participants in a room can publish tracks, and subscribe to others' tracks.
@@ -21166,7 +19513,7 @@ class Room extends eventsExports.EventEmitter {
    */
   constructor(options) {
     var _this;
-    var _a;
+    var _a, _b;
     super();
     _this = this;
     this.state = ConnectionState.Disconnected;
@@ -21178,13 +19525,24 @@ class Room extends eventsExports.EventEmitter {
     /** reflects the sender encryption status of the local participant */
     this.isE2EEEnabled = false;
     this.audioEnabled = true;
+    this.isVideoPlaybackBlocked = false;
+    this.log = livekitLogger;
+    this.bufferedEvents = [];
+    this.isResuming = false;
     this.connect = (url, token, opts) => __awaiter(this, void 0, void 0, function* () {
-      var _b;
+      var _c;
+      if (!isBrowserSupported()) {
+        if (isReactNative()) {
+          throw Error("WebRTC isn't detected, have you called registerGlobals?");
+        } else {
+          throw Error("LiveKit doesn't seem to be supported on this browser. Try to update your browser and make sure no browser extensions are disabling webRTC.");
+        }
+      }
       // In case a disconnect called happened right before the connect call, make sure the disconnect is completed first by awaiting its lock
       const unlockDisconnect = yield this.disconnectLock.lock();
       if (this.state === ConnectionState.Connected) {
         // when the state is reconnecting or connected, this function returns immediately
-        livekitLogger.info("already connected to room ".concat(this.name));
+        this.log.info("already connected to room ".concat(this.name), this.logContext);
         unlockDisconnect();
         return Promise.resolve();
       }
@@ -21193,7 +19551,7 @@ class Room extends eventsExports.EventEmitter {
         return this.connectFuture.promise;
       }
       this.setAndEmitConnectionState(ConnectionState.Connecting);
-      if (((_b = this.regionUrlProvider) === null || _b === void 0 ? void 0 : _b.getServerUrl().toString()) !== url) {
+      if (((_c = this.regionUrlProvider) === null || _c === void 0 ? void 0 : _c.getServerUrl().toString()) !== url) {
         this.regionUrl = undefined;
         this.regionUrlProvider = undefined;
       }
@@ -21207,13 +19565,13 @@ class Room extends eventsExports.EventEmitter {
         // if initial connection fails, this will speed up picking regional url
         // on subsequent runs
         this.regionUrlProvider.fetchRegionSettings().catch(e => {
-          livekitLogger.warn('could not fetch region settings', {
+          this.log.warn('could not fetch region settings', Object.assign(Object.assign({}, this.logContext), {
             error: e
-          });
+          }));
         });
       }
       const connectFn = (resolve, reject, regionUrl) => __awaiter(this, void 0, void 0, function* () {
-        var _c;
+        var _d;
         if (this.abortController) {
           this.abortController.abort();
         }
@@ -21230,7 +19588,7 @@ class Room extends eventsExports.EventEmitter {
           if (this.regionUrlProvider && e instanceof ConnectionError && e.reason !== 3 /* ConnectionErrorReason.Cancelled */ && e.reason !== 0 /* ConnectionErrorReason.NotAllowed */) {
             let nextUrl = null;
             try {
-              nextUrl = yield this.regionUrlProvider.getNextBestRegionUrl((_c = this.abortController) === null || _c === void 0 ? void 0 : _c.signal);
+              nextUrl = yield this.regionUrlProvider.getNextBestRegionUrl((_d = this.abortController) === null || _d === void 0 ? void 0 : _d.signal);
             } catch (error) {
               if (error instanceof ConnectionError && (error.status === 401 || error.reason === 3 /* ConnectionErrorReason.Cancelled */)) {
                 this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
@@ -21239,7 +19597,8 @@ class Room extends eventsExports.EventEmitter {
               }
             }
             if (nextUrl) {
-              livekitLogger.info("Initial connection failed with ConnectionError: ".concat(e.message, ". Retrying with another region: ").concat(nextUrl));
+              this.log.info("Initial connection failed with ConnectionError: ".concat(e.message, ". Retrying with another region: ").concat(nextUrl), this.logContext);
+              this.recreateEngine();
               yield connectFn(resolve, reject, nextUrl);
             } else {
               this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
@@ -21261,9 +19620,9 @@ class Room extends eventsExports.EventEmitter {
       return this.connectFuture.promise;
     });
     this.connectSignal = (url, token, engine, connectOptions, roomOptions, abortController) => __awaiter(this, void 0, void 0, function* () {
+      var _e, _f, _g;
       const joinResponse = yield engine.join(url, token, {
         autoSubscribe: connectOptions.autoSubscribe,
-        publishOnly: connectOptions.publishOnly,
         adaptiveStream: typeof roomOptions.adaptiveStream === 'object' ? true : roomOptions.adaptiveStream,
         maxRetries: connectOptions.maxRetries,
         e2eeEnabled: !!this.e2eeManager,
@@ -21276,15 +19635,19 @@ class Room extends eventsExports.EventEmitter {
           region: joinResponse.serverRegion
         };
       }
-      livekitLogger.debug("connected to Livekit Server ".concat(Object.entries(serverInfo).map(_ref => {
+      this.log.debug("connected to Livekit Server ".concat(Object.entries(serverInfo).map(_ref => {
         let [key, value] = _ref;
         return "".concat(key, ": ").concat(value);
-      }).join(', ')));
+      }).join(', ')), {
+        room: (_e = joinResponse.room) === null || _e === void 0 ? void 0 : _e.name,
+        roomSid: (_f = joinResponse.room) === null || _f === void 0 ? void 0 : _f.sid,
+        identity: (_g = joinResponse.participant) === null || _g === void 0 ? void 0 : _g.identity
+      });
       if (!joinResponse.serverVersion) {
         throw new UnsupportedServer('unknown server version');
       }
       if (joinResponse.serverVersion === '0.15.1' && this.options.dynacast) {
-        livekitLogger.debug('disabling dynacast due to server version');
+        this.log.debug('disabling dynacast due to server version', this.logContext);
         // dynacast has a bug in 0.15.1, so we cannot use it then
         roomOptions.dynacast = false;
       }
@@ -21294,26 +19657,32 @@ class Room extends eventsExports.EventEmitter {
       const pi = joinResponse.participant;
       this.localParticipant.sid = pi.sid;
       this.localParticipant.identity = pi.identity;
+      if (this.options.e2ee && this.e2eeManager) {
+        try {
+          this.e2eeManager.setSifTrailer(joinResponse.sifTrailer);
+        } catch (e) {
+          this.log.error(e instanceof Error ? e.message : 'Could not set SifTrailer', Object.assign(Object.assign({}, this.logContext), {
+            error: e
+          }));
+        }
+      }
       // populate remote participants, these should not trigger new events
       this.handleParticipantUpdates([pi, ...joinResponse.otherParticipants]);
       if (joinResponse.room) {
         this.handleRoomUpdate(joinResponse.room);
       }
-      if (this.options.e2ee && this.e2eeManager) {
-        this.e2eeManager.setSifTrailer(joinResponse.sifTrailer);
-      }
     };
     this.attemptConnection = (url, token, opts, abortController) => __awaiter(this, void 0, void 0, function* () {
-      var _d, _e;
-      if (this.state === ConnectionState.Reconnecting) {
-        livekitLogger.info('Reconnection attempt replaced by new connection attempt');
+      var _h, _j, _k;
+      if (this.state === ConnectionState.Reconnecting || this.isResuming || ((_h = this.engine) === null || _h === void 0 ? void 0 : _h.pendingReconnect)) {
+        this.log.info('Reconnection attempt replaced by new connection attempt', this.logContext);
         // make sure we close and recreate the existing engine in order to get rid of any potentially ongoing reconnection attempts
         this.recreateEngine();
       } else {
         // create engine if previously disconnected
         this.maybeCreateEngine();
       }
-      if ((_d = this.regionUrlProvider) === null || _d === void 0 ? void 0 : _d.isCloud()) {
+      if ((_j = this.regionUrlProvider) === null || _j === void 0 ? void 0 : _j.isCloud()) {
         this.engine.setRegionUrlProvider(this.regionUrlProvider);
       }
       this.acquireAudioContext();
@@ -21341,9 +19710,9 @@ class Room extends eventsExports.EventEmitter {
           resultingError.reason = err.reason;
           resultingError.status = err.status;
         }
-        livekitLogger.debug("error trying to establish signal connection", {
+        this.log.debug("error trying to establish signal connection", Object.assign(Object.assign({}, this.logContext), {
           error: err
-        });
+        }));
         throw resultingError;
       }
       if (abortController.signal.aborted) {
@@ -21366,7 +19735,7 @@ class Room extends eventsExports.EventEmitter {
       }
       if (isWeb()) {
         document.addEventListener('freeze', this.onPageLeave);
-        (_e = navigator.mediaDevices) === null || _e === void 0 ? void 0 : _e.addEventListener('devicechange', this.handleDeviceChange);
+        (_k = navigator.mediaDevices) === null || _k === void 0 ? void 0 : _k.addEventListener('devicechange', this.handleDeviceChange);
       }
       this.setAndEmitConnectionState(ConnectionState.Connected);
       this.emit(RoomEvent.Connected);
@@ -21376,134 +19745,201 @@ class Room extends eventsExports.EventEmitter {
      * disconnects the room, emits [[RoomEvent.Disconnected]]
      */
     this.disconnect = function () {
-      let stopTracks = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
-      return __awaiter(_this, void 0, void 0, function* () {
-        var _f, _g, _h, _j;
-        const unlock = yield this.disconnectLock.lock();
-        try {
-          if (this.state === ConnectionState.Disconnected) {
-            livekitLogger.debug('already disconnected');
-            return;
+      for (var _len = arguments.length, args_1 = new Array(_len), _key = 0; _key < _len; _key++) {
+        args_1[_key] = arguments[_key];
+      }
+      return __awaiter(_this, [...args_1], void 0, function () {
+        var _this2 = this;
+        let stopTracks = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
+        return function* () {
+          var _l, _m, _o, _p;
+          const unlock = yield _this2.disconnectLock.lock();
+          try {
+            if (_this2.state === ConnectionState.Disconnected) {
+              _this2.log.debug('already disconnected', _this2.logContext);
+              return;
+            }
+            _this2.log.info('disconnect from room', Object.assign({}, _this2.logContext));
+            if (_this2.state === ConnectionState.Connecting || _this2.state === ConnectionState.Reconnecting || _this2.isResuming) {
+              // try aborting pending connection attempt
+              _this2.log.warn('abort connection attempt', _this2.logContext);
+              (_l = _this2.abortController) === null || _l === void 0 ? void 0 : _l.abort();
+              // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
+              (_o = (_m = _this2.connectFuture) === null || _m === void 0 ? void 0 : _m.reject) === null || _o === void 0 ? void 0 : _o.call(_m, new ConnectionError('Client initiated disconnect'));
+              _this2.connectFuture = undefined;
+            }
+            // send leave
+            if (!((_p = _this2.engine) === null || _p === void 0 ? void 0 : _p.client.isDisconnected)) {
+              yield _this2.engine.client.sendLeave();
+            }
+            // close engine (also closes client)
+            if (_this2.engine) {
+              yield _this2.engine.close();
+            }
+            _this2.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
+            /* @ts-ignore */
+            _this2.engine = undefined;
+          } finally {
+            unlock();
           }
-          livekitLogger.info('disconnect from room', {
-            identity: this.localParticipant.identity
-          });
-          if (this.state === ConnectionState.Connecting || this.state === ConnectionState.Reconnecting) {
-            // try aborting pending connection attempt
-            livekitLogger.warn('abort connection attempt');
-            (_f = this.abortController) === null || _f === void 0 ? void 0 : _f.abort();
-            // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
-            (_h = (_g = this.connectFuture) === null || _g === void 0 ? void 0 : _g.reject) === null || _h === void 0 ? void 0 : _h.call(_g, new ConnectionError('Client initiated disconnect'));
-            this.connectFuture = undefined;
-          }
-          // send leave
-          if ((_j = this.engine) === null || _j === void 0 ? void 0 : _j.client.isConnected) {
-            yield this.engine.client.sendLeave();
-          }
-          // close engine (also closes client)
-          if (this.engine) {
-            yield this.engine.close();
-          }
-          this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
-          /* @ts-ignore */
-          this.engine = undefined;
-        } finally {
-          unlock();
-        }
+        }();
       });
     };
     this.onPageLeave = () => __awaiter(this, void 0, void 0, function* () {
+      this.log.info('Page leave detected, disconnecting', this.logContext);
       yield this.disconnect();
+    });
+    /**
+     * Browsers have different policies regarding audio playback. Most requiring
+     * some form of user interaction (click/tap/etc).
+     * In those cases, audio will be silent until a click/tap triggering one of the following
+     * - `startAudio`
+     * - `getUserMedia`
+     */
+    this.startAudio = () => __awaiter(this, void 0, void 0, function* () {
+      const elements = [];
+      const browser = getBrowser();
+      if (browser && browser.os === 'iOS') {
+        /**
+         * iOS blocks audio element playback if
+         * - user is not publishing audio themselves and
+         * - no other audio source is playing
+         *
+         * as a workaround, we create an audio element with an empty track, so that
+         * silent audio is always playing
+         */
+        const audioId = 'livekit-dummy-audio-el';
+        let dummyAudioEl = document.getElementById(audioId);
+        if (!dummyAudioEl) {
+          dummyAudioEl = document.createElement('audio');
+          dummyAudioEl.id = audioId;
+          dummyAudioEl.autoplay = true;
+          dummyAudioEl.hidden = true;
+          const track = getEmptyAudioStreamTrack();
+          track.enabled = true;
+          const stream = new MediaStream([track]);
+          dummyAudioEl.srcObject = stream;
+          document.addEventListener('visibilitychange', () => {
+            if (!dummyAudioEl) {
+              return;
+            }
+            // set the srcObject to null on page hide in order to prevent lock screen controls to show up for it
+            dummyAudioEl.srcObject = document.hidden ? null : stream;
+            if (!document.hidden) {
+              this.log.debug('page visible again, triggering startAudio to resume playback and update playback status', this.logContext);
+              this.startAudio();
+            }
+          });
+          document.body.append(dummyAudioEl);
+          this.once(RoomEvent.Disconnected, () => {
+            dummyAudioEl === null || dummyAudioEl === void 0 ? void 0 : dummyAudioEl.remove();
+            dummyAudioEl = null;
+          });
+        }
+        elements.push(dummyAudioEl);
+      }
+      this.remoteParticipants.forEach(p => {
+        p.audioTrackPublications.forEach(t => {
+          if (t.track) {
+            t.track.attachedElements.forEach(e => {
+              elements.push(e);
+            });
+          }
+        });
+      });
+      try {
+        yield Promise.all([this.acquireAudioContext(), ...elements.map(e => {
+          e.muted = false;
+          return e.play();
+        })]);
+        this.handleAudioPlaybackStarted();
+      } catch (err) {
+        this.handleAudioPlaybackFailed(err);
+        throw err;
+      }
+    });
+    this.startVideo = () => __awaiter(this, void 0, void 0, function* () {
+      const elements = [];
+      for (const p of this.remoteParticipants.values()) {
+        p.videoTrackPublications.forEach(tr => {
+          var _a;
+          (_a = tr.track) === null || _a === void 0 ? void 0 : _a.attachedElements.forEach(el => {
+            if (!elements.includes(el)) {
+              elements.push(el);
+            }
+          });
+        });
+      }
+      yield Promise.all(elements.map(el => el.play())).then(() => {
+        this.handleVideoPlaybackStarted();
+      }).catch(e => {
+        if (e.name === 'NotAllowedError') {
+          this.handleVideoPlaybackFailed();
+        } else {
+          this.log.warn('Resuming video playback failed, make sure you call `startVideo` directly in a user gesture handler', this.logContext);
+        }
+      });
     });
     this.handleRestarting = () => {
       this.clearConnectionReconcile();
+      // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
+      this.isResuming = false;
       // also unwind existing participants & existing subscriptions
-      for (const p of this.participants.values()) {
-        this.handleParticipantDisconnected(p.sid, p);
+      for (const p of this.remoteParticipants.values()) {
+        this.handleParticipantDisconnected(p.identity, p);
       }
       if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
         this.emit(RoomEvent.Reconnecting);
       }
     };
     this.handleSignalRestarted = joinResponse => __awaiter(this, void 0, void 0, function* () {
-      livekitLogger.debug("signal reconnected to server", {
+      this.log.debug("signal reconnected to server, region ".concat(joinResponse.serverRegion), Object.assign(Object.assign({}, this.logContext), {
         region: joinResponse.serverRegion
-      });
-      this.cachedParticipantSids = [];
+      }));
+      this.bufferedEvents = [];
       this.applyJoinResponse(joinResponse);
       try {
         // unpublish & republish tracks
-        const localPubs = [];
-        this.localParticipant.tracks.forEach(pub => {
-          if (pub.track) {
-            localPubs.push(pub);
-          }
-        });
-        yield Promise.all(localPubs.map(pub => __awaiter(this, void 0, void 0, function* () {
-          const track = pub.track;
-          this.localParticipant.unpublishTrack(track, false);
-          if (!track.isMuted) {
-            if ((track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) && track.source !== Track.Source.ScreenShare && track.source !== Track.Source.ScreenShareAudio && !track.isUserProvided) {
-              // we need to restart the track before publishing, often a full reconnect
-              // is necessary because computer had gone to sleep.
-              livekitLogger.debug('restarting existing track', {
-                track: pub.trackSid
-              });
-              yield track.restartTrack();
-            }
-            livekitLogger.debug('publishing new track', {
-              track: pub.trackSid
-            });
-            yield this.localParticipant.publishTrack(track, pub.options);
-          }
-        })));
+        yield this.localParticipant.republishAllTracks(undefined, true);
       } catch (error) {
-        livekitLogger.error('error trying to re-publish tracks after reconnection', {
+        this.log.error('error trying to re-publish tracks after reconnection', Object.assign(Object.assign({}, this.logContext), {
           error
-        });
+        }));
       }
       try {
         yield this.engine.waitForRestarted();
-        livekitLogger.debug("fully reconnected to server", {
+        this.log.debug("fully reconnected to server", Object.assign(Object.assign({}, this.logContext), {
           region: joinResponse.serverRegion
-        });
-      } catch (_k) {
+        }));
+      } catch (_q) {
         // reconnection failed, handleDisconnect is being invoked already, just return here
         return;
       }
       this.setAndEmitConnectionState(ConnectionState.Connected);
       this.emit(RoomEvent.Reconnected);
       this.registerConnectionReconcile();
-      // emit participant connected events after connection has been re-established
-      this.participants.forEach(participant => {
-        this.emit(RoomEvent.ParticipantConnected, participant);
-      });
+      this.emitBufferedEvents();
     });
     this.handleParticipantUpdates = participantInfos => {
       // handle changes to participant state, and send events
       participantInfos.forEach(info => {
+        var _a;
         if (info.identity === this.localParticipant.identity) {
           this.localParticipant.updateInfo(info);
           return;
         }
-        // ensure identity <=> sid mapping
-        const sid = this.identityToSid.get(info.identity);
-        if (sid && sid !== info.sid) {
-          // sid had changed, need to remove previous participant
-          this.handleParticipantDisconnected(sid, this.participants.get(sid));
+        // LiveKit server doesn't send identity info prior to version 1.5.2 in disconnect updates
+        // so we try to map an empty identity to an already known sID manually
+        if (info.identity === '') {
+          info.identity = (_a = this.sidToIdentity.get(info.sid)) !== null && _a !== void 0 ? _a : '';
         }
-        let remoteParticipant = this.participants.get(info.sid);
-        const isNewParticipant = !remoteParticipant;
+        let remoteParticipant = this.remoteParticipants.get(info.identity);
         // when it's disconnected, send updates
         if (info.state === ParticipantInfo_State.DISCONNECTED) {
-          this.handleParticipantDisconnected(info.sid, remoteParticipant);
+          this.handleParticipantDisconnected(info.identity, remoteParticipant);
         } else {
           // create participant if doesn't exist
-          remoteParticipant = this.getOrCreateParticipant(info.sid, info);
-          if (!isNewParticipant) {
-            // just update, no events
-            remoteParticipant.updateInfo(info);
-          }
+          remoteParticipant = this.getOrCreateParticipant(info.identity, info);
         }
       });
     };
@@ -21518,7 +19954,7 @@ class Room extends eventsExports.EventEmitter {
           this.localParticipant.setIsSpeaking(true);
           activeSpeakers.push(this.localParticipant);
         } else {
-          const p = this.participants.get(speaker.sid);
+          const p = this.getRemoteParticipantBySid(speaker.sid);
           if (p) {
             p.audioLevel = speaker.level;
             p.setIsSpeaking(true);
@@ -21530,7 +19966,7 @@ class Room extends eventsExports.EventEmitter {
         this.localParticipant.audioLevel = 0;
         this.localParticipant.setIsSpeaking(false);
       }
-      this.participants.forEach(p => {
+      this.remoteParticipants.forEach(p => {
         if (!seenSids[p.sid]) {
           p.audioLevel = 0;
           p.setIsSpeaking(false);
@@ -21546,7 +19982,7 @@ class Room extends eventsExports.EventEmitter {
         lastSpeakers.set(p.sid, p);
       });
       speakerUpdates.forEach(speaker => {
-        let p = this.participants.get(speaker.sid);
+        let p = this.getRemoteParticipantBySid(speaker.sid);
         if (speaker.sid === this.localParticipant.sid) {
           p = this.localParticipant;
         }
@@ -21568,11 +20004,11 @@ class Room extends eventsExports.EventEmitter {
     };
     this.handleStreamStateUpdate = streamStateUpdate => {
       streamStateUpdate.streamStates.forEach(streamState => {
-        const participant = this.participants.get(streamState.participantSid);
+        const participant = this.getRemoteParticipantBySid(streamState.participantSid);
         if (!participant) {
           return;
         }
-        const pub = participant.getTrackPublication(streamState.trackSid);
+        const pub = participant.getTrackPublicationBySid(streamState.trackSid);
         if (!pub || !pub.track) {
           return;
         }
@@ -21582,22 +20018,22 @@ class Room extends eventsExports.EventEmitter {
       });
     };
     this.handleSubscriptionPermissionUpdate = update => {
-      const participant = this.participants.get(update.participantSid);
+      const participant = this.getRemoteParticipantBySid(update.participantSid);
       if (!participant) {
         return;
       }
-      const pub = participant.getTrackPublication(update.trackSid);
+      const pub = participant.getTrackPublicationBySid(update.trackSid);
       if (!pub) {
         return;
       }
       pub.setAllowed(update.allowed);
     };
     this.handleSubscriptionError = update => {
-      const participant = Array.from(this.participants.values()).find(p => p.tracks.has(update.trackSid));
+      const participant = Array.from(this.remoteParticipants.values()).find(p => p.trackPublications.has(update.trackSid));
       if (!participant) {
         return;
       }
-      const pub = participant.getTrackPublication(update.trackSid);
+      const pub = participant.getTrackPublicationBySid(update.trackSid);
       if (!pub) {
         return;
       }
@@ -21605,7 +20041,7 @@ class Room extends eventsExports.EventEmitter {
     };
     this.handleDataPacket = (userPacket, kind) => {
       // find the participant
-      const participant = this.participants.get(userPacket.participantSid);
+      const participant = this.remoteParticipants.get(userPacket.participantIdentity);
       this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
       // also emit on the participant
       participant === null || participant === void 0 ? void 0 : participant.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
@@ -21618,12 +20054,26 @@ class Room extends eventsExports.EventEmitter {
       this.emit(RoomEvent.AudioPlaybackStatusChanged, true);
     };
     this.handleAudioPlaybackFailed = e => {
-      livekitLogger.warn('could not playback audio', e);
+      this.log.warn('could not playback audio', Object.assign(Object.assign({}, this.logContext), {
+        error: e
+      }));
       if (!this.canPlaybackAudio) {
         return;
       }
       this.audioEnabled = false;
       this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
+    };
+    this.handleVideoPlaybackStarted = () => {
+      if (this.isVideoPlaybackBlocked) {
+        this.isVideoPlaybackBlocked = false;
+        this.emit(RoomEvent.VideoPlaybackStatusChanged, true);
+      }
+    };
+    this.handleVideoPlaybackFailed = () => {
+      if (!this.isVideoPlaybackBlocked) {
+        this.isVideoPlaybackBlocked = true;
+        this.emit(RoomEvent.VideoPlaybackStatusChanged, false);
+      }
     };
     this.handleDeviceChange = () => __awaiter(this, void 0, void 0, function* () {
       this.emit(RoomEvent.MediaDevicesChanged);
@@ -21644,7 +20094,7 @@ class Room extends eventsExports.EventEmitter {
           this.localParticipant.setConnectionQuality(info.quality);
           return;
         }
-        const participant = this.participants.get(info.participantSid);
+        const participant = this.getRemoteParticipantBySid(info.participantSid);
         if (participant) {
           participant.setConnectionQuality(info.quality);
         }
@@ -21662,8 +20112,14 @@ class Room extends eventsExports.EventEmitter {
     this.onLocalTrackUnmuted = pub => {
       this.emit(RoomEvent.TrackUnmuted, pub, this.localParticipant);
     };
+    this.onTrackProcessorUpdate = processor => {
+      var _a;
+      (_a = processor === null || processor === void 0 ? void 0 : processor.onPublish) === null || _a === void 0 ? void 0 : _a.call(processor, this);
+    };
     this.onLocalTrackPublished = pub => __awaiter(this, void 0, void 0, function* () {
-      var _l;
+      var _r, _s, _t, _u, _v;
+      (_r = pub.track) === null || _r === void 0 ? void 0 : _r.on(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
+      (_u = (_t = (_s = pub.track) === null || _s === void 0 ? void 0 : _s.getProcessor()) === null || _t === void 0 ? void 0 : _t.onPublish) === null || _u === void 0 ? void 0 : _u.call(_t, this);
       this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
       if (pub.track instanceof LocalAudioTrack) {
         const trackIsSilent = yield pub.track.checkForSilence();
@@ -21671,7 +20127,7 @@ class Room extends eventsExports.EventEmitter {
           this.emit(RoomEvent.LocalAudioSilenceDetected, pub);
         }
       }
-      const deviceId = yield (_l = pub.track) === null || _l === void 0 ? void 0 : _l.getDeviceId();
+      const deviceId = yield (_v = pub.track) === null || _v === void 0 ? void 0 : _v.getDeviceId();
       const deviceKind = sourceToKind(pub.source);
       if (deviceKind && deviceId && deviceId !== this.localParticipant.activeDeviceMap.get(deviceKind)) {
         this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
@@ -21679,6 +20135,8 @@ class Room extends eventsExports.EventEmitter {
       }
     });
     this.onLocalTrackUnpublished = pub => {
+      var _a;
+      (_a = pub.track) === null || _a === void 0 ? void 0 : _a.off(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
       this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
     };
     this.onLocalConnectionQualityChanged = quality => {
@@ -21691,10 +20149,10 @@ class Room extends eventsExports.EventEmitter {
       this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, this.localParticipant);
     };
     this.setMaxListeners(100);
-    this.participants = new Map();
-    this.cachedParticipantSids = [];
-    this.identityToSid = new Map();
+    this.remoteParticipants = new Map();
+    this.sidToIdentity = new Map();
     this.options = Object.assign(Object.assign({}, roomOptionDefaults), options);
+    this.log = getLogger((_a = this.options.loggerName) !== null && _a !== void 0 ? _a : LoggerNames.Room);
     this.options.audioCaptureDefaults = Object.assign(Object.assign({}, audioDefaults), options === null || options === void 0 ? void 0 : options.audioCaptureDefaults);
     this.options.videoCaptureDefaults = Object.assign(Object.assign({}, videoDefaults), options === null || options === void 0 ? void 0 : options.videoCaptureDefaults);
     this.options.publishDefaults = Object.assign(Object.assign({}, publishDefaults), options === null || options === void 0 ? void 0 : options.publishDefaults);
@@ -21707,8 +20165,8 @@ class Room extends eventsExports.EventEmitter {
     if (this.options.audioCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set('audioinput', unwrapConstraint(this.options.audioCaptureDefaults.deviceId));
     }
-    if ((_a = this.options.audioOutput) === null || _a === void 0 ? void 0 : _a.deviceId) {
-      this.switchActiveDevice('audiooutput', unwrapConstraint(this.options.audioOutput.deviceId));
+    if ((_b = this.options.audioOutput) === null || _b === void 0 ? void 0 : _b.deviceId) {
+      this.switchActiveDevice('audiooutput', unwrapConstraint(this.options.audioOutput.deviceId)).catch(e => this.log.warn("Could not set audio output: ".concat(e.message), this.logContext));
     }
     if (this.options.e2ee) {
       this.setupE2EE();
@@ -21743,6 +20201,15 @@ class Room extends eventsExports.EventEmitter {
       (_a = this.e2eeManager) === null || _a === void 0 ? void 0 : _a.setup(this);
     }
   }
+  get logContext() {
+    var _a;
+    return {
+      room: this.name,
+      roomID: (_a = this.roomInfo) === null || _a === void 0 ? void 0 : _a.sid,
+      participant: this.localParticipant.identity,
+      pID: this.localParticipant.sid
+    };
+  }
   /**
    * if the current room has a participant with `recorder: true` in its JWT grant
    **/
@@ -21750,10 +20217,32 @@ class Room extends eventsExports.EventEmitter {
     var _a, _b;
     return (_b = (_a = this.roomInfo) === null || _a === void 0 ? void 0 : _a.activeRecording) !== null && _b !== void 0 ? _b : false;
   }
-  /** server assigned unique room id */
-  get sid() {
-    var _a, _b;
-    return (_b = (_a = this.roomInfo) === null || _a === void 0 ? void 0 : _a.sid) !== null && _b !== void 0 ? _b : '';
+  /**
+   * server assigned unique room id.
+   * returns once a sid has been issued by the server.
+   */
+  getSid() {
+    return __awaiter(this, void 0, void 0, function* () {
+      if (this.state === ConnectionState.Disconnected) {
+        return '';
+      }
+      if (this.roomInfo && this.roomInfo.sid !== '') {
+        return this.roomInfo.sid;
+      }
+      return new Promise((resolve, reject) => {
+        const handleRoomUpdate = roomInfo => {
+          if (roomInfo.sid !== '') {
+            this.engine.off(EngineEvent.RoomUpdate, handleRoomUpdate);
+            resolve(roomInfo.sid);
+          }
+        };
+        this.engine.on(EngineEvent.RoomUpdate, handleRoomUpdate);
+        this.once(RoomEvent.Disconnected, () => {
+          this.engine.off(EngineEvent.RoomUpdate, handleRoomUpdate);
+          reject('Room disconnected before room server id was available');
+        });
+      });
+    });
   }
   /** user assigned name, derived from JWT token */
   get name() {
@@ -21784,24 +20273,24 @@ class Room extends eventsExports.EventEmitter {
       this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, reason);
     }).on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate).on(EngineEvent.DataPacketReceived, this.handleDataPacket).on(EngineEvent.Resuming, () => {
       this.clearConnectionReconcile();
+      this.isResuming = true;
+      this.log.info('Resuming signal connection', this.logContext);
+    }).on(EngineEvent.Resumed, () => {
+      this.registerConnectionReconcile();
+      this.isResuming = false;
+      this.log.info('Resumed signal connection', this.logContext);
+      this.updateSubscriptions();
+      this.emitBufferedEvents();
+    }).on(EngineEvent.SignalResumed, () => {
+      this.bufferedEvents = [];
+      if (this.state === ConnectionState.Reconnecting || this.isResuming) {
+        this.sendSyncState();
+      }
+    }).on(EngineEvent.Restarting, this.handleRestarting).on(EngineEvent.SignalRestarted, this.handleSignalRestarted).on(EngineEvent.Offline, () => {
       if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
         this.emit(RoomEvent.Reconnecting);
       }
-      this.cachedParticipantSids = Array.from(this.participants.keys());
-    }).on(EngineEvent.Resumed, () => {
-      this.setAndEmitConnectionState(ConnectionState.Connected);
-      this.emit(RoomEvent.Reconnected);
-      this.registerConnectionReconcile();
-      this.updateSubscriptions();
-      // once reconnected, figure out if any participants connected during reconnect and emit events for it
-      const diffParticipants = Array.from(this.participants.values()).filter(p => !this.cachedParticipantSids.includes(p.sid));
-      diffParticipants.forEach(p => this.emit(RoomEvent.ParticipantConnected, p));
-      this.cachedParticipantSids = [];
-    }).on(EngineEvent.SignalResumed, () => {
-      if (this.state === ConnectionState.Reconnecting) {
-        this.sendSyncState();
-      }
-    }).on(EngineEvent.Restarting, this.handleRestarting).on(EngineEvent.SignalRestarted, this.handleSignalRestarted).on(EngineEvent.DCBufferStatusChanged, (status, kind) => {
+    }).on(EngineEvent.DCBufferStatusChanged, (status, kind) => {
       this.emit(RoomEvent.DCBufferStatusChanged, status, kind);
     });
     if (this.localParticipant) {
@@ -21837,7 +20326,7 @@ class Room extends eventsExports.EventEmitter {
       if (this.state !== ConnectionState.Disconnected) {
         return;
       }
-      livekitLogger.debug("prepareConnection to ".concat(url));
+      this.log.debug("prepareConnection to ".concat(url), this.logContext);
       try {
         if (isCloud(new URL(url)) && token) {
           this.regionUrlProvider = new RegionUrlProvider(url, token);
@@ -21849,7 +20338,7 @@ class Room extends eventsExports.EventEmitter {
             yield fetch(toHttpUrl(regionUrl), {
               method: 'HEAD'
             });
-            livekitLogger.debug("prepared connection to ".concat(regionUrl));
+            this.log.debug("prepared connection to ".concat(regionUrl), this.logContext);
           }
         } else {
           yield fetch(toHttpUrl(url), {
@@ -21857,9 +20346,9 @@ class Room extends eventsExports.EventEmitter {
           });
         }
       } catch (e) {
-        livekitLogger.warn('could not prepare connection', {
+        this.log.warn('could not prepare connection', Object.assign(Object.assign({}, this.logContext), {
           error: e
-        });
+        }));
       }
     });
   }
@@ -21872,10 +20361,7 @@ class Room extends eventsExports.EventEmitter {
     if (this.localParticipant.identity === identity) {
       return this.localParticipant;
     }
-    const sid = this.identityToSid.get(identity);
-    if (sid) {
-      return this.participants.get(sid);
-    }
+    return this.remoteParticipants.get(identity);
   }
   clearConnectionFutures() {
     this.connectFuture = undefined;
@@ -21929,6 +20415,30 @@ class Room extends eventsExports.EventEmitter {
           // @ts-expect-error function is private
           yield this.engine.client.handleOnClose('simulate resume-disconnect');
           break;
+        case 'disconnect-signal-on-resume':
+          postAction = () => __awaiter(this, void 0, void 0, function* () {
+            // @ts-expect-error function is private
+            yield this.engine.client.handleOnClose('simulate resume-disconnect');
+          });
+          req = new SimulateScenario({
+            scenario: {
+              case: 'disconnectSignalOnResume',
+              value: true
+            }
+          });
+          break;
+        case 'disconnect-signal-on-resume-no-messages':
+          postAction = () => __awaiter(this, void 0, void 0, function* () {
+            // @ts-expect-error function is private
+            yield this.engine.client.handleOnClose('simulate resume-disconnect');
+          });
+          req = new SimulateScenario({
+            scenario: {
+              case: 'disconnectSignalOnResumeNoMessages',
+              value: true
+            }
+          });
+          break;
         case 'full-reconnect':
           this.engine.fullReconnectOnNext = true;
           // @ts-expect-error function is private
@@ -21965,74 +20475,8 @@ class Room extends eventsExports.EventEmitter {
           break;
       }
       if (req) {
-        this.engine.client.sendSimulateScenario(req);
-        postAction();
-      }
-    });
-  }
-  /**
-   * Browsers have different policies regarding audio playback. Most requiring
-   * some form of user interaction (click/tap/etc).
-   * In those cases, audio will be silent until a click/tap triggering one of the following
-   * - `startAudio`
-   * - `getUserMedia`
-   */
-  startAudio() {
-    return __awaiter(this, void 0, void 0, function* () {
-      const elements = [];
-      const browser = getBrowser();
-      if (browser && browser.os === 'iOS') {
-        /**
-         * iOS blocks audio element playback if
-         * - user is not publishing audio themselves and
-         * - no other audio source is playing
-         *
-         * as a workaround, we create an audio element with an empty track, so that
-         * silent audio is always playing
-         */
-        const audioId = 'livekit-dummy-audio-el';
-        let dummyAudioEl = document.getElementById(audioId);
-        if (!dummyAudioEl) {
-          dummyAudioEl = document.createElement('audio');
-          dummyAudioEl.id = audioId;
-          dummyAudioEl.autoplay = true;
-          dummyAudioEl.hidden = true;
-          const track = getEmptyAudioStreamTrack();
-          track.enabled = true;
-          const stream = new MediaStream([track]);
-          dummyAudioEl.srcObject = stream;
-          document.addEventListener('visibilitychange', () => {
-            if (!dummyAudioEl) {
-              return;
-            }
-            // set the srcObject to null on page hide in order to prevent lock screen controls to show up for it
-            dummyAudioEl.srcObject = document.hidden ? null : stream;
-          });
-          document.body.append(dummyAudioEl);
-          this.once(RoomEvent.Disconnected, () => {
-            dummyAudioEl === null || dummyAudioEl === void 0 ? void 0 : dummyAudioEl.remove();
-          });
-        }
-        elements.push(dummyAudioEl);
-      }
-      this.participants.forEach(p => {
-        p.audioTracks.forEach(t => {
-          if (t.track) {
-            t.track.attachedElements.forEach(e => {
-              elements.push(e);
-            });
-          }
-        });
-      });
-      try {
-        yield Promise.all([this.acquireAudioContext(), ...elements.map(e => {
-          e.muted = false;
-          return e.play();
-        })]);
-        this.handleAudioPlaybackStarted();
-      } catch (err) {
-        this.handleAudioPlaybackFailed(err);
-        throw err;
+        yield this.engine.client.sendSimulateScenario(req);
+        yield postAction();
       }
     });
   }
@@ -22043,13 +20487,10 @@ class Room extends eventsExports.EventEmitter {
     return this.audioEnabled;
   }
   /**
-   * Returns the active audio output device used in this room.
-   * @return the previously successfully set audio output device ID or an empty string if the default device is used.
-   * @deprecated use `getActiveDevice('audiooutput')` instead
+   * Returns true if video playback is enabled
    */
-  getActiveAudioOutputDevice() {
-    var _a, _b;
-    return (_b = (_a = this.options.audioOutput) === null || _a === void 0 ? void 0 : _a.deviceId) !== null && _b !== void 0 ? _b : '';
+  get canPlaybackVideo() {
+    return !this.isVideoPlaybackBlocked;
   }
   getActiveDevice(kind) {
     return this.localParticipant.activeDeviceMap.get(kind);
@@ -22064,84 +20505,94 @@ class Room extends eventsExports.EventEmitter {
    *  `audiooutput` to set speaker for all incoming audio tracks
    * @param deviceId
    */
-  switchActiveDevice(kind, deviceId) {
-    let exact = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
-    var _a, _b;
-    var _c;
-    return __awaiter(this, void 0, void 0, function* () {
-      let deviceHasChanged = false;
-      let success = true;
-      const deviceConstraint = exact ? {
-        exact: deviceId
-      } : deviceId;
-      if (kind === 'audioinput') {
-        const prevDeviceId = this.options.audioCaptureDefaults.deviceId;
-        this.options.audioCaptureDefaults.deviceId = deviceConstraint;
-        deviceHasChanged = prevDeviceId !== deviceConstraint;
-        const tracks = Array.from(this.localParticipant.audioTracks.values()).filter(track => track.source === Track.Source.Microphone);
-        try {
-          success = (yield Promise.all(tracks.map(t => {
-            var _a;
-            return (_a = t.audioTrack) === null || _a === void 0 ? void 0 : _a.setDeviceId(deviceConstraint);
-          }))).every(val => val === true);
-        } catch (e) {
-          this.options.audioCaptureDefaults.deviceId = prevDeviceId;
-          throw e;
-        }
-      } else if (kind === 'videoinput') {
-        const prevDeviceId = this.options.videoCaptureDefaults.deviceId;
-        this.options.videoCaptureDefaults.deviceId = deviceConstraint;
-        deviceHasChanged = prevDeviceId !== deviceConstraint;
-        const tracks = Array.from(this.localParticipant.videoTracks.values()).filter(track => track.source === Track.Source.Camera);
-        try {
-          success = (yield Promise.all(tracks.map(t => {
-            var _a;
-            return (_a = t.videoTrack) === null || _a === void 0 ? void 0 : _a.setDeviceId(deviceConstraint);
-          }))).every(val => val === true);
-        } catch (e) {
-          this.options.videoCaptureDefaults.deviceId = prevDeviceId;
-          throw e;
-        }
-      } else if (kind === 'audiooutput') {
-        if (!supportsSetSinkId() && !this.options.expWebAudioMix || this.options.expWebAudioMix && this.audioContext && !('setSinkId' in this.audioContext)) {
-          throw new Error('cannot switch audio output, setSinkId not supported');
-        }
-        (_a = (_c = this.options).audioOutput) !== null && _a !== void 0 ? _a : _c.audioOutput = {};
-        const prevDeviceId = this.options.audioOutput.deviceId;
-        this.options.audioOutput.deviceId = deviceId;
-        deviceHasChanged = prevDeviceId !== deviceConstraint;
-        try {
-          if (this.options.expWebAudioMix) {
-            // @ts-expect-error setSinkId is not yet in the typescript type of AudioContext
-            (_b = this.audioContext) === null || _b === void 0 ? void 0 : _b.setSinkId(deviceId);
-          } else {
-            yield Promise.all(Array.from(this.participants.values()).map(p => p.setAudioOutput({
-              deviceId
-            })));
+  switchActiveDevice(kind_1, deviceId_1) {
+    return __awaiter(this, arguments, void 0, function (kind, deviceId) {
+      var _this3 = this;
+      let exact = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+      return function* () {
+        var _a, _b, _c;
+        var _d;
+        let deviceHasChanged = false;
+        let success = true;
+        const deviceConstraint = exact ? {
+          exact: deviceId
+        } : deviceId;
+        if (kind === 'audioinput') {
+          const prevDeviceId = _this3.options.audioCaptureDefaults.deviceId;
+          _this3.options.audioCaptureDefaults.deviceId = deviceConstraint;
+          deviceHasChanged = prevDeviceId !== deviceConstraint;
+          const tracks = Array.from(_this3.localParticipant.audioTrackPublications.values()).filter(track => track.source === Track.Source.Microphone);
+          try {
+            success = (yield Promise.all(tracks.map(t => {
+              var _a;
+              return (_a = t.audioTrack) === null || _a === void 0 ? void 0 : _a.setDeviceId(deviceConstraint);
+            }))).every(val => val === true);
+          } catch (e) {
+            _this3.options.audioCaptureDefaults.deviceId = prevDeviceId;
+            throw e;
           }
-        } catch (e) {
-          this.options.audioOutput.deviceId = prevDeviceId;
-          throw e;
+        } else if (kind === 'videoinput') {
+          const prevDeviceId = _this3.options.videoCaptureDefaults.deviceId;
+          _this3.options.videoCaptureDefaults.deviceId = deviceConstraint;
+          deviceHasChanged = prevDeviceId !== deviceConstraint;
+          const tracks = Array.from(_this3.localParticipant.videoTrackPublications.values()).filter(track => track.source === Track.Source.Camera);
+          try {
+            success = (yield Promise.all(tracks.map(t => {
+              var _a;
+              return (_a = t.videoTrack) === null || _a === void 0 ? void 0 : _a.setDeviceId(deviceConstraint);
+            }))).every(val => val === true);
+          } catch (e) {
+            _this3.options.videoCaptureDefaults.deviceId = prevDeviceId;
+            throw e;
+          }
+        } else if (kind === 'audiooutput') {
+          if (!supportsSetSinkId() && !_this3.options.webAudioMix || _this3.options.webAudioMix && _this3.audioContext && !('setSinkId' in _this3.audioContext)) {
+            throw new Error('cannot switch audio output, setSinkId not supported');
+          }
+          if (_this3.options.webAudioMix) {
+            // setting `default` for web audio output doesn't work, so we need to normalize the id before
+            deviceId = (_a = yield DeviceManager.getInstance().normalizeDeviceId('audiooutput', deviceId)) !== null && _a !== void 0 ? _a : '';
+          }
+          (_b = (_d = _this3.options).audioOutput) !== null && _b !== void 0 ? _b : _d.audioOutput = {};
+          const prevDeviceId = _this3.options.audioOutput.deviceId;
+          _this3.options.audioOutput.deviceId = deviceId;
+          deviceHasChanged = prevDeviceId !== deviceConstraint;
+          try {
+            if (_this3.options.webAudioMix) {
+              // @ts-expect-error setSinkId is not yet in the typescript type of AudioContext
+              (_c = _this3.audioContext) === null || _c === void 0 ? void 0 : _c.setSinkId(deviceId);
+            } else {
+              yield Promise.all(Array.from(_this3.remoteParticipants.values()).map(p => p.setAudioOutput({
+                deviceId
+              })));
+            }
+          } catch (e) {
+            _this3.options.audioOutput.deviceId = prevDeviceId;
+            throw e;
+          }
         }
-      }
-      if (deviceHasChanged && success) {
-        this.localParticipant.activeDeviceMap.set(kind, deviceId);
-        this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
-      }
-      return success;
+        if (deviceHasChanged && success) {
+          _this3.localParticipant.activeDeviceMap.set(kind, deviceId);
+          _this3.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
+        }
+        return success;
+      }();
     });
   }
   setupLocalParticipantEvents() {
-    this.localParticipant.on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged).on(ParticipantEvent.ParticipantNameChanged, this.onLocalParticipantNameChanged).on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted).on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted).on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished).on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished).on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged).on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError).on(ParticipantEvent.ParticipantPermissionsChanged, this.onLocalParticipantPermissionsChanged);
+    this.localParticipant.on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged).on(ParticipantEvent.ParticipantNameChanged, this.onLocalParticipantNameChanged).on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted).on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted).on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished).on(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished).on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged).on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError).on(ParticipantEvent.AudioStreamAcquired, this.startAudio).on(ParticipantEvent.ParticipantPermissionsChanged, this.onLocalParticipantPermissionsChanged);
   }
   recreateEngine() {
     var _a;
     (_a = this.engine) === null || _a === void 0 ? void 0 : _a.close();
     /* @ts-ignore */
     this.engine = undefined;
+    this.isResuming = false;
     // clear out existing remote participants, since they may have attached
     // the old engine
-    this.participants.clear();
+    this.remoteParticipants.clear();
+    this.sidToIdentity.clear();
+    this.bufferedEvents = [];
     this.maybeCreateEngine();
   }
   onTrackAdded(mediaTrack, stream, receiver) {
@@ -22166,23 +20617,23 @@ class Room extends eventsExports.EventEmitter {
       return;
     }
     if (this.state === ConnectionState.Disconnected) {
-      livekitLogger.warn('skipping incoming track after Room disconnected');
+      this.log.warn('skipping incoming track after Room disconnected', this.logContext);
       return;
     }
     const parts = unpackStreamId(stream.id);
-    const participantId = parts[0];
+    const participantSid = parts[0];
     let streamId = parts[1];
     let trackId = mediaTrack.id;
     // firefox will get streamId (pID|trackId) instead of (pID|streamId) as it doesn't support sync tracks by stream
     // and generates its own track id instead of infer from sdp track id.
     if (streamId && streamId.startsWith('TR')) trackId = streamId;
-    if (participantId === this.localParticipant.sid) {
-      livekitLogger.warn('tried to create RemoteParticipant for local participant');
+    if (participantSid === this.localParticipant.sid) {
+      this.log.warn('tried to create RemoteParticipant for local participant', this.logContext);
       return;
     }
-    const participant = this.participants.get(participantId);
+    const participant = Array.from(this.remoteParticipants.values()).find(p => p.sid === participantSid);
     if (!participant) {
-      livekitLogger.error("Tried to add a track for a participant, that's not present. Sid: ".concat(participantId));
+      this.log.error("Tried to add a track for a participant, that's not present. Sid: ".concat(participantSid), this.logContext);
       return;
     }
     let adaptiveStreamSettings;
@@ -22200,17 +20651,19 @@ class Room extends eventsExports.EventEmitter {
     let reason = arguments.length > 1 ? arguments[1] : undefined;
     var _a;
     this.clearConnectionReconcile();
+    this.isResuming = false;
+    this.bufferedEvents = [];
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
     this.regionUrl = undefined;
     try {
-      this.participants.forEach(p => {
-        p.tracks.forEach(pub => {
+      this.remoteParticipants.forEach(p => {
+        p.trackPublications.forEach(pub => {
           p.unpublishTrack(pub.trackSid);
         });
       });
-      this.localParticipant.tracks.forEach(pub => {
+      this.localParticipant.trackPublications.forEach(pub => {
         var _a, _b;
         if (pub.track) {
           this.localParticipant.unpublishTrack(pub.track, shouldStopTracks);
@@ -22220,13 +20673,14 @@ class Room extends eventsExports.EventEmitter {
           (_b = pub.track) === null || _b === void 0 ? void 0 : _b.stop();
         }
       });
-      this.localParticipant.off(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged).off(ParticipantEvent.ParticipantNameChanged, this.onLocalParticipantNameChanged).off(ParticipantEvent.TrackMuted, this.onLocalTrackMuted).off(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted).off(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished).off(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished).off(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged).off(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError).off(ParticipantEvent.ParticipantPermissionsChanged, this.onLocalParticipantPermissionsChanged);
-      this.localParticipant.tracks.clear();
-      this.localParticipant.videoTracks.clear();
-      this.localParticipant.audioTracks.clear();
-      this.participants.clear();
+      this.localParticipant.off(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged).off(ParticipantEvent.ParticipantNameChanged, this.onLocalParticipantNameChanged).off(ParticipantEvent.TrackMuted, this.onLocalTrackMuted).off(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted).off(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished).off(ParticipantEvent.LocalTrackUnpublished, this.onLocalTrackUnpublished).off(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged).off(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError).off(ParticipantEvent.AudioStreamAcquired, this.startAudio).off(ParticipantEvent.ParticipantPermissionsChanged, this.onLocalParticipantPermissionsChanged);
+      this.localParticipant.trackPublications.clear();
+      this.localParticipant.videoTrackPublications.clear();
+      this.localParticipant.audioTrackPublications.clear();
+      this.remoteParticipants.clear();
+      this.sidToIdentity.clear();
       this.activeSpeakers = [];
-      if (this.audioContext && typeof this.options.expWebAudioMix === 'boolean') {
+      if (this.audioContext && typeof this.options.webAudioMix === 'boolean') {
         this.audioContext.close();
         this.audioContext = undefined;
       }
@@ -22241,24 +20695,23 @@ class Room extends eventsExports.EventEmitter {
       this.emit(RoomEvent.Disconnected, reason);
     }
   }
-  handleParticipantDisconnected(sid, participant) {
+  handleParticipantDisconnected(identity, participant) {
     // remove and send event
-    this.participants.delete(sid);
+    this.remoteParticipants.delete(identity);
     if (!participant) {
       return;
     }
-    this.identityToSid.delete(participant.identity);
-    participant.tracks.forEach(publication => {
+    participant.trackPublications.forEach(publication => {
       participant.unpublishTrack(publication.trackSid, true);
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
   }
   acquireAudioContext() {
-    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
-      if (typeof this.options.expWebAudioMix !== 'boolean' && this.options.expWebAudioMix.audioContext) {
+      var _a, _b;
+      if (typeof this.options.webAudioMix !== 'boolean' && this.options.webAudioMix.audioContext) {
         // override audio context with custom audio context if supplied by user
-        this.audioContext = this.options.expWebAudioMix.audioContext;
+        this.audioContext = this.options.webAudioMix.audioContext;
       } else if (!this.audioContext || this.audioContext.state === 'closed') {
         // by using an AudioContext, it reduces lag on audio elements
         // https://stackoverflow.com/questions/9811429/html5-audio-tag-on-safari-has-a-delay/54119854#54119854
@@ -22270,11 +20723,13 @@ class Room extends eventsExports.EventEmitter {
         try {
           yield this.audioContext.resume();
         } catch (e) {
-          livekitLogger.warn(e);
+          this.log.warn('Could not resume audio context', Object.assign(Object.assign({}, this.logContext), {
+            error: e
+          }));
         }
       }
-      if (this.options.expWebAudioMix) {
-        this.participants.forEach(participant => participant.setAudioContext(this.audioContext));
+      if (this.options.webAudioMix) {
+        this.remoteParticipants.forEach(participant => participant.setAudioContext(this.audioContext));
       }
       this.localParticipant.setAudioContext(this.audioContext);
       const newContextIsRunning = ((_b = this.audioContext) === null || _b === void 0 ? void 0 : _b.state) === 'running';
@@ -22284,25 +20739,39 @@ class Room extends eventsExports.EventEmitter {
       }
     });
   }
-  createParticipant(id, info) {
+  createParticipant(identity, info) {
+    var _a;
     let participant;
     if (info) {
       participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info);
     } else {
-      participant = new RemoteParticipant(this.engine.client, id, '', undefined, undefined);
+      participant = new RemoteParticipant(this.engine.client, '', identity, undefined, undefined, {
+        loggerContextCb: () => this.logContext,
+        loggerName: this.options.loggerName
+      });
     }
-    if (this.options.expWebAudioMix) {
+    if (this.options.webAudioMix) {
       participant.setAudioContext(this.audioContext);
+    }
+    if ((_a = this.options.audioOutput) === null || _a === void 0 ? void 0 : _a.deviceId) {
+      participant.setAudioOutput(this.options.audioOutput).catch(e => this.log.warn("Could not set audio output: ".concat(e.message), this.logContext));
     }
     return participant;
   }
-  getOrCreateParticipant(id, info) {
-    if (this.participants.has(id)) {
-      return this.participants.get(id);
+  getOrCreateParticipant(identity, info) {
+    if (this.remoteParticipants.has(identity)) {
+      const existingParticipant = this.remoteParticipants.get(identity);
+      if (info) {
+        const wasUpdated = existingParticipant.updateInfo(info);
+        if (wasUpdated) {
+          this.sidToIdentity.set(info.sid, info.identity);
+        }
+      }
+      return existingParticipant;
     }
-    const participant = this.createParticipant(id, info);
-    this.participants.set(id, participant);
-    this.identityToSid.set(info.identity, info.sid);
+    const participant = this.createParticipant(identity, info);
+    this.remoteParticipants.set(identity, participant);
+    this.sidToIdentity.set(info.sid, info.identity);
     // if we have valid info and the participant wasn't in the map before, we can assume the participant is new
     // firing here to make sure that `ParticipantConnected` fires before the initial track events
     this.emitWhenConnected(RoomEvent.ParticipantConnected, participant);
@@ -22316,6 +20785,9 @@ class Room extends eventsExports.EventEmitter {
       if (track.kind === Track.Kind.Audio) {
         track.on(TrackEvent.AudioPlaybackStarted, this.handleAudioPlaybackStarted);
         track.on(TrackEvent.AudioPlaybackFailed, this.handleAudioPlaybackFailed);
+      } else if (track.kind === Track.Kind.Video) {
+        track.on(TrackEvent.VideoPlaybackFailed, this.handleVideoPlaybackFailed);
+        track.on(TrackEvent.VideoPlaybackStarted, this.handleVideoPlaybackStarted);
       }
       this.emit(RoomEvent.TrackSubscribed, track, publication, participant);
     }).on(ParticipantEvent.TrackUnpublished, publication => {
@@ -22350,55 +20822,30 @@ class Room extends eventsExports.EventEmitter {
     return participant;
   }
   sendSyncState() {
-    var _a, _b, _c, _d;
-    const previousAnswer = (_a = this.engine.subscriber) === null || _a === void 0 ? void 0 : _a.getLocalDescription();
-    const previousOffer = (_b = this.engine.subscriber) === null || _b === void 0 ? void 0 : _b.getRemoteDescription();
-    if (!previousAnswer) {
-      return;
-    }
-    /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
-          in this case, we send unsub tracks, so server add all tracks to this
-          subscribe pc and unsub special tracks from it.
-       2. autosubscribe off, we send subscribed tracks.
-    */
-    const autoSubscribe = (_d = (_c = this.connOptions) === null || _c === void 0 ? void 0 : _c.autoSubscribe) !== null && _d !== void 0 ? _d : true;
-    const trackSids = new Array();
-    this.participants.forEach(participant => {
-      participant.tracks.forEach(track => {
-        if (track.isDesired !== autoSubscribe) {
-          trackSids.push(track.trackSid);
-        }
-      });
-    });
-    this.engine.client.sendSyncState(new SyncState({
-      answer: toProtoSessionDescription({
-        sdp: previousAnswer.sdp,
-        type: previousAnswer.type
-      }),
-      offer: previousOffer ? toProtoSessionDescription({
-        sdp: previousOffer.sdp,
-        type: previousOffer.type
-      }) : undefined,
-      subscription: new UpdateSubscription({
-        trackSids,
-        subscribe: !autoSubscribe,
-        participantTracks: []
-      }),
-      publishTracks: this.localParticipant.publishedTracksInfo(),
-      dataChannels: this.localParticipant.dataChannelsInfo()
-    }));
+    const remoteTracks = Array.from(this.remoteParticipants.values()).reduce((acc, participant) => {
+      acc.push(...participant.getTrackPublications()); // FIXME would be nice to have this return RemoteTrackPublications directly instead of the type cast
+      return acc;
+    }, []);
+    const localTracks = this.localParticipant.getTrackPublications(); // FIXME would be nice to have this return LocalTrackPublications directly instead of the type cast
+    this.engine.sendSyncState(remoteTracks, localTracks);
   }
   /**
    * After resuming, we'll need to notify the server of the current
    * subscription settings.
    */
   updateSubscriptions() {
-    for (const p of this.participants.values()) {
-      for (const pub of p.videoTracks.values()) {
+    for (const p of this.remoteParticipants.values()) {
+      for (const pub of p.videoTrackPublications.values()) {
         if (pub.isSubscribed && pub instanceof RemoteTrackPublication) {
           pub.emitTrackUpdate();
         }
       }
+    }
+  }
+  getRemoteParticipantBySid(sid) {
+    const identity = this.sidToIdentity.get(sid);
+    if (identity) {
+      return this.remoteParticipants.get(identity);
     }
   }
   registerConnectionReconcile() {
@@ -22413,9 +20860,13 @@ class Room extends eventsExports.EventEmitter {
       // transports failed without notifying engine
       !this.engine.verifyTransport()) {
         consecutiveFailures++;
-        livekitLogger.warn('detected connection state mismatch', {
-          numFailures: consecutiveFailures
-        });
+        this.log.warn('detected connection state mismatch', Object.assign(Object.assign({}, this.logContext), {
+          numFailures: consecutiveFailures,
+          engine: {
+            closed: this.engine.isClosed,
+            transportsConnected: this.engine.verifyTransport()
+          }
+        }));
         if (consecutiveFailures >= 3) {
           this.recreateEngine();
           this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, DisconnectReason.STATE_MISMATCH);
@@ -22439,11 +20890,21 @@ class Room extends eventsExports.EventEmitter {
     this.emit(RoomEvent.ConnectionStateChanged, this.state);
     return true;
   }
+  emitBufferedEvents() {
+    this.bufferedEvents.forEach(_ref2 => {
+      let [ev, args] = _ref2;
+      this.emit(ev, ...args);
+    });
+    this.bufferedEvents = [];
+  }
   emitWhenConnected(event) {
-    if (this.state === ConnectionState.Connected) {
-      for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-        args[_key - 1] = arguments[_key];
-      }
+    for (var _len2 = arguments.length, args = new Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
+      args[_key2 - 1] = arguments[_key2];
+    }
+    if (this.state === ConnectionState.Reconnecting || this.isResuming || !this.engine || this.engine.pendingReconnect) {
+      // in case the room is reconnecting, buffer the events by firing them later after emitting RoomEvent.Reconnected
+      this.bufferedEvents.push([event, args]);
+    } else if (this.state === ConnectionState.Connected) {
       return this.emit(event, ...args);
     }
     return false;
@@ -22454,8 +20915,8 @@ class Room extends eventsExports.EventEmitter {
    * @experimental
    */
   simulateParticipants(options) {
-    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b;
       const publishOptions = Object.assign({
         audio: true,
         video: true,
@@ -22497,7 +20958,13 @@ class Room extends eventsExports.EventEmitter {
           name: 'video-dummy'
         }), new LocalVideoTrack(publishOptions.useRealTracks ? (yield window.navigator.mediaDevices.getUserMedia({
           video: true
-        })).getVideoTracks()[0] : createDummyVideoStreamTrack((_a = 160 * participantOptions.aspectRatios[0]) !== null && _a !== void 0 ? _a : 1, 160, true, true)));
+        })).getVideoTracks()[0] : createDummyVideoStreamTrack(160 * ((_a = participantOptions.aspectRatios[0]) !== null && _a !== void 0 ? _a : 1), 160, true, true), undefined, false, {
+          loggerName: this.options.loggerName,
+          loggerContextCb: () => this.logContext
+        }), {
+          loggerName: this.options.loggerName,
+          loggerContextCb: () => this.logContext
+        });
         // @ts-ignore
         this.localParticipant.addTrackPublication(camPub);
         this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, camPub);
@@ -22509,7 +20976,13 @@ class Room extends eventsExports.EventEmitter {
           type: TrackType.AUDIO
         }), new LocalAudioTrack(publishOptions.useRealTracks ? (yield navigator.mediaDevices.getUserMedia({
           audio: true
-        })).getAudioTracks()[0] : getEmptyAudioStreamTrack()));
+        })).getAudioTracks()[0] : getEmptyAudioStreamTrack(), undefined, false, this.audioContext, {
+          loggerName: this.options.loggerName,
+          loggerContextCb: () => this.logContext
+        }), {
+          loggerName: this.options.loggerName,
+          loggerContextCb: () => this.logContext
+        });
         // @ts-ignore
         this.localParticipant.addTrackPublication(audioPub);
         this.localParticipant.emit(ParticipantEvent.LocalTrackPublished, audioPub);
@@ -22524,7 +20997,7 @@ class Room extends eventsExports.EventEmitter {
         });
         const p = this.getOrCreateParticipant(info.identity, info);
         if (participantOptions.video) {
-          const dummyVideo = createDummyVideoStreamTrack((_b = 160 * participantOptions.aspectRatios[i % participantOptions.aspectRatios.length]) !== null && _b !== void 0 ? _b : 1, 160, false, true);
+          const dummyVideo = createDummyVideoStreamTrack(160 * ((_b = participantOptions.aspectRatios[i % participantOptions.aspectRatios.length]) !== null && _b !== void 0 ? _b : 1), 160, false, true);
           const videoTrack = new TrackInfo({
             source: TrackSource.CAMERA,
             sid: Math.floor(Math.random() * 10000).toString(),
@@ -22549,18 +21022,34 @@ class Room extends eventsExports.EventEmitter {
   }
   // /** @internal */
   emit(event) {
-    for (var _len2 = arguments.length, args = new Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
-      args[_key2 - 1] = arguments[_key2];
+    for (var _len3 = arguments.length, args = new Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
+      args[_key3 - 1] = arguments[_key3];
     }
     // active speaker updates are too spammy
     if (event !== RoomEvent.ActiveSpeakersChanged) {
-      livekitLogger.debug("room event ".concat(event), {
+      // only extract logContext from arguments in order to avoid logging the whole object tree
+      const minimizedArgs = mapArgs(args).filter(arg => arg !== undefined);
+      this.log.debug("room event ".concat(event), Object.assign(Object.assign({}, this.logContext), {
         event,
-        args
-      });
+        args: minimizedArgs
+      }));
     }
     return super.emit(event, ...args);
   }
+}
+function mapArgs(args) {
+  return args.map(arg => {
+    if (!arg) {
+      return;
+    }
+    if (Array.isArray(arg)) {
+      return mapArgs(arg);
+    }
+    if (typeof arg === 'object') {
+      return 'logContext' in arg && arg.logContext;
+    }
+    return arg;
+  });
 }
 
 var CheckStatus;
@@ -22687,8 +21176,8 @@ class Checker extends eventsExports.EventEmitter {
  * @param options
  */
 function createLocalTracks(options) {
-  var _a, _b;
   return __awaiter(this, void 0, void 0, function* () {
+    var _a, _b;
     // set default options to true
     options !== null && options !== void 0 ? options : options = {};
     (_a = options.audio) !== null && _a !== void 0 ? _a : options.audio = true;
@@ -22767,8 +21256,8 @@ function createLocalScreenTracks(options) {
     if (options === undefined) {
       options = {};
     }
-    if (options.resolution === undefined) {
-      options.resolution = ScreenSharePresets.h1080fps15.resolution;
+    if (options.resolution === undefined && !isSafari17()) {
+      options.resolution = ScreenSharePresets.h1080fps30.resolution;
     }
     if (navigator.mediaDevices.getDisplayMedia === undefined) {
       throw new DeviceUnsupportedError('getDisplayMedia not supported');
@@ -22796,8 +21285,8 @@ class PublishAudioCheck extends Checker {
     return 'Can publish audio';
   }
   perform() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       const room = yield this.connect();
       const track = yield createLocalAudioTrack();
       room.localParticipant.publishTrack(track);
@@ -22827,8 +21316,8 @@ class PublishVideoCheck extends Checker {
     return 'Can publish video';
   }
   perform() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       const room = yield this.connect();
       const track = yield createLocalVideoTrack();
       room.localParticipant.publishTrack(track);
@@ -22858,8 +21347,8 @@ class ReconnectCheck extends Checker {
     return 'Resuming connection after interruption';
   }
   perform() {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       const room = yield this.connect();
       let reconnectingTriggered = false;
       let reconnected = false;
@@ -22895,8 +21384,8 @@ class TURNCheck extends Checker {
     return 'Can connect via TURN';
   }
   perform() {
-    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b;
       const signalClient = new SignalClient();
       const joinRes = yield signalClient.join(this.url, this.token, {
         autoSubscribe: true,
@@ -22975,8 +21464,8 @@ class WebRTCCheck extends Checker {
             prevTrickle(sd, target);
           }
         };
-        if (this.room.engine.subscriber) {
-          this.room.engine.subscriber.onIceCandidateError = ev => {
+        if (this.room.engine.pcManager) {
+          this.room.engine.pcManager.subscriber.onIceCandidateError = ev => {
             if (ev instanceof RTCPeerConnectionIceErrorEvent) {
               this.appendWarning("error with ICE candidate: ".concat(ev.errorCode, " ").concat(ev.errorText, " ").concat(ev.url));
             }
@@ -23021,8 +21510,8 @@ class WebSocketCheck extends Checker {
     return 'Connecting to signal connection via WebSocket';
   }
   perform() {
-    var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a, _b, _c;
       if (this.url.startsWith('ws:') || this.url.startsWith('http:')) {
         this.appendWarning('Server is insecure, clients may block connections to it');
       }
@@ -23044,10 +21533,13 @@ class WebSocketCheck extends Checker {
 
 class ConnectionCheck extends eventsExports.EventEmitter {
   constructor(url, token) {
+    let options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
     super();
+    this.options = {};
     this.checkResults = new Map();
     this.url = url;
     this.token = token;
+    this.options = options;
   }
   getNextCheckId() {
     const nextId = this.checkResults.size;
@@ -23072,7 +21564,7 @@ class ConnectionCheck extends eventsExports.EventEmitter {
   createAndRunCheck(check) {
     return __awaiter(this, void 0, void 0, function* () {
       const checkId = this.getNextCheckId();
-      const test = new check(this.url, this.token);
+      const test = new check(this.url, this.token, this.options);
       const handleUpdate = info => {
         this.updateCheck(checkId, info);
       };
@@ -23137,7 +21629,7 @@ function facingModeFromLocalTrack(localTrack) {
   // 1. Try to get facingMode from track settings.
   if ('facingMode' in trackSettings) {
     const rawFacingMode = trackSettings.facingMode;
-    livekitLogger.debug('rawFacingMode', {
+    livekitLogger.trace('rawFacingMode', {
       rawFacingMode
     });
     if (rawFacingMode && typeof rawFacingMode === 'string' && isFacingModeValue(rawFacingMode)) {
@@ -23149,7 +21641,7 @@ function facingModeFromLocalTrack(localTrack) {
   }
   // 2. If we don't have a high confidence we try to get the facing mode from the device label.
   if (['low', 'medium'].includes(result.confidence)) {
-    livekitLogger.debug("Try to get facing mode from device label: (".concat(track.label, ")"));
+    livekitLogger.trace("Try to get facing mode from device label: (".concat(track.label, ")"));
     const labelAnalysisResult = facingModeFromDeviceLabel(track.label);
     if (labelAnalysisResult !== undefined) {
       result = labelAnalysisResult;
@@ -23195,5 +21687,5 @@ function isFacingModeValue(item) {
   return item === undefined || allowedValues.includes(item);
 }
 
-export { AudioPresets, BaseKeyProvider, ConnectionCheck, ConnectionError, ConnectionQuality, ConnectionState, CriticalTimers, CryptorEvent, DataPacket_Kind, DefaultReconnectPolicy, DeviceUnsupportedError, DisconnectReason, EncryptionEvent, EngineEvent, ExternalE2EEKeyProvider, KeyHandlerEvent, KeyProviderEvent, LivekitError, LocalAudioTrack, LocalParticipant, LocalTrack, LocalTrackPublication, LocalVideoTrack, LogLevel, MediaDeviceFailure, NegotiationError, Participant, ParticipantEvent, PublishDataError, RemoteAudioTrack, RemoteParticipant, RemoteTrack, RemoteTrackPublication, RemoteVideoTrack, Room, RoomEvent, RoomState, ScreenSharePresets, Track, TrackEvent, TrackInvalidError, TrackPublication, UnexpectedConnectionState, UnsupportedServer, VideoPreset, VideoPresets, VideoPresets43, VideoQuality, attachToElement, createAudioAnalyser, createE2EEKey, createKeyMaterialFromBuffer, createKeyMaterialFromString, createLocalAudioTrack, createLocalScreenTracks, createLocalTracks, createLocalVideoTrack, deriveKeys, detachTrack, facingModeFromDeviceLabel, facingModeFromLocalTrack, getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, importKey, isBackupCodec, isBrowserSupported, isE2EESupported, isInsertableStreamSupported, isScriptTransformSupported, isVideoFrame, needsRbspUnescaping, parseRbsp, protocolVersion, ratchet, setLogExtension, setLogLevel, supportsAV1, supportsAdaptiveStream, supportsDynacast, supportsVP9, version, videoCodecs, writeRbsp };
+export { AudioPresets, BaseKeyProvider, CheckStatus, Checker, ConnectionCheck, ConnectionError, ConnectionQuality, ConnectionState, CriticalTimers, CryptorEvent, DataPacket_Kind, DefaultReconnectPolicy, DeviceUnsupportedError, DisconnectReason, EncryptionEvent, EngineEvent, ExternalE2EEKeyProvider, KeyHandlerEvent, KeyProviderEvent, LivekitError, LocalAudioTrack, LocalParticipant, LocalTrack, LocalTrackPublication, LocalVideoTrack, LogLevel, LoggerNames, MediaDeviceFailure, Mutex, NegotiationError, Participant, ParticipantEvent, PublishDataError, RemoteAudioTrack, RemoteParticipant, RemoteTrack, RemoteTrackPublication, RemoteVideoTrack, Room, RoomEvent, ScreenSharePresets, SubscriptionError, Track, TrackEvent, TrackInvalidError, TrackPublication, UnexpectedConnectionState, UnsupportedServer, VideoPreset, VideoPresets, VideoPresets43, VideoQuality, attachToElement, createAudioAnalyser, createE2EEKey, createKeyMaterialFromBuffer, createKeyMaterialFromString, createLocalAudioTrack, createLocalScreenTracks, createLocalTracks, createLocalVideoTrack, deriveKeys, detachTrack, facingModeFromDeviceLabel, facingModeFromLocalTrack, getBrowser, getEmptyAudioStreamTrack, getEmptyVideoStreamTrack, getLogger, importKey, isBackupCodec, isBrowserSupported, isE2EESupported, isInsertableStreamSupported, isScriptTransformSupported, isVideoFrame, needsRbspUnescaping, parseRbsp, protocolVersion, ratchet, setLogExtension, setLogLevel, supportsAV1, supportsAdaptiveStream, supportsDynacast, supportsVP9, version, videoCodecs, writeRbsp };
 //# sourceMappingURL=livekit-client.esm.mjs.map

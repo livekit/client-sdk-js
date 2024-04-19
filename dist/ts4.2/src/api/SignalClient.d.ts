@@ -1,5 +1,5 @@
-import { ParticipantInfo, ReconnectReason, Room, SpeakerInfo, VideoLayer } from '../proto/livekit_models_pb';
-import { AddTrackRequest, ConnectionQualityUpdate, JoinResponse, LeaveRequest, ReconnectResponse, SessionDescription, SignalRequest, SignalTarget, SimulateScenario, StreamStateUpdate, SubscribedQualityUpdate, SubscriptionPermissionUpdate, SubscriptionResponse, SyncState, TrackPermission, TrackPublishedResponse, TrackUnpublishedResponse, UpdateSubscription, UpdateTrackSettings } from '../proto/livekit_rtc_pb';
+import { AddTrackRequest, AudioTrackFeature, ConnectionQualityUpdate, JoinResponse, LeaveRequest, ParticipantInfo, ReconnectReason, ReconnectResponse, Room, SessionDescription, SignalRequest, SignalTarget, SimulateScenario, SpeakerInfo, StreamStateUpdate, SubscribedQualityUpdate, SubscriptionPermissionUpdate, SubscriptionResponse, SyncState, TrackPermission, TrackPublishedResponse, TrackUnpublishedResponse, UpdateSubscription, UpdateTrackSettings, VideoLayer } from '@livekit/protocol';
+import type { LoggerOptions } from '../room/types';
 import { AsyncQueue } from '../utils/AsyncQueue';
 interface ConnectOpts extends SignalOptions {
     /** internal */
@@ -11,18 +11,21 @@ interface ConnectOpts extends SignalOptions {
 }
 export interface SignalOptions {
     autoSubscribe: boolean;
-    /** @deprecated */
-    publishOnly?: string;
     adaptiveStream?: boolean;
     maxRetries: number;
     e2eeEnabled: boolean;
     websocketTimeout: number;
 }
 type SignalMessage = SignalRequest['message'];
+export declare enum SignalConnectionState {
+    CONNECTING = 0,
+    CONNECTED = 1,
+    RECONNECTING = 2,
+    DISCONNECTING = 3,
+    DISCONNECTED = 4
+}
 /** @internal */
 export declare class SignalClient {
-    isConnected: boolean;
-    isReconnecting: boolean;
     requestQueue: AsyncQueue;
     queuedRequests: Array<() => Promise<void>>;
     useJSON: boolean;
@@ -50,19 +53,27 @@ export declare class SignalClient {
     onLeave?: (leave: LeaveRequest) => void;
     connectOptions?: ConnectOpts;
     ws?: WebSocket;
+    get currentState(): SignalConnectionState;
+    get isDisconnected(): boolean;
+    private get isEstablishingConnection();
     private options?;
     private pingTimeout;
     private pingTimeoutDuration;
     private pingIntervalDuration;
     private pingInterval;
     private closingLock;
-    constructor(useJSON?: boolean);
+    private state;
+    private connectionLock;
+    private log;
+    private loggerContextCb?;
+    constructor(useJSON?: boolean, loggerOptions?: LoggerOptions);
+    private get logContext();
     join(url: string, token: string, opts: SignalOptions, abortSignal?: AbortSignal): Promise<JoinResponse>;
-    reconnect(url: string, token: string, sid?: string, reason?: ReconnectReason): Promise<ReconnectResponse | void>;
+    reconnect(url: string, token: string, sid?: string, reason?: ReconnectReason): Promise<ReconnectResponse | undefined>;
     private connect;
     /** @internal */
     resetCallbacks: () => void;
-    close(): Promise<void>;
+    close(updateState?: boolean): Promise<void>;
     sendOffer(offer: RTCSessionDescriptionInit): void;
     sendAnswer(answer: RTCSessionDescriptionInit): Promise<void>;
     sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget): Promise<void>;
@@ -79,6 +90,7 @@ export declare class SignalClient {
         void,
         void
     ]>;
+    sendUpdateLocalAudioTrack(trackSid: string, features: AudioTrackFeature[]): Promise<void>;
     sendLeave(): Promise<void>;
     sendRequest(message: SignalMessage, fromQueue?: boolean): Promise<void>;
     private handleSignalResponse;

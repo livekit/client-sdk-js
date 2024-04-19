@@ -1,6 +1,5 @@
+import { ParticipantInfo, ParticipantPermission } from '@livekit/protocol';
 import type { InternalRoomOptions } from '../../options';
-import { DataPacket_Kind, ParticipantInfo, ParticipantPermission } from '../../proto/livekit_models_pb';
-import { DataChannelInfo, TrackPublishedResponse } from '../../proto/livekit_rtc_pb';
 import type RTCEngine from '../RTCEngine';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
@@ -9,12 +8,11 @@ import type { AudioCaptureOptions, BackupVideoCodec, CreateLocalTracksOptions, S
 import type { DataPublishOptions } from '../types';
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
-import RemoteParticipant from './RemoteParticipant';
 export default class LocalParticipant extends Participant {
-    audioTracks: Map<string, LocalTrackPublication>;
-    videoTracks: Map<string, LocalTrackPublication>;
+    audioTrackPublications: Map<string, LocalTrackPublication>;
+    videoTrackPublications: Map<string, LocalTrackPublication>;
     /** map of track sid => all published tracks */
-    tracks: Map<string, LocalTrackPublication>;
+    trackPublications: Map<string, LocalTrackPublication>;
     /** @internal */
     engine: RTCEngine;
     /** @internal */
@@ -33,8 +31,8 @@ export default class LocalParticipant extends Participant {
     get lastCameraError(): Error | undefined;
     get lastMicrophoneError(): Error | undefined;
     get isE2EEEnabled(): boolean;
-    getTrack(source: Track.Source): LocalTrackPublication | undefined;
-    getTrackByName(name: string): LocalTrackPublication | undefined;
+    getTrackPublication(source: Track.Source): LocalTrackPublication | undefined;
+    getTrackPublicationByName(name: string): LocalTrackPublication | undefined;
     /**
      * @internal
      */
@@ -124,25 +122,9 @@ export default class LocalParticipant extends Participant {
      * participant in the room if the destination field in publishOptions is empty
      *
      * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
-     * @param kind whether to send this as reliable or lossy.
-     * For data that you need delivery guarantee (such as chat messages), use Reliable.
-     * For data that should arrive as quickly as possible, but you are ok with dropped
-     * packets, use Lossy.
-     * @param publishOptions optionally specify a `topic` and `destination`
+     * @param options optionally specify a `reliable`, `topic` and `destination`
      */
-    publishData(data: Uint8Array, kind: DataPacket_Kind, publishOptions?: DataPublishOptions): Promise<void>;
-    /**
-     * Publish a new data payload to the room. Data will be forwarded to each
-     * participant in the room if the destination argument is empty
-     *
-     * @param data Uint8Array of the payload. To send string data, use TextEncoder.encode
-     * @param kind whether to send this as reliable or lossy.
-     * For data that you need delivery guarantee (such as chat messages), use Reliable.
-     * For data that should arrive as quickly as possible, but you are ok with dropped
-     * packets, use Lossy.
-     * @param destination the participants who will receive the message
-     */
-    publishData(data: Uint8Array, kind: DataPacket_Kind, destination?: RemoteParticipant[] | string[]): Promise<void>;
+    publishData(data: Uint8Array, options?: DataPublishOptions): Promise<void>;
     /**
      * Control who can subscribe to LocalParticipant's published tracks.
      *
@@ -170,13 +152,10 @@ export default class LocalParticipant extends Participant {
     private onTrackMuted;
     private onTrackUpstreamPaused;
     private onTrackUpstreamResumed;
+    private onTrackFeatureUpdate;
     private handleSubscribedQualityUpdate;
     private handleLocalTrackUnpublished;
     private handleTrackEnded;
     private getPublicationForTrack;
-    /** @internal */
-    publishedTracksInfo(): TrackPublishedResponse[];
-    /** @internal */
-    dataChannelsInfo(): DataChannelInfo[];
 }
 //# sourceMappingURL=LocalParticipant.d.ts.map

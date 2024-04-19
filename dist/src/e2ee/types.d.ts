@@ -1,3 +1,4 @@
+import type { LogLevel } from '../logger';
 import type { VideoCodec } from '../room/track/options';
 import type { BaseKeyProvider } from './KeyProvider';
 export interface BaseMessage {
@@ -8,6 +9,7 @@ export interface InitMessage extends BaseMessage {
     kind: 'init';
     data: {
         keyProviderOptions: KeyProviderOptions;
+        loglevel: LogLevel;
     };
 }
 export interface SetKeyMessage extends BaseMessage {
@@ -101,6 +103,7 @@ export type KeyProviderOptions = {
     ratchetSalt: string;
     ratchetWindowSize: number;
     failureTolerance: number;
+    keyringSize: number;
 };
 export type KeyInfo = {
     key: CryptoKey;

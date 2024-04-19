@@ -1,23 +1,30 @@
+import { DataPacket_Kind, ParticipantInfo, ParticipantPermission, ConnectionQuality as ProtoQuality, SubscriptionError } from '@livekit/protocol';
 import type TypedEmitter from 'typed-emitter';
-import { DataPacket_Kind, ParticipantInfo, ParticipantPermission, ConnectionQuality as ProtoQuality, SubscriptionError } from '../../proto/livekit_models_pb';
+import { StructuredLogger } from '../../logger';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
 import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
+import type { LoggerOptions } from '../types';
 export declare enum ConnectionQuality {
     Excellent = "excellent",
     Good = "good",
     Poor = "poor",
+    /**
+     * Indicates that a participant has temporarily (or permanently) lost connection to LiveKit.
+     * For permanent disconnection a `ParticipantDisconnected` event will be emitted after a timeout
+     */
+    Lost = "lost",
     Unknown = "unknown"
 }
 declare const Participant_base: new () => TypedEmitter<ParticipantEventCallbacks>;
 export default class Participant extends Participant_base {
     protected participantInfo?: ParticipantInfo;
-    audioTracks: Map<string, TrackPublication>;
-    videoTracks: Map<string, TrackPublication>;
+    audioTrackPublications: Map<string, TrackPublication>;
+    videoTrackPublications: Map<string, TrackPublication>;
     /** map of track sid => all published tracks */
-    tracks: Map<string, TrackPublication>;
+    trackPublications: Map<string, TrackPublication>;
     /** audio level between 0-1.0, 1 being loudest, 0 being softest */
     audioLevel: number;
     /** if participant is currently speaking */
@@ -34,23 +41,25 @@ export default class Participant extends Participant_base {
     permissions?: ParticipantPermission;
     private _connectionQuality;
     protected audioContext?: AudioContext;
+    protected log: StructuredLogger;
+    protected loggerOptions?: LoggerOptions;
+    protected get logContext(): {
+        [x: string]: unknown;
+    };
     get isEncrypted(): boolean;
+    get isAgent(): boolean;
     /** @internal */
-    constructor(sid: string, identity: string, name?: string, metadata?: string);
-    getTracks(): TrackPublication[];
+    constructor(sid: string, identity: string, name?: string, metadata?: string, loggerOptions?: LoggerOptions);
+    getTrackPublications(): TrackPublication[];
     /**
      * Finds the first track that matches the source filter, for example, getting
      * the user's camera track with getTrackBySource(Track.Source.Camera).
-     * @param source
-     * @returns
      */
-    getTrack(source: Track.Source): TrackPublication | undefined;
+    getTrackPublication(source: Track.Source): TrackPublication | undefined;
     /**
      * Finds the first track that matches the track's name.
-     * @param name
-     * @returns
      */
-    getTrackByName(name: string): TrackPublication | undefined;
+    getTrackPublicationByName(name: string): TrackPublication | undefined;
     get connectionQuality(): ConnectionQuality;
     get isCameraEnabled(): boolean;
     get isMicrophoneEnabled(): boolean;
@@ -95,6 +104,7 @@ export type ParticipantEventCallbacks = {
     trackStreamStateChanged: (publication: RemoteTrackPublication, streamState: Track.StreamState) => void;
     trackSubscriptionPermissionChanged: (publication: RemoteTrackPublication, status: TrackPublication.PermissionStatus) => void;
     mediaDevicesError: (error: Error) => void;
+    audioStreamAcquired: () => void;
     participantPermissionsChanged: (prevPermissions?: ParticipantPermission) => void;
     trackSubscriptionStatusChanged: (publication: RemoteTrackPublication, status: TrackPublication.SubscriptionStatus) => void;
 };

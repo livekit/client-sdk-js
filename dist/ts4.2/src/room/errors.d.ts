@@ -6,7 +6,8 @@ export declare const enum ConnectionErrorReason {
     NotAllowed = 0,
     ServerUnreachable = 1,
     InternalError = 2,
-    Cancelled = 3
+    Cancelled = 3,
+    LeaveRequest = 4
 }
 export declare class ConnectionError extends LivekitError {
     status?: number;

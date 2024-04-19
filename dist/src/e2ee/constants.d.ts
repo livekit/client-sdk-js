@@ -1,6 +1,5 @@
 import type { KeyProviderOptions } from './types';
 export declare const ENCRYPTION_ALGORITHM = "AES-GCM";
-export declare const KEYRING_SIZE = 16;
 export declare const DECRYPTION_FAILURE_TOLERANCE = 10;
 export declare const UNENCRYPTED_BYTES: {
     readonly key: 10;

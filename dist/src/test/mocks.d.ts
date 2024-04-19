@@ -5,7 +5,7 @@ declare const mocks: {
     SignalClient: MockedClass<typeof SignalClient>;
     RTCEngine: MockedClass<typeof RTCEngine>;
     MockLocalVideoTrack: {
-        stop: import("@vitest/spy").Mock<any, any>;
+        stop: () => void;
     };
 };
 export default mocks;

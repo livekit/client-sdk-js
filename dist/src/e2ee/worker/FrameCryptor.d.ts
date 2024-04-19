@@ -35,12 +35,14 @@ export declare class FrameCryptor extends BaseFrameCryptor {
      */
     private sifTrailer;
     private sifGuard;
+    private detectedCodec?;
     constructor(opts: {
         keys: ParticipantKeyHandler;
         participantIdentity: string;
         keyProviderOptions: KeyProviderOptions;
         sifTrailer?: Uint8Array;
     });
+    private get logContext();
     /**
      * Assign a different participant to the cryptor.
      * useful for transceiver re-use

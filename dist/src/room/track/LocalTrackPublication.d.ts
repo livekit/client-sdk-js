@@ -1,5 +1,6 @@
-import type { TrackInfo } from '../../proto/livekit_models_pb';
-import type LocalAudioTrack from './LocalAudioTrack';
+import { AudioTrackFeature, TrackInfo } from '@livekit/protocol';
+import type { LoggerOptions } from '../types';
+import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import type LocalVideoTrack from './LocalVideoTrack';
 import type { Track } from './Track';
@@ -9,7 +10,7 @@ export default class LocalTrackPublication extends TrackPublication {
     track?: LocalTrack;
     options?: TrackPublishOptions;
     get isUpstreamPaused(): boolean | undefined;
-    constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack);
+    constructor(kind: Track.Kind, ti: TrackInfo, track?: LocalTrack, loggerOptions?: LoggerOptions);
     setTrack(track?: Track): void;
     get isMuted(): boolean;
     get audioTrack(): LocalAudioTrack | undefined;
@@ -17,11 +18,11 @@ export default class LocalTrackPublication extends TrackPublication {
     /**
      * Mute the track associated with this publication
      */
-    mute(): Promise<LocalTrack | undefined>;
+    mute(): Promise<LocalTrack<Track.Kind> | undefined>;
     /**
      * Unmute track associated with this publication
      */
-    unmute(): Promise<LocalTrack | undefined>;
+    unmute(): Promise<LocalTrack<Track.Kind> | undefined>;
     /**
      * Pauses the media stream track associated with this publication from being sent to the server
      * and signals "muted" event to other participants
@@ -33,6 +34,7 @@ export default class LocalTrackPublication extends TrackPublication {
      * and signals "unmuted" event to other participants (unless the track is explicitly muted)
      */
     resumeUpstream(): Promise<void>;
+    getTrackFeatures(): AudioTrackFeature[];
     handleTrackEnded: () => void;
 }
 //# sourceMappingURL=LocalTrackPublication.d.ts.map

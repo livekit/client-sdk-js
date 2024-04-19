@@ -5,12 +5,20 @@ export interface TrackPublishDefaults {
      */
     videoEncoding?: VideoEncoding;
     /**
-     * @experimental
+     * Multi-codec Simulcast
+     * VP9 and AV1 are not supported by all browser clients. When backupCodec is
+     * set, when an incompatible client attempts to subscribe to the track, LiveKit
+     * will automatically publish a secondary track encoded with the backup codec.
+     *
+     * You could customize specific encoding parameters of the backup track by
+     * explicitly setting codec and encoding fields.
+     *
+     * Defaults to `true`
      */
-    backupCodec?: {
+    backupCodec?: true | false | {
         codec: BackupVideoCodec;
-        encoding: VideoEncoding;
-    } | false;
+        encoding?: VideoEncoding;
+    };
     /**
      * encoding parameters for screen share track
      */
@@ -20,11 +28,6 @@ export interface TrackPublishDefaults {
      * as backup. (TBD)
      */
     videoCodec?: VideoCodec;
-    /**
-     * max audio bitrate, defaults to [[AudioPresets.music]]
-     * @deprecated use `audioPreset` instead
-     */
-    audioBitrate?: number;
     /**
      * which audio preset should be used for publishing (audio) tracks
      * defaults to [[AudioPresets.music]]
@@ -141,9 +144,10 @@ export interface ScreenShareCaptureOptions {
         displaySurface?: 'window' | 'browser' | 'monitor';
     };
     /**
-     * capture resolution, defaults to screen resolution
-     * NOTE: In Safari 17, specifying any resolution at all would lead to a low-resolution
-     * capture. https://bugs.webkit.org/show_bug.cgi?id=263015
+     * capture resolution, defaults to 1080 for all browsers other than Safari
+     * On Safari 17, default resolution is not capped, due to a bug, specifying
+     * any resolution at all would lead to a low-resolution capture.
+     * https://bugs.webkit.org/show_bug.cgi?id=263015
      */
     resolution?: VideoResolution;
     /** a CaptureController object instance containing methods that can be used to further manipulate the capture session if included. */
@@ -154,11 +158,19 @@ export interface ScreenShareCaptureOptions {
     surfaceSwitching?: 'include' | 'exclude';
     /** specifies whether the browser should include the system audio among the possible audio sources offered to the user */
     systemAudio?: 'include' | 'exclude';
+    /** specify the type of content, see: https://www.w3.org/TR/mst-content-hint/#video-content-hints */
+    contentHint?: 'detail' | 'text' | 'motion';
     /**
      * Experimental option to control whether the audio playing in a tab will continue to be played out of a user's
      * local speakers when the tab is captured.
      */
     suppressLocalAudioPlayback?: boolean;
+    /**
+     * Experimental option to instruct the browser to offer the current tab as the most prominent capture source
+     * @experimental
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia#prefercurrenttab
+     */
+    preferCurrentTab?: boolean;
 }
 export interface AudioCaptureOptions {
     /**
@@ -214,10 +226,20 @@ export interface VideoEncoding {
     maxFramerate?: number;
     priority?: RTCPriorityType;
 }
+export interface VideoPresetOptions {
+    width: number;
+    height: number;
+    aspectRatio?: number;
+    maxBitrate: number;
+    maxFramerate?: number;
+    priority?: RTCPriorityType;
+}
 export declare class VideoPreset {
     encoding: VideoEncoding;
     width: number;
     height: number;
+    aspectRatio?: number;
+    constructor(videoPresetOptions: VideoPresetOptions);
     constructor(width: number, height: number, maxBitrate: number, maxFramerate?: number, priority?: RTCPriorityType);
     get resolution(): VideoResolution;
 }
@@ -233,7 +255,7 @@ export declare function isBackupCodec(codec: string): codec is BackupVideoCodec;
 /**
  * scalability modes for svc.
  */
-export type ScalabilityMode = 'L1T3' | 'L2T3' | 'L2T3_KEY' | 'L3T3' | 'L3T3_KEY';
+export type ScalabilityMode = 'L1T1' | 'L1T2' | 'L1T3' | 'L2T1' | 'L2T1h' | 'L2T1_KEY' | 'L2T2' | 'L2T2h' | 'L2T2_KEY' | 'L2T3' | 'L2T3h' | 'L2T3_KEY' | 'L3T1' | 'L3T1h' | 'L3T1_KEY' | 'L3T2' | 'L3T2h' | 'L3T2_KEY' | 'L3T3' | 'L3T3h' | 'L3T3_KEY';
 export declare namespace AudioPresets {
     const telephone: AudioPreset;
     const speech: AudioPreset;
@@ -272,11 +294,13 @@ export declare const VideoPresets43: {
 };
 export declare const ScreenSharePresets: {
     readonly h360fps3: VideoPreset;
+    readonly h360fps15: VideoPreset;
     readonly h720fps5: VideoPreset;
     readonly h720fps15: VideoPreset;
     readonly h720fps30: VideoPreset;
     readonly h1080fps15: VideoPreset;
     readonly h1080fps30: VideoPreset;
+    readonly original: VideoPreset;
 };
 export {};
 //# sourceMappingURL=options.d.ts.map

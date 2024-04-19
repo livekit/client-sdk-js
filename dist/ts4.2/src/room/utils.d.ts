@@ -1,4 +1,4 @@
-import { ClientInfo } from '../proto/livekit_models_pb';
+import { ClientInfo } from '@livekit/protocol';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
 import { VideoCodec } from './track/options';
@@ -20,6 +20,7 @@ export declare function isBrowserSupported(): boolean;
 export declare function isFireFox(): boolean;
 export declare function isChromiumBased(): boolean;
 export declare function isSafari(): boolean;
+export declare function isSafari17(): boolean;
 export declare function isMobile(): boolean;
 export declare function isWeb(): boolean;
 export declare function isReactNative(): boolean;
@@ -78,6 +79,9 @@ export declare function createAudioAnalyser(track: LocalAudioTrack | RemoteAudio
     analyser: AnalyserNode;
     cleanup: () => Promise<void>;
 };
+/**
+ * @internal
+ */
 export declare class Mutex {
     private _locking;
     private _locks;

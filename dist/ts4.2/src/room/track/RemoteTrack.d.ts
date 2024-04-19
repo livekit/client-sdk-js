@@ -1,8 +1,9 @@
+import type { LoggerOptions } from '../types';
 import { Track } from './Track';
-export default abstract class RemoteTrack extends Track {
+export default abstract class RemoteTrack<TrackKind extends Track.Kind = Track.Kind> extends Track<TrackKind> {
     /** @internal */
     receiver?: RTCRtpReceiver;
-    constructor(mediaTrack: MediaStreamTrack, sid: string, kind: Track.Kind, receiver?: RTCRtpReceiver);
+    constructor(mediaTrack: MediaStreamTrack, sid: string, kind: TrackKind, receiver?: RTCRtpReceiver, loggerOptions?: LoggerOptions);
     /** @internal */
     setMuted(muted: boolean): void;
     /** @internal */

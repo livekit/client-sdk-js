@@ -1,7 +1,9 @@
 import type { AudioReceiverStats } from '../stats';
+import type { LoggerOptions } from '../types';
 import RemoteTrack from './RemoteTrack';
+import { Track } from './Track';
 import type { AudioOutputOptions } from './options';
-export default class RemoteAudioTrack extends RemoteTrack {
+export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
     private prevStats?;
     private elementVolume;
     private audioContext?;
@@ -9,7 +11,7 @@ export default class RemoteAudioTrack extends RemoteTrack {
     private sourceNode?;
     private webAudioPluginNodes;
     private sinkId?;
-    constructor(mediaTrack: MediaStreamTrack, sid: string, receiver?: RTCRtpReceiver, audioContext?: AudioContext, audioOutput?: AudioOutputOptions);
+    constructor(mediaTrack: MediaStreamTrack, sid: string, receiver?: RTCRtpReceiver, audioContext?: AudioContext, audioOutput?: AudioOutputOptions, loggerOptions?: LoggerOptions);
     /**
      * sets the volume for all attached audio elements
      */

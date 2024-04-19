@@ -1,6 +1,7 @@
-import { SubscriptionError, TrackInfo, VideoQuality } from '../../proto/livekit_models_pb';
+import { SubscriptionError, TrackInfo } from '@livekit/protocol';
+import type { LoggerOptions } from '../types';
 import type RemoteTrack from './RemoteTrack';
-import { Track } from './Track';
+import { Track, VideoQuality } from './Track';
 import { TrackPublication } from './TrackPublication';
 export default class RemoteTrackPublication extends TrackPublication {
     track?: RemoteTrack;
@@ -12,7 +13,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     protected videoDimensions?: Track.Dimensions;
     protected fps?: number;
     protected subscriptionError?: SubscriptionError;
-    constructor(kind: Track.Kind, ti: TrackInfo, autoSubscribe: boolean | undefined);
+    constructor(kind: Track.Kind, ti: TrackInfo, autoSubscribe: boolean | undefined, loggerOptions?: LoggerOptions);
     /**
      * Subscribe or unsubscribe to this remote track
      * @param subscribed true to subscribe to a track, false to unsubscribe

@@ -1,3 +1,4 @@
+import type Room from '../../Room';
 import type { Track } from '../Track';
 /**
  * @experimental
@@ -6,6 +7,7 @@ export type ProcessorOptions<T extends Track.Kind> = {
     kind: T;
     track: MediaStreamTrack;
     element?: HTMLMediaElement;
+    audioContext?: AudioContext;
 };
 /**
  * @experimental
@@ -27,5 +29,7 @@ export interface TrackProcessor<T extends Track.Kind, U extends ProcessorOptions
     restart: (opts: U) => Promise<void>;
     destroy: () => Promise<void>;
     processedTrack?: MediaStreamTrack;
+    onPublish?: (room: Room) => Promise<void>;
+    onUnpublish?: () => Promise<void>;
 }
 //# sourceMappingURL=types.d.ts.map

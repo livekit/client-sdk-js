@@ -1,42 +1,42 @@
+import { type AddTrackRequest, type ConnectionQualityUpdate, DataPacket, DataPacket_Kind, DisconnectReason, type JoinResponse, ParticipantInfo, Room as RoomModel, SpeakerInfo, type StreamStateUpdate, SubscribedQualityUpdate, type SubscriptionPermissionUpdate, type SubscriptionResponse, TrackInfo, TrackUnpublishedResponse, UserPacket } from '@livekit/protocol';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
 import { SignalClient } from '../api/SignalClient';
 import type { InternalRoomOptions } from '../options';
-import { DataPacket, DataPacket_Kind, DisconnectReason, ParticipantInfo, Room as RoomModel, SpeakerInfo, TrackInfo, UserPacket } from '../proto/livekit_models_pb';
-import { AddTrackRequest, ConnectionQualityUpdate, JoinResponse, StreamStateUpdate, SubscriptionPermissionUpdate, SubscriptionResponse } from '../proto/livekit_rtc_pb';
 import PCTransport from './PCTransport';
+import { PCTransportManager } from './PCTransportManager';
 import type { RegionUrlProvider } from './RegionUrlProvider';
 import type LocalTrack from './track/LocalTrack';
+import type LocalTrackPublication from './track/LocalTrackPublication';
 import type LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
+import type RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 declare const RTCEngine_base: new () => TypedEventEmitter<EngineEventCallbacks>;
 /** @internal */
 export default class RTCEngine extends RTCEngine_base {
     private options;
-    publisher?: PCTransport;
-    subscriber?: PCTransport;
     client: SignalClient;
     rtcConfig: RTCConfiguration;
     peerConnectionTimeout: number;
     fullReconnectOnNext: boolean;
+    pcManager?: PCTransportManager;
     /**
      * @internal
      */
     latestJoinResponse?: JoinResponse;
     get isClosed(): boolean;
+    get pendingReconnect(): boolean;
     private lossyDC?;
     private lossyDCSub?;
     private reliableDC?;
     private dcBufferStatus;
     private reliableDCSub?;
     private subscriberPrimary;
-    private primaryTransport?;
     private pcState;
     private _isClosed;
     private pendingTrackResolvers;
-    private hasPublished;
     private url?;
     private token?;
     private signalOpts?;
@@ -55,7 +55,17 @@ export default class RTCEngine extends RTCEngine_base {
     private dataProcessLock;
     private shouldFailNext;
     private regionUrlProvider?;
+    private log;
+    private loggerOptions;
+    private publisherConnectionPromise;
     constructor(options: InternalRoomOptions);
+    /** @internal */
+    get logContext(): {
+        room: string | undefined;
+        roomID: string | undefined;
+        participant: string | undefined;
+        pID: string | undefined;
+    };
     join(url: string, token: string, opts: SignalOptions, abortSignal?: AbortSignal): Promise<JoinResponse>;
     close(): Promise<void>;
     cleanupPeerConnections(): Promise<void>;
@@ -106,7 +116,10 @@ export default class RTCEngine extends RTCEngine_base {
     /** @internal */
     negotiate(): Promise<void>;
     dataChannelForKind(kind: DataPacket_Kind, sub?: boolean): RTCDataChannel | undefined;
+    /** @internal */
+    sendSyncState(remoteTracks: RemoteTrackPublication[], localTracks: LocalTrackPublication[]): void;
     failNext(): void;
+    private dataChannelsInfo;
     private clearReconnectTimeout;
     private clearPendingReconnect;
     private handleBrowserOnLine;
@@ -138,6 +151,10 @@ export type EngineEventCallbacks = {
     streamStateChanged: (update: StreamStateUpdate) => void;
     subscriptionError: (resp: SubscriptionResponse) => void;
     subscriptionPermissionUpdate: (update: SubscriptionPermissionUpdate) => void;
+    subscribedQualityUpdate: (update: SubscribedQualityUpdate) => void;
+    localTrackUnpublished: (unpublishedResponse: TrackUnpublishedResponse) => void;
+    remoteMute: (trackSid: string, muted: boolean) => void;
+    offline: () => void;
 };
 export {};
 //# sourceMappingURL=RTCEngine.d.ts.map

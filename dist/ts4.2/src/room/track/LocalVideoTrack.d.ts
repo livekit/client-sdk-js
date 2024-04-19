@@ -1,9 +1,9 @@
+import { SubscribedCodec, SubscribedQuality, VideoLayer } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
-import { VideoLayer, VideoQuality } from '../../proto/livekit_models_pb';
-import { SubscribedCodec, SubscribedQuality } from '../../proto/livekit_rtc_pb';
 import type { VideoSenderStats } from '../stats';
+import type { LoggerOptions } from '../types';
 import LocalTrack from './LocalTrack';
-import { Track } from './Track';
+import { Track, VideoQuality } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
 export declare class SimulcastTrackInfo {
@@ -13,7 +13,7 @@ export declare class SimulcastTrackInfo {
     encodings?: RTCRtpEncodingParameters[];
     constructor(codec: VideoCodec, mediaStreamTrack: MediaStreamTrack);
 }
-export default class LocalVideoTrack extends LocalTrack {
+export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     signalClient?: SignalClient;
     private prevStats?;
     private encodings?;
@@ -26,21 +26,21 @@ export default class LocalVideoTrack extends LocalTrack {
      * @param constraints MediaTrackConstraints that are being used when restarting or reacquiring tracks
      * @param userProvidedTrack Signals to the SDK whether or not the mediaTrack should be managed (i.e. released and reacquired) internally by the SDK
      */
-    constructor(mediaTrack: MediaStreamTrack, constraints?: MediaTrackConstraints, userProvidedTrack?: boolean);
+    constructor(mediaTrack: MediaStreamTrack, constraints?: MediaTrackConstraints, userProvidedTrack?: boolean, loggerOptions?: LoggerOptions);
     get isSimulcast(): boolean;
     startMonitor(signalClient: SignalClient): void;
     stop(): void;
     pauseUpstream(): Promise<void>;
     resumeUpstream(): Promise<void>;
-    mute(): Promise<LocalVideoTrack>;
-    unmute(): Promise<LocalVideoTrack>;
+    mute(): Promise<typeof this>;
+    unmute(): Promise<typeof this>;
     protected setTrackMuted(muted: boolean): void;
     getSenderStats(): Promise<VideoSenderStats[]>;
     setPublishingQuality(maxQuality: VideoQuality): void;
     setDeviceId(deviceId: ConstrainDOMString): Promise<boolean>;
     restartTrack(options?: VideoCaptureOptions): Promise<void>;
     setProcessor(processor: TrackProcessor<Track.Kind>, showProcessedStreamLocally?: boolean): Promise<void>;
-    addSimulcastTrack(codec: VideoCodec, encodings?: RTCRtpEncodingParameters[]): SimulcastTrackInfo;
+    addSimulcastTrack(codec: VideoCodec, encodings?: RTCRtpEncodingParameters[]): SimulcastTrackInfo | undefined;
     setSimulcastTrackSender(codec: VideoCodec, sender: RTCRtpSender): void;
     /**
      * @internal

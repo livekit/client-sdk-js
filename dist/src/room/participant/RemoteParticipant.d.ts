@@ -1,25 +1,30 @@
+import type { ParticipantInfo } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
-import type { ParticipantInfo } from '../../proto/livekit_models_pb';
 import RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { AudioOutputOptions } from '../track/options';
 import type { AdaptiveStreamSettings } from '../track/types';
+import type { LoggerOptions } from '../types';
 import Participant from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
 export default class RemoteParticipant extends Participant {
-    audioTracks: Map<string, RemoteTrackPublication>;
-    videoTracks: Map<string, RemoteTrackPublication>;
-    tracks: Map<string, RemoteTrackPublication>;
+    audioTrackPublications: Map<string, RemoteTrackPublication>;
+    videoTrackPublications: Map<string, RemoteTrackPublication>;
+    trackPublications: Map<string, RemoteTrackPublication>;
     signalClient: SignalClient;
     private volumeMap;
     private audioOutput?;
     /** @internal */
     static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant;
+    protected get logContext(): {
+        rpID: string;
+        remoteParticipant: string;
+    };
     /** @internal */
-    constructor(signalClient: SignalClient, sid: string, identity?: string, name?: string, metadata?: string);
+    constructor(signalClient: SignalClient, sid: string, identity?: string, name?: string, metadata?: string, loggerOptions?: LoggerOptions);
     protected addTrackPublication(publication: RemoteTrackPublication): void;
-    getTrack(source: Track.Source): RemoteTrackPublication | undefined;
-    getTrackByName(name: string): RemoteTrackPublication | undefined;
+    getTrackPublication(source: Track.Source): RemoteTrackPublication | undefined;
+    getTrackPublicationByName(name: string): RemoteTrackPublication | undefined;
     /**
      * sets the volume on the participant's audio track
      * by default, this affects the microphone publication
@@ -35,7 +40,10 @@ export default class RemoteParticipant extends Participant {
     addSubscribedMediaTrack(mediaTrack: MediaStreamTrack, sid: Track.SID, mediaStream: MediaStream, receiver?: RTCRtpReceiver, adaptiveStreamSettings?: AdaptiveStreamSettings, triesLeft?: number): RemoteTrackPublication | undefined;
     /** @internal */
     get hasMetadata(): boolean;
-    getTrackPublication(sid: Track.SID): RemoteTrackPublication | undefined;
+    /**
+     * @internal
+     */
+    getTrackPublicationBySid(sid: Track.SID): RemoteTrackPublication | undefined;
     /** @internal */
     updateInfo(info: ParticipantInfo): boolean;
     /** @internal */

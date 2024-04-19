@@ -1,8 +1,10 @@
+import type { LoggerOptions } from '../types';
 import { Mutex } from '../utils';
 import { Track } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
-export default abstract class LocalTrack extends Track {
+import type { ReplaceTrackOptions } from './types';
+export default abstract class LocalTrack<TrackKind extends Track.Kind = Track.Kind> extends Track<TrackKind> {
     /** @internal */
     sender?: RTCRtpSender;
     /** @internal */
@@ -14,8 +16,10 @@ export default abstract class LocalTrack extends Track {
     protected muteLock: Mutex;
     protected pauseUpstreamLock: Mutex;
     protected processorElement?: HTMLMediaElement;
-    protected processor?: TrackProcessor<this['kind']>;
+    protected processor?: TrackProcessor<TrackKind, any>;
     protected processorLock: Mutex;
+    protected audioContext?: AudioContext;
+    private restartLock;
     /**
      *
      * @param mediaTrack
@@ -23,7 +27,7 @@ export default abstract class LocalTrack extends Track {
      * @param constraints MediaTrackConstraints that are being used when restarting or reacquiring tracks
      * @param userProvidedTrack Signals to the SDK whether or not the mediaTrack should be managed (i.e. released and reacquired) internally by the SDK
      */
-    protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind, constraints?: MediaTrackConstraints, userProvidedTrack?: boolean);
+    protected constructor(mediaTrack: MediaStreamTrack, kind: TrackKind, constraints?: MediaTrackConstraints, userProvidedTrack?: boolean, loggerOptions?: LoggerOptions);
     get id(): string;
     get dimensions(): Track.Dimensions | undefined;
     private _isUpstreamPaused;
@@ -36,10 +40,11 @@ export default abstract class LocalTrack extends Track {
      * @returns DeviceID of the device that is currently being used for this track
      */
     getDeviceId(): Promise<string | undefined>;
-    mute(): Promise<LocalTrack>;
-    unmute(): Promise<LocalTrack>;
-    replaceTrack(track: MediaStreamTrack, userProvidedTrack?: boolean): Promise<LocalTrack>;
-    protected restart(constraints?: MediaTrackConstraints): Promise<LocalTrack>;
+    mute(): Promise<this>;
+    unmute(): Promise<this>;
+    replaceTrack(track: MediaStreamTrack, options?: ReplaceTrackOptions): Promise<typeof this>;
+    replaceTrack(track: MediaStreamTrack, userProvidedTrack?: boolean): Promise<typeof this>;
+    protected restart(constraints?: MediaTrackConstraints): Promise<this>;
     protected setTrackMuted(muted: boolean): void;
     protected get needsReAcquisition(): boolean;
     protected handleAppVisibilityChanged(): Promise<void>;
@@ -73,8 +78,8 @@ export default abstract class LocalTrack extends Track {
      * @param showProcessedStreamLocally
      * @returns
      */
-    setProcessor(processor: TrackProcessor<this['kind']>, showProcessedStreamLocally?: boolean): Promise<void>;
-    getProcessor(): TrackProcessor<this["kind"], import("./processor/types").ProcessorOptions<this["kind"]>> | undefined;
+    setProcessor(processor: TrackProcessor<TrackKind>, showProcessedStreamLocally?: boolean): Promise<void>;
+    getProcessor(): TrackProcessor<TrackKind, any> | undefined;
     /**
      * Stops the track processor
      * See https://github.com/livekit/track-processors-js for example usage

@@ -55,6 +55,8 @@ var loglevel = {exports: {}};
     var undefinedType = "undefined";
     var isIE = typeof window !== undefinedType && typeof window.navigator !== undefinedType && /Trident\/|MSIE /.test(window.navigator.userAgent);
     var logMethods = ["trace", "debug", "info", "warn", "error"];
+    var _loggersByName = {};
+    var defaultLogger = null;
 
     // Cross-browser bind equivalent that works at least back to IE6
     function bindMethod(obj, methodName) {
@@ -107,23 +109,31 @@ var loglevel = {exports: {}};
 
     // These private functions always need `this` to be set properly
 
-    function replaceLoggingMethods(level, loggerName) {
+    function replaceLoggingMethods() {
       /*jshint validthis:true */
+      var level = this.getLevel();
+
+      // Replace the actual methods.
       for (var i = 0; i < logMethods.length; i++) {
         var methodName = logMethods[i];
-        this[methodName] = i < level ? noop : this.methodFactory(methodName, level, loggerName);
+        this[methodName] = i < level ? noop : this.methodFactory(methodName, level, this.name);
       }
 
       // Define log.log as an alias for log.debug
       this.log = this.debug;
+
+      // Return any important warnings.
+      if (typeof console === undefinedType && level < this.levels.SILENT) {
+        return "No console available for logging";
+      }
     }
 
     // In old IE versions, the console isn't present until you first open it.
     // We build realMethod() replacements here that regenerate logging methods
-    function enableLoggingWhenConsoleArrives(methodName, level, loggerName) {
+    function enableLoggingWhenConsoleArrives(methodName) {
       return function () {
         if (typeof console !== undefinedType) {
-          replaceLoggingMethods.call(this, level, loggerName);
+          replaceLoggingMethods.call(this);
           this[methodName].apply(this, arguments);
         }
       };
@@ -131,14 +141,34 @@ var loglevel = {exports: {}};
 
     // By default, we use closely bound real methods wherever possible, and
     // otherwise we wait for a console to appear, and then try again.
-    function defaultMethodFactory(methodName, level, loggerName) {
+    function defaultMethodFactory(methodName, _level, _loggerName) {
       /*jshint validthis:true */
       return realMethod(methodName) || enableLoggingWhenConsoleArrives.apply(this, arguments);
     }
-    function Logger(name, defaultLevel, factory) {
+    function Logger(name, factory) {
+      // Private instance variables.
       var self = this;
-      var currentLevel;
-      defaultLevel = defaultLevel == null ? "WARN" : defaultLevel;
+      /**
+       * The level inherited from a parent logger (or a global default). We
+       * cache this here rather than delegating to the parent so that it stays
+       * in sync with the actual logging methods that we have installed (the
+       * parent could change levels but we might not have rebuilt the loggers
+       * in this child yet).
+       * @type {number}
+       */
+      var inheritedLevel;
+      /**
+       * The default level for this logger, if any. If set, this overrides
+       * `inheritedLevel`.
+       * @type {number|null}
+       */
+      var defaultLevel;
+      /**
+       * A user-specific level for this logger. If set, this overrides
+       * `defaultLevel`.
+       * @type {number|null}
+       */
+      var userLevel;
       var storageKey = "loglevel";
       if (typeof name === "string") {
         storageKey += ":" + name;
@@ -171,9 +201,10 @@ var loglevel = {exports: {}};
         if (typeof storedLevel === undefinedType) {
           try {
             var cookie = window.document.cookie;
-            var location = cookie.indexOf(encodeURIComponent(storageKey) + "=");
+            var cookieName = encodeURIComponent(storageKey);
+            var location = cookie.indexOf(cookieName + "=");
             if (location !== -1) {
-              storedLevel = /^([^;]+)/.exec(cookie.slice(location))[1];
+              storedLevel = /^([^;]+)/.exec(cookie.slice(location + cookieName.length + 1))[1];
             }
           } catch (ignore) {}
         }
@@ -190,13 +221,23 @@ var loglevel = {exports: {}};
         // Use localStorage if available
         try {
           window.localStorage.removeItem(storageKey);
-          return;
         } catch (ignore) {}
 
         // Use session cookie as fallback
         try {
           window.document.cookie = encodeURIComponent(storageKey) + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC";
         } catch (ignore) {}
+      }
+      function normalizeLevel(input) {
+        var level = input;
+        if (typeof level === "string" && self.levels[level.toUpperCase()] !== undefined) {
+          level = self.levels[level.toUpperCase()];
+        }
+        if (typeof level === "number" && level >= 0 && level <= self.levels.SILENT) {
+          return level;
+        } else {
+          throw new TypeError("log.setLevel() called with invalid level: " + input);
+        }
       }
 
       /*
@@ -216,35 +257,34 @@ var loglevel = {exports: {}};
       };
       self.methodFactory = factory || defaultMethodFactory;
       self.getLevel = function () {
-        return currentLevel;
+        if (userLevel != null) {
+          return userLevel;
+        } else if (defaultLevel != null) {
+          return defaultLevel;
+        } else {
+          return inheritedLevel;
+        }
       };
       self.setLevel = function (level, persist) {
-        if (typeof level === "string" && self.levels[level.toUpperCase()] !== undefined) {
-          level = self.levels[level.toUpperCase()];
+        userLevel = normalizeLevel(level);
+        if (persist !== false) {
+          // defaults to true
+          persistLevelIfPossible(userLevel);
         }
-        if (typeof level === "number" && level >= 0 && level <= self.levels.SILENT) {
-          currentLevel = level;
-          if (persist !== false) {
-            // defaults to true
-            persistLevelIfPossible(level);
-          }
-          replaceLoggingMethods.call(self, level, name);
-          if (typeof console === undefinedType && level < self.levels.SILENT) {
-            return "No console available for logging";
-          }
-        } else {
-          throw "log.setLevel() called with invalid level: " + level;
-        }
+
+        // NOTE: in v2, this should call rebuild(), which updates children.
+        return replaceLoggingMethods.call(self);
       };
       self.setDefaultLevel = function (level) {
-        defaultLevel = level;
+        defaultLevel = normalizeLevel(level);
         if (!getPersistedLevel()) {
           self.setLevel(level, false);
         }
       };
       self.resetLevel = function () {
-        self.setLevel(defaultLevel, false);
+        userLevel = null;
         clearPersistedLevel();
+        replaceLoggingMethods.call(self);
       };
       self.enableAll = function (persist) {
         self.setLevel(self.levels.TRACE, persist);
@@ -252,13 +292,25 @@ var loglevel = {exports: {}};
       self.disableAll = function (persist) {
         self.setLevel(self.levels.SILENT, persist);
       };
+      self.rebuild = function () {
+        if (defaultLogger !== self) {
+          inheritedLevel = normalizeLevel(defaultLogger.getLevel());
+        }
+        replaceLoggingMethods.call(self);
+        if (defaultLogger === self) {
+          for (var childName in _loggersByName) {
+            _loggersByName[childName].rebuild();
+          }
+        }
+      };
 
-      // Initialize with the right level
+      // Initialize all the internal levels.
+      inheritedLevel = normalizeLevel(defaultLogger ? defaultLogger.getLevel() : "WARN");
       var initialLevel = getPersistedLevel();
-      if (initialLevel == null) {
-        initialLevel = defaultLevel;
+      if (initialLevel != null) {
+        userLevel = normalizeLevel(initialLevel);
       }
-      self.setLevel(initialLevel, false);
+      replaceLoggingMethods.call(self);
     }
 
     /*
@@ -267,15 +319,14 @@ var loglevel = {exports: {}};
      *
      */
 
-    var defaultLogger = new Logger();
-    var _loggersByName = {};
+    defaultLogger = new Logger();
     defaultLogger.getLogger = function getLogger(name) {
       if (typeof name !== "symbol" && typeof name !== "string" || name === "") {
         throw new TypeError("You must supply a name when creating a logger.");
       }
       var logger = _loggersByName[name];
       if (!logger) {
-        logger = _loggersByName[name] = new Logger(name, defaultLogger.getLevel(), defaultLogger.methodFactory);
+        logger = _loggersByName[name] = new Logger(name, defaultLogger.methodFactory);
       }
       return logger;
     };
@@ -308,16 +359,25 @@ var LogLevel;
   LogLevel[LogLevel["error"] = 4] = "error";
   LogLevel[LogLevel["silent"] = 5] = "silent";
 })(LogLevel || (LogLevel = {}));
-const livekitLogger = loglevelExports.getLogger('livekit');
+var LoggerNames;
+(function (LoggerNames) {
+  LoggerNames["Default"] = "livekit";
+  LoggerNames["Room"] = "livekit-room";
+  LoggerNames["Participant"] = "livekit-participant";
+  LoggerNames["Track"] = "livekit-track";
+  LoggerNames["Publication"] = "livekit-track-publication";
+  LoggerNames["Engine"] = "livekit-engine";
+  LoggerNames["Signal"] = "livekit-signal";
+  LoggerNames["PCManager"] = "livekit-pc-manager";
+  LoggerNames["PCTransport"] = "livekit-pc-transport";
+  LoggerNames["E2EE"] = "lk-e2ee";
+})(LoggerNames || (LoggerNames = {}));
+let livekitLogger = loglevelExports.getLogger('livekit');
+Object.values(LoggerNames).map(name => loglevelExports.getLogger(name));
 livekitLogger.setDefaultLevel(LogLevel.info);
-
 const workerLogger = loglevelExports.getLogger('lk-e2ee');
 
 const ENCRYPTION_ALGORITHM = 'AES-GCM';
-// We use a ringbuffer of keys so we can change them and still decode packets that were
-// encrypted with an old key. We use a size of 16 which corresponds to the four bits
-// in the frame trailer.
-const KEYRING_SIZE = 16;
 // How many consecutive frames can fail decrypting before a particular key gets marked as invalid
 const DECRYPTION_FAILURE_TOLERANCE = 10;
 // We copy the first bytes of the VP8 payload unencrypted.
@@ -334,6 +394,7 @@ const UNENCRYPTED_BYTES = {
   key: 10,
   delta: 3,
   audio: 1,
+  // frame.type is not set on audio, so this is set manually
   empty: 0
 };
 /* We use a 12 byte bit IV. This is signalled in plain together with the
@@ -344,7 +405,8 @@ const KEY_PROVIDER_DEFAULTS = {
   sharedKey: false,
   ratchetSalt: SALT,
   ratchetWindowSize: 8,
-  failureTolerance: DECRYPTION_FAILURE_TOLERANCE
+  failureTolerance: DECRYPTION_FAILURE_TOLERANCE,
+  keyringSize: 16
 };
 const MAX_SIF_COUNT = 100;
 const MAX_SIF_DURATION = 2000;
@@ -518,7 +580,6 @@ EventEmitter.prototype.emit = function emit(type) {
     err.context = er;
     throw err; // Unhandled 'error' event
   }
-
   var handler = events[type];
   if (handler === undefined) return false;
   if (typeof handler === 'function') {
@@ -801,14 +862,16 @@ var eventsExports = events.exports;
 function isVideoFrame(frame) {
   return 'type' in frame;
 }
-function importKey(keyBytes) {
-  let algorithm = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {
-    name: ENCRYPTION_ALGORITHM
-  };
-  let usage = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 'encrypt';
-  return __awaiter(this, void 0, void 0, function* () {
-    // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey
-    return crypto.subtle.importKey('raw', keyBytes, algorithm, false, usage === 'derive' ? ['deriveBits', 'deriveKey'] : ['encrypt', 'decrypt']);
+function importKey(keyBytes_1) {
+  return __awaiter(this, arguments, void 0, function (keyBytes) {
+    let algorithm = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {
+      name: ENCRYPTION_ALGORITHM
+    };
+    let usage = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 'encrypt';
+    return function* () {
+      // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey
+      return crypto.subtle.importKey('raw', keyBytes, algorithm, false, usage === 'derive' ? ['deriveBits', 'deriveKey'] : ['encrypt', 'decrypt']);
+    }();
   });
 }
 function getAlgoOptions(algorithmName, salt) {
@@ -975,6 +1038,13 @@ class FrameCryptor extends BaseFrameCryptor {
     this.sifTrailer = (_a = opts.sifTrailer) !== null && _a !== void 0 ? _a : Uint8Array.from([]);
     this.sifGuard = new SifGuard();
   }
+  get logContext() {
+    return {
+      participant: this.participantIdentity,
+      mediaTrackId: this.trackId,
+      fallbackCodec: this.videoCodec
+    };
+  }
   /**
    * Assign a different participant to the cryptor.
    * useful for transceiver re-use
@@ -982,11 +1052,18 @@ class FrameCryptor extends BaseFrameCryptor {
    * @param keys
    */
   setParticipant(id, keys) {
+    workerLogger.debug('setting new participant on cryptor', Object.assign(Object.assign({}, this.logContext), {
+      participant: id
+    }));
+    if (this.participantIdentity) {
+      workerLogger.error('cryptor has already a participant set, participant should have been unset before', Object.assign({}, this.logContext));
+    }
     this.participantIdentity = id;
     this.keys = keys;
     this.sifGuard.reset();
   }
   unsetParticipant() {
+    workerLogger.debug('unsetting participant', this.logContext);
     this.participantIdentity = undefined;
   }
   isEnabled() {
@@ -1023,6 +1100,11 @@ class FrameCryptor extends BaseFrameCryptor {
       });
       this.videoCodec = codec;
     }
+    workerLogger.debug('Setting up frame cryptor transform', Object.assign({
+      operation,
+      passedTrackId: trackId,
+      codec
+    }, this.logContext));
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
       transform: transformFn.bind(this)
@@ -1034,6 +1116,9 @@ class FrameCryptor extends BaseFrameCryptor {
     this.trackId = trackId;
   }
   setSifTrailer(trailer) {
+    workerLogger.debug('setting SIF trailer', Object.assign(Object.assign({}, this.logContext), {
+      trailer
+    }));
     this.sifTrailer = trailer;
   }
   /**
@@ -1059,8 +1144,8 @@ class FrameCryptor extends BaseFrameCryptor {
    * 9) Enqueue the encrypted frame for sending.
    */
   encodeFunction(encodedFrame, controller) {
-    var _a;
     return __awaiter(this, void 0, void 0, function* () {
+      var _a;
       if (!this.isEnabled() ||
       // skip for encryption for empty dtx frames
       encodedFrame.data.byteLength === 0) {
@@ -1113,6 +1198,7 @@ class FrameCryptor extends BaseFrameCryptor {
           workerLogger.error(e);
         }
       } else {
+        workerLogger.debug('failed to decrypt, emitting error', this.logContext);
         this.emit(CryptorEvent.Error, new CryptorError("encryption key missing for encoding", CryptorErrorReason.MissingKey));
       }
     });
@@ -1128,10 +1214,12 @@ class FrameCryptor extends BaseFrameCryptor {
       if (!this.isEnabled() ||
       // skip for decryption for empty dtx frames
       encodedFrame.data.byteLength === 0) {
+        workerLogger.debug('skipping empty frame', this.logContext);
         this.sifGuard.recordUserFrame();
         return controller.enqueue(encodedFrame);
       }
       if (isFrameServerInjected(encodedFrame.data, this.sifTrailer)) {
+        workerLogger.debug('enqueue SIF', this.logContext);
         this.sifGuard.recordSif();
         if (this.sifGuard.isSifAllowed()) {
           encodedFrame.data = encodedFrame.data.slice(0, encodedFrame.data.byteLength - this.sifTrailer.byteLength);
@@ -1175,89 +1263,92 @@ class FrameCryptor extends BaseFrameCryptor {
    * Function that will decrypt the given encoded frame. If the decryption fails, it will
    * ratchet the key for up to RATCHET_WINDOW_SIZE times.
    */
-  decryptFrame(encodedFrame, keyIndex) {
-    let initialMaterial = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
-    let ratchetOpts = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {
-      ratchetCount: 0
-    };
-    var _a;
-    return __awaiter(this, void 0, void 0, function* () {
-      const keySet = this.keys.getKeySet(keyIndex);
-      if (!ratchetOpts.encryptionKey && !keySet) {
-        throw new TypeError("no encryption key found for decryption of ".concat(this.participantIdentity));
-      }
-      let frameInfo = this.getUnencryptedBytes(encodedFrame);
-      // Construct frame trailer. Similar to the frame header described in
-      // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
-      // but we put it at the end.
-      //
-      // ---------+-------------------------+-+---------+----
-      // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
-      // ---------+-------------------------+-+---------+----
-      try {
-        const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
-        var encryptedData = new Uint8Array(encodedFrame.data, frameHeader.length, encodedFrame.data.byteLength - frameHeader.length);
-        if (frameInfo.isH264 && needsRbspUnescaping(encryptedData)) {
-          encryptedData = parseRbsp(encryptedData);
-          const newUint8 = new Uint8Array(frameHeader.byteLength + encryptedData.byteLength);
-          newUint8.set(frameHeader);
-          newUint8.set(encryptedData, frameHeader.byteLength);
-          encodedFrame.data = newUint8.buffer;
+  decryptFrame(encodedFrame_1, keyIndex_1) {
+    return __awaiter(this, arguments, void 0, function (encodedFrame, keyIndex) {
+      var _this = this;
+      let initialMaterial = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : undefined;
+      let ratchetOpts = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {
+        ratchetCount: 0
+      };
+      return function* () {
+        var _a;
+        const keySet = _this.keys.getKeySet(keyIndex);
+        if (!ratchetOpts.encryptionKey && !keySet) {
+          throw new TypeError("no encryption key found for decryption of ".concat(_this.participantIdentity));
         }
-        const frameTrailer = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - 2, 2);
-        const ivLength = frameTrailer[0];
-        const iv = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - ivLength - frameTrailer.byteLength, ivLength);
-        const cipherTextStart = frameHeader.byteLength;
-        const cipherTextLength = encodedFrame.data.byteLength - (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
-        const plainText = yield crypto.subtle.decrypt({
-          name: ENCRYPTION_ALGORITHM,
-          iv,
-          additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength)
-        }, (_a = ratchetOpts.encryptionKey) !== null && _a !== void 0 ? _a : keySet.encryptionKey, new Uint8Array(encodedFrame.data, cipherTextStart, cipherTextLength));
-        const newData = new ArrayBuffer(frameHeader.byteLength + plainText.byteLength);
-        const newUint8 = new Uint8Array(newData);
-        newUint8.set(new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength));
-        newUint8.set(new Uint8Array(plainText), frameHeader.byteLength);
-        encodedFrame.data = newData;
-        return encodedFrame;
-      } catch (error) {
-        if (this.keyProviderOptions.ratchetWindowSize > 0) {
-          if (ratchetOpts.ratchetCount < this.keyProviderOptions.ratchetWindowSize) {
-            workerLogger.debug("ratcheting key attempt ".concat(ratchetOpts.ratchetCount, " of ").concat(this.keyProviderOptions.ratchetWindowSize, ", for kind ").concat(encodedFrame instanceof RTCEncodedAudioFrame ? 'audio' : 'video'));
-            let ratchetedKeySet;
-            if ((initialMaterial !== null && initialMaterial !== void 0 ? initialMaterial : keySet) === this.keys.getKeySet(keyIndex)) {
-              // only ratchet if the currently set key is still the same as the one used to decrypt this frame
-              // if not, it might be that a different frame has already ratcheted and we try with that one first
-              const newMaterial = yield this.keys.ratchetKey(keyIndex, false);
-              ratchetedKeySet = yield deriveKeys(newMaterial, this.keyProviderOptions.ratchetSalt);
-            }
-            const frame = yield this.decryptFrame(encodedFrame, keyIndex, initialMaterial || keySet, {
-              ratchetCount: ratchetOpts.ratchetCount + 1,
-              encryptionKey: ratchetedKeySet === null || ratchetedKeySet === void 0 ? void 0 : ratchetedKeySet.encryptionKey
-            });
-            if (frame && ratchetedKeySet) {
-              // before updating the keys, make sure that the keySet used for this frame is still the same as the currently set key
-              // if it's not, a new key might have been set already, which we don't want to override
-              if ((initialMaterial !== null && initialMaterial !== void 0 ? initialMaterial : keySet) === this.keys.getKeySet(keyIndex)) {
-                this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
-                // decryption was successful, set the new key index to reflect the ratcheted key set
-                this.keys.setCurrentKeyIndex(keyIndex);
-              }
-            }
-            return frame;
-          } else {
-            /**
-             * Because we only set a new key once decryption has been successful,
-             * we can be sure that we don't need to reset the key to the initial material at this point
-             * as the key has not been updated on the keyHandler instance
-             */
-            workerLogger.warn('maximum ratchet attempts exceeded');
-            throw new CryptorError("valid key missing for participant ".concat(this.participantIdentity), CryptorErrorReason.InvalidKey);
+        let frameInfo = _this.getUnencryptedBytes(encodedFrame);
+        // Construct frame trailer. Similar to the frame header described in
+        // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
+        // but we put it at the end.
+        //
+        // ---------+-------------------------+-+---------+----
+        // payload  |IV...(length = IV_LENGTH)|R|IV_LENGTH|KID |
+        // ---------+-------------------------+-+---------+----
+        try {
+          const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
+          var encryptedData = new Uint8Array(encodedFrame.data, frameHeader.length, encodedFrame.data.byteLength - frameHeader.length);
+          if (frameInfo.isH264 && needsRbspUnescaping(encryptedData)) {
+            encryptedData = parseRbsp(encryptedData);
+            const newUint8 = new Uint8Array(frameHeader.byteLength + encryptedData.byteLength);
+            newUint8.set(frameHeader);
+            newUint8.set(encryptedData, frameHeader.byteLength);
+            encodedFrame.data = newUint8.buffer;
           }
-        } else {
-          throw new CryptorError("Decryption failed: ".concat(error.message), CryptorErrorReason.InvalidKey);
+          const frameTrailer = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - 2, 2);
+          const ivLength = frameTrailer[0];
+          const iv = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - ivLength - frameTrailer.byteLength, ivLength);
+          const cipherTextStart = frameHeader.byteLength;
+          const cipherTextLength = encodedFrame.data.byteLength - (frameHeader.byteLength + ivLength + frameTrailer.byteLength);
+          const plainText = yield crypto.subtle.decrypt({
+            name: ENCRYPTION_ALGORITHM,
+            iv,
+            additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength)
+          }, (_a = ratchetOpts.encryptionKey) !== null && _a !== void 0 ? _a : keySet.encryptionKey, new Uint8Array(encodedFrame.data, cipherTextStart, cipherTextLength));
+          const newData = new ArrayBuffer(frameHeader.byteLength + plainText.byteLength);
+          const newUint8 = new Uint8Array(newData);
+          newUint8.set(new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength));
+          newUint8.set(new Uint8Array(plainText), frameHeader.byteLength);
+          encodedFrame.data = newData;
+          return encodedFrame;
+        } catch (error) {
+          if (_this.keyProviderOptions.ratchetWindowSize > 0) {
+            if (ratchetOpts.ratchetCount < _this.keyProviderOptions.ratchetWindowSize) {
+              workerLogger.debug("ratcheting key attempt ".concat(ratchetOpts.ratchetCount, " of ").concat(_this.keyProviderOptions.ratchetWindowSize, ", for kind ").concat(encodedFrame instanceof RTCEncodedAudioFrame ? 'audio' : 'video'));
+              let ratchetedKeySet;
+              if ((initialMaterial !== null && initialMaterial !== void 0 ? initialMaterial : keySet) === _this.keys.getKeySet(keyIndex)) {
+                // only ratchet if the currently set key is still the same as the one used to decrypt this frame
+                // if not, it might be that a different frame has already ratcheted and we try with that one first
+                const newMaterial = yield _this.keys.ratchetKey(keyIndex, false);
+                ratchetedKeySet = yield deriveKeys(newMaterial, _this.keyProviderOptions.ratchetSalt);
+              }
+              const frame = yield _this.decryptFrame(encodedFrame, keyIndex, initialMaterial || keySet, {
+                ratchetCount: ratchetOpts.ratchetCount + 1,
+                encryptionKey: ratchetedKeySet === null || ratchetedKeySet === void 0 ? void 0 : ratchetedKeySet.encryptionKey
+              });
+              if (frame && ratchetedKeySet) {
+                // before updating the keys, make sure that the keySet used for this frame is still the same as the currently set key
+                // if it's not, a new key might have been set already, which we don't want to override
+                if ((initialMaterial !== null && initialMaterial !== void 0 ? initialMaterial : keySet) === _this.keys.getKeySet(keyIndex)) {
+                  _this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
+                  // decryption was successful, set the new key index to reflect the ratcheted key set
+                  _this.keys.setCurrentKeyIndex(keyIndex);
+                }
+              }
+              return frame;
+            } else {
+              /**
+               * Because we only set a new key once decryption has been successful,
+               * we can be sure that we don't need to reset the key to the initial material at this point
+               * as the key has not been updated on the keyHandler instance
+               */
+              workerLogger.warn('maximum ratchet attempts exceeded');
+              throw new CryptorError("valid key missing for participant ".concat(_this.participantIdentity), CryptorErrorReason.InvalidKey);
+            }
+          } else {
+            throw new CryptorError("Decryption failed: ".concat(error.message), CryptorErrorReason.InvalidKey);
+          }
         }
-      }
+      }();
     });
   }
   /**
@@ -1303,6 +1394,13 @@ class FrameCryptor extends BaseFrameCryptor {
     };
     if (isVideoFrame(frame)) {
       let detectedCodec = (_a = this.getVideoCodec(frame)) !== null && _a !== void 0 ? _a : this.videoCodec;
+      if (detectedCodec !== this.detectedCodec) {
+        workerLogger.debug('detected different codec', Object.assign({
+          detectedCodec,
+          oldCodec: this.detectedCodec
+        }, this.logContext));
+        this.detectedCodec = detectedCodec;
+      }
       if (detectedCodec === 'av1' || detectedCodec === 'vp9') {
         throw new Error("".concat(detectedCodec, " is not yet supported for end to end encryption"));
       }
@@ -1346,7 +1444,6 @@ class FrameCryptor extends BaseFrameCryptor {
     if (this.rtpMap.size === 0) {
       return undefined;
     }
-    // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
     const payloadType = frame.getMetadata().payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;
@@ -1458,7 +1555,10 @@ class ParticipantKeyHandler extends eventsExports.EventEmitter {
     this.decryptionFailureCount = 0;
     this._hasValidKey = true;
     this.currentKeyIndex = 0;
-    this.cryptoKeyRing = new Array(KEYRING_SIZE).fill(undefined);
+    if (keyProviderOptions.keyringSize < 1 || keyProviderOptions.keyringSize > 255) {
+      throw new TypeError('Keyring size needs to be between 1 and 256');
+    }
+    this.cryptoKeyRing = new Array(keyProviderOptions.keyringSize).fill(undefined);
     this.keyProviderOptions = keyProviderOptions;
     this.ratchetPromiseMap = new Map();
     this.participantIdentity = participantIdentity;
@@ -1527,28 +1627,37 @@ class ParticipantKeyHandler extends eventsExports.EventEmitter {
    * together with the material
    * also resets the valid key property and updates the currentKeyIndex
    */
-  setKey(material) {
-    let keyIndex = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
-    return __awaiter(this, void 0, void 0, function* () {
-      yield this.setKeyFromMaterial(material, keyIndex);
-      this.resetKeyStatus();
+  setKey(material_1) {
+    return __awaiter(this, arguments, void 0, function (material) {
+      var _this = this;
+      let keyIndex = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+      return function* () {
+        yield _this.setKeyFromMaterial(material, keyIndex);
+        _this.resetKeyStatus();
+      }();
     });
   }
   /**
    * takes in a key material with `deriveBits` and `deriveKey` set as key usages
-   * and derives encryption keys from the material and sets it on the key ring buffer
+   * and derives encryption keys from the material and sets it on the key ring buffers
    * together with the material
    * also updates the currentKeyIndex
    */
-  setKeyFromMaterial(material) {
-    let keyIndex = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
-    let emitRatchetEvent = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
-    return __awaiter(this, void 0, void 0, function* () {
-      const newIndex = keyIndex >= 0 ? keyIndex % this.cryptoKeyRing.length : -1;
-      workerLogger.debug("setting new key with index ".concat(newIndex));
-      const keySet = yield deriveKeys(material, this.keyProviderOptions.ratchetSalt);
-      this.setKeySet(keySet, newIndex >= 0 ? newIndex : this.currentKeyIndex, emitRatchetEvent);
-      if (newIndex >= 0) this.currentKeyIndex = newIndex;
+  setKeyFromMaterial(material_1, keyIndex_1) {
+    return __awaiter(this, arguments, void 0, function (material, keyIndex) {
+      var _this2 = this;
+      let emitRatchetEvent = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
+      return function* () {
+        const keySet = yield deriveKeys(material, _this2.keyProviderOptions.ratchetSalt);
+        const newIndex = keyIndex >= 0 ? keyIndex % _this2.cryptoKeyRing.length : _this2.currentKeyIndex;
+        workerLogger.debug("setting new key with index ".concat(keyIndex), {
+          usage: material.usages,
+          algorithm: material.algorithm,
+          ratchetSalt: _this2.keyProviderOptions.ratchetSalt
+        });
+        _this2.setKeySet(keySet, newIndex, emitRatchetEvent);
+        if (newIndex >= 0) _this2.currentKeyIndex = newIndex;
+      }();
     });
   }
   setKeySet(keySet, keyIndex) {
@@ -1582,7 +1691,6 @@ const participantKeys = new Map();
 let sharedKeyHandler;
 let isEncryptionEnabled = false;
 let useSharedKey = false;
-let sharedKey;
 let sifTrailer;
 let keyProviderOptions = KEY_PROVIDER_DEFAULTS;
 workerLogger.setDefaultLevel('info');
@@ -1593,6 +1701,7 @@ onmessage = ev => {
   } = ev.data;
   switch (kind) {
     case 'init':
+      workerLogger.setLevel(data.loglevel);
       workerLogger.info('worker initialized');
       keyProviderOptions = data.keyProviderOptions;
       useSharedKey = !!data.keyProviderOptions.sharedKey;
@@ -1607,7 +1716,7 @@ onmessage = ev => {
       break;
     case 'enable':
       setEncryptionEnabled(data.enabled, data.participantIdentity);
-      workerLogger.info('updated e2ee enabled status');
+      workerLogger.info("updated e2ee enabled status for ".concat(data.participantIdentity, " to ").concat(data.enabled));
       // acknowledge enable call successful
       postMessage(ev.data);
       break;
@@ -1621,17 +1730,16 @@ onmessage = ev => {
       break;
     case 'setKey':
       if (useSharedKey) {
-        workerLogger.warn('set shared key');
         setSharedKey(data.key, data.keyIndex);
       } else if (data.participantIdentity) {
-        workerLogger.warn("set participant sender key ".concat(data.participantIdentity, " index ").concat(data.keyIndex));
+        workerLogger.info("set participant sender key ".concat(data.participantIdentity, " index ").concat(data.keyIndex));
         getParticipantKeyHandler(data.participantIdentity).setKey(data.key, data.keyIndex);
       } else {
         workerLogger.error('no participant Id was provided and shared key usage is disabled');
       }
       break;
     case 'removeTransform':
-      unsetCryptorParticipant(data.trackId);
+      unsetCryptorParticipant(data.trackId, data.participantIdentity);
       break;
     case 'updateCodec':
       getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
@@ -1668,7 +1776,18 @@ function handleRatchetRequest(data) {
   });
 }
 function getTrackCryptor(participantIdentity, trackId) {
-  let cryptor = participantCryptors.find(c => c.getTrackId() === trackId);
+  let cryptors = participantCryptors.filter(c => c.getTrackId() === trackId);
+  if (cryptors.length > 1) {
+    const debugInfo = cryptors.map(c => {
+      return {
+        participant: c.getParticipantIdentity()
+      };
+    }).join(',');
+    workerLogger.error("Found multiple cryptors for the same trackID ".concat(trackId, ". target participant: ").concat(participantIdentity, " "), {
+      participants: debugInfo
+    });
+  }
+  let cryptor = cryptors[0];
   if (!cryptor) {
     workerLogger.info('creating new cryptor for', {
       participantIdentity
@@ -1697,9 +1816,6 @@ function getParticipantKeyHandler(participantIdentity) {
   let keys = participantKeys.get(participantIdentity);
   if (!keys) {
     keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
-    if (sharedKey) {
-      keys.setKey(sharedKey);
-    }
     keys.on(KeyHandlerEvent.KeyRatcheted, emitRatchetedKeys);
     participantKeys.set(participantIdentity, keys);
   }
@@ -1707,20 +1823,39 @@ function getParticipantKeyHandler(participantIdentity) {
 }
 function getSharedKeyHandler() {
   if (!sharedKeyHandler) {
+    workerLogger.debug('creating new shared key handler');
     sharedKeyHandler = new ParticipantKeyHandler('shared-key', keyProviderOptions);
   }
   return sharedKeyHandler;
 }
-function unsetCryptorParticipant(trackId) {
-  var _a;
-  (_a = participantCryptors.find(c => c.getTrackId() === trackId)) === null || _a === void 0 ? void 0 : _a.unsetParticipant();
+function unsetCryptorParticipant(trackId, participantIdentity) {
+  const cryptors = participantCryptors.filter(c => c.getParticipantIdentity() === participantIdentity && c.getTrackId() === trackId);
+  if (cryptors.length > 1) {
+    workerLogger.error('Found multiple cryptors for the same participant and trackID combination', {
+      trackId,
+      participantIdentity
+    });
+  }
+  const cryptor = cryptors[0];
+  if (!cryptor) {
+    workerLogger.warn('Could not unset participant on cryptor', {
+      trackId,
+      participantIdentity
+    });
+  } else {
+    cryptor.unsetParticipant();
+  }
 }
 function setEncryptionEnabled(enable, participantIdentity) {
+  workerLogger.debug("setting encryption enabled for all tracks of ".concat(participantIdentity), {
+    enable
+  });
   encryptionEnabledMap.set(participantIdentity, enable);
 }
 function setSharedKey(key, index) {
-  workerLogger.debug('setting shared key');
-  sharedKey = key;
+  workerLogger.info('set shared key', {
+    index
+  });
   getSharedKeyHandler().setKey(key, index);
 }
 function setupCryptorErrorEvents(cryptor) {
@@ -1757,8 +1892,10 @@ if (self.RTCTransformEvent) {
   workerLogger.debug('setup transform event');
   // @ts-ignore
   self.onrtctransform = event => {
+    // @ts-ignore .transformer property is part of RTCTransformEvent
     const transformer = event.transformer;
     workerLogger.debug('transformer', transformer);
+    // @ts-ignore monkey patching non standard flag
     transformer.handled = true;
     const {
       kind,

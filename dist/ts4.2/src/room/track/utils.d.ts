@@ -1,4 +1,6 @@
+import { TrackPublishedResponse } from '@livekit/protocol';
 import { Track } from './Track';
+import type { TrackPublication } from './TrackPublication';
 import type { AudioCaptureOptions, CreateLocalTracksOptions, ScreenShareCaptureOptions, VideoCaptureOptions } from './options';
 import type { AudioTrack } from './types';
 export declare function mergeDefaultOptions(options?: CreateLocalTracksOptions, audioDefaults?: AudioCaptureOptions, videoDefaults?: VideoCaptureOptions): CreateLocalTracksOptions;
@@ -25,4 +27,6 @@ export declare function sourceToKind(source: Track.Source): MediaDeviceKind | un
  */
 export declare function screenCaptureToDisplayMediaStreamOptions(options: ScreenShareCaptureOptions): DisplayMediaStreamOptions;
 export declare function mimeTypeToVideoCodecString(mimeType: string): "vp8" | "h264" | "vp9" | "av1";
+export declare function getTrackPublicationInfo<T extends TrackPublication>(tracks: T[]): TrackPublishedResponse[];
+export declare function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown>;
 //# sourceMappingURL=utils.d.ts.map

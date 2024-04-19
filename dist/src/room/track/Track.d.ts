@@ -1,10 +1,17 @@
+import { AudioTrackFeature, StreamState as ProtoStreamState, TrackSource, TrackType } from '@livekit/protocol';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
-import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
-import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
+import { StructuredLogger } from '../../logger';
+import type { LoggerOptions } from '../types';
+import type { TrackProcessor } from './processor/types';
+export declare enum VideoQuality {
+    LOW = 0,
+    MEDIUM = 1,
+    HIGH = 2
+}
 declare const Track_base: new () => TypedEventEmitter<TrackEventCallbacks>;
-export declare abstract class Track extends Track_base {
-    kind: Track.Kind;
+export declare abstract class Track<TrackKind extends Track.Kind = Track.Kind> extends Track_base {
+    readonly kind: TrackKind;
     attachedElements: HTMLMediaElement[];
     isMuted: boolean;
     source: Track.Source;
@@ -25,9 +32,14 @@ export declare abstract class Track extends Track_base {
     protected _mediaStreamID: string;
     protected isInBackground: boolean;
     private backgroundTimeout;
+    private loggerContextCb;
     protected _currentBitrate: number;
     protected monitorInterval?: ReturnType<typeof setInterval>;
-    protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind);
+    protected log: StructuredLogger;
+    protected constructor(mediaTrack: MediaStreamTrack, kind: TrackKind, loggerOptions?: LoggerOptions);
+    protected get logContext(): {
+        [x: string]: unknown;
+    };
     /** current receive bits per second */
     get currentBitrate(): number;
     get mediaStreamTrack(): MediaStreamTrack;
@@ -59,13 +71,14 @@ export declare abstract class Track extends Track_base {
     protected disable(): void;
     abstract startMonitor(signalClient?: SignalClient): void;
     stopMonitor(): void;
+    /** @internal */
+    updateLoggerOptions(loggerOptions: LoggerOptions): void;
     private recycleElement;
     protected appVisibilityChangedListener: () => void;
     protected handleAppVisibilityChanged(): Promise<void>;
     protected addAppVisibilityListener(): void;
     protected removeAppVisibilityListener(): void;
 }
-/** @internal */
 export declare function attachToElement(track: MediaStreamTrack, element: HTMLMediaElement): void;
 /** @internal */
 export declare function detachTrack(track: MediaStreamTrack, element: HTMLMediaElement): void;
@@ -112,14 +125,18 @@ export type TrackEventCallbacks = {
     updateSettings: () => void;
     updateSubscription: () => void;
     audioPlaybackStarted: () => void;
-    audioPlaybackFailed: (error: Error) => void;
+    audioPlaybackFailed: (error?: Error) => void;
     audioSilenceDetected: () => void;
     visibilityChanged: (visible: boolean, track?: any) => void;
     videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void;
+    videoPlaybackStarted: () => void;
+    videoPlaybackFailed: (error?: Error) => void;
     elementAttached: (element: HTMLMediaElement) => void;
     elementDetached: (element: HTMLMediaElement) => void;
     upstreamPaused: (track: any) => void;
     upstreamResumed: (track: any) => void;
+    trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
+    audioTrackFeatureUpdate: (track: any, feature: AudioTrackFeature, enabled: boolean) => void;
 };
 export {};
 //# sourceMappingURL=Track.d.ts.map

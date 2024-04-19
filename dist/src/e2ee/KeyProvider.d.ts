@@ -1,5 +1,5 @@
 import type TypedEventEmitter from 'typed-emitter';
-import type { KeyProviderCallbacks } from './events';
+import { type KeyProviderCallbacks } from './events';
 import type { KeyInfo, KeyProviderOptions } from './types';
 declare const BaseKeyProvider_base: new () => TypedEventEmitter<KeyProviderCallbacks>;
 /**
@@ -7,7 +7,7 @@ declare const BaseKeyProvider_base: new () => TypedEventEmitter<KeyProviderCallb
  */
 export declare class BaseKeyProvider extends BaseKeyProvider_base {
     private keyInfoMap;
-    private options;
+    private readonly options;
     constructor(options?: Partial<KeyProviderOptions>);
     /**
      * callback to invoke once a key has been set for a participant
