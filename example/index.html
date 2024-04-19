@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <title>Livekit test app</title>
@@ -72,6 +72,14 @@
             </div>
             <div>
               <select id="preferred-codec" class="custom-select" style="width: auto"></select>
+            </div>
+            <div>
+              <select
+                id="scalability-mode"
+                class="custom-select"
+                style="width: auto"
+                disabled="true"
+              ></select>
             </div>
           </div>
 
@@ -152,6 +160,10 @@
                 <option value="signal-reconnect">Signal reconnect</option>
                 <option value="full-reconnect">Full reconnect</option>
                 <option value="resume-reconnect">Resume reconnect</option>
+                <option value="disconnect-signal-on-resume">Signal disconnect on resume</option>
+                <option value="disconnect-signal-on-resume-no-messages">
+                  Signal disconnect on resume no msgs
+                </option>
                 <option value="speaker">Speaker update</option>
                 <option value="node-failure">Node failure</option>
                 <option value="server-leave">Server booted</option>

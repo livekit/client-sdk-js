@@ -1,7 +1,8 @@
-import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models_pb';
+import { ClientInfo, ClientInfo_SDK } from '@livekit/protocol';
 import type { DetectableBrowser } from '../utils/browserParser';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
+import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
 import { VideoCodec, videoCodecs } from './track/options';
@@ -21,7 +22,7 @@ export function unpackStreamId(packed: string): string[] {
 }
 
 export async function sleep(duration: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, duration));
+  return new Promise((resolve) => CriticalTimers.setTimeout(resolve, duration));
 }
 
 /** @internal */
@@ -46,6 +47,10 @@ export function supportsAV1(): boolean {
   if (!('getCapabilities' in RTCRtpSender)) {
     return false;
   }
+  if (isSafari()) {
+    // Safari 17 on iPhone14 reports AV1 capability, but does not actually support it
+    return false;
+  }
   const capabilities = RTCRtpSender.getCapabilities('video');
   let hasAV1 = false;
   if (capabilities) {
@@ -67,6 +72,13 @@ export function supportsVP9(): boolean {
     // technically speaking FireFox supports VP9, but SVC publishing is broken
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
     return false;
+  }
+  if (isSafari()) {
+    const browser = getBrowser();
+    if (browser?.version && compareVersions(browser.version, '16') < 0) {
+      // Safari 16 and below does not support VP9
+      return false;
+    }
   }
   const capabilities = RTCRtpSender.getCapabilities('video');
   let hasVP9 = false;
@@ -121,6 +133,9 @@ export function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boo
 }
 
 export function isBrowserSupported() {
+  if (typeof RTCPeerConnection === 'undefined') {
+    return false;
+  }
   return supportsTransceiver() || supportsAddTrack();
 }
 
@@ -134,6 +149,11 @@ export function isChromiumBased(): boolean {
 
 export function isSafari(): boolean {
   return getBrowser()?.name === 'Safari';
+}
+
+export function isSafari17(): boolean {
+  const b = getBrowser();
+  return b?.name === 'Safari' && b.version.startsWith('17.');
 }
 
 export function isMobile(): boolean {
@@ -427,6 +447,9 @@ export function createAudioAnalyser(
   return { calculateVolume, analyser, cleanup };
 }
 
+/**
+ * @internal
+ */
 export class Mutex {
   private _locking: Promise<void>;
 

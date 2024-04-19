@@ -2,17 +2,18 @@ import DeviceManager from '../DeviceManager';
 import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
+import { isSafari17 } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
-import { ScreenSharePresets } from './options';
 import type {
   AudioCaptureOptions,
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
   VideoCaptureOptions,
 } from './options';
+import { ScreenSharePresets } from './options';
 import {
   constraintsForOptions,
   mergeDefaultOptions,
@@ -116,8 +117,8 @@ export async function createLocalScreenTracks(
   if (options === undefined) {
     options = {};
   }
-  if (options.resolution === undefined) {
-    options.resolution = ScreenSharePresets.h1080fps15.resolution;
+  if (options.resolution === undefined && !isSafari17()) {
+    options.resolution = ScreenSharePresets.h1080fps30.resolution;
   }
 
   if (navigator.mediaDevices.getDisplayMedia === undefined) {

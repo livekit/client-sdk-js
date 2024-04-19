@@ -1,5 +1,3 @@
-import type RemoteParticipant from './participant/RemoteParticipant';
-
 export type SimulationOptions = {
   publish?: {
     audio?: boolean;
@@ -15,8 +13,17 @@ export type SimulationOptions = {
 };
 
 export type DataPublishOptions = {
-  /** the participants who will receive the message, will be sent to every one if empty */
-  destination?: RemoteParticipant[] | string[];
+  /**
+   * whether to send this as reliable or lossy.
+   * For data that you need delivery guarantee (such as chat messages), use Reliable.
+   * For data that should arrive as quickly as possible, but you are ok with dropped
+   * packets, use Lossy.
+   */
+  reliable?: boolean;
+  /**
+   * the identities of participants who will receive the message, will be sent to every one if empty
+   */
+  destinationIdentities?: string[];
   /** the topic under which the message gets published */
   topic?: string;
 };
@@ -40,4 +47,11 @@ export type SimulationScenario =
   // overrides server-side bandwidth estimator with set bandwidth
   // this can be used to test application behavior when congested or
   // to disable congestion control entirely (by setting bandwidth to 100Mbps)
-  | 'subscriber-bandwidth';
+  | 'subscriber-bandwidth'
+  | 'disconnect-signal-on-resume'
+  | 'disconnect-signal-on-resume-no-messages';
+
+export type LoggerOptions = {
+  loggerName?: string;
+  loggerContextCb?: () => Record<string, unknown>;
+};

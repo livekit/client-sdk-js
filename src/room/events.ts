@@ -27,7 +27,14 @@ export enum RoomEvent {
 
   /**
    * When disconnected from room. This fires when room.disconnect() is called or
-   * when an unrecoverable connection issue had occured
+   * when an unrecoverable connection issue had occured.
+   *
+   * DisconnectReason can be used to determine why the participant was disconnected. Notable reasons are
+   * - DUPLICATE_IDENTITY: another client with the same identity has joined the room
+   * - PARTICIPANT_REMOVED: participant was removed by RemoveParticipant API
+   * - ROOM_DELETED: the room has ended via DeleteRoom API
+   *
+   * args: ([[DisconnectReason]])
    */
   Disconnected = 'disconnected',
 
@@ -37,11 +44,6 @@ export enum RoomEvent {
    * args: ([[ConnectionState]])
    */
   ConnectionStateChanged = 'connectionStateChanged',
-
-  /**
-   * @deprecated StateChanged has been renamed to ConnectionStateChanged
-   */
-  StateChanged = 'connectionStateChanged',
 
   /**
    * When input or output devices on the machine have changed.
@@ -246,6 +248,13 @@ export enum RoomEvent {
   AudioPlaybackStatusChanged = 'audioPlaybackChanged',
 
   /**
+   * LiveKit will attempt to autoplay all video tracks when you attach them to
+   * a video element. However, if that fails, we'll notify you via VideoPlaybackStatusChanged.
+   * Calling `room.startVideo()` in a user gesture event handler will resume the video playback.
+   */
+  VideoPlaybackStatusChanged = 'videoPlaybackChanged',
+
+  /**
    * When we have encountered an error while attempting to create a track.
    * The errors take place in getUserMedia().
    * Use MediaDeviceFailure.getFailure(error) to get the reason of failure.
@@ -441,6 +450,10 @@ export enum ParticipantEvent {
   /** @internal */
   MediaDevicesError = 'mediaDevicesError',
 
+  // fired only on LocalParticipant
+  /** @internal */
+  AudioStreamAcquired = 'audioStreamAcquired',
+
   /**
    * A participant's permission has changed. Currently only fired on LocalParticipant.
    * args: (prevPermissions: [[ParticipantPermission]])
@@ -475,6 +488,10 @@ export enum EngineEvent {
   ConnectionQualityUpdate = 'connectionQualityUpdate',
   SubscriptionError = 'subscriptionError',
   SubscriptionPermissionUpdate = 'subscriptionPermissionUpdate',
+  RemoteMute = 'remoteMute',
+  SubscribedQualityUpdate = 'subscribedQualityUpdate',
+  LocalTrackUnpublished = 'localTrackUnpublished',
+  Offline = 'offline',
 }
 
 export enum TrackEvent {
@@ -506,6 +523,10 @@ export enum TrackEvent {
   /** @internal */
   VideoDimensionsChanged = 'videoDimensionsChanged',
   /** @internal */
+  VideoPlaybackStarted = 'videoPlaybackStarted',
+  /** @internal */
+  VideoPlaybackFailed = 'videoPlaybackFailed',
+  /** @internal */
   ElementAttached = 'elementAttached',
   /** @internal */
   ElementDetached = 'elementDetached',
@@ -532,4 +553,13 @@ export enum TrackEvent {
    * Fires on RemoteTrackPublication
    */
   SubscriptionFailed = 'subscriptionFailed',
+  /**
+   * @internal
+   */
+  TrackProcessorUpdate = 'trackProcessorUpdate',
+
+  /**
+   * @internal
+   */
+  AudioTrackFeatureUpdate = 'audioTrackFeatureUpdate',
 }

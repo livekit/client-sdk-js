@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
-import { KEYRING_SIZE } from '../constants';
 import { KeyHandlerEvent, type ParticipantKeyHandlerCallbacks } from '../events';
 import type { KeyProviderOptions, KeySet } from '../types';
 import { deriveKeys, importKey, ratchet } from '../utils';
@@ -39,7 +38,10 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
   constructor(participantIdentity: string, keyProviderOptions: KeyProviderOptions) {
     super();
     this.currentKeyIndex = 0;
-    this.cryptoKeyRing = new Array(KEYRING_SIZE).fill(undefined);
+    if (keyProviderOptions.keyringSize < 1 || keyProviderOptions.keyringSize > 255) {
+      throw new TypeError('Keyring size needs to be between 1 and 256');
+    }
+    this.cryptoKeyRing = new Array(keyProviderOptions.keyringSize).fill(undefined);
     this.keyProviderOptions = keyProviderOptions;
     this.ratchetPromiseMap = new Map();
     this.participantIdentity = participantIdentity;
@@ -133,15 +135,19 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   /**
    * takes in a key material with `deriveBits` and `deriveKey` set as key usages
-   * and derives encryption keys from the material and sets it on the key ring buffer
+   * and derives encryption keys from the material and sets it on the key ring buffers
    * together with the material
    * also updates the currentKeyIndex
    */
-  async setKeyFromMaterial(material: CryptoKey, keyIndex = 0, emitRatchetEvent = false) {
-    const newIndex = keyIndex >= 0 ? keyIndex % this.cryptoKeyRing.length : -1;
-    workerLogger.debug(`setting new key with index ${newIndex}`);
+  async setKeyFromMaterial(material: CryptoKey, keyIndex: number, emitRatchetEvent = false) {
     const keySet = await deriveKeys(material, this.keyProviderOptions.ratchetSalt);
-    this.setKeySet(keySet, newIndex >= 0 ? newIndex : this.currentKeyIndex, emitRatchetEvent);
+    const newIndex = keyIndex >= 0 ? keyIndex % this.cryptoKeyRing.length : this.currentKeyIndex;
+    workerLogger.debug(`setting new key with index ${keyIndex}`, {
+      usage: material.usages,
+      algorithm: material.algorithm,
+      ratchetSalt: this.keyProviderOptions.ratchetSalt,
+    });
+    this.setKeySet(keySet, newIndex, emitRatchetEvent);
     if (newIndex >= 0) this.currentKeyIndex = newIndex;
   }
 

@@ -183,7 +183,7 @@ describe('screenShareSimulcastDefaults', () => {
     );
     expect(defaultSimulcastLayers[0].width).toBe(640);
     expect(defaultSimulcastLayers[0].height).toBe(360);
-    expect(defaultSimulcastLayers[0].encoding.maxFramerate).toBe(3);
-    expect(defaultSimulcastLayers[0].encoding.maxBitrate).toBe(150_000);
+    expect(defaultSimulcastLayers[0].encoding.maxFramerate).toBe(15);
+    expect(defaultSimulcastLayers[0].encoding.maxBitrate).toBe(375000);
   });
 });

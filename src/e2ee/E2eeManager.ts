@@ -1,7 +1,7 @@
+import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
-import log from '../logger';
-import { Encryption_Type, TrackInfo } from '../proto/livekit_models_pb';
+import log, { LogLevel, workerLogger } from '../logger';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
@@ -68,6 +68,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
         kind: 'init',
         data: {
           keyProviderOptions: this.keyProvider.getOptions(),
+          loglevel: workerLogger.getLevel() as LogLevel,
         },
       };
       if (this.worker) {
@@ -168,8 +169,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     room
       .on(RoomEvent.ConnectionStateChanged, (state) => {
         if (state === ConnectionState.Connected) {
-          room.participants.forEach((participant) => {
-            participant.tracks.forEach((pub) => {
+          room.remoteParticipants.forEach((participant) => {
+            participant.trackPublications.forEach((pub) => {
               this.setParticipantCryptorEnabled(
                 pub.trackInfo!.encryption !== Encryption_Type.NONE,
                 participant.identity,

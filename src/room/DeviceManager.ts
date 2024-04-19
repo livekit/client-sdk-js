@@ -80,7 +80,16 @@ export default class DeviceManager {
     // device has been chosen
     const devices = await this.getDevices(kind);
 
-    const device = devices.find((d) => d.groupId === groupId && d.deviceId !== defaultId);
+    // `default` devices will have the same groupId as the entry with the actual device id so we store the counts for each group id
+    const groupIdCounts = new Map(devices.map((d) => [d.groupId, 0]));
+
+    devices.forEach((d) => groupIdCounts.set(d.groupId, (groupIdCounts.get(d.groupId) ?? 0) + 1));
+
+    const device = devices.find(
+      (d) =>
+        (groupId === d.groupId || (groupIdCounts.get(d.groupId) ?? 0) > 1) &&
+        d.deviceId !== defaultId,
+    );
 
     return device?.deviceId;
   }

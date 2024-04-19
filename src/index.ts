@@ -1,7 +1,7 @@
-import { LogLevel, setLogExtension, setLogLevel } from './logger';
-import { DataPacket_Kind, DisconnectReason, VideoQuality } from './proto/livekit_models_pb';
+import { DataPacket_Kind, DisconnectReason, SubscriptionError } from '@livekit/protocol';
+import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
-import Room, { ConnectionState, RoomState } from './room/Room';
+import Room, { ConnectionState } from './room/Room';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality } from './room/participant/Participant';
 import type { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
@@ -20,6 +20,7 @@ import { TrackPublication } from './room/track/TrackPublication';
 import type { LiveKitReactNativeInfo } from './room/types';
 import type { AudioAnalyserOptions } from './room/utils';
 import {
+  Mutex,
   createAudioAnalyser,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
@@ -29,57 +30,62 @@ import {
   supportsDynacast,
   supportsVP9,
 } from './room/utils';
+import { getBrowser } from './utils/browserParser';
 
 export * from './connectionHelper/ConnectionCheck';
+export * from './connectionHelper/checks/Checker';
+export * from './e2ee';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';
 export * from './room/track/Track';
 export * from './room/track/create';
-export * from './room/track/options';
 export { facingModeFromDeviceLabel, facingModeFromLocalTrack } from './room/track/facingMode';
+export * from './room/track/options';
+export * from './room/track/processor/types';
 export * from './room/track/types';
 export type { DataPublishOptions, SimulationScenario } from './room/types';
 export * from './version';
-export * from './e2ee';
-export * from './room/track/processor/types';
 export {
-  setLogLevel,
-  setLogExtension,
-  getEmptyAudioStreamTrack,
-  getEmptyVideoStreamTrack,
-  isBrowserSupported,
-  supportsAdaptiveStream,
-  supportsDynacast,
-  supportsAV1,
-  supportsVP9,
-  createAudioAnalyser,
-  LogLevel,
-  Room,
+  ConnectionQuality,
   ConnectionState,
-  RoomState,
+  CriticalTimers,
   DataPacket_Kind,
+  DefaultReconnectPolicy,
   DisconnectReason,
-  Participant,
-  RemoteParticipant,
-  LocalParticipant,
   LocalAudioTrack,
-  LocalVideoTrack,
+  LocalParticipant,
   LocalTrack,
   LocalTrackPublication,
-  RemoteTrack,
+  LocalVideoTrack,
+  LogLevel,
+  LoggerNames,
+  Participant,
   RemoteAudioTrack,
-  RemoteVideoTrack,
+  RemoteParticipant,
+  RemoteTrack,
   RemoteTrackPublication,
+  RemoteVideoTrack,
+  Room,
+  SubscriptionError,
   TrackPublication,
-  VideoQuality,
-  ConnectionQuality,
-  DefaultReconnectPolicy,
-  CriticalTimers,
+  createAudioAnalyser,
+  getBrowser,
+  getEmptyAudioStreamTrack,
+  getEmptyVideoStreamTrack,
+  getLogger,
+  isBrowserSupported,
+  setLogExtension,
+  setLogLevel,
+  supportsAV1,
+  supportsAdaptiveStream,
+  supportsDynacast,
+  supportsVP9,
+  Mutex,
 };
 export type {
-  ElementInfo,
-  ParticipantTrackPermission,
   AudioAnalyserOptions,
+  ElementInfo,
   LiveKitReactNativeInfo,
+  ParticipantTrackPermission,
 };

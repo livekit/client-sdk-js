@@ -10,10 +10,6 @@ import { AudioPresets, ScreenSharePresets, VideoPresets } from './track/options'
 export const defaultVideoCodec = 'vp8';
 
 export const publishDefaults: TrackPublishDefaults = {
-  /**
-   * @deprecated
-   */
-  audioBitrate: AudioPresets.music.maxBitrate,
   audioPreset: AudioPresets.music,
   dtx: true,
   red: true,
@@ -22,7 +18,7 @@ export const publishDefaults: TrackPublishDefaults = {
   screenShareEncoding: ScreenSharePresets.h1080fps15.encoding,
   stopMicTrackOnMute: false,
   videoCodec: defaultVideoCodec,
-  backupCodec: false,
+  backupCodec: true,
 } as const;
 
 export const audioDefaults: AudioCaptureOptions = {
@@ -41,7 +37,7 @@ export const roomOptionDefaults: InternalRoomOptions = {
   stopLocalTrackOnUnpublish: true,
   reconnectPolicy: new DefaultReconnectPolicy(),
   disconnectOnPageLeave: true,
-  expWebAudioMix: false,
+  webAudioMix: true,
 } as const;
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {

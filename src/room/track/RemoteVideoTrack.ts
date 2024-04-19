@@ -1,9 +1,9 @@
 import { debounce } from 'ts-debounce';
-import log from '../../logger';
 import { TrackEvent } from '../events';
 import type { VideoReceiverStats } from '../stats';
 import { computeBitrate } from '../stats';
 import CriticalTimers from '../timers';
+import type { LoggerOptions } from '../types';
 import type { ObservableMediaElement } from '../utils';
 import { getDevicePixelRatio, getIntersectionObserver, getResizeObserver, isWeb } from '../utils';
 import RemoteTrack from './RemoteTrack';
@@ -12,7 +12,7 @@ import type { AdaptiveStreamSettings } from './types';
 
 const REACTION_DELAY = 100;
 
-export default class RemoteVideoTrack extends RemoteTrack {
+export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   private prevStats?: VideoReceiverStats;
 
   private elementInfos: ElementInfo[] = [];
@@ -28,8 +28,9 @@ export default class RemoteVideoTrack extends RemoteTrack {
     sid: string,
     receiver?: RTCRtpReceiver,
     adaptiveStreamSettings?: AdaptiveStreamSettings,
+    loggerOptions?: LoggerOptions,
   ) {
-    super(mediaTrack, sid, Track.Kind.Video, receiver);
+    super(mediaTrack, sid, Track.Kind.Video, receiver, loggerOptions);
     this.adaptiveStreamSettings = adaptiveStreamSettings;
   }
 
@@ -103,7 +104,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
       this.debouncedHandleResize();
       this.updateVisibility();
     } else {
-      log.warn('visibility resize observer not triggered');
+      this.log.warn('visibility resize observer not triggered', this.logContext);
     }
   }
 
@@ -114,7 +115,7 @@ export default class RemoteVideoTrack extends RemoteTrack {
    */
   stopObservingElementInfo(elementInfo: ElementInfo) {
     if (!this.isAdaptiveStream) {
-      log.warn('stopObservingElementInfo ignored');
+      this.log.warn('stopObservingElementInfo ignored', this.logContext);
       return;
     }
     const stopElementInfos = this.elementInfos.filter((info) => info === elementInfo);
@@ -169,8 +170,11 @@ export default class RemoteVideoTrack extends RemoteTrack {
 
     const stats = await this.receiver.getStats();
     let receiverStats: VideoReceiverStats | undefined;
+    let codecID = '';
+    let codecs = new Map<string, any>();
     stats.forEach((v) => {
       if (v.type === 'inbound-rtp') {
+        codecID = v.codecId;
         receiverStats = {
           type: 'video',
           framesDecoded: v.framesDecoded,
@@ -188,8 +192,13 @@ export default class RemoteVideoTrack extends RemoteTrack {
           bytesReceived: v.bytesReceived,
           decoderImplementation: v.decoderImplementation,
         };
+      } else if (v.type === 'codec') {
+        codecs.set(v.id, v);
       }
     });
+    if (receiverStats && codecID !== '' && codecs.get(codecID)) {
+      receiverStats.mimeType = codecs.get(codecID).mimeType;
+    }
     return receiverStats;
   }
 
