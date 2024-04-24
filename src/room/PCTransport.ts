@@ -474,8 +474,6 @@ export default class PCTransport extends EventEmitter {
         await this.pc.setLocalDescription(sd);
       }
     } catch (e) {
-      // this error cannot always be caught.
-      // If the local description has a setCodecPreferences error, this error will be uncaught
       let msg = 'unknown error';
       if (e instanceof Error) {
         msg = e.message;

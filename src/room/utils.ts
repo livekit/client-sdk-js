@@ -1,5 +1,4 @@
 import { ClientInfo, ClientInfo_SDK } from '@livekit/protocol';
-import type { DetectableBrowser } from '../utils/browserParser';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import CriticalTimers from './timers';
@@ -105,31 +104,6 @@ export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
     elm = document.createElement('audio');
   }
   return 'setSinkId' in elm;
-}
-
-const setCodecPreferencesVersions: Record<DetectableBrowser, string> = {
-  Chrome: '100',
-  Safari: '15',
-  Firefox: '100',
-};
-
-export function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boolean {
-  if (!isWeb()) {
-    return false;
-  }
-  if (!('setCodecPreferences' in transceiver)) {
-    return false;
-  }
-  const browser = getBrowser();
-  if (!browser?.name || !browser.version) {
-    // version is required
-    return false;
-  }
-  const v = setCodecPreferencesVersions[browser.name];
-  if (v) {
-    return compareVersions(browser.version, v) >= 0;
-  }
-  return false;
 }
 
 export function isBrowserSupported() {

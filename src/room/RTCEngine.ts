@@ -53,22 +53,14 @@ import { EngineEvent } from './events';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
-import type LocalVideoTrack from './track/LocalVideoTrack';
+import LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type RemoteTrackPublication from './track/RemoteTrackPublication';
-import { Track } from './track/Track';
+import type { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
-import {
-  Mutex,
-  isVideoCodec,
-  isWeb,
-  sleep,
-  supportsAddTrack,
-  supportsSetCodecPreferences,
-  supportsTransceiver,
-} from './utils';
+import { Mutex, isVideoCodec, isWeb, sleep, supportsAddTrack, supportsTransceiver } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -671,51 +663,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.updateAndEmitDCBufferStatus(channelKind);
   };
 
-  private setPreferredCodec(
-    transceiver: RTCRtpTransceiver,
-    kind: Track.Kind,
-    videoCodec: VideoCodec,
-  ) {
-    if (!('getCapabilities' in RTCRtpReceiver)) {
-      return;
-    }
-    // when setting codec preferences, the capabilites need to be read from the RTCRtpReceiver
-    const cap = RTCRtpReceiver.getCapabilities(kind);
-    if (!cap) return;
-    this.log.debug('get receiver capabilities', { ...this.logContext, cap });
-    const matched: RTCRtpCodecCapability[] = [];
-    const partialMatched: RTCRtpCodecCapability[] = [];
-    const unmatched: RTCRtpCodecCapability[] = [];
-    cap.codecs.forEach((c) => {
-      const codec = c.mimeType.toLowerCase();
-      if (codec === 'audio/opus') {
-        matched.push(c);
-        return;
-      }
-      const matchesVideoCodec = codec === `video/${videoCodec}`;
-      if (!matchesVideoCodec) {
-        unmatched.push(c);
-        return;
-      }
-      // for h264 codecs that have sdpFmtpLine available, use only if the
-      // profile-level-id is 42e01f for cross-browser compatibility
-      if (videoCodec === 'h264') {
-        if (c.sdpFmtpLine && c.sdpFmtpLine.includes('profile-level-id=42e01f')) {
-          matched.push(c);
-        } else {
-          partialMatched.push(c);
-        }
-        return;
-      }
-
-      matched.push(c);
-    });
-
-    if (supportsSetCodecPreferences(transceiver)) {
-      transceiver.setCodecPreferences(matched.concat(partialMatched, unmatched));
-    }
-  }
-
   async createSender(
     track: LocalTrack,
     opts: TrackPublishOptions,
@@ -766,6 +713,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       streams.push(track.mediaStream);
     }
 
+    if (track instanceof LocalVideoTrack) {
+      track.codec = opts.videoCodec;
+    }
+
     const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly', streams };
     if (encodings) {
       transceiverInit.sendEncodings = encodings;
@@ -776,10 +727,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       transceiverInit,
     );
 
-    if (track.kind === Track.Kind.Video && opts.videoCodec) {
-      this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
-      track.codec = opts.videoCodec;
-    }
     return transceiver.sender;
   }
 
@@ -804,7 +751,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (!opts.videoCodec) {
       return;
     }
-    this.setPreferredCodec(transceiver, track.kind, opts.videoCodec);
     track.setSimulcastTrackSender(opts.videoCodec, transceiver.sender);
     return transceiver.sender;
   }
