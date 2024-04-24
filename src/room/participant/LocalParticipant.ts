@@ -827,7 +827,6 @@ export default class LocalParticipant extends Participant {
           ...getLogContextFromTrack(track),
           codec: updatedCodec,
         });
-        /* @ts-ignore */
         opts.videoCodec = updatedCodec;
 
         // recompute encodings since bitrates/etc could have changed
