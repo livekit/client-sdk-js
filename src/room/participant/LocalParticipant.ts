@@ -40,9 +40,9 @@ import {
 import type { DataPublishOptions } from '../types';
 import {
   Future,
+  isE2EESimulcastSupported,
   isFireFox,
   isSVCCodec,
-  isSafari,
   isSafari17,
   isWeb,
   supportsAV1,
@@ -621,10 +621,9 @@ export default class LocalParticipant extends Participant {
       ...options,
     };
 
-    // disable simulcast if e2ee is set on safari
-    if (isSafari() && this.roomOptions.e2ee) {
+    if (!isE2EESimulcastSupported() && this.roomOptions.e2ee) {
       this.log.info(
-        `End-to-end encryption is set up, simulcast publishing will be disabled on Safari`,
+        `End-to-end encryption is set up, simulcast publishing will be disabled on Safari versions and iOS browsers running iOS < v17.2`,
         {
           ...this.logContext,
         },

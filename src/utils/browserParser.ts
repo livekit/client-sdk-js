@@ -10,6 +10,7 @@ export type BrowserDetails = {
   name: DetectableBrowser;
   version: string;
   os?: DetectableOS;
+  osVersion?: string;
 };
 
 let browserDetails: BrowserDetails | undefined;
@@ -17,7 +18,7 @@ let browserDetails: BrowserDetails | undefined;
 /**
  * @internal
  */
-export function getBrowser(userAgent?: string, force = true) {
+export function getBrowser(userAgent?: string, force = true): BrowserDetails | undefined {
   if (typeof userAgent === 'undefined' && typeof navigator === 'undefined') {
     return;
   }
@@ -37,6 +38,7 @@ const browsersList = [
         name: 'Firefox',
         version: getMatch(/(?:firefox|iceweasel|fxios)[\s/](\d+(\.?_?\d+)+)/i, ua),
         os: ua.toLowerCase().includes('fxios') ? 'iOS' : undefined,
+        osVersion: getOSVersion(ua),
       };
       return browser;
     },
@@ -48,6 +50,7 @@ const browsersList = [
         name: 'Chrome',
         version: getMatch(/(?:chrome|chromium|crios|crmo)\/(\d+(\.?_?\d+)+)/i, ua),
         os: ua.toLowerCase().includes('crios') ? 'iOS' : undefined,
+        osVersion: getOSVersion(ua),
       };
 
       return browser;
@@ -61,6 +64,7 @@ const browsersList = [
         name: 'Safari',
         version: getMatch(commonVersionIdentifier, ua),
         os: ua.includes('mobile/') ? 'iOS' : 'macOS',
+        osVersion: getOSVersion(ua),
       };
 
       return browser;
@@ -71,4 +75,10 @@ const browsersList = [
 function getMatch(exp: RegExp, ua: string, id = 1) {
   const match = ua.match(exp);
   return (match && match.length >= id && match[id]) || '';
+}
+
+function getOSVersion(ua: string) {
+  return ua.includes('mac os')
+    ? getMatch(/\(.+?(\d+_\d+(:?_\d+)?)/, ua, 1).replace(/_/g, '.')
+    : undefined;
 }
