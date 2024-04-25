@@ -132,7 +132,35 @@ export function isSafari17(): boolean {
 
 export function isMobile(): boolean {
   if (!isWeb()) return false;
-  return /Tablet|iPad|Mobile|Android|BlackBerry/.test(navigator.userAgent);
+
+  return (
+    // @ts-expect-error `userAgentData` is not yet part of typescript
+    navigator.userAgentData?.mobile ??
+    /Tablet|iPad|Mobile|Android|BlackBerry/.test(navigator.userAgent)
+  );
+}
+
+export function isE2EESimulcastSupported() {
+  const browser = getBrowser();
+  const supportedSafariVersion = '17.2'; // see https://bugs.webkit.org/show_bug.cgi?id=257803
+  if (browser) {
+    if (browser.name !== 'Safari' && browser.os !== 'iOS') {
+      return true;
+    } else if (
+      browser.os === 'iOS' &&
+      browser.osVersion &&
+      compareVersions(supportedSafariVersion, browser.osVersion) >= 0
+    ) {
+      return true;
+    } else if (
+      browser.name === 'Safari' &&
+      compareVersions(supportedSafariVersion, browser.version) >= 0
+    ) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 }
 
 export function isWeb(): boolean {

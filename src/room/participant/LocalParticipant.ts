@@ -11,7 +11,7 @@ import {
   UserPacket,
 } from '@livekit/protocol';
 import type { InternalRoomOptions } from '../../options';
-import { getBrowser } from '../../utils/browserParser';
+// import { getBrowser } from '../../utils/browserParser';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { defaultVideoCodec } from '../defaults';
@@ -41,9 +41,9 @@ import {
 import type { DataPublishOptions } from '../types';
 import {
   Future,
+  isE2EESimulcastSupported,
   isFireFox,
-  isSVCCodec,
-  isSafari,
+  isSVCCodec, // isSafari,
   isSafari17,
   isWeb,
   supportsAV1,
@@ -622,10 +622,9 @@ export default class LocalParticipant extends Participant {
       ...options,
     };
 
-    // disable simulcast if e2ee is set on safari
-    if ((isSafari() || getBrowser()?.os === 'iOS') && this.roomOptions.e2ee) {
+    if (!isE2EESimulcastSupported() && this.roomOptions.e2ee) {
       this.log.info(
-        `End-to-end encryption is set up, simulcast publishing will be disabled on Safari and iOS browsers running WebKit`,
+        `End-to-end encryption is set up, simulcast publishing will be disabled on Safari versions and iOS browsers running iOS < v17.2`,
         {
           ...this.logContext,
         },
