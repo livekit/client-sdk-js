@@ -11,7 +11,6 @@ import {
   UserPacket,
 } from '@livekit/protocol';
 import type { InternalRoomOptions } from '../../options';
-// import { getBrowser } from '../../utils/browserParser';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { defaultVideoCodec } from '../defaults';
@@ -43,7 +42,7 @@ import {
   Future,
   isE2EESimulcastSupported,
   isFireFox,
-  isSVCCodec, // isSafari,
+  isSVCCodec,
   isSafari17,
   isWeb,
   supportsAV1,
