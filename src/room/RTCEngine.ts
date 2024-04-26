@@ -1105,6 +1105,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     if (
+      !needNeogiation &&
       !subscriber &&
       !this.pcManager.publisher.isICEConnected &&
       this.pcManager.publisher.getICEConnectionState() !== 'checking'
@@ -1172,7 +1173,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.pcManager.requirePublisher();
-      // don't negotiate without any trascenvers or data channel, it will generate sdp without ice frag then negotiate failed
+      // don't negotiate without any transceiver or data channel, it will generate sdp without ice frag then negotiate failed
       if (
         this.pcManager.publisher.getTransceivers().length == 0 &&
         !this.lossyDC &&
