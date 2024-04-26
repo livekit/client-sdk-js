@@ -1098,21 +1098,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new ConnectionError(`${transportName} connection not set`);
     }
 
-    let needNeogiation = false;
+    let needNegotiation = false;
     if (!subscriber && !this.dataChannelForKind(kind, subscriber)) {
       this.createDataChannels();
-      needNeogiation = true;
+      needNegotiation = true;
     }
 
     if (
-      !needNeogiation &&
+      !needNegotiation &&
       !subscriber &&
       !this.pcManager.publisher.isICEConnected &&
       this.pcManager.publisher.getICEConnectionState() !== 'checking'
     ) {
-      needNeogiation = true;
+      needNegotiation = true;
     }
-    if (needNeogiation) {
+    if (needNegotiation) {
       // start negotiation
       this.negotiate();
     }
@@ -1173,7 +1173,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.pcManager.requirePublisher();
-      // don't negotiate without any transceiver or data channel, it will generate sdp without ice frag then negotiate failed
+      // don't negotiate without any transceivers or data channel, it will generate sdp without ice frag then negotiate failed
       if (
         this.pcManager.publisher.getTransceivers().length == 0 &&
         !this.lossyDC &&
