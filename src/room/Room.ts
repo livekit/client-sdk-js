@@ -18,6 +18,7 @@ import {
   TrackInfo,
   TrackSource,
   TrackType,
+  Transcription,
   UserPacket,
   protoInt64,
 } from '@livekit/protocol';
@@ -330,6 +331,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
+      .on(EngineEvent.TranscriptionReceived, this.handleTranscription)
       .on(EngineEvent.Resuming, () => {
         this.clearConnectionReconcile();
         this.isResuming = true;
@@ -1471,6 +1473,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
   };
 
+  private handleTranscription = (transcription: Transcription) => {
+    // find the participant
+    const participant = this.remoteParticipants.get(transcription.participantIdentity);
+    const publication = participant?.trackPublications.get(transcription.trackId);
+
+    this.emit(RoomEvent.TranscriptionReceived, transcription, participant, publication);
+
+    // also emit on the participant
+    participant?.emit(ParticipantEvent.TranscriptionReceived, transcription, publication);
+  };
+
   private handleAudioPlaybackStarted = () => {
     if (this.canPlaybackAudio) {
       return;
@@ -2070,6 +2083,11 @@ export type RoomEventCallbacks = {
     participant?: RemoteParticipant,
     kind?: DataPacket_Kind,
     topic?: string,
+  ) => void;
+  transcriptionReceived: (
+    transcription: Transcription,
+    participant?: RemoteParticipant,
+    publication?: RemoteTrackPublication,
   ) => void;
   connectionQualityChanged: (quality: ConnectionQuality, participant: Participant) => void;
   mediaDevicesError: (error: Error) => void;

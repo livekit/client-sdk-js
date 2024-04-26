@@ -4,6 +4,7 @@ import {
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
   SubscriptionError,
+  Transcription,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
@@ -329,6 +330,10 @@ export type ParticipantEventCallbacks = {
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   participantNameChanged: (name: string) => void;
   dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
+  transcriptionReceived: (
+    transcription: Transcription,
+    publication?: RemoteTrackPublication,
+  ) => void;
   isSpeakingChanged: (speaking: boolean) => void;
   connectionQualityChanged: (connectionQuality: ConnectionQuality) => void;
   trackStreamStateChanged: (
