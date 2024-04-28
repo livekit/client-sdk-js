@@ -4,7 +4,6 @@ import {
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
   SubscriptionError,
-  Transcription,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
@@ -17,7 +16,7 @@ import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
-import type { LoggerOptions } from '../types';
+import type { LoggerOptions, TranscriptionSegment } from '../types';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -331,7 +330,7 @@ export type ParticipantEventCallbacks = {
   participantNameChanged: (name: string) => void;
   dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
   transcriptionReceived: (
-    transcription: Transcription,
+    transcription: TranscriptionSegment,
     publication?: RemoteTrackPublication,
   ) => void;
   isSpeakingChanged: (speaking: boolean) => void;

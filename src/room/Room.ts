@@ -18,7 +18,8 @@ import {
   TrackInfo,
   TrackSource,
   TrackType,
-  Transcription,
+  Transcription as TranscriptionModel,
+  TranscriptionSegment as TranscriptionSegmentModel,
   UserPacket,
   protoInt64,
 } from '@livekit/protocol';
@@ -62,11 +63,12 @@ import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, sourceToKind } from './track/utils';
-import type { SimulationOptions, SimulationScenario } from './types';
+import type { SimulationOptions, SimulationScenario, TranscriptionSegment } from './types';
 import {
   Future,
   Mutex,
   createDummyVideoStreamTrack,
+  extractTranscriptionSegments,
   getEmptyAudioStreamTrack,
   isBrowserSupported,
   isCloud,
@@ -1473,15 +1475,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
   };
 
-  private handleTranscription = (transcription: Transcription) => {
+  bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
+
+  private handleTranscription = (transcription: TranscriptionModel) => {
     // find the participant
     const participant = this.remoteParticipants.get(transcription.participantIdentity);
     const publication = participant?.trackPublications.get(transcription.trackId);
 
-    this.emit(RoomEvent.TranscriptionReceived, transcription, participant, publication);
+    const segments = extractTranscriptionSegments(transcription);
+
+    segments.forEach((segment) => {
+      this.emit(RoomEvent.TranscriptionReceived, segment, participant, publication);
+      participant?.emit(ParticipantEvent.TranscriptionReceived, segment, publication);
+    });
 
     // also emit on the participant
-    participant?.emit(ParticipantEvent.TranscriptionReceived, transcription, publication);
   };
 
   private handleAudioPlaybackStarted = () => {
@@ -2085,7 +2093,7 @@ export type RoomEventCallbacks = {
     topic?: string,
   ) => void;
   transcriptionReceived: (
-    transcription: Transcription,
+    transcription: TranscriptionSegment,
     participant?: RemoteParticipant,
     publication?: RemoteTrackPublication,
   ) => void;
