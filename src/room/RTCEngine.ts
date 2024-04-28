@@ -433,6 +433,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.pcManager.onTrack = (ev: RTCTrackEvent) => {
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
+
+    if (!supportOptionalDatachannel(joinResponse.serverInfo?.protocol)) {
+      this.createDataChannels();
+    }
   }
 
   private setupSignalClientCallbacks() {
@@ -1390,3 +1394,7 @@ export type EngineEventCallbacks = {
   remoteMute: (trackSid: string, muted: boolean) => void;
   offline: () => void;
 };
+
+function supportOptionalDatachannel(protocol: number | undefined): boolean {
+  return protocol !== undefined && protocol > 13;
+}
