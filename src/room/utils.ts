@@ -533,8 +533,8 @@ export function extractTranscriptionSegments(transcription: Transcription): Tran
     return {
       id,
       text,
-      startTime,
-      endTime,
+      startTime: Number.parseInt(startTime.toString()),
+      endTime: Number.parseInt(endTime.toString()),
       final,
       language: transcription.language,
     };

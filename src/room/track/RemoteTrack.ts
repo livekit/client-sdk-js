@@ -77,7 +77,20 @@ export default abstract class RemoteTrack<
     if (!this.monitorInterval) {
       this.monitorInterval = setInterval(() => this.monitorReceiver(), monitorFrequency);
     }
+    this.registerTimeSyncUpdate();
   }
 
   protected abstract monitorReceiver(): void;
+
+  registerTimeSyncUpdate() {
+    const loop = () => {
+      this.timeSyncHandle = requestAnimationFrame(() => loop());
+      const newTime = this.receiver?.getSynchronizationSources()[0]?.rtpTimestamp;
+      if (newTime && this.rtpTimestamp !== newTime) {
+        this.emit(TrackEvent.TimeSyncUpdate, newTime);
+        this.rtpTimestamp = newTime;
+      }
+    };
+    loop();
+  }
 }

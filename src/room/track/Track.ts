@@ -53,6 +53,9 @@ export abstract class Track<
    */
   streamState: Track.StreamState = Track.StreamState.Active;
 
+  /** @internal */
+  rtpTimestamp: number | undefined;
+
   protected _mediaStreamTrack: MediaStreamTrack;
 
   protected _mediaStreamID: string;
@@ -62,6 +65,8 @@ export abstract class Track<
   private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
 
   private loggerContextCb: LoggerOptions['loggerContextCb'];
+
+  protected timeSyncHandle: number | undefined;
 
   protected _currentBitrate: number = 0;
 
@@ -254,6 +259,9 @@ export abstract class Track<
   stopMonitor() {
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
+    }
+    if (this.timeSyncHandle) {
+      cancelAnimationFrame(this.timeSyncHandle);
     }
   }
 
@@ -517,4 +525,5 @@ export type TrackEventCallbacks = {
   upstreamResumed: (track: any) => void;
   trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
   audioTrackFeatureUpdate: (track: any, feature: AudioTrackFeature, enabled: boolean) => void;
+  timeSyncUpdate: (timestamp: number) => void;
 };

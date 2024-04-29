@@ -175,4 +175,5 @@ export type PublicationEventCallbacks = {
   ) => void;
   subscriptionFailed: (error: SubscriptionError) => void;
   transcriptionReceived: (transcription: TranscriptionSegment[]) => void;
+  timeSyncUpdate: (timestamp: number) => void;
 };

@@ -60,7 +60,7 @@ export interface TranscriptionSegment {
   id: string;
   text: string;
   language: string;
-  startTime: bigint | string;
-  endTime: bigint | string;
+  startTime: number;
+  endTime: number;
   final: boolean;
 }

@@ -574,5 +574,13 @@ export enum TrackEvent {
    */
   AudioTrackFeatureUpdate = 'audioTrackFeatureUpdate',
 
+  /**
+   * @beta
+   */
   TranscriptionReceived = 'transcriptionReceived',
+
+  /**
+   * @experimental
+   */
+  TimeSyncUpdate = 'timeSyncUpdate',
 }
