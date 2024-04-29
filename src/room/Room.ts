@@ -1484,12 +1484,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     const segments = extractTranscriptionSegments(transcription);
 
-    segments.forEach((segment) => {
-      this.emit(RoomEvent.TranscriptionReceived, segment, participant, publication);
-      participant?.emit(ParticipantEvent.TranscriptionReceived, segment, publication);
-    });
-
-    // also emit on the participant
+    publication?.emit(TrackEvent.TranscriptionReceived, segments);
+    participant?.emit(ParticipantEvent.TranscriptionReceived, segments, publication);
+    this.emit(RoomEvent.TranscriptionReceived, segments, participant, publication);
   };
 
   private handleAudioPlaybackStarted = () => {
@@ -2093,7 +2090,7 @@ export type RoomEventCallbacks = {
     topic?: string,
   ) => void;
   transcriptionReceived: (
-    transcription: TranscriptionSegment,
+    transcription: TranscriptionSegment[],
     participant?: RemoteParticipant,
     publication?: RemoteTrackPublication,
   ) => void;

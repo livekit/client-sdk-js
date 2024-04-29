@@ -330,7 +330,7 @@ export type ParticipantEventCallbacks = {
   participantNameChanged: (name: string) => void;
   dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
   transcriptionReceived: (
-    transcription: TranscriptionSegment,
+    transcription: TranscriptionSegment[],
     publication?: RemoteTrackPublication,
   ) => void;
   isSpeakingChanged: (speaking: boolean) => void;

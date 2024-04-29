@@ -573,4 +573,6 @@ export enum TrackEvent {
    * @internal
    */
   AudioTrackFeatureUpdate = 'audioTrackFeatureUpdate',
+
+  TranscriptionReceived = 'transcriptionReceived',
 }
