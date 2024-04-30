@@ -1,4 +1,4 @@
-import { ClientInfo, ClientInfo_SDK, Transcription } from '@livekit/protocol';
+import { ClientInfo, ClientInfo_SDK, Transcription as TranscriptionModel } from '@livekit/protocol';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import CriticalTimers from './timers';
@@ -528,7 +528,9 @@ export function toHttpUrl(url: string): string {
   return url;
 }
 
-export function extractTranscriptionSegments(transcription: Transcription): TranscriptionSegment[] {
+export function extractTranscriptionSegments(
+  transcription: TranscriptionModel,
+): TranscriptionSegment[] {
   return transcription.segments.map(({ id, text, startTime, endTime, final }) => {
     return {
       id,
