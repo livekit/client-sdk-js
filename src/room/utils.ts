@@ -531,14 +531,14 @@ export function toHttpUrl(url: string): string {
 export function extractTranscriptionSegments(
   transcription: TranscriptionModel,
 ): TranscriptionSegment[] {
-  return transcription.segments.map(({ id, text, startTime, endTime, final }) => {
+  return transcription.segments.map(({ id, text, language, startTime, endTime, final }) => {
     return {
       id,
       text,
       startTime: Number.parseInt(startTime.toString()),
       endTime: Number.parseInt(endTime.toString()),
       final,
-      language: transcription.language,
+      language,
     };
   });
 }
