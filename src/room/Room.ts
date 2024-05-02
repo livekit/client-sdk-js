@@ -1479,7 +1479,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleTranscription = (transcription: TranscriptionModel) => {
     // find the participant
-    const participant = this.remoteParticipants.get(transcription.participantIdentity);
+    const participant =
+      transcription.participantIdentity === this.localParticipant.identity
+        ? this.localParticipant
+        : this.remoteParticipants.get(transcription.participantIdentity);
     const publication = participant?.trackPublications.get(transcription.trackId);
 
     const segments = extractTranscriptionSegments(transcription);
@@ -2091,8 +2094,8 @@ export type RoomEventCallbacks = {
   ) => void;
   transcriptionReceived: (
     transcription: TranscriptionSegment[],
-    participant?: RemoteParticipant,
-    publication?: RemoteTrackPublication,
+    participant?: Participant,
+    publication?: TrackPublication,
   ) => void;
   connectionQualityChanged: (quality: ConnectionQuality, participant: Participant) => void;
   mediaDevicesError: (error: Error) => void;
