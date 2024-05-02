@@ -199,6 +199,7 @@ export enum RoomEvent {
 
   /**
    * Transcription received from a participant's track.
+   * @beta
    */
   TranscriptionReceived = 'transcriptionReceived',
 
@@ -409,6 +410,7 @@ export enum ParticipantEvent {
 
   /**
    * Transcription received from this participant as data source.
+   * @beta
    */
   TranscriptionReceived = 'transcriptionReceived',
 
