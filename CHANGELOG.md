@@ -1,5 +1,14 @@
 # Change Log
 
+## 2.1.1
+
+### Patch Changes
+
+- Allow simulcast together with E2EE for supported Safari versions - [#1117](https://github.com/livekit/client-sdk-js/pull/1117) ([@lukasIO](https://github.com/lukasIO))
+  Also fixes the simulcast behaviour for iOS Chrome prior to 17.2
+
+- Remove internal calls to setCodecPreferences on senders - [#1114](https://github.com/livekit/client-sdk-js/pull/1114) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.1.0
 
 ### Minor Changes

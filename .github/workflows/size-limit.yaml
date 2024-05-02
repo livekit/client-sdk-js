@@ -21,7 +21,7 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install
-      - uses: andresz1/size-limit-action@v1.7.0
+      - uses: andresz1/size-limit-action@v1.8.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           script: npx size-limit --json
