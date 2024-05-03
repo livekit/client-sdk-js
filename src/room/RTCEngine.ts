@@ -9,6 +9,7 @@ import {
   DisconnectReason,
   type JoinResponse,
   type LeaveRequest,
+  LeaveRequest_Action,
   ParticipantInfo,
   ReconnectReason,
   type ReconnectResponse,
@@ -504,16 +505,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.handleDisconnect('signal', ReconnectReason.RR_SIGNAL_DISCONNECTED);
     };
 
-    this.client.onLeave = (leave?: LeaveRequest) => {
-      if (leave?.canReconnect) {
-        this.fullReconnectOnNext = true;
-        // reconnect immediately instead of waiting for next attempt
-        this.handleDisconnect(leaveReconnect);
-      } else {
-        this.emit(EngineEvent.Disconnected, leave?.reason);
-        this.close();
-      }
+    this.client.onLeave = (leave: LeaveRequest) => {
       this.log.debug('client leave request', { ...this.logContext, reason: leave?.reason });
+      if (leave.regions && this.regionUrlProvider) {
+        this.log.debug('updating regions', this.logContext);
+        this.regionUrlProvider.setServerReportedRegions(leave.regions);
+      }
+      switch (leave.action) {
+        case LeaveRequest_Action.DISCONNECT:
+          this.emit(EngineEvent.Disconnected, leave?.reason);
+          this.close();
+          break;
+        case LeaveRequest_Action.RECONNECT:
+          this.fullReconnectOnNext = true;
+          // reconnect immediately instead of waiting for next attempt
+          this.handleDisconnect(leaveReconnect);
+          break;
+        case LeaveRequest_Action.RESUME:
+          // reconnect immediately instead of waiting for next attempt
+          this.handleDisconnect(leaveReconnect);
+        default:
+          break;
+      }
     };
   }
 
