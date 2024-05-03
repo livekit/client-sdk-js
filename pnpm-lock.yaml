@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@livekit/protocol':
-        specifier: 1.14.0
-        version: 1.14.0
+        specifier: 1.15.0
+        version: 1.15.0
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -788,9 +788,6 @@ packages:
     resolution: {integrity: sha512-6mQNsaLeXTw0nxYUYu+NSa4Hx4BlF1x1x8/PMFbiR+GBSr+2DkECc69b8hgy2frEodNcvPffeH8YfWd3LI6jhQ==}
     engines: {node: '>=6.9.0'}
 
-  '@bufbuild/protobuf@1.8.0':
-    resolution: {integrity: sha512-qR9FwI8QKIveDnUYutvfzbC21UZJJryYrLuZGjeZ/VGz+vXelUkK+xgkOHsvPEdYEdxtgUUq4313N8QtOehJ1Q==}
-
   '@bufbuild/protobuf@1.9.0':
     resolution: {integrity: sha512-W7gp8Q/v1NlCZLsv8pQ3Y0uCu/SHgXOVFK+eUluUKWXmsb6VHkpNx0apdOWWcDbB9sJoKeP8uPrjmehJz6xETQ==}
 
@@ -1060,8 +1057,8 @@ packages:
   '@livekit/changesets-changelog-github@0.0.4':
     resolution: {integrity: sha512-MXaiLYwgkYciZb8G2wkVtZ1pJJzZmVx5cM30Q+ClslrIYyAqQhRbPmZDM79/5CGxb1MTemR/tfOM25tgJgAK0g==}
 
-  '@livekit/protocol@1.14.0':
-    resolution: {integrity: sha512-Fd/xVht+ew+rEFu54Rsq8MNqCQV/ZcJFG0WU264p5yL24Ory+AV9hXt/4MUzWXvPXTLIxovJdJJynYKTBJO6qw==}
+  '@livekit/protocol@1.15.0':
+    resolution: {integrity: sha512-KVjM1odPzEWkXB4QQyz2qfiecHo74wLeb8YDhaX/cNnxUk0H1L35H0gVgLA8Y6fXkF3ayOHQnXO9V3GzulMyXw==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -3384,8 +3381,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.5.0-dev.20240430:
-    resolution: {integrity: sha512-HDHiMzAPPZucY1VLkXpTF9qrxwqXv0h/SEDnZs59DPOPKlGlAn4c0o+1t45+kOvD2PhfzFpwHymQnmWBlNFAJA==}
+  typescript@5.5.0-dev.20240502:
+    resolution: {integrity: sha512-k2os5k45m5icuXipmT6PBBA2byI+V9WhDS5StUQbU1m9NYvivVPurukxM7otJSRfYPMgpLerkvsRM/bLAykaxg==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4456,8 +4453,6 @@ snapshots:
       '@babel/helper-validator-identifier': 7.24.5
       to-fast-properties: 2.0.0
 
-  '@bufbuild/protobuf@1.8.0': {}
-
   '@bufbuild/protobuf@1.9.0': {}
 
   '@bufbuild/protoc-gen-es@1.9.0(@bufbuild/protobuf@1.9.0)':
@@ -4771,9 +4766,9 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@livekit/protocol@1.14.0':
+  '@livekit/protocol@1.15.0':
     dependencies:
-      '@bufbuild/protobuf': 1.8.0
+      '@bufbuild/protobuf': 1.9.0
 
   '@manypkg/find-root@1.1.0':
     dependencies:
@@ -5595,7 +5590,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.5.0-dev.20240430
+      typescript: 5.5.0-dev.20240502
 
   electron-to-chromium@1.4.724: {}
 
@@ -7275,7 +7270,7 @@ snapshots:
 
   typescript@5.4.5: {}
 
-  typescript@5.5.0-dev.20240430: {}
+  typescript@5.5.0-dev.20240502: {}
 
   ufo@1.5.3: {}
 

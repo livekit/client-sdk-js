@@ -23,6 +23,7 @@ import {
   TrackInfo,
   type TrackPublishedResponse,
   TrackUnpublishedResponse,
+  Transcription,
   UpdateSubscription,
   UserPacket,
 } from '@livekit/protocol';
@@ -634,6 +635,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
       } else if (dp.value?.case === 'user') {
         this.emit(EngineEvent.DataPacketReceived, dp.value.value, dp.kind);
+      } else if (dp.value?.case === 'transcription') {
+        this.emit(EngineEvent.TranscriptionReceived, dp.value.value);
       }
     } finally {
       unlock();
@@ -1357,6 +1360,7 @@ export type EngineEventCallbacks = {
   ) => void;
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
   dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
+  transcriptionReceived: (transcription: Transcription) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
   /** @internal */
   trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;

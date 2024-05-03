@@ -198,6 +198,12 @@ export enum RoomEvent {
   DataReceived = 'dataReceived',
 
   /**
+   * Transcription received from a participant's track.
+   * @beta
+   */
+  TranscriptionReceived = 'transcriptionReceived',
+
+  /**
    * Connection quality was changed for a Participant. It'll receive updates
    * from the local participant, as well as any [[RemoteParticipant]]s that we are
    * subscribed to.
@@ -403,6 +409,12 @@ export enum ParticipantEvent {
   DataReceived = 'dataReceived',
 
   /**
+   * Transcription received from this participant as data source.
+   * @beta
+   */
+  TranscriptionReceived = 'transcriptionReceived',
+
+  /**
    * Has speaking status changed for the current participant
    *
    * args: (speaking: boolean)
@@ -479,6 +491,7 @@ export enum EngineEvent {
   MediaTrackAdded = 'mediaTrackAdded',
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
   DataPacketReceived = 'dataPacketReceived',
+  TranscriptionReceived = 'transcriptionReceived',
   RTPVideoMapUpdate = 'rtpVideoMapUpdate',
   DCBufferStatusChanged = 'dcBufferStatusChanged',
   ParticipantUpdate = 'participantUpdate',
@@ -562,4 +575,14 @@ export enum TrackEvent {
    * @internal
    */
   AudioTrackFeatureUpdate = 'audioTrackFeatureUpdate',
+
+  /**
+   * @beta
+   */
+  TranscriptionReceived = 'transcriptionReceived',
+
+  /**
+   * @experimental
+   */
+  TimeSyncUpdate = 'timeSyncUpdate',
 }

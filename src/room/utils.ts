@@ -1,4 +1,4 @@
-import { ClientInfo, ClientInfo_SDK } from '@livekit/protocol';
+import { ClientInfo, ClientInfo_SDK, Transcription as TranscriptionModel } from '@livekit/protocol';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import CriticalTimers from './timers';
@@ -6,7 +6,7 @@ import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
 import { VideoCodec, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
-import type { LiveKitReactNativeInfo } from './types';
+import type { LiveKitReactNativeInfo, TranscriptionSegment } from './types';
 
 const separator = '|';
 export const ddExtensionURI =
@@ -526,4 +526,19 @@ export function toHttpUrl(url: string): string {
     return url.replace(/^(ws)/, 'http');
   }
   return url;
+}
+
+export function extractTranscriptionSegments(
+  transcription: TranscriptionModel,
+): TranscriptionSegment[] {
+  return transcription.segments.map(({ id, text, language, startTime, endTime, final }) => {
+    return {
+      id,
+      text,
+      startTime: Number.parseInt(startTime.toString()),
+      endTime: Number.parseInt(endTime.toString()),
+      final,
+      language,
+    };
+  });
 }

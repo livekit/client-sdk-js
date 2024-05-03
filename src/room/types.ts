@@ -55,3 +55,12 @@ export type LoggerOptions = {
   loggerName?: string;
   loggerContextCb?: () => Record<string, unknown>;
 };
+
+export interface TranscriptionSegment {
+  id: string;
+  text: string;
+  language: string;
+  startTime: number;
+  endTime: number;
+  final: boolean;
+}
