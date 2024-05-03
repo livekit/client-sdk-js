@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.1.2
+
+### Patch Changes
+
+- Add support for transcription handling - [#1119](https://github.com/livekit/client-sdk-js/pull/1119) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.1.1
 
 ### Patch Changes
