@@ -4,6 +4,7 @@ import {
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
+  LeaveRequest_Action,
   ParticipantInfo,
   ParticipantInfo_State,
   ParticipantPermission,
@@ -859,7 +860,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             onLeave(
               new LeaveRequest({
                 reason: DisconnectReason.CLIENT_INITIATED,
-                canReconnect: true,
+                action: LeaveRequest_Action.RECONNECT,
               }),
             );
           }

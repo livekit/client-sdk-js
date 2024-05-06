@@ -75,6 +75,11 @@ export class RegionUrlProvider {
       );
     }
   }
+
+  setServerReportedRegions(regions: RegionSettings) {
+    this.regionSettings = regions;
+    this.lastUpdateAt = Date.now();
+  }
 }
 
 function getCloudConfigUrl(serverUrl: URL) {
