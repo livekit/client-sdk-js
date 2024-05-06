@@ -85,10 +85,13 @@ export default abstract class RemoteTrack<
   registerTimeSyncUpdate() {
     const loop = () => {
       this.timeSyncHandle = requestAnimationFrame(() => loop());
-      const newTime = this.receiver?.getSynchronizationSources()[0]?.rtpTimestamp;
-      if (newTime && this.rtpTimestamp !== newTime) {
-        this.emit(TrackEvent.TimeSyncUpdate, newTime);
-        this.rtpTimestamp = newTime;
+      const sources = this.receiver?.getSynchronizationSources()[0];
+      if (sources) {
+        const { timestamp, rtpTimestamp } = sources;
+        if (rtpTimestamp && this.rtpTimestamp !== rtpTimestamp) {
+          this.emit(TrackEvent.TimeSyncUpdate, { timestamp, rtpTimestamp });
+          this.rtpTimestamp = rtpTimestamp;
+        }
       }
     };
     loop();

@@ -525,5 +525,5 @@ export type TrackEventCallbacks = {
   upstreamResumed: (track: any) => void;
   trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
   audioTrackFeatureUpdate: (track: any, feature: AudioTrackFeature, enabled: boolean) => void;
-  timeSyncUpdate: (timestamp: number) => void;
+  timeSyncUpdate: (update: { timestamp: number; rtpTimestamp: number }) => void;
 };
