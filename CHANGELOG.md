@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.1.3
+
+### Patch Changes
+
+- Don't create data channel of publisher until sending data message - [#1118](https://github.com/livekit/client-sdk-js/pull/1118) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Add timestamp to exp timeSyncUpdate - [#1126](https://github.com/livekit/client-sdk-js/pull/1126) ([@lukasIO](https://github.com/lukasIO))
+
+- Update to protocol 13 with LeaveRequest Action - [#1127](https://github.com/livekit/client-sdk-js/pull/1127) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.1.2
 
 ### Patch Changes
