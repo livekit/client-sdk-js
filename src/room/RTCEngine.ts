@@ -436,7 +436,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
 
-    this.createDataChannels();
+    if (!supportOptionalDatachannel(joinResponse.serverInfo?.protocol)) {
+      this.createDataChannels();
+    }
   }
 
   private setupSignalClientCallbacks() {
@@ -1116,11 +1118,21 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       throw new ConnectionError(`${transportName} connection not set`);
     }
 
+    let needNegotiation = false;
+    if (!subscriber && !this.dataChannelForKind(kind, subscriber)) {
+      this.createDataChannels();
+      needNegotiation = true;
+    }
+
     if (
+      !needNegotiation &&
       !subscriber &&
       !this.pcManager.publisher.isICEConnected &&
       this.pcManager.publisher.getICEConnectionState() !== 'checking'
     ) {
+      needNegotiation = true;
+    }
+    if (needNegotiation) {
       // start negotiation
       this.negotiate();
     }
@@ -1181,6 +1193,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.pcManager.requirePublisher();
+      // don't negotiate without any transceivers or data channel, it will generate sdp without ice frag then negotiate failed
+      if (
+        this.pcManager.publisher.getTransceivers().length == 0 &&
+        !this.lossyDC &&
+        !this.reliableDC
+      ) {
+        this.createDataChannels();
+      }
 
       const abortController = new AbortController();
 
@@ -1391,3 +1411,7 @@ export type EngineEventCallbacks = {
   remoteMute: (trackSid: string, muted: boolean) => void;
   offline: () => void;
 };
+
+function supportOptionalDatachannel(protocol: number | undefined): boolean {
+  return protocol !== undefined && protocol > 13;
+}
