@@ -1298,10 +1298,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.remoteParticipants.clear();
       this.sidToIdentity.clear();
       this.activeSpeakers = [];
-      if (
-        this.audioContext &&
-        (typeof this.options.webAudioMix === 'boolean' || !this.options.webAudioMix.audioContext)
-      ) {
+      if (this.audioContext && typeof this.options.webAudioMix === 'boolean') {
         this.audioContext.close();
         this.audioContext = undefined;
       }
