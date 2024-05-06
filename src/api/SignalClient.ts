@@ -6,6 +6,7 @@ import {
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
+  LeaveRequest_Action,
   MuteTrackRequest,
   ParticipantInfo,
   Ping,
@@ -596,8 +597,8 @@ export class SignalClient {
     return this.sendRequest({
       case: 'leave',
       value: new LeaveRequest({
-        canReconnect: false,
         reason: DisconnectReason.CLIENT_INITIATED,
+        action: LeaveRequest_Action.DISCONNECT,
       }),
     });
   }
