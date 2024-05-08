@@ -299,6 +299,7 @@ export default abstract class LocalTrack<
 
       await this.setMediaStreamTrack(newTrack);
       this._constraints = constraints;
+      this.emit(TrackEvent.Restarted, this);
       if (this.manuallyStopped) {
         this.log.warn(
           'track was stopped during a restart, stopping restarted track',
@@ -306,7 +307,6 @@ export default abstract class LocalTrack<
         );
         this.stop();
       }
-      this.emit(TrackEvent.Restarted, this);
       return this;
     } finally {
       unlock();
