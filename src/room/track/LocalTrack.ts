@@ -43,6 +43,8 @@ export default abstract class LocalTrack<
 
   protected audioContext?: AudioContext;
 
+  protected manuallyStopped: boolean = false;
+
   private restartLock: Mutex;
 
   /**
@@ -259,6 +261,7 @@ export default abstract class LocalTrack<
   }
 
   protected async restart(constraints?: MediaTrackConstraints) {
+    this.manuallyStopped = false;
     const unlock = await this.restartLock.lock();
     try {
       if (!constraints) {
@@ -296,7 +299,13 @@ export default abstract class LocalTrack<
 
       await this.setMediaStreamTrack(newTrack);
       this._constraints = constraints;
-
+      if (this.manuallyStopped) {
+        this.log.warn(
+          'track was stopped during a restart, stopping restarted track',
+          this.logContext,
+        );
+        this.stop();
+      }
       this.emit(TrackEvent.Restarted, this);
       return this;
     } finally {
@@ -361,6 +370,7 @@ export default abstract class LocalTrack<
   };
 
   stop() {
+    this.manuallyStopped = true;
     super.stop();
 
     this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
