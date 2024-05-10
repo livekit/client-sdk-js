@@ -266,8 +266,6 @@ export default class PCTransport extends EventEmitter {
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, [], []);
       } else if (media.type === 'video') {
-        ensureVideoDDExtensionForSVC(media);
-        // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
           if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
             return false;
@@ -283,6 +281,16 @@ export default class PCTransport extends EventEmitter {
           });
 
           if (codecPayload === 0) {
+            return true;
+          }
+
+          if (isSVCCodec(trackbr.codec)) {
+            ensureVideoDDExtensionForSVC(media);
+          }
+
+          // TODO: av1 slow starting issue already fixed in chrome 124, clean this after some versions
+          // mung sdp for av1 bitrate setting that can't apply by sendEncoding
+          if (trackbr.codec !== 'av1') {
             return true;
           }
 
@@ -552,11 +560,6 @@ function ensureVideoDDExtensionForSVC(
     payloads?: string | undefined;
   } & MediaDescription,
 ) {
-  const codec = media.rtp[0]?.codec?.toLowerCase();
-  if (!isSVCCodec(codec)) {
-    return;
-  }
-
   let maxID = 0;
   const ddFound = media.ext?.some((ext): boolean => {
     if (ext.uri === ddExtensionURI) {

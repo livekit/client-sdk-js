@@ -880,8 +880,7 @@ export default class LocalParticipant extends Participant {
             maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
           });
         }
-      } else if (track.codec && track.codec == 'av1' && encodings[0]?.maxBitrate) {
-        // AV1 requires setting x-start-bitrate in SDP
+      } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
         this.engine.pcManager.publisher.setTrackCodecBitrate({
           cid: req.cid,
           codec: track.codec,

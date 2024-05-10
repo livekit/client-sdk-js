@@ -171,6 +171,11 @@ export function computeVideoEncodings(
       });
     }
 
+    if (original.encoding.priority) {
+      encodings[0].priority = original.encoding.priority;
+      encodings[0].networkPriority = original.encoding.priority;
+    }
+
     log.debug(`using svc encoding`, { encodings });
     return encodings;
   }
