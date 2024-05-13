@@ -2,7 +2,10 @@ import {
   VideoQuality as ProtoVideoQuality,
   SubscribedCodec,
   SubscribedQuality,
+  SubscribedQualityDesc,
   VideoLayer,
+  VideoLayerDesc,
+  create,
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import type { StructuredLogger } from '../../logger';
@@ -217,7 +220,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     const qualities: SubscribedQuality[] = [];
     for (let q = VideoQuality.LOW; q <= VideoQuality.HIGH; q += 1) {
       qualities.push(
-        new SubscribedQuality({
+        create(SubscribedQualityDesc, {
           quality: q,
           enabled: q <= maxQuality,
         }),
@@ -556,7 +559,7 @@ export function videoLayersFromEncodings(
   // default to a single layer, HQ
   if (!encodings) {
     return [
-      new VideoLayer({
+      create(VideoLayerDesc, {
         quality: VideoQuality.HIGH,
         width,
         height,
@@ -576,7 +579,7 @@ export function videoLayersFromEncodings(
     const bitratesRatio = sm.suffix == 'h' ? 2 : 3;
     for (let i = 0; i < sm.spatial; i += 1) {
       layers.push(
-        new VideoLayer({
+        create(VideoLayerDesc, {
           quality: VideoQuality.HIGH - i,
           width: Math.ceil(width / resRatio ** i),
           height: Math.ceil(height / resRatio ** i),
@@ -593,7 +596,7 @@ export function videoLayersFromEncodings(
   return encodings.map((encoding) => {
     const scale = encoding.scaleResolutionDownBy ?? 1;
     let quality = videoQualityForRid(encoding.rid ?? '');
-    return new VideoLayer({
+    return create(VideoLayerDesc, {
       quality,
       width: Math.ceil(width / scale),
       height: Math.ceil(height / scale),

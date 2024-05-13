@@ -4,7 +4,9 @@ import {
   ClientConfiguration,
   type ConnectionQualityUpdate,
   DataChannelInfo,
+  DataChannelInfoDesc,
   DataPacket,
+  DataPacketDesc,
   DataPacket_Kind,
   DisconnectReason,
   type JoinResponse,
@@ -21,12 +23,16 @@ import {
   type SubscriptionPermissionUpdate,
   type SubscriptionResponse,
   SyncState,
+  SyncStateDesc,
   TrackInfo,
   type TrackPublishedResponse,
   TrackUnpublishedResponse,
   Transcription,
   UpdateSubscription,
+  UpdateSubscriptionDesc,
   UserPacket,
+  create,
+  toBinary,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type { MediaAttributes } from 'sdp-transform';
@@ -1074,7 +1080,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
-    const msg = packet.toBinary();
+    const msg = toBinary(DataPacketDesc, packet);
 
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
@@ -1291,7 +1297,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     });
 
     this.client.sendSyncState(
-      new SyncState({
+      create(SyncStateDesc, {
         answer: previousAnswer
           ? toProtoSessionDescription({
               sdp: previousAnswer.sdp,
@@ -1304,7 +1310,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
               type: previousOffer.type,
             })
           : undefined,
-        subscription: new UpdateSubscription({
+        subscription: create(UpdateSubscriptionDesc, {
           trackSids,
           subscribe: !autoSubscribe,
           participantTracks: [],
@@ -1327,7 +1333,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const getInfo = (dc: RTCDataChannel | undefined, target: SignalTarget) => {
       if (dc?.id !== undefined && dc.id !== null) {
         infos.push(
-          new DataChannelInfo({
+          create(DataChannelInfoDesc, {
             label: dc.label,
             id: dc.id,
             target,

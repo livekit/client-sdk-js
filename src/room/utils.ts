@@ -1,4 +1,10 @@
-import { ClientInfo, ClientInfo_SDK, Transcription as TranscriptionModel } from '@livekit/protocol';
+import {
+  ClientInfo,
+  ClientInfoDesc,
+  ClientInfo_SDK,
+  Transcription as TranscriptionModel,
+  create,
+} from '@livekit/protocol';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import CriticalTimers from './timers';
@@ -271,7 +277,7 @@ export interface ObservableMediaElement extends HTMLMediaElement {
 }
 
 export function getClientInfo(): ClientInfo {
-  const info = new ClientInfo({
+  const info = create(ClientInfoDesc, {
     sdk: ClientInfo_SDK.JS,
     protocol: protocolVersion,
     version,

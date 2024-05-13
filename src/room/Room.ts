@@ -3,25 +3,29 @@ import {
   DataPacket_Kind,
   DisconnectReason,
   JoinResponse,
-  LeaveRequest,
+  LeaveRequestDesc,
   LeaveRequest_Action,
   ParticipantInfo,
+  ParticipantInfoDesc,
   ParticipantInfo_State,
   ParticipantPermission,
+  RoomDesc,
   Room as RoomModel,
   ServerInfo,
   SimulateScenario,
+  SimulateScenarioDesc,
   SpeakerInfo,
   StreamStateUpdate,
   SubscriptionError,
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
-  TrackInfo,
+  TrackInfoDesc,
   TrackSource,
   TrackType,
   Transcription as TranscriptionModel,
   TranscriptionSegment as TranscriptionSegmentModel,
   UserPacket,
+  create,
   protoInt64,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
@@ -781,7 +785,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         await this.engine.client.handleOnClose('simulate disconnect');
         break;
       case 'speaker':
-        req = new SimulateScenario({
+        req = create(SimulateScenarioDesc, {
           scenario: {
             case: 'speakerUpdate',
             value: 3,
@@ -789,7 +793,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         });
         break;
       case 'node-failure':
-        req = new SimulateScenario({
+        req = create(SimulateScenarioDesc, {
           scenario: {
             case: 'nodeFailure',
             value: true,
@@ -797,7 +801,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         });
         break;
       case 'server-leave':
-        req = new SimulateScenario({
+        req = create(SimulateScenarioDesc, {
           scenario: {
             case: 'serverLeave',
             value: true,
@@ -805,7 +809,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         });
         break;
       case 'migration':
-        req = new SimulateScenario({
+        req = create(SimulateScenarioDesc, {
           scenario: {
             case: 'migration',
             value: true,
@@ -822,7 +826,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           // @ts-expect-error function is private
           await this.engine.client.handleOnClose('simulate resume-disconnect');
         };
-        req = new SimulateScenario({
+        req = create(SimulateScenarioDesc, {
           scenario: {
             case: 'disconnectSignalOnResume',
             value: true,
@@ -834,7 +838,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           // @ts-expect-error function is private
           await this.engine.client.handleOnClose('simulate resume-disconnect');
         };
-        req = new SimulateScenario({
+        req = create(SimulateScenarioDesc, {
           scenario: {
             case: 'disconnectSignalOnResumeNoMessages',
             value: true,
@@ -848,7 +852,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         break;
       case 'force-tcp':
       case 'force-tls':
-        req = new SimulateScenario({
+        req = create(SimulateScenarioDesc, {
           scenario: {
             case: 'switchCandidateProtocol',
             value: scenario === 'force-tls' ? 2 : 1,
@@ -858,7 +862,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           const onLeave = this.engine.client.onLeave;
           if (onLeave) {
             onLeave(
-              new LeaveRequest({
+              create(LeaveRequestDesc, {
                 reason: DisconnectReason.CLIENT_INITIATED,
                 action: LeaveRequest_Action.RECONNECT,
               }),
@@ -870,7 +874,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (arg === undefined || typeof arg !== 'number') {
           throw new Error('subscriber-bandwidth requires a number as argument');
         }
-        req = new SimulateScenario({
+        req = create(SimulateScenarioDesc, {
           scenario: {
             case: 'subscriberBandwidth',
             value: BigInt(arg),
@@ -878,7 +882,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         });
         break;
       case 'leave-full-reconnect':
-        req = new SimulateScenario({
+        req = create(SimulateScenarioDesc, {
           scenario: {
             case: 'leaveRequestFullReconnect',
             value: true,
@@ -1899,7 +1903,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       ...options.participants,
     };
     this.handleDisconnect();
-    this.roomInfo = new RoomModel({
+    this.roomInfo = create(RoomDesc, {
       sid: 'RM_SIMULATED',
       name: 'simulated-room',
       emptyTimeout: 0,
@@ -1914,7 +1918,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     });
 
     this.localParticipant.updateInfo(
-      new ParticipantInfo({
+      create(ParticipantInfoDesc, {
         identity: 'simulated-local',
         name: 'local-name',
       }),
@@ -1926,7 +1930,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (publishOptions.video) {
       const camPub = new LocalTrackPublication(
         Track.Kind.Video,
-        new TrackInfo({
+        create(TrackInfoDesc, {
           source: TrackSource.CAMERA,
           sid: Math.floor(Math.random() * 10_000).toString(),
           type: TrackType.AUDIO,
@@ -1956,7 +1960,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (publishOptions.audio) {
       const audioPub = new LocalTrackPublication(
         Track.Kind.Audio,
-        new TrackInfo({
+        create(TrackInfoDesc, {
           source: TrackSource.MICROPHONE,
           sid: Math.floor(Math.random() * 10_000).toString(),
           type: TrackType.AUDIO,
@@ -1978,7 +1982,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     for (let i = 0; i < participantOptions.count - 1; i += 1) {
-      let info: ParticipantInfo = new ParticipantInfo({
+      let info: ParticipantInfo = create(ParticipantInfoDesc, {
         sid: Math.floor(Math.random() * 10_000).toString(),
         identity: `simulated-${i}`,
         state: ParticipantInfo_State.ACTIVE,
@@ -1993,7 +1997,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           false,
           true,
         );
-        const videoTrack = new TrackInfo({
+        const videoTrack = create(TrackInfoDesc, {
           source: TrackSource.CAMERA,
           sid: Math.floor(Math.random() * 10_000).toString(),
           type: TrackType.AUDIO,
@@ -2003,7 +2007,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
       if (participantOptions.audio) {
         const dummyTrack = getEmptyAudioStreamTrack();
-        const audioTrack = new TrackInfo({
+        const audioTrack = create(TrackInfoDesc, {
           source: TrackSource.MICROPHONE,
           sid: Math.floor(Math.random() * 10_000).toString(),
           type: TrackType.AUDIO,

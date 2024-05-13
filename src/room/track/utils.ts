@@ -1,4 +1,4 @@
-import { TrackPublishedResponse } from '@livekit/protocol';
+import { TrackPublishedResponse, TrackPublishedResponseDesc, create } from '@livekit/protocol';
 import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
 import { Track } from './Track';
@@ -202,7 +202,7 @@ export function getTrackPublicationInfo<T extends TrackPublication>(
   tracks.forEach((track: TrackPublication) => {
     if (track.track !== undefined) {
       infos.push(
-        new TrackPublishedResponse({
+        create(TrackPublishedResponseDesc, {
           cid: track.track.mediaStreamID,
           track: track.trackInfo,
         }),

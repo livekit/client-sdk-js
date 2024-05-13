@@ -6,36 +6,45 @@ import {
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
+  LeaveRequestDesc,
   LeaveRequest_Action,
-  MuteTrackRequest,
+  MuteTrackRequestDesc,
   ParticipantInfo,
-  Ping,
+  PingDesc,
   ReconnectReason,
   ReconnectResponse,
   Room,
   SessionDescription,
+  SessionDescriptionDesc,
   SignalRequest,
+  SignalRequestDesc,
   SignalResponse,
+  SignalResponseDesc,
   SignalTarget,
   SimulateScenario,
   SpeakerInfo,
   StreamStateUpdate,
   SubscribedQualityUpdate,
-  SubscriptionPermission,
+  SubscriptionPermissionDesc,
   SubscriptionPermissionUpdate,
   SubscriptionResponse,
   SyncState,
   TrackPermission,
   TrackPublishedResponse,
   TrackUnpublishedResponse,
-  TrickleRequest,
-  UpdateLocalAudioTrack,
-  UpdateParticipantMetadata,
+  TrickleRequestDesc,
+  UpdateLocalAudioTrackDesc,
+  UpdateParticipantMetadataDesc,
   UpdateSubscription,
   UpdateTrackSettings,
-  UpdateVideoLayers,
+  UpdateVideoLayersDesc,
   VideoLayer,
+  create,
+  fromBinary,
+  fromJsonString,
   protoInt64,
+  toBinary,
+  toJsonString,
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
@@ -212,12 +221,7 @@ export class SignalClient {
     return res as JoinResponse;
   }
 
-  async reconnect(
-    url: string,
-    token: string,
-    sid?: string,
-    reason?: ReconnectReason,
-  ): Promise<ReconnectResponse | undefined> {
+  async reconnect(url: string, token: string, sid?: string, reason?: ReconnectReason) {
     if (!this.options) {
       this.log.warn(
         'attempted to reconnect without signal options being set, ignoring',
@@ -229,13 +233,14 @@ export class SignalClient {
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    const res = await this.connect(url, token, {
-      ...this.options,
-      reconnect: true,
-      sid,
-      reconnectReason: reason,
-    });
-    return res;
+    const { iceServers, clientConfiguration } =
+      (await this.connect(url, token, {
+        ...this.options,
+        reconnect: true,
+        sid,
+        reconnectReason: reason,
+      })) ?? {};
+    return { iceServers, clientConfiguration };
   }
 
   private connect(
@@ -319,9 +324,9 @@ export class SignalClient {
           let resp: SignalResponse;
           if (typeof ev.data === 'string') {
             const json = JSON.parse(ev.data);
-            resp = SignalResponse.fromJson(json, { ignoreUnknownFields: true });
+            resp = fromJsonString(SignalResponseDesc, json, { ignoreUnknownFields: true });
           } else if (ev.data instanceof ArrayBuffer) {
-            resp = SignalResponse.fromBinary(new Uint8Array(ev.data));
+            resp = fromBinary(SignalResponseDesc, new Uint8Array(ev.data));
           } else {
             this.log.error(
               `could not decode websocket message: ${typeof ev.data}`,
@@ -487,7 +492,7 @@ export class SignalClient {
     this.log.trace('sending ice candidate', { ...this.logContext, candidate });
     return this.sendRequest({
       case: 'trickle',
-      value: new TrickleRequest({
+      value: create(TrickleRequestDesc, {
         candidateInit: JSON.stringify(candidate),
         target,
       }),
@@ -497,7 +502,7 @@ export class SignalClient {
   sendMuteTrack(trackSid: string, muted: boolean) {
     return this.sendRequest({
       case: 'mute',
-      value: new MuteTrackRequest({
+      value: create(MuteTrackRequestDesc, {
         sid: trackSid,
         muted,
       }),
@@ -514,7 +519,7 @@ export class SignalClient {
   sendUpdateLocalMetadata(metadata: string, name: string) {
     return this.sendRequest({
       case: 'updateMetadata',
-      value: new UpdateParticipantMetadata({
+      value: create(UpdateParticipantMetadataDesc, {
         metadata,
         name,
       }),
@@ -545,7 +550,7 @@ export class SignalClient {
   sendUpdateVideoLayers(trackSid: string, layers: VideoLayer[]) {
     return this.sendRequest({
       case: 'updateLayers',
-      value: new UpdateVideoLayers({
+      value: create(UpdateVideoLayersDesc, {
         trackSid,
         layers,
       }),
@@ -555,7 +560,7 @@ export class SignalClient {
   sendUpdateSubscriptionPermissions(allParticipants: boolean, trackPermissions: TrackPermission[]) {
     return this.sendRequest({
       case: 'subscriptionPermission',
-      value: new SubscriptionPermission({
+      value: create(SubscriptionPermissionDesc, {
         allParticipants,
         trackPermissions,
       }),
@@ -578,7 +583,7 @@ export class SignalClient {
       }),
       this.sendRequest({
         case: 'pingReq',
-        value: new Ping({
+        value: create(PingDesc, {
           timestamp: protoInt64.parse(Date.now()),
           rtt: protoInt64.parse(this.rtt),
         }),
@@ -589,14 +594,14 @@ export class SignalClient {
   sendUpdateLocalAudioTrack(trackSid: string, features: AudioTrackFeature[]) {
     return this.sendRequest({
       case: 'updateAudioTrack',
-      value: new UpdateLocalAudioTrack({ trackSid, features }),
+      value: create(UpdateLocalAudioTrackDesc, { trackSid, features }),
     });
   }
 
   sendLeave() {
     return this.sendRequest({
       case: 'leave',
-      value: new LeaveRequest({
+      value: create(LeaveRequestDesc, {
         reason: DisconnectReason.CLIENT_INITIATED,
         // server doesn't process this field, keeping it here to indicate the intent of a full disconnect
         action: LeaveRequest_Action.DISCONNECT,
@@ -628,13 +633,13 @@ export class SignalClient {
       );
       return;
     }
-    const req = new SignalRequest({ message });
+    const req = create(SignalRequestDesc, { message });
 
     try {
       if (this.useJSON) {
-        this.ws.send(req.toJsonString());
+        this.ws.send(toJsonString(SignalRequestDesc, req));
       } else {
-        this.ws.send(req.toBinary());
+        this.ws.send(toBinary(SignalRequestDesc, req));
       }
     } catch (e) {
       this.log.error('error sending signal message', { ...this.logContext, error: e });
@@ -826,7 +831,7 @@ function fromProtoSessionDescription(sd: SessionDescription): RTCSessionDescript
 export function toProtoSessionDescription(
   rsd: RTCSessionDescription | RTCSessionDescriptionInit,
 ): SessionDescription {
-  const sd = new SessionDescription({
+  const sd = create(SessionDescriptionDesc, {
     sdp: rsd.sdp!,
     type: rsd.type!,
   });
