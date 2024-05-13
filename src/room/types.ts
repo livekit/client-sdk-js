@@ -49,7 +49,9 @@ export type SimulationScenario =
   // to disable congestion control entirely (by setting bandwidth to 100Mbps)
   | 'subscriber-bandwidth'
   | 'disconnect-signal-on-resume'
-  | 'disconnect-signal-on-resume-no-messages';
+  | 'disconnect-signal-on-resume-no-messages'
+  // instructs the server to send a full reconnect reconnect action to the client
+  | 'leave-full-reconnect';
 
 export type LoggerOptions = {
   loggerName?: string;

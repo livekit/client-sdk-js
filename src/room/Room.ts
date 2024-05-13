@@ -877,7 +877,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         });
         break;
-
+      case 'leave-full-reconnect':
+        req = new SimulateScenario({
+          scenario: {
+            case: 'leaveRequestFullReconnect',
+            value: true,
+          },
+        });
       default:
     }
     if (req) {
