@@ -118,6 +118,8 @@ export function computeVideoEncodings(
     return [{}];
   }
 
+  let useDefaultVideoEncoding = !videoEncoding;
+
   if (!videoEncoding) {
     // find the right encoding based on width/height
     videoEncoding = determineAppropriateEncoding(isScreenShare, width, height, videoCodec);
@@ -163,8 +165,12 @@ export function computeVideoEncodings(
       /* @ts-ignore */
       encodings[0].scalabilityMode = scalabilityMode;
     } else {
+      const svcBitrate = useDefaultVideoEncoding
+        ? // account for spatial layers if default video encoding computation has been used to determine bitrate
+          original.encoding.maxBitrate * Math.cbrt(sm.spatial)
+        : original.encoding.maxBitrate;
       encodings.push({
-        maxBitrate: videoEncoding.maxBitrate,
+        maxBitrate: svcBitrate,
         maxFramerate: original.encoding.maxFramerate,
         /* @ts-ignore */
         scalabilityMode: scalabilityMode,
