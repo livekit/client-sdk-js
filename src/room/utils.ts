@@ -491,8 +491,10 @@ export function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec {
   return videoCodecs.includes(maybeCodec as VideoCodec);
 }
 
-export function unwrapConstraint(constraint: ConstrainDOMString): string {
-  if (typeof constraint === 'string') {
+export function unwrapConstraint(constraint: ConstrainDOMString): string;
+export function unwrapConstraint(constraint: ConstrainULong): number;
+export function unwrapConstraint(constraint: ConstrainDOMString | ConstrainULong): string | number {
+  if (typeof constraint === 'string' || typeof constraint === 'number') {
     return constraint;
   }
 

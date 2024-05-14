@@ -54,6 +54,7 @@ import { trackPermissionToProto } from './ParticipantTrackPermission';
 import {
   computeTrackBackupEncodings,
   computeVideoEncodings,
+  getDefaultDegradationPreference,
   mediaTrackToLocalTrack,
 } from './publishUtils';
 
@@ -857,6 +858,11 @@ export default class LocalParticipant extends Participant {
 
     track.sender = await this.engine.createSender(track, opts, encodings);
 
+    if (track instanceof LocalVideoTrack && opts.degradationPreference) {
+      opts.degradationPreference ??= getDefaultDegradationPreference(track);
+      track.setDegradationPreference(opts.degradationPreference);
+    }
+
     if (encodings) {
       if (isFireFox() && track.kind === Track.Kind.Audio) {
         /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
@@ -886,20 +892,6 @@ export default class LocalParticipant extends Participant {
           codec: track.codec,
           maxbr: encodings[0].maxBitrate / 1000,
         });
-      }
-    }
-
-    if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
-      // a few of reasons we are forcing this setting without allowing overrides:
-      // 1. without this, Chrome seems to aggressively resize the SVC video stating `quality-limitation: bandwidth` even when BW isn't an issue
-      // 2. since we are overriding contentHint to motion (to workaround L1T3 publishing), it overrides the default degradationPreference to `balanced`
-      try {
-        this.log.debug(`setting degradationPreference to maintain-resolution`);
-        const params = track.sender.getParameters();
-        params.degradationPreference = 'maintain-resolution';
-        await track.sender.setParameters(params);
-      } catch (e) {
-        this.log.warn(`failed to set degradationPreference: ${e}`);
       }
     }
 
