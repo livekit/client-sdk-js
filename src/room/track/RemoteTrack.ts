@@ -2,6 +2,7 @@ import { TrackEvent } from '../events';
 import { monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
 import { Track } from './Track';
+import { supportsSynchronizationSources } from './utils';
 
 export default abstract class RemoteTrack<
   TrackKind extends Track.Kind = Track.Kind,
@@ -77,7 +78,9 @@ export default abstract class RemoteTrack<
     if (!this.monitorInterval) {
       this.monitorInterval = setInterval(() => this.monitorReceiver(), monitorFrequency);
     }
-    this.registerTimeSyncUpdate();
+    if (supportsSynchronizationSources()) {
+      this.registerTimeSyncUpdate();
+    }
   }
 
   protected abstract monitorReceiver(): void;
