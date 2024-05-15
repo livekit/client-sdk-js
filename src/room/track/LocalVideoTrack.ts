@@ -55,7 +55,11 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
   private degradationPreference: RTCDegradationPreference = 'balanced';
 
-  override set sender(sender: RTCRtpSender | undefined) {
+  get sender(): RTCRtpSender | undefined {
+    return this._sender;
+  }
+
+  set sender(sender: RTCRtpSender | undefined) {
     this._sender = sender;
     if (this.degradationPreference) {
       this.setDegradationPreference(this.degradationPreference);
