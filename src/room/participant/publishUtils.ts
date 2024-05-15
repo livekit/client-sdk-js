@@ -120,7 +120,7 @@ export function computeVideoEncodings(
 
   let useDefaultVideoEncoding = !videoEncoding;
 
-  if (useDefaultVideoEncoding) {
+  if (!videoEncoding) {
     // find the right encoding based on width/height
     videoEncoding = determineAppropriateEncoding(isScreenShare, width, height, videoCodec);
     log.debug('using video encoding', videoEncoding);
