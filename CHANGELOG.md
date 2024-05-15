@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.1.4
+
+### Patch Changes
+
+- Add degradationPreference option for LocalVideoTrack - [#1138](https://github.com/livekit/client-sdk-js/pull/1138) ([@lukasIO](https://github.com/lukasIO))
+
+- Honor calls to track.stop() during an ongoing restart attempt - [#1131](https://github.com/livekit/client-sdk-js/pull/1131) ([@lukasIO](https://github.com/lukasIO))
+
+- Add check for getSynchronizationSources support - [#1136](https://github.com/livekit/client-sdk-js/pull/1136) ([@lukasIO](https://github.com/lukasIO))
+
+- Add leave req full reconnect simulation scenario - [#1137](https://github.com/livekit/client-sdk-js/pull/1137) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure DD ext for svc codecs - [#1132](https://github.com/livekit/client-sdk-js/pull/1132) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 2.1.3
 
 ### Patch Changes
