@@ -15,8 +15,17 @@ const defaultDimensionsTimeout = 1000;
 export default abstract class LocalTrack<
   TrackKind extends Track.Kind = Track.Kind,
 > extends Track<TrackKind> {
+  protected _sender?: RTCRtpSender;
+
   /** @internal */
-  sender?: RTCRtpSender;
+  get sender(): RTCRtpSender | undefined {
+    return this._sender;
+  }
+
+  /** @internal */
+  set sender(sender: RTCRtpSender | undefined) {
+    this._sender = sender;
+  }
 
   /** @internal */
   codec?: VideoCodec;

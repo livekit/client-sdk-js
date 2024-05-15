@@ -53,6 +53,15 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   // a missing `getParameter` call.
   private senderLock: Mutex;
 
+  private degradationPreference: RTCDegradationPreference = 'balanced';
+
+  override set sender(sender: RTCRtpSender | undefined) {
+    this._sender = sender;
+    if (this.degradationPreference) {
+      this.setDegradationPreference(this.degradationPreference);
+    }
+  }
+
   /**
    *
    * @param mediaTrack
@@ -269,6 +278,20 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     if (this.processor?.processedTrack) {
       for await (const sc of this.simulcastCodecs.values()) {
         await sc.sender?.replaceTrack(this.processor.processedTrack);
+      }
+    }
+  }
+
+  async setDegradationPreference(preference: RTCDegradationPreference) {
+    this.degradationPreference = preference;
+    if (this.sender) {
+      try {
+        this.log.debug(`setting degradationPreference to ${preference}`, this.logContext);
+        const params = this.sender.getParameters();
+        params.degradationPreference = preference;
+        this.sender.setParameters(params);
+      } catch (e: any) {
+        this.log.warn(`failed to set degradationPreference`, { error: e, ...this.logContext });
       }
     }
   }

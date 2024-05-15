@@ -65,6 +65,11 @@ export interface TrackPublishDefaults {
   scalabilityMode?: ScalabilityMode;
 
   /**
+   * degradation preference
+   */
+  degradationPreference?: RTCDegradationPreference;
+
+  /**
    * Up to two additional simulcast layers to publish in addition to the original
    * Track.
    * When left blank, it defaults to h180, h360.

@@ -19,6 +19,7 @@ import {
   isReactNative,
   isSVCCodec,
   isSafari,
+  unwrapConstraint,
 } from '../utils';
 
 /** @internal */
@@ -438,5 +439,19 @@ export class ScalabilityMode {
 
   toString(): string {
     return `L${this.spatial}T${this.temporal}${this.suffix ?? ''}`;
+  }
+}
+
+export function getDefaultDegradationPreference(track: LocalVideoTrack): RTCDegradationPreference {
+  // a few of reasons we have different default paths:
+  // 1. without this, Chrome seems to aggressively resize the SVC video stating `quality-limitation: bandwidth` even when BW isn't an issue
+  // 2. since we are overriding contentHint to motion (to workaround L1T3 publishing), it overrides the default degradationPreference to `balanced`
+  if (
+    track.source === Track.Source.ScreenShare ||
+    (track.constraints.height && unwrapConstraint(track.constraints.height) >= 1080)
+  ) {
+    return 'maintain-resolution';
+  } else {
+    return 'balanced';
   }
 }
