@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.1.5
+
+### Patch Changes
+
+- Override sender getter on LocalVideoTrack - [#1141](https://github.com/livekit/client-sdk-js/pull/1141) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.1.4
 
 ### Patch Changes
