@@ -449,7 +449,6 @@ export default class LocalParticipant extends Participant {
           track.setAudioContext(this.audioContext);
         }
         track.mediaStream = stream;
-        console.log('checking for processor', trackOptions.processor);
         if (trackOptions.processor) {
           if (track instanceof LocalAudioTrack) {
             await track.setProcessor(trackOptions.processor as TrackProcessor<Track.Kind.Audio>);
