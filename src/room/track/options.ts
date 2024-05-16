@@ -1,5 +1,9 @@
 import type { Track } from './Track';
-import type { AudioProcessorOptions, TrackProcessor } from './processor/types';
+import type {
+  AudioProcessorOptions,
+  TrackProcessor,
+  VideoProcessorOptions,
+} from './processor/types';
 
 export interface TrackPublishDefaults {
   /**
@@ -157,7 +161,7 @@ export interface VideoCaptureOptions {
   /**
    * initialize the track with a given processor
    */
-  processor?: TrackProcessor<Track.Kind.Video>;
+  processor?: TrackProcessor<Track.Kind.Video, VideoProcessorOptions>;
 }
 
 export interface ScreenShareCaptureOptions {
