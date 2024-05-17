@@ -198,6 +198,13 @@ export enum RoomEvent {
   DataReceived = 'dataReceived',
 
   /**
+   * SIP DTMF tones received from another participant.
+   *
+   * args: (participant: [[Participant]], dtmf: [[DataPacket_Kind]])
+   */
+  SipDTMFReceived = 'sipDTMFReceived',
+
+  /**
    * Transcription received from a participant's track.
    * @beta
    */
@@ -409,6 +416,13 @@ export enum ParticipantEvent {
   DataReceived = 'dataReceived',
 
   /**
+   * SIP DTMF tones received from this participant as sender.
+   *
+   * args: (dtmf: [[DataPacket_Kind]])
+   */
+  SipDTMFReceived = 'sipDTMFReceived',
+
+  /**
    * Transcription received from this participant as data source.
    * @beta
    */
@@ -491,7 +505,6 @@ export enum EngineEvent {
   MediaTrackAdded = 'mediaTrackAdded',
   ActiveSpeakersUpdate = 'activeSpeakersUpdate',
   DataPacketReceived = 'dataPacketReceived',
-  TranscriptionReceived = 'transcriptionReceived',
   RTPVideoMapUpdate = 'rtpVideoMapUpdate',
   DCBufferStatusChanged = 'dcBufferStatusChanged',
   ParticipantUpdate = 'participantUpdate',

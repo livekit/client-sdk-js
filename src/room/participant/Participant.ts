@@ -3,6 +3,7 @@ import {
   ParticipantInfo,
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
+  type SipDTMF,
   SubscriptionError,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
@@ -329,6 +330,7 @@ export type ParticipantEventCallbacks = {
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   participantNameChanged: (name: string) => void;
   dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
+  sipDTMFReceived: (dtmf: SipDTMF) => void;
   transcriptionReceived: (
     transcription: TranscriptionSegment[],
     publication?: TrackPublication,

@@ -1,5 +1,6 @@
 import {
   ConnectionQualityUpdate,
+  type DataPacket,
   DataPacket_Kind,
   DisconnectReason,
   JoinResponse,
@@ -11,6 +12,7 @@ import {
   Room as RoomModel,
   ServerInfo,
   SimulateScenario,
+  SipDTMF,
   SpeakerInfo,
   StreamStateUpdate,
   SubscriptionError,
@@ -334,7 +336,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
-      .on(EngineEvent.TranscriptionReceived, this.handleTranscription)
       .on(EngineEvent.Resuming, () => {
         this.clearConnectionReconcile();
         this.isResuming = true;
@@ -1472,24 +1473,47 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     pub.setSubscriptionError(update.err);
   };
 
-  private handleDataPacket = (userPacket: UserPacket, kind: DataPacket_Kind) => {
+  private handleDataPacket = (packet: DataPacket) => {
     // find the participant
-    const participant = this.remoteParticipants.get(userPacket.participantIdentity);
+    const participant = this.remoteParticipants.get(packet.participantIdentity);
+    if (packet.value.case === 'user') {
+      this.handleUserPacket(participant, packet.value.value, packet.kind);
+    } else if (packet.value.case === 'transcription') {
+      this.handleTranscription(participant, packet.value.value);
+    } else if (packet.value.case === 'sipDtmf') {
+      this.handleSipDtmf(participant, packet.value.value);
+    }
+  };
 
+  private handleUserPacket = (
+    participant: RemoteParticipant | undefined,
+    userPacket: UserPacket,
+    kind: DataPacket_Kind,
+  ) => {
     this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
 
     // also emit on the participant
     participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
   };
 
+  private handleSipDtmf = (participant: RemoteParticipant | undefined, dtmf: SipDTMF) => {
+    this.emit(RoomEvent.SipDTMFReceived, dtmf, participant);
+
+    // also emit on the participant
+    participant?.emit(ParticipantEvent.SipDTMFReceived, dtmf);
+  };
+
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
 
-  private handleTranscription = (transcription: TranscriptionModel) => {
+  private handleTranscription = (
+    remoteParticipant: RemoteParticipant | undefined,
+    transcription: TranscriptionModel,
+  ) => {
     // find the participant
     const participant =
       transcription.participantIdentity === this.localParticipant.identity
         ? this.localParticipant
-        : this.remoteParticipants.get(transcription.participantIdentity);
+        : remoteParticipant;
     const publication = participant?.trackPublications.get(transcription.trackId);
 
     const segments = extractTranscriptionSegments(transcription);
@@ -2099,6 +2123,7 @@ export type RoomEventCallbacks = {
     kind?: DataPacket_Kind,
     topic?: string,
   ) => void;
+  sipDTMFReceived: (dtmf: SipDTMF, participant?: RemoteParticipant) => void;
   transcriptionReceived: (
     transcription: TranscriptionSegment[],
     participant?: Participant,

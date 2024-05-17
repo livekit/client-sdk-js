@@ -26,7 +26,7 @@ import {
   TrackUnpublishedResponse,
   Transcription,
   UpdateSubscription,
-  UserPacket,
+  type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type { MediaAttributes } from 'sdp-transform';
@@ -648,10 +648,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (dp.value?.case === 'speaker') {
         // dispatch speaker updates
         this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
-      } else if (dp.value?.case === 'user') {
-        this.emit(EngineEvent.DataPacketReceived, dp.value.value, dp.kind);
-      } else if (dp.value?.case === 'transcription') {
-        this.emit(EngineEvent.TranscriptionReceived, dp.value.value);
+      } else {
+        if (dp.value?.case === 'user') {
+          // compatibility
+          applyUserDataCompat(dp, dp.value.value);
+        }
+        this.emit(EngineEvent.DataPacketReceived, dp);
       }
     } finally {
       unlock();
@@ -1392,7 +1394,7 @@ export type EngineEventCallbacks = {
     receiver?: RTCRtpReceiver,
   ) => void;
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
-  dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
+  dataPacketReceived: (packet: DataPacket) => void;
   transcriptionReceived: (transcription: Transcription) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
   /** @internal */
@@ -1414,4 +1416,19 @@ export type EngineEventCallbacks = {
 
 function supportOptionalDatachannel(protocol: number | undefined): boolean {
   return protocol !== undefined && protocol > 13;
+}
+
+function applyUserDataCompat(newObj: DataPacket, oldObj: UserPacket) {
+  const participantIdentity = newObj.participantIdentity
+    ? newObj.participantIdentity
+    : oldObj.participantIdentity;
+  newObj.participantIdentity = participantIdentity;
+  oldObj.participantIdentity = participantIdentity;
+
+  const destinationIdentities =
+    newObj.destinationIdentities.length !== 0
+      ? newObj.destinationIdentities
+      : oldObj.destinationIdentities;
+  newObj.destinationIdentities = destinationIdentities;
+  oldObj.destinationIdentities = destinationIdentities;
 }
