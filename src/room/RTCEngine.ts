@@ -26,6 +26,7 @@ import {
   TrackUnpublishedResponse,
   Transcription,
   UpdateSubscription,
+  UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type { MediaAttributes } from 'sdp-transform';
@@ -650,8 +651,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       } else {
         if (dp.value?.case === 'user') {
           // compatibility
-          compatString(dp, dp.value.value, 'participantIdentity');
-          compatArray(dp, dp.value.value, 'destinationIdentities');
+          applyParticipantIdentityCompat(dp, dp.value.value);
+          applyDestinationCompat(dp, dp.value.value);
         }
         this.emit(EngineEvent.DataPacketReceived, dp);
       }
@@ -1418,11 +1419,11 @@ function supportOptionalDatachannel(protocol: number | undefined): boolean {
   return protocol !== undefined && protocol > 13;
 }
 
-interface PartialStringObj {
-  [key: string]: string | undefined;
-}
-
-function compatString(newObj: PartialStringObj, oldObj: PartialStringObj, name: string) {
+function applyParticipantIdentityCompat(
+  newObj: DataPacket,
+  oldObj: UserPacket,
+  name: 'participantIdentity' = 'participantIdentity',
+) {
   if (newObj[name] === '' && oldObj[name] !== '') {
     newObj[name] = oldObj[name];
   }
@@ -1431,11 +1432,11 @@ function compatString(newObj: PartialStringObj, oldObj: PartialStringObj, name: 
   }
 }
 
-interface PartialArrayObj {
-  [key: string]: any[] | undefined;
-}
-
-function compatArray(newObj: PartialArrayObj, oldObj: PartialArrayObj, name: string) {
+function applyDestinationCompat(
+  newObj: DataPacket,
+  oldObj: UserPacket,
+  name: 'destinationIdentities' = 'destinationIdentities',
+) {
   if (newObj[name]?.length === 0 && oldObj[name]?.length !== 0) {
     newObj[name] = oldObj[name];
   }
