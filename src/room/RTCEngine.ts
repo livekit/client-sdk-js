@@ -26,6 +26,7 @@ import {
   TrackUnpublishedResponse,
   Transcription,
   UpdateSubscription,
+  type UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type { MediaAttributes } from 'sdp-transform';
@@ -650,8 +651,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       } else {
         if (dp.value?.case === 'user') {
           // compatibility
-          compatString(dp, dp.value.value, 'participantIdentity');
-          compatArray(dp, dp.value.value, 'destinationIdentities');
+          applyUserDataCompat(dp, dp.value.value);
         }
         this.emit(EngineEvent.DataPacketReceived, dp);
       }
@@ -1418,28 +1418,17 @@ function supportOptionalDatachannel(protocol: number | undefined): boolean {
   return protocol !== undefined && protocol > 13;
 }
 
-interface PartialStringObj {
-  [key: string]: string | undefined;
-}
+function applyUserDataCompat(newObj: DataPacket, oldObj: UserPacket) {
+  const participantIdentity = newObj.participantIdentity
+    ? newObj.participantIdentity
+    : oldObj.participantIdentity;
+  newObj.participantIdentity = participantIdentity;
+  oldObj.participantIdentity = participantIdentity;
 
-function compatString(newObj: PartialStringObj, oldObj: PartialStringObj, name: string) {
-  if (newObj[name] === '' && oldObj[name] !== '') {
-    newObj[name] = oldObj[name];
-  }
-  if (oldObj[name] === '') {
-    oldObj[name] = newObj[name];
-  }
-}
-
-interface PartialArrayObj {
-  [key: string]: any[] | undefined;
-}
-
-function compatArray(newObj: PartialArrayObj, oldObj: PartialArrayObj, name: string) {
-  if (newObj[name]?.length === 0 && oldObj[name]?.length !== 0) {
-    newObj[name] = oldObj[name];
-  }
-  if (oldObj[name]?.length === 0 && newObj[name]?.length !== 0) {
-    oldObj[name] = newObj[name];
-  }
+  const destinationIdentities =
+    newObj.destinationIdentities.length !== 0
+      ? newObj.destinationIdentities
+      : oldObj.destinationIdentities;
+  newObj.destinationIdentities = destinationIdentities;
+  oldObj.destinationIdentities = destinationIdentities;
 }
