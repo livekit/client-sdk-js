@@ -26,7 +26,6 @@ import {
   TrackUnpublishedResponse,
   Transcription,
   UpdateSubscription,
-  UserPacket,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type { MediaAttributes } from 'sdp-transform';
@@ -648,10 +647,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (dp.value?.case === 'speaker') {
         // dispatch speaker updates
         this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
-      } else if (dp.value?.case === 'user') {
-        this.emit(EngineEvent.DataPacketReceived, dp.value.value, dp.kind);
-      } else if (dp.value?.case === 'transcription') {
-        this.emit(EngineEvent.TranscriptionReceived, dp.value.value);
+      } else {
+        if (dp.value?.case === 'user') {
+          // compatibility
+          compatString(dp, dp.value.value, 'participantIdentity');
+          compatArray(dp, dp.value.value, 'destinationIdentities');
+        }
+        this.emit(EngineEvent.DataPacketReceived, dp);
       }
     } finally {
       unlock();
@@ -1392,7 +1394,7 @@ export type EngineEventCallbacks = {
     receiver?: RTCRtpReceiver,
   ) => void;
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
-  dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
+  dataPacketReceived: (packet: DataPacket) => void;
   transcriptionReceived: (transcription: Transcription) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
   /** @internal */
@@ -1414,4 +1416,30 @@ export type EngineEventCallbacks = {
 
 function supportOptionalDatachannel(protocol: number | undefined): boolean {
   return protocol !== undefined && protocol > 13;
+}
+
+interface PartialStringObj {
+  [key: string]: string | undefined;
+}
+
+function compatString(newObj: PartialStringObj, oldObj: PartialStringObj, name: string) {
+  if (newObj[name] === '' && oldObj[name] !== '') {
+    newObj[name] = oldObj[name];
+  }
+  if (oldObj[name] === '') {
+    oldObj[name] = newObj[name];
+  }
+}
+
+interface PartialArrayObj {
+  [key: string]: any[] | undefined;
+}
+
+function compatArray(newObj: PartialArrayObj, oldObj: PartialArrayObj, name: string) {
+  if (newObj[name]?.length === 0 && oldObj[name]?.length !== 0) {
+    newObj[name] = oldObj[name];
+  }
+  if (oldObj[name]?.length === 0 && newObj[name]?.length !== 0) {
+    oldObj[name] = newObj[name];
+  }
 }
