@@ -1086,11 +1086,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (this.options.webAudioMix) {
           // @ts-expect-error setSinkId is not yet in the typescript type of AudioContext
           this.audioContext?.setSinkId(deviceId);
-        } else {
-          await Promise.all(
-            Array.from(this.remoteParticipants.values()).map((p) => p.setAudioOutput({ deviceId })),
-          );
         }
+        // also set audio output on all audio elements, even if webAudioMix is enabled in order to workaround echo cancellation not working on chrome with non-default output devices
+        // see https://issues.chromium.org/issues/40252911#comment7
+        await Promise.all(
+          Array.from(this.remoteParticipants.values()).map((p) => p.setAudioOutput({ deviceId })),
+        );
       } catch (e) {
         this.options.audioOutput.deviceId = prevDeviceId;
         throw e;
