@@ -220,6 +220,9 @@ const appActions = {
       .on(RoomEvent.ParticipantEncryptionStatusChanged, () => {
         updateButtonsForPublishState();
       })
+      .on(RoomEvent.TranscriptionReceived, (segments, participant) => {
+        console.log(`${participant?.identity}: ${segments[0].text}`);
+      })
       .on(RoomEvent.TrackStreamStateChanged, (pub, streamState, participant) => {
         appendLog(
           `stream state changed for ${pub.trackSid} (${
