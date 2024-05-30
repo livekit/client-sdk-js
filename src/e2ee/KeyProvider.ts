@@ -45,10 +45,9 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
    * @param material
    * @param keyIndex
    */
-  @BoundMethod()
-  protected onKeyRatcheted(material: CryptoKey, keyIndex?: number) {
+  protected onKeyRatcheted = (material: CryptoKey, keyIndex?: number) => {
     log.debug('key ratcheted event received', { material, keyIndex });
-  }
+  };
 
   getKeys() {
     return Array.from(this.keyInfoMap.values());

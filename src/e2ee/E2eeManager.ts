@@ -100,8 +100,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     }
   }
 
-  @BoundMethod()
-  private onWorkerMessage(ev: MessageEvent<E2EEWorkerMessage>) {
+  private onWorkerMessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
     const { kind, data } = ev.data;
     switch (kind) {
       case 'error':
@@ -148,13 +147,12 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       default:
         break;
     }
-  }
+  };
 
-  @BoundMethod()
-  private onWorkerError(ev: ErrorEvent) {
+  private onWorkerError = (ev: ErrorEvent) => {
     log.error('e2ee worker encountered an error:', { error: ev.error });
     this.emit(EncryptionEvent.EncryptionError, ev.error);
-  }
+  };
 
   public setupEngine(engine: RTCEngine) {
     engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {

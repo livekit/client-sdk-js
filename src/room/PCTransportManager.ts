@@ -272,8 +272,7 @@ export class PCTransportManager {
     return transports;
   }
 
-  @BoundMethod()
-  private updateState() {
+  private updateState = () => {
     const previousState = this.state;
 
     const connectionStates = this.requiredTransports.map((tr) => tr.getConnectionState());
@@ -304,7 +303,7 @@ export class PCTransportManager {
         this.subscriber.getConnectionState(),
       );
     }
-  }
+  };
 
   private async ensureTransportConnected(
     pcTransport: PCTransport,

@@ -592,8 +592,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     return joinResponse;
   };
 
-  @BoundMethod()
-  private applyJoinResponse(joinResponse: JoinResponse) {
+  private applyJoinResponse = (joinResponse: JoinResponse) => {
     const pi = joinResponse.participant!;
 
     this.localParticipant.sid = pi.sid;
@@ -616,7 +615,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (joinResponse.room) {
       this.handleRoomUpdate(joinResponse.room);
     }
-  }
+  };
 
   private attemptConnection = async (
     url: string,
@@ -718,7 +717,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
-  disconnect = async (stopTracks = true) => {
+  @BoundMethod()
+  async disconnect(stopTracks = true) {
     const unlock = await this.disconnectLock.lock();
     try {
       if (this.state === ConnectionState.Disconnected) {
@@ -754,7 +754,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } finally {
       unlock();
     }
-  };
+  }
 
   /**
    * retrieves a participant by identity
@@ -905,9 +905,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * some form of user interaction (click/tap/etc).
    * In those cases, audio will be silent until a click/tap triggering one of the following
    * - `startAudio`
+   *
    * - `getUserMedia`
    */
-  startAudio = async () => {
+  @BoundMethod()
+  async startAudio() {
     const elements: Array<HTMLMediaElement> = [];
     const browser = getBrowser();
     if (browser && browser.os === 'iOS') {
@@ -976,7 +978,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleAudioPlaybackFailed(err);
       throw err;
     }
-  };
+  }
 
   startVideo = async () => {
     const elements: HTMLMediaElement[] = [];
@@ -1209,7 +1211,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
   }
 
-  @BoundMethod()
   private handleRestarting() {
     this.clearConnectionReconcile();
     // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
@@ -1325,8 +1326,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  @BoundMethod()
-  private handleParticipantUpdates(participantInfos: ParticipantInfo[]) {
+  private handleParticipantUpdates = (participantInfos: ParticipantInfo[]) => {
     // handle changes to participant state, and send events
     participantInfos.forEach((info) => {
       if (info.identity === this.localParticipant.identity) {
@@ -1350,7 +1350,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         remoteParticipant = this.getOrCreateParticipant(info.identity, info);
       }
     });
-  }
+  };
 
   private handleParticipantDisconnected(identity: string, participant?: RemoteParticipant) {
     // remove and send event
@@ -1366,8 +1366,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   // updates are sent only when there's a change to speaker ordering
-  @BoundMethod()
-  private handleActiveSpeakersUpdate(speakers: SpeakerInfo[]) {
+  private handleActiveSpeakersUpdate = (speakers: SpeakerInfo[]) => {
     const activeSpeakers: Participant[] = [];
     const seenSids: any = {};
     speakers.forEach((speaker) => {
@@ -1399,11 +1398,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.activeSpeakers = activeSpeakers;
     this.emitWhenConnected(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
-  }
+  };
 
   // process list of changed speakers
-  @BoundMethod()
-  private handleSpeakersChanged(speakerUpdates: SpeakerInfo[]) {
+  private handleSpeakersChanged = (speakerUpdates: SpeakerInfo[]) => {
     const lastSpeakers = new Map<string, Participant>();
     this.activeSpeakers.forEach((p) => {
       lastSpeakers.set(p.sid, p);
@@ -1429,10 +1427,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     activeSpeakers.sort((a, b) => b.audioLevel - a.audioLevel);
     this.activeSpeakers = activeSpeakers;
     this.emitWhenConnected(RoomEvent.ActiveSpeakersChanged, activeSpeakers);
-  }
+  };
 
-  @BoundMethod()
-  private handleStreamStateUpdate(streamStateUpdate: StreamStateUpdate) {
+  private handleStreamStateUpdate = (streamStateUpdate: StreamStateUpdate) => {
     streamStateUpdate.streamStates.forEach((streamState) => {
       const participant = this.getRemoteParticipantBySid(streamState.participantSid);
       if (!participant) {
@@ -1451,10 +1448,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         participant,
       );
     });
-  }
+  };
 
-  @BoundMethod()
-  private handleSubscriptionPermissionUpdate(update: SubscriptionPermissionUpdate) {
+  private handleSubscriptionPermissionUpdate = (update: SubscriptionPermissionUpdate) => {
     const participant = this.getRemoteParticipantBySid(update.participantSid);
     if (!participant) {
       return;
@@ -1465,10 +1461,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     pub.setAllowed(update.allowed);
-  }
+  };
 
-  @BoundMethod()
-  private handleSubscriptionError(update: SubscriptionResponse) {
+  private handleSubscriptionError = (update: SubscriptionResponse) => {
     const participant = Array.from(this.remoteParticipants.values()).find((p) =>
       p.trackPublications.has(update.trackSid),
     );
@@ -1481,10 +1476,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     pub.setSubscriptionError(update.err);
-  }
+  };
 
-  @BoundMethod()
-  private handleDataPacket(packet: DataPacket) {
+  private handleDataPacket = (packet: DataPacket) => {
     // find the participant
     const participant = this.remoteParticipants.get(packet.participantIdentity);
     if (packet.value.case === 'user') {
@@ -1494,35 +1488,32 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } else if (packet.value.case === 'sipDtmf') {
       this.handleSipDtmf(participant, packet.value.value);
     }
-  }
+  };
 
-  @BoundMethod()
-  private handleUserPacket(
+  private handleUserPacket = (
     participant: RemoteParticipant | undefined,
     userPacket: UserPacket,
     kind: DataPacket_Kind,
-  ) {
+  ) => {
     this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
 
     // also emit on the participant
     participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
-  }
+  };
 
-  @BoundMethod()
-  private handleSipDtmf(participant: RemoteParticipant | undefined, dtmf: SipDTMF) {
+  private handleSipDtmf = (participant: RemoteParticipant | undefined, dtmf: SipDTMF) => {
     this.emit(RoomEvent.SipDTMFReceived, dtmf, participant);
 
     // also emit on the participant
     participant?.emit(ParticipantEvent.SipDTMFReceived, dtmf);
-  }
+  };
 
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
 
-  @BoundMethod()
-  private handleTranscription(
+  private handleTranscription = (
     remoteParticipant: RemoteParticipant | undefined,
     transcription: TranscriptionModel,
-  ) {
+  ) => {
     // find the participant
     const participant =
       transcription.participantIdentity === this.localParticipant.identity
@@ -1535,50 +1526,44 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     publication?.emit(TrackEvent.TranscriptionReceived, segments);
     participant?.emit(ParticipantEvent.TranscriptionReceived, segments, publication);
     this.emit(RoomEvent.TranscriptionReceived, segments, participant, publication);
-  }
+  };
 
-  @BoundMethod()
-  private handleAudioPlaybackStarted() {
+  private handleAudioPlaybackStarted = () => {
     if (this.canPlaybackAudio) {
       return;
     }
     this.audioEnabled = true;
     this.emit(RoomEvent.AudioPlaybackStatusChanged, true);
-  }
+  };
 
-  @BoundMethod()
-  private handleAudioPlaybackFailed(e: any) {
+  private handleAudioPlaybackFailed = (e: any) => {
     this.log.warn('could not playback audio', { ...this.logContext, error: e });
     if (!this.canPlaybackAudio) {
       return;
     }
     this.audioEnabled = false;
     this.emit(RoomEvent.AudioPlaybackStatusChanged, false);
-  }
+  };
 
-  @BoundMethod()
-  private handleVideoPlaybackStarted() {
+  private handleVideoPlaybackStarted = () => {
     if (this.isVideoPlaybackBlocked) {
       this.isVideoPlaybackBlocked = false;
       this.emit(RoomEvent.VideoPlaybackStatusChanged, true);
     }
-  }
+  };
 
-  @BoundMethod()
-  private handleVideoPlaybackFailed() {
+  private handleVideoPlaybackFailed = () => {
     if (!this.isVideoPlaybackBlocked) {
       this.isVideoPlaybackBlocked = true;
       this.emit(RoomEvent.VideoPlaybackStatusChanged, false);
     }
-  }
+  };
 
-  @BoundMethod()
-  private async handleDeviceChange() {
+  private handleDeviceChange = async () => {
     this.emit(RoomEvent.MediaDevicesChanged);
-  }
+  };
 
-  @BoundMethod()
-  private handleRoomUpdate(room: RoomModel) {
+  private handleRoomUpdate = (room: RoomModel) => {
     const oldRoom = this.roomInfo;
     this.roomInfo = room;
     if (oldRoom && oldRoom.metadata !== room.metadata) {
@@ -1587,10 +1572,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (oldRoom?.activeRecording !== room.activeRecording) {
       this.emitWhenConnected(RoomEvent.RecordingStatusChanged, room.activeRecording);
     }
-  }
+  };
 
-  @BoundMethod()
-  private handleConnectionQualityUpdate(update: ConnectionQualityUpdate) {
+  private handleConnectionQualityUpdate = (update: ConnectionQualityUpdate) => {
     update.updates.forEach((info) => {
       if (info.participantSid === this.localParticipant.sid) {
         this.localParticipant.setConnectionQuality(info.quality);
@@ -1601,7 +1585,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         participant.setConnectionQuality(info.quality);
       }
     });
-  }
+  };
 
   private async acquireAudioContext() {
     if (typeof this.options.webAudioMix !== 'boolean' && this.options.webAudioMix.audioContext) {
