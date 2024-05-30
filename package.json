@@ -53,6 +53,7 @@
     "size-limit": "size-limit"
   },
   "dependencies": {
+    "@aloreljs/bound-decorator": "^3.0.3",
     "@livekit/protocol": "1.16.0",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",

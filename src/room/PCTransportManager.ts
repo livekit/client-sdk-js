@@ -1,3 +1,4 @@
+import { BoundMethod } from '@aloreljs/bound-decorator';
 import { SignalTarget } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import PCTransport, { PCEvents } from './PCTransport';
@@ -271,7 +272,8 @@ export class PCTransportManager {
     return transports;
   }
 
-  private updateState = () => {
+  @BoundMethod()
+  private updateState() {
     const previousState = this.state;
 
     const connectionStates = this.requiredTransports.map((tr) => tr.getConnectionState());
@@ -302,7 +304,7 @@ export class PCTransportManager {
         this.subscriber.getConnectionState(),
       );
     }
-  };
+  }
 
   private async ensureTransportConnected(
     pcTransport: PCTransport,

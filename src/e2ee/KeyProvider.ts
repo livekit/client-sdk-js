@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { BoundMethod } from '@aloreljs/bound-decorator';
 import type TypedEventEmitter from 'typed-emitter';
 import log from '../logger';
 import { KEY_PROVIDER_DEFAULTS } from './constants';
@@ -44,7 +45,8 @@ export class BaseKeyProvider extends (EventEmitter as new () => TypedEventEmitte
    * @param material
    * @param keyIndex
    */
-  protected onKeyRatcheted = (material: CryptoKey, keyIndex?: number) => {
+  @BoundMethod()
+  protected onKeyRatcheted(material: CryptoKey, keyIndex?: number) {
     log.debug('key ratcheted event received', { material, keyIndex });
   };
 

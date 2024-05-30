@@ -1,3 +1,4 @@
+import { BoundMethod } from '@aloreljs/bound-decorator';
 import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
@@ -99,7 +100,8 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
     }
   }
 
-  private onWorkerMessage = (ev: MessageEvent<E2EEWorkerMessage>) => {
+  @BoundMethod()
+  private onWorkerMessage(ev: MessageEvent<E2EEWorkerMessage>) {
     const { kind, data } = ev.data;
     switch (kind) {
       case 'error':
@@ -146,12 +148,13 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
       default:
         break;
     }
-  };
+  }
 
-  private onWorkerError = (ev: ErrorEvent) => {
+  @BoundMethod()
+  private onWorkerError(ev: ErrorEvent) {
     log.error('e2ee worker encountered an error:', { error: ev.error });
     this.emit(EncryptionEvent.EncryptionError, ev.error);
-  };
+  }
 
   public setupEngine(engine: RTCEngine) {
     engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {

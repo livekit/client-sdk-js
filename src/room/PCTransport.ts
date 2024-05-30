@@ -1,3 +1,4 @@
+import { BoundMethod } from '@aloreljs/bound-decorator';
 import { EventEmitter } from 'events';
 import type { MediaDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
@@ -431,7 +432,8 @@ export default class PCTransport extends EventEmitter {
     return candidates.get(selectedID);
   }
 
-  close = () => {
+  @BoundMethod()
+  close() {
     if (!this._pc) {
       return;
     }
@@ -448,7 +450,7 @@ export default class PCTransport extends EventEmitter {
     this._pc.onconnectionstatechange = null;
     this._pc.oniceconnectionstatechange = null;
     this._pc = null;
-  };
+  }
 
   private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {
     if (munged) {
