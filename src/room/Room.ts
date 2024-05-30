@@ -1211,7 +1211,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
   }
 
-  private handleRestarting() {
+  private handleRestarting = () => {
     this.clearConnectionReconcile();
     // in case we went from resuming to full-reconnect, make sure to reflect it on the isResuming flag
     this.isResuming = false;
@@ -1224,7 +1224,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.setAndEmitConnectionState(ConnectionState.Reconnecting)) {
       this.emit(RoomEvent.Reconnecting);
     }
-  }
+  };
 
   private handleSignalRestarted = async (joinResponse: JoinResponse) => {
     this.log.debug(`signal reconnected to server, region ${joinResponse.serverRegion}`, {
