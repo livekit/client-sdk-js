@@ -1,4 +1,3 @@
-import { BoundMethod } from '@aloreljs/bound-decorator';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import log from '../logger';

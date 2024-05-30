@@ -1,4 +1,3 @@
-import { BoundMethod } from '@aloreljs/bound-decorator';
 import { Encryption_Type, TrackInfo } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';

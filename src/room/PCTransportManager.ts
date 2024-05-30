@@ -1,4 +1,3 @@
-import { BoundMethod } from '@aloreljs/bound-decorator';
 import { SignalTarget } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import PCTransport, { PCEvents } from './PCTransport';
