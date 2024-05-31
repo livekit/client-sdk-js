@@ -16,7 +16,7 @@ import type { AudioOutputOptions } from '../track/options';
 import type { AdaptiveStreamSettings } from '../track/types';
 import { getLogContextFromTrack } from '../track/utils';
 import type { LoggerOptions } from '../types';
-import Participant from './Participant';
+import Participant, { ParticipantKind } from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
 
 export default class RemoteParticipant extends Participant {
@@ -33,8 +33,20 @@ export default class RemoteParticipant extends Participant {
   private audioOutput?: AudioOutputOptions;
 
   /** @internal */
-  static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant {
-    return new RemoteParticipant(signalClient, pi.sid, pi.identity, pi.name, pi.metadata);
+  static fromParticipantInfo(
+    signalClient: SignalClient,
+    pi: ParticipantInfo,
+    loggerOptions: LoggerOptions,
+  ): RemoteParticipant {
+    return new RemoteParticipant(
+      signalClient,
+      pi.sid,
+      pi.identity,
+      pi.name,
+      pi.metadata,
+      loggerOptions,
+      pi.kind,
+    );
   }
 
   protected get logContext() {
@@ -53,8 +65,9 @@ export default class RemoteParticipant extends Participant {
     name?: string,
     metadata?: string,
     loggerOptions?: LoggerOptions,
+    kind: ParticipantKind = ParticipantKind.STANDARD,
   ) {
-    super(sid, identity || '', name, metadata, loggerOptions);
+    super(sid, identity || '', name, metadata, loggerOptions, kind);
     this.signalClient = signalClient;
     this.trackPublications = new Map();
     this.audioTrackPublications = new Map();

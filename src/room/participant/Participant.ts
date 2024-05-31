@@ -1,6 +1,7 @@
 import {
   DataPacket_Kind,
   ParticipantInfo,
+  ParticipantInfo_Kind as ParticipantKind,
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
   type SipDTMF,
@@ -46,6 +47,8 @@ function qualityFromProto(q: ProtoQuality): ConnectionQuality {
   }
 }
 
+export { ParticipantKind };
+
 export default class Participant extends (EventEmitter as new () => TypedEmitter<ParticipantEventCallbacks>) {
   protected participantInfo?: ParticipantInfo;
 
@@ -78,6 +81,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   permissions?: ParticipantPermission;
 
+  protected _kind: ParticipantKind;
+
   private _connectionQuality: ConnectionQuality = ConnectionQuality.Unknown;
 
   protected audioContext?: AudioContext;
@@ -100,7 +105,11 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   get isAgent() {
-    return this.permissions?.agent ?? false;
+    return this.permissions?.agent || this.kind === ParticipantKind.AGENT;
+  }
+
+  get kind() {
+    return this._kind;
   }
 
   /** @internal */
@@ -110,6 +119,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     name?: string,
     metadata?: string,
     loggerOptions?: LoggerOptions,
+    kind: ParticipantKind = ParticipantKind.STANDARD,
   ) {
     super();
 
@@ -124,6 +134,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.audioTrackPublications = new Map();
     this.videoTrackPublications = new Map();
     this.trackPublications = new Map();
+    this._kind = kind;
   }
 
   getTrackPublications(): TrackPublication[] {
