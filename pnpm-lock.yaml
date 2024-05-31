@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@aloreljs/bound-decorator':
+        specifier: ^3.0.3
+        version: 3.0.3
       '@livekit/protocol':
         specifier: 1.16.0
         version: 1.16.0
@@ -150,6 +153,9 @@ packages:
   '@aashutoshrathi/word-wrap@1.2.6':
     resolution: {integrity: sha512-1Yjs2SvM8TflER/OD3cOjhWWOZb58A2t7wpE2S9XfBYTiIl+XFhQG2bjy4Pu1I+EAlCNUzRDYDdFwFYUKvXcIA==}
     engines: {node: '>=0.10.0'}
+
+  '@aloreljs/bound-decorator@3.0.3':
+    resolution: {integrity: sha512-ymq8Wt7DVNfI3j2cBlNWnLLDAWStDI9UdefFntx0JUGmVofXpqNmeA+xTpyzodqD5wczAQIqaIgXwtFeqE6W5w==}
 
   '@ampproject/remapping@2.2.1':
     resolution: {integrity: sha512-lFMjJTrFL3j7L9yBxwYfCq2k6qqwHyzuUl/XBnif78PWTJYyL/dfowQHWE3sp6U6ZzqWiiIZnpTMO96zhkjwtg==}
@@ -3381,8 +3387,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.5.0-dev.20240513:
-    resolution: {integrity: sha512-EaabRW/mNcpehitpeUkoIg8mNRGl5twGUzHJEJE9qTMlvVzoctff/XFZGKrxu9PUUcYluaMQTBNdNuqOZMqvTw==}
+  typescript@5.5.0-dev.20240530:
+    resolution: {integrity: sha512-r/4r/a9tbtPRHfif0An0GLycB70C3ci3m9fhpgiv6Ekyl7mxYc4w8aX/R+vQ4OJlmPosJJUCjUbljH11g6C56g==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -3657,6 +3663,8 @@ packages:
 snapshots:
 
   '@aashutoshrathi/word-wrap@1.2.6': {}
+
+  '@aloreljs/bound-decorator@3.0.3': {}
 
   '@ampproject/remapping@2.2.1':
     dependencies:
@@ -5590,7 +5598,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.5.0-dev.20240513
+      typescript: 5.5.0-dev.20240530
 
   electron-to-chromium@1.4.724: {}
 
@@ -7270,7 +7278,7 @@ snapshots:
 
   typescript@5.4.5: {}
 
-  typescript@5.5.0-dev.20240513: {}
+  typescript@5.5.0-dev.20240530: {}
 
   ufo@1.5.3: {}
 

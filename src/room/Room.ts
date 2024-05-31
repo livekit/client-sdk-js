@@ -1,3 +1,4 @@
+import { BoundMethod } from '@aloreljs/bound-decorator';
 import {
   ConnectionQualityUpdate,
   type DataPacket,
@@ -716,7 +717,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /**
    * disconnects the room, emits [[RoomEvent.Disconnected]]
    */
-  disconnect = async (stopTracks = true) => {
+  @BoundMethod()
+  async disconnect(stopTracks = true) {
     const unlock = await this.disconnectLock.lock();
     try {
       if (this.state === ConnectionState.Disconnected) {
@@ -752,7 +754,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } finally {
       unlock();
     }
-  };
+  }
 
   /**
    * retrieves a participant by identity
@@ -903,9 +905,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * some form of user interaction (click/tap/etc).
    * In those cases, audio will be silent until a click/tap triggering one of the following
    * - `startAudio`
+   *
    * - `getUserMedia`
    */
-  startAudio = async () => {
+  @BoundMethod()
+  async startAudio() {
     const elements: Array<HTMLMediaElement> = [];
     const browser = getBrowser();
     if (browser && browser.os === 'iOS') {
@@ -974,7 +978,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleAudioPlaybackFailed(err);
       throw err;
     }
-  };
+  }
 
   startVideo = async () => {
     const elements: HTMLMediaElement[] = [];
