@@ -468,16 +468,17 @@ export default abstract class LocalTrack<
     try {
       this.log.debug('setting up processor', this.logContext);
 
-      this.processorElement =
-        this.processorElement ?? (document.createElement(this.kind) as HTMLMediaElement);
+      const processorElement = document.createElement(this.kind) as HTMLMediaElement;
 
       const processorOptions = {
         kind: this.kind,
         track: this._mediaStreamTrack,
-        element: this.processorElement,
+        element: processorElement,
         audioContext: this.audioContext,
       };
       await processor.init(processorOptions);
+      this.log.debug('processor initialized', this.logContext);
+
       if (this.processor) {
         await this.stopProcessor();
       }
@@ -485,16 +486,17 @@ export default abstract class LocalTrack<
         throw TypeError('cannot set processor on track of unknown kind');
       }
 
-      attachToElement(this._mediaStreamTrack, this.processorElement);
-      this.processorElement.muted = true;
+      attachToElement(this._mediaStreamTrack, processorElement);
+      processorElement.muted = true;
 
-      this.processorElement
+      processorElement
         .play()
         .catch((error) =>
           this.log.error('failed to play processor element', { ...this.logContext, error }),
         );
 
       this.processor = processor;
+      this.processorElement = processorElement;
       if (this.processor.processedTrack) {
         for (const el of this.attachedElements) {
           if (el !== this.processorElement && showProcessedStreamLocally) {
@@ -521,15 +523,17 @@ export default abstract class LocalTrack<
    * @experimental
    * @returns
    */
-  async stopProcessor() {
+  async stopProcessor(keepElement = true) {
     if (!this.processor) return;
 
     this.log.debug('stopping processor', this.logContext);
     this.processor.processedTrack?.stop();
     await this.processor.destroy();
     this.processor = undefined;
-    this.processorElement?.remove();
-    this.processorElement = undefined;
+    if (!keepElement) {
+      this.processorElement?.remove();
+      this.processorElement = undefined;
+    }
     // apply original track constraints in case the processor changed them
     await this._mediaStreamTrack.applyConstraints(this._constraints);
     // force re-setting of the mediaStreamTrack on the sender
