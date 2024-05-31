@@ -1,5 +1,23 @@
 # Change Log
 
+## 2.2.0
+
+### Minor Changes
+
+- Allow processors to be set as part of track publish options - [#1143](https://github.com/livekit/client-sdk-js/pull/1143) ([@lukasIO](https://github.com/lukasIO))
+
+- Support SIP DTMF data messages. - [#1130](https://github.com/livekit/client-sdk-js/pull/1130) ([@dennwc](https://github.com/dennwc))
+
+### Patch Changes
+
+- Use legacy SVC encoding specification for React-Native - [#1093](https://github.com/livekit/client-sdk-js/pull/1093) ([@davidzhao](https://github.com/davidzhao))
+
+- Make sure setting a new processor doesn't remove the processor html element - [#1149](https://github.com/livekit/client-sdk-js/pull/1149) ([@lukasIO](https://github.com/lukasIO))
+
+- Add support for ParticipantKind - [#1150](https://github.com/livekit/client-sdk-js/pull/1150) ([@lukasIO](https://github.com/lukasIO))
+
+- Also set audioOutput on audioElements when using webAudioMix - [#1145](https://github.com/livekit/client-sdk-js/pull/1145) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.1.5
 
 ### Patch Changes
