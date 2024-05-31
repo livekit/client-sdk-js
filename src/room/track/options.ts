@@ -1,4 +1,9 @@
 import type { Track } from './Track';
+import type {
+  AudioProcessorOptions,
+  TrackProcessor,
+  VideoProcessorOptions,
+} from './processor/types';
 
 export interface TrackPublishDefaults {
   /**
@@ -152,6 +157,11 @@ export interface VideoCaptureOptions {
   facingMode?: 'user' | 'environment' | 'left' | 'right';
 
   resolution?: VideoResolution;
+
+  /**
+   * initialize the track with a given processor
+   */
+  processor?: TrackProcessor<Track.Kind.Video, VideoProcessorOptions>;
 }
 
 export interface ScreenShareCaptureOptions {
@@ -245,6 +255,11 @@ export interface AudioCaptureOptions {
    * sample size or range of sample sizes which are acceptable and/or required.
    */
   sampleSize?: ConstrainULong;
+
+  /**
+   * initialize the track with a given processor
+   */
+  processor?: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>;
 }
 
 export interface AudioOutputOptions {

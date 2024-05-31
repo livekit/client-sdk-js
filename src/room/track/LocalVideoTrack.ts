@@ -276,7 +276,10 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     }
   }
 
-  async setProcessor(processor: TrackProcessor<Track.Kind>, showProcessedStreamLocally = true) {
+  async setProcessor(
+    processor: TrackProcessor<Track.Kind.Video>,
+    showProcessedStreamLocally = true,
+  ) {
     await super.setProcessor(processor, showProcessedStreamLocally);
 
     if (this.processor?.processedTrack) {
