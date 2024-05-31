@@ -3,7 +3,7 @@ import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from '
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import Room, { ConnectionState } from './room/Room';
 import LocalParticipant from './room/participant/LocalParticipant';
-import Participant, { ConnectionQuality } from './room/participant/Participant';
+import Participant, { ConnectionQuality, ParticipantKind } from './room/participant/Participant';
 import type { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
 import RemoteParticipant from './room/participant/RemoteParticipant';
 import CriticalTimers from './room/timers';
@@ -63,6 +63,7 @@ export {
   Participant,
   RemoteAudioTrack,
   RemoteParticipant,
+  ParticipantKind,
   RemoteTrack,
   RemoteTrackPublication,
   RemoteVideoTrack,
