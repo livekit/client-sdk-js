@@ -433,7 +433,7 @@ export default abstract class LocalTrack<
       this.emit(TrackEvent.UpstreamResumed, this);
 
       // this operation is noop if mediastreamtrack is already being sent
-      await this.sender.replaceTrack(this._mediaStreamTrack);
+      await this.sender.replaceTrack(this.mediaStreamTrack);
     } finally {
       unlock();
     }
