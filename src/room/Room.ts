@@ -449,7 +449,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
-    if (isSafari()) {
+    if (isSafari() && Track.audioElementPool.length === 0) {
       Track.audioElementPool = new Array<HTMLAudioElement>(8);
       Track.audioElementPool.fill(new Audio(), 0, 8).map((el) => {
         el.autoplay = true;
