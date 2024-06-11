@@ -76,6 +76,7 @@ import {
   isBrowserSupported,
   isCloud,
   isReactNative,
+  isSafari,
   isWeb,
   supportsSetSinkId,
   toHttpUrl,
@@ -448,6 +449,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.setAndEmitConnectionState(ConnectionState.Connecting);
+    if (isSafari()) {
+      Track.audioElementPool = new Array<HTMLAudioElement>(8);
+      Track.audioElementPool.fill(new Audio(), 0, 8).map((el) => {
+        el.autoplay = true;
+        el.srcObject = new MediaStream([getEmptyAudioStreamTrack()]);
+        el.play().catch((e) => this.handleAudioPlaybackFailed(e));
+        return el;
+      });
+    }
     if (this.regionUrlProvider?.getServerUrl().toString() !== url) {
       this.regionUrl = undefined;
       this.regionUrlProvider = undefined;
@@ -964,7 +974,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     try {
       await Promise.all([
         this.acquireAudioContext(),
-        ...elements.map((e) => {
+        ...[...Track.audioElementPool, ...elements].map((e) => {
           e.muted = false;
           return e.play();
         }),
