@@ -341,7 +341,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.clearConnectionReconcile();
         this.isResuming = true;
         this.log.info('Resuming signal connection', this.logContext);
-        this.emit(RoomEvent.Resuming);
+        this.emit(RoomEvent.SignalReconnecting);
         this.setAndEmitConnectionState(ConnectionState.Resuming);
       })
       .on(EngineEvent.Resumed, () => {
@@ -2084,7 +2084,7 @@ export default Room;
 export type RoomEventCallbacks = {
   connected: () => void;
   reconnecting: () => void;
-  resuming: () => void;
+  signalReconnecting: () => void;
   reconnected: () => void;
   disconnected: (reason?: DisconnectReason) => void;
   connectionStateChanged: (state: ConnectionState) => void;

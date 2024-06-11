@@ -25,7 +25,7 @@ export enum RoomEvent {
    * It will resolve with a `RoomEvent.Reconnected` once the signal connection has been re-established.
    * If media fails additionally it an additional `RoomEvent.Reconnecting` will be emitted.
    */
-  Resuming = 'resuming',
+  SignalReconnecting = 'signalReconnecting',
 
   /**
    * Fires when a reconnection has been successful.
