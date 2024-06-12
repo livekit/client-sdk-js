@@ -53,7 +53,7 @@ describe('Active device switch', () => {
     const normalizedID = await deviceManager.normalizeDeviceId('audiooutput', 'default');
     expect(normalizedID).toBe('6ca3eb8140dc3d2919d6747f73d8277e6ecaf0f179426695154e98615bafd2b9');
   });
-  it('falls back to next device when default cannot be determined', async () => {
+  it('returns undefined when default cannot be determined', async () => {
     deviceManager.dummyDevices = [
       {
         deviceId: 'default',
@@ -100,6 +100,6 @@ describe('Active device switch', () => {
     ];
 
     const normalizedID = await deviceManager.normalizeDeviceId('audiooutput', 'default');
-    expect(normalizedID).toBe('d5a1ad8b1314736ad1936aae1d74fa524f954c3281b4af3b65b2492330c3a830');
+    expect(normalizedID).toBe(undefined);
   });
 });

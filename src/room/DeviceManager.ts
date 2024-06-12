@@ -83,8 +83,8 @@ export default class DeviceManager {
     const defaultDevice = devices.find((d) => d.deviceId === defaultId);
 
     if (!defaultDevice) {
-      log.warn('could not reliably determine default device, falling back to next device');
-      return devices[0].deviceId;
+      log.warn('could not reliably determine default device');
+      return undefined;
     }
 
     const device = devices.find(
@@ -92,8 +92,8 @@ export default class DeviceManager {
     );
 
     if (!device) {
-      log.warn('could not reliably determine default device, falling back to next device');
-      return devices.find((d) => d.deviceId !== defaultId && d.groupId !== defaultId)?.deviceId;
+      log.warn('could not reliably determine default device');
+      return undefined;
     }
 
     return device?.deviceId;
