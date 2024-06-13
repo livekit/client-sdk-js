@@ -137,7 +137,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private clientConfiguration?: ClientConfiguration;
 
-  private attemptingReconnect: boolean = false;
+  private isReconnecting: boolean = false;
+
+  private isResuming: boolean = false;
 
   private reconnectPolicy: ReconnectPolicy;
 
@@ -219,8 +221,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
 
       this.setupSignalClientCallbacks();
-      const joinResponse = await this.client.join(url, token, opts, abortSignal);
       this._isClosed = false;
+      const joinResponse = await this.client.join(url, token, opts, abortSignal);
       this.latestJoinResponse = joinResponse;
 
       this.subscriberPrimary = joinResponse.subscriberPrimary;
@@ -839,7 +841,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       return;
     }
     // guard for attempting reconnection multiple times while one attempt is still not finished
-    if (this.attemptingReconnect) {
+    if (this.isReconnecting || (this.isResuming && !this.fullReconnectOnNext)) {
       log.warn('already attempting reconnect, returning early', this.logContext);
       return;
     }
@@ -853,11 +855,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
 
     try {
-      this.attemptingReconnect = true;
       if (this.fullReconnectOnNext) {
+        this.isReconnecting = true;
         await this.restartConnection();
+        this.isReconnecting = false;
       } else {
+        this.isResuming = true;
         await this.resumeConnection(reason);
+        this.isResuming = false;
       }
       this.clearPendingReconnect();
       this.fullReconnectOnNext = false;
@@ -886,7 +891,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         await this.close();
       }
     } finally {
-      this.attemptingReconnect = false;
+      this.isResuming = false;
+      this.isReconnecting = false;
     }
   }
 
