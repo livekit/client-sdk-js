@@ -343,7 +343,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.log.info('Resuming signal connection', this.logContext);
         if (this.setAndEmitConnectionState(ConnectionState.SignalReconnecting)) {
           this.emit(RoomEvent.SignalReconnecting);
-          this.setAndEmitConnectionState(ConnectionState.SignalReconnecting);
         }
       })
       .on(EngineEvent.Resumed, () => {
