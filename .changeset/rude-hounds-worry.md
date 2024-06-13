@@ -1,5 +1,5 @@
 ---
-"livekit-client": minor
+'livekit-client': minor
 ---
 
-Add RoomEvent.Resuming and ConnectionState.Resuming
+Add RoomEvent.SignalReconnecting and ConnectionState.SignalReconnecting
