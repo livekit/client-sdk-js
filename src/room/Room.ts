@@ -88,7 +88,7 @@ export enum ConnectionState {
   Connecting = 'connecting',
   Connected = 'connected',
   Reconnecting = 'reconnecting',
-  Resuming = 'resuming',
+  SignalReconnecting = 'signalReconnecting',
 }
 
 const connectionReconcileFrequency = 4 * 1000;
@@ -341,8 +341,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.clearConnectionReconcile();
         this.isResuming = true;
         this.log.info('Resuming signal connection', this.logContext);
-        this.emit(RoomEvent.SignalReconnecting);
-        this.setAndEmitConnectionState(ConnectionState.Resuming);
+        if (this.setAndEmitConnectionState(ConnectionState.SignalReconnecting)) {
+          this.emit(RoomEvent.SignalReconnecting);
+          this.setAndEmitConnectionState(ConnectionState.SignalReconnecting);
+        }
       })
       .on(EngineEvent.Resumed, () => {
         this.registerConnectionReconcile();
@@ -350,8 +352,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.log.info('Resumed signal connection', this.logContext);
         this.updateSubscriptions();
         this.emitBufferedEvents();
-        this.emit(RoomEvent.Reconnected);
-        this.setAndEmitConnectionState(ConnectionState.Connected);
+        if (this.setAndEmitConnectionState(ConnectionState.Connected)) {
+          this.emit(RoomEvent.Reconnected);
+        }
       })
       .on(EngineEvent.SignalResumed, () => {
         this.bufferedEvents = [];
