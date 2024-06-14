@@ -88,9 +88,10 @@ export enum ConnectionState {
   Connecting = 'connecting',
   Connected = 'connected',
   Reconnecting = 'reconnecting',
+  SignalReconnecting = 'signalReconnecting',
 }
 
-const connectionReconcileFrequency = 2 * 1000;
+const connectionReconcileFrequency = 4 * 1000;
 
 /**
  * In LiveKit, a room is the logical grouping for a list of participants.
@@ -340,6 +341,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.clearConnectionReconcile();
         this.isResuming = true;
         this.log.info('Resuming signal connection', this.logContext);
+        if (this.setAndEmitConnectionState(ConnectionState.SignalReconnecting)) {
+          this.emit(RoomEvent.SignalReconnecting);
+        }
       })
       .on(EngineEvent.Resumed, () => {
         this.registerConnectionReconcile();
@@ -347,6 +351,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.log.info('Resumed signal connection', this.logContext);
         this.updateSubscriptions();
         this.emitBufferedEvents();
+        if (this.setAndEmitConnectionState(ConnectionState.Connected)) {
+          this.emit(RoomEvent.Reconnected);
+        }
       })
       .on(EngineEvent.SignalResumed, () => {
         this.bufferedEvents = [];
@@ -2079,6 +2086,7 @@ export default Room;
 export type RoomEventCallbacks = {
   connected: () => void;
   reconnecting: () => void;
+  signalReconnecting: () => void;
   reconnected: () => void;
   disconnected: (reason?: DisconnectReason) => void;
   connectionStateChanged: (state: ConnectionState) => void;

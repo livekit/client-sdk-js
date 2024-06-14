@@ -21,6 +21,13 @@ export enum RoomEvent {
   Reconnecting = 'reconnecting',
 
   /**
+   * When the signal connection to the server has been interrupted. This isn't noticeable to users most of the time.
+   * It will resolve with a `RoomEvent.Reconnected` once the signal connection has been re-established.
+   * If media fails additionally it an additional `RoomEvent.Reconnecting` will be emitted.
+   */
+  SignalReconnecting = 'signalReconnecting',
+
+  /**
    * Fires when a reconnection has been successful.
    */
   Reconnected = 'reconnected',
