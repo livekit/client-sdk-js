@@ -4,6 +4,7 @@
     "src/**/*.ts",
     "src/**/*.js",
     "example/**/*.ts",
+    "diagnose_tool/**/*.ts",
     ".eslintrc.cjs",
     ".eslintrc.dist.cjs",
     "jest.config.js",
