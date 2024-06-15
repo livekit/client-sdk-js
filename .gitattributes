@@ -1,1 +1,2 @@
 diagnose_tool/resources/crescent_1080.webm filter=lfs diff=lfs merge=lfs -text
+diagnose_tool/resources/crescent_720.webm filter=lfs diff=lfs merge=lfs -text

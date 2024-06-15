@@ -36,8 +36,6 @@ const testConfig = {
   pubPreset: VideoPresets.h1080,
 };
 
-const videoFile = `${window.location.origin}/resources/crescent_1080.webm`;
-
 let pubAgent: Agent | undefined;
 let subAgent: Agent | undefined;
 let pubSummary: TestSummary | undefined;
@@ -64,6 +62,10 @@ function updateSearchParams(
   window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 }
 
+function getVideoFileURL(height: number) {
+  return `${window.location.origin}/resources/crescent_${height}.webm`;
+}
+
 // handles actions from the HTML
 const appActions = {
   connectWithFormInput: async () => {
@@ -75,6 +77,14 @@ const appActions = {
     const subscribeToken = shouldSubscribe
       ? (<HTMLInputElement>$('subscribe-token')).value
       : undefined;
+    const resolution = (<HTMLSelectElement>$('resolution')).value;
+    switch (resolution) {
+      case '720':
+        testConfig.pubPreset = VideoPresets.h720;
+        break;
+    }
+
+    const videoFile = getVideoFileURL(testConfig.pubPreset.height);
 
     setLogLevel(LogLevel.debug);
     updateSearchParams(url, token, shouldSubscribe ? 'true' : '', subscribeToken ?? '');
@@ -90,7 +100,7 @@ const appActions = {
         videoSimulcastLayers: [VideoPresets.h90],
       },
       videoCaptureDefaults: {
-        resolution: VideoPresets.h720.resolution,
+        resolution: testConfig.pubPreset.resolution,
       },
     };
     if (
@@ -103,17 +113,19 @@ const appActions = {
       }
     }
 
-    await appActions.connectToRoom(url, token, roomOpts, subscribeToken);
+    await appActions.connectToRoom(url, token, videoFile, roomOpts, subscribeToken);
   },
 
   connectToRoom: async (
     url: string,
     token: string,
+    videoFile: string,
     roomOptions?: RoomOptions,
     subscribeToken?: string,
   ): Promise<undefined> => {
-    const sessionArea = $('summary-area');
-    resultElements.forEach((ele) => sessionArea.removeChild(ele));
+    const summaryArea = $('summary-area');
+    resultElements.forEach((ele) => summaryArea.removeChild(ele));
+    resultElements = [];
 
     pubAgent = new Agent(
       {
@@ -155,9 +167,13 @@ const appActions = {
     // const camPub = await pubAgent.localParticipant.setCameraEnabled(true);
     if (subAgent) {
       await subAgent.ensureTrackSubscribed(camPub!.trackSid);
+      let expectBitrates = testConfig.pubPreset.encoding.maxBitrate;
+      if (isSVCCodec(roomOptions?.publishDefaults?.videoCodec)) {
+        expectBitrates /= 2;
+      }
       subSummary = new TestSummary(
         {
-          bitrates: testConfig.pubPreset.encoding.maxBitrate / 2,
+          bitrates: expectBitrates,
           fps: testConfig.pubPreset.encoding.maxFramerate!,
         },
         true,
