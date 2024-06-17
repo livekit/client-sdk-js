@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.3.0
+
+### Minor Changes
+
+- Disable webAudioMix by default - [#1159](https://github.com/livekit/client-sdk-js/pull/1159) ([@lukasIO](https://github.com/lukasIO))
+
+- Add RoomEvent.SignalReconnecting and ConnectionState.SignalReconnecting - [#1158](https://github.com/livekit/client-sdk-js/pull/1158) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Fix normalising of default device Ids in DeviceManager - [#1162](https://github.com/livekit/client-sdk-js/pull/1162) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix resumeUpstream with local track processors enabled - [#1157](https://github.com/livekit/client-sdk-js/pull/1157) ([@kyleparrott](https://github.com/kyleparrott))
+
 ## 2.2.0
 
 ### Minor Changes
