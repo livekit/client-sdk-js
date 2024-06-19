@@ -6,6 +6,12 @@ import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality, ParticipantKind } from './room/participant/Participant';
 import type { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
 import RemoteParticipant from './room/participant/RemoteParticipant';
+import type {
+  AudioReceiverStats,
+  AudioSenderStats,
+  VideoReceiverStats,
+  VideoSenderStats,
+} from './room/stats';
 import CriticalTimers from './room/timers';
 import LocalAudioTrack from './room/track/LocalAudioTrack';
 import LocalTrack from './room/track/LocalTrack';
@@ -89,4 +95,8 @@ export type {
   ElementInfo,
   LiveKitReactNativeInfo,
   ParticipantTrackPermission,
+  AudioReceiverStats,
+  AudioSenderStats,
+  VideoReceiverStats,
+  VideoSenderStats,
 };
