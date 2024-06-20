@@ -42,6 +42,7 @@ import {
 import type { DataPublishOptions } from '../types';
 import {
   Future,
+  Mutex,
   isE2EESimulcastSupported,
   isFireFox,
   isSVCCodec,
@@ -94,6 +95,8 @@ export default class LocalParticipant extends Participant {
 
   private reconnectFuture?: Future<void>;
 
+  private metadataUpdateMutex: Mutex;
+
   private pendingSignalRequests: Map<
     number,
     {
@@ -117,6 +120,7 @@ export default class LocalParticipant extends Participant {
     this.setupEngine(engine);
     this.activeDeviceMap = new Map();
     this.pendingSignalRequests = new Map();
+    this.metadataUpdateMutex = new Mutex();
   }
 
   get lastCameraError(): Error | undefined {
@@ -224,22 +228,36 @@ export default class LocalParticipant extends Participant {
   }
 
   async requestMetadataUpdate({ metadata, name }: { metadata?: string; name?: string }) {
+    const unlock = await this.metadataUpdateMutex.lock();
+
     return new Promise<void>(async (resolve, reject) => {
-      const requestId = await this.engine.client.sendUpdateLocalMetadata(
-        metadata ?? this.metadata ?? '',
-        name ?? this.name ?? '',
-      );
-      const startTime = performance.now();
-      this.pendingSignalRequests.set(requestId, { resolve, reject, values: { name, metadata } });
-      while (performance.now() - startTime < 5_000) {
-        if ((!name || this.name === name) && (!metadata || this.metadata === metadata)) {
-          this.pendingSignalRequests.delete(requestId);
-          resolve();
-          return;
+      try {
+        let isRejected = false;
+        const requestId = await this.engine.client.sendUpdateLocalMetadata(
+          metadata ?? this.metadata ?? '',
+          name ?? this.name ?? '',
+        );
+        const startTime = performance.now();
+        this.pendingSignalRequests.set(requestId, {
+          resolve,
+          reject: (reason: any) => {
+            reject(reason);
+            isRejected = true;
+          },
+          values: { name, metadata },
+        });
+        while (performance.now() - startTime < 5_000 && !isRejected) {
+          if ((!name || this.name === name) && (!metadata || this.metadata === metadata)) {
+            this.pendingSignalRequests.delete(requestId);
+            resolve();
+            return;
+          }
+          sleep(50);
         }
-        sleep(50);
+        reject({ reason: 'TIMEOUT', message: 'Request to update local metadata timed out' });
+      } finally {
+        unlock();
       }
-      reject({ reason: 'TIMEOUT', message: 'Request to update local metadata timed out' });
     });
   }
 
