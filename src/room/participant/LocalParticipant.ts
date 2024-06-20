@@ -222,22 +222,16 @@ export default class LocalParticipant extends Participant {
     await this.requestMetadataUpdate({ name });
   }
 
-  async requestMetadataUpdate({
-    metadata = this.metadata,
-    name = this.name,
-  }: {
-    metadata?: string;
-    name?: string;
-  }) {
+  async requestMetadataUpdate({ metadata, name }: { metadata?: string; name?: string }) {
     return new Promise<void>(async (resolve, reject) => {
       const requestId = await this.engine.client.sendUpdateLocalMetadata(
-        metadata ?? '',
-        name ?? '',
+        metadata ?? this.metadata ?? '',
+        name ?? this.name ?? '',
       );
       const startTime = performance.now();
-      this.pendingSignalRequests.set(requestId, { resolve, reject, values: { name } });
+      this.pendingSignalRequests.set(requestId, { resolve, reject, values: { name, metadata } });
       while (performance.now() - startTime < 5_000) {
-        if (this.name === name) {
+        if ((!name || this.name === name) && (!metadata || this.metadata === metadata)) {
           this.pendingSignalRequests.delete(requestId);
           resolve();
         }
