@@ -193,11 +193,6 @@ export class SignalClient {
 
   private _requestId = 0;
 
-  private pendingRequests: Map<
-    number,
-    { resolve: (arg: any) => void; reject: (reason: any) => void; metadata: string; name: string }
-  >;
-
   constructor(useJSON: boolean = false, loggerOptions: LoggerOptions = {}) {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Signal);
     this.loggerContextCb = loggerOptions.loggerContextCb;
@@ -207,7 +202,6 @@ export class SignalClient {
     this.closingLock = new Mutex();
     this.connectionLock = new Mutex();
     this.state = SignalConnectionState.DISCONNECTED;
-    this.pendingRequests = new Map();
   }
 
   private get logContext() {
