@@ -198,8 +198,8 @@ export default class LocalParticipant extends Participant {
     const { requestId, reason, message } = error;
     const failedRequest = this.pendingSignalRequests.get(requestId);
     if (failedRequest) {
-      this.pendingSignalRequests.delete(requestId);
       failedRequest.reject({ reason, message });
+      this.pendingSignalRequests.delete(requestId);
     }
   };
 
