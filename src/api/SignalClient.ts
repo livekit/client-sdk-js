@@ -4,6 +4,7 @@ import {
   ClientInfo,
   ConnectionQualityUpdate,
   DisconnectReason,
+  ErrorResponse,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
@@ -141,6 +142,8 @@ export class SignalClient {
 
   onLeave?: (leave: LeaveRequest) => void;
 
+  onErrorResponse?: (error: ErrorResponse) => void;
+
   connectOptions?: ConnectOpts;
 
   ws?: WebSocket;
@@ -163,6 +166,11 @@ export class SignalClient {
     );
   }
 
+  private getNextRequestId() {
+    this._requestId += 1;
+    return this._requestId;
+  }
+
   private options?: SignalOptions;
 
   private pingTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -183,6 +191,13 @@ export class SignalClient {
 
   private loggerContextCb?: LoggerOptions['loggerContextCb'];
 
+  private _requestId = 0;
+
+  private pendingRequests: Map<
+    number,
+    { resolve: (arg: any) => void; reject: (reason: any) => void; metadata: string; name: string }
+  >;
+
   constructor(useJSON: boolean = false, loggerOptions: LoggerOptions = {}) {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Signal);
     this.loggerContextCb = loggerOptions.loggerContextCb;
@@ -192,6 +207,7 @@ export class SignalClient {
     this.closingLock = new Mutex();
     this.connectionLock = new Mutex();
     this.state = SignalConnectionState.DISCONNECTED;
+    this.pendingRequests = new Map();
   }
 
   private get logContext() {
@@ -511,14 +527,17 @@ export class SignalClient {
     });
   }
 
-  sendUpdateLocalMetadata(metadata: string, name: string) {
-    return this.sendRequest({
+  async sendUpdateLocalMetadata(metadata: string, name: string) {
+    const requestId = this.getNextRequestId();
+    await this.sendRequest({
       case: 'updateMetadata',
       value: new UpdateParticipantMetadata({
+        requestId,
         metadata,
         name,
       }),
     });
+    return requestId;
   }
 
   sendUpdateTrackSettings(settings: UpdateTrackSettings) {
@@ -721,6 +740,10 @@ export class SignalClient {
       this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
       this.resetPingTimeout();
       pingHandled = true;
+    } else if (msg.case === 'errorResponse') {
+      if (this.onErrorResponse) {
+        this.onErrorResponse(msg.value);
+      }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });
     }

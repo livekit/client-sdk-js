@@ -525,6 +525,7 @@ export enum EngineEvent {
   SubscribedQualityUpdate = 'subscribedQualityUpdate',
   LocalTrackUnpublished = 'localTrackUnpublished',
   Offline = 'offline',
+  SignalRequestError = 'signalRequestError',
 }
 
 export enum TrackEvent {
