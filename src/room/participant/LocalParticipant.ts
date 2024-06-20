@@ -235,6 +235,7 @@ export default class LocalParticipant extends Participant {
         if ((!name || this.name === name) && (!metadata || this.metadata === metadata)) {
           this.pendingSignalRequests.delete(requestId);
           resolve();
+          return;
         }
         sleep(50);
       }
