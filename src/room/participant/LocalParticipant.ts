@@ -209,7 +209,7 @@ export default class LocalParticipant extends Participant {
    * @param metadata
    */
   async setMetadata(metadata: string): Promise<void> {
-    await this.trySendMetadataUpdate({ metadata });
+    await this.requestMetadataUpdate({ metadata });
   }
 
   /**
@@ -219,10 +219,10 @@ export default class LocalParticipant extends Participant {
    * @param metadata
    */
   async setName(name: string): Promise<void> {
-    await this.trySendMetadataUpdate({ name });
+    await this.requestMetadataUpdate({ name });
   }
 
-  async trySendMetadataUpdate({
+  async requestMetadataUpdate({
     metadata = this.metadata,
     name = this.name,
   }: {
