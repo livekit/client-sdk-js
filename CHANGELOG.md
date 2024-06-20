@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.3.1
+
+### Patch Changes
+
+- Export audio and video stats types - [#1166](https://github.com/livekit/client-sdk-js/pull/1166) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.3.0
 
 ### Minor Changes
