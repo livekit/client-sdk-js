@@ -7,6 +7,7 @@ import {
   LeaveRequest,
   LeaveRequest_Action,
   ParticipantInfo,
+  ParticipantInfo_Kind,
   ParticipantInfo_State,
   ParticipantPermission,
   Room as RoomModel,
@@ -51,6 +52,7 @@ import {
 } from './defaults';
 import { ConnectionError, ConnectionErrorReason, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
+import Agent from './participant/Agent';
 import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import type { ConnectionQuality } from './participant/Participant';
@@ -73,6 +75,7 @@ import {
   createDummyVideoStreamTrack,
   extractTranscriptionSegments,
   getEmptyAudioStreamTrack,
+  isAgent,
   isBrowserSupported,
   isCloud,
   isReactNative,
@@ -771,6 +774,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return this.localParticipant;
     }
     return this.remoteParticipants.get(identity);
+  }
+
+  /**
+   * retrieves agents currently present in the room
+   */
+  getAgents() {
+    return Array.from(this.remoteParticipants.values()).filter((participant) =>
+      isAgent(participant),
+    ) as Array<Agent>;
   }
 
   private clearConnectionFutures() {
@@ -1628,10 +1640,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private createParticipant(identity: string, info?: ParticipantInfo): RemoteParticipant {
     let participant: RemoteParticipant;
     if (info) {
-      participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info, {
-        loggerContextCb: () => this.logContext,
-        loggerName: this.options.loggerName,
-      });
+      participant =
+        info.kind === ParticipantInfo_Kind.AGENT
+          ? Agent.fromParticipantInfo(this.engine.client, info, {
+              loggerContextCb: () => this.logContext,
+              loggerName: this.options.loggerName,
+            })
+          : RemoteParticipant.fromParticipantInfo(this.engine.client, info, {
+              loggerContextCb: () => this.logContext,
+              loggerName: this.options.loggerName,
+            });
     } else {
       participant = new RemoteParticipant(this.engine.client, '', identity, undefined, undefined, {
         loggerContextCb: () => this.logContext,

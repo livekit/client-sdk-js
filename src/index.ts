@@ -2,6 +2,7 @@ import { DataPacket_Kind, DisconnectReason, SubscriptionError } from '@livekit/p
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import Room, { ConnectionState } from './room/Room';
+import Agent from './room/participant/Agent';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality, ParticipantKind } from './room/participant/Participant';
 import type { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
@@ -69,6 +70,7 @@ export {
   Participant,
   RemoteAudioTrack,
   RemoteParticipant,
+  Agent,
   ParticipantKind,
   RemoteTrack,
   RemoteTrackPublication,
