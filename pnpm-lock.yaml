@@ -9,14 +9,17 @@ importers:
   .:
     dependencies:
       '@livekit/protocol':
-        specifier: 1.16.0
-        version: 1.16.0
+        specifier: 1.19.0
+        version: 1.19.0
       events:
         specifier: ^3.3.0
         version: 3.3.0
       loglevel:
         specifier: ^1.8.0
         version: 1.9.1
+      microdiff:
+        specifier: ^1.4.0
+        version: 1.4.0
       sdp-transform:
         specifier: ^2.14.1
         version: 2.14.1
@@ -818,9 +821,6 @@ packages:
   '@bufbuild/protobuf@1.10.0':
     resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
 
-  '@bufbuild/protobuf@1.9.0':
-    resolution: {integrity: sha512-W7gp8Q/v1NlCZLsv8pQ3Y0uCu/SHgXOVFK+eUluUKWXmsb6VHkpNx0apdOWWcDbB9sJoKeP8uPrjmehJz6xETQ==}
-
   '@bufbuild/protoc-gen-es@1.10.0':
     resolution: {integrity: sha512-zBYBsVT/ul4uZb6F+kD7/k4sWNHVVbEPfJwKi0FDr+9VJo8MKIofI6pkr5ksBLr4fi/74r+e/75Xi/0clL5dXg==}
     engines: {node: '>=14'}
@@ -1090,8 +1090,8 @@ packages:
   '@livekit/changesets-changelog-github@0.0.4':
     resolution: {integrity: sha512-MXaiLYwgkYciZb8G2wkVtZ1pJJzZmVx5cM30Q+ClslrIYyAqQhRbPmZDM79/5CGxb1MTemR/tfOM25tgJgAK0g==}
 
-  '@livekit/protocol@1.16.0':
-    resolution: {integrity: sha512-xZZTZVh2FmWmUgNS3n+oGNbA4GcS4XOwhg8CWy75jenYxbgQ89ds7ixfMQ+F+oxktcXfJ1qsph086oRTlg8e5Q==}
+  '@livekit/protocol@1.19.0':
+    resolution: {integrity: sha512-pHcVjEQGNDJFMJjEYyuHmARCFOorA/7duHEYjiVFjymF5GkM8Sfdf6prnTvqxxaWrlKBFsPhgApgaocR2pJEMA==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -2640,6 +2640,9 @@ packages:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
 
+  microdiff@1.4.0:
+    resolution: {integrity: sha512-OBKBOa1VBznvLPb/3ljeJaENVe0fO0lnWl77lR4vhPlQD71UpjEoRV5P0KdQkcjbFlBu1Oy2mEUBMU3wxcBAGg==}
+
   micromatch@4.0.5:
     resolution: {integrity: sha512-DMy+ERcEW2q8Z2Po+WNXuw3c5YaUSFjAO5GsJqfEl7UjvtIuFKO6ZrKvcItdy98dwFI2N1tg3zNIdKaQT+aNdA==}
     engines: {node: '>=8.6'}
@@ -3431,8 +3434,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.6.0-dev.20240604:
-    resolution: {integrity: sha512-uwpkMy5U51ERVvVtQmDZwjYllREGrqP35JcdR5yWIoZ7ZE2I1oDsDs3mtLiiiccyHspCZ54Z741ibuP3NbACtg==}
+  typescript@5.6.0-dev.20240621:
+    resolution: {integrity: sha512-1JHiBIcEY9qrX/0coAIUIdH0XdDUuwIJ7VZGZ1CbksCWq2bztyvRX7YIcGvTkN/kFGEcrmyFIUEouq+pnLvQPw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4522,8 +4525,6 @@ snapshots:
 
   '@bufbuild/protobuf@1.10.0': {}
 
-  '@bufbuild/protobuf@1.9.0': {}
-
   '@bufbuild/protoc-gen-es@1.10.0(@bufbuild/protobuf@1.10.0)':
     dependencies:
       '@bufbuild/protoplugin': 1.10.0
@@ -4844,9 +4845,9 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@livekit/protocol@1.16.0':
+  '@livekit/protocol@1.19.0':
     dependencies:
-      '@bufbuild/protobuf': 1.9.0
+      '@bufbuild/protobuf': 1.10.0
 
   '@manypkg/find-root@1.1.0':
     dependencies:
@@ -5669,7 +5670,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.6.0-dev.20240604
+      typescript: 5.6.0-dev.20240621
 
   electron-to-chromium@1.4.724: {}
 
@@ -6566,6 +6567,8 @@ snapshots:
 
   merge2@1.4.1: {}
 
+  microdiff@1.4.0: {}
+
   micromatch@4.0.5:
     dependencies:
       braces: 3.0.2
@@ -7350,7 +7353,7 @@ snapshots:
 
   typescript@5.4.5: {}
 
-  typescript@5.6.0-dev.20240604: {}
+  typescript@5.6.0-dev.20240621: {}
 
   ufo@1.5.3: {}
 

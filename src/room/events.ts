@@ -185,6 +185,9 @@ export enum RoomEvent {
    */
   ParticipantNameChanged = 'participantNameChanged',
 
+  /**  */
+  ParticipantAttributesChanged = 'participantAttributesChanged',
+
   /**
    * Room metadata is a simple way for app-specific state to be pushed to
    * all users.
@@ -495,6 +498,9 @@ export enum ParticipantEvent {
 
   /** @internal */
   PCTrackAdded = 'pcTrackAdded',
+
+  /** */
+  AttributesChanged = 'attributesChanged',
 }
 
 /** @internal */
