@@ -1,6 +1,10 @@
 import { ClientInfo, ClientInfo_SDK, Transcription as TranscriptionModel } from '@livekit/protocol';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
+import type Agent from './participant/Agent';
+import type Participant from './participant/Participant';
+import { ParticipantKind } from './participant/Participant';
+import type RemoteParticipant from './participant/RemoteParticipant';
 import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
@@ -543,4 +547,8 @@ export function extractTranscriptionSegments(
       language,
     };
   });
+}
+
+export function isAgent(participant: Participant | RemoteParticipant): participant is Agent {
+  return participant.kind === ParticipantKind.AGENT;
 }
