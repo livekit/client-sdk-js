@@ -31,6 +31,7 @@ import {
   createAudioAnalyser,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
+  isAgent,
   isBrowserSupported,
   supportsAV1,
   supportsAdaptiveStream,
@@ -91,6 +92,7 @@ export {
   supportsDynacast,
   supportsVP9,
   Mutex,
+  isAgent,
 };
 export type {
   AudioAnalyserOptions,
