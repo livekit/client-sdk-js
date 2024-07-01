@@ -24,8 +24,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       tslib:
-        specifier: 2.6.2
-        version: 2.6.2
+        specifier: 2.6.3
+        version: 2.6.3
       typed-emitter:
         specifier: ^2.1.0
         version: 2.1.0
@@ -1054,6 +1054,7 @@ packages:
   '@humanwhocodes/config-array@0.11.14':
     resolution: {integrity: sha512-3T8LkOmg45BV5FICb15QQMsyUSWrQ8AygVfC7ZG32zOalnqrilm018ZVCw0eapXux8FtA33q8PSRSstjee3jSg==}
     engines: {node: '>=10.10.0'}
+    deprecated: Use @eslint/config-array instead
 
   '@humanwhocodes/module-importer@1.0.1':
     resolution: {integrity: sha512-bxveV4V8v5Yb4ncFTT3rPSgZBOpCkjfK0y4oVVVJwIuDVBRMDXrPyXRL988i5ap9m9bnyEEjWfm5WkBmtffLfA==}
@@ -1061,6 +1062,7 @@ packages:
 
   '@humanwhocodes/object-schema@2.0.3':
     resolution: {integrity: sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==}
+    deprecated: Use @eslint/object-schema instead
 
   '@jest/schemas@29.6.3':
     resolution: {integrity: sha512-mo5j5X+jIZmJQveBKeS/clAueipV7KgiX1vMgCxam1RNYiqE1w62n0/tJJnHtjW8ZHcQco5gY85jA3mi0L+nSA==}
@@ -3359,8 +3361,8 @@ packages:
   tsconfig-paths@3.15.0:
     resolution: {integrity: sha512-2Ac2RgzDe/cn48GvOe3M+o82pEFewD3UPbyoUHHdKasHwJKjds4fLXWf/Ux5kATBKN20oaFGu+jbElp1pos0mg==}
 
-  tslib@2.6.2:
-    resolution: {integrity: sha512-AEYxH93jGFPn/a2iVAwW87VuUIkR1FVUKB77NwMF7nBTDkDrrT/Hpt/IrCJ0QXhW27jTBDcf5ZY7w6RiqTMw2Q==}
+  tslib@2.6.3:
+    resolution: {integrity: sha512-xNvxJEOUiWPGhUuUdQgAJPKOOJfGnIyKySOc09XkKsgdUV/3E2zvwZYdejjmRgPCgcym1juLH3226yA7sEFJKQ==}
 
   tty-table@4.2.3:
     resolution: {integrity: sha512-Fs15mu0vGzCrj8fmJNP7Ynxt5J7praPXqFN0leZeZBXJwkMxv9cb2D454k1ltrtUSJbZ4yH4e0CynsHLxmUfFA==}
@@ -3431,8 +3433,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.6.0-dev.20240604:
-    resolution: {integrity: sha512-uwpkMy5U51ERVvVtQmDZwjYllREGrqP35JcdR5yWIoZ7ZE2I1oDsDs3mtLiiiccyHspCZ54Z741ibuP3NbACtg==}
+  typescript@5.6.0-dev.20240630:
+    resolution: {integrity: sha512-AZ+Ec8/v9wH+iGZ2P0tmrEQxVtAasvQb7ezcxVKFlg+MwY0iylQVjBt/gKp8ppCpxJMkEPX52rFbC3Zdc9tEBw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5669,7 +5671,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.6.0-dev.20240604
+      typescript: 5.6.0-dev.20240630
 
   electron-to-chromium@1.4.724: {}
 
@@ -6942,7 +6944,7 @@ snapshots:
       fs-extra: 10.1.0
       rollup: 4.18.0
       semver: 7.6.0
-      tslib: 2.6.2
+      tslib: 2.6.3
       typescript: 5.4.5
 
   rollup-pluginutils@2.8.2:
@@ -6981,7 +6983,7 @@ snapshots:
 
   rxjs@7.8.1:
     dependencies:
-      tslib: 2.6.2
+      tslib: 2.6.3
     optional: true
 
   safe-array-concat@1.0.1:
@@ -7277,7 +7279,7 @@ snapshots:
       minimist: 1.2.8
       strip-bom: 3.0.0
 
-  tslib@2.6.2: {}
+  tslib@2.6.3: {}
 
   tty-table@4.2.3:
     dependencies:
@@ -7350,7 +7352,7 @@ snapshots:
 
   typescript@5.4.5: {}
 
-  typescript@5.6.0-dev.20240604: {}
+  typescript@5.6.0-dev.20240630: {}
 
   ufo@1.5.3: {}
 
