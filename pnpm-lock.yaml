@@ -30,8 +30,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       webrtc-adapter:
-        specifier: ^8.1.1
-        version: 8.2.3
+        specifier: ^9.0.0
+        version: 9.0.1
     devDependencies:
       '@babel/core':
         specifier: 7.24.6
@@ -3433,8 +3433,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.6.0-dev.20240630:
-    resolution: {integrity: sha512-AZ+Ec8/v9wH+iGZ2P0tmrEQxVtAasvQb7ezcxVKFlg+MwY0iylQVjBt/gKp8ppCpxJMkEPX52rFbC3Zdc9tEBw==}
+  typescript@5.6.0-dev.20240701:
+    resolution: {integrity: sha512-x8jIDJiBfgaT4/vpz3FwNKa2dYQsLZXKWsaCeyQWrXzkbKyirrGdVuOr3nbz0bcvteZNJ2BCZPDlAiwsX/pENw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -3589,8 +3589,8 @@ packages:
       webpack-cli:
         optional: true
 
-  webrtc-adapter@8.2.3:
-    resolution: {integrity: sha512-gnmRz++suzmvxtp3ehQts6s2JtAGPuDPjA1F3a9ckNpG1kYdYuHWYpazoAnL9FS5/B21tKlhkorbdCXat0+4xQ==}
+  webrtc-adapter@9.0.1:
+    resolution: {integrity: sha512-1AQO+d4ElfVSXyzNVTOewgGT/tAomwwztX/6e3totvyyzXPvXIIuUUjAmyZGbKBKbZOXauuJooZm3g6IuFuiNQ==}
     engines: {node: '>=6.0.0', npm: '>=3.10.0'}
 
   whatwg-encoding@3.1.1:
@@ -5671,7 +5671,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.6.0-dev.20240630
+      typescript: 5.6.0-dev.20240701
 
   electron-to-chromium@1.4.724: {}
 
@@ -7352,7 +7352,7 @@ snapshots:
 
   typescript@5.4.5: {}
 
-  typescript@5.6.0-dev.20240630: {}
+  typescript@5.6.0-dev.20240701: {}
 
   ufo@1.5.3: {}
 
@@ -7519,7 +7519,7 @@ snapshots:
       - esbuild
       - uglify-js
 
-  webrtc-adapter@8.2.3:
+  webrtc-adapter@9.0.1:
     dependencies:
       sdp: 3.2.0
 
