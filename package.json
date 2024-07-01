@@ -56,7 +56,6 @@
     "@livekit/protocol": "1.19.0",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
-    "microdiff": "^1.4.0",
     "sdp-transform": "^2.14.1",
     "ts-debounce": "^4.0.0",
     "tslib": "2.6.2",

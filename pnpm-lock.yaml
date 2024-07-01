@@ -17,9 +17,6 @@ importers:
       loglevel:
         specifier: ^1.8.0
         version: 1.9.1
-      microdiff:
-        specifier: ^1.4.0
-        version: 1.4.0
       sdp-transform:
         specifier: ^2.14.1
         version: 2.14.1
@@ -2640,9 +2637,6 @@ packages:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
 
-  microdiff@1.4.0:
-    resolution: {integrity: sha512-OBKBOa1VBznvLPb/3ljeJaENVe0fO0lnWl77lR4vhPlQD71UpjEoRV5P0KdQkcjbFlBu1Oy2mEUBMU3wxcBAGg==}
-
   micromatch@4.0.5:
     resolution: {integrity: sha512-DMy+ERcEW2q8Z2Po+WNXuw3c5YaUSFjAO5GsJqfEl7UjvtIuFKO6ZrKvcItdy98dwFI2N1tg3zNIdKaQT+aNdA==}
     engines: {node: '>=8.6'}
@@ -3434,8 +3428,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.6.0-dev.20240621:
-    resolution: {integrity: sha512-1JHiBIcEY9qrX/0coAIUIdH0XdDUuwIJ7VZGZ1CbksCWq2bztyvRX7YIcGvTkN/kFGEcrmyFIUEouq+pnLvQPw==}
+  typescript@5.6.0-dev.20240701:
+    resolution: {integrity: sha512-x8jIDJiBfgaT4/vpz3FwNKa2dYQsLZXKWsaCeyQWrXzkbKyirrGdVuOr3nbz0bcvteZNJ2BCZPDlAiwsX/pENw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5670,7 +5664,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.6.0-dev.20240621
+      typescript: 5.6.0-dev.20240701
 
   electron-to-chromium@1.4.724: {}
 
@@ -6567,8 +6561,6 @@ snapshots:
 
   merge2@1.4.1: {}
 
-  microdiff@1.4.0: {}
-
   micromatch@4.0.5:
     dependencies:
       braces: 3.0.2
@@ -7353,7 +7345,7 @@ snapshots:
 
   typescript@5.4.5: {}
 
-  typescript@5.6.0-dev.20240621: {}
+  typescript@5.6.0-dev.20240701: {}
 
   ufo@1.5.3: {}
 
