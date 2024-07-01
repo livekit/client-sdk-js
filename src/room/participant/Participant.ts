@@ -8,7 +8,6 @@ import {
   SubscriptionError,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
-import diff from 'microdiff';
 import type TypedEmitter from 'typed-emitter';
 import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import { ParticipantEvent, TrackEvent } from '../events';
@@ -19,6 +18,7 @@ import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
+import { diffAttributes } from '../track/utils';
 import type { LoggerOptions, TranscriptionSegment } from '../types';
 
 export enum ConnectionQuality {
@@ -259,11 +259,11 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    * Updates metadata from server
    **/
   private _setAttributes(attributes: Record<string, string>) {
-    const metadataDiff = diff(this.attributes, attributes);
+    const diff = diffAttributes(attributes, this.attributes);
     this._attributes = attributes;
 
-    if (metadataDiff.length > 0) {
-      this.emit(ParticipantEvent.AttributesChanged, attributes);
+    if (Object.keys(diff).length > 0) {
+      this.emit(ParticipantEvent.AttributesChanged, diff);
     }
   }
 
@@ -385,5 +385,5 @@ export type ParticipantEventCallbacks = {
     publication: RemoteTrackPublication,
     status: TrackPublication.SubscriptionStatus,
   ) => void;
-  attributesChanged: (attributes: Record<string, string>) => void;
+  attributesChanged: (changedAttributes: Record<string, string>) => void;
 };

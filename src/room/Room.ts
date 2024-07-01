@@ -2128,7 +2128,7 @@ export type RoomEventCallbacks = {
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
   participantAttributesChanged: (
-    attributes: Record<string, string>,
+    changedAttributes: Record<string, string>,
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
   activeSpeakersChanged: (speakers: Array<Participant>) => void;
