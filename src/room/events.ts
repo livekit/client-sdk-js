@@ -188,7 +188,7 @@ export enum RoomEvent {
   /**
    * Participant attributes is an app-specific key value state to be pushed to
    * all users.
-   * When a participant's attributes changed, this event will be emitted with the new attributes and the participant
+   * When a participant's attributes changed, this event will be emitted with the changed attributes and the participant
    */
   ParticipantAttributesChanged = 'participantAttributesChanged',
 
@@ -506,7 +506,7 @@ export enum ParticipantEvent {
   /**
    * Participant attributes is an app-specific key value state to be pushed to
    * all users.
-   * When a participant's attributes changed, this event will be emitted with the new attributes
+   * When a participant's attributes changed, this event will be emitted with the changed attributes
    */
   AttributesChanged = 'attributesChanged',
 }
