@@ -227,7 +227,19 @@ export default class LocalParticipant extends Participant {
     await this.requestMetadataUpdate({ name });
   }
 
-  async requestMetadataUpdate({ metadata, name }: { metadata?: string; name?: string }) {
+  async setAttributes(attributes: Record<string, string>) {
+    await this.requestMetadataUpdate({ attributes });
+  }
+
+  private async requestMetadataUpdate({
+    metadata,
+    name,
+    attributes,
+  }: {
+    metadata?: string;
+    name?: string;
+    attributes?: Record<string, string>;
+  }) {
     const unlock = await this.metadataUpdateMutex.lock();
 
     return new Promise<void>(async (resolve, reject) => {
@@ -236,6 +248,7 @@ export default class LocalParticipant extends Participant {
         const requestId = await this.engine.client.sendUpdateLocalMetadata(
           metadata ?? this.metadata ?? '',
           name ?? this.name ?? '',
+          attributes,
         );
         const startTime = performance.now();
         this.pendingSignalRequests.set(requestId, {
@@ -244,10 +257,15 @@ export default class LocalParticipant extends Participant {
             reject(reason);
             isRejected = true;
           },
-          values: { name, metadata },
+          values: { name, metadata, attributes },
         });
         while (performance.now() - startTime < 5_000 && !isRejected) {
-          if ((!name || this.name === name) && (!metadata || this.metadata === metadata)) {
+          if (
+            (!name || this.name === name) &&
+            (!metadata || this.metadata === metadata) &&
+            (!attributes ||
+              Object.entries(attributes).every(([key, value]) => this.attributes[key] === value))
+          ) {
             this.pendingSignalRequests.delete(requestId);
             resolve();
             return;
@@ -259,14 +277,6 @@ export default class LocalParticipant extends Participant {
         unlock();
       }
     });
-  }
-
-  async setAttributes(attributes: Record<string, string>) {
-    await this.engine.client.sendUpdateLocalMetadata(
-      this.metadata ?? '',
-      this.name ?? '',
-      attributes,
-    );
   }
 
   /**
