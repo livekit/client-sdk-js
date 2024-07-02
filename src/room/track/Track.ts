@@ -129,7 +129,7 @@ export abstract class Track<
     if (this.kind === Track.Kind.Video) {
       elementType = 'video';
     }
-    if (this.attachedElements.length === 0 && Track.Kind.Video) {
+    if (this.attachedElements.length === 0 && this.kind === Track.Kind.Video) {
       this.addAppVisibilityListener();
     }
     if (!element) {
