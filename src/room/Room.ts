@@ -1514,14 +1514,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
 
   private handleTranscription = (
-    remoteParticipant: RemoteParticipant | undefined,
+    _remoteParticipant: RemoteParticipant | undefined,
     transcription: TranscriptionModel,
   ) => {
     // find the participant
     const participant =
-      transcription.participantIdentity === this.localParticipant.identity
+      transcription.transcribedParticipantIdentity === this.localParticipant.identity
         ? this.localParticipant
-        : remoteParticipant;
+        : this.getParticipantByIdentity(transcription.transcribedParticipantIdentity);
     const publication = participant?.trackPublications.get(transcription.trackId);
 
     const segments = extractTranscriptionSegments(transcription);
