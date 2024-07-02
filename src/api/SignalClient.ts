@@ -521,7 +521,11 @@ export class SignalClient {
     });
   }
 
-  async sendUpdateLocalMetadata(metadata: string, name: string) {
+  async sendUpdateLocalMetadata(
+    metadata: string,
+    name: string,
+    attributes: Record<string, string> = {},
+  ) {
     const requestId = this.getNextRequestId();
     await this.sendRequest({
       case: 'updateMetadata',
@@ -529,6 +533,7 @@ export class SignalClient {
         requestId,
         metadata,
         name,
+        attributes,
       }),
     });
     return requestId;

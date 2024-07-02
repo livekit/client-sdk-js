@@ -261,6 +261,14 @@ export default class LocalParticipant extends Participant {
     });
   }
 
+  async setAttributes(attributes: Record<string, string>) {
+    await this.engine.client.sendUpdateLocalMetadata(
+      this.metadata ?? '',
+      this.name ?? '',
+      attributes,
+    );
+  }
+
   /**
    * Enable or disable a participant's camera track.
    *
