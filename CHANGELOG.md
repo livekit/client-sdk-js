@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.4.0
+
+### Minor Changes
+
+- Add support for participant attributes - [#1170](https://github.com/livekit/client-sdk-js/pull/1170) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Ensure app visibility listeners are only added for video tracks - [#1173](https://github.com/livekit/client-sdk-js/pull/1173) ([@renovate](https://github.com/apps/renovate))
+
 ## 2.3.1
 
 ### Patch Changes
