@@ -204,7 +204,11 @@ export default class LocalParticipant extends Participant {
   }
 
   async setAttributes(attributes: Record<string, string>) {
-    this.engine.client.sendUpdateLocalMetadata(this.metadata ?? '', this.name ?? '', attributes);
+    await this.engine.client.sendUpdateLocalMetadata(
+      this.metadata ?? '',
+      this.name ?? '',
+      attributes,
+    );
   }
 
   /**
