@@ -1408,7 +1408,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const lastSpeakers = new Map<string, Participant>();
     this.activeSpeakers.forEach((p) => {
       const remoteParticipant = this.remoteParticipants.get(p.identity);
-      if (remoteParticipant.sid != p.sid) {
+      if (remoteParticipant && remoteParticipant.sid !== p.sid) {
         return;
       }
       lastSpeakers.set(p.sid, p);
