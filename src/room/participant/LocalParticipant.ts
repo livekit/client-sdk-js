@@ -1022,6 +1022,16 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     stopOnUnpublish?: boolean,
   ): Promise<LocalTrackPublication | undefined> {
+    if (track instanceof LocalTrack) {
+      const publishPromise = this.pendingPublishPromises.get(track);
+      if (publishPromise) {
+        this.log.info('awaiting publish promise before attempting to unpublish', {
+          ...this.logContext,
+          ...getLogContextFromTrack(track),
+        });
+        await publishPromise;
+      }
+    }
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
 
