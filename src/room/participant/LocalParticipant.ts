@@ -203,6 +203,24 @@ export default class LocalParticipant extends Participant {
     this.engine.client.sendUpdateLocalMetadata(this.metadata ?? '', name);
   }
 
+  /**
+   * Set or update a participant attribute. It will make updates only to a single
+   * key without overriding others. Setting an empty string value will delete remove
+   * it from attribute store.
+   * Note: this requires `canUpdateOwnMetadata` permission.
+   * @param key
+   * @param value
+   */
+  async setAttribute(key: string, value: string) {
+    await this.setAttributes({ [key]: value });
+  }
+
+  /**
+   * Set or update participant attributes. It will make updates only to keys that
+   * are present in `attributes`, and will not override others.
+   * Note: this requires `canUpdateOwnMetadata` permission.
+   * @param attributes attributes to update
+   */
   async setAttributes(attributes: Record<string, string>) {
     await this.engine.client.sendUpdateLocalMetadata(
       this.metadata ?? '',
