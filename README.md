@@ -1,20 +1,28 @@
 <!--BEGIN_BANNER_IMAGE-->
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="/.github/banner_dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="/.github/banner_light.png">
-    <img style="width:100%;" alt="The LiveKit icon, the name of the repository and some sample code in the background." src="/.github/banner_light.png">
-  </picture>
-  <!--END_BANNER_IMAGE-->
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="/.github/banner_dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="/.github/banner_light.png">
+  <img style="width:100%;" alt="The LiveKit icon, the name of the repository and some sample code in the background." src="https://raw.githubusercontent.com/livekit/client-sdk-js/main/.github/banner_light.png">
+</picture>
+
+<!--END_BANNER_IMAGE-->
 
 # JavaScript/TypeScript client SDK for LiveKit
 
-<!--BEGIN_DESCRIPTION-->Use this SDK to add real-time video, audio and data features to your JavaScript/TypeScript app. By connecting to a self- or cloud-hosted <a href="https://livekit.io/">LiveKit</a> server, you can quickly build applications like interactive live streaming or video calls with just a few lines of code.<!--END_DESCRIPTION-->
+<!--BEGIN_DESCRIPTION-->
+Use this SDK to add real-time video, audio and data features to your JavaScript/TypeScript app. By connecting to a self- or cloud-hosted <a href="https://livekit.io/">LiveKit</a> server, you can quickly build applications like interactive live streaming or video calls with just a few lines of code.
+<!--END_DESCRIPTION-->
 
 ## Docs
 
 Docs and guides at [https://docs.livekit.io](https://docs.livekit.io)
 
 [SDK reference](https://docs.livekit.io/client-sdk-js/)
+
+> [!NOTE]
+> This is v2 of `livekit-client`. When migrating from v1.x to v2.x you might encounter a small set of breaking changes.
+> Read the [migration guide](https://docs.livekit.io/guides/migrate-from-v1/) for a detailed overview of what has changed.
 
 ## Installation
 
@@ -51,6 +59,7 @@ const livekit = require('livekit-client');
 
 const room = new livekit.Room(...);
 
+// call this some time before actually connecting to speed up the actual connection
 room.prepareConnection(url, token);
 
 await room.connect(...);
@@ -121,9 +130,12 @@ function handleTrackUnsubscribed(
   track.detach();
 }
 
-function handleLocalTrackUnpublished(track: LocalTrackPublication, participant: LocalParticipant) {
+function handleLocalTrackUnpublished(
+  publication: LocalTrackPublication,
+  participant: LocalParticipant,
+) {
   // when local tracks are ended, update UI to remove them from rendering
-  track.detach();
+  publication.track.detach();
 }
 
 function handleActiveSpeakerChange(speakers: Participant[]) {
@@ -161,14 +173,14 @@ await p.setCameraEnabled(false);
 Similarly, you can access these common track types on the other participants' end.
 
 ```typescript
-// get a RemoteParticipant by their sid
-const p = room.participants.get('participant-sid');
+// get a RemoteParticipant by their identity
+const p = room.remoteParticipants.get('participant-identity');
 if (p) {
   // if the other user has enabled their camera, attach it to a new HTMLVideoElement
   if (p.isCameraEnabled) {
-    const track = p.getTrack(Track.Source.Camera);
-    if (track?.isSubscribed) {
-      const videoElement = track.videoTrack?.attach();
+    const publication = p.getTrackPublication(Track.Source.Camera);
+    if (publication?.isSubscribed) {
+      const videoElement = publication.videoTrack?.attach();
       // do something with the element
     }
   }
@@ -254,13 +266,13 @@ You could also retrieve the last error with `LocalParticipant.lastCameraError` a
 
 Browsers can be restrictive with regards to audio playback that is not initiated by user interaction. What each browser considers as user interaction can vary by vendor (for example, Safari on iOS is very restrictive).
 
-LiveKit will attempt to autoplay all audio tracks when you attach them to audio elements. However, if that fails, we'll notify you via `RoomEvent.AudioPlaybackStatusChanged`. `Room.canPlayAudio` will indicate if audio playback is permitted. LiveKit takes an optimistic approach so it's possible for this value to change from `true` to `false` when we encounter a browser error.
+LiveKit will attempt to autoplay all audio tracks when you attach them to audio elements. However, if that fails, we'll notify you via `RoomEvent.AudioPlaybackStatusChanged`. `Room.canPlaybackAudio` will indicate if audio playback is permitted. LiveKit takes an optimistic approach so it's possible for this value to change from `true` to `false` when we encounter a browser error.
 
 In the case user interaction is required, LiveKit provides `Room.startAudio` to start audio playback. This function must be triggered in an onclick or ontap event handler. In the same session, once audio playback is successful, additional audio tracks can be played without further user interactions.
 
 ```typescript
 room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
-  if (!room.canPlayAudio) {
+  if (!room.canPlaybackAudio) {
     // UI is necessary.
     ...
     button.onclick = () => {
@@ -292,7 +304,7 @@ setLogExtension((level: LogLevel, msg: string, context: object) => {
 
 ### SDK Sample
 
-[example/sample.ts](example/sample.ts) contains a demo webapp that uses the SDK. Run it with `yarn sample`
+[example/sample.ts](example/sample.ts) contains a demo webapp that uses the SDK. Run it with `pnpm install && pnpm sample`
 
 ## Browser Support
 
@@ -318,9 +330,10 @@ Also when targeting legacy browsers, older than the ones specified in our browse
 <br/><table>
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>
-<tr><td>Client SDKs</td><td><a href="https://github.com/livekit/components-js">Components</a> · <b>JavaScript</b> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/client-sdk-rust">Rust</a> · <a href="https://github.com/livekit/client-sdk-python">Python</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (web)</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity (beta)</a></td></tr><tr></tr>
-<tr><td>Server SDKs</td><td><a href="https://github.com/livekit/server-sdk-js">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a> · <a href="https://github.com/tradablebits/livekit-server-sdk-python">Python (community)</a></td></tr><tr></tr>
-<tr><td>Services</td><td><a href="https://github.com/livekit/livekit">Livekit server</a> · <a href="https://github.com/livekit/egress">Egress</a> · <a href="https://github.com/livekit/ingress">Ingress</a></td></tr><tr></tr>
+<tr><td>Real-time SDKs</td><td><a href="https://github.com/livekit/components-js">React Components</a> · <b>Browser</b> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (web)</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity (beta)</a></td></tr><tr></tr>
+<tr><td>Server APIs</td><td><a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a></td></tr><tr></tr>
+<tr><td>Agents Frameworks</td><td><a href="https://github.com/livekit/agents">Python</a> · <a href="https://github.com/livekit/agent-playground">Playground</a></td></tr><tr></tr>
+<tr><td>Services</td><td><a href="https://github.com/livekit/livekit">Livekit server</a> · <a href="https://github.com/livekit/egress">Egress</a> · <a href="https://github.com/livekit/ingress">Ingress</a> · <a href="https://github.com/livekit/sip">SIP</a></td></tr><tr></tr>
 <tr><td>Resources</td><td><a href="https://docs.livekit.io">Docs</a> · <a href="https://github.com/livekit-examples">Example apps</a> · <a href="https://livekit.io/cloud">Cloud</a> · <a href="https://docs.livekit.io/oss/deployment">Self-hosting</a> · <a href="https://github.com/livekit/livekit-cli">CLI</a></td></tr>
 </tbody>
 </table>

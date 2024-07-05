@@ -6,16 +6,13 @@ import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
-import {
-  CryptorCallbacks,
-  CryptorEvent,
-  DecodeRatchetOptions,
-  KeyProviderOptions,
-  KeySet,
-} from '../types';
-import { deriveKeys, isVideoFrame } from '../utils';
+import { CryptorCallbacks, CryptorEvent } from '../events';
+import type { DecodeRatchetOptions, KeyProviderOptions, KeySet } from '../types';
+import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { SifGuard } from './SifGuard';
+
+export const encryptionEnabledMap: Map<string, boolean> = new Map();
 
 export interface FrameCryptorConstructor {
   new (opts?: unknown): BaseFrameCryptor;
@@ -29,14 +26,14 @@ export interface TransformerInfo {
 }
 
 export class BaseFrameCryptor extends (EventEmitter as new () => TypedEventEmitter<CryptorCallbacks>) {
-  encodeFunction(
+  protected encodeFunction(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ): Promise<any> {
     throw Error('not implemented for subclass');
   }
 
-  decodeFunction(
+  protected decodeFunction(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ): Promise<any> {
@@ -51,7 +48,7 @@ export class BaseFrameCryptor extends (EventEmitter as new () => TypedEventEmitt
 export class FrameCryptor extends BaseFrameCryptor {
   private sendCounts: Map<number, number>;
 
-  private participantId: string | undefined;
+  private participantIdentity: string | undefined;
 
   private trackId: string | undefined;
 
@@ -70,20 +67,30 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private sifGuard: SifGuard;
 
+  private detectedCodec?: VideoCodec;
+
   constructor(opts: {
     keys: ParticipantKeyHandler;
-    participantId: string;
+    participantIdentity: string;
     keyProviderOptions: KeyProviderOptions;
     sifTrailer?: Uint8Array;
   }) {
     super();
     this.sendCounts = new Map();
     this.keys = opts.keys;
-    this.participantId = opts.participantId;
+    this.participantIdentity = opts.participantIdentity;
     this.rtpMap = new Map();
     this.keyProviderOptions = opts.keyProviderOptions;
     this.sifTrailer = opts.sifTrailer ?? Uint8Array.from([]);
     this.sifGuard = new SifGuard();
+  }
+
+  private get logContext() {
+    return {
+      participant: this.participantIdentity,
+      mediaTrackId: this.trackId,
+      fallbackCodec: this.videoCodec,
+    };
   }
 
   /**
@@ -93,17 +100,38 @@ export class FrameCryptor extends BaseFrameCryptor {
    * @param keys
    */
   setParticipant(id: string, keys: ParticipantKeyHandler) {
-    this.participantId = id;
+    workerLogger.debug('setting new participant on cryptor', {
+      ...this.logContext,
+      participant: id,
+    });
+    if (this.participantIdentity) {
+      workerLogger.error(
+        'cryptor has already a participant set, participant should have been unset before',
+        {
+          ...this.logContext,
+        },
+      );
+    }
+    this.participantIdentity = id;
     this.keys = keys;
     this.sifGuard.reset();
   }
 
   unsetParticipant() {
-    this.participantId = undefined;
+    workerLogger.debug('unsetting participant', this.logContext);
+    this.participantIdentity = undefined;
   }
 
-  getParticipantId() {
-    return this.participantId;
+  isEnabled() {
+    if (this.participantIdentity) {
+      return encryptionEnabledMap.get(this.participantIdentity);
+    } else {
+      return undefined;
+    }
+  }
+
+  getParticipantIdentity() {
+    return this.participantIdentity;
   }
 
   getTrackId() {
@@ -138,6 +166,13 @@ export class FrameCryptor extends BaseFrameCryptor {
       this.videoCodec = codec;
     }
 
+    workerLogger.debug('Setting up frame cryptor transform', {
+      operation,
+      passedTrackId: trackId,
+      codec,
+      ...this.logContext,
+    });
+
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
       transform: transformFn.bind(this),
@@ -148,9 +183,14 @@ export class FrameCryptor extends BaseFrameCryptor {
       .pipeTo(writable)
       .catch((e) => {
         workerLogger.warn(e);
-        this.emit('cryptorError', e instanceof CryptorError ? e : new CryptorError(e.message));
+        this.emit(CryptorEvent.Error, e instanceof CryptorError ? e : new CryptorError(e.message));
       });
     this.trackId = trackId;
+  }
+
+  setSifTrailer(trailer: Uint8Array) {
+    workerLogger.debug('setting SIF trailer', { ...this.logContext, trailer });
+    this.sifTrailer = trailer;
   }
 
   /**
@@ -175,19 +215,26 @@ export class FrameCryptor extends BaseFrameCryptor {
    * 8) Append a single byte for the key identifier.
    * 9) Enqueue the encrypted frame for sending.
    */
-  async encodeFunction(
+  protected async encodeFunction(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
     if (
-      !this.keys.isEnabled() ||
+      !this.isEnabled() ||
       // skip for encryption for empty dtx frames
       encodedFrame.data.byteLength === 0
     ) {
       return controller.enqueue(encodedFrame);
     }
-
-    const { encryptionKey } = this.keys.getKeySet();
+    const keySet = this.keys.getKeySet();
+    if (!keySet) {
+      throw new TypeError(
+        `key set not found for ${
+          this.participantIdentity
+        } at index ${this.keys.getCurrentKeyIndex()}`,
+      );
+    }
+    const { encryptionKey } = keySet;
     const keyIndex = this.keys.getCurrentKeyIndex();
 
     if (encryptionKey) {
@@ -195,13 +242,10 @@ export class FrameCryptor extends BaseFrameCryptor {
         encodedFrame.getMetadata().synchronizationSource ?? -1,
         encodedFrame.timestamp,
       );
+      let frameInfo = this.getUnencryptedBytes(encodedFrame);
 
       // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
-      const frameHeader = new Uint8Array(
-        encodedFrame.data,
-        0,
-        this.getUnencryptedBytes(encodedFrame),
-      );
+      const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
 
       // Frame trailer contains the R|IV_LENGTH and key index
       const frameTrailer = new Uint8Array(2);
@@ -224,20 +268,25 @@ export class FrameCryptor extends BaseFrameCryptor {
             additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
           },
           encryptionKey,
-          new Uint8Array(encodedFrame.data, this.getUnencryptedBytes(encodedFrame)),
+          new Uint8Array(encodedFrame.data, frameInfo.unencryptedBytes),
         );
 
-        const newData = new ArrayBuffer(
-          frameHeader.byteLength + cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
+        let newDataWithoutHeader = new Uint8Array(
+          cipherText.byteLength + iv.byteLength + frameTrailer.byteLength,
         );
-        const newUint8 = new Uint8Array(newData);
+        newDataWithoutHeader.set(new Uint8Array(cipherText)); // add ciphertext.
+        newDataWithoutHeader.set(new Uint8Array(iv), cipherText.byteLength); // append IV.
+        newDataWithoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
 
-        newUint8.set(frameHeader); // copy first bytes.
-        newUint8.set(new Uint8Array(cipherText), frameHeader.byteLength); // add ciphertext.
-        newUint8.set(new Uint8Array(iv), frameHeader.byteLength + cipherText.byteLength); // append IV.
-        newUint8.set(frameTrailer, frameHeader.byteLength + cipherText.byteLength + iv.byteLength); // append frame trailer.
+        if (frameInfo.isH264) {
+          newDataWithoutHeader = writeRbsp(newDataWithoutHeader);
+        }
 
-        encodedFrame.data = newData;
+        var newData = new Uint8Array(frameHeader.byteLength + newDataWithoutHeader.byteLength);
+        newData.set(frameHeader);
+        newData.set(newDataWithoutHeader, frameHeader.byteLength);
+
+        encodedFrame.data = newData.buffer;
 
         return controller.enqueue(encodedFrame);
       } catch (e: any) {
@@ -245,6 +294,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         workerLogger.error(e);
       }
     } else {
+      workerLogger.debug('failed to decrypt, emitting error', this.logContext);
       this.emit(
         CryptorEvent.Error,
         new CryptorError(`encryption key missing for encoding`, CryptorErrorReason.MissingKey),
@@ -258,23 +308,29 @@ export class FrameCryptor extends BaseFrameCryptor {
    * @param {RTCEncodedVideoFrame|RTCEncodedAudioFrame} encodedFrame - Encoded video frame.
    * @param {TransformStreamDefaultController} controller - TransportStreamController.
    */
-  async decodeFunction(
+  protected async decodeFunction(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     controller: TransformStreamDefaultController,
   ) {
     if (
-      !this.keys.isEnabled() ||
+      !this.isEnabled() ||
       // skip for decryption for empty dtx frames
       encodedFrame.data.byteLength === 0
     ) {
+      workerLogger.debug('skipping empty frame', this.logContext);
       this.sifGuard.recordUserFrame();
       return controller.enqueue(encodedFrame);
     }
 
     if (isFrameServerInjected(encodedFrame.data, this.sifTrailer)) {
+      workerLogger.debug('enqueue SIF', this.logContext);
       this.sifGuard.recordSif();
 
       if (this.sifGuard.isSifAllowed()) {
+        encodedFrame.data = encodedFrame.data.slice(
+          0,
+          encodedFrame.data.byteLength - this.sifTrailer.byteLength,
+        );
         return controller.enqueue(encodedFrame);
       } else {
         workerLogger.warn('SIF limit reached, dropping frame');
@@ -296,14 +352,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       } catch (error) {
         if (error instanceof CryptorError && error.reason === CryptorErrorReason.InvalidKey) {
           if (this.keys.hasValidKey) {
-            workerLogger.warn('invalid key');
-            this.emit(
-              CryptorEvent.Error,
-              new CryptorError(
-                `invalid key for participant ${this.participantId}`,
-                CryptorErrorReason.InvalidKey,
-              ),
-            );
+            this.emit(CryptorEvent.Error, error);
             this.keys.decryptionFailure();
           }
         } else {
@@ -312,11 +361,11 @@ export class FrameCryptor extends BaseFrameCryptor {
       }
     } else if (!this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
       // emit an error in case the key index is out of bounds but the key handler thinks we still have a valid key
-      workerLogger.warn('skipping decryption due to missing key at index');
+      workerLogger.warn(`skipping decryption due to missing key at index ${keyIndex}`);
       this.emit(
         CryptorEvent.Error,
         new CryptorError(
-          `missing key at index for participant ${this.participantId}`,
+          `missing key at index ${keyIndex} for participant ${this.participantIdentity}`,
           CryptorErrorReason.MissingKey,
         ),
       );
@@ -327,13 +376,17 @@ export class FrameCryptor extends BaseFrameCryptor {
    * Function that will decrypt the given encoded frame. If the decryption fails, it will
    * ratchet the key for up to RATCHET_WINDOW_SIZE times.
    */
-  async decryptFrame(
+  private async decryptFrame(
     encodedFrame: RTCEncodedVideoFrame | RTCEncodedAudioFrame,
     keyIndex: number,
     initialMaterial: KeySet | undefined = undefined,
     ratchetOpts: DecodeRatchetOptions = { ratchetCount: 0 },
   ): Promise<RTCEncodedVideoFrame | RTCEncodedAudioFrame | undefined> {
     const keySet = this.keys.getKeySet(keyIndex);
+    if (!ratchetOpts.encryptionKey && !keySet) {
+      throw new TypeError(`no encryption key found for decryption of ${this.participantIdentity}`);
+    }
+    let frameInfo = this.getUnencryptedBytes(encodedFrame);
 
     // Construct frame trailer. Similar to the frame header described in
     // https://tools.ietf.org/html/draft-omara-sframe-00#section-4.2
@@ -344,11 +397,20 @@ export class FrameCryptor extends BaseFrameCryptor {
     // ---------+-------------------------+-+---------+----
 
     try {
-      const frameHeader = new Uint8Array(
+      const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
+      var encryptedData = new Uint8Array(
         encodedFrame.data,
-        0,
-        this.getUnencryptedBytes(encodedFrame),
+        frameHeader.length,
+        encodedFrame.data.byteLength - frameHeader.length,
       );
+      if (frameInfo.isH264 && needsRbspUnescaping(encryptedData)) {
+        encryptedData = parseRbsp(encryptedData);
+        const newUint8 = new Uint8Array(frameHeader.byteLength + encryptedData.byteLength);
+        newUint8.set(frameHeader);
+        newUint8.set(encryptedData, frameHeader.byteLength);
+        encodedFrame.data = newUint8.buffer;
+      }
+
       const frameTrailer = new Uint8Array(encodedFrame.data, encodedFrame.data.byteLength - 2, 2);
 
       const ivLength = frameTrailer[0];
@@ -369,7 +431,7 @@ export class FrameCryptor extends BaseFrameCryptor {
           iv,
           additionalData: new Uint8Array(encodedFrame.data, 0, frameHeader.byteLength),
         },
-        ratchetOpts.encryptionKey ?? keySet.encryptionKey,
+        ratchetOpts.encryptionKey ?? keySet!.encryptionKey,
         new Uint8Array(encodedFrame.data, cipherTextStart, cipherTextLength),
       );
 
@@ -392,7 +454,7 @@ export class FrameCryptor extends BaseFrameCryptor {
           );
 
           let ratchetedKeySet: KeySet | undefined;
-          if (keySet === this.keys.getKeySet(keyIndex)) {
+          if ((initialMaterial ?? keySet) === this.keys.getKeySet(keyIndex)) {
             // only ratchet if the currently set key is still the same as the one used to decrypt this frame
             // if not, it might be that a different frame has already ratcheted and we try with that one first
             const newMaterial = await this.keys.ratchetKey(keyIndex, false);
@@ -405,32 +467,31 @@ export class FrameCryptor extends BaseFrameCryptor {
             encryptionKey: ratchetedKeySet?.encryptionKey,
           });
           if (frame && ratchetedKeySet) {
-            this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
-            // decryption was successful, set the new key index to reflect the ratcheted key set
-            this.keys.setCurrentKeyIndex(keyIndex);
+            // before updating the keys, make sure that the keySet used for this frame is still the same as the currently set key
+            // if it's not, a new key might have been set already, which we don't want to override
+            if ((initialMaterial ?? keySet) === this.keys.getKeySet(keyIndex)) {
+              this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
+              // decryption was successful, set the new key index to reflect the ratcheted key set
+              this.keys.setCurrentKeyIndex(keyIndex);
+            }
           }
           return frame;
         } else {
           /**
-           * Since the key it is first send and only afterwards actually used for encrypting, there were
-           * situations when the decrypting failed due to the fact that the received frame was not encrypted
-           * yet and ratcheting, of course, did not solve the problem. So if we fail RATCHET_WINDOW_SIZE times,
-           * we come back to the initial key.
+           * Because we only set a new key once decryption has been successful,
+           * we can be sure that we don't need to reset the key to the initial material at this point
+           * as the key has not been updated on the keyHandler instance
            */
-          if (initialMaterial) {
-            workerLogger.debug('resetting to initial material');
-            this.keys.setKeyFromMaterial(initialMaterial.material, keyIndex);
-          }
 
-          workerLogger.warn('maximum ratchet attempts exceeded, resetting key');
+          workerLogger.warn('maximum ratchet attempts exceeded');
           throw new CryptorError(
-            `valid key missing for participant ${this.participantId}`,
+            `valid key missing for participant ${this.participantIdentity}`,
             CryptorErrorReason.InvalidKey,
           );
         }
       } else {
         throw new CryptorError(
-          'Decryption failed, most likely because of an invalid key',
+          `Decryption failed: ${error.message}`,
           CryptorErrorReason.InvalidKey,
         );
       }
@@ -477,18 +538,31 @@ export class FrameCryptor extends BaseFrameCryptor {
     return iv;
   }
 
-  getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): number {
+  private getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): {
+    unencryptedBytes: number;
+    isH264: boolean;
+  } {
+    var frameInfo = { unencryptedBytes: 0, isH264: false };
     if (isVideoFrame(frame)) {
       let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
+      if (detectedCodec !== this.detectedCodec) {
+        workerLogger.debug('detected different codec', {
+          detectedCodec,
+          oldCodec: this.detectedCodec,
+          ...this.logContext,
+        });
+        this.detectedCodec = detectedCodec;
+      }
 
       if (detectedCodec === 'av1') {
         throw new Error(`${detectedCodec} is not yet supported for end to end encryption`);
       }
 
       if (detectedCodec === 'vp8') {
-        return UNENCRYPTED_BYTES[frame.type];
+        frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
       } else if (detectedCodec === 'vp9') {
-        return 0;
+        frameInfo.unencryptedBytes = 0;
+        return frameInfo;
       }
 
       const data = new Uint8Array(frame.data);
@@ -496,19 +570,20 @@ export class FrameCryptor extends BaseFrameCryptor {
         const naluIndices = findNALUIndices(data);
 
         // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
-        const isH264 =
+        frameInfo.isH264 =
           detectedCodec === 'h264' ||
           naluIndices.some((naluIndex) =>
             [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
           );
 
-        if (isH264) {
+        if (frameInfo.isH264) {
           for (const index of naluIndices) {
             let type = parseNALUType(data[index]);
             switch (type) {
               case NALUType.SLICE_IDR:
               case NALUType.SLICE_NON_IDR:
-                return index + 2;
+                frameInfo.unencryptedBytes = index + 2;
+                return frameInfo;
               default:
                 break;
             }
@@ -519,27 +594,24 @@ export class FrameCryptor extends BaseFrameCryptor {
         // no op, we just continue and fallback to vp8
       }
 
-      return UNENCRYPTED_BYTES[frame.type];
+      frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
+      return frameInfo;
     } else {
-      return UNENCRYPTED_BYTES.audio;
+      frameInfo.unencryptedBytes = UNENCRYPTED_BYTES.audio;
+      return frameInfo;
     }
   }
 
   /**
    * inspects frame payloadtype if available and maps it to the codec specified in rtpMap
    */
-  getVideoCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
+  private getVideoCodec(frame: RTCEncodedVideoFrame): VideoCodec | undefined {
     if (this.rtpMap.size === 0) {
       return undefined;
     }
-    // @ts-expect-error payloadType is not yet part of the typescript definition and currently not supported in Safari
     const payloadType = frame.getMetadata().payloadType;
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;
-  }
-
-  setSifTrailer(trailer: Uint8Array) {
-    this.sifTrailer = trailer;
   }
 }
 

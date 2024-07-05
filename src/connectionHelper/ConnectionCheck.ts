@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
+import type { CheckInfo, CheckerOptions, InstantiableCheck } from './checks/Checker';
 import { CheckStatus, Checker } from './checks/Checker';
-import type { CheckInfo, InstantiableCheck } from './checks/Checker';
 import { PublishAudioCheck } from './checks/publishAudio';
 import { PublishVideoCheck } from './checks/publishVideo';
 import { ReconnectCheck } from './checks/reconnect';
@@ -16,12 +16,15 @@ export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<Con
 
   url: string;
 
+  options: CheckerOptions = {};
+
   private checkResults: Map<number, CheckInfo> = new Map();
 
-  constructor(url: string, token: string) {
+  constructor(url: string, token: string, options: CheckerOptions = {}) {
     super();
     this.url = url;
     this.token = token;
+    this.options = options;
   }
 
   private getNextCheckId() {
@@ -50,7 +53,7 @@ export class ConnectionCheck extends (EventEmitter as new () => TypedEmitter<Con
 
   async createAndRunCheck<T extends Checker>(check: InstantiableCheck<T>) {
     const checkId = this.getNextCheckId();
-    const test = new check(this.url, this.token);
+    const test = new check(this.url, this.token, this.options);
     const handleUpdate = (info: CheckInfo) => {
       this.updateCheck(checkId, info);
     };

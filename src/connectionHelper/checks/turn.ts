@@ -12,6 +12,7 @@ export class TURNCheck extends Checker {
       autoSubscribe: true,
       maxRetries: 0,
       e2eeEnabled: false,
+      websocketTimeout: 15_000,
     });
 
     let hasTLS = false;

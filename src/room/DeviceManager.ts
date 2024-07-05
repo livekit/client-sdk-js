@@ -80,7 +80,21 @@ export default class DeviceManager {
     // device has been chosen
     const devices = await this.getDevices(kind);
 
-    const device = devices.find((d) => d.groupId === groupId && d.deviceId !== defaultId);
+    const defaultDevice = devices.find((d) => d.deviceId === defaultId);
+
+    if (!defaultDevice) {
+      log.warn('could not reliably determine default device');
+      return undefined;
+    }
+
+    const device = devices.find(
+      (d) => d.deviceId !== defaultId && d.groupId === (groupId ?? defaultDevice.groupId),
+    );
+
+    if (!device) {
+      log.warn('could not reliably determine default device');
+      return undefined;
+    }
 
     return device?.deviceId;
   }

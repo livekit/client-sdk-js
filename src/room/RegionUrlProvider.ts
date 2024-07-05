@@ -1,5 +1,5 @@
+import type { RegionInfo, RegionSettings } from '@livekit/protocol';
 import log from '../logger';
-import type { RegionInfo, RegionSettings } from '../proto/livekit_rtc_pb';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import { isCloud } from './utils';
 
@@ -74,6 +74,11 @@ export class RegionUrlProvider {
         regionSettingsResponse.status,
       );
     }
+  }
+
+  setServerReportedRegions(regions: RegionSettings) {
+    this.regionSettings = regions;
+    this.lastUpdateAt = Date.now();
   }
 }
 

@@ -1,10 +1,11 @@
 import { EventEmitter } from 'events';
-import { parse, write } from 'sdp-transform';
 import type { MediaDescription } from 'sdp-transform';
+import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
-import log from '../logger';
+import log, { LoggerNames, getLogger } from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
-import { ddExtensionURI, isChromiumBased, isSVCCodec } from './utils';
+import type { LoggerOptions } from './types';
+import { ddExtensionURI, isSVCCodec } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -16,7 +17,7 @@ interface TrackBitrateInfo {
 
 /* The svc codec (av1/vp9) would use a very low bitrate at the begining and
 increase slowly by the bandwidth estimator until it reach the target bitrate. The
-process commonly cost more than 10 seconds cause subscriber will get blur video at 
+process commonly cost more than 10 seconds cause subscriber will get blur video at
 the first few seconds. So we use a 70% of target bitrate here as the start bitrate to
 eliminate this issue.
 */
@@ -32,10 +33,18 @@ export const PCEvents = {
 export default class PCTransport extends EventEmitter {
   private _pc: RTCPeerConnection | null;
 
-  public get pc() {
-    if (this._pc) return this._pc;
-    throw new UnexpectedConnectionState('Expected peer connection to be available');
+  private get pc() {
+    if (!this._pc) {
+      this._pc = this.createPC();
+    }
+    return this._pc;
   }
+
+  private config?: RTCConfiguration;
+
+  private log = log;
+
+  private loggerOptions: LoggerOptions;
 
   pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -51,12 +60,63 @@ export default class PCTransport extends EventEmitter {
 
   onOffer?: (offer: RTCSessionDescriptionInit) => void;
 
-  constructor(config?: RTCConfiguration, mediaConstraints: Record<string, unknown> = {}) {
+  onIceCandidate?: (candidate: RTCIceCandidate) => void;
+
+  onIceCandidateError?: (ev: Event) => void;
+
+  onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
+
+  onIceConnectionStateChange?: (state: RTCIceConnectionState) => void;
+
+  onSignalingStatechange?: (state: RTCSignalingState) => void;
+
+  onDataChannel?: (ev: RTCDataChannelEvent) => void;
+
+  onTrack?: (ev: RTCTrackEvent) => void;
+
+  constructor(config?: RTCConfiguration, loggerOptions: LoggerOptions = {}) {
     super();
-    this._pc = isChromiumBased()
-      ? // @ts-expect-error chrome allows additional media constraints to be passed into the RTCPeerConnection constructor
-        new RTCPeerConnection(config, mediaConstraints)
-      : new RTCPeerConnection(config);
+    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.PCTransport);
+    this.loggerOptions = loggerOptions;
+    this.config = config;
+    this._pc = this.createPC();
+  }
+
+  private createPC() {
+    const pc = new RTCPeerConnection(this.config);
+
+    pc.onicecandidate = (ev) => {
+      if (!ev.candidate) return;
+      this.onIceCandidate?.(ev.candidate);
+    };
+    pc.onicecandidateerror = (ev) => {
+      this.onIceCandidateError?.(ev);
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      this.onIceConnectionStateChange?.(pc.iceConnectionState);
+    };
+
+    pc.onsignalingstatechange = () => {
+      this.onSignalingStatechange?.(pc.signalingState);
+    };
+
+    pc.onconnectionstatechange = () => {
+      this.onConnectionStateChange?.(pc.connectionState);
+    };
+    pc.ondatachannel = (ev) => {
+      this.onDataChannel?.(ev);
+    };
+    pc.ontrack = (ev) => {
+      this.onTrack?.(ev);
+    };
+    return pc;
+  }
+
+  private get logContext() {
+    return {
+      ...this.loggerOptions.loggerContextCb?.(),
+    };
   }
 
   get isICEConnected(): boolean {
@@ -142,7 +202,7 @@ export default class PCTransport extends EventEmitter {
 
     if (this.renegotiate) {
       this.renegotiate = false;
-      this.createAndSendOffer();
+      await this.createAndSendOffer();
     } else if (sd.type === 'answer') {
       this.emit(PCEvents.NegotiationComplete);
       if (sd.sdp) {
@@ -157,10 +217,10 @@ export default class PCTransport extends EventEmitter {
   }
 
   // debounced negotiate interface
-  negotiate = debounce((onError?: (e: Error) => void) => {
+  negotiate = debounce(async (onError?: (e: Error) => void) => {
     this.emit(PCEvents.NegotiationStarted);
     try {
-      this.createAndSendOffer();
+      await this.createAndSendOffer();
     } catch (e) {
       if (onError) {
         onError(e as Error);
@@ -176,29 +236,29 @@ export default class PCTransport extends EventEmitter {
     }
 
     if (options?.iceRestart) {
-      log.debug('restarting ICE');
+      this.log.debug('restarting ICE', this.logContext);
       this.restartingIce = true;
     }
 
     if (this._pc && this._pc.signalingState === 'have-local-offer') {
       // we're waiting for the peer to accept our offer, so we'll just wait
       // the only exception to this is when ICE restart is needed
-      const currentSD = this.pc.remoteDescription;
+      const currentSD = this._pc.remoteDescription;
       if (options?.iceRestart && currentSD) {
         // TODO: handle when ICE restart is needed but we don't have a remote description
         // the best thing to do is to recreate the peerconnection
-        await this.pc.setRemoteDescription(currentSD);
+        await this._pc.setRemoteDescription(currentSD);
       } else {
         this.renegotiate = true;
         return;
       }
     } else if (!this._pc || this._pc.signalingState === 'closed') {
-      log.warn('could not createOffer with closed peer connection');
+      this.log.warn('could not createOffer with closed peer connection', this.logContext);
       return;
     }
 
     // actually negotiate
-    log.debug('starting to negotiate');
+    this.log.debug('starting to negotiate', this.logContext);
     const offer = await this.pc.createOffer(options);
 
     const sdpParsed = parse(offer.sdp ?? '');
@@ -206,8 +266,6 @@ export default class PCTransport extends EventEmitter {
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, [], []);
       } else if (media.type === 'video') {
-        ensureVideoDDExtensionForSVC(media);
-        // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
           if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
             return false;
@@ -226,29 +284,29 @@ export default class PCTransport extends EventEmitter {
             return true;
           }
 
-          let fmtpFound = false;
+          if (isSVCCodec(trackbr.codec)) {
+            ensureVideoDDExtensionForSVC(media);
+          }
+
+          // TODO: av1 slow starting issue already fixed in chrome 124, clean this after some versions
+          // mung sdp for av1 bitrate setting that can't apply by sendEncoding
+          if (trackbr.codec !== 'av1') {
+            return true;
+          }
+
+          const startBitrate = Math.round(trackbr.maxbr * startBitrateForSVC);
+
           for (const fmtp of media.fmtp) {
             if (fmtp.payload === codecPayload) {
+              // if another track's fmtp already is set, we cannot override the bitrate
+              // this has the unfortunate consequence of being forced to use the
+              // initial track's bitrate for all tracks
               if (!fmtp.config.includes('x-google-start-bitrate')) {
-                fmtp.config += `;x-google-start-bitrate=${trackbr.maxbr * startBitrateForSVC}`;
+                fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
               }
-              if (!fmtp.config.includes('x-google-max-bitrate')) {
-                fmtp.config += `;x-google-max-bitrate=${trackbr.maxbr}`;
-              }
-              fmtpFound = true;
               break;
             }
           }
-
-          if (!fmtpFound) {
-            media.fmtp.push({
-              payload: codecPayload,
-              config: `x-google-start-bitrate=${
-                trackbr.maxbr * startBitrateForSVC
-              };x-google-max-bitrate=${trackbr.maxbr}`,
-            });
-          }
-
           return true;
         });
       }
@@ -270,11 +328,110 @@ export default class PCTransport extends EventEmitter {
     return answer;
   }
 
+  createDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {
+    return this.pc.createDataChannel(label, dataChannelDict);
+  }
+
+  addTransceiver(mediaStreamTrack: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
+    return this.pc.addTransceiver(mediaStreamTrack, transceiverInit);
+  }
+
+  addTrack(track: MediaStreamTrack) {
+    if (!this._pc) {
+      throw new UnexpectedConnectionState('PC closed, cannot add track');
+    }
+    return this._pc.addTrack(track);
+  }
+
   setTrackCodecBitrate(info: TrackBitrateInfo) {
     this.trackBitrates.push(info);
   }
 
-  close() {
+  setConfiguration(rtcConfig: RTCConfiguration) {
+    if (!this._pc) {
+      throw new UnexpectedConnectionState('PC closed, cannot configure');
+    }
+    return this._pc?.setConfiguration(rtcConfig);
+  }
+
+  canRemoveTrack(): boolean {
+    return !!this._pc?.removeTrack;
+  }
+
+  removeTrack(sender: RTCRtpSender) {
+    return this._pc?.removeTrack(sender);
+  }
+
+  getConnectionState() {
+    return this._pc?.connectionState ?? 'closed';
+  }
+
+  getICEConnectionState() {
+    return this._pc?.iceConnectionState ?? 'closed';
+  }
+
+  getSignallingState() {
+    return this._pc?.signalingState ?? 'closed';
+  }
+
+  getTransceivers() {
+    return this._pc?.getTransceivers() ?? [];
+  }
+
+  getSenders() {
+    return this._pc?.getSenders() ?? [];
+  }
+
+  getLocalDescription() {
+    return this._pc?.localDescription;
+  }
+
+  getRemoteDescription() {
+    return this.pc?.remoteDescription;
+  }
+
+  getStats() {
+    return this.pc.getStats();
+  }
+
+  async getConnectedAddress(): Promise<string | undefined> {
+    if (!this._pc) {
+      return;
+    }
+    let selectedCandidatePairId = '';
+    const candidatePairs = new Map<string, RTCIceCandidatePairStats>();
+    // id -> candidate ip
+    const candidates = new Map<string, string>();
+    const stats: RTCStatsReport = await this._pc.getStats();
+    stats.forEach((v) => {
+      switch (v.type) {
+        case 'transport':
+          selectedCandidatePairId = v.selectedCandidatePairId;
+          break;
+        case 'candidate-pair':
+          if (selectedCandidatePairId === '' && v.selected) {
+            selectedCandidatePairId = v.id;
+          }
+          candidatePairs.set(v.id, v);
+          break;
+        case 'remote-candidate':
+          candidates.set(v.id, `${v.address}:${v.port}`);
+          break;
+        default:
+      }
+    });
+
+    if (selectedCandidatePairId === '') {
+      return undefined;
+    }
+    const selectedID = candidatePairs.get(selectedCandidatePairId)?.remoteCandidateId;
+    if (selectedID === undefined) {
+      return undefined;
+    }
+    return candidates.get(selectedID);
+  }
+
+  close = () => {
     if (!this._pc) {
       return;
     }
@@ -291,14 +448,17 @@ export default class PCTransport extends EventEmitter {
     this._pc.onconnectionstatechange = null;
     this._pc.oniceconnectionstatechange = null;
     this._pc = null;
-  }
+  };
 
   private async setMungedSDP(sd: RTCSessionDescriptionInit, munged?: string, remote?: boolean) {
     if (munged) {
       const originalSdp = sd.sdp;
       sd.sdp = munged;
       try {
-        log.debug(`setting munged ${remote ? 'remote' : 'local'} description`);
+        this.log.debug(
+          `setting munged ${remote ? 'remote' : 'local'} description`,
+          this.logContext,
+        );
         if (remote) {
           await this.pc.setRemoteDescription(sd);
         } else {
@@ -306,8 +466,10 @@ export default class PCTransport extends EventEmitter {
         }
         return;
       } catch (e) {
-        log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
+        this.log.warn(`not able to set ${sd.type}, falling back to unmodified sdp`, {
+          ...this.logContext,
           error: e,
+          sdp: munged,
         });
         sd.sdp = originalSdp;
       }
@@ -320,14 +482,21 @@ export default class PCTransport extends EventEmitter {
         await this.pc.setLocalDescription(sd);
       }
     } catch (e) {
-      // this error cannot always be caught.
-      // If the local description has a setCodecPreferences error, this error will be uncaught
       let msg = 'unknown error';
       if (e instanceof Error) {
         msg = e.message;
       } else if (typeof e === 'string') {
         msg = e;
       }
+
+      const fields: any = {
+        error: msg,
+        sdp: sd.sdp,
+      };
+      if (!remote && this.pc.remoteDescription) {
+        fields.remoteSdp = this.pc.remoteDescription;
+      }
+      this.log.error(`unable to set ${sd.type}`, { ...this.logContext, fields });
       throw new NegotiationError(msg);
     }
   }
@@ -391,11 +560,6 @@ function ensureVideoDDExtensionForSVC(
     payloads?: string | undefined;
   } & MediaDescription,
 ) {
-  const codec = media.rtp[0]?.codec?.toLowerCase();
-  if (!isSVCCodec(codec)) {
-    return;
-  }
-
   let maxID = 0;
   const ddFound = media.ext?.some((ext): boolean => {
     if (ext.uri === ddExtensionURI) {

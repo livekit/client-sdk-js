@@ -1,10 +1,15 @@
+import { TrackPublishedResponse } from '@livekit/protocol';
+import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
 import { Track } from './Track';
-import type {
-  AudioCaptureOptions,
-  CreateLocalTracksOptions,
-  ScreenShareCaptureOptions,
-  VideoCaptureOptions,
+import type { TrackPublication } from './TrackPublication';
+import {
+  type AudioCaptureOptions,
+  type CreateLocalTracksOptions,
+  type ScreenShareCaptureOptions,
+  type VideoCaptureOptions,
+  VideoCodec,
+  videoCodecs,
 } from './options';
 import type { AudioTrack } from './types';
 
@@ -13,9 +18,7 @@ export function mergeDefaultOptions(
   audioDefaults?: AudioCaptureOptions,
   videoDefaults?: VideoCaptureOptions,
 ): CreateLocalTracksOptions {
-  const opts: CreateLocalTracksOptions = {
-    ...options,
-  };
+  const opts: CreateLocalTracksOptions = cloneDeep(options) ?? {};
   if (opts.audio === true) opts.audio = {};
   if (opts.video === true) opts.video = {};
 
@@ -152,7 +155,8 @@ export function screenCaptureToDisplayMediaStreamOptions(
   options: ScreenShareCaptureOptions,
 ): DisplayMediaStreamOptions {
   let videoConstraints: MediaTrackConstraints | boolean = options.video ?? true;
-  if (options.resolution) {
+  // treat 0 as uncapped
+  if (options.resolution && options.resolution.width > 0 && options.resolution.height > 0) {
     videoConstraints = typeof videoConstraints === 'boolean' ? {} : videoConstraints;
     if (isSafari()) {
       videoConstraints = {
@@ -179,5 +183,79 @@ export function screenCaptureToDisplayMediaStreamOptions(
     selfBrowserSurface: options.selfBrowserSurface,
     surfaceSwitching: options.surfaceSwitching,
     systemAudio: options.systemAudio,
+    preferCurrentTab: options.preferCurrentTab,
   };
+}
+
+export function mimeTypeToVideoCodecString(mimeType: string) {
+  const codec = mimeType.split('/')[1].toLowerCase() as VideoCodec;
+  if (!videoCodecs.includes(codec)) {
+    throw Error(`Video codec not supported: ${codec}`);
+  }
+  return codec;
+}
+
+export function getTrackPublicationInfo<T extends TrackPublication>(
+  tracks: T[],
+): TrackPublishedResponse[] {
+  const infos: TrackPublishedResponse[] = [];
+  tracks.forEach((track: TrackPublication) => {
+    if (track.track !== undefined) {
+      infos.push(
+        new TrackPublishedResponse({
+          cid: track.track.mediaStreamID,
+          track: track.trackInfo,
+        }),
+      );
+    }
+  });
+  return infos;
+}
+
+export function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown> {
+  if (track instanceof Track) {
+    return {
+      trackID: track.sid,
+      source: track.source,
+      muted: track.isMuted,
+      enabled: track.mediaStreamTrack.enabled,
+      kind: track.kind,
+      streamID: track.mediaStreamID,
+      streamTrackID: track.mediaStreamTrack.id,
+    };
+  } else {
+    return {
+      trackID: track.trackSid,
+      enabled: track.isEnabled,
+      muted: track.isMuted,
+      trackInfo: {
+        mimeType: track.mimeType,
+        name: track.trackName,
+        encrypted: track.isEncrypted,
+        kind: track.kind,
+        source: track.source,
+        ...(track.track ? getLogContextFromTrack(track.track) : {}),
+      },
+    };
+  }
+}
+
+export function supportsSynchronizationSources(): boolean {
+  return typeof RTCRtpReceiver !== 'undefined' && 'getSynchronizationSources' in RTCRtpReceiver;
+}
+
+export function diffAttributes(
+  oldValues: Record<string, string>,
+  newValues: Record<string, string>,
+) {
+  const allKeys = [...Object.keys(newValues), ...Object.keys(oldValues)];
+  const diff: Record<string, string> = {};
+
+  for (const key of allKeys) {
+    if (oldValues[key] !== newValues[key]) {
+      diff[key] = newValues[key] ?? '';
+    }
+  }
+
+  return diff;
 }

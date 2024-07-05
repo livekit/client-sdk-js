@@ -1,12 +1,12 @@
-import { ClientInfo, ClientInfo_SDK } from '../proto/livekit_models_pb';
-import type { DetectableBrowser } from '../utils/browserParser';
+import { ClientInfo, ClientInfo_SDK, Transcription as TranscriptionModel } from '@livekit/protocol';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
+import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
 import { VideoCodec, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
-import type { LiveKitReactNativeInfo } from './types';
+import type { LiveKitReactNativeInfo, TranscriptionSegment } from './types';
 
 const separator = '|';
 export const ddExtensionURI =
@@ -21,7 +21,7 @@ export function unpackStreamId(packed: string): string[] {
 }
 
 export async function sleep(duration: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, duration));
+  return new Promise((resolve) => CriticalTimers.setTimeout(resolve, duration));
 }
 
 /** @internal */
@@ -46,6 +46,10 @@ export function supportsAV1(): boolean {
   if (!('getCapabilities' in RTCRtpSender)) {
     return false;
   }
+  if (isSafari()) {
+    // Safari 17 on iPhone14 reports AV1 capability, but does not actually support it
+    return false;
+  }
   const capabilities = RTCRtpSender.getCapabilities('video');
   let hasAV1 = false;
   if (capabilities) {
@@ -61,9 +65,19 @@ export function supportsAV1(): boolean {
 
 export function supportsVP9(): boolean {
   if (!('getCapabilities' in RTCRtpSender)) {
+    return false;
+  }
+  if (isFireFox()) {
     // technically speaking FireFox supports VP9, but SVC publishing is broken
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1633876
     return false;
+  }
+  if (isSafari()) {
+    const browser = getBrowser();
+    if (browser?.version && compareVersions(browser.version, '16') < 0) {
+      // Safari 16 and below does not support VP9
+      return false;
+    }
   }
   const capabilities = RTCRtpSender.getCapabilities('video');
   let hasVP9 = false;
@@ -92,32 +106,10 @@ export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   return 'setSinkId' in elm;
 }
 
-const setCodecPreferencesVersions: Record<DetectableBrowser, string> = {
-  Chrome: '100',
-  Safari: '15',
-  Firefox: '100',
-};
-
-export function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boolean {
-  if (!isWeb()) {
-    return false;
-  }
-  if (!('setCodecPreferences' in transceiver)) {
-    return false;
-  }
-  const browser = getBrowser();
-  if (!browser?.name || !browser.version) {
-    // version is required
-    return false;
-  }
-  const v = setCodecPreferencesVersions[browser.name];
-  if (v) {
-    return compareVersions(browser.version, v) >= 0;
-  }
-  return false;
-}
-
 export function isBrowserSupported() {
+  if (typeof RTCPeerConnection === 'undefined') {
+    return false;
+  }
   return supportsTransceiver() || supportsAddTrack();
 }
 
@@ -133,9 +125,42 @@ export function isSafari(): boolean {
   return getBrowser()?.name === 'Safari';
 }
 
+export function isSafari17(): boolean {
+  const b = getBrowser();
+  return b?.name === 'Safari' && b.version.startsWith('17.');
+}
+
 export function isMobile(): boolean {
   if (!isWeb()) return false;
-  return /Tablet|iPad|Mobile|Android|BlackBerry/.test(navigator.userAgent);
+
+  return (
+    // @ts-expect-error `userAgentData` is not yet part of typescript
+    navigator.userAgentData?.mobile ??
+    /Tablet|iPad|Mobile|Android|BlackBerry/.test(navigator.userAgent)
+  );
+}
+
+export function isE2EESimulcastSupported() {
+  const browser = getBrowser();
+  const supportedSafariVersion = '17.2'; // see https://bugs.webkit.org/show_bug.cgi?id=257803
+  if (browser) {
+    if (browser.name !== 'Safari' && browser.os !== 'iOS') {
+      return true;
+    } else if (
+      browser.os === 'iOS' &&
+      browser.osVersion &&
+      compareVersions(supportedSafariVersion, browser.osVersion) >= 0
+    ) {
+      return true;
+    } else if (
+      browser.name === 'Safari' &&
+      compareVersions(supportedSafariVersion, browser.version) >= 0
+    ) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 }
 
 export function isWeb(): boolean {
@@ -414,8 +439,8 @@ export function createAudioAnalyser(
     return volume;
   };
 
-  const cleanup = () => {
-    audioContext.close();
+  const cleanup = async () => {
+    await audioContext.close();
     if (opts.cloneTrack) {
       streamTrack.stop();
     }
@@ -424,6 +449,9 @@ export function createAudioAnalyser(
   return { calculateVolume, analyser, cleanup };
 }
 
+/**
+ * @internal
+ */
 export class Mutex {
   private _locking: Promise<void>;
 
@@ -463,8 +491,10 @@ export function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec {
   return videoCodecs.includes(maybeCodec as VideoCodec);
 }
 
-export function unwrapConstraint(constraint: ConstrainDOMString): string {
-  if (typeof constraint === 'string') {
+export function unwrapConstraint(constraint: ConstrainDOMString): string;
+export function unwrapConstraint(constraint: ConstrainULong): number;
+export function unwrapConstraint(constraint: ConstrainDOMString | ConstrainULong): string | number {
+  if (typeof constraint === 'string' || typeof constraint === 'number') {
     return constraint;
   }
 
@@ -498,4 +528,19 @@ export function toHttpUrl(url: string): string {
     return url.replace(/^(ws)/, 'http');
   }
   return url;
+}
+
+export function extractTranscriptionSegments(
+  transcription: TranscriptionModel,
+): TranscriptionSegment[] {
+  return transcription.segments.map(({ id, text, language, startTime, endTime, final }) => {
+    return {
+      id,
+      text,
+      startTime: Number.parseInt(startTime.toString()),
+      endTime: Number.parseInt(endTime.toString()),
+      final,
+      language,
+    };
+  });
 }

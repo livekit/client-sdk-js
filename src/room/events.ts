@@ -21,13 +21,27 @@ export enum RoomEvent {
   Reconnecting = 'reconnecting',
 
   /**
+   * When the signal connection to the server has been interrupted. This isn't noticeable to users most of the time.
+   * It will resolve with a `RoomEvent.Reconnected` once the signal connection has been re-established.
+   * If media fails additionally it an additional `RoomEvent.Reconnecting` will be emitted.
+   */
+  SignalReconnecting = 'signalReconnecting',
+
+  /**
    * Fires when a reconnection has been successful.
    */
   Reconnected = 'reconnected',
 
   /**
    * When disconnected from room. This fires when room.disconnect() is called or
-   * when an unrecoverable connection issue had occured
+   * when an unrecoverable connection issue had occured.
+   *
+   * DisconnectReason can be used to determine why the participant was disconnected. Notable reasons are
+   * - DUPLICATE_IDENTITY: another client with the same identity has joined the room
+   * - PARTICIPANT_REMOVED: participant was removed by RemoveParticipant API
+   * - ROOM_DELETED: the room has ended via DeleteRoom API
+   *
+   * args: ([[DisconnectReason]])
    */
   Disconnected = 'disconnected',
 
@@ -37,11 +51,6 @@ export enum RoomEvent {
    * args: ([[ConnectionState]])
    */
   ConnectionStateChanged = 'connectionStateChanged',
-
-  /**
-   * @deprecated StateChanged has been renamed to ConnectionStateChanged
-   */
-  StateChanged = 'connectionStateChanged',
 
   /**
    * When input or output devices on the machine have changed.
@@ -177,6 +186,13 @@ export enum RoomEvent {
   ParticipantNameChanged = 'participantNameChanged',
 
   /**
+   * Participant attributes is an app-specific key value state to be pushed to
+   * all users.
+   * When a participant's attributes changed, this event will be emitted with the changed attributes and the participant
+   */
+  ParticipantAttributesChanged = 'participantAttributesChanged',
+
+  /**
    * Room metadata is a simple way for app-specific state to be pushed to
    * all users.
    * When RoomService.UpdateRoomMetadata is called to change a room's state,
@@ -194,6 +210,19 @@ export enum RoomEvent {
    * args: (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]], topic?: string)
    */
   DataReceived = 'dataReceived',
+
+  /**
+   * SIP DTMF tones received from another participant.
+   *
+   * args: (participant: [[Participant]], dtmf: [[DataPacket_Kind]])
+   */
+  SipDTMFReceived = 'sipDTMFReceived',
+
+  /**
+   * Transcription received from a participant's track.
+   * @beta
+   */
+  TranscriptionReceived = 'transcriptionReceived',
 
   /**
    * Connection quality was changed for a Participant. It'll receive updates
@@ -223,7 +252,7 @@ export enum RoomEvent {
    * be emitted.
    *
    * args: (pub: [[RemoteTrackPublication]],
-   *        status: [[TrackPublication.SubscriptionStatus]],
+   *        status: [[TrackPublication.PermissionStatus]],
    *        participant: [[RemoteParticipant]])
    */
   TrackSubscriptionPermissionChanged = 'trackSubscriptionPermissionChanged',
@@ -241,9 +270,16 @@ export enum RoomEvent {
   /**
    * LiveKit will attempt to autoplay all audio tracks when you attach them to
    * audio elements. However, if that fails, we'll notify you via AudioPlaybackStatusChanged.
-   * `Room.canPlayAudio` will indicate if audio playback is permitted.
+   * `Room.canPlaybackAudio` will indicate if audio playback is permitted.
    */
   AudioPlaybackStatusChanged = 'audioPlaybackChanged',
+
+  /**
+   * LiveKit will attempt to autoplay all video tracks when you attach them to
+   * a video element. However, if that fails, we'll notify you via VideoPlaybackStatusChanged.
+   * Calling `room.startVideo()` in a user gesture event handler will resume the video playback.
+   */
+  VideoPlaybackStatusChanged = 'videoPlaybackChanged',
 
   /**
    * When we have encountered an error while attempting to create a track.
@@ -394,6 +430,19 @@ export enum ParticipantEvent {
   DataReceived = 'dataReceived',
 
   /**
+   * SIP DTMF tones received from this participant as sender.
+   *
+   * args: (dtmf: [[DataPacket_Kind]])
+   */
+  SipDTMFReceived = 'sipDTMFReceived',
+
+  /**
+   * Transcription received from this participant as data source.
+   * @beta
+   */
+  TranscriptionReceived = 'transcriptionReceived',
+
+  /**
    * Has speaking status changed for the current participant
    *
    * args: (speaking: boolean)
@@ -441,6 +490,10 @@ export enum ParticipantEvent {
   /** @internal */
   MediaDevicesError = 'mediaDevicesError',
 
+  // fired only on LocalParticipant
+  /** @internal */
+  AudioStreamAcquired = 'audioStreamAcquired',
+
   /**
    * A participant's permission has changed. Currently only fired on LocalParticipant.
    * args: (prevPermissions: [[ParticipantPermission]])
@@ -449,6 +502,13 @@ export enum ParticipantEvent {
 
   /** @internal */
   PCTrackAdded = 'pcTrackAdded',
+
+  /**
+   * Participant attributes is an app-specific key value state to be pushed to
+   * all users.
+   * When a participant's attributes changed, this event will be emitted with the changed attributes
+   */
+  AttributesChanged = 'attributesChanged',
 }
 
 /** @internal */
@@ -475,6 +535,10 @@ export enum EngineEvent {
   ConnectionQualityUpdate = 'connectionQualityUpdate',
   SubscriptionError = 'subscriptionError',
   SubscriptionPermissionUpdate = 'subscriptionPermissionUpdate',
+  RemoteMute = 'remoteMute',
+  SubscribedQualityUpdate = 'subscribedQualityUpdate',
+  LocalTrackUnpublished = 'localTrackUnpublished',
+  Offline = 'offline',
 }
 
 export enum TrackEvent {
@@ -506,6 +570,10 @@ export enum TrackEvent {
   /** @internal */
   VideoDimensionsChanged = 'videoDimensionsChanged',
   /** @internal */
+  VideoPlaybackStarted = 'videoPlaybackStarted',
+  /** @internal */
+  VideoPlaybackFailed = 'videoPlaybackFailed',
+  /** @internal */
   ElementAttached = 'elementAttached',
   /** @internal */
   ElementDetached = 'elementDetached',
@@ -532,4 +600,23 @@ export enum TrackEvent {
    * Fires on RemoteTrackPublication
    */
   SubscriptionFailed = 'subscriptionFailed',
+  /**
+   * @internal
+   */
+  TrackProcessorUpdate = 'trackProcessorUpdate',
+
+  /**
+   * @internal
+   */
+  AudioTrackFeatureUpdate = 'audioTrackFeatureUpdate',
+
+  /**
+   * @beta
+   */
+  TranscriptionReceived = 'transcriptionReceived',
+
+  /**
+   * @experimental
+   */
+  TimeSyncUpdate = 'timeSyncUpdate',
 }

@@ -8,7 +8,11 @@ vi.mock('../room/RTCEngine');
 
 // mock helpers for testing
 
-const mocks = {
+const mocks: {
+  SignalClient: MockedClass<typeof SignalClient>;
+  RTCEngine: MockedClass<typeof RTCEngine>;
+  MockLocalVideoTrack: { stop: () => void };
+} = {
   SignalClient: SignalClient as MockedClass<typeof SignalClient>,
   RTCEngine: RTCEngine as MockedClass<typeof RTCEngine>,
   MockLocalVideoTrack: {

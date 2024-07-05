@@ -1,11 +1,19 @@
+import {
+  AudioTrackFeature,
+  VideoQuality as ProtoQuality,
+  StreamState as ProtoStreamState,
+  TrackSource,
+  TrackType,
+} from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
-import log from '../../logger';
-import { TrackSource, TrackType } from '../../proto/livekit_models_pb';
-import { StreamState as ProtoStreamState } from '../../proto/livekit_rtc_pb';
+import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
 import { TrackEvent } from '../events';
+import type { LoggerOptions } from '../types';
 import { isFireFox, isSafari, isWeb } from '../utils';
+import type { TrackProcessor } from './processor/types';
+import { getLogContextFromTrack } from './utils';
 
 const BACKGROUND_REACTION_DELAY = 5000;
 
@@ -13,8 +21,15 @@ const BACKGROUND_REACTION_DELAY = 5000;
 // Safari tracks which audio elements have been "blessed" by the user.
 const recycledElements: Array<HTMLAudioElement> = [];
 
-export abstract class Track extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
-  kind: Track.Kind;
+export enum VideoQuality {
+  LOW = ProtoQuality.LOW,
+  MEDIUM = ProtoQuality.MEDIUM,
+  HIGH = ProtoQuality.HIGH,
+}
+export abstract class Track<
+  TrackKind extends Track.Kind = Track.Kind,
+> extends (EventEmitter as new () => TypedEventEmitter<TrackEventCallbacks>) {
+  readonly kind: TrackKind;
 
   attachedElements: HTMLMediaElement[] = [];
 
@@ -38,6 +53,9 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
    */
   streamState: Track.StreamState = Track.StreamState.Active;
 
+  /** @internal */
+  rtpTimestamp: number | undefined;
+
   protected _mediaStreamTrack: MediaStreamTrack;
 
   protected _mediaStreamID: string;
@@ -46,17 +64,37 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
   private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
 
+  private loggerContextCb: LoggerOptions['loggerContextCb'];
+
+  protected timeSyncHandle: number | undefined;
+
   protected _currentBitrate: number = 0;
 
   protected monitorInterval?: ReturnType<typeof setInterval>;
 
-  protected constructor(mediaTrack: MediaStreamTrack, kind: Track.Kind) {
+  protected log: StructuredLogger = log;
+
+  protected constructor(
+    mediaTrack: MediaStreamTrack,
+    kind: TrackKind,
+    loggerOptions: LoggerOptions = {},
+  ) {
     super();
+    this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Track);
+    this.loggerContextCb = loggerOptions.loggerContextCb;
+
     this.setMaxListeners(100);
     this.kind = kind;
     this._mediaStreamTrack = mediaTrack;
     this._mediaStreamID = mediaTrack.id;
     this.source = Track.Source.Unknown;
+  }
+
+  protected get logContext() {
+    return {
+      ...this.loggerContextCb?.(),
+      ...getLogContextFromTrack(this),
+    };
   }
 
   /** current receive bits per second */
@@ -91,7 +129,7 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     if (this.kind === Track.Kind.Video) {
       elementType = 'video';
     }
-    if (this.attachedElements.length === 0 && Track.Kind.Video) {
+    if (this.attachedElements.length === 0 && this.kind === Track.Kind.Video) {
       this.addAppVisibilityListener();
     }
     if (!element) {
@@ -122,32 +160,38 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
     // handle auto playback failures
     const allMediaStreamTracks = (element.srcObject as MediaStream).getTracks();
-    if (allMediaStreamTracks.some((tr) => tr.kind === 'audio')) {
-      // manually play audio to detect audio playback status
-      element
-        .play()
-        .then(() => {
-          this.emit(TrackEvent.AudioPlaybackStarted);
-        })
-        .catch((e) => {
-          if (e.name === 'NotAllowedError') {
-            this.emit(TrackEvent.AudioPlaybackFailed, e);
-          } else {
-            log.warn('could not playback audio', e);
-          }
-          // If audio playback isn't allowed make sure we still play back the video
-          if (
-            element &&
-            allMediaStreamTracks.some((tr) => tr.kind === 'video') &&
-            e.name === 'NotAllowedError'
-          ) {
-            element.muted = true;
-            element.play().catch(() => {
-              // catch for Safari, exceeded options at this point to automatically play the media element
-            });
-          }
-        });
-    }
+    const hasAudio = allMediaStreamTracks.some((tr) => tr.kind === 'audio');
+
+    // manually play media to detect auto playback status
+    element
+      .play()
+      .then(() => {
+        this.emit(hasAudio ? TrackEvent.AudioPlaybackStarted : TrackEvent.VideoPlaybackStarted);
+      })
+      .catch((e) => {
+        if (e.name === 'NotAllowedError') {
+          this.emit(hasAudio ? TrackEvent.AudioPlaybackFailed : TrackEvent.VideoPlaybackFailed, e);
+        } else if (e.name === 'AbortError') {
+          // commonly triggered by another `play` request, only log for debugging purposes
+          log.debug(
+            `${hasAudio ? 'audio' : 'video'} playback aborted, likely due to new play request`,
+          );
+        } else {
+          log.warn(`could not playback ${hasAudio ? 'audio' : 'video'}`, e);
+        }
+        // If audio playback isn't allowed make sure we still play back the video
+        if (
+          hasAudio &&
+          element &&
+          allMediaStreamTracks.some((tr) => tr.kind === 'video') &&
+          e.name === 'NotAllowedError'
+        ) {
+          element.muted = true;
+          element.play().catch(() => {
+            // catch for Safari, exceeded options at this point to automatically play the media element
+          });
+        }
+      });
 
     this.emit(TrackEvent.ElementAttached, element);
     return element;
@@ -216,6 +260,19 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
     }
+    if (this.timeSyncHandle) {
+      cancelAnimationFrame(this.timeSyncHandle);
+    }
+  }
+
+  /** @internal */
+  updateLoggerOptions(loggerOptions: LoggerOptions) {
+    if (loggerOptions.loggerName) {
+      this.log = getLogger(loggerOptions.loggerName);
+    }
+    if (loggerOptions.loggerContextCb) {
+      this.loggerContextCb = loggerOptions.loggerContextCb;
+    }
   }
 
   private recycleElement(element: HTMLMediaElement) {
@@ -252,6 +309,17 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
 
   protected async handleAppVisibilityChanged() {
     this.isInBackground = document.visibilityState === 'hidden';
+    if (!this.isInBackground && this.kind === Track.Kind.Video) {
+      setTimeout(
+        () =>
+          this.attachedElements.forEach((el) =>
+            el.play().catch(() => {
+              /** catch clause necessary for Safari */
+            }),
+          ),
+        0,
+      );
+    }
   }
 
   protected addAppVisibilityListener() {
@@ -270,7 +338,6 @@ export abstract class Track extends (EventEmitter as new () => TypedEventEmitter
   }
 }
 
-/** @internal */
 export function attachToElement(track: MediaStreamTrack, element: HTMLMediaElement) {
   let mediaStream: MediaStream;
   if (element.srcObject instanceof MediaStream) {
@@ -293,7 +360,12 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
     mediaStream.addTrack(track);
   }
 
-  element.autoplay = true;
+  if (!isSafari() || !(element instanceof HTMLVideoElement)) {
+    // when in low power mode (applies to both macOS and iOS), Safari will show a play/pause overlay
+    // when a video starts that has the `autoplay` attribute is set.
+    // we work around this by _not_ setting the autoplay attribute on safari and instead call `setTimeout(() => el.play(),0)` further down
+    element.autoplay = true;
+  }
   // In case there are no audio tracks present on the mediastream, we set the element as muted to ensure autoplay works
   element.muted = mediaStream.getAudioTracks().length === 0;
   if (element instanceof HTMLVideoElement) {
@@ -316,7 +388,7 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
         // when the window is backgrounded before the first frame is drawn
         // manually calling play here seems to fix that
         element.play().catch(() => {
-          /* do nothing */
+          /** do nothing */
         });
       }, 0);
     }
@@ -441,12 +513,17 @@ export type TrackEventCallbacks = {
   updateSettings: () => void;
   updateSubscription: () => void;
   audioPlaybackStarted: () => void;
-  audioPlaybackFailed: (error: Error) => void;
+  audioPlaybackFailed: (error?: Error) => void;
   audioSilenceDetected: () => void;
   visibilityChanged: (visible: boolean, track?: any) => void;
   videoDimensionsChanged: (dimensions: Track.Dimensions, track?: any) => void;
+  videoPlaybackStarted: () => void;
+  videoPlaybackFailed: (error?: Error) => void;
   elementAttached: (element: HTMLMediaElement) => void;
   elementDetached: (element: HTMLMediaElement) => void;
   upstreamPaused: (track: any) => void;
   upstreamResumed: (track: any) => void;
+  trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
+  audioTrackFeatureUpdate: (track: any, feature: AudioTrackFeature, enabled: boolean) => void;
+  timeSyncUpdate: (update: { timestamp: number; rtpTimestamp: number }) => void;
 };

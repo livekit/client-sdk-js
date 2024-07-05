@@ -31,6 +31,9 @@ export interface InternalRoomOptions {
    * enable Dynacast, off by default. With Dynacast dynamically pauses
    * video layers that are not being consumed by any subscribers, significantly
    * reducing publishing CPU and bandwidth usage.
+   *
+   * Dynacast will be enabled if SVC codecs (VP9/AV1) are used. Multi-codec simulcast
+   * requires dynacast
    */
   dynacast: boolean;
 
@@ -78,17 +81,18 @@ export interface InternalRoomOptions {
   expSignalLatency?: number;
 
   /**
-   * @internal
-   * @experimental
-   * experimental flag, mix all audio tracks in web audio
+   * mix all audio tracks in web audio, helps to tackle some audio auto playback issues
+   * allows for passing in your own AudioContext instance, too
    */
 
-  expWebAudioMix: boolean | WebAudioSettings;
+  webAudioMix: boolean | WebAudioSettings;
 
   /**
    * @experimental
    */
   e2ee?: E2EEOptions;
+
+  loggerName?: string;
 }
 
 /**
@@ -111,14 +115,11 @@ export interface InternalRoomConnectOptions {
    */
   rtcConfig?: RTCConfiguration;
 
-  /**
-   * @deprecated
-   * publish only mode
-   */
-  publishOnly?: string;
-
   /** specifies how often an initial join connection is allowed to retry (only applicable if server is not reachable) */
   maxRetries: number;
+
+  /** amount of time for Websocket connection to be established, defaults to 15s */
+  websocketTimeout: number;
 }
 
 /**

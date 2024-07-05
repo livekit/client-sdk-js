@@ -2,17 +2,19 @@ import DeviceManager from '../DeviceManager';
 import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
+import { isSafari17 } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import { Track } from './Track';
-import { ScreenSharePresets } from './options';
 import type {
   AudioCaptureOptions,
   CreateLocalTracksOptions,
   ScreenShareCaptureOptions,
   VideoCaptureOptions,
 } from './options';
+import { ScreenSharePresets } from './options';
+import type { TrackProcessor } from './processor/types';
 import {
   constraintsForOptions,
   mergeDefaultOptions,
@@ -50,35 +52,44 @@ export async function createLocalTracks(
   }
 
   const stream = await mediaPromise;
-  return stream.getTracks().map((mediaStreamTrack) => {
-    const isAudio = mediaStreamTrack.kind === 'audio';
-    let trackOptions = isAudio ? options!.audio : options!.video;
-    if (typeof trackOptions === 'boolean' || !trackOptions) {
-      trackOptions = {};
-    }
-    let trackConstraints: MediaTrackConstraints | undefined;
-    const conOrBool = isAudio ? constraints.audio : constraints.video;
-    if (typeof conOrBool !== 'boolean') {
-      trackConstraints = conOrBool;
-    }
+  return Promise.all(
+    stream.getTracks().map(async (mediaStreamTrack) => {
+      const isAudio = mediaStreamTrack.kind === 'audio';
+      let trackOptions = isAudio ? options!.audio : options!.video;
+      if (typeof trackOptions === 'boolean' || !trackOptions) {
+        trackOptions = {};
+      }
+      let trackConstraints: MediaTrackConstraints | undefined;
+      const conOrBool = isAudio ? constraints.audio : constraints.video;
+      if (typeof conOrBool !== 'boolean') {
+        trackConstraints = conOrBool;
+      }
 
-    // update the constraints with the device id the user gave permissions to in the permission prompt
-    // otherwise each track restart (e.g. mute - unmute) will try to initialize the device again -> causing additional permission prompts
-    if (trackConstraints) {
-      trackConstraints.deviceId = mediaStreamTrack.getSettings().deviceId;
-    } else {
-      trackConstraints = { deviceId: mediaStreamTrack.getSettings().deviceId };
-    }
+      // update the constraints with the device id the user gave permissions to in the permission prompt
+      // otherwise each track restart (e.g. mute - unmute) will try to initialize the device again -> causing additional permission prompts
+      if (trackConstraints) {
+        trackConstraints.deviceId = mediaStreamTrack.getSettings().deviceId;
+      } else {
+        trackConstraints = { deviceId: mediaStreamTrack.getSettings().deviceId };
+      }
 
-    const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
-    if (track.kind === Track.Kind.Video) {
-      track.source = Track.Source.Camera;
-    } else if (track.kind === Track.Kind.Audio) {
-      track.source = Track.Source.Microphone;
-    }
-    track.mediaStream = stream;
-    return track;
-  });
+      const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
+      if (track.kind === Track.Kind.Video) {
+        track.source = Track.Source.Camera;
+      } else if (track.kind === Track.Kind.Audio) {
+        track.source = Track.Source.Microphone;
+      }
+      track.mediaStream = stream;
+      if (trackOptions.processor) {
+        if (track instanceof LocalAudioTrack) {
+          await track.setProcessor(trackOptions.processor as TrackProcessor<Track.Kind.Audio>);
+        } else if (track instanceof LocalVideoTrack) {
+          await track.setProcessor(trackOptions.processor as TrackProcessor<Track.Kind.Video>);
+        }
+      }
+      return track;
+    }),
+  );
 }
 
 /**
@@ -116,8 +127,8 @@ export async function createLocalScreenTracks(
   if (options === undefined) {
     options = {};
   }
-  if (options.resolution === undefined) {
-    options.resolution = ScreenSharePresets.h1080fps15.resolution;
+  if (options.resolution === undefined && !isSafari17()) {
+    options.resolution = ScreenSharePresets.h1080fps30.resolution;
   }
 
   if (navigator.mediaDevices.getDisplayMedia === undefined) {

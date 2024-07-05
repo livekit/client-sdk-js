@@ -23,3 +23,8 @@ export type AdaptiveStreamSettings = {
    */
   pauseVideoInBackground?: boolean;
 };
+
+export interface ReplaceTrackOptions {
+  userProvidedTrack?: boolean;
+  stopProcessor?: boolean;
+}

@@ -9,36 +9,29 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-
-    - uses: actions/setup-node@v3
+    - uses: actions/checkout@v4
+    - uses: pnpm/action-setup@v4
       with:
-        node-version: '16.x'
-
-    - uses: actions/cache@v3
+        version: 8
+    - name: Use Node.js 20
+      uses: actions/setup-node@v4
       with:
-        path: |
-          ~/.npm
-          ~/.config/yarn/global
-        key: ${{ runner.os }}-node-${{ hashFiles('**/yarn.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-node-
+        node-version: 20
+        cache: 'pnpm'
 
-    - name: Install Yarn
-      run: |
-        npm install -g yarn
-        yarn install
+    - name: Install dependencies
+      run: pnpm install
 
     - name: ESLint
-      run: yarn lint
+      run: pnpm lint
     
     - name: Prettier
-      run: yarn format:check
+      run: pnpm format:check
 
     - name: Run Tests
-      run: yarn test
+      run: pnpm test
 
     - name: Check browser target compatibility
       run: |
-        yarn build
-        yarn compat
+        pnpm build
+        pnpm compat
