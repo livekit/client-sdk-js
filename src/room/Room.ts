@@ -1523,7 +1523,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ) => {
     // find the participant
     const participant =
-      transcription.participantIdentity === this.localParticipant.identity
+      transcription.transcribedParticipantIdentity === this.localParticipant.identity
         ? this.localParticipant
         : this.getParticipantByIdentity(transcription.transcribedParticipantIdentity);
     const publication = participant?.trackPublications.get(transcription.trackId);
