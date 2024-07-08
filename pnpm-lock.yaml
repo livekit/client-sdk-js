@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@livekit/protocol':
-        specifier: 1.19.0
-        version: 1.19.0
+        specifier: 1.16.0
+        version: 1.16.0
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -818,6 +818,9 @@ packages:
   '@bufbuild/protobuf@1.10.0':
     resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
 
+  '@bufbuild/protobuf@1.9.0':
+    resolution: {integrity: sha512-W7gp8Q/v1NlCZLsv8pQ3Y0uCu/SHgXOVFK+eUluUKWXmsb6VHkpNx0apdOWWcDbB9sJoKeP8uPrjmehJz6xETQ==}
+
   '@bufbuild/protoc-gen-es@1.10.0':
     resolution: {integrity: sha512-zBYBsVT/ul4uZb6F+kD7/k4sWNHVVbEPfJwKi0FDr+9VJo8MKIofI6pkr5ksBLr4fi/74r+e/75Xi/0clL5dXg==}
     engines: {node: '>=14'}
@@ -1089,8 +1092,8 @@ packages:
   '@livekit/changesets-changelog-github@0.0.4':
     resolution: {integrity: sha512-MXaiLYwgkYciZb8G2wkVtZ1pJJzZmVx5cM30Q+ClslrIYyAqQhRbPmZDM79/5CGxb1MTemR/tfOM25tgJgAK0g==}
 
-  '@livekit/protocol@1.19.0':
-    resolution: {integrity: sha512-pHcVjEQGNDJFMJjEYyuHmARCFOorA/7duHEYjiVFjymF5GkM8Sfdf6prnTvqxxaWrlKBFsPhgApgaocR2pJEMA==}
+  '@livekit/protocol@1.16.0':
+    resolution: {integrity: sha512-xZZTZVh2FmWmUgNS3n+oGNbA4GcS4XOwhg8CWy75jenYxbgQ89ds7ixfMQ+F+oxktcXfJ1qsph086oRTlg8e5Q==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -4347,6 +4350,8 @@ snapshots:
 
   '@bufbuild/protobuf@1.10.0': {}
 
+  '@bufbuild/protobuf@1.9.0': {}
+
   '@bufbuild/protoc-gen-es@1.10.0(@bufbuild/protobuf@1.10.0)':
     dependencies:
       '@bufbuild/protoplugin': 1.10.0
@@ -4666,9 +4671,9 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@livekit/protocol@1.19.0':
+  '@livekit/protocol@1.16.0':
     dependencies:
-      '@bufbuild/protobuf': 1.10.0
+      '@bufbuild/protobuf': 1.9.0
 
   '@manypkg/find-root@1.1.0':
     dependencies:

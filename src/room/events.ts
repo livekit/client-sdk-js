@@ -186,13 +186,6 @@ export enum RoomEvent {
   ParticipantNameChanged = 'participantNameChanged',
 
   /**
-   * Participant attributes is an app-specific key value state to be pushed to
-   * all users.
-   * When a participant's attributes changed, this event will be emitted with the changed attributes and the participant
-   */
-  ParticipantAttributesChanged = 'participantAttributesChanged',
-
-  /**
    * Room metadata is a simple way for app-specific state to be pushed to
    * all users.
    * When RoomService.UpdateRoomMetadata is called to change a room's state,
@@ -502,13 +495,6 @@ export enum ParticipantEvent {
 
   /** @internal */
   PCTrackAdded = 'pcTrackAdded',
-
-  /**
-   * Participant attributes is an app-specific key value state to be pushed to
-   * all users.
-   * When a participant's attributes changed, this event will be emitted with the changed attributes
-   */
-  AttributesChanged = 'attributesChanged',
 }
 
 /** @internal */

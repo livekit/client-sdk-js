@@ -1523,7 +1523,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ) => {
     // find the participant
     const participant =
-      transcription.transcribedParticipantIdentity === this.localParticipant.identity
+      transcription.participantIdentity === this.localParticipant.identity
         ? this.localParticipant
         : this.getParticipantByIdentity(transcription.transcribedParticipantIdentity);
     const publication = participant?.trackPublications.get(transcription.trackId);
@@ -2129,10 +2129,6 @@ export type RoomEventCallbacks = {
   participantNameChanged: (name: string, participant: RemoteParticipant | LocalParticipant) => void;
   participantPermissionsChanged: (
     prevPermissions: ParticipantPermission | undefined,
-    participant: RemoteParticipant | LocalParticipant,
-  ) => void;
-  participantAttributesChanged: (
-    changedAttributes: Record<string, string>,
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
   activeSpeakersChanged: (speakers: Array<Participant>) => void;
