@@ -42,7 +42,6 @@ import {
 import type { DataPublishOptions } from '../types';
 import {
   Future,
-  Mutex,
   isE2EESimulcastSupported,
   isFireFox,
   isSVCCodec,
@@ -118,7 +117,6 @@ export default class LocalParticipant extends Participant {
     this.setupEngine(engine);
     this.activeDeviceMap = new Map();
     this.pendingSignalRequests = new Map();
-    this.metadataUpdateMutex = new Mutex();
   }
 
   get lastCameraError(): Error | undefined {
