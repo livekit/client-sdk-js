@@ -95,8 +95,6 @@ export default class LocalParticipant extends Participant {
 
   private reconnectFuture?: Future<void>;
 
-  private metadataUpdateMutex: Mutex;
-
   private pendingSignalRequests: Map<
     number,
     {
