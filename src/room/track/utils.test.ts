@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AudioCaptureOptions, VideoCaptureOptions, VideoPresets } from './options';
-import { constraintsForOptions, diffAttributes, mergeDefaultOptions } from './utils';
+import { constraintsForOptions, mergeDefaultOptions } from './utils';
 
 describe('mergeDefaultOptions', () => {
   const audioDefaults: AudioCaptureOptions = {
@@ -107,32 +107,5 @@ describe('constraintsForOptions', () => {
     expect(videoOpts.height).toEqual(VideoPresets.h720.resolution.height);
     expect(videoOpts.frameRate).toEqual(VideoPresets.h720.resolution.frameRate);
     expect(videoOpts.aspectRatio).toEqual(VideoPresets.h720.resolution.aspectRatio);
-  });
-});
-
-describe('diffAttributes', () => {
-  it('detects changed values', () => {
-    const oldValues: Record<string, string> = { a: 'value', b: 'initial', c: 'value' };
-    const newValues: Record<string, string> = { a: 'value', b: 'updated', c: 'value' };
-
-    const diff = diffAttributes(oldValues, newValues);
-    expect(Object.keys(diff).length).toBe(1);
-    expect(diff.b).toBe('updated');
-  });
-  it('detects new values', () => {
-    const newValues: Record<string, string> = { a: 'value', b: 'value', c: 'value' };
-    const oldValues: Record<string, string> = { a: 'value', b: 'value' };
-
-    const diff = diffAttributes(oldValues, newValues);
-    expect(Object.keys(diff).length).toBe(1);
-    expect(diff.c).toBe('value');
-  });
-  it('detects deleted values as empty strings', () => {
-    const newValues: Record<string, string> = { a: 'value', b: 'value' };
-    const oldValues: Record<string, string> = { a: 'value', b: 'value', c: 'value' };
-
-    const diff = diffAttributes(oldValues, newValues);
-    expect(Object.keys(diff).length).toBe(1);
-    expect(diff.c).toBe('');
   });
 });

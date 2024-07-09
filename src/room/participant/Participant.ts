@@ -18,7 +18,6 @@ import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
-import { diffAttributes } from '../track/utils';
 import type { LoggerOptions, TranscriptionSegment } from '../types';
 
 export enum ConnectionQuality {
@@ -78,8 +77,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   /** client metadata, opaque to livekit */
   metadata?: string;
 
-  private _attributes: Record<string, string>;
-
   lastSpokeAt?: Date | undefined;
 
   permissions?: ParticipantPermission;
@@ -115,11 +112,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     return this._kind;
   }
 
-  /** participant attributes, similar to metadata, but as a key/value map */
-  get attributes(): Readonly<Record<string, string>> {
-    return Object.freeze({ ...this._attributes });
-  }
-
   /** @internal */
   constructor(
     sid: string,
@@ -143,7 +135,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.videoTrackPublications = new Map();
     this.trackPublications = new Map();
     this._kind = kind;
-    this._attributes = {};
   }
 
   getTrackPublications(): TrackPublication[] {
@@ -223,7 +214,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.sid = info.sid;
     this._setName(info.name);
     this._setMetadata(info.metadata);
-    this._setAttributes(info.attributes);
     if (info.permission) {
       this.setPermissions(info.permission);
     }
@@ -252,18 +242,6 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
     if (changed) {
       this.emit(ParticipantEvent.ParticipantNameChanged, name);
-    }
-  }
-
-  /**
-   * Updates metadata from server
-   **/
-  private _setAttributes(attributes: Record<string, string>) {
-    const diff = diffAttributes(attributes, this.attributes);
-    this._attributes = attributes;
-
-    if (Object.keys(diff).length > 0) {
-      this.emit(ParticipantEvent.AttributesChanged, diff);
     }
   }
 
@@ -385,5 +363,4 @@ export type ParticipantEventCallbacks = {
     publication: RemoteTrackPublication,
     status: TrackPublication.SubscriptionStatus,
   ) => void;
-  attributesChanged: (changedAttributes: Record<string, string>) => void;
 };
