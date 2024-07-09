@@ -135,4 +135,11 @@ describe('diffAttributes', () => {
     expect(Object.keys(diff).length).toBe(1);
     expect(diff.c).toBe('');
   });
+  it('compares with undefined values', () => {
+    const newValues: Record<string, string> = { a: 'value', b: 'value' };
+
+    const diff = diffAttributes(undefined, newValues);
+    expect(Object.keys(diff).length).toBe(2);
+    expect(diff.a).toBe('value');
+  });
 });

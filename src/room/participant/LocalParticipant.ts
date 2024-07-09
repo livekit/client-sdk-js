@@ -203,6 +203,12 @@ export default class LocalParticipant extends Participant {
     this.engine.client.sendUpdateLocalMetadata(this.metadata ?? '', name);
   }
 
+  /**
+   * Set or update participant attributes. It will make updates only to keys that
+   * are present in `attributes`, and will not override others.
+   * Note: this requires `canUpdateOwnMetadata` permission.
+   * @param attributes attributes to update
+   */
   async setAttributes(attributes: Record<string, string>) {
     await this.engine.client.sendUpdateLocalMetadata(
       this.metadata ?? '',
