@@ -1,4 +1,5 @@
 import { workerLogger } from '../../logger';
+import { VideoCodec } from '../../room/track/options';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';
 import { CryptorEvent, KeyHandlerEvent } from '../events';
@@ -24,6 +25,8 @@ let useSharedKey: boolean = false;
 let sifTrailer: Uint8Array | undefined;
 
 let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
+
+let rtpMap: Map<number, VideoCodec> = new Map();
 
 workerLogger.setDefaultLevel('info');
 
@@ -91,6 +94,7 @@ onmessage = (ev) => {
       break;
     case 'setRTPMap':
       // this is only used for the local participant
+      rtpMap = data.map;
       participantCryptors.forEach((cr) => {
         if (cr.getParticipantIdentity() === data.participantIdentity) {
           cr.setRtpMap(data.map);
@@ -149,7 +153,7 @@ function getTrackCryptor(participantIdentity: string, trackId: string) {
       keyProviderOptions,
       sifTrailer,
     });
-
+    cryptor.setRtpMap(rtpMap);
     setupCryptorErrorEvents(cryptor);
     participantCryptors.push(cryptor);
   } else if (participantIdentity !== cryptor.getParticipantIdentity()) {

@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.3.2
+
+### Patch Changes
+
+- Emit transcription on transcribedParticipantIdentity and update protocol - [#1177](https://github.com/livekit/client-sdk-js/pull/1177) ([@lukasIO](https://github.com/lukasIO))
+
+- Wait for pending publish promise before attempting to unpublish track - [#1178](https://github.com/livekit/client-sdk-js/pull/1178) ([@lukasIO](https://github.com/lukasIO))
+
+- Add vp9 support for E2EE - [#836](https://github.com/livekit/client-sdk-js/pull/836) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure app visibility listeners are only added for video tracks - [#1173](https://github.com/livekit/client-sdk-js/pull/1173) ([@renovate](https://github.com/apps/renovate))
+
+- Fix activeSpeakers has old participant when participant sid changed - [#1180](https://github.com/livekit/client-sdk-js/pull/1180) ([@zesun96](https://github.com/zesun96))
+
 ## 2.3.1
 
 ### Patch Changes

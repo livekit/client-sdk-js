@@ -227,6 +227,12 @@ export default class LocalParticipant extends Participant {
     await this.requestMetadataUpdate({ name });
   }
 
+  /**
+   * Set or update participant attributes. It will make updates only to keys that
+   * are present in `attributes`, and will not override others.
+   * Note: this requires `canUpdateOwnMetadata` permission.
+   * @param attributes attributes to update
+   */
   async setAttributes(attributes: Record<string, string>) {
     await this.requestMetadataUpdate({ attributes });
   }
@@ -1090,6 +1096,16 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     stopOnUnpublish?: boolean,
   ): Promise<LocalTrackPublication | undefined> {
+    if (track instanceof LocalTrack) {
+      const publishPromise = this.pendingPublishPromises.get(track);
+      if (publishPromise) {
+        this.log.info('awaiting publish promise before attempting to unpublish', {
+          ...this.logContext,
+          ...getLogContextFromTrack(track),
+        });
+        await publishPromise;
+      }
+    }
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
 
