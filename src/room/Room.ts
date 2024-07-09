@@ -2131,6 +2131,10 @@ export type RoomEventCallbacks = {
     prevPermissions: ParticipantPermission | undefined,
     participant: RemoteParticipant | LocalParticipant,
   ) => void;
+  participantAttributesChanged: (
+    changedAttributes: Record<string, string>,
+    participant: RemoteParticipant | LocalParticipant,
+  ) => void;
   activeSpeakersChanged: (speakers: Array<Participant>) => void;
   roomMetadataChanged: (metadata: string) => void;
   dataReceived: (

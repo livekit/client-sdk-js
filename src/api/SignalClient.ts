@@ -511,12 +511,13 @@ export class SignalClient {
     });
   }
 
-  sendUpdateLocalMetadata(metadata: string, name: string) {
+  sendUpdateLocalMetadata(metadata: string, name: string, attributes: Record<string, string> = {}) {
     return this.sendRequest({
       case: 'updateMetadata',
       value: new UpdateParticipantMetadata({
         metadata,
         name,
+        attributes,
       }),
     });
   }
