@@ -246,8 +246,6 @@ export default class LocalParticipant extends Participant {
     name?: string;
     attributes?: Record<string, string>;
   }) {
-    const unlock = await this.metadataUpdateMutex.lock();
-
     return new Promise<void>(async (resolve, reject) => {
       try {
         let isRejected = false;
@@ -279,8 +277,8 @@ export default class LocalParticipant extends Participant {
           sleep(50);
         }
         reject({ reason: 'TIMEOUT', message: 'Request to update local metadata timed out' });
-      } finally {
-        unlock();
+      } catch (e: any) {
+        if (e instanceof Error) reject({ reason: e.name, message: e.message });
       }
     });
   }
