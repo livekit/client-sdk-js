@@ -3,6 +3,7 @@ import {
   DataPacket,
   DataPacket_Kind,
   Encryption_Type,
+  ErrorResponse,
   ParticipantInfo,
   ParticipantPermission,
   SimulcastCodec,
@@ -46,6 +47,7 @@ import {
   isSVCCodec,
   isSafari17,
   isWeb,
+  sleep,
   supportsAV1,
   supportsVP9,
 } from '../utils';
@@ -92,6 +94,15 @@ export default class LocalParticipant extends Participant {
 
   private reconnectFuture?: Future<void>;
 
+  private pendingSignalRequests: Map<
+    number,
+    {
+      resolve: (arg: any) => void;
+      reject: (reason: any) => void;
+      values: Partial<Record<keyof LocalParticipant, any>>;
+    }
+  >;
+
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
     super(sid, identity, undefined, undefined, {
@@ -105,6 +116,7 @@ export default class LocalParticipant extends Participant {
     this.roomOptions = options;
     this.setupEngine(engine);
     this.activeDeviceMap = new Map();
+    this.pendingSignalRequests = new Map();
   }
 
   get lastCameraError(): Error | undefined {
@@ -158,7 +170,8 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.Resuming, this.handleReconnecting)
       .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
       .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
-      .on(EngineEvent.Disconnected, this.handleDisconnected);
+      .on(EngineEvent.Disconnected, this.handleDisconnected)
+      .on(EngineEvent.SignalRequestError, this.handleSignalRequestError);
   }
 
   private handleReconnecting = () => {
@@ -181,26 +194,33 @@ export default class LocalParticipant extends Participant {
     }
   };
 
+  private handleSignalRequestError = (error: ErrorResponse) => {
+    const { requestId, reason, message } = error;
+    const failedRequest = this.pendingSignalRequests.get(requestId);
+    if (failedRequest) {
+      failedRequest.reject({ reason, message });
+      this.pendingSignalRequests.delete(requestId);
+    }
+  };
+
   /**
    * Sets and updates the metadata of the local participant.
-   * The change does not take immediate effect.
-   * If successful, a `ParticipantEvent.MetadataChanged` event will be emitted on the local participant.
    * Note: this requires `canUpdateOwnMetadata` permission.
+   * method will throw if the user doesn't have the required permissions
    * @param metadata
    */
-  setMetadata(metadata: string): void {
-    this.engine.client.sendUpdateLocalMetadata(metadata, this.name ?? '');
+  async setMetadata(metadata: string): Promise<void> {
+    await this.requestMetadataUpdate({ metadata });
   }
 
   /**
    * Sets and updates the name of the local participant.
-   * The change does not take immediate effect.
-   * If successful, a `ParticipantEvent.ParticipantNameChanged` event will be emitted on the local participant.
    * Note: this requires `canUpdateOwnMetadata` permission.
+   * method will throw if the user doesn't have the required permissions
    * @param metadata
    */
-  setName(name: string): void {
-    this.engine.client.sendUpdateLocalMetadata(this.metadata ?? '', name);
+  async setName(name: string): Promise<void> {
+    await this.requestMetadataUpdate({ name });
   }
 
   /**
@@ -210,11 +230,53 @@ export default class LocalParticipant extends Participant {
    * @param attributes attributes to update
    */
   async setAttributes(attributes: Record<string, string>) {
-    await this.engine.client.sendUpdateLocalMetadata(
-      this.metadata ?? '',
-      this.name ?? '',
-      attributes,
-    );
+    await this.requestMetadataUpdate({ attributes });
+  }
+
+  private async requestMetadataUpdate({
+    metadata,
+    name,
+    attributes,
+  }: {
+    metadata?: string;
+    name?: string;
+    attributes?: Record<string, string>;
+  }) {
+    return new Promise<void>(async (resolve, reject) => {
+      try {
+        let isRejected = false;
+        const requestId = await this.engine.client.sendUpdateLocalMetadata(
+          metadata ?? this.metadata ?? '',
+          name ?? this.name ?? '',
+          attributes,
+        );
+        const startTime = performance.now();
+        this.pendingSignalRequests.set(requestId, {
+          resolve,
+          reject: (reason: any) => {
+            reject(reason);
+            isRejected = true;
+          },
+          values: { name, metadata, attributes },
+        });
+        while (performance.now() - startTime < 5_000 && !isRejected) {
+          if (
+            (!name || this.name === name) &&
+            (!metadata || this.metadata === metadata) &&
+            (!attributes ||
+              Object.entries(attributes).every(([key, value]) => this.attributes[key] === value))
+          ) {
+            this.pendingSignalRequests.delete(requestId);
+            resolve();
+            return;
+          }
+          sleep(50);
+        }
+        reject({ reason: 'TIMEOUT', message: 'Request to update local metadata timed out' });
+      } catch (e: any) {
+        if (e instanceof Error) reject({ reason: e.name, message: e.message });
+      }
+    });
   }
 
   /**

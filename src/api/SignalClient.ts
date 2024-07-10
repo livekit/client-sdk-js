@@ -4,6 +4,7 @@ import {
   ClientInfo,
   ConnectionQualityUpdate,
   DisconnectReason,
+  ErrorResponse,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
@@ -141,6 +142,8 @@ export class SignalClient {
 
   onLeave?: (leave: LeaveRequest) => void;
 
+  onErrorResponse?: (error: ErrorResponse) => void;
+
   connectOptions?: ConnectOpts;
 
   ws?: WebSocket;
@@ -163,6 +166,11 @@ export class SignalClient {
     );
   }
 
+  private getNextRequestId() {
+    this._requestId += 1;
+    return this._requestId;
+  }
+
   private options?: SignalOptions;
 
   private pingTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -182,6 +190,8 @@ export class SignalClient {
   private log = log;
 
   private loggerContextCb?: LoggerOptions['loggerContextCb'];
+
+  private _requestId = 0;
 
   constructor(useJSON: boolean = false, loggerOptions: LoggerOptions = {}) {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Signal);
@@ -511,15 +521,22 @@ export class SignalClient {
     });
   }
 
-  sendUpdateLocalMetadata(metadata: string, name: string, attributes: Record<string, string> = {}) {
-    return this.sendRequest({
+  async sendUpdateLocalMetadata(
+    metadata: string,
+    name: string,
+    attributes: Record<string, string> = {},
+  ) {
+    const requestId = this.getNextRequestId();
+    await this.sendRequest({
       case: 'updateMetadata',
       value: new UpdateParticipantMetadata({
+        requestId,
         metadata,
         name,
         attributes,
       }),
     });
+    return requestId;
   }
 
   sendUpdateTrackSettings(settings: UpdateTrackSettings) {
@@ -722,6 +739,10 @@ export class SignalClient {
       this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
       this.resetPingTimeout();
       pingHandled = true;
+    } else if (msg.case === 'errorResponse') {
+      if (this.onErrorResponse) {
+        this.onErrorResponse(msg.value);
+      }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });
     }
