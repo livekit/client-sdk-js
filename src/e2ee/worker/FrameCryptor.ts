@@ -183,7 +183,12 @@ export class FrameCryptor extends BaseFrameCryptor {
       .pipeTo(writable)
       .catch((e) => {
         workerLogger.warn(e);
-        this.emit(CryptorEvent.Error, e instanceof CryptorError ? e : new CryptorError(e.message, undefined, this.participantIdentity));
+        this.emit(
+          CryptorEvent.Error,
+          e instanceof CryptorError
+            ? e
+            : new CryptorError(e.message, undefined, this.participantIdentity),
+        );
       });
     this.trackId = trackId;
   }
@@ -297,7 +302,11 @@ export class FrameCryptor extends BaseFrameCryptor {
       workerLogger.debug('failed to decrypt, emitting error', this.logContext);
       this.emit(
         CryptorEvent.Error,
-        new CryptorError(`encryption key missing for encoding`, CryptorErrorReason.MissingKey, this.participantIdentity),
+        new CryptorError(
+          `encryption key missing for encoding`,
+          CryptorErrorReason.MissingKey,
+          this.participantIdentity,
+        ),
       );
     }
   }

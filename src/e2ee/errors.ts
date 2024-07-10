@@ -11,7 +11,11 @@ export class CryptorError extends LivekitError {
 
   participantIdentity?: string;
 
-  constructor(message?: string, reason: CryptorErrorReason = CryptorErrorReason.InternalError, participantIdentity?: string) {
+  constructor(
+    message?: string,
+    reason: CryptorErrorReason = CryptorErrorReason.InternalError,
+    participantIdentity?: string,
+  ) {
     super(40, message);
     this.reason = reason;
     this.participantIdentity = participantIdentity;
