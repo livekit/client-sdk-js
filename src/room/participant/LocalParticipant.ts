@@ -15,7 +15,12 @@ import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { defaultVideoCodec } from '../defaults';
-import { DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState } from '../errors';
+import {
+  DeviceUnsupportedError,
+  MetadataUpdateError,
+  TrackInvalidError,
+  UnexpectedConnectionState,
+} from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
@@ -272,9 +277,9 @@ export default class LocalParticipant extends Participant {
           }
           await sleep(50);
         }
-        reject({ reason: 'TIMEOUT', message: 'Request to update local metadata timed out' });
+        reject(new MetadataUpdateError('Request to update local metadata timed out'));
       } catch (e: any) {
-        if (e instanceof Error) reject({ reason: e.name, message: e.message });
+        if (e instanceof Error) reject(e);
       }
     });
   }

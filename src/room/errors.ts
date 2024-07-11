@@ -63,6 +63,12 @@ export class PublishDataError extends LivekitError {
   }
 }
 
+export class MetadataUpdateError extends LivekitError {
+  constructor(message: string) {
+    super(15, message);
+  }
+}
+
 export enum MediaDeviceFailure {
   // user rejected permissions
   PermissionDenied = 'PermissionDenied',
