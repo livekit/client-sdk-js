@@ -2,4 +2,4 @@
 "livekit-client": patch
 ---
 
-Track participant identity for CryptoError errors
+Include participant identity in CryptoError errors
