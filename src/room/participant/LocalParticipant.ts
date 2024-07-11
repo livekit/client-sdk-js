@@ -15,7 +15,13 @@ import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
 import { defaultVideoCodec } from '../defaults';
-import { DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState } from '../errors';
+import {
+  DeviceUnsupportedError,
+  LivekitError,
+  SignalRequestError,
+  TrackInvalidError,
+  UnexpectedConnectionState,
+} from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
@@ -98,7 +104,7 @@ export default class LocalParticipant extends Participant {
     number,
     {
       resolve: (arg: any) => void;
-      reject: (reason: any) => void;
+      reject: (reason: LivekitError) => void;
       values: Partial<Record<keyof LocalParticipant, any>>;
     }
   >;
@@ -198,7 +204,7 @@ export default class LocalParticipant extends Participant {
     const { requestId, reason, message } = error;
     const failedRequest = this.pendingSignalRequests.get(requestId);
     if (failedRequest) {
-      failedRequest.reject({ reason, message });
+      failedRequest.reject(new SignalRequestError(message, reason));
       this.pendingSignalRequests.delete(requestId);
     }
   };
@@ -253,8 +259,8 @@ export default class LocalParticipant extends Participant {
         const startTime = performance.now();
         this.pendingSignalRequests.set(requestId, {
           resolve,
-          reject: (reason: any) => {
-            reject(reason);
+          reject: (error: LivekitError) => {
+            reject(error);
             isRejected = true;
           },
           values: { name, metadata, attributes },
@@ -270,11 +276,11 @@ export default class LocalParticipant extends Participant {
             resolve();
             return;
           }
-          sleep(50);
+          await sleep(50);
         }
-        reject({ reason: 'TIMEOUT', message: 'Request to update local metadata timed out' });
+        reject(new SignalRequestError('Request to update local metadata timed out'));
       } catch (e: any) {
-        if (e instanceof Error) reject({ reason: e.name, message: e.message });
+        if (e instanceof Error) reject(e);
       }
     });
   }
