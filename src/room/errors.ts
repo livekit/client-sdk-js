@@ -1,3 +1,5 @@
+import { ErrorResponse_Reason } from '@livekit/protocol';
+
 export class LivekitError extends Error {
   code: number;
 
@@ -63,9 +65,12 @@ export class PublishDataError extends LivekitError {
   }
 }
 
-export class MetadataUpdateError extends LivekitError {
-  constructor(message: string) {
+export class SignalRequestError extends LivekitError {
+  reason: ErrorResponse_Reason;
+
+  constructor(message: string, reason: ErrorResponse_Reason = ErrorResponse_Reason.UNKNOWN) {
     super(15, message);
+    this.reason = reason;
   }
 }
 

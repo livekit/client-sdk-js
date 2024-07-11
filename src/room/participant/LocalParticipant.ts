@@ -17,7 +17,8 @@ import type RTCEngine from '../RTCEngine';
 import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
-  MetadataUpdateError,
+  LivekitError,
+  SignalRequestError,
   TrackInvalidError,
   UnexpectedConnectionState,
 } from '../errors';
@@ -103,7 +104,7 @@ export default class LocalParticipant extends Participant {
     number,
     {
       resolve: (arg: any) => void;
-      reject: (reason: any) => void;
+      reject: (reason: LivekitError) => void;
       values: Partial<Record<keyof LocalParticipant, any>>;
     }
   >;
@@ -203,7 +204,7 @@ export default class LocalParticipant extends Participant {
     const { requestId, reason, message } = error;
     const failedRequest = this.pendingSignalRequests.get(requestId);
     if (failedRequest) {
-      failedRequest.reject({ reason, message });
+      failedRequest.reject(new SignalRequestError(message, reason));
       this.pendingSignalRequests.delete(requestId);
     }
   };
@@ -258,8 +259,8 @@ export default class LocalParticipant extends Participant {
         const startTime = performance.now();
         this.pendingSignalRequests.set(requestId, {
           resolve,
-          reject: (reason: any) => {
-            reject(reason);
+          reject: (error: LivekitError) => {
+            reject(error);
             isRejected = true;
           },
           values: { name, metadata, attributes },
@@ -277,7 +278,7 @@ export default class LocalParticipant extends Participant {
           }
           await sleep(50);
         }
-        reject(new MetadataUpdateError('Request to update local metadata timed out'));
+        reject(new SignalRequestError('Request to update local metadata timed out'));
       } catch (e: any) {
         if (e instanceof Error) reject(e);
       }
