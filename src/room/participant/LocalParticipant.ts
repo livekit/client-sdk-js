@@ -270,7 +270,7 @@ export default class LocalParticipant extends Participant {
             resolve();
             return;
           }
-          sleep(50);
+          await sleep(50);
         }
         reject({ reason: 'TIMEOUT', message: 'Request to update local metadata timed out' });
       } catch (e: any) {
