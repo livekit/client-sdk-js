@@ -299,7 +299,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         workerLogger.error(e);
       }
     } else {
-      workerLogger.debug('failed to decrypt, emitting error', this.logContext);
+      workerLogger.debug('failed to encrypt, emitting error', this.logContext);
       this.emit(
         CryptorEvent.Error,
         new CryptorError(
