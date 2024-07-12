@@ -41,7 +41,7 @@ export default class DeviceManager {
       !(isSafari() && this.hasDeviceInUse(kind))
     ) {
       const isDummyDeviceOrEmpty =
-        devices.length === 0 ||
+        devices.filter((d) => d.kind === kind).length === 0 ||
         devices.some((device) => {
           const noLabel = device.label === '';
           const isRelevant = kind ? device.kind === kind : true;
