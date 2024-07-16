@@ -1,5 +1,23 @@
 # Change Log
 
+## 2.4.0
+
+### Minor Changes
+
+- Make metadata updates async and throw after timeout - [#1168](https://github.com/livekit/client-sdk-js/pull/1168) ([@lukasIO](https://github.com/lukasIO))
+
+- Add support for participant attributes - [#1184](https://github.com/livekit/client-sdk-js/pull/1184) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Include participant identity in CryptoError errors - [#1186](https://github.com/livekit/client-sdk-js/pull/1186) ([@hughns](https://github.com/hughns))
+
+- Fix wording in CryptorError debug log - [#1189](https://github.com/livekit/client-sdk-js/pull/1189) ([@zesun96](https://github.com/zesun96))
+
+- Only set loglevel for specified logger if present - [#1196](https://github.com/livekit/client-sdk-js/pull/1196) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure permission request for listDevices works for audio outputs in Firefox - [#1188](https://github.com/livekit/client-sdk-js/pull/1188) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.3.2
 
 ### Patch Changes
