@@ -54,9 +54,10 @@ export function getLogger(name: string) {
 export function setLogLevel(level: LogLevel | LogLevelString, loggerName?: LoggerNames) {
   if (loggerName) {
     log.getLogger(loggerName).setLevel(level);
-  }
-  for (const logger of livekitLoggers) {
-    logger.setLevel(level);
+  } else {
+    for (const logger of livekitLoggers) {
+      logger.setLevel(level);
+    }
   }
 }
 
