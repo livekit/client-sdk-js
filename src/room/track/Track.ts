@@ -338,7 +338,7 @@ export abstract class Track<
   }
 }
 
-export function attachToElement(track: MediaStreamTrack, element: HTMLMediaElement) {
+export async function attachToElement(track: MediaStreamTrack, element: HTMLMediaElement) {
   let mediaStream: MediaStream;
   if (element.srcObject instanceof MediaStream) {
     mediaStream = element.srcObject;
@@ -382,15 +382,21 @@ export function attachToElement(track: MediaStreamTrack, element: HTMLMediaEleme
       // black until the page is resized or other changes take place.
       // Resetting the src triggers it to render.
       // https://developer.apple.com/forums/thread/690523
-      setTimeout(() => {
-        element.srcObject = mediaStream;
-        // Safari 15 sometimes fails to start a video
-        // when the window is backgrounded before the first frame is drawn
-        // manually calling play here seems to fix that
-        element.play().catch(() => {
-          /** do nothing */
-        });
-      }, 0);
+      await new Promise((resolve, reject) => {
+        setTimeout(() => {
+          element.srcObject = mediaStream;
+          // Safari 15 sometimes fails to start a video
+          // when the window is backgrounded before the first frame is drawn
+          // manually calling play here seems to fix that
+          element
+            .play()
+            .then(resolve)
+            .catch(() => {
+              /** do nothing */
+              reject();
+            });
+        }, 0);
+      });
     }
   }
 }

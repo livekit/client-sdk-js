@@ -486,7 +486,7 @@ export default abstract class LocalTrack<
         throw TypeError('cannot set processor on track of unknown kind');
       }
 
-      attachToElement(this._mediaStreamTrack, processorElement);
+      await attachToElement(this._mediaStreamTrack, processorElement);
       processorElement.muted = true;
 
       processorElement
