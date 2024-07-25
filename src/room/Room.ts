@@ -1446,14 +1446,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (!pub || !pub.track) {
         return;
       }
-      pub.track.streamState = Track.streamStateFromProto(streamState.state);
-      participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
-      this.emitWhenConnected(
-        RoomEvent.TrackStreamStateChanged,
-        pub,
-        pub.track.streamState,
-        participant,
-      );
+      const newStreamState = Track.streamStateFromProto(streamState.state);
+      if (newStreamState !== pub.track.streamState) {
+        pub.track.streamState = newStreamState;
+        participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
+        this.emitWhenConnected(
+          RoomEvent.TrackStreamStateChanged,
+          pub,
+          pub.track.streamState,
+          participant,
+        );
+      }
     });
   };
 
