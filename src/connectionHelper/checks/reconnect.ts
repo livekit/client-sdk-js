@@ -18,10 +18,13 @@ export class ReconnectCheck extends Checker {
       reconnectResolver = resolve;
     });
 
+    const handleReconnecting = () => {
+      reconnectingTriggered = true;
+    };
+
     room
-      .on(RoomEvent.Reconnecting, () => {
-        reconnectingTriggered = true;
-      })
+      .on(RoomEvent.SignalReconnecting, handleReconnecting)
+      .on(RoomEvent.Reconnecting, handleReconnecting)
       .on(RoomEvent.Reconnected, () => {
         reconnected = true;
         reconnectResolver(true);
