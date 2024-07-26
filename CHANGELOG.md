@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.4.1
+
+### Patch Changes
+
+- Set region settings when fetching them on first connection - [#1201](https://github.com/livekit/client-sdk-js/pull/1201) ([@lukasIO](https://github.com/lukasIO))
+
+- Handle SignalReconnecting event in ReconnectCheck helper - [#1198](https://github.com/livekit/client-sdk-js/pull/1198) ([@svajunas-budrys](https://github.com/svajunas-budrys))
+
+- Fix RoomEvent.ParticipantAttributesChanged not emitting for local participant (#1200) - [#1203](https://github.com/livekit/client-sdk-js/pull/1203) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.4.0
 
 ### Minor Changes
