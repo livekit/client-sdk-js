@@ -1121,7 +1121,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant
       .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
       .on(ParticipantEvent.ParticipantNameChanged, this.onLocalParticipantNameChanged)
-      .on(ParticipantEvent.AttributesChanged, this.onAttributesChanged)
+      .on(ParticipantEvent.AttributesChanged, this.onLocalAttributesChanged)
       .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
       .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
       .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
@@ -1300,7 +1300,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.localParticipant
         .off(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
         .off(ParticipantEvent.ParticipantNameChanged, this.onLocalParticipantNameChanged)
-        .off(ParticipantEvent.AttributesChanged, this.onAttributesChanged)
+        .off(ParticipantEvent.AttributesChanged, this.onLocalAttributesChanged)
         .off(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
         .off(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
         .off(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
@@ -1879,7 +1879,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.ParticipantNameChanged, name, this.localParticipant);
   };
 
-  private onAttributesChanged = (changedAttributes: Record<string, string>) => {
+  private onLocalAttributesChanged = (changedAttributes: Record<string, string>) => {
     this.emit(RoomEvent.ParticipantAttributesChanged, changedAttributes, this.localParticipant);
   };
 
