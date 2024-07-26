@@ -1116,6 +1116,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant
       .on(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
       .on(ParticipantEvent.ParticipantNameChanged, this.onLocalParticipantNameChanged)
+      .on(ParticipantEvent.AttributesChanged, this.onAttributesChanged)
       .on(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
       .on(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
       .on(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
@@ -1294,6 +1295,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.localParticipant
         .off(ParticipantEvent.ParticipantMetadataChanged, this.onLocalParticipantMetadataChanged)
         .off(ParticipantEvent.ParticipantNameChanged, this.onLocalParticipantNameChanged)
+        .off(ParticipantEvent.AttributesChanged, this.onAttributesChanged)
         .off(ParticipantEvent.TrackMuted, this.onLocalTrackMuted)
         .off(ParticipantEvent.TrackUnmuted, this.onLocalTrackUnmuted)
         .off(ParticipantEvent.LocalTrackPublished, this.onLocalTrackPublished)
@@ -1717,6 +1719,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(ParticipantEvent.ParticipantNameChanged, (name) => {
         this.emitWhenConnected(RoomEvent.ParticipantNameChanged, name, participant);
       })
+      .on(ParticipantEvent.AttributesChanged, (changedAttributes: Record<string, string>) => {
+        this.emitWhenConnected(
+          RoomEvent.ParticipantAttributesChanged,
+          changedAttributes,
+          participant,
+        );
+      })
       .on(ParticipantEvent.ConnectionQualityChanged, (quality: ConnectionQuality) => {
         this.emitWhenConnected(RoomEvent.ConnectionQualityChanged, quality, participant);
       })
@@ -1863,6 +1872,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private onLocalParticipantNameChanged = (name: string) => {
     this.emit(RoomEvent.ParticipantNameChanged, name, this.localParticipant);
+  };
+
+  private onAttributesChanged = (changedAttributes: Record<string, string>) => {
+    this.emit(RoomEvent.ParticipantAttributesChanged, changedAttributes, this.localParticipant);
   };
 
   private onLocalTrackMuted = (pub: TrackPublication) => {
