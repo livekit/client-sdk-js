@@ -468,9 +468,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       // trigger the first fetch without waiting for a response
       // if initial connection fails, this will speed up picking regional url
       // on subsequent runs
-      this.regionUrlProvider.fetchRegionSettings().catch((e) => {
-        this.log.warn('could not fetch region settings', { ...this.logContext, error: e });
-      });
+      this.regionUrlProvider
+        .fetchRegionSettings()
+        .then((settings) => {
+          this.regionUrlProvider?.setServerReportedRegions(settings);
+        })
+        .catch((e) => {
+          this.log.warn('could not fetch region settings', { ...this.logContext, error: e });
+        });
     }
 
     const connectFn = async (
