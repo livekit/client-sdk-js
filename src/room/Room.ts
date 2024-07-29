@@ -520,7 +520,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               return;
             }
           }
-          if (nextUrl) {
+          if (nextUrl && !this.abortController?.signal.aborted) {
             this.log.info(
               `Initial connection failed with ConnectionError: ${e.message}. Retrying with another region: ${nextUrl}`,
               this.logContext,
