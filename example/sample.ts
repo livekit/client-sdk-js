@@ -30,7 +30,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../src/index';
-import { ScalabilityMode } from '../src/room/track/options';
+import type { ScalabilityMode } from '../src/room/track/options';
 import type { SimulationScenario } from '../src/room/types';
 import { isSVCCodec } from '../src/room/utils';
 
