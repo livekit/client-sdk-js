@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.4.2
+
+### Patch Changes
+
+- Only retry other regions if connection attempt has not been cancelled - [#1205](https://github.com/livekit/client-sdk-js/pull/1205) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.4.1
 
 ### Patch Changes
