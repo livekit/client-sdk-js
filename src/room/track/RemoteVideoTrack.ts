@@ -26,7 +26,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
-    receiver?: RTCRtpReceiver,
+    receiver: RTCRtpReceiver,
     adaptiveStreamSettings?: AdaptiveStreamSettings,
     loggerOptions?: LoggerOptions,
   ) {

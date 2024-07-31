@@ -25,7 +25,7 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
-    receiver?: RTCRtpReceiver,
+    receiver: RTCRtpReceiver,
     audioContext?: AudioContext,
     audioOutput?: AudioOutputOptions,
     loggerOptions?: LoggerOptions,

@@ -1393,7 +1393,7 @@ export type EngineEventCallbacks = {
   mediaTrackAdded: (
     track: MediaStreamTrack,
     streams: MediaStream,
-    receiver?: RTCRtpReceiver,
+    receiver: RTCRtpReceiver,
   ) => void;
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
   dataPacketReceived: (packet: DataPacket) => void;
