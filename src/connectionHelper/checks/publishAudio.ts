@@ -21,7 +21,10 @@ export class PublishAudioCheck extends Checker {
     }
     let numPackets = 0;
     stats.forEach((stat) => {
-      if (stat.type === 'outbound-rtp' && stat.mediaType === 'audio') {
+      if (
+        stat.type === 'outbound-rtp' &&
+        (stat.kind === 'audio' || (!stat.kind && stat.mediaType === 'audio'))
+      ) {
         numPackets = stat.packetsSent;
       }
     });

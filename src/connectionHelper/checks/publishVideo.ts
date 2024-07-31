@@ -12,7 +12,7 @@ export class PublishVideoCheck extends Checker {
     const track = await createLocalVideoTrack();
     room.localParticipant.publishTrack(track);
     // wait for a few seconds to publish
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // verify RTC stats that it's publishing
     const stats = await track.sender?.getStats();
@@ -21,8 +21,11 @@ export class PublishVideoCheck extends Checker {
     }
     let numPackets = 0;
     stats.forEach((stat) => {
-      if (stat.type === 'outbound-rtp' && stat.mediaType === 'video') {
-        numPackets = stat.packetsSent;
+      if (
+        stat.type === 'outbound-rtp' &&
+        (stat.kind === 'video' || (!stat.kind && stat.mediaType === 'video'))
+      ) {
+        numPackets += stat.packetsSent;
       }
     });
     if (numPackets === 0) {
