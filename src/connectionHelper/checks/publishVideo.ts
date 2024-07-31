@@ -25,7 +25,7 @@ export class PublishVideoCheck extends Checker {
         stat.type === 'outbound-rtp' &&
         (stat.kind === 'video' || (!stat.kind && stat.mediaType === 'video'))
       ) {
-        numPackets = stat.packetsSent;
+        numPackets += stat.packetsSent;
       }
     });
     if (numPackets === 0) {
