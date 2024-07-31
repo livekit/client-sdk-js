@@ -12,7 +12,7 @@ export class PublishVideoCheck extends Checker {
     const track = await createLocalVideoTrack();
     room.localParticipant.publishTrack(track);
     // wait for a few seconds to publish
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // verify RTC stats that it's publishing
     const stats = await track.sender?.getStats();
