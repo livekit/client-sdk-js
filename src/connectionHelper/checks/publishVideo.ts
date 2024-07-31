@@ -21,7 +21,10 @@ export class PublishVideoCheck extends Checker {
     }
     let numPackets = 0;
     stats.forEach((stat) => {
-      if (stat.type === 'outbound-rtp' && stat.kind === 'video') {
+      if (
+        stat.type === 'outbound-rtp' &&
+        (stat.kind === 'video' || (!stat.kind && stat.mediaType === 'video'))
+      ) {
         numPackets = stat.packetsSent;
       }
     });
