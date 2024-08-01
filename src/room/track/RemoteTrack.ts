@@ -39,6 +39,9 @@ export default abstract class RemoteTrack<
     const onRemoveTrack = (event: MediaStreamTrackEvent) => {
       if (event.track === this._mediaStreamTrack) {
         stream.removeEventListener('removetrack', onRemoveTrack);
+        if (this.receiver && 'playoutDelayHint' in this.receiver) {
+          this.receiver.playoutDelayHint = undefined;
+        }
         this.receiver = undefined;
         this._currentBitrate = 0;
         this.emit(TrackEvent.Ended, this);
