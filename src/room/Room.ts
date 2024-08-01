@@ -328,7 +328,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(EngineEvent.SubscriptionPermissionUpdate, this.handleSubscriptionPermissionUpdate)
       .on(
         EngineEvent.MediaTrackAdded,
-        (mediaTrack: MediaStreamTrack, stream: MediaStream, receiver?: RTCRtpReceiver) => {
+        (mediaTrack: MediaStreamTrack, stream: MediaStream, receiver: RTCRtpReceiver) => {
           this.onTrackAdded(mediaTrack, stream, receiver);
         },
       )
@@ -1152,7 +1152,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private onTrackAdded(
     mediaTrack: MediaStreamTrack,
     stream: MediaStream,
-    receiver?: RTCRtpReceiver,
+    receiver: RTCRtpReceiver,
   ) {
     // don't fire onSubscribed when connecting
     // WebRTC fires onTrack as soon as setRemoteDescription is called on the offer
@@ -2055,7 +2055,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           sid: Math.floor(Math.random() * 10_000).toString(),
           type: TrackType.AUDIO,
         });
-        p.addSubscribedMediaTrack(dummyVideo, videoTrack.sid, new MediaStream([dummyVideo]));
+        p.addSubscribedMediaTrack(
+          dummyVideo,
+          videoTrack.sid,
+          new MediaStream([dummyVideo]),
+          new RTCRtpReceiver(),
+        );
         info.tracks = [...info.tracks, videoTrack];
       }
       if (participantOptions.audio) {
@@ -2065,7 +2070,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           sid: Math.floor(Math.random() * 10_000).toString(),
           type: TrackType.AUDIO,
         });
-        p.addSubscribedMediaTrack(dummyTrack, audioTrack.sid, new MediaStream([dummyTrack]));
+        p.addSubscribedMediaTrack(
+          dummyTrack,
+          audioTrack.sid,
+          new MediaStream([dummyTrack]),
+          new RTCRtpReceiver(),
+        );
         info.tracks = [...info.tracks, audioTrack];
       }
 
