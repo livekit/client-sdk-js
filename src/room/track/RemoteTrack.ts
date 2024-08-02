@@ -8,13 +8,13 @@ export default abstract class RemoteTrack<
   TrackKind extends Track.Kind = Track.Kind,
 > extends Track<TrackKind> {
   /** @internal */
-  receiver?: RTCRtpReceiver;
+  receiver: RTCRtpReceiver | undefined;
 
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
     kind: TrackKind,
-    receiver?: RTCRtpReceiver,
+    receiver: RTCRtpReceiver,
     loggerOptions?: LoggerOptions,
   ) {
     super(mediaTrack, kind, loggerOptions);
@@ -39,6 +39,9 @@ export default abstract class RemoteTrack<
     const onRemoveTrack = (event: MediaStreamTrackEvent) => {
       if (event.track === this._mediaStreamTrack) {
         stream.removeEventListener('removetrack', onRemoveTrack);
+        if (this.receiver && 'playoutDelayHint' in this.receiver) {
+          this.receiver.playoutDelayHint = undefined;
+        }
         this.receiver = undefined;
         this._currentBitrate = 0;
         this.emit(TrackEvent.Ended, this);
@@ -71,6 +74,39 @@ export default abstract class RemoteTrack<
     }
     const statsReport = await this.receiver.getStats();
     return statsReport;
+  }
+
+  /**
+   * Allows to set a playout delay (in seconds) for this track.
+   * A higher value allows for more buffering of the track in the browser
+   * and will result in a delay of media being played back of `delayInSeconds`
+   */
+  setPlayoutDelay(delayInSeconds: number): void {
+    if (this.receiver) {
+      if ('playoutDelayHint' in this.receiver) {
+        this.receiver.playoutDelayHint = delayInSeconds;
+      } else {
+        this.log.warn('Playout delay not supported in this browser');
+      }
+    } else {
+      this.log.warn('Cannot set playout delay, track already ended');
+    }
+  }
+
+  /**
+   * Returns the current playout delay (in seconds) of this track.
+   */
+  getPlayoutDelay(): number {
+    if (this.receiver) {
+      if ('playoutDelayHint' in this.receiver) {
+        return this.receiver.playoutDelayHint as number;
+      } else {
+        this.log.warn('Playout delay not supported in this browser');
+      }
+    } else {
+      this.log.warn('Cannot get playout delay, track already ended');
+    }
+    return 0;
   }
 
   /* @internal */

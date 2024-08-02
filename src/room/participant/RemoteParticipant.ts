@@ -164,7 +164,7 @@ export default class RemoteParticipant extends Participant {
     mediaTrack: MediaStreamTrack,
     sid: Track.SID,
     mediaStream: MediaStream,
-    receiver?: RTCRtpReceiver,
+    receiver: RTCRtpReceiver,
     adaptiveStreamSettings?: AdaptiveStreamSettings,
     triesLeft?: number,
   ) {
