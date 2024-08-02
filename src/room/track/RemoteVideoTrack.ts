@@ -226,7 +226,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     );
 
     const backgroundPause =
-      this.adaptiveStreamSettings?.pauseVideoInBackground ?? true // default to true
+      (this.adaptiveStreamSettings?.pauseVideoInBackground ?? true) // default to true
         ? this.isInBackground
         : false;
     const isPiPMode = this.elementInfos.some((info) => info.pictureInPicture);
