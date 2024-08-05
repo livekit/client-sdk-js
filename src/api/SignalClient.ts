@@ -440,6 +440,7 @@ export class SignalClient {
   async close(updateState: boolean = true) {
     const unlock = await this.closingLock.lock();
     try {
+      this.clearPingInterval();
       if (updateState) {
         this.state = SignalConnectionState.DISCONNECTING;
       }
@@ -470,7 +471,6 @@ export class SignalClient {
       if (updateState) {
         this.state = SignalConnectionState.DISCONNECTED;
       }
-      this.clearPingInterval();
       unlock();
     }
   }
