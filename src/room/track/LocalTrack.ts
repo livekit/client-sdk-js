@@ -54,6 +54,8 @@ export default abstract class LocalTrack<
 
   protected manuallyStopped: boolean = false;
 
+  protected lastTimeSyncUpdate = 0;
+
   private restartLock: Mutex;
 
   /**
@@ -539,6 +541,24 @@ export default abstract class LocalTrack<
     // force re-setting of the mediaStreamTrack on the sender
     await this.setMediaStreamTrack(this._mediaStreamTrack, true);
     this.emit(TrackEvent.TrackProcessorUpdate);
+  }
+
+  protected registerTimeSyncUpdate() {
+    const loop = () => {
+      this.timeSyncHandle = requestAnimationFrame(() => loop());
+      // for local tracks we don't have access to appropriate timestamps on the sender reports so we generate them manually by following
+      // how the spec computes timestamps as part of "contributing sources" https://w3c.github.io/webrtc-pc/#dom-rtcrtpcontributingsource-timestamp
+      const timestamp = performance.timeOrigin + performance.now();
+
+      if (!this.isMuted && timestamp - this.lastTimeSyncUpdate > 100) {
+        this.emit(TrackEvent.TimeSyncUpdate, {
+          timestamp,
+          rtpTimestamp: 0,
+        });
+        this.lastTimeSyncUpdate = timestamp;
+      }
+    };
+    loop();
   }
 
   protected abstract monitorSender(): void;
