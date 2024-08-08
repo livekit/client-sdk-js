@@ -260,6 +260,7 @@ export default class PCTransport extends EventEmitter {
     // actually negotiate
     this.log.debug('starting to negotiate', this.logContext);
     const offer = await this.pc.createOffer(options);
+    this.log.debug('original offer', { sdp: offer.sdp, ...this.logContext });
 
     const sdpParsed = parse(offer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
