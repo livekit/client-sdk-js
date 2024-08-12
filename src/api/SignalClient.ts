@@ -4,7 +4,6 @@ import {
   ClientInfo,
   ConnectionQualityUpdate,
   DisconnectReason,
-  ErrorResponse,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
@@ -13,6 +12,7 @@ import {
   Ping,
   ReconnectReason,
   ReconnectResponse,
+  RequestResponse,
   Room,
   SessionDescription,
   SignalRequest,
@@ -142,7 +142,7 @@ export class SignalClient {
 
   onLeave?: (leave: LeaveRequest) => void;
 
-  onErrorResponse?: (error: ErrorResponse) => void;
+  onRequestResponse?: (response: RequestResponse) => void;
 
   connectOptions?: ConnectOpts;
 
@@ -739,9 +739,9 @@ export class SignalClient {
       this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
       this.resetPingTimeout();
       pingHandled = true;
-    } else if (msg.case === 'errorResponse') {
-      if (this.onErrorResponse) {
-        this.onErrorResponse(msg.value);
+    } else if (msg.case === 'requestResponse') {
+      if (this.onRequestResponse) {
+        this.onRequestResponse(msg.value);
       }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });

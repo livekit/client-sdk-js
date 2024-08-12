@@ -3,9 +3,10 @@ import {
   DataPacket,
   DataPacket_Kind,
   Encryption_Type,
-  ErrorResponse,
   ParticipantInfo,
   ParticipantPermission,
+  RequestResponse,
+  RequestResponse_Reason,
   SimulcastCodec,
   SubscribedQualityUpdate,
   TrackUnpublishedResponse,
@@ -177,7 +178,7 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
       .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
       .on(EngineEvent.Disconnected, this.handleDisconnected)
-      .on(EngineEvent.SignalRequestError, this.handleSignalRequestError);
+      .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse);
   }
 
   private handleReconnecting = () => {
@@ -200,11 +201,13 @@ export default class LocalParticipant extends Participant {
     }
   };
 
-  private handleSignalRequestError = (error: ErrorResponse) => {
-    const { requestId, reason, message } = error;
-    const failedRequest = this.pendingSignalRequests.get(requestId);
-    if (failedRequest) {
-      failedRequest.reject(new SignalRequestError(message, reason));
+  private handleSignalRequestResponse = (response: RequestResponse) => {
+    const { requestId, reason, message } = response;
+    const targetRequest = this.pendingSignalRequests.get(requestId);
+    if (targetRequest) {
+      if (reason !== RequestResponse_Reason.OK) {
+        targetRequest.reject(new SignalRequestError(message, reason));
+      }
       this.pendingSignalRequests.delete(requestId);
     }
   };
@@ -278,7 +281,9 @@ export default class LocalParticipant extends Participant {
           }
           await sleep(50);
         }
-        reject(new SignalRequestError('Request to update local metadata timed out'));
+        reject(
+          new SignalRequestError('Request to update local metadata timed out', 'TimeoutError'),
+        );
       } catch (e: any) {
         if (e instanceof Error) reject(e);
       }
