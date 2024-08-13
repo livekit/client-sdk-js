@@ -1,4 +1,4 @@
-import { ErrorResponse_Reason } from '@livekit/protocol';
+import { RequestResponse_Reason } from '@livekit/protocol';
 
 export class LivekitError extends Error {
   code: number;
@@ -65,10 +65,14 @@ export class PublishDataError extends LivekitError {
   }
 }
 
-export class SignalRequestError extends LivekitError {
-  reason: ErrorResponse_Reason;
+export type RequestErrorReason =
+  | Exclude<RequestResponse_Reason, RequestResponse_Reason.OK>
+  | 'TimeoutError';
 
-  constructor(message: string, reason: ErrorResponse_Reason = ErrorResponse_Reason.UNKNOWN) {
+export class SignalRequestError extends LivekitError {
+  reason: RequestErrorReason;
+
+  constructor(message: string, reason: RequestErrorReason) {
     super(15, message);
     this.reason = reason;
   }

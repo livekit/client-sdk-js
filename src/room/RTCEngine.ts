@@ -7,13 +7,13 @@ import {
   DataPacket,
   DataPacket_Kind,
   DisconnectReason,
-  ErrorResponse,
   type JoinResponse,
   type LeaveRequest,
   LeaveRequest_Action,
   ParticipantInfo,
   ReconnectReason,
   type ReconnectResponse,
+  RequestResponse,
   Room as RoomModel,
   SignalTarget,
   SpeakerInfo,
@@ -194,7 +194,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.SubscriptionPermissionUpdate, update);
     this.client.onSpeakersChanged = (update) => this.emit(EngineEvent.SpeakersChanged, update);
     this.client.onStreamStateUpdate = (update) => this.emit(EngineEvent.StreamStateChanged, update);
-    this.client.onErrorResponse = (error) => this.emit(EngineEvent.SignalRequestError, error);
+    this.client.onRequestResponse = (response) =>
+      this.emit(EngineEvent.SignalRequestResponse, response);
   }
 
   /** @internal */
@@ -1414,7 +1415,7 @@ export type EngineEventCallbacks = {
   localTrackUnpublished: (unpublishedResponse: TrackUnpublishedResponse) => void;
   remoteMute: (trackSid: string, muted: boolean) => void;
   offline: () => void;
-  signalRequestError: (error: ErrorResponse) => void;
+  signalRequestResponse: (response: RequestResponse) => void;
 };
 
 function supportOptionalDatachannel(protocol: number | undefined): boolean {
