@@ -539,6 +539,8 @@ export function extractTranscriptionSegments(
     const lastReceivedTime = Date.now();
     if (final) {
       firstReceivedTimesMap.delete(id);
+    } else {
+      firstReceivedTimesMap.set(id, firstReceivedTime);
     }
     return {
       id,
