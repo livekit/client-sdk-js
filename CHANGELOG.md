@@ -1,5 +1,25 @@
 # Change Log
 
+## 2.5.0
+
+### Minor Changes
+
+- Add RemoteTrack.setPlayoutDelay and make receiver non-optional in RemoteTrack constructor - [#1209](https://github.com/livekit/client-sdk-js/pull/1209) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Update protocol - [#1214](https://github.com/livekit/client-sdk-js/pull/1214) ([@lukasIO](https://github.com/lukasIO))
+
+- Add support for generic RequestResponse - [#1221](https://github.com/livekit/client-sdk-js/pull/1221) ([@lukasIO](https://github.com/lukasIO))
+
+- Clear pingInterval at start of disconnect processing - [#1217](https://github.com/livekit/client-sdk-js/pull/1217) ([@lukasIO](https://github.com/lukasIO))
+
+- Log offer before munging - [#1218](https://github.com/livekit/client-sdk-js/pull/1218) ([@lukasIO](https://github.com/lukasIO))
+
+- Add internal LocalTrackSubscribed engine event - [#1222](https://github.com/livekit/client-sdk-js/pull/1222) ([@lukasIO](https://github.com/lukasIO))
+
+- Use kind instead of mediaType for outbound-rtp stats in PublishVideoCheck and PublishAudioCheck helpers - [#1207](https://github.com/livekit/client-sdk-js/pull/1207) ([@svajunas-budrys](https://github.com/svajunas-budrys))
+
 ## 2.4.2
 
 ### Patch Changes
