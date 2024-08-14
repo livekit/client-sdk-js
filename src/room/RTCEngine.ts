@@ -494,6 +494,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.LocalTrackUnpublished, response);
     };
 
+    this.client.onLocalTrackSubscribed = (trackSid: string) => {
+      this.emit(EngineEvent.LocalTrackSubscribed, trackSid);
+    };
+
     this.client.onTokenRefresh = (token: string) => {
       this.token = token;
     };
@@ -1413,6 +1417,7 @@ export type EngineEventCallbacks = {
   subscriptionPermissionUpdate: (update: SubscriptionPermissionUpdate) => void;
   subscribedQualityUpdate: (update: SubscribedQualityUpdate) => void;
   localTrackUnpublished: (unpublishedResponse: TrackUnpublishedResponse) => void;
+  localTrackSubscribed: (trackSid: string) => void;
   remoteMute: (trackSid: string, muted: boolean) => void;
   offline: () => void;
   signalRequestResponse: (response: RequestResponse) => void;

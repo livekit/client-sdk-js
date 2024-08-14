@@ -538,6 +538,7 @@ export enum EngineEvent {
   RemoteMute = 'remoteMute',
   SubscribedQualityUpdate = 'subscribedQualityUpdate',
   LocalTrackUnpublished = 'localTrackUnpublished',
+  LocalTrackSubscribed = 'localTrackSubscribed',
   Offline = 'offline',
   SignalRequestResponse = 'signalRequestResponse',
 }
