@@ -144,6 +144,8 @@ export class SignalClient {
 
   onRequestResponse?: (response: RequestResponse) => void;
 
+  onLocalTrackSubscribed?: (trackSid: string) => void;
+
   connectOptions?: ConnectOpts;
 
   ws?: WebSocket;
@@ -742,6 +744,10 @@ export class SignalClient {
     } else if (msg.case === 'requestResponse') {
       if (this.onRequestResponse) {
         this.onRequestResponse(msg.value);
+      }
+    } else if (msg.case === 'trackSubscribed') {
+      if (this.onLocalTrackSubscribed) {
+        this.onLocalTrackSubscribed(msg.value.trackSid);
       }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });
