@@ -532,8 +532,14 @@ export function toHttpUrl(url: string): string {
 
 export function extractTranscriptionSegments(
   transcription: TranscriptionModel,
+  firstReceivedTimesMap: Map<string, number>,
 ): TranscriptionSegment[] {
   return transcription.segments.map(({ id, text, language, startTime, endTime, final }) => {
+    const firstReceivedTime = firstReceivedTimesMap.get(id) ?? Date.now();
+    const lastReceivedTime = Date.now();
+    if (final) {
+      firstReceivedTimesMap.delete(id);
+    }
     return {
       id,
       text,
@@ -541,6 +547,8 @@ export function extractTranscriptionSegments(
       endTime: Number.parseInt(endTime.toString()),
       final,
       language,
+      firstReceivedTime,
+      lastReceivedTime,
     };
   });
 }

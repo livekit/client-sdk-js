@@ -163,6 +163,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private isResuming: boolean = false;
 
   /**
+   * map to store first point in time when a particular transcription segment was received
+   */
+  private transcriptionReceivedTimes: Map<string, number>;
+
+  /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
    */
@@ -174,6 +179,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.options = { ...roomOptionDefaults, ...options };
 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room);
+    this.transcriptionReceivedTimes = new Map();
 
     this.options.audioCaptureDefaults = {
       ...audioDefaults,
@@ -1535,7 +1541,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         : this.getParticipantByIdentity(transcription.transcribedParticipantIdentity);
     const publication = participant?.trackPublications.get(transcription.trackId);
 
-    const segments = extractTranscriptionSegments(transcription);
+    const segments = extractTranscriptionSegments(transcription, this.transcriptionReceivedTimes);
 
     publication?.emit(TrackEvent.TranscriptionReceived, segments);
     participant?.emit(ParticipantEvent.TranscriptionReceived, segments, publication);
