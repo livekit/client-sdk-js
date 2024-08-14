@@ -1,4 +1,5 @@
 import {
+  ChatMessage as ChatMessageModel,
   ConnectionQualityUpdate,
   type DataPacket,
   DataPacket_Kind,
@@ -66,11 +67,17 @@ import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, sourceToKind } from './track/utils';
-import type { SimulationOptions, SimulationScenario, TranscriptionSegment } from './types';
+import type {
+  ChatMessage,
+  SimulationOptions,
+  SimulationScenario,
+  TranscriptionSegment,
+} from './types';
 import {
   Future,
   Mutex,
   createDummyVideoStreamTrack,
+  extractChatMessage,
   extractTranscriptionSegments,
   getEmptyAudioStreamTrack,
   isBrowserSupported,
@@ -1501,6 +1508,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleTranscription(participant, packet.value.value);
     } else if (packet.value.case === 'sipDtmf') {
       this.handleSipDtmf(participant, packet.value.value);
+    } else if (packet.value.case === 'chatMessage') {
+      this.handleChatMessage(participant, packet.value.value);
     }
   };
 
@@ -1540,6 +1549,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     publication?.emit(TrackEvent.TranscriptionReceived, segments);
     participant?.emit(ParticipantEvent.TranscriptionReceived, segments, publication);
     this.emit(RoomEvent.TranscriptionReceived, segments, participant, publication);
+  };
+
+  private handleChatMessage = (
+    participant: RemoteParticipant | undefined,
+    chatMessage: ChatMessageModel,
+  ) => {
+    const msg = extractChatMessage(chatMessage);
+    this.emit(RoomEvent.ChatMessageReceived, msg, participant);
   };
 
   private handleAudioPlaybackStarted = () => {
@@ -2202,4 +2219,5 @@ export type RoomEventCallbacks = {
   encryptionError: (error: Error) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
+  chatMessageReceived: (message: ChatMessage, participant?: RemoteParticipant) => void;
 };

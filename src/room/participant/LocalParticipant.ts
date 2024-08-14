@@ -1,5 +1,6 @@
 import {
   AddTrackRequest,
+  ChatMessage,
   DataPacket,
   DataPacket_Kind,
   Encryption_Type,
@@ -11,6 +12,7 @@ import {
   SubscribedQualityUpdate,
   TrackUnpublishedResponse,
   UserPacket,
+  protoInt64,
 } from '@livekit/protocol';
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
@@ -1279,6 +1281,50 @@ export default class LocalParticipant extends Participant {
     });
 
     await this.engine.sendDataPacket(packet, kind);
+  }
+
+  async sendChatMessage(message: string) {
+    const msg = new ChatMessage({
+      id: crypto.randomUUID(),
+      message,
+      timestamp: protoInt64.parse(Date.now()),
+    });
+    const packet = new DataPacket({
+      value: {
+        case: 'chatMessage',
+        value: msg,
+      },
+    });
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
+
+  async editChatMessage(messageId: string, editText: string) {
+    const msg = new ChatMessage({
+      id: messageId,
+      message: editText,
+      editTimestamp: protoInt64.parse(Date.now()),
+    });
+    const packet = new DataPacket({
+      value: {
+        case: 'chatMessage',
+        value: msg,
+      },
+    });
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
+
+  async deleteChatMessage(messageId: string) {
+    const msg = new ChatMessage({
+      id: messageId,
+      deleted: true,
+    });
+    const packet = new DataPacket({
+      value: {
+        case: 'chatMessage',
+        value: msg,
+      },
+    });
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
   /**

@@ -66,3 +66,11 @@ export interface TranscriptionSegment {
   endTime: number;
   final: boolean;
 }
+
+export interface ChatMessage {
+  id: string;
+  timestamp: number;
+  edit_timestamp: number | undefined;
+  message: string;
+  deleted: boolean;
+}

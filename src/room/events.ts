@@ -323,6 +323,8 @@ export enum RoomEvent {
    * args: (kind: MediaDeviceKind, deviceId: string)
    */
   ActiveDeviceChanged = 'activeDeviceChanged',
+
+  ChatMessageReceived = 'chatMessageReceived',
 }
 
 export enum ParticipantEvent {
