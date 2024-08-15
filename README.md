@@ -75,6 +75,10 @@ import {
   RemoteTrackPublication,
   Room,
   RoomEvent,
+  VideoPresets,
+  Track,
+  LocalTrackPublication,
+  LocalParticipant
 } from 'livekit-client';
 
 // creates a new room with options
