@@ -607,7 +607,7 @@ export function videoLayersFromEncodings(
     for (let i = 0; i < sm.spatial; i += 1) {
       layers.push(
         new VideoLayer({
-          quality: VideoQuality.HIGH - i,
+          quality: Math.min(VideoQuality.HIGH, sm.spatial - 1) - i,
           width: Math.ceil(width / resRatio ** i),
           height: Math.ceil(height / resRatio ** i),
           bitrate: encodings[0].maxBitrate
