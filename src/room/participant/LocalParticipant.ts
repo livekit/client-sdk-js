@@ -10,6 +10,7 @@ import {
   RequestResponse_Reason,
   SimulcastCodec,
   SubscribedQualityUpdate,
+  TrackInfo,
   TrackUnpublishedResponse,
   UserPacket,
 } from '@livekit/protocol';
@@ -779,8 +780,7 @@ export default class LocalParticipant extends Participant {
       opts.videoCodec = defaultVideoCodec;
     }
     if (this.enabledPublishVideoCodecs.length > 0) {
-      // server might not support the codec the client has requested, in that case, fallback
-      // to a supported codec
+      // fallback to a supported codec if it is not supported
       if (
         !this.enabledPublishVideoCodecs.some(
           (c) => opts.videoCodec === mimeTypeToVideoCodecString(c.mime),
@@ -970,8 +970,41 @@ export default class LocalParticipant extends Participant {
       await this.engine.negotiate();
     };
 
-    const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
-    const ti = rets[0];
+    let ti: TrackInfo;
+    if (this.enabledPublishVideoCodecs.length > 0) {
+      const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
+      ti = rets[0];
+    } else {
+      ti = await this.engine.addTrack(req);
+      // server might not support the codec the client has requested, in that case, fallback
+      // to a supported codec
+      let primaryCodecMime: string | undefined;
+      ti.codecs.forEach((codec) => {
+        if (primaryCodecMime === undefined) {
+          primaryCodecMime = codec.mimeType;
+        }
+      });
+      if (primaryCodecMime && track.kind === Track.Kind.Video) {
+        const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
+        if (updatedCodec !== videoCodec) {
+          this.log.debug('falling back to server selected codec', {
+            ...this.logContext,
+            ...getLogContextFromTrack(track),
+            codec: updatedCodec,
+          });
+          opts.videoCodec = updatedCodec;
+
+          // recompute encodings since bitrates/etc could have changed
+          encodings = computeVideoEncodings(
+            track.source === Track.Source.ScreenShare,
+            req.width,
+            req.height,
+            opts,
+          );
+        }
+      }
+      await negotiate();
+    }
 
     const publication = new LocalTrackPublication(track.kind, ti, track, {
       loggerName: this.roomOptions.loggerName,
