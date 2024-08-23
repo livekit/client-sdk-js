@@ -376,6 +376,24 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.DCBufferStatusChanged, (status, kind) => {
         this.emit(RoomEvent.DCBufferStatusChanged, status, kind);
+      })
+      .on(EngineEvent.LocalTrackSubscribed, (subscribedSid) => {
+        const trackPublication = this.localParticipant
+          .getTrackPublications()
+          .find(({ trackSid }) => trackSid === subscribedSid) as LocalTrackPublication | undefined;
+        if (!trackPublication) {
+          this.log.warn(
+            'could not find local track subscription for subscribed event',
+            this.logContext,
+          );
+          return;
+        }
+        this.localParticipant.emit(ParticipantEvent.LocalTrackSubscribed, trackPublication);
+        this.emitWhenConnected(
+          RoomEvent.LocalTrackSubscribed,
+          trackPublication,
+          this.localParticipant,
+        );
       });
 
     if (this.localParticipant) {
@@ -2209,4 +2227,5 @@ export type RoomEventCallbacks = {
   encryptionError: (error: Error) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
+  localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
 };
