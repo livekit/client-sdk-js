@@ -631,9 +631,4 @@ export enum TrackEvent {
    * @experimental
    */
   TimeSyncUpdate = 'timeSyncUpdate',
-
-  /**
-   * fired when the first remote participant has subscribed to this track
-   */
-  LocalTrackSubscribed = 'localTrackSubscribed',
 }
