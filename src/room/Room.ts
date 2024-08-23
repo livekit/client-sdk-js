@@ -608,6 +608,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.localParticipant.sid = pi.sid;
     this.localParticipant.identity = pi.identity;
+    this.localParticipant.setEnabledPublishCodecs(joinResponse.enabledPublishCodecs);
 
     if (this.options.e2ee && this.e2eeManager) {
       try {
