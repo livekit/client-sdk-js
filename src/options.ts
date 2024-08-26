@@ -98,7 +98,7 @@ export interface InternalRoomOptions {
    * shorten the publish latency by establish publisher peerconnection when joining room, will
    * cost few cpu time & network traffic even if there is no track has been published.
    */
-  fastPublish: boolean;
+  fastPublish?: boolean;
 }
 
 /**
