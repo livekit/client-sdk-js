@@ -23,6 +23,8 @@ eliminate this issue.
 */
 const startBitrateForSVC = 0.7;
 
+const debounceInterval = 100;
+
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
@@ -220,31 +222,32 @@ export default class PCTransport extends EventEmitter {
     }
   }
 
+  private doNegotiate = async (onError?: (e: Error) => void) => {
+    this.emit(PCEvents.NegotiationStarted);
+    try {
+      await this.createAndSendOffer();
+    } catch (e) {
+      if (onError) {
+        onError(e as Error);
+      } else {
+        throw e;
+      }
+    } finally {
+      this.lastNegotiationAt = Date.now();
+      this.negotiationPending = false;
+    }
+  };
+
+  private deboundNegotiate = debounce(this.doNegotiate, debounceInterval);
+
   // debounced negotiate interface
   async negotiate(onError?: (e: Error) => void) {
-    const debounceInterval = 100;
-    const doNeogiate = async () => {
-      this.emit(PCEvents.NegotiationStarted);
-      try {
-        await this.createAndSendOffer();
-      } catch (e) {
-        if (onError) {
-          onError(e as Error);
-        } else {
-          throw e;
-        }
-      } finally {
-        this.lastNegotiationAt = Date.now();
-        this.negotiationPending = false;
-      }
-    };
-
     const pending = this.negotiationPending;
     this.negotiationPending = true;
     if (!pending && Date.now() - this.lastNegotiationAt > debounceInterval) {
-      await doNeogiate();
+      await this.doNegotiate(onError);
     } else {
-      debounce(doNeogiate, debounceInterval);
+      this.deboundNegotiate(onError);
     }
   }
 
