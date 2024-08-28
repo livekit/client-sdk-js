@@ -219,22 +219,18 @@ export default class PCTransport extends EventEmitter {
   }
 
   // debounced negotiate interface
-  negotiate = debounce(
-    async (onError?: (e: Error) => void) => {
-      this.emit(PCEvents.NegotiationStarted);
-      try {
-        await this.createAndSendOffer();
-      } catch (e) {
-        if (onError) {
-          onError(e as Error);
-        } else {
-          throw e;
-        }
+  negotiate = debounce(async (onError?: (e: Error) => void) => {
+    this.emit(PCEvents.NegotiationStarted);
+    try {
+      await this.createAndSendOffer();
+    } catch (e) {
+      if (onError) {
+        onError(e as Error);
+      } else {
+        throw e;
       }
-    },
-    debounceInterval,
-    { isImmediate: true },
-  );
+    }
+  }, debounceInterval);
 
   async createAndSendOffer(options?: RTCOfferOptions) {
     if (this.onOffer === undefined) {
