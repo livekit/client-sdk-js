@@ -23,7 +23,7 @@ eliminate this issue.
 */
 const startBitrateForSVC = 0.7;
 
-const debounceInterval = 100;
+const debounceInterval = 20;
 
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
