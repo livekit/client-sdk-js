@@ -233,7 +233,6 @@ export default class PCTransport extends EventEmitter {
       }
     },
     debounceInterval,
-    { isImmediate: true },
   );
 
   async createAndSendOffer(options?: RTCOfferOptions) {
