@@ -107,6 +107,7 @@ const appActions = {
       e2ee: e2eeEnabled
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
+      fastPublish: true,
     };
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
