@@ -386,4 +386,5 @@ export type ParticipantEventCallbacks = {
     status: TrackPublication.SubscriptionStatus,
   ) => void;
   attributesChanged: (changedAttributes: Record<string, string>) => void;
+  localTrackSubscribed: (trackPublication: LocalTrackPublication) => void;
 };
