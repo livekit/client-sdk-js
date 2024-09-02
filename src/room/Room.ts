@@ -57,7 +57,7 @@ import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
-import LocalTrack from './track/LocalTrack';
+import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteTrack from './track/RemoteTrack';
