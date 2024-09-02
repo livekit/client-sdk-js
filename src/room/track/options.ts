@@ -64,7 +64,7 @@ export interface TrackPublishDefaults {
   simulcast?: boolean;
 
   /**
-   * scalability mode for svc codecs, defaults to 'L3T3'.
+   * scalability mode for svc codecs, defaults to 'L3T3_KEY'.
    * for svc codecs, simulcast is disabled.
    */
   scalabilityMode?: ScalabilityMode;

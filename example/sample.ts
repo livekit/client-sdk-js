@@ -99,7 +99,7 @@ const appActions = {
         red: true,
         forceStereo: false,
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
-        scalabilityMode: 'L3T3',
+        scalabilityMode: 'L3T3_KEY',
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -107,7 +107,6 @@ const appActions = {
       e2ee: e2eeEnabled
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
-      fastPublish: true,
     };
     if (
       roomOpts.publishDefaults?.videoCodec === 'av1' ||
