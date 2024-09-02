@@ -4,13 +4,22 @@
  * that the timer fires on time.
  */
 export default class CriticalTimers {
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
-  static setTimeout = (...args: Parameters<typeof setTimeout>) => setTimeout(...args);
+  static setTimeout: (...args: Parameters<typeof setTimeout>) => ReturnType<typeof setTimeout> = (
+    ...args: Parameters<typeof setTimeout>
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+  ) => setTimeout(...args);
 
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
-  static setInterval = (...args: Parameters<typeof setInterval>) => setInterval(...args);
+  static setInterval: (...args: Parameters<typeof setInterval>) => ReturnType<typeof setInterval> =
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    (...args: Parameters<typeof setInterval>) => setInterval(...args);
 
-  static clearTimeout = (...args: Parameters<typeof clearTimeout>) => clearTimeout(...args);
+  static clearTimeout: (
+    ...args: Parameters<typeof clearTimeout>
+  ) => ReturnType<typeof clearTimeout> = (...args: Parameters<typeof clearTimeout>) =>
+    clearTimeout(...args);
 
-  static clearInterval = (...args: Parameters<typeof clearInterval>) => clearInterval(...args);
+  static clearInterval: (
+    ...args: Parameters<typeof clearInterval>
+  ) => ReturnType<typeof clearInterval> = (...args: Parameters<typeof clearInterval>) =>
+    clearInterval(...args);
 }
