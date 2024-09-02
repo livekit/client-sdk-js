@@ -1600,6 +1600,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleDeviceChange = async () => {
+    const availableOutputDevices = await DeviceManager.getInstance().getDevices('audiooutput');
+    // switch to first available audio device if previously active output device is not available any more
+    if (
+      !availableOutputDevices.find(
+        (deviceInfo) => deviceInfo.deviceId === this.getActiveDevice('audiooutput'),
+      )
+    ) {
+      await this.switchActiveDevice('audiooutput', availableOutputDevices[0].deviceId);
+    }
+
     this.emit(RoomEvent.MediaDevicesChanged);
   };
 
