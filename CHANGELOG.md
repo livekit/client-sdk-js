@@ -1,5 +1,21 @@
 # Change Log
 
+## 2.5.1
+
+### Patch Changes
+
+- Use ReturnTypes of built-in functions for critical timers - [#1236](https://github.com/livekit/client-sdk-js/pull/1236) ([@lukasIO](https://github.com/lukasIO))
+
+- Set default scalabilityMode to L3T3_KEY in sample/comment - [#1238](https://github.com/livekit/client-sdk-js/pull/1238) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Expose localTrackSubscribed event on localParticipant and room - [#1229](https://github.com/livekit/client-sdk-js/pull/1229) ([@lukasIO](https://github.com/lukasIO))
+
+- fast track publication - [#1228](https://github.com/livekit/client-sdk-js/pull/1228) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Add firstReceivedTime and lastReceivedTime to received TranscriptionSegments - [#1223](https://github.com/livekit/client-sdk-js/pull/1223) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure SVC layers are starting from LOW quality - [#1226](https://github.com/livekit/client-sdk-js/pull/1226) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.5.0
 
 ### Minor Changes
