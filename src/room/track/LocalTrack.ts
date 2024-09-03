@@ -215,7 +215,7 @@ export default abstract class LocalTrack<
   /**
    * @returns DeviceID of the device that is currently being used for this track
    */
-  async getDeviceId(): Promise<string | undefined> {
+  async getDeviceId(normalize = true): Promise<string | undefined> {
     // screen share doesn't have a usable device id
     if (this.source === Track.Source.ScreenShare) {
       return;
@@ -223,7 +223,9 @@ export default abstract class LocalTrack<
     const { deviceId, groupId } = this._mediaStreamTrack.getSettings();
     const kind = this.kind === Track.Kind.Audio ? 'audioinput' : 'videoinput';
 
-    return DeviceManager.getInstance().normalizeDeviceId(kind, deviceId, groupId);
+    return normalize
+      ? DeviceManager.getInstance().normalizeDeviceId(kind, deviceId, groupId)
+      : deviceId;
   }
 
   async mute() {
