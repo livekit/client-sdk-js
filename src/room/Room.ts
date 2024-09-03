@@ -57,6 +57,7 @@ import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
+import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteTrack from './track/RemoteTrack';
@@ -1073,7 +1074,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     let success = true;
     const deviceConstraint = exact ? { exact: deviceId } : deviceId;
     if (kind === 'audioinput') {
-      const prevDeviceId = this.options.audioCaptureDefaults!.deviceId;
+      const prevDeviceId =
+        this.getActiveDevice(kind) ?? this.options.audioCaptureDefaults!.deviceId;
       this.options.audioCaptureDefaults!.deviceId = deviceConstraint;
       deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.audioTrackPublications.values()).filter(
@@ -1088,7 +1090,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     } else if (kind === 'videoinput') {
-      const prevDeviceId = this.options.videoCaptureDefaults!.deviceId;
+      const prevDeviceId =
+        this.getActiveDevice(kind) ?? this.options.videoCaptureDefaults!.deviceId;
       this.options.videoCaptureDefaults!.deviceId = deviceConstraint;
       deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.videoTrackPublications.values()).filter(
@@ -1115,7 +1118,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           (await DeviceManager.getInstance().normalizeDeviceId('audiooutput', deviceId)) ?? '';
       }
       this.options.audioOutput ??= {};
-      const prevDeviceId = this.options.audioOutput.deviceId;
+      const prevDeviceId = this.getActiveDevice(kind) ?? this.options.audioOutput.deviceId;
       this.options.audioOutput.deviceId = deviceId;
       deviceHasChanged = prevDeviceId !== deviceConstraint;
 
@@ -1600,6 +1603,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleDeviceChange = async () => {
+    const availableDevices = await DeviceManager.getInstance().getDevices();
+    const kinds: MediaDeviceKind[] = ['audioinput', 'videoinput', 'audiooutput'];
+    for (let kind of kinds) {
+      // switch to first available device if previously active device is not available any more
+      const devicesOfKind = availableDevices.filter((d) => d.kind === kind);
+      if (
+        devicesOfKind.length > 0 &&
+        !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === this.getActiveDevice(kind))
+      ) {
+        await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
+      }
+    }
+
     this.emit(RoomEvent.MediaDevicesChanged);
   };
 
@@ -1923,6 +1939,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private onLocalTrackPublished = async (pub: LocalTrackPublication) => {
     pub.track?.on(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
+    pub.track?.on(TrackEvent.Restarted, this.onLocalTrackRestarted);
     pub.track?.getProcessor()?.onPublish?.(this);
 
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
@@ -1947,7 +1964,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private onLocalTrackUnpublished = (pub: LocalTrackPublication) => {
     pub.track?.off(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
+    pub.track?.off(TrackEvent.Restarted, this.onLocalTrackRestarted);
     this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
+  };
+
+  private onLocalTrackRestarted = async (track: LocalTrack) => {
+    const deviceId = await track.getDeviceId();
+    const deviceKind = sourceToKind(track.source);
+    if (
+      deviceKind &&
+      deviceId &&
+      deviceId !== this.localParticipant.activeDeviceMap.get(deviceKind)
+    ) {
+      this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
+      this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
+    }
   };
 
   private onLocalConnectionQualityChanged = (quality: ConnectionQuality) => {
