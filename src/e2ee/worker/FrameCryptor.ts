@@ -371,18 +371,16 @@ export class FrameCryptor extends BaseFrameCryptor {
       }
     } else if (!this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
       // emit an error if the key index is out of bounds but the key handler thinks we still have a valid key
-      if (this.keys.hasValidKey) {
-        workerLogger.warn(`skipping decryption due to missing key at index ${keyIndex}`);
-        this.emit(
-          CryptorEvent.Error,
-          new CryptorError(
-            `missing key at index ${keyIndex} for participant ${this.participantIdentity}`,
-            CryptorErrorReason.MissingKey,
-            this.participantIdentity,
-          ),
-        );
-        this.keys.decryptionFailure();
-      }
+      workerLogger.warn(`skipping decryption due to missing key at index ${keyIndex}`);
+      this.emit(
+        CryptorEvent.Error,
+        new CryptorError(
+          `missing key at index ${keyIndex} for participant ${this.participantIdentity}`,
+          CryptorErrorReason.MissingKey,
+          this.participantIdentity,
+        ),
+      );
+      this.keys.decryptionFailure();
     }
   }
 
