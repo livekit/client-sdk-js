@@ -360,8 +360,8 @@ export class FrameCryptor extends BaseFrameCryptor {
         }
       } catch (error) {
         if (error instanceof CryptorError && error.reason === CryptorErrorReason.InvalidKey) {
-        // emit an error if the key handler thinks we have a valid key
-        if (this.keys.hasValidKey) {
+          // emit an error if the key handler thinks we have a valid key
+          if (this.keys.hasValidKey) {
             this.emit(CryptorEvent.Error, error);
             this.keys.decryptionFailure();
           }
