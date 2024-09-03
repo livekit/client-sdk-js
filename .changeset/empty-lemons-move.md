@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Apply valid key logic to MissingKey to prevent spamming the logs
+Treat MissingKey as decryption failure to prevent spamming the logs
