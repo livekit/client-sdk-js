@@ -407,9 +407,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /**
    * getLocalDevices abstracts navigator.mediaDevices.enumerateDevices.
-   * In particular, it handles Chrome's unique behavior of creating `default`
-   * devices. When encountered, it'll be removed from the list of devices.
-   * The actual default device will be placed at top.
+   * In particular, it requests device permissions by default if needed
+   * and makes sure the returned device does not consist of dummy devices
    * @param kind
    * @returns a list of available local devices
    */
