@@ -157,6 +157,7 @@ const appActions = {
           await room.engine.getConnectedServerAddress(),
         );
       })
+      .on(RoomEvent.ActiveDeviceChanged, handleActiveDeviceChanged)
       .on(RoomEvent.LocalTrackPublished, (pub) => {
         const track = pub.track as LocalAudioTrack;
 
@@ -820,7 +821,8 @@ const elementMapping: { [k: string]: MediaDeviceKind } = {
   'video-input': 'videoinput',
   'audio-input': 'audioinput',
   'audio-output': 'audiooutput',
-};
+} as const;
+
 async function handleDevicesChanged() {
   Promise.all(
     Object.keys(elementMapping).map(async (id) => {
@@ -833,6 +835,21 @@ async function handleDevicesChanged() {
       populateSelect(element, devices, state.defaultDevices.get(kind));
     }),
   );
+}
+
+async function handleActiveDeviceChanged(kind: MediaDeviceKind, deviceId: string) {
+  const devices = await Room.getLocalDevices(kind);
+  const element = <HTMLSelectElement>$(
+    Object.entries(elementMapping)
+      .map(([key, value]) => {
+        if (value === kind) {
+          return key;
+        }
+        return undefined;
+      })
+      .filter((val) => val !== undefined)[0],
+  );
+  populateSelect(element, devices, deviceId);
 }
 
 function populateSelect(

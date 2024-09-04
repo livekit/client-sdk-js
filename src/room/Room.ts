@@ -1604,7 +1604,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleDeviceChange = async () => {
     const availableDevices = await DeviceManager.getInstance().getDevices();
-    const kinds: MediaDeviceKind[] = ['audioinput', 'videoinput', 'audiooutput'];
+    // inputs are automatically handled via TrackEvent.Ended causing a TrackEvent.Restarted. Here we only need to worry about audiooutputs changing
+    const kinds: MediaDeviceKind[] = ['audiooutput'];
     for (let kind of kinds) {
       // switch to first available device if previously active device is not available any more
       const devicesOfKind = availableDevices.filter((d) => d.kind === kind);
@@ -1969,13 +1970,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private onLocalTrackRestarted = async (track: LocalTrack) => {
-    const deviceId = await track.getDeviceId();
+    const deviceId = await track.getDeviceId(false);
     const deviceKind = sourceToKind(track.source);
     if (
       deviceKind &&
       deviceId &&
       deviceId !== this.localParticipant.activeDeviceMap.get(deviceKind)
     ) {
+      this.log.debug(
+        `local track restarted, setting ${deviceKind} ${deviceId} active`,
+        this.logContext,
+      );
       this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
       this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
     }
