@@ -57,6 +57,8 @@ export class PCTransportManager {
 
   private connectionLock: Mutex;
 
+  private remoteOfferLock: Mutex;
+
   private log = log;
 
   private loggerOptions: LoggerOptions;
@@ -171,11 +173,16 @@ export class PCTransportManager {
       sdp: sd.sdp,
       signalingState: this.subscriber.getSignallingState().toString(),
     });
-    await this.subscriber.setRemoteDescription(sd);
+    const unlock = await this.remoteOfferLock.lock();
+    try {
+      await this.subscriber.setRemoteDescription(sd);
 
-    // answer the offer
-    const answer = await this.subscriber.createAndSetAnswer();
-    return answer;
+      // answer the offer
+      const answer = await this.subscriber.createAndSetAnswer();
+      return answer;
+    } finally {
+      unlock();
+    }
   }
 
   updateConfiguration(config: RTCConfiguration, iceRestart?: boolean) {
