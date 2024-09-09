@@ -5,7 +5,7 @@ import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isSVCCodec } from './utils';
+import { Mutex, ddExtensionURI, isSVCCodec } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -48,6 +48,8 @@ export default class PCTransport extends EventEmitter {
 
   private loggerOptions: LoggerOptions;
 
+  private setDescriptionLock: Mutex;
+
   pendingCandidates: RTCIceCandidateInit[] = [];
 
   restartingIce: boolean = false;
@@ -82,6 +84,7 @@ export default class PCTransport extends EventEmitter {
     this.loggerOptions = loggerOptions;
     this.config = config;
     this._pc = this.createPC();
+    this.setDescriptionLock = new Mutex();
   }
 
   private createPC() {
@@ -136,85 +139,90 @@ export default class PCTransport extends EventEmitter {
   }
 
   async setRemoteDescription(sd: RTCSessionDescriptionInit): Promise<void> {
-    let mungedSDP: string | undefined = undefined;
-    if (sd.type === 'offer') {
-      let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
-      this.remoteStereoMids = stereoMids;
-      this.remoteNackMids = nackMids;
-    } else if (sd.type === 'answer') {
-      const sdpParsed = parse(sd.sdp ?? '');
-      sdpParsed.media.forEach((media) => {
-        if (media.type === 'audio') {
-          // mung sdp for opus bitrate settings
-          this.trackBitrates.some((trackbr): boolean => {
-            if (!trackbr.transceiver || media.mid != trackbr.transceiver.mid) {
-              return false;
-            }
+    const unlock = await this.setDescriptionLock.lock();
+    try {
+      let mungedSDP: string | undefined = undefined;
+      if (sd.type === 'offer') {
+        let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
+        this.remoteStereoMids = stereoMids;
+        this.remoteNackMids = nackMids;
+      } else if (sd.type === 'answer') {
+        const sdpParsed = parse(sd.sdp ?? '');
+        sdpParsed.media.forEach((media) => {
+          if (media.type === 'audio') {
+            // mung sdp for opus bitrate settings
+            this.trackBitrates.some((trackbr): boolean => {
+              if (!trackbr.transceiver || media.mid != trackbr.transceiver.mid) {
+                return false;
+              }
 
-            let codecPayload = 0;
-            media.rtp.some((rtp): boolean => {
-              if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
-                codecPayload = rtp.payload;
+              let codecPayload = 0;
+              media.rtp.some((rtp): boolean => {
+                if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
+                  codecPayload = rtp.payload;
+                  return true;
+                }
+                return false;
+              });
+
+              if (codecPayload === 0) {
                 return true;
               }
-              return false;
-            });
 
-            if (codecPayload === 0) {
-              return true;
-            }
-
-            let fmtpFound = false;
-            for (const fmtp of media.fmtp) {
-              if (fmtp.payload === codecPayload) {
-                fmtp.config = fmtp.config
-                  .split(';')
-                  .filter((attr) => !attr.includes('maxaveragebitrate'))
-                  .join(';');
-                if (trackbr.maxbr > 0) {
-                  fmtp.config += `;maxaveragebitrate=${trackbr.maxbr * 1000}`;
+              let fmtpFound = false;
+              for (const fmtp of media.fmtp) {
+                if (fmtp.payload === codecPayload) {
+                  fmtp.config = fmtp.config
+                    .split(';')
+                    .filter((attr) => !attr.includes('maxaveragebitrate'))
+                    .join(';');
+                  if (trackbr.maxbr > 0) {
+                    fmtp.config += `;maxaveragebitrate=${trackbr.maxbr * 1000}`;
+                  }
+                  fmtpFound = true;
+                  break;
                 }
-                fmtpFound = true;
-                break;
               }
-            }
 
-            if (!fmtpFound) {
-              if (trackbr.maxbr > 0) {
-                media.fmtp.push({
-                  payload: codecPayload,
-                  config: `maxaveragebitrate=${trackbr.maxbr * 1000}`,
-                });
+              if (!fmtpFound) {
+                if (trackbr.maxbr > 0) {
+                  media.fmtp.push({
+                    payload: codecPayload,
+                    config: `maxaveragebitrate=${trackbr.maxbr * 1000}`,
+                  });
+                }
               }
-            }
 
-            return true;
-          });
-        }
-      });
-      mungedSDP = write(sdpParsed);
-    }
-    await this.setMungedSDP(sd, mungedSDP, true);
-
-    this.pendingCandidates.forEach((candidate) => {
-      this.pc.addIceCandidate(candidate);
-    });
-    this.pendingCandidates = [];
-    this.restartingIce = false;
-
-    if (this.renegotiate) {
-      this.renegotiate = false;
-      await this.createAndSendOffer();
-    } else if (sd.type === 'answer') {
-      this.emit(PCEvents.NegotiationComplete);
-      if (sd.sdp) {
-        const sdpParsed = parse(sd.sdp);
-        sdpParsed.media.forEach((media) => {
-          if (media.type === 'video') {
-            this.emit(PCEvents.RTPVideoPayloadTypes, media.rtp);
+              return true;
+            });
           }
         });
+        mungedSDP = write(sdpParsed);
       }
+      await this.setMungedSDP(sd, mungedSDP, true);
+
+      this.pendingCandidates.forEach((candidate) => {
+        this.pc.addIceCandidate(candidate);
+      });
+      this.pendingCandidates = [];
+      this.restartingIce = false;
+
+      if (this.renegotiate) {
+        this.renegotiate = false;
+        await this.createAndSendOffer();
+      } else if (sd.type === 'answer') {
+        this.emit(PCEvents.NegotiationComplete);
+        if (sd.sdp) {
+          const sdpParsed = parse(sd.sdp);
+          sdpParsed.media.forEach((media) => {
+            if (media.type === 'video') {
+              this.emit(PCEvents.RTPVideoPayloadTypes, media.rtp);
+            }
+          });
+        }
+      }
+    } finally {
+      unlock();
     }
   }
 
