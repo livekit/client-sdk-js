@@ -102,6 +102,7 @@ export class PCTransportManager {
     this.state = PCTransportState.NEW;
 
     this.connectionLock = new Mutex();
+    this.remoteOfferLock = new Mutex();
   }
 
   private get logContext() {
