@@ -31,6 +31,7 @@ import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
+import { extractProcessorsFromOptions } from '../track/create';
 import type {
   AudioCaptureOptions,
   BackupVideoCodec,
@@ -40,7 +41,6 @@ import type {
   VideoCaptureOptions,
 } from '../track/options';
 import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
-import type { TrackProcessor } from '../track/processor/types';
 import {
   constraintsForOptions,
   getLogContextFromTrack,
@@ -486,6 +486,9 @@ export default class LocalParticipant extends Participant {
    * @returns
    */
   async createTracks(options?: CreateLocalTracksOptions): Promise<LocalTrack[]> {
+    options ??= {};
+    const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(options);
+
     const mergedOptions = mergeDefaultOptions(
       options,
       this.roomOptions?.audioCaptureDefaults,
@@ -540,12 +543,10 @@ export default class LocalParticipant extends Participant {
           track.setAudioContext(this.audioContext);
         }
         track.mediaStream = stream;
-        if (trackOptions.processor) {
-          if (track instanceof LocalAudioTrack) {
-            await track.setProcessor(trackOptions.processor as TrackProcessor<Track.Kind.Audio>);
-          } else {
-            await track.setProcessor(trackOptions.processor as TrackProcessor<Track.Kind.Video>);
-          }
+        if (track instanceof LocalAudioTrack && audioProcessor) {
+          await track.setProcessor(audioProcessor);
+        } else if (track instanceof LocalVideoTrack && videoProcessor) {
+          await track.setProcessor(videoProcessor);
         }
         return track;
       }),
