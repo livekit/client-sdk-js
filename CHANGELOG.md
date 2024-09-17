@@ -1,5 +1,21 @@
 # Change Log
 
+## 2.5.2
+
+### Patch Changes
+
+- Pass connect options to room from connection checkers - [#1245](https://github.com/livekit/client-sdk-js/pull/1245) ([@jespermjonsson](https://github.com/jespermjonsson))
+
+- Avoid parallel offer processing - [#1244](https://github.com/livekit/client-sdk-js/pull/1244) ([@lukasIO](https://github.com/lukasIO))
+
+- Switch active device if previously selected device becomes unavailable - [#1237](https://github.com/livekit/client-sdk-js/pull/1237) ([@lukasIO](https://github.com/lukasIO))
+
+- Treat MissingKey as decryption failure to prevent spamming the logs - [#1241](https://github.com/livekit/client-sdk-js/pull/1241) ([@hughns](https://github.com/hughns))
+
+- Update API docs for `room.getLocalDevices` - [#1243](https://github.com/livekit/client-sdk-js/pull/1243) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix trackProcessor creation from LocalParticipant.createTracks - [#1247](https://github.com/livekit/client-sdk-js/pull/1247) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.5.1
 
 ### Patch Changes
