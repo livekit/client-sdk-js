@@ -565,7 +565,7 @@ export function extractChatMessage(msg: ChatMessageModel): ChatMessage {
   return {
     id,
     timestamp: Number.parseInt(timestamp.toString()),
-    edit_timestamp: editTimestamp ? Number.parseInt(editTimestamp.toString()) : undefined,
+    editTimestamp: editTimestamp ? Number.parseInt(editTimestamp.toString()) : undefined,
     message,
     deleted,
   };

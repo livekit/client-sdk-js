@@ -1163,6 +1163,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       .on(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
       .on(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
       .on(ParticipantEvent.AudioStreamAcquired, this.startAudio)
+      .on(ParticipantEvent.ChatMessage, this.onLocalChatMessageSent)
       .on(
         ParticipantEvent.ParticipantPermissionsChanged,
         this.onLocalParticipantPermissionsChanged,
@@ -1343,6 +1344,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         .off(ParticipantEvent.ConnectionQualityChanged, this.onLocalConnectionQualityChanged)
         .off(ParticipantEvent.MediaDevicesError, this.onMediaDevicesError)
         .off(ParticipantEvent.AudioStreamAcquired, this.startAudio)
+        .off(ParticipantEvent.ChatMessage, this.onLocalChatMessageSent)
         .off(
           ParticipantEvent.ParticipantPermissionsChanged,
           this.onLocalParticipantPermissionsChanged,
@@ -1584,7 +1586,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     chatMessage: ChatMessageModel,
   ) => {
     const msg = extractChatMessage(chatMessage);
-    this.emit(RoomEvent.ChatMessageReceived, msg, participant);
+    this.emit(RoomEvent.ChatMessage, msg, participant);
   };
 
   private handleAudioPlaybackStarted = () => {
@@ -2014,6 +2016,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.ParticipantPermissionsChanged, prevPermissions, this.localParticipant);
   };
 
+  private onLocalChatMessageSent = (msg: ChatMessage) => {
+    this.emit(RoomEvent.ChatMessage, msg, this.localParticipant);
+  };
+
   /**
    * Allows to populate a room with simulated participants.
    * No actual connection to a server will be established, all state is
@@ -2280,6 +2286,6 @@ export type RoomEventCallbacks = {
   encryptionError: (error: Error) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
-  chatMessageReceived: (message: ChatMessage, participant?: RemoteParticipant) => void;
+  chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
 };

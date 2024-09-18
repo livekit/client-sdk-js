@@ -1,6 +1,6 @@
 import {
   AddTrackRequest,
-  ChatMessage,
+  ChatMessage as ChatMessageModel,
   Codec,
   DataPacket,
   DataPacket_Kind,
@@ -50,7 +50,7 @@ import {
   mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
-import type { DataPublishOptions } from '../types';
+import type { ChatMessage, DataPublishOptions } from '../types';
 import {
   Future,
   isE2EESimulcastSupported,
@@ -1313,38 +1313,45 @@ export default class LocalParticipant extends Participant {
     await this.engine.sendDataPacket(packet, kind);
   }
 
-  /**
-
-   */
-  async sendChatMessage(text: string) {
-    const msg = new ChatMessage({
+  async sendChatMessage(text: string): Promise<ChatMessage> {
+    const msg = {
       id: crypto.randomUUID(),
       message: text,
-      timestamp: protoInt64.parse(Date.now()),
-    });
+      timestamp: Date.now(),
+    } as const satisfies ChatMessage;
     const packet = new DataPacket({
       value: {
         case: 'chatMessage',
-        value: msg,
+        value: new ChatMessageModel({
+          ...msg,
+          timestamp: protoInt64.parse(msg.timestamp),
+        }),
       },
     });
     await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
-    return msg.id;
+    this.emit(ParticipantEvent.ChatMessage, msg);
+    return msg;
   }
 
-  async editChatMessage(messageId: string, editText: string) {
-    const msg = new ChatMessage({
-      id: messageId,
+  async editChatMessage(editText: string, originalMessage: ChatMessage) {
+    const msg = {
+      ...originalMessage,
       message: editText,
-      editTimestamp: protoInt64.parse(Date.now()),
-    });
+      editTimestamp: Date.now(),
+    } as const satisfies ChatMessage;
     const packet = new DataPacket({
       value: {
         case: 'chatMessage',
-        value: msg,
+        value: new ChatMessageModel({
+          ...msg,
+          timestamp: protoInt64.parse(msg.timestamp),
+          editTimestamp: protoInt64.parse(msg.editTimestamp),
+        }),
       },
     });
     await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    this.emit(ParticipantEvent.ChatMessage, msg);
+    return msg;
   }
 
   /**

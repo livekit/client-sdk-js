@@ -72,7 +72,7 @@ export interface TranscriptionSegment {
 export interface ChatMessage {
   id: string;
   timestamp: number;
-  edit_timestamp: number | undefined;
   message: string;
-  deleted: boolean;
+  editTimestamp?: number;
+  deleted?: boolean;
 }
