@@ -23,6 +23,8 @@ eliminate this issue.
 */
 const startBitrateForSVC = 0.7;
 
+const debounceInterval = 20;
+
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
@@ -228,7 +230,7 @@ export default class PCTransport extends EventEmitter {
         throw e;
       }
     }
-  }, 100);
+  }, debounceInterval);
 
   async createAndSendOffer(options?: RTCOfferOptions) {
     if (this.onOffer === undefined) {

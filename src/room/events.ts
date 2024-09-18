@@ -325,6 +325,10 @@ export enum RoomEvent {
   ActiveDeviceChanged = 'activeDeviceChanged',
 
   ChatMessageReceived = 'chatMessageReceived',
+  /**
+   * fired when the first remote participant has subscribed to the localParticipant's track
+   */
+  LocalTrackSubscribed = 'localTrackSubscribed',
 }
 
 export enum ParticipantEvent {
@@ -511,6 +515,11 @@ export enum ParticipantEvent {
    * When a participant's attributes changed, this event will be emitted with the changed attributes
    */
   AttributesChanged = 'attributesChanged',
+
+  /**
+   * fired on local participant only, when the first remote participant has subscribed to the track specified in the payload
+   */
+  LocalTrackSubscribed = 'localTrackSubscribed',
 }
 
 /** @internal */

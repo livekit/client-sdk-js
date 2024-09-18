@@ -1,6 +1,7 @@
 import {
   AddTrackRequest,
   ChatMessage,
+  Codec,
   DataPacket,
   DataPacket_Kind,
   Encryption_Type,
@@ -10,6 +11,7 @@ import {
   RequestResponse_Reason,
   SimulcastCodec,
   SubscribedQualityUpdate,
+  TrackInfo,
   TrackUnpublishedResponse,
   UserPacket,
   protoInt64,
@@ -31,6 +33,7 @@ import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
+import { extractProcessorsFromOptions } from '../track/create';
 import type {
   AudioCaptureOptions,
   BackupVideoCodec,
@@ -40,7 +43,6 @@ import type {
   VideoCaptureOptions,
 } from '../track/options';
 import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
-import type { TrackProcessor } from '../track/processor/types';
 import {
   constraintsForOptions,
   getLogContextFromTrack,
@@ -111,6 +113,8 @@ export default class LocalParticipant extends Participant {
       values: Partial<Record<keyof LocalParticipant, any>>;
     }
   >;
+
+  private enabledPublishVideoCodecs: Codec[] = [];
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
@@ -484,6 +488,9 @@ export default class LocalParticipant extends Participant {
    * @returns
    */
   async createTracks(options?: CreateLocalTracksOptions): Promise<LocalTrack[]> {
+    options ??= {};
+    const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(options);
+
     const mergedOptions = mergeDefaultOptions(
       options,
       this.roomOptions?.audioCaptureDefaults,
@@ -538,12 +545,10 @@ export default class LocalParticipant extends Participant {
           track.setAudioContext(this.audioContext);
         }
         track.mediaStream = stream;
-        if (trackOptions.processor) {
-          if (track instanceof LocalAudioTrack) {
-            await track.setProcessor(trackOptions.processor as TrackProcessor<Track.Kind.Audio>);
-          } else {
-            await track.setProcessor(trackOptions.processor as TrackProcessor<Track.Kind.Video>);
-          }
+        if (track instanceof LocalAudioTrack && audioProcessor) {
+          await track.setProcessor(audioProcessor);
+        } else if (track instanceof LocalVideoTrack && videoProcessor) {
+          await track.setProcessor(videoProcessor);
         }
         return track;
       }),
@@ -777,6 +782,17 @@ export default class LocalParticipant extends Participant {
     if (opts.videoCodec === undefined) {
       opts.videoCodec = defaultVideoCodec;
     }
+    if (this.enabledPublishVideoCodecs.length > 0) {
+      // fallback to a supported codec if it is not supported
+      if (
+        !this.enabledPublishVideoCodecs.some(
+          (c) => opts.videoCodec === mimeTypeToVideoCodecString(c.mime),
+        )
+      ) {
+        opts.videoCodec = mimeTypeToVideoCodecString(this.enabledPublishVideoCodecs[0].mime);
+      }
+    }
+
     const videoCodec = opts.videoCodec;
 
     // handle track actions
@@ -910,33 +926,87 @@ export default class LocalParticipant extends Participant {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
     }
 
-    const ti = await this.engine.addTrack(req);
-    // server might not support the codec the client has requested, in that case, fallback
-    // to a supported codec
-    let primaryCodecMime: string | undefined;
-    ti.codecs.forEach((codec) => {
-      if (primaryCodecMime === undefined) {
-        primaryCodecMime = codec.mimeType;
+    const negotiate = async () => {
+      if (!this.engine.pcManager) {
+        throw new UnexpectedConnectionState('pcManager is not ready');
       }
-    });
-    if (primaryCodecMime && track.kind === Track.Kind.Video) {
-      const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
-      if (updatedCodec !== videoCodec) {
-        this.log.debug('falling back to server selected codec', {
-          ...this.logContext,
-          ...getLogContextFromTrack(track),
-          codec: updatedCodec,
-        });
-        opts.videoCodec = updatedCodec;
 
-        // recompute encodings since bitrates/etc could have changed
-        encodings = computeVideoEncodings(
-          track.source === Track.Source.ScreenShare,
-          req.width,
-          req.height,
-          opts,
-        );
+      track.sender = await this.engine.createSender(track, opts, encodings);
+
+      if (track instanceof LocalVideoTrack) {
+        opts.degradationPreference ??= getDefaultDegradationPreference(track);
+        track.setDegradationPreference(opts.degradationPreference);
       }
+
+      if (encodings) {
+        if (isFireFox() && track.kind === Track.Kind.Audio) {
+          /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
+             livekit-server uses maxaveragebitrate=510000 in the answer sdp to permit client to
+             publish high quality audio track. But firefox always uses this value as the actual
+             bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
+             So the client need to modify maxaverragebitrates in answer sdp to user provided value to
+             fix the issue.
+           */
+          let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
+          for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
+            if (transceiver.sender === track.sender) {
+              trackTransceiver = transceiver;
+              break;
+            }
+          }
+          if (trackTransceiver) {
+            this.engine.pcManager.publisher.setTrackCodecBitrate({
+              transceiver: trackTransceiver,
+              codec: 'opus',
+              maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
+            });
+          }
+        } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
+          this.engine.pcManager.publisher.setTrackCodecBitrate({
+            cid: req.cid,
+            codec: track.codec,
+            maxbr: encodings[0].maxBitrate / 1000,
+          });
+        }
+      }
+
+      await this.engine.negotiate();
+    };
+
+    let ti: TrackInfo;
+    if (this.enabledPublishVideoCodecs.length > 0) {
+      const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
+      ti = rets[0];
+    } else {
+      ti = await this.engine.addTrack(req);
+      // server might not support the codec the client has requested, in that case, fallback
+      // to a supported codec
+      let primaryCodecMime: string | undefined;
+      ti.codecs.forEach((codec) => {
+        if (primaryCodecMime === undefined) {
+          primaryCodecMime = codec.mimeType;
+        }
+      });
+      if (primaryCodecMime && track.kind === Track.Kind.Video) {
+        const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
+        if (updatedCodec !== videoCodec) {
+          this.log.debug('falling back to server selected codec', {
+            ...this.logContext,
+            ...getLogContextFromTrack(track),
+            codec: updatedCodec,
+          });
+          opts.videoCodec = updatedCodec;
+
+          // recompute encodings since bitrates/etc could have changed
+          encodings = computeVideoEncodings(
+            track.source === Track.Source.ScreenShare,
+            req.width,
+            req.height,
+            opts,
+          );
+        }
+      }
+      await negotiate();
     }
 
     const publication = new LocalTrackPublication(track.kind, ti, track, {
@@ -947,55 +1017,11 @@ export default class LocalParticipant extends Participant {
     publication.options = opts;
     track.sid = ti.sid;
 
-    if (!this.engine.pcManager) {
-      throw new UnexpectedConnectionState('pcManager is not ready');
-    }
     this.log.debug(`publishing ${track.kind} with encodings`, {
       ...this.logContext,
       encodings,
       trackInfo: ti,
     });
-
-    track.sender = await this.engine.createSender(track, opts, encodings);
-
-    if (track instanceof LocalVideoTrack) {
-      opts.degradationPreference ??= getDefaultDegradationPreference(track);
-      track.setDegradationPreference(opts.degradationPreference);
-    }
-
-    if (encodings) {
-      if (isFireFox() && track.kind === Track.Kind.Audio) {
-        /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
-           livekit-server uses maxaveragebitrate=510000 in the answer sdp to permit client to
-           publish high quality audio track. But firefox always uses this value as the actual
-           bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
-           So the client need to modify maxaverragebitrates in answer sdp to user provided value to
-           fix the issue.
-         */
-        let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
-        for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
-          if (transceiver.sender === track.sender) {
-            trackTransceiver = transceiver;
-            break;
-          }
-        }
-        if (trackTransceiver) {
-          this.engine.pcManager.publisher.setTrackCodecBitrate({
-            transceiver: trackTransceiver,
-            codec: 'opus',
-            maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
-          });
-        }
-      } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
-        this.engine.pcManager.publisher.setTrackCodecBitrate({
-          cid: req.cid,
-          codec: track.codec,
-          maxbr: encodings[0].maxBitrate / 1000,
-        });
-      }
-    }
-
-    await this.engine.negotiate();
 
     if (track instanceof LocalVideoTrack) {
       track.startMonitor(this.engine.client);
@@ -1083,15 +1109,19 @@ export default class LocalParticipant extends Participant {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
     }
 
-    const ti = await this.engine.addTrack(req);
+    const negotiate = async () => {
+      const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+      if (encodings) {
+        transceiverInit.sendEncodings = encodings;
+      }
+      await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
 
-    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-    if (encodings) {
-      transceiverInit.sendEncodings = encodings;
-    }
-    await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
+      await this.engine.negotiate();
+    };
 
-    await this.engine.negotiate();
+    const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
+    const ti = rets[0];
+
     this.log.debug(`published ${videoCodec} for track ${track.sid}`, {
       ...this.logContext,
       encodings,
@@ -1283,10 +1313,13 @@ export default class LocalParticipant extends Participant {
     await this.engine.sendDataPacket(packet, kind);
   }
 
-  async sendChatMessage(message: string) {
+  /**
+
+   */
+  async sendChatMessage(text: string) {
     const msg = new ChatMessage({
       id: crypto.randomUUID(),
-      message,
+      message: text,
       timestamp: protoInt64.parse(Date.now()),
     });
     const packet = new DataPacket({
@@ -1296,6 +1329,7 @@ export default class LocalParticipant extends Participant {
       },
     });
     await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    return msg.id;
   }
 
   async editChatMessage(messageId: string, editText: string) {
@@ -1303,20 +1337,6 @@ export default class LocalParticipant extends Participant {
       id: messageId,
       message: editText,
       editTimestamp: protoInt64.parse(Date.now()),
-    });
-    const packet = new DataPacket({
-      value: {
-        case: 'chatMessage',
-        value: msg,
-      },
-    });
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
-  }
-
-  async deleteChatMessage(messageId: string) {
-    const msg = new ChatMessage({
-      id: messageId,
-      deleted: true,
     });
     const packet = new DataPacket({
       value: {
@@ -1353,6 +1373,13 @@ export default class LocalParticipant extends Participant {
     if (!this.engine.client.isDisconnected) {
       this.updateTrackSubscriptionPermissions();
     }
+  }
+
+  /** @internal */
+  setEnabledPublishCodecs(codecs: Codec[]) {
+    this.enabledPublishVideoCodecs = codecs.filter(
+      (c) => c.mime.split('/')[0].toLowerCase() === 'video',
+    );
   }
 
   /** @internal */
@@ -1540,7 +1567,12 @@ export default class LocalParticipant extends Participant {
             ...this.logContext,
             ...getLogContextFromTrack(track),
           });
-          await track.restartTrack();
+          if (track instanceof LocalAudioTrack) {
+            // fall back to default device if available
+            await track.restartTrack({ deviceId: 'default' });
+          } else {
+            await track.restartTrack();
+          }
         }
       } catch (e) {
         this.log.warn(`could not restart track, muting instead`, {

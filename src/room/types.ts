@@ -65,6 +65,8 @@ export interface TranscriptionSegment {
   startTime: number;
   endTime: number;
   final: boolean;
+  firstReceivedTime: number;
+  lastReceivedTime: number;
 }
 
 export interface ChatMessage {

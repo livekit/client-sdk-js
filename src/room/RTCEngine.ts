@@ -232,7 +232,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       // create offer
-      if (!this.subscriberPrimary) {
+      if (!this.subscriberPrimary || joinResponse.fastPublish) {
         this.negotiate();
       }
 

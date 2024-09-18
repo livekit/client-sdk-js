@@ -47,6 +47,66 @@ describe('videoLayersFromEncodings', () => {
     expect(layers[2].height).toBe(720);
   });
 
+  it('returns qualities starting from lowest for SVC', () => {
+    const layers = videoLayersFromEncodings(
+      1280,
+      720,
+      [
+        {
+          /** @ts-ignore */
+          scalabilityMode: 'L2T2',
+        },
+      ],
+      true,
+    );
+
+    expect(layers).toHaveLength(2);
+    expect(layers[0].quality).toBe(VideoQuality.MEDIUM);
+    expect(layers[0].width).toBe(1280);
+    expect(layers[1].quality).toBe(VideoQuality.LOW);
+    expect(layers[1].width).toBe(640);
+  });
+
+  it('returns qualities starting from lowest for SVC (three layers)', () => {
+    const layers = videoLayersFromEncodings(
+      1280,
+      720,
+      [
+        {
+          /** @ts-ignore */
+          scalabilityMode: 'L3T3',
+        },
+      ],
+      true,
+    );
+
+    expect(layers).toHaveLength(3);
+    expect(layers[0].quality).toBe(VideoQuality.HIGH);
+    expect(layers[0].width).toBe(1280);
+    expect(layers[1].quality).toBe(VideoQuality.MEDIUM);
+    expect(layers[1].width).toBe(640);
+    expect(layers[2].quality).toBe(VideoQuality.LOW);
+    expect(layers[2].width).toBe(320);
+  });
+
+  it('returns qualities starting from lowest for SVC (single layer)', () => {
+    const layers = videoLayersFromEncodings(
+      1280,
+      720,
+      [
+        {
+          /** @ts-ignore */
+          scalabilityMode: 'L1T2',
+        },
+      ],
+      true,
+    );
+
+    expect(layers).toHaveLength(1);
+    expect(layers[0].quality).toBe(VideoQuality.LOW);
+    expect(layers[0].width).toBe(1280);
+  });
+
   it('handles portrait', () => {
     const layers = videoLayersFromEncodings(720, 1280, [
       {

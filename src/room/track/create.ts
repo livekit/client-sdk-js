@@ -14,12 +14,31 @@ import type {
   VideoCaptureOptions,
 } from './options';
 import { ScreenSharePresets } from './options';
-import type { TrackProcessor } from './processor/types';
+import type {
+  AudioProcessorOptions,
+  TrackProcessor,
+  VideoProcessorOptions,
+} from './processor/types';
 import {
   constraintsForOptions,
   mergeDefaultOptions,
   screenCaptureToDisplayMediaStreamOptions,
 } from './utils';
+
+/** @internal */
+export function extractProcessorsFromOptions(options: CreateLocalTracksOptions) {
+  let audioProcessor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
+  let videoProcessor: TrackProcessor<Track.Kind.Video, VideoProcessorOptions> | undefined;
+
+  if (typeof options.audio === 'object' && options.audio.processor) {
+    audioProcessor = options.audio.processor;
+  }
+  if (typeof options.video === 'object' && options.video.processor) {
+    videoProcessor = options.video.processor;
+  }
+
+  return { audioProcessor, videoProcessor };
+}
 
 /**
  * Creates a local video and audio track at the same time. When acquiring both
@@ -35,6 +54,7 @@ export async function createLocalTracks(
   options.audio ??= true;
   options.video ??= true;
 
+  const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(options);
   const opts = mergeDefaultOptions(options, audioDefaults, videoDefaults);
   const constraints = constraintsForOptions(opts);
 
@@ -55,7 +75,7 @@ export async function createLocalTracks(
   return Promise.all(
     stream.getTracks().map(async (mediaStreamTrack) => {
       const isAudio = mediaStreamTrack.kind === 'audio';
-      let trackOptions = isAudio ? options!.audio : options!.video;
+      let trackOptions = isAudio ? opts!.audio : opts!.video;
       if (typeof trackOptions === 'boolean' || !trackOptions) {
         trackOptions = {};
       }
@@ -80,13 +100,12 @@ export async function createLocalTracks(
         track.source = Track.Source.Microphone;
       }
       track.mediaStream = stream;
-      if (trackOptions.processor) {
-        if (track instanceof LocalAudioTrack) {
-          await track.setProcessor(trackOptions.processor as TrackProcessor<Track.Kind.Audio>);
-        } else if (track instanceof LocalVideoTrack) {
-          await track.setProcessor(trackOptions.processor as TrackProcessor<Track.Kind.Video>);
-        }
+      if (track instanceof LocalAudioTrack && audioProcessor) {
+        await track.setProcessor(audioProcessor);
+      } else if (track instanceof LocalVideoTrack && videoProcessor) {
+        await track.setProcessor(videoProcessor);
       }
+
       return track;
     }),
   );

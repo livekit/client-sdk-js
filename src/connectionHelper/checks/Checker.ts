@@ -105,7 +105,7 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
     if (this.room.state === ConnectionState.Connected) {
       return this.room;
     }
-    await this.room.connect(this.url, this.token);
+    await this.room.connect(this.url, this.token, this.connectOptions);
     return this.room;
   }
 

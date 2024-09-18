@@ -58,6 +58,7 @@ import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
+import type LocalTrack from './track/LocalTrack';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteTrack from './track/RemoteTrack';
@@ -170,6 +171,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private isResuming: boolean = false;
 
   /**
+   * map to store first point in time when a particular transcription segment was received
+   */
+  private transcriptionReceivedTimes: Map<string, number>;
+
+  /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
    */
@@ -181,6 +187,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.options = { ...roomOptionDefaults, ...options };
 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room);
+    this.transcriptionReceivedTimes = new Map();
 
     this.options.audioCaptureDefaults = {
       ...audioDefaults,
@@ -377,6 +384,24 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(EngineEvent.DCBufferStatusChanged, (status, kind) => {
         this.emit(RoomEvent.DCBufferStatusChanged, status, kind);
+      })
+      .on(EngineEvent.LocalTrackSubscribed, (subscribedSid) => {
+        const trackPublication = this.localParticipant
+          .getTrackPublications()
+          .find(({ trackSid }) => trackSid === subscribedSid) as LocalTrackPublication | undefined;
+        if (!trackPublication) {
+          this.log.warn(
+            'could not find local track subscription for subscribed event',
+            this.logContext,
+          );
+          return;
+        }
+        this.localParticipant.emit(ParticipantEvent.LocalTrackSubscribed, trackPublication);
+        this.emitWhenConnected(
+          RoomEvent.LocalTrackSubscribed,
+          trackPublication,
+          this.localParticipant,
+        );
       });
 
     if (this.localParticipant) {
@@ -389,9 +414,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   /**
    * getLocalDevices abstracts navigator.mediaDevices.enumerateDevices.
-   * In particular, it handles Chrome's unique behavior of creating `default`
-   * devices. When encountered, it'll be removed from the list of devices.
-   * The actual default device will be placed at top.
+   * In particular, it requests device permissions by default if needed
+   * and makes sure the returned device does not consist of dummy devices
    * @param kind
    * @returns a list of available local devices
    */
@@ -615,6 +639,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.localParticipant.sid = pi.sid;
     this.localParticipant.identity = pi.identity;
+    this.localParticipant.setEnabledPublishCodecs(joinResponse.enabledPublishCodecs);
 
     if (this.options.e2ee && this.e2eeManager) {
       try {
@@ -1055,7 +1080,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     let success = true;
     const deviceConstraint = exact ? { exact: deviceId } : deviceId;
     if (kind === 'audioinput') {
-      const prevDeviceId = this.options.audioCaptureDefaults!.deviceId;
+      const prevDeviceId =
+        this.getActiveDevice(kind) ?? this.options.audioCaptureDefaults!.deviceId;
       this.options.audioCaptureDefaults!.deviceId = deviceConstraint;
       deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.audioTrackPublications.values()).filter(
@@ -1070,7 +1096,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     } else if (kind === 'videoinput') {
-      const prevDeviceId = this.options.videoCaptureDefaults!.deviceId;
+      const prevDeviceId =
+        this.getActiveDevice(kind) ?? this.options.videoCaptureDefaults!.deviceId;
       this.options.videoCaptureDefaults!.deviceId = deviceConstraint;
       deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.videoTrackPublications.values()).filter(
@@ -1097,7 +1124,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           (await DeviceManager.getInstance().normalizeDeviceId('audiooutput', deviceId)) ?? '';
       }
       this.options.audioOutput ??= {};
-      const prevDeviceId = this.options.audioOutput.deviceId;
+      const prevDeviceId = this.getActiveDevice(kind) ?? this.options.audioOutput.deviceId;
       this.options.audioOutput.deviceId = deviceId;
       deviceHasChanged = prevDeviceId !== deviceConstraint;
 
@@ -1281,6 +1308,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.clearConnectionReconcile();
     this.isResuming = false;
     this.bufferedEvents = [];
+    this.transcriptionReceivedTimes.clear();
     if (this.state === ConnectionState.Disconnected) {
       return;
     }
@@ -1544,7 +1572,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         : this.getParticipantByIdentity(transcription.transcribedParticipantIdentity);
     const publication = participant?.trackPublications.get(transcription.trackId);
 
-    const segments = extractTranscriptionSegments(transcription);
+    const segments = extractTranscriptionSegments(transcription, this.transcriptionReceivedTimes);
 
     publication?.emit(TrackEvent.TranscriptionReceived, segments);
     participant?.emit(ParticipantEvent.TranscriptionReceived, segments, publication);
@@ -1591,6 +1619,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleDeviceChange = async () => {
+    const availableDevices = await DeviceManager.getInstance().getDevices();
+    // inputs are automatically handled via TrackEvent.Ended causing a TrackEvent.Restarted. Here we only need to worry about audiooutputs changing
+    const kinds: MediaDeviceKind[] = ['audiooutput'];
+    for (let kind of kinds) {
+      // switch to first available device if previously active device is not available any more
+      const devicesOfKind = availableDevices.filter((d) => d.kind === kind);
+      if (
+        devicesOfKind.length > 0 &&
+        !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === this.getActiveDevice(kind))
+      ) {
+        await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
+      }
+    }
+
     this.emit(RoomEvent.MediaDevicesChanged);
   };
 
@@ -1914,6 +1956,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private onLocalTrackPublished = async (pub: LocalTrackPublication) => {
     pub.track?.on(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
+    pub.track?.on(TrackEvent.Restarted, this.onLocalTrackRestarted);
     pub.track?.getProcessor()?.onPublish?.(this);
 
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
@@ -1938,7 +1981,25 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private onLocalTrackUnpublished = (pub: LocalTrackPublication) => {
     pub.track?.off(TrackEvent.TrackProcessorUpdate, this.onTrackProcessorUpdate);
+    pub.track?.off(TrackEvent.Restarted, this.onLocalTrackRestarted);
     this.emit(RoomEvent.LocalTrackUnpublished, pub, this.localParticipant);
+  };
+
+  private onLocalTrackRestarted = async (track: LocalTrack) => {
+    const deviceId = await track.getDeviceId(false);
+    const deviceKind = sourceToKind(track.source);
+    if (
+      deviceKind &&
+      deviceId &&
+      deviceId !== this.localParticipant.activeDeviceMap.get(deviceKind)
+    ) {
+      this.log.debug(
+        `local track restarted, setting ${deviceKind} ${deviceId} active`,
+        this.logContext,
+      );
+      this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
+      this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
+    }
   };
 
   private onLocalConnectionQualityChanged = (quality: ConnectionQuality) => {
@@ -2220,4 +2281,5 @@ export type RoomEventCallbacks = {
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
   chatMessageReceived: (message: ChatMessage, participant?: RemoteParticipant) => void;
+  localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
 };
