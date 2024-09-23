@@ -1602,7 +1602,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleDeviceChange = async () => {
-    const availableDevices = await DeviceManager.getInstance().getDevices();
+    // check for available devices, but don't request permissions in order to avoid prompts for kinds that haven't been used before
+    const availableDevices = await DeviceManager.getInstance().getDevices(undefined, false);
     // inputs are automatically handled via TrackEvent.Ended causing a TrackEvent.Restarted. Here we only need to worry about audiooutputs changing
     const kinds: MediaDeviceKind[] = ['audiooutput'];
     for (let kind of kinds) {
