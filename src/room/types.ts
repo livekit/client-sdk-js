@@ -74,5 +74,4 @@ export interface ChatMessage {
   timestamp: number;
   message: string;
   editTimestamp?: number;
-  deleted?: boolean;
 }

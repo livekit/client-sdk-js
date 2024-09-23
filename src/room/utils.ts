@@ -561,12 +561,11 @@ export function extractTranscriptionSegments(
 }
 
 export function extractChatMessage(msg: ChatMessageModel): ChatMessage {
-  const { id, timestamp, message, deleted, editTimestamp } = msg;
+  const { id, timestamp, message, editTimestamp } = msg;
   return {
     id,
     timestamp: Number.parseInt(timestamp.toString()),
     editTimestamp: editTimestamp ? Number.parseInt(editTimestamp.toString()) : undefined,
     message,
-    deleted,
   };
 }
