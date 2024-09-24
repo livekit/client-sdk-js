@@ -50,7 +50,12 @@ export { facingModeFromDeviceLabel, facingModeFromLocalTrack } from './room/trac
 export * from './room/track/options';
 export * from './room/track/processor/types';
 export * from './room/track/types';
-export type { DataPublishOptions, SimulationScenario, TranscriptionSegment } from './room/types';
+export type {
+  DataPublishOptions,
+  SimulationScenario,
+  TranscriptionSegment,
+  ChatMessage,
+} from './room/types';
 export * from './version';
 export {
   ConnectionQuality,
