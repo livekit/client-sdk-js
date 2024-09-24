@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.5.4
+
+### Patch Changes
+
+- Export ChatMessage type - [#1254](https://github.com/livekit/client-sdk-js/pull/1254) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.5.3
 
 ### Patch Changes
