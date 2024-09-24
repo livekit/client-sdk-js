@@ -68,3 +68,10 @@ export interface TranscriptionSegment {
   firstReceivedTime: number;
   lastReceivedTime: number;
 }
+
+export interface ChatMessage {
+  id: string;
+  timestamp: number;
+  message: string;
+  editTimestamp?: number;
+}

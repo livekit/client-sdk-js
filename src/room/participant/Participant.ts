@@ -19,7 +19,7 @@ import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
 import { diffAttributes } from '../track/utils';
-import type { LoggerOptions, TranscriptionSegment } from '../types';
+import type { ChatMessage, LoggerOptions, TranscriptionSegment } from '../types';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -387,4 +387,5 @@ export type ParticipantEventCallbacks = {
   ) => void;
   attributesChanged: (changedAttributes: Record<string, string>) => void;
   localTrackSubscribed: (trackPublication: LocalTrackPublication) => void;
+  chatMessage: (msg: ChatMessage) => void;
 };

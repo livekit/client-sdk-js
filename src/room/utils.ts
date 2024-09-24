@@ -1,4 +1,9 @@
-import { ClientInfo, ClientInfo_SDK, Transcription as TranscriptionModel } from '@livekit/protocol';
+import {
+  ChatMessage as ChatMessageModel,
+  ClientInfo,
+  ClientInfo_SDK,
+  Transcription as TranscriptionModel,
+} from '@livekit/protocol';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import CriticalTimers from './timers';
@@ -6,7 +11,7 @@ import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
 import { VideoCodec, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
-import type { LiveKitReactNativeInfo, TranscriptionSegment } from './types';
+import type { ChatMessage, LiveKitReactNativeInfo, TranscriptionSegment } from './types';
 
 const separator = '|';
 export const ddExtensionURI =
@@ -553,4 +558,14 @@ export function extractTranscriptionSegments(
       lastReceivedTime,
     };
   });
+}
+
+export function extractChatMessage(msg: ChatMessageModel): ChatMessage {
+  const { id, timestamp, message, editTimestamp } = msg;
+  return {
+    id,
+    timestamp: Number.parseInt(timestamp.toString()),
+    editTimestamp: editTimestamp ? Number.parseInt(editTimestamp.toString()) : undefined,
+    message,
+  };
 }

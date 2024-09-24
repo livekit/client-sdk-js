@@ -1,5 +1,6 @@
 import {
   AddTrackRequest,
+  ChatMessage as ChatMessageModel,
   Codec,
   DataPacket,
   DataPacket_Kind,
@@ -13,6 +14,7 @@ import {
   TrackInfo,
   TrackUnpublishedResponse,
   UserPacket,
+  protoInt64,
 } from '@livekit/protocol';
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
@@ -48,7 +50,7 @@ import {
   mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
-import type { DataPublishOptions } from '../types';
+import type { ChatMessage, DataPublishOptions } from '../types';
 import {
   Future,
   isE2EESimulcastSupported,
@@ -1345,6 +1347,47 @@ export default class LocalParticipant extends Participant {
     });
 
     await this.engine.sendDataPacket(packet, kind);
+  }
+
+  async sendChatMessage(text: string): Promise<ChatMessage> {
+    const msg = {
+      id: crypto.randomUUID(),
+      message: text,
+      timestamp: Date.now(),
+    } as const satisfies ChatMessage;
+    const packet = new DataPacket({
+      value: {
+        case: 'chatMessage',
+        value: new ChatMessageModel({
+          ...msg,
+          timestamp: protoInt64.parse(msg.timestamp),
+        }),
+      },
+    });
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    this.emit(ParticipantEvent.ChatMessage, msg);
+    return msg;
+  }
+
+  async editChatMessage(editText: string, originalMessage: ChatMessage) {
+    const msg = {
+      ...originalMessage,
+      message: editText,
+      editTimestamp: Date.now(),
+    } as const satisfies ChatMessage;
+    const packet = new DataPacket({
+      value: {
+        case: 'chatMessage',
+        value: new ChatMessageModel({
+          ...msg,
+          timestamp: protoInt64.parse(msg.timestamp),
+          editTimestamp: protoInt64.parse(msg.editTimestamp),
+        }),
+      },
+    });
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    this.emit(ParticipantEvent.ChatMessage, msg);
+    return msg;
   }
 
   /**

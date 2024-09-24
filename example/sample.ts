@@ -31,7 +31,7 @@ import {
   supportsVP9,
 } from '../src/index';
 import { ScalabilityMode } from '../src/room/track/options';
-import type { SimulationScenario } from '../src/room/types';
+import type { ChatMessage, SimulationScenario } from '../src/room/types';
 import { isSVCCodec } from '../src/room/utils';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -148,7 +148,7 @@ const appActions = {
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
       .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
-      .on(RoomEvent.DataReceived, handleData)
+      .on(RoomEvent.ChatMessage, handleChatMessage)
       .on(RoomEvent.Disconnected, handleRoomDisconnect)
       .on(RoomEvent.Reconnecting, () => appendLog('Reconnecting to room'))
       .on(RoomEvent.Reconnected, async () => {
@@ -354,10 +354,7 @@ const appActions = {
     if (!currentRoom) return;
     const textField = <HTMLInputElement>$('entry');
     if (textField.value) {
-      const msg = state.encoder.encode(textField.value);
-      currentRoom.localParticipant.publishData(msg, { reliable: true });
-      (<HTMLTextAreaElement>$('chat')).value +=
-        `${currentRoom.localParticipant.identity} (me): ${textField.value}\n`;
+      currentRoom.localParticipant.sendChatMessage(textField.value);
       textField.value = '';
     }
   },
@@ -450,14 +447,9 @@ window.appActions = appActions;
 
 // --------------------------- event handlers ------------------------------- //
 
-function handleData(msg: Uint8Array, participant?: RemoteParticipant) {
-  const str = state.decoder.decode(msg);
-  const chat = <HTMLTextAreaElement>$('chat');
-  let from = 'server';
-  if (participant) {
-    from = participant.identity;
-  }
-  chat.value += `${from}: ${str}\n`;
+function handleChatMessage(msg: ChatMessage, participant?: LocalParticipant | RemoteParticipant) {
+  (<HTMLTextAreaElement>$('chat')).value +=
+    `${participant?.identity}${participant instanceof LocalParticipant ? ' (me)' : ''}: ${msg.message}\n`;
 }
 
 function participantConnected(participant: Participant) {
