@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.5.3
+
+### Patch Changes
+
+- Ensure republishing is finished when calling setTrackEnabled methods - [#1250](https://github.com/livekit/client-sdk-js/pull/1250) ([@lukasIO](https://github.com/lukasIO))
+
+- Add dedicated chat API - [#1224](https://github.com/livekit/client-sdk-js/pull/1224) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix permissions for all devices being requested when connecting/disconnecting devices - [#1249](https://github.com/livekit/client-sdk-js/pull/1249) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.5.2
 
 ### Patch Changes
