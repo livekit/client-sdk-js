@@ -259,7 +259,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    * Updates metadata from server
    **/
   private _setAttributes(attributes: Record<string, string>) {
-    const diff = diffAttributes(attributes, this.attributes);
+    const diff = diffAttributes(this.attributes, attributes);
     this._attributes = attributes;
 
     if (Object.keys(diff).length > 0) {
