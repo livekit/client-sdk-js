@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.5.5
+
+### Patch Changes
+
+- Fix changed attribute computation - [#1257](https://github.com/livekit/client-sdk-js/pull/1257) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.5.4
 
 ### Patch Changes
