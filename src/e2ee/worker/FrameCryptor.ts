@@ -233,11 +233,17 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
     const keySet = this.keys.getKeySet();
     if (!keySet) {
-      throw new TypeError(
-        `key set not found for ${
-          this.participantIdentity
-        } at index ${this.keys.getCurrentKeyIndex()}`,
+      this.emit(
+        CryptorEvent.Error,
+        new CryptorError(
+          `key set not found for ${
+            this.participantIdentity
+          } at index ${this.keys.getCurrentKeyIndex()}`,
+          CryptorErrorReason.MissingKey,
+          this.participantIdentity,
+        ),
       );
+      return controller.enqueue(encodedFrame);
     }
     const { encryptionKey } = keySet;
     const keyIndex = this.keys.getCurrentKeyIndex();
