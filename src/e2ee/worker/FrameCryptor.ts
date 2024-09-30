@@ -229,7 +229,7 @@ export class FrameCryptor extends BaseFrameCryptor {
       // skip for encryption for empty dtx frames
       encodedFrame.data.byteLength === 0
     ) {
-      return;
+      return controller.enqueue(encodedFrame);
     }
     const keySet = this.keys.getKeySet();
     if (!keySet) {
