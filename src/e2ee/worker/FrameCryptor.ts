@@ -243,7 +243,7 @@ export class FrameCryptor extends BaseFrameCryptor {
           this.participantIdentity,
         ),
       );
-      return controller.enqueue();
+      return;
     }
     const { encryptionKey } = keySet;
     const keyIndex = this.keys.getCurrentKeyIndex();
