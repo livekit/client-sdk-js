@@ -115,6 +115,11 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
         break;
 
       case 'enable':
+        if (data.enabled) {
+          this.keyProvider.getKeys().forEach((keyInfo) => {
+            this.postKey(keyInfo);
+          });
+        }
         if (
           this.encryptionEnabled !== data.enabled &&
           data.participantIdentity === this.room?.localParticipant.identity
@@ -133,11 +138,6 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
             );
           }
           this.emit(EncryptionEvent.ParticipantEncryptionStatusChanged, data.enabled, participant);
-        }
-        if (this.encryptionEnabled) {
-          this.keyProvider.getKeys().forEach((keyInfo) => {
-            this.postKey(keyInfo);
-          });
         }
         break;
       case 'ratchetKey':
@@ -196,13 +196,13 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
         if (!this.room) {
           throw new TypeError(`expected room to be present on signal connect`);
         }
+        keyProvider.getKeys().forEach((keyInfo) => {
+          this.postKey(keyInfo);
+        });
         this.setParticipantCryptorEnabled(
           this.room.localParticipant.isE2EEEnabled,
           this.room.localParticipant.identity,
         );
-        keyProvider.getKeys().forEach((keyInfo) => {
-          this.postKey(keyInfo);
-        });
       });
     room.localParticipant.on(ParticipantEvent.LocalTrackPublished, async (publication) => {
       this.setupE2EESender(publication.track!, publication.track!.sender!);
