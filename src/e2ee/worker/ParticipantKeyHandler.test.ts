@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
+import { createKeyMaterialFromString } from '../utils';
 
 describe('ParticipantKeyHandler', () => {
   const participantIdentity = 'testParticipant';
@@ -11,25 +12,26 @@ describe('ParticipantKeyHandler', () => {
     }).toThrowError(TypeError);
   });
 
-  it('keyringSize must be less than 256', () => {
+  it('keyringSize must be max 256', () => {
     expect(() => {
       new ParticipantKeyHandler(participantIdentity, {
         ...KEY_PROVIDER_DEFAULTS,
-        keyringSize: 256,
+        keyringSize: 257,
       });
     }).toThrowError(TypeError);
   });
 
-  it('get and sets keys at an index', () => {
+  it('get and sets keys at an index', async () => {
     const keyHandler = new ParticipantKeyHandler(participantIdentity, {
       ...KEY_PROVIDER_DEFAULTS,
       keyringSize: 128,
     });
-    const keyA = { key: 'a' } as unknown as CryptoKey;
-    const keyB = { key: 'b' } as unknown as CryptoKey;
-    keyHandler.setKey(keyA, 0);
-    expect(keyHandler.getKeySet(0)).toEqual(keyA);
-    keyHandler.setKey(keyB, 0);
-    expect(keyHandler.getKeySet(0)).toEqual(keyB);
+    const materialA = await createKeyMaterialFromString('passwordA');
+    const materialB = await createKeyMaterialFromString('passwordB');
+    await keyHandler.setKey(materialA, 0);
+    expect(keyHandler.getKeySet(0)).toBeDefined();
+    expect(keyHandler.getKeySet(0)?.material).toEqual(materialA);
+    await keyHandler.setKey(materialB, 0);
+    expect(keyHandler.getKeySet(0)?.material).toEqual(materialB);
   });
 });
