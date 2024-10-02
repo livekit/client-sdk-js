@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
+import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 describe('ParticipantKeyHandler', () => {
   const participantIdentity = 'testParticipant';
@@ -13,12 +13,18 @@ describe('ParticipantKeyHandler', () => {
 
   it('keyringSize must be less than 256', () => {
     expect(() => {
-      new ParticipantKeyHandler(participantIdentity, { ...KEY_PROVIDER_DEFAULTS, keyringSize: 256 });
+      new ParticipantKeyHandler(participantIdentity, {
+        ...KEY_PROVIDER_DEFAULTS,
+        keyringSize: 256,
+      });
     }).toThrowError(TypeError);
   });
 
   it('get and sets keys at an index', () => {
-    const keyHandler = new ParticipantKeyHandler(participantIdentity, { ...KEY_PROVIDER_DEFAULTS, keyringSize: 128 });
+    const keyHandler = new ParticipantKeyHandler(participantIdentity, {
+      ...KEY_PROVIDER_DEFAULTS,
+      keyringSize: 128,
+    });
     const keyA = { key: 'a' } as unknown as CryptoKey;
     const keyB = { key: 'b' } as unknown as CryptoKey;
     keyHandler.setKey(keyA, 0);
