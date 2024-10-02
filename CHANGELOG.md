@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.5.6
+
+### Patch Changes
+
+- Handle e2ee worker messages sequentially - [#1260](https://github.com/livekit/client-sdk-js/pull/1260) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.5.5
 
 ### Patch Changes
