@@ -8,7 +8,7 @@ import {
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
-import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
+import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
 import { isFireFox, isSafari, isWeb } from '../utils';

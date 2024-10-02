@@ -16,7 +16,7 @@
     "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */,
     "moduleResolution": "node",
     "resolveJsonModule": true,
-    "importsNotUsedAsValues": "error",
+    "verbatimModuleSyntax": true,
     "ignoreDeprecations": "5.0"
   },
   "exclude": ["dist", "**/*.test.ts"],

@@ -9,7 +9,7 @@ import {
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
-import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
+import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
 import { ParticipantEvent, TrackEvent } from '../events';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
