@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
-import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { createKeyMaterialFromString } from '../utils';
+import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
 describe('ParticipantKeyHandler', () => {
   const participantIdentity = 'testParticipant';
