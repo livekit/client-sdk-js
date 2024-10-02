@@ -135,6 +135,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** reflects the sender encryption status of the local participant */
   isE2EEEnabled: boolean = false;
 
+  serverVersion?: string;
+
   private roomInfo?: RoomModel;
 
   private sidToIdentity: Map<string, string>;
@@ -609,6 +611,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (!serverInfo) {
       serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
     }
+    this.serverVersion = serverInfo.version;
 
     this.log.debug(
       `connected to Livekit Server ${Object.entries(serverInfo)
@@ -621,11 +624,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       },
     );
 
-    if (!joinResponse.serverVersion) {
+    if (!serverInfo.version) {
       throw new UnsupportedServer('unknown server version');
     }
 
-    if (joinResponse.serverVersion === '0.15.1' && this.options.dynacast) {
+    if (serverInfo.version === '0.15.1' && this.options.dynacast) {
       this.log.debug('disabling dynacast due to server version', this.logContext);
       // dynacast has a bug in 0.15.1, so we cannot use it then
       roomOptions.dynacast = false;
