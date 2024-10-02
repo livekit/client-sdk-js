@@ -38,7 +38,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
   constructor(participantIdentity: string, keyProviderOptions: KeyProviderOptions) {
     super();
     this.currentKeyIndex = 0;
-    if (keyProviderOptions.keyringSize < 1 || keyProviderOptions.keyringSize > 255) {
+    if (keyProviderOptions.keyringSize < 1 || keyProviderOptions.keyringSize > 256) {
       throw new TypeError('Keyring size needs to be between 1 and 256');
     }
     this.cryptoKeyRing = new Array(keyProviderOptions.keyringSize).fill(undefined);
