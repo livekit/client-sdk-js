@@ -1,5 +1,5 @@
 import { workerLogger } from '../../logger';
-import { VideoCodec } from '../../room/track/options';
+import type { VideoCodec } from '../../room/track/options';
 import { AsyncQueue } from '../../utils/AsyncQueue';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';

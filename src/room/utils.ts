@@ -9,7 +9,7 @@ import { protocolVersion, version } from '../version';
 import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
-import { VideoCodec, videoCodecs } from './track/options';
+import { type VideoCodec, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
 import type { ChatMessage, LiveKitReactNativeInfo, TranscriptionSegment } from './types';
 
