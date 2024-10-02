@@ -135,7 +135,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** reflects the sender encryption status of the local participant */
   isE2EEEnabled: boolean = false;
 
-  serverVersion?: string;
+  serverInfo?: Partial<ServerInfo>;
 
   private roomInfo?: RoomModel;
 
@@ -611,7 +611,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (!serverInfo) {
       serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
     }
-    this.serverVersion = serverInfo.version;
+    this.serverInfo = serverInfo;
 
     this.log.debug(
       `connected to Livekit Server ${Object.entries(serverInfo)
