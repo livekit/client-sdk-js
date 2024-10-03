@@ -1,4 +1,4 @@
-import { describe, expect, it, vitest, afterEach } from 'vitest';
+import { afterEach, describe, expect, it, vitest } from 'vitest';
 import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
 import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
@@ -66,6 +66,7 @@ describe('FrameCryptor', () => {
 
     expect(isFrameServerInjected(frameData, frameTrailer)).toBe(true);
   });
+
   it('identifies server non server injected frame correctly', () => {
     const frameTrailer = new TextEncoder().encode('LKROCKS');
     const frameData = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, ...frameTrailer, 10]);

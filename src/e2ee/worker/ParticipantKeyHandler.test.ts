@@ -107,6 +107,7 @@ describe('ParticipantKeyHandler', () => {
     await keyHandler.setKey(material, 10);
     expect(keyHandler.getCurrentKeyIndex()).toBe(10);
   });
+
   it('allows many failures if failureTolerance is -1', async () => {
     const keyHandler = new ParticipantKeyHandler(participantIdentity, {
       ...KEY_PROVIDER_DEFAULTS,
