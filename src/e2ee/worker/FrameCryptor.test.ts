@@ -1,5 +1,4 @@
-import { afterEach } from 'node:test';
-import { describe, expect, it, vitest } from 'vitest';
+import { describe, expect, it, vitest, afterEach } from 'vitest';
 import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
 import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
