@@ -279,7 +279,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       permissions.canPublishSources.length !== this.permissions.canPublishSources.length ||
       permissions.canPublishSources.some(
         (value, index) => value !== this.permissions?.canPublishSources[index],
-      );
+      ) ||
+      permissions.canSubscribeMetrics !== this.permissions?.canSubscribeMetrics;
     this.permissions = permissions;
 
     if (changed) {

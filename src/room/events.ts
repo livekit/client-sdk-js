@@ -294,7 +294,7 @@ export enum RoomEvent {
   MediaDevicesError = 'mediaDevicesError',
 
   /**
-   * A participant's permission has changed. Currently only fired on LocalParticipant.
+   * A participant's permission has changed.
    * args: (prevPermissions: [[ParticipantPermission]], participant: [[Participant]])
    */
   ParticipantPermissionsChanged = 'participantPermissionsChanged',
@@ -502,7 +502,7 @@ export enum ParticipantEvent {
   AudioStreamAcquired = 'audioStreamAcquired',
 
   /**
-   * A participant's permission has changed. Currently only fired on LocalParticipant.
+   * A participant's permission has changed.
    * args: (prevPermissions: [[ParticipantPermission]])
    */
   ParticipantPermissionsChanged = 'participantPermissionsChanged',
