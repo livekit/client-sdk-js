@@ -80,7 +80,12 @@ function prepareParticipantTestDecoder(
 
   const input = new TestUnderlyingSource<RTCEncodedVideoFrame>();
   const output = new TestUnderlyingSink<RTCEncodedVideoFrame>();
-  cryptor.setupTransform('decode', new ReadableStream(input), new WritableStream(output), 'testTrack');
+  cryptor.setupTransform(
+    'decode',
+    new ReadableStream(input),
+    new WritableStream(output),
+    'testTrack',
+  );
 
   return { keys, cryptor, input, output };
 }
@@ -147,7 +152,9 @@ describe('FrameCryptor', () => {
   it('drops frames when invalid key', async () => {
     vitest.useFakeTimers();
     try {
-      const { keys, input, output } = prepareParticipantTestDecoder(participantIdentity, { failureTolerance: 0});
+      const { keys, input, output } = prepareParticipantTestDecoder(participantIdentity, {
+        failureTolerance: 0,
+      });
 
       expect(keys.hasValidKey).toBe(true);
 
