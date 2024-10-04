@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vitest } from 'vitest';
 import { IV_LENGTH, KEY_PROVIDER_DEFAULTS } from '../constants';
+import { CryptorEvent } from '../events';
 import type { KeyProviderOptions } from '../types';
 import { createKeyMaterialFromString } from '../utils';
 import { FrameCryptor, encryptionEnabledMap, isFrameServerInjected } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
-function mockRTCEncodedVideoFrame(data: Uint8Array): RTCEncodedVideoFrame {
+function mockRTCEncodedVideoFrame(keyIndex: number): RTCEncodedVideoFrame {
+  const trailer = mockFrameTrailer(keyIndex);
+  const data = new Uint8Array(trailer.length + 10);
+  data.set(trailer, 10);
   return {
     data: data.buffer,
     timestamp: vitest.getMockedSystemTime()?.getTime() ?? 0,
@@ -25,19 +29,30 @@ function mockFrameTrailer(keyIndex: number): Uint8Array {
   return frameTrailer;
 }
 
-function mockController(): TransformStreamDefaultController {
-  return {
-    desiredSize: 0,
-    enqueue: vitest.fn(),
-    error: vitest.fn(),
-    terminate: vitest.fn(),
-  };
+class TestUnderlyingSource<T> implements UnderlyingSource<T> {
+  controller: ReadableStreamController<T>;
+
+  start(controller: ReadableStreamController<T>): void {
+    this.controller = controller;
+  }
+
+  write(chunk: T): void {
+    this.controller.enqueue(chunk as any);
+  }
+
+  close(): void {
+    this.controller.close();
+  }
 }
 
-function prepareParticipantTest(
+function prepareParticipantTestDecoder(
   participantIdentity: string,
   partialKeyProviderOptions: Partial<KeyProviderOptions>,
-): { keys: ParticipantKeyHandler; cryptor: FrameCryptor } {
+): {
+  keys: ParticipantKeyHandler;
+  cryptor: FrameCryptor;
+  input: TestUnderlyingSource<RTCEncodedVideoFrame>;
+} {
   const keyProviderOptions = { ...KEY_PROVIDER_DEFAULTS, ...partialKeyProviderOptions };
   const keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
 
@@ -50,7 +65,11 @@ function prepareParticipantTest(
     sifTrailer: new Uint8Array(),
   });
 
-  return { keys, cryptor };
+  const input = new TestUnderlyingSource<RTCEncodedVideoFrame>();
+  const writeableStream = new WritableStream();
+  cryptor.setupTransform('decode', new ReadableStream(input), writeableStream, 'testTrack');
+
+  return { keys, cryptor, input };
 }
 
 describe('FrameCryptor', () => {
@@ -77,7 +96,9 @@ describe('FrameCryptor', () => {
   });
 
   it('marks key invalid after too many failures', async () => {
-    const { keys, cryptor } = prepareParticipantTest(participantIdentity, { failureTolerance: 1 });
+    const { keys, cryptor, input } = prepareParticipantTestDecoder(participantIdentity, {
+      failureTolerance: 1,
+    });
 
     expect(keys.hasValidKey).toBe(true);
 
@@ -86,45 +107,54 @@ describe('FrameCryptor', () => {
     vitest.spyOn(keys, 'getKeySet');
     vitest.spyOn(keys, 'decryptionFailure');
 
-    const controller = mockController();
+    const errorListener = vitest.fn().mockImplementation((e) => {
+      console.log('error', e);
+    });
+    cryptor.on(CryptorEvent.Error, errorListener);
 
-    // TODO: use mock streams instead
-    (cryptor as any).decodeFunction(mockRTCEncodedVideoFrame(mockFrameTrailer(1)), controller);
+    input.write(mockRTCEncodedVideoFrame(1));
 
+    await vitest.waitFor(() => expect(keys.decryptionFailure).toHaveBeenCalled());
+    expect(errorListener).toHaveBeenCalled();
     expect(keys.decryptionFailure).toHaveBeenCalledTimes(1);
-    expect(keys.getKeySet).toHaveBeenCalledTimes(2);
+    expect(keys.getKeySet).toHaveBeenCalled();
     expect(keys.getKeySet).toHaveBeenLastCalledWith(1);
-
     expect(keys.hasValidKey).toBe(true);
 
-    (cryptor as any).decodeFunction(mockRTCEncodedVideoFrame(mockFrameTrailer(1)), controller);
+    vitest.clearAllMocks();
 
-    expect(keys.decryptionFailure).toHaveBeenCalledTimes(2);
-    expect(keys.getKeySet).toHaveBeenCalledTimes(4);
+    input.write(mockRTCEncodedVideoFrame(1));
+
+    await vitest.waitFor(() => expect(keys.decryptionFailure).toHaveBeenCalled());
+    expect(errorListener).toHaveBeenCalled();
+    expect(keys.decryptionFailure).toHaveBeenCalledTimes(1);
+    expect(keys.getKeySet).toHaveBeenCalled();
     expect(keys.getKeySet).toHaveBeenLastCalledWith(1);
     expect(keys.hasValidKey).toBe(false);
 
-    // this should still fail as keys are all marked as invalid
-    (cryptor as any).decodeFunction(mockRTCEncodedVideoFrame(mockFrameTrailer(0)), controller);
+    vitest.clearAllMocks();
 
+    // this should still fail as keys are all marked as invalid
+    input.write(mockRTCEncodedVideoFrame(0));
+
+    await vitest.waitFor(() => expect(keys.getKeySet).toHaveBeenCalled());
     // decryptionFailure() isn't called in this case
-    expect(keys.decryptionFailure).toHaveBeenCalledTimes(2);
+    expect(keys.getKeySet).toHaveBeenCalled();
     expect(keys.getKeySet).toHaveBeenLastCalledWith(0);
     expect(keys.hasValidKey).toBe(false);
   });
 
   it('mark as valid when a new key is set on same index', async () => {
-    const { keys, cryptor } = prepareParticipantTest(participantIdentity, { failureTolerance: 0 });
+    const { keys, input } = prepareParticipantTestDecoder(participantIdentity, {
+      failureTolerance: 0,
+    });
 
     const material = await createKeyMaterialFromString('password');
     await keys.setKey(material, 0);
 
     expect(keys.hasValidKey).toBe(true);
 
-    const controller = mockController();
-
-    // TODO: use mock streams instead
-    (cryptor as any).decodeFunction(mockRTCEncodedVideoFrame(mockFrameTrailer(1)), controller);
+    input.write(mockRTCEncodedVideoFrame(1));
 
     expect(keys.hasValidKey).toBe(false);
 
@@ -134,17 +164,16 @@ describe('FrameCryptor', () => {
   });
 
   it('mark as valid when a new key is set on new index', async () => {
-    const { keys, cryptor } = prepareParticipantTest(participantIdentity, { failureTolerance: 0 });
+    const { keys, input } = prepareParticipantTestDecoder(participantIdentity, {
+      failureTolerance: 0,
+    });
 
     const material = await createKeyMaterialFromString('password');
     await keys.setKey(material, 0);
 
     expect(keys.hasValidKey).toBe(true);
 
-    const controller = mockController();
-
-    // TODO: use mock streams instead
-    (cryptor as any).decodeFunction(mockRTCEncodedVideoFrame(mockFrameTrailer(1)), controller);
+    input.write(mockRTCEncodedVideoFrame(1));
 
     expect(keys.hasValidKey).toBe(false);
 
