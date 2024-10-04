@@ -357,7 +357,17 @@ export class FrameCryptor extends BaseFrameCryptor {
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
 
-    if (this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
+    if (keyIndex !== this.keys.getCurrentKeyIndex()) {
+      workerLogger.debug(`received frame with new key index ${keyIndex}`, this.logContext);
+      this.keys.setCurrentKeyIndex(keyIndex);
+    }
+
+    if (!this.keys.hasValidKey) {
+      // drop frame
+      return;
+    }
+
+    if (this.keys.getKeySet(keyIndex)) {
       try {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
         this.keys.decryptionSuccess();
@@ -375,7 +385,7 @@ export class FrameCryptor extends BaseFrameCryptor {
           workerLogger.warn('decoding frame failed', { error });
         }
       }
-    } else if (!this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
+    } else {
       // emit an error if the key index is out of bounds but the key handler thinks we still have a valid key
       workerLogger.warn(`skipping decryption due to missing key at index ${keyIndex}`);
       this.emit(
