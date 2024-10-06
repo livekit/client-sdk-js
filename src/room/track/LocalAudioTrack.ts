@@ -18,7 +18,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
 
   private isKrispNoiseFilterEnabled = false;
 
-  protected processor?: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
+  protected processor?: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined = undefined;
 
   /**
    * boolean indicating whether enhanced noise cancellation is currently being used on this track
