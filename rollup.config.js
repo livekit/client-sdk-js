@@ -38,10 +38,13 @@ export default {
   input: 'src/index.ts',
   output: [
     {
-      file: `dist/${packageJson.name}.esm.mjs`,
-      format: 'es',
+      dir: `dist/esm`,
+      format: "es",
       strict: true,
       sourcemap: true,
+      preserveModules: true,
+      preserveModulesRoot: 'src',
+      entryFileNames: "[name].mjs",
     },
     {
       file: `dist/${packageJson.name}.umd.js`,
