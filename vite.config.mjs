@@ -2,7 +2,6 @@
 import { babel } from '@rollup/plugin-babel';
 import dns from 'dns';
 import { resolve } from 'path';
-import replace from 'rollup-plugin-re';
 import { defineConfig } from 'vite';
 
 dns.setDefaultResultOrder('verbatim');
@@ -33,18 +32,6 @@ export default defineConfig({
           plugins: ['@babel/plugin-proposal-object-rest-spread'],
           presets: ['@babel/preset-env'],
           extensions: ['.js', '.ts', '.mjs'],
-        }),
-        replace({
-          patterns: [
-            {
-              // protobuf.js uses `eval` to determine whether a module is present or not
-              // in most modern browsers this will fail anyways due to CSP, and it's safer to just replace it with `undefined`
-              // until this PR is merged: https://github.com/protobufjs/protobuf.js/pull/1548
-              // related discussion: https://github.com/protobufjs/protobuf.js/issues/593
-              test: /eval.*\(moduleName\);/g,
-              replace: 'undefined;',
-            },
-          ],
         }),
       ],
     },

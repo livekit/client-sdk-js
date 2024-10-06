@@ -92,7 +92,6 @@
     "prettier": "^3.0.0",
     "rollup": "4.24.0",
     "rollup-plugin-delete": "^2.0.0",
-    "rollup-plugin-re": "1.0.7",
     "rollup-plugin-typescript2": "0.36.0",
     "size-limit": "^8.2.4",
     "typedoc": "0.26.7",
