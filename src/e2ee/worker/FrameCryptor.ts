@@ -156,8 +156,8 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   setupTransform(
     operation: 'encode' | 'decode',
-    readable: ReadableStream,
-    writable: WritableStream,
+    readable: ReadableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
+    writable: WritableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
     trackId: string,
     codec?: VideoCodec,
   ) {
