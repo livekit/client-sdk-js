@@ -360,7 +360,10 @@ export class FrameCryptor extends BaseFrameCryptor {
     const keyIndex = data[encodedFrame.data.byteLength - 1];
 
     if (keyIndex !== this.lastKeyIndexReceived) {
-      workerLogger.debug(`received frame with new key index ${keyIndex}. resetting key status`, this.logContext);
+      workerLogger.debug(
+        `received frame with new key index ${keyIndex}. resetting key status`,
+        this.logContext,
+      );
       this.lastKeyIndexReceived = keyIndex;
       this.keys.resetKeyStatus();
     }
