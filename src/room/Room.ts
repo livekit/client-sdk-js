@@ -135,6 +135,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   /** reflects the sender encryption status of the local participant */
   isE2EEEnabled: boolean = false;
 
+  serverInfo?: Partial<ServerInfo>;
+
   private roomInfo?: RoomModel;
 
   private sidToIdentity: Map<string, string>;
@@ -609,6 +611,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (!serverInfo) {
       serverInfo = { version: joinResponse.serverVersion, region: joinResponse.serverRegion };
     }
+    this.serverInfo = serverInfo;
 
     this.log.debug(
       `connected to Livekit Server ${Object.entries(serverInfo)
@@ -621,11 +624,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       },
     );
 
-    if (!joinResponse.serverVersion) {
+    if (!serverInfo.version) {
       throw new UnsupportedServer('unknown server version');
     }
 
-    if (joinResponse.serverVersion === '0.15.1' && this.options.dynacast) {
+    if (serverInfo.version === '0.15.1' && this.options.dynacast) {
       this.log.debug('disabling dynacast due to server version', this.logContext);
       // dynacast has a bug in 0.15.1, so we cannot use it then
       roomOptions.dynacast = false;
@@ -1490,14 +1493,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (!pub || !pub.track) {
         return;
       }
-      pub.track.streamState = Track.streamStateFromProto(streamState.state);
-      participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
-      this.emitWhenConnected(
-        RoomEvent.TrackStreamStateChanged,
-        pub,
-        pub.track.streamState,
-        participant,
-      );
+      const newStreamState = Track.streamStateFromProto(streamState.state);
+      if (newStreamState !== pub.track.streamState) {
+        pub.track.streamState = newStreamState;
+        participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
+        this.emitWhenConnected(
+          RoomEvent.TrackStreamStateChanged,
+          pub,
+          pub.track.streamState,
+          participant,
+        );
+      }
     });
   };
 

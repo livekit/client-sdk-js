@@ -120,9 +120,6 @@ importers:
       rollup-plugin-delete:
         specifier: ^2.0.0
         version: 2.1.0(rollup@4.24.0)
-      rollup-plugin-re:
-        specifier: 1.0.7
-        version: 1.0.7
       rollup-plugin-typescript2:
         specifier: 0.36.0
         version: 0.36.0(rollup@4.24.0)(typescript@5.6.2)
@@ -1981,9 +1978,6 @@ packages:
     resolution: {integrity: sha512-MMdARuVEQziNTeJD8DgMqmhwR11BRQ/cBP+pLtYdSTnf3MIO8fFeiINEbX36ZdNlfU/7A9f3gUw49B3oQsvwBA==}
     engines: {node: '>=4.0'}
 
-  estree-walker@0.6.1:
-    resolution: {integrity: sha512-SqmZANLWS0mnatqbSfRP5g8OXZC12Fgg1IwNtLsyHDzJizORW4khDfjPqJZsemPWBB2uqykUah5YpQ6epsqC/w==}
-
   estree-walker@2.0.2:
     resolution: {integrity: sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w==}
 
@@ -2519,9 +2513,6 @@ packages:
   lunr@2.3.9:
     resolution: {integrity: sha512-zTU3DaZaF3Rt9rhN3uBMGQD3dD2/vFQqnvZCDv4dl5iOzq2IZQqTxu90r4E5J+nP70J3ilqVCrbho2eWaeW8Ow==}
 
-  magic-string@0.16.0:
-    resolution: {integrity: sha512-c4BEos3y6G2qO0B9X7K0FVLOPT9uGrjYwYRLFmDqyl5YMboUviyecnXWp94fJTSMwPw2/sf+CEYt5AGpmklkkQ==}
-
   magic-string@0.30.10:
     resolution: {integrity: sha512-iIRwTIf0QKV3UAnYK4PU8uiEc4SRh5jX0mwpIwETPpHdhVM4f53RSwS/vXvN1JhGX+Cs7B8qIq3d6AH49O5fAQ==}
 
@@ -2922,17 +2913,11 @@ packages:
     peerDependencies:
       rollup: '*'
 
-  rollup-plugin-re@1.0.7:
-    resolution: {integrity: sha512-TyFf3QaV/eJ/50k4wp5BM0SodGy0Idq0uOgvA1q3gHRwgXLPVX5y3CRKkBuHzKTZPC9CTZX7igKw5UvgjDls8w==}
-
   rollup-plugin-typescript2@0.36.0:
     resolution: {integrity: sha512-NB2CSQDxSe9+Oe2ahZbf+B4bh7pHwjV5L+RSYpCu7Q5ROuN94F9b6ioWwKfz3ueL3KTtmX4o2MUH2cgHDIEUsw==}
     peerDependencies:
       rollup: '>=1.26.3'
       typescript: '>=2.4.0'
-
-  rollup-pluginutils@2.8.2:
-    resolution: {integrity: sha512-EEp9NhnUkwY8aif6bxgovPHMoMoNr2FulJziTndpt5H9RdwC47GSGuII9XxpSdzVGM0GWrNPHV6ie1LTNJPaLQ==}
 
   rollup@4.24.0:
     resolution: {integrity: sha512-DOmrlGSXNk1DM0ljiQA+i+o0rSLhtii1je5wgk60j49d1jHT5YYttBv1iWOnYSTG+fZZESUOSNiAl89SIet+Cg==}
@@ -3281,8 +3266,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.7.0-dev.20241002:
-    resolution: {integrity: sha512-FHahwICnaTEQZYVLpDwZdoy/lgPn30O+XQ5VbNGk1UQojnr60qb2XgoPOfohDBojGtQGL5iilNhThM4gLxaMjQ==}
+  typescript@5.7.0-dev.20241006:
+    resolution: {integrity: sha512-XbEUvmjO3pXSwKpsgTKNHLRROzF2K1tSdqiyRPKwJfv84gPU0H6AjRwvaAaYC9D/6+Hpen0bQLLC0uaGePRHTQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -3422,9 +3407,6 @@ packages:
         optional: true
       jsdom:
         optional: true
-
-  vlq@0.2.3:
-    resolution: {integrity: sha512-DRibZL6DsNhIgYQ+wNdWDL2SL3bKPlVrRiBqV5yuMm++op8W4kGFtaQfCs4KEJn0wBZcHVHJ3eoywX8983k1ow==}
 
   w3c-xmlserializer@5.0.0:
     resolution: {integrity: sha512-o8qghlI8NZHU1lLPrpi2+Uq7abh4GGPpYANlalzWxyWteJOCsr/P+oPBA49TOLu5FTZO4d3F9MnWJfiMo4BkmA==}
@@ -5511,7 +5493,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.7.0-dev.20241002
+      typescript: 5.7.0-dev.20241006
 
   electron-to-chromium@1.5.4: {}
 
@@ -5800,8 +5782,6 @@ snapshots:
   estraverse@4.3.0: {}
 
   estraverse@5.3.0: {}
-
-  estree-walker@0.6.1: {}
 
   estree-walker@2.0.2: {}
 
@@ -6371,10 +6351,6 @@ snapshots:
 
   lunr@2.3.9: {}
 
-  magic-string@0.16.0:
-    dependencies:
-      vlq: 0.2.3
-
   magic-string@0.30.10:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.4.15
@@ -6746,11 +6722,6 @@ snapshots:
       del: 5.1.0
       rollup: 4.24.0
 
-  rollup-plugin-re@1.0.7:
-    dependencies:
-      magic-string: 0.16.0
-      rollup-pluginutils: 2.8.2
-
   rollup-plugin-typescript2@0.36.0(rollup@4.24.0)(typescript@5.6.2):
     dependencies:
       '@rollup/pluginutils': 4.2.1
@@ -6760,10 +6731,6 @@ snapshots:
       semver: 7.6.0
       tslib: 2.7.0
       typescript: 5.6.2
-
-  rollup-pluginutils@2.8.2:
-    dependencies:
-      estree-walker: 0.6.1
 
   rollup@4.24.0:
     dependencies:
@@ -7127,7 +7094,7 @@ snapshots:
 
   typescript@5.6.2: {}
 
-  typescript@5.7.0-dev.20241002: {}
+  typescript@5.7.0-dev.20241006: {}
 
   uc.micro@2.1.0: {}
 
@@ -7271,8 +7238,6 @@ snapshots:
       - sugarss
       - supports-color
       - terser
-
-  vlq@0.2.3: {}
 
   w3c-xmlserializer@5.0.0:
     dependencies:
