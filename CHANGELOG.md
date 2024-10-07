@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.5.7
+
+### Patch Changes
+
+- Actually allow E2EE keyring size of 256 - [#1268](https://github.com/livekit/client-sdk-js/pull/1268) ([@hughns](https://github.com/hughns))
+
+- Expose server version info - [#1267](https://github.com/livekit/client-sdk-js/pull/1267) ([@lukasIO](https://github.com/lukasIO))
+
+- Only emit TrackStreamStateChanged events on changed stream state - [#1199](https://github.com/livekit/client-sdk-js/pull/1199) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix duplicate ParticipantPermissionsChanged updates for the local participant - [#1270](https://github.com/livekit/client-sdk-js/pull/1270) ([@davidzhao](https://github.com/davidzhao))
+
 ## 2.5.6
 
 ### Patch Changes
