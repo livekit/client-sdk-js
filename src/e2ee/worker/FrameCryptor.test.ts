@@ -301,6 +301,7 @@ describe('FrameCryptor', () => {
         await vitest.advanceTimersToNextTimerAsync();
 
         expect(keys.decryptionFailure).toHaveBeenCalledTimes(1);
+        expect(keys.decryptionFailure).toHaveBeenCalledWith(1);
         expect(errorListener).toHaveBeenCalled();
       } finally {
         vitest.useRealTimers();
@@ -356,6 +357,7 @@ describe('FrameCryptor', () => {
         expect(output.chunks).toEqual([]);
         expect(errorListener).toHaveBeenCalled();
         expect(keys.decryptionFailure).toHaveBeenCalledTimes(1);
+        expect(keys.decryptionFailure).toHaveBeenCalledWith(1);
       } finally {
         vitest.useRealTimers();
       }
@@ -383,11 +385,71 @@ describe('FrameCryptor', () => {
         expect(output.chunks).toEqual([frame]);
 
         expect(keys.decryptionSuccess).toHaveBeenCalledTimes(1);
+        expect(keys.decryptionSuccess).toHaveBeenCalledWith(1);
 
         expect(frame.data.byteLength).toBe(16);
 
         expect(new Uint8Array(frame.data)).toEqual(
           new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+        );
+      } finally {
+        vitest.useRealTimers();
+      }
+    });
+
+    it('recovers from delayed use of rotated key', async () => {
+      vitest.useFakeTimers();
+      try {
+        // 1. we (the local participant) have just joined a room and do not have the existing key (index 0) for the existing/remote participant
+        const { keys, input, output } = prepareParticipantTestDecoder(participantIdentity, { failureTolerance: 1, ratchetWindowSize: 0 });
+        vitest.spyOn(keys, 'decryptionFailure');
+
+        // 2. we receive some frames from the existing participant encrypted with the existing key 0 that we don't have
+        input.write(mockEncryptedRTCEncodedVideoFrame(0));
+        input.write(mockEncryptedRTCEncodedVideoFrame(0));
+        input.write(mockEncryptedRTCEncodedVideoFrame(0));
+        input.write(mockEncryptedRTCEncodedVideoFrame(0));
+
+        // 3. we should have marked key at index 0 as invalid by now and dropped all the frames
+        await vitest.waitFor(() => expect(keys.decryptionFailure).toHaveBeenCalledTimes(2));
+        expect(keys.hasInvalidKeyAtIndex(0)).toBe(true);
+        expect(output.chunks).toEqual([]);
+
+        // 4. the existing participant then notices that we have joined the room and generates a new key (with a new key index 1)
+        // and distributes it out of band to us
+        await keys.setKey(await createKeyMaterialFromString('key1'), 1);
+
+        // 5. the existing participant waits a period of time before using the new key and continues sending media using the previous key 0.
+        // we receive these frames and should drop them as we still don't have the key.
+        input.write(mockEncryptedRTCEncodedVideoFrame(0));
+        input.write(mockEncryptedRTCEncodedVideoFrame(0));
+        input.write(mockEncryptedRTCEncodedVideoFrame(0));
+        input.write(mockEncryptedRTCEncodedVideoFrame(0));
+
+        await vitest.advanceTimersToNextTimerAsync();
+        expect(output.chunks).toEqual([]);
+
+        // 6. the existing participant moves over to the new key index 1 and we start to receive frames for index 1 that we
+        // should be able to decrypt even though we had the previous failures.
+        input.write(mockRTCEncodedVideoFrame(
+          new Uint8Array([
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 254, 96, 91, 111, 187, 132, 31, 12, 207, 136, 17, 221,
+            233, 116, 174, 6, 50, 37, 214, 71, 119, 196, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255,
+            199, 51, 12, 1,
+          ]),
+        ));
+
+        input.write(mockRTCEncodedVideoFrame(
+          new Uint8Array([99, 2, 3, 4, 5, 6, 7, 8, 9, 10, 154, 108, 209, 239, 253, 33, 72, 111, 13, 125, 10, 101, 28, 209, 141, 162, 0, 238, 189, 254, 66, 156, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 96, 247, 12, 1])
+        ));
+
+        await vitest.waitFor(() => expect(output.chunks.length).toEqual(2));
+
+        expect(new Uint8Array(output.chunks[0].data)).toEqual(
+          new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+        );
+        expect(new Uint8Array(output.chunks[1].data)).toEqual(
+          new Uint8Array([99, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
         );
       } finally {
         vitest.useRealTimers();

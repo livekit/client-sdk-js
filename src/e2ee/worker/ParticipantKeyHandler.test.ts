@@ -91,6 +91,7 @@ describe('ParticipantKeyHandler', () => {
     keyHandler.setCurrentKeyIndex(10);
 
     expect(keyHandler.hasValidKey).toBe(true);
+    expect(keyHandler.hasInvalidKeyAtIndex(0)).toBe(false);
 
     keyHandler.decryptionFailure();
 
@@ -99,6 +100,52 @@ describe('ParticipantKeyHandler', () => {
     keyHandler.decryptionSuccess();
 
     expect(keyHandler.hasValidKey).toBe(true);
+  });
+
+  it('marks specific key invalid if more than failureTolerance failures', async () => {
+    const keyHandler = new ParticipantKeyHandler(participantIdentity, {
+      ...KEY_PROVIDER_DEFAULTS,
+      failureTolerance: 2,
+    });
+
+    // set the current key to something different from what we are testing
+    keyHandler.setCurrentKeyIndex(10);
+
+    expect(keyHandler.hasInvalidKeyAtIndex(5)).toBe(false);
+
+    // 1
+    keyHandler.decryptionFailure(5);
+    expect(keyHandler.hasInvalidKeyAtIndex(5)).toBe(false);
+
+    // 2
+    keyHandler.decryptionFailure(5);
+    expect(keyHandler.hasInvalidKeyAtIndex(5)).toBe(false);
+
+    // 3
+    keyHandler.decryptionFailure(5);
+    expect(keyHandler.hasInvalidKeyAtIndex(5)).toBe(true);
+
+    expect(keyHandler.hasInvalidKeyAtIndex(10)).toBe(false);
+  });
+
+  it('marks specific key valid on encryption success', async () => {
+    const keyHandler = new ParticipantKeyHandler(participantIdentity, {
+      ...KEY_PROVIDER_DEFAULTS,
+      failureTolerance: 0,
+    });
+
+    // set the current key to something different from what we are testing
+    keyHandler.setCurrentKeyIndex(10);
+
+    expect(keyHandler.hasInvalidKeyAtIndex(5)).toBe(false);
+
+    keyHandler.decryptionFailure(5);
+
+    expect(keyHandler.hasInvalidKeyAtIndex(5)).toBe(true);
+
+    keyHandler.decryptionSuccess(5);
+
+    expect(keyHandler.hasInvalidKeyAtIndex(5)).toBe(false);
   });
 
   it('marks valid on new key', async () => {
@@ -110,6 +157,7 @@ describe('ParticipantKeyHandler', () => {
     keyHandler.setCurrentKeyIndex(10);
 
     expect(keyHandler.hasValidKey).toBe(true);
+    expect(keyHandler.hasInvalidKeyAtIndex(0)).toBe(false);
 
     keyHandler.decryptionFailure();
 
@@ -156,5 +204,25 @@ describe('ParticipantKeyHandler', () => {
       keyHandler.decryptionFailure();
       expect(keyHandler.hasValidKey).toBe(true);
     }
+  });
+
+  describe("resetKeyStatus", () => {
+    it('marks all keys as valid if no index is provided', () => {
+      const keyHandler = new ParticipantKeyHandler(participantIdentity, {
+        ...KEY_PROVIDER_DEFAULTS,
+        failureTolerance: 0,
+      });
+  
+      for (let i = 0; i < KEY_PROVIDER_DEFAULTS.keyringSize; i++) {
+        keyHandler.decryptionFailure(i);
+        expect(keyHandler.hasInvalidKeyAtIndex(i)).toBe(true);
+      }
+  
+      keyHandler.resetKeyStatus();
+  
+      for (let i = 0; i < KEY_PROVIDER_DEFAULTS.keyringSize; i++) {
+        expect(keyHandler.hasInvalidKeyAtIndex(i)).toBe(false);
+      }
+    });  
   });
 });

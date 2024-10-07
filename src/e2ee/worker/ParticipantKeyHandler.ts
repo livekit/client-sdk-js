@@ -21,20 +21,21 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   private cryptoKeyRing: Array<KeySet | undefined>;
 
+  private decryptionFailureCounts: Array<number>;
+
   private keyProviderOptions: KeyProviderOptions;
 
   private ratchetPromiseMap: Map<number, Promise<CryptoKey>>;
 
   private participantIdentity: string;
 
-  private decryptionFailureCount = 0;
-
-  private _hasValidKey: boolean = true;
-
-  get hasValidKey() {
-    return this._hasValidKey;
+  /**
+   * true if the current key has not been marked as invalid
+   */
+  get hasValidKey(): boolean {
+    return !this.hasInvalidKeyAtIndex(this.currentKeyIndex);
   }
-
+  
   constructor(participantIdentity: string, keyProviderOptions: KeyProviderOptions) {
     super();
     this.currentKeyIndex = 0;
@@ -42,35 +43,64 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
       throw new TypeError('Keyring size needs to be between 1 and 256');
     }
     this.cryptoKeyRing = new Array(keyProviderOptions.keyringSize).fill(undefined);
+    this.decryptionFailureCounts = new Array(keyProviderOptions.keyringSize).fill(0);
     this.keyProviderOptions = keyProviderOptions;
     this.ratchetPromiseMap = new Map();
     this.participantIdentity = participantIdentity;
-    this.resetKeyStatus();
   }
 
-  decryptionFailure() {
+  /**
+   * Returns true if the key at the given index is marked as invalid.
+   * 
+   * @param keyIndex the index of the key
+   */
+  hasInvalidKeyAtIndex(keyIndex: number): boolean {
+    return (
+      this.keyProviderOptions.failureTolerance >= 0 &&
+      this.decryptionFailureCounts[keyIndex] > this.keyProviderOptions.failureTolerance
+    );
+  }
+
+  /**
+   * Informs the key handler that a decryption failure occurred for an encryption key.
+   * 
+   * @param keyIndex the key index for which the failure occurred. Defaults to the current key index.
+   */
+  decryptionFailure(keyIndex: number = this.currentKeyIndex): void {
     if (this.keyProviderOptions.failureTolerance < 0) {
       return;
     }
-    this.decryptionFailureCount += 1;
 
-    if (this.decryptionFailureCount > this.keyProviderOptions.failureTolerance) {
-      workerLogger.warn(`key for ${this.participantIdentity} is being marked as invalid`);
-      this._hasValidKey = false;
+    this.decryptionFailureCounts[keyIndex] += 1;
+
+    if (this.decryptionFailureCounts[keyIndex] > this.keyProviderOptions.failureTolerance) {
+      workerLogger.warn(
+        `key for ${this.participantIdentity} at index ${keyIndex} is being marked as invalid`,
+      );
     }
   }
 
-  decryptionSuccess() {
-    this.resetKeyStatus();
+  /**
+   * Informs the key handler that a frame was successfully decrypted using an encryption key.
+   * 
+   * @param keyIndex the key index for which the success occurred. Defaults to the current key index.
+   */
+  decryptionSuccess(keyIndex: number = this.currentKeyIndex): void {
+    this.resetKeyStatus(keyIndex);
   }
 
   /**
    * Call this after user initiated ratchet or a new key has been set in order to make sure to mark potentially
    * invalid keys as valid again
+   * 
+   * @param keyIndex the index of the key. Defaults to the current key index.
    */
-  resetKeyStatus() {
-    this.decryptionFailureCount = 0;
-    this._hasValidKey = true;
+  resetKeyStatus(keyIndex?: number): void {
+    if (keyIndex === undefined) {
+      this.decryptionFailureCounts.fill(0);
+    } else {
+      this.decryptionFailureCounts[keyIndex] = 0;
+    }
   }
 
   /**
@@ -130,7 +160,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
    */
   async setKey(material: CryptoKey, keyIndex = 0) {
     await this.setKeyFromMaterial(material, keyIndex);
-    this.resetKeyStatus();
+    this.resetKeyStatus(keyIndex);
   }
 
   /**
@@ -161,7 +191,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   async setCurrentKeyIndex(index: number) {
     this.currentKeyIndex = index % this.cryptoKeyRing.length;
-    this.resetKeyStatus();
+    this.resetKeyStatus(index);
   }
 
   getCurrentKeyIndex() {
