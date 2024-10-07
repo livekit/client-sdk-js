@@ -54,6 +54,8 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private keys: ParticipantKeyHandler;
 
+  private lastKeyIndexReceived: number | undefined;
+
   private videoCodec?: VideoCodec;
 
   private rtpMap: Map<number, VideoCodec>;
@@ -357,9 +359,10 @@ export class FrameCryptor extends BaseFrameCryptor {
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
 
-    if (keyIndex !== this.keys.getCurrentKeyIndex()) {
-      workerLogger.debug(`received frame with new key index ${keyIndex}`, this.logContext);
-      this.keys.setCurrentKeyIndex(keyIndex);
+    if (keyIndex !== this.lastKeyIndexReceived) {
+      workerLogger.debug(`received frame with new key index ${keyIndex}. resetting key status`, this.logContext);
+      this.lastKeyIndexReceived = keyIndex;
+      this.keys.resetKeyStatus();
     }
 
     if (!this.keys.hasValidKey) {
