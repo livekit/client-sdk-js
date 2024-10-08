@@ -27,6 +27,7 @@ import type { LiveKitReactNativeInfo } from './room/types';
 import type { AudioAnalyserOptions } from './room/utils';
 import {
   Mutex,
+  compareVersions,
   createAudioAnalyser,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
@@ -81,6 +82,7 @@ export {
   Room,
   SubscriptionError,
   TrackPublication,
+  compareVersions,
   createAudioAnalyser,
   getBrowser,
   getEmptyAudioStreamTrack,

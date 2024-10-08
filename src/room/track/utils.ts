@@ -8,7 +8,7 @@ import {
   type CreateLocalTracksOptions,
   type ScreenShareCaptureOptions,
   type VideoCaptureOptions,
-  VideoCodec,
+  type VideoCodec,
   videoCodecs,
 } from './options';
 import type { AudioTrack } from './types';
