@@ -42,6 +42,7 @@
     "build-docs": "typedoc",
     "proto": "protoc --es_out src/proto --es_opt target=ts -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
     "examples:demo": "vite examples/demo -c vite.config.mjs",
+    "examples:rpc": "vite examples/rpc -c vite.config.mjs",
     "lint": "eslint src",
     "test": "vitest run src",
     "deploy": "gh-pages -d examples/demo/dist",
