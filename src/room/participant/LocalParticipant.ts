@@ -10,6 +10,7 @@ import {
   RequestResponse,
   RequestResponse_Reason,
   SimulcastCodec,
+  SipDTMF,
   SubscribedQualityUpdate,
   TrackInfo,
   TrackUnpublishedResponse,
@@ -1347,6 +1348,27 @@ export default class LocalParticipant extends Participant {
     });
 
     await this.engine.sendDataPacket(packet, kind);
+  }
+
+  /**
+   * Publish SIP DTMF message to the room.
+   *
+   * @param code DTMF code
+   * @param digit DTMF digit
+   */
+  async publishDtmf(code: number, digit: string): Promise<void> {
+    const packet = new DataPacket({
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'sipDtmf',
+        value: new SipDTMF({
+          code: code,
+          digit: digit,
+        }),
+      },
+    });
+
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
   async sendChatMessage(text: string): Promise<ChatMessage> {
