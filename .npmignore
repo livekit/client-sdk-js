@@ -2,7 +2,7 @@
 bin
 docs
 protocol
-example
+examples
 node_modules
 tsconfig.json
 test

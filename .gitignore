@@ -111,4 +111,4 @@ docs/
 
 pkg/
 bin/
-example/build/
+examples/**/build/
