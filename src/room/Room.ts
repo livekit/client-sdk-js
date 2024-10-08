@@ -7,6 +7,7 @@ import {
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
+  MetricsBatch,
   ParticipantInfo,
   ParticipantInfo_State,
   ParticipantPermission,
@@ -27,7 +28,6 @@ import {
   UserPacket,
   protoInt64,
 } from '@livekit/protocol';
-import { MetricsBatch } from '@livekit/protocol/src/gen/livekit_metrics_pb';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
