@@ -27,6 +27,7 @@ import {
   UserPacket,
   protoInt64,
 } from '@livekit/protocol';
+import { MetricsBatch } from '@livekit/protocol/src/gen/livekit_metrics_pb';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
@@ -1540,6 +1541,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleSipDtmf(participant, packet.value.value);
     } else if (packet.value.case === 'chatMessage') {
       this.handleChatMessage(participant, packet.value.value);
+    } else if (packet.value.case === 'metrics') {
+      this.handleMetrics(packet.value.value, participant);
     }
   };
 
@@ -1587,6 +1590,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ) => {
     const msg = extractChatMessage(chatMessage);
     this.emit(RoomEvent.ChatMessage, msg, participant);
+  };
+
+  private handleMetrics = (metrics: MetricsBatch, participant?: Participant) => {
+    this.emit(RoomEvent.MetricsReceived, metrics, participant);
   };
 
   private handleAudioPlaybackStarted = () => {
@@ -2289,4 +2296,5 @@ export type RoomEventCallbacks = {
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
+  metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
 };

@@ -330,6 +330,11 @@ export enum RoomEvent {
    * fired when the first remote participant has subscribed to the localParticipant's track
    */
   LocalTrackSubscribed = 'localTrackSubscribed',
+
+  /**
+   * fired when the client receives connection metrics from other participants
+   */
+  MetricsReceived = 'metricsReceived',
 }
 
 export enum ParticipantEvent {
