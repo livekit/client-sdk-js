@@ -1,19 +1,8 @@
-import { Room, RpcError } from '@livekit/rtc-node';
-import type { RemoteParticipant } from '@livekit/rtc-node';
-import { randomBytes } from 'crypto';
-import { config } from 'dotenv';
+import { Room, RoomEvent, type RoomOptions, RpcError, type RemoteParticipant, type RoomConnectOptions } from '../../src/index';
 import { AccessToken } from 'livekit-server-sdk';
 
-config({ path: '.env.local', override: false });
-const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
-const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
-const LIVEKIT_URL = process.env.LIVEKIT_URL;
-if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
-  throw new Error('Missing required environment variables. Please check your .env.local file.');
-}
-
 async function main() {
-  const roomName = `rpc-test-${randomBytes(4).toString('hex')}`;
+  const roomName = `rpc-test-${Math.random().toString(36).substring(7)}`;
 
   console.log(`Connecting participants to room: ${roomName}`);
 
@@ -181,47 +170,67 @@ const performDivision = async (room: Room): Promise<void> => {
   }
 };
 
-const createToken = (identity: string, roomName: string) => {
-  const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-    identity,
-  });
-  token.addGrant({
-    room: roomName,
-    roomJoin: true,
-    canPublish: true,
-    canSubscribe: true,
-  });
-  return token.toJwt();
-};
-
 const connectParticipant = async (identity: string, roomName: string): Promise<Room> => {
   const room = new Room();
-  const token = await createToken(identity, roomName);
+  const { token, url } = await fetchToken(identity, roomName);
 
-  room.on('disconnected', () => {
+  room.on(RoomEvent.Disconnected, () => {
     console.log(`[${identity}] Disconnected from room`);
   });
 
-  await room.connect(LIVEKIT_URL, token);
+  await room.connect(url, token, {
+    autoSubscribe: true,
+  } as RoomConnectOptions);
 
-  await Promise.race([
-    new Promise<void>((resolve) => {
-      if (room.remoteParticipants.size > 0) {
-        resolve();
-      } else {
-        const onParticipantConnected = () => {
-          room.off('participantConnected', onParticipantConnected);
-          resolve();
-        };
-        room.on('participantConnected', onParticipantConnected);
-      }
-    }),
-    new Promise<void>((_, reject) => {
-      setTimeout(() => reject(new Error('Timed out waiting for participants')), 5000);
-    }),
-  ]);
+  await new Promise<void>((resolve) => {
+    if (room.state === 'connected') {
+      resolve();
+    } else {
+      room.once(RoomEvent.Connected, () => resolve());
+    }
+  });
 
   return room;
 };
 
-main();
+// Update the fetchToken function to return both token and URL
+const fetchToken = async (identity: string, roomName: string): Promise<{ token: string; url: string }> => {
+  const response = await fetch('http://localhost:3000/get-token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ identity, roomName }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch token');
+  }
+
+  const data = await response.json();
+  return { token: data.token, url: data.url };
+};
+
+// Expose the main function to the global scope
+(window as any).runRpcDemo = main;
+
+// Add a function to log to the UI
+const logToUI = (message: string) => {
+  const logArea = document.getElementById('log') as HTMLTextAreaElement;
+  logArea.value += message + '\n';
+  logArea.scrollTop = logArea.scrollHeight;
+};
+
+// Override console.log to also log to the UI
+const originalConsoleLog = console.log;
+console.log = (...args) => {
+  originalConsoleLog.apply(console, args);
+  logToUI(args.join(' '));
+};
+
+// Override console.error to also log to the UI
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  originalConsoleError.apply(console, args);
+  logToUI('ERROR: ' + args.join(' '));
+};
