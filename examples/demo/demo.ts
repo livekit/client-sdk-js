@@ -1,5 +1,5 @@
 //@ts-ignore
-import E2EEWorker from '../src/e2ee/worker/e2ee.worker?worker';
+import E2EEWorker from '../../src/e2ee/worker/e2ee.worker?worker';
 import type {
   ChatMessage,
   RoomConnectOptions,
@@ -8,7 +8,7 @@ import type {
   SimulationScenario,
   VideoCaptureOptions,
   VideoCodec,
-} from '../src/index';
+} from '../../src/index';
 import {
   ConnectionQuality,
   ConnectionState,
@@ -34,8 +34,8 @@ import {
   setLogLevel,
   supportsAV1,
   supportsVP9,
-} from '../src/index';
-import { isSVCCodec } from '../src/room/utils';
+} from '../../src/index';
+import { isSVCCodec } from '../../src/room/utils';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 

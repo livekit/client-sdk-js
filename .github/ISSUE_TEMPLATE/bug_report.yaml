@@ -21,7 +21,7 @@ body:
     id: reproduction
     attributes:
       label: Reproduction
-      description: A detailed step-by-step guide on how to reproduce the issue or (preferably) a link to a repository that reproduces the issue. Reproductions must be [short, self-contained and correct](http://sscce.org/) and must not contain files or code that aren't relevant to the issue. It's best if you use the sample app in `example/index.ts` as a starting point for your reproduction. We will prioritize issues that include a working minimal reproduction repository.
+      description: A detailed step-by-step guide on how to reproduce the issue or (preferably) a link to a repository that reproduces the issue. Reproductions must be [short, self-contained and correct](http://sscce.org/) and must not contain files or code that aren't relevant to the issue. It's best if you use the sample app in `examples/demo/demo.ts` as a starting point for your reproduction. We will prioritize issues that include a working minimal reproduction repository.
       placeholder: Reproduction
     validations:
       required: true

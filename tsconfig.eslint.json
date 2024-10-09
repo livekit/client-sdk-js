@@ -3,7 +3,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.js",
-    "example/**/*.ts",
+    "examples/**/*.ts",
     ".eslintrc.cjs",
     ".eslintrc.dist.cjs",
     "jest.config.js",
