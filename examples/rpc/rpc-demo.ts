@@ -51,8 +51,6 @@ async function main() {
   await mathGeniusRoom.disconnect();
 
   console.log('Participants disconnected. Example completed.');
-
-  process.exit(0);
 }
 
 const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room): Promise<void> => {

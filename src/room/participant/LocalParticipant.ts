@@ -126,7 +126,7 @@ export default class LocalParticipant extends Participant {
 
     private rpcHandlers: Map<
     string,
-    (sender: RemoteParticipant, requestId: string, payload: string, responseTimeoutMs: number) => Promise<string>
+    (requestId: string, caller: RemoteParticipant, payload: string, responseTimeoutMs: number) => Promise<string>
   > = new Map();
 
   private pendingAcks = new Map<
@@ -1513,7 +1513,7 @@ export default class LocalParticipant extends Participant {
      */
     registerRpcMethod(
       method: string,
-      handler: (sender: RemoteParticipant, requestId: string, payload: string, responseTimeoutMs: number) => Promise<string>,
+      handler: (requestId: string, caller: RemoteParticipant, payload: string, responseTimeoutMs: number) => Promise<string>,
     ) {
       this.rpcHandlers.set(method, handler);
     }
@@ -1550,14 +1550,14 @@ export default class LocalParticipant extends Participant {
     }
   
     /** @internal */
-    async handleIncomingRpcRequest(sender: RemoteParticipant, requestId: string, method: string, payload: string, responseTimeoutMs: number) {
-      this.publishRpcAck(sender.identity, requestId);
+    async handleIncomingRpcRequest(caller: RemoteParticipant, requestId: string, method: string, payload: string, responseTimeoutMs: number) {
+      this.publishRpcAck(caller.identity, requestId);
   
       const handler = this.rpcHandlers.get(method);
   
       if (!handler) {
         this.publishRpcResponse(
-          sender.identity,
+          caller.identity,
           requestId,
           null,
           RpcError.builtIn('UNSUPPORTED_METHOD'),
@@ -1569,7 +1569,7 @@ export default class LocalParticipant extends Participant {
       let responsePayload: string | null = null;
       
       try {
-        const response = await handler(sender, requestId, payload, responseTimeoutMs);
+        const response = await handler(requestId, caller, payload, responseTimeoutMs);
         if (byteLength(response) > MAX_PAYLOAD_BYTES) {
           responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
           console.warn(`RPC Response payload too large for ${method}`);
@@ -1587,7 +1587,7 @@ export default class LocalParticipant extends Participant {
           responseError = RpcError.builtIn('APPLICATION_ERROR');
         }
       }
-      this.publishRpcResponse(sender.identity, requestId, responsePayload, responseError);
+      this.publishRpcResponse(caller.identity, requestId, responsePayload, responseError);
     }
 
     async publishRpcRequest(

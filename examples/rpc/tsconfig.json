@@ -13,5 +13,5 @@
         "isolatedModules": true,
         "noEmit": true,
     },
-    "include": ["api.ts", "rpc-demo.ts"]
+    "include": ["rpc-demo.ts"]
 }
