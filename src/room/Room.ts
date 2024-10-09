@@ -1646,7 +1646,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
     this.localParticipant.handleIncomingRpcAck(ack.requestId);
-  }
+  };
 
   private handleMetrics = (metrics: MetricsBatch, participant?: Participant) => {
     this.emit(RoomEvent.MetricsReceived, metrics, participant);
