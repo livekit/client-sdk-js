@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@livekit/protocol':
-        specifier: 1.23.0
-        version: 1.23.0
+        specifier: 1.24.0
+        version: 1.24.0
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -1026,8 +1026,8 @@ packages:
   '@livekit/changesets-changelog-github@0.0.4':
     resolution: {integrity: sha512-MXaiLYwgkYciZb8G2wkVtZ1pJJzZmVx5cM30Q+ClslrIYyAqQhRbPmZDM79/5CGxb1MTemR/tfOM25tgJgAK0g==}
 
-  '@livekit/protocol@1.23.0':
-    resolution: {integrity: sha512-Hh83moW437mWhiyRgoDMedJ/s/rCTfe3ACSaIJ3n2NlVaq/+BTuB/yH7a6alM1NEkGBSmgrEHxabDfozVUlgYg==}
+  '@livekit/protocol@1.24.0':
+    resolution: {integrity: sha512-9dCsqnkMn7lvbI4NGh18zhLDsrXyUcpS++TEFgEk5Xv1WM3R2kT3EzqgL1P/mr3jaabM6rJ8wZA/KJLuQNpF5w==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -3266,8 +3266,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.7.0-dev.20241006:
-    resolution: {integrity: sha512-XbEUvmjO3pXSwKpsgTKNHLRROzF2K1tSdqiyRPKwJfv84gPU0H6AjRwvaAaYC9D/6+Hpen0bQLLC0uaGePRHTQ==}
+  typescript@5.7.0-dev.20241008:
+    resolution: {integrity: sha512-FZzeU/lVGUgdl8+Rl2MChV2+eD0ZciK1LuVeoL8+P8ePsJjduRhGrWGRBHvy5KQOhZpxm0QdjrcnGkGDQEphvQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4646,7 +4646,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@livekit/protocol@1.23.0':
+  '@livekit/protocol@1.24.0':
     dependencies:
       '@bufbuild/protobuf': 1.10.0
 
@@ -5493,7 +5493,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.7.0-dev.20241006
+      typescript: 5.7.0-dev.20241008
 
   electron-to-chromium@1.5.4: {}
 
@@ -7094,7 +7094,7 @@ snapshots:
 
   typescript@5.6.2: {}
 
-  typescript@5.7.0-dev.20241006: {}
+  typescript@5.7.0-dev.20241008: {}
 
   uc.micro@2.1.0: {}
 
