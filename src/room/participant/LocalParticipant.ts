@@ -17,7 +17,6 @@ import {
   UserPacket,
   protoInt64,
   RpcAck,
-  RpcError as RpcError_Proto,
   RpcRequest,
   RpcResponse,
 } from '@livekit/protocol';

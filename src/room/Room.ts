@@ -26,6 +26,9 @@ import {
   TranscriptionSegment as TranscriptionSegmentModel,
   UserPacket,
   protoInt64,
+  RpcRequest,
+  RpcResponse,
+  RpcAck,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
@@ -68,6 +71,7 @@ import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, sourceToKind } from './track/utils';
+import { RpcError } from './rpc';
 import type {
   ChatMessage,
   SimulationOptions,
@@ -1546,6 +1550,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleSipDtmf(participant, packet.value.value);
     } else if (packet.value.case === 'chatMessage') {
       this.handleChatMessage(participant, packet.value.value);
+    } else if (packet.value.case === 'rpcRequest') {
+      this.handleRpcRequest(participant, packet.value.value);
+    } else if (packet.value.case === 'rpcResponse') {
+      this.handleRpcResponse(participant, packet.value.value);
+    } else if (packet.value.case === 'rpcAck') {
+      this.handleRpcAck(participant, packet.value.value);
     }
   };
 
@@ -1593,6 +1603,37 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ) => {
     const msg = extractChatMessage(chatMessage);
     this.emit(RoomEvent.ChatMessage, msg, participant);
+  };
+
+  private handleRpcRequest = (participant: RemoteParticipant | undefined, request: RpcRequest) => {
+    if (!participant) {
+      return;
+    }
+    this.localParticipant.handleIncomingRpcRequest(participant, request.id, request.method, request.payload, request.responseTimeoutMs);
+  };
+
+  private handleRpcResponse = (participant: RemoteParticipant | undefined, response: RpcResponse) => {
+    if (!participant) {
+      return;
+    }
+    
+    let payload: string | null = null;
+    let error: RpcError | null = null;
+
+    if (response.value.case === 'payload') {
+      payload = response.value.value;
+    } else if (response.value.case === 'error') {
+      error = RpcError.fromProto(response.value.value);
+    }
+
+    this.localParticipant.handleIncomingRpcResponse(response.requestId, payload, error);
+  };
+
+  private handleRpcAck = (participant: RemoteParticipant | undefined, ack: RpcAck) => {
+    if (!participant) {
+      return;
+    }
+    this.localParticipant.handleIncomingRpcAck(ack.requestId);
   };
 
   private handleAudioPlaybackStarted = () => {
@@ -2268,6 +2309,9 @@ export type RoomEventCallbacks = {
     participant?: Participant,
     publication?: TrackPublication,
   ) => void;
+  rpcRequestReceived: (request: RpcRequest, participant: RemoteParticipant) => void;
+  rpcResponseReceived: (response: RpcResponse, participant: RemoteParticipant) => void;
+  rpcAckReceived: (ack: RpcAck, participant: RemoteParticipant) => void;
   connectionQualityChanged: (quality: ConnectionQuality, participant: Participant) => void;
   mediaDevicesError: (error: Error) => void;
   trackStreamStateChanged: (

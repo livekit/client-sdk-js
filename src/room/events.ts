@@ -226,6 +226,24 @@ export enum RoomEvent {
   TranscriptionReceived = 'transcriptionReceived',
 
   /**
+   * RPC request iniatiated by a remote participant.
+   * @internal
+   */
+  RpcRequestReceived = 'rpcRequestReceived',
+
+  /**
+   * RPC response received from a remote participant.
+   * @internal
+   */
+  RpcResponseReceived = 'rpcResponseReceived',
+
+  /**
+   * RPC ack received from a remote participant.
+   * @internal
+   */
+  RpcAckReceived = 'rpcAckReceived',
+
+  /**
    * Connection quality was changed for a Participant. It'll receive updates
    * from the local participant, as well as any [[RemoteParticipant]]s that we are
    * subscribed to.
