@@ -88,9 +88,6 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
     async (requestId: string, caller: RemoteParticipant, payload: string, responseTimeoutMs: number) => {
       const jsonData = JSON.parse(payload);
       const { numerator, denominator } = jsonData;
-      console.log(
-        `[Math Genius] ${caller.identity} wants to divide ${numerator} by ${denominator}. This could be interesting...`,
-      );
 
       if (denominator === 0) {
         console.log(`[Math Genius] Uh oh, divide by zero! This won't end well...`);
@@ -98,7 +95,7 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
       }
 
       const result = numerator / denominator;
-      console.log(`[Math Genius] The result is ${result}`);
+      console.log(`[Math Genius] ${numerator} / ${denominator} = ${result}`);
       return JSON.stringify({ result });
     },
   );
