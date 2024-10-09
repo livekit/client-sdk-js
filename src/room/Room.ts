@@ -2309,9 +2309,6 @@ export type RoomEventCallbacks = {
     participant?: Participant,
     publication?: TrackPublication,
   ) => void;
-  rpcRequestReceived: (request: RpcRequest, participant: RemoteParticipant) => void;
-  rpcResponseReceived: (response: RpcResponse, participant: RemoteParticipant) => void;
-  rpcAckReceived: (ack: RpcAck, participant: RemoteParticipant) => void;
   connectionQualityChanged: (quality: ConnectionQuality, participant: Participant) => void;
   mediaDevicesError: (error: Error) => void;
   trackStreamStateChanged: (
