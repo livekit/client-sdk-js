@@ -239,13 +239,16 @@ describe('LocalParticipant', () => {
       const method = 'disconnectMethod';
       const payload = 'disconnectPayload';
 
+      mockPublishRequest.mockImplementationOnce(() => Promise.resolve());
+
       const resultPromise = localParticipant.performRpc(
         mockRemoteParticipant.identity,
         method,
         payload,
       );
 
-      // Simulate participant disconnection
+      // Simulate a small delay before disconnection
+      await new Promise(resolve => setTimeout(resolve, 200));
       localParticipant['handleParticipantDisconnected'](mockRemoteParticipant.identity);
 
       await expect(resultPromise).rejects.toThrow('Recipient disconnected');
