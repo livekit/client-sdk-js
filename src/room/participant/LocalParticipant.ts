@@ -1442,7 +1442,7 @@ export default class LocalParticipant extends Participant {
    * @returns A promise that resolves with the response payload or rejects with an error.
    * @throws Error on failure. Details in `message`.
    */
-    performRpcRequest(
+    performRpc(
       recipientIdentity: string,
       method: string,
       payload: string,
