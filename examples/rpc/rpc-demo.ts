@@ -53,7 +53,7 @@ async function main() {
     console.log('\n\nRunning disconnection example...');
     const disconnectionAfterPromise = disconnectAfter(greetersRoom, 1000);
     const disconnectionRpcPromise = performDisconnection(callersRoom);
-    
+
     await Promise.all([disconnectionAfterPromise, disconnectionRpcPromise]);
   } catch (error) {
     console.error('Unexpected error:', error);
@@ -145,11 +145,14 @@ const performGreeting = async (room: Room): Promise<void> => {
   }
 };
 
-
 const performDisconnection = async (room: Room): Promise<void> => {
-  console.log("[Caller] Checking back in on the greeter...");
+  console.log('[Caller] Checking back in on the greeter...');
   try {
-    const response = await room.localParticipant!.performRpc('greeter', 'arrival', 'You still there?');
+    const response = await room.localParticipant!.performRpc(
+      'greeter',
+      'arrival',
+      'You still there?',
+    );
     console.log(`[Caller] That's nice, the greeter said: "${response}"`);
   } catch (error) {
     if (error instanceof RpcError && error.code === RpcError.ErrorCode.RECIPIENT_DISCONNECTED) {
