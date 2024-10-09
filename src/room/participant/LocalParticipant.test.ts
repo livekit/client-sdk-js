@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import LocalParticipant from './LocalParticipant';
-import RemoteParticipant from './RemoteParticipant';
-import { ParticipantKind } from './Participant';
-import { RpcError } from '../rpc';
-import type RTCEngine from '../RTCEngine';
 import type { InternalRoomOptions } from '../../options';
+import type RTCEngine from '../RTCEngine';
+import { RpcError } from '../rpc';
+import LocalParticipant from './LocalParticipant';
+import { ParticipantKind } from './Participant';
+import RemoteParticipant from './RemoteParticipant';
 
 describe('LocalParticipant', () => {
   describe('registerRpcMethod', () => {
@@ -22,7 +22,12 @@ describe('LocalParticipant', () => {
 
       mockRoomOptions = {} as InternalRoomOptions;
 
-      localParticipant = new LocalParticipant('test-sid', 'test-identity', mockEngine, mockRoomOptions);
+      localParticipant = new LocalParticipant(
+        'test-sid',
+        'test-identity',
+        mockEngine,
+        mockRoomOptions,
+      );
     });
 
     it('should register an RPC method handler', async () => {
@@ -38,14 +43,20 @@ describe('LocalParticipant', () => {
         'Remote Participant',
         '',
         undefined,
-        ParticipantKind.STANDARD
+        ParticipantKind.STANDARD,
       );
 
       localParticipant.publishRpcAck = vi.fn();
       localParticipant.publishRpcResponse = vi.fn();
 
       // Call the internal method that would be triggered by an incoming RPC request
-      await localParticipant['handleIncomingRpcRequest'](mockCaller, 'test-request-id', methodName, 'test payload', 5000);
+      await localParticipant['handleIncomingRpcRequest'](
+        mockCaller,
+        'test-request-id',
+        methodName,
+        'test payload',
+        5000,
+      );
 
       // Verify that the handler was called with the correct arguments
       expect(handler).toHaveBeenCalledWith('test-request-id', mockCaller, 'test payload', 5000);
@@ -69,7 +80,7 @@ describe('LocalParticipant', () => {
         'Remote Participant',
         '',
         undefined,
-        ParticipantKind.STANDARD
+        ParticipantKind.STANDARD,
       );
 
       const mockPublishAck = vi.fn();
@@ -77,9 +88,20 @@ describe('LocalParticipant', () => {
       localParticipant.publishRpcAck = mockPublishAck;
       localParticipant.publishRpcResponse = mockPublishResponse;
 
-      await localParticipant['handleIncomingRpcRequest'](mockCaller, 'test-error-request-id', methodName, 'test payload', 5000);
+      await localParticipant['handleIncomingRpcRequest'](
+        mockCaller,
+        'test-error-request-id',
+        methodName,
+        'test payload',
+        5000,
+      );
 
-      expect(handler).toHaveBeenCalledWith('test-error-request-id', mockCaller, 'test payload', 5000);
+      expect(handler).toHaveBeenCalledWith(
+        'test-error-request-id',
+        mockCaller,
+        'test payload',
+        5000,
+      );
       expect(mockPublishAck).toHaveBeenCalledTimes(1);
       expect(mockPublishResponse).toHaveBeenCalledTimes(1);
 
@@ -104,7 +126,7 @@ describe('LocalParticipant', () => {
         'Remote Participant',
         '',
         undefined,
-        ParticipantKind.STANDARD
+        ParticipantKind.STANDARD,
       );
 
       const mockPublishAck = vi.fn();
@@ -112,9 +134,20 @@ describe('LocalParticipant', () => {
       localParticipant.publishRpcAck = mockPublishAck;
       localParticipant.publishRpcResponse = mockPublishResponse;
 
-      await localParticipant['handleIncomingRpcRequest'](mockCaller, 'test-rpc-error-request-id', methodName, 'test payload', 5000);
+      await localParticipant['handleIncomingRpcRequest'](
+        mockCaller,
+        'test-rpc-error-request-id',
+        methodName,
+        'test payload',
+        5000,
+      );
 
-      expect(handler).toHaveBeenCalledWith('test-rpc-error-request-id', mockCaller, 'test payload', 5000);
+      expect(handler).toHaveBeenCalledWith(
+        'test-rpc-error-request-id',
+        mockCaller,
+        'test payload',
+        5000,
+      );
       expect(localParticipant.publishRpcAck).toHaveBeenCalledTimes(1);
       expect(localParticipant.publishRpcResponse).toHaveBeenCalledTimes(1);
 
@@ -143,7 +176,12 @@ describe('LocalParticipant', () => {
 
       mockRoomOptions = {} as InternalRoomOptions;
 
-      localParticipant = new LocalParticipant('local-sid', 'local-identity', mockEngine, mockRoomOptions);
+      localParticipant = new LocalParticipant(
+        'local-sid',
+        'local-identity',
+        mockEngine,
+        mockRoomOptions,
+      );
 
       mockRemoteParticipant = new RemoteParticipant(
         {} as any, // SignalClient mock
@@ -152,7 +190,7 @@ describe('LocalParticipant', () => {
         'Remote Participant',
         '',
         undefined,
-        ParticipantKind.STANDARD
+        ParticipantKind.STANDARD,
       );
 
       mockPublishRequest = vi.fn();
@@ -226,7 +264,11 @@ describe('LocalParticipant', () => {
       mockPublishRequest.mockImplementationOnce((_, requestId) => {
         setTimeout(() => {
           localParticipant['handleIncomingRpcAck'](requestId);
-          localParticipant['handleIncomingRpcResponse'](requestId, null, new RpcError(errorCode, errorMessage));
+          localParticipant['handleIncomingRpcResponse'](
+            requestId,
+            null,
+            new RpcError(errorCode, errorMessage),
+          );
         }, 10);
       });
 
@@ -248,7 +290,7 @@ describe('LocalParticipant', () => {
       );
 
       // Simulate a small delay before disconnection
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       localParticipant['handleParticipantDisconnected'](mockRemoteParticipant.identity);
 
       await expect(resultPromise).rejects.toThrow('Recipient disconnected');
