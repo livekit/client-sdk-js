@@ -1,13 +1,12 @@
 import { Room, RoomEvent, RpcError, type RemoteParticipant, type RoomConnectOptions } from '../../src/index';
 
 async function main() {
-  // Clear the log area
   const logArea = document.getElementById('log') as HTMLTextAreaElement;
   if (logArea) {
     logArea.value = '';
   }
 
-  const roomName = `rpc-test-${Math.random().toString(36).substring(7)}`;
+  const roomName = `rpc-demo-${Math.random().toString(36).substring(7)}`;
 
   console.log(`Connecting participants to room: ${roomName}`);
 
@@ -17,7 +16,6 @@ async function main() {
     connectParticipant('math-genius', roomName),
   ]);
 
-  // Register all methods for the receiving participant
   await registerReceiverMethods(greetersRoom, mathGeniusRoom);
 
   try {
@@ -89,8 +87,11 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
       const jsonData = JSON.parse(payload);
       const { numerator, denominator } = jsonData;
 
+      console.log(`[Math Genius] ${caller.identity} wants to divide ${numerator} by ${denominator}. Let me think...`);
+      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       if (denominator === 0) {
-        console.log(`[Math Genius] Uh oh, divide by zero! This won't end well...`);
         throw new Error('Cannot divide by zero');
       }
 

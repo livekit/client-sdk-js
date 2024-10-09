@@ -1442,7 +1442,7 @@ export default class LocalParticipant extends Participant {
    * @returns A promise that resolves with the response payload or rejects with an error.
    * @throws Error on failure. Details in `message`.
    */
-    performRpc(
+    async performRpc(
       recipientIdentity: string,
       method: string,
       payload: string,
@@ -1451,14 +1451,14 @@ export default class LocalParticipant extends Participant {
     ): Promise<string> {
       const maxRoundTripLatencyMs = 2000;
   
-      return new Promise((resolve, reject) => {
+      return new Promise(async (resolve, reject) => {
         if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
           reject(RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE'));
           return;
         }
   
         const id = crypto.randomUUID();
-        this.publishRpcRequest(
+        await this.publishRpcRequest(
           recipientIdentity,
           id,
           method,
@@ -1488,7 +1488,7 @@ export default class LocalParticipant extends Participant {
         this.pendingResponses.set(id, {
           resolve: (responsePayload: string | null, responseError: RpcError | null) => {
             if (this.pendingAcks.has(id)) {
-              console.error('RPC response received before ack', id);
+              console.warn('RPC response received before ack', id);
               this.pendingAcks.delete(id);
               clearTimeout(ackTimeoutId);
             }
@@ -1551,12 +1551,12 @@ export default class LocalParticipant extends Participant {
   
     /** @internal */
     async handleIncomingRpcRequest(caller: RemoteParticipant, requestId: string, method: string, payload: string, responseTimeoutMs: number) {
-      this.publishRpcAck(caller.identity, requestId);
+      await this.publishRpcAck(caller.identity, requestId);
   
       const handler = this.rpcHandlers.get(method);
   
       if (!handler) {
-        this.publishRpcResponse(
+        await this.publishRpcResponse(
           caller.identity,
           requestId,
           null,
@@ -1587,7 +1587,7 @@ export default class LocalParticipant extends Participant {
           responseError = RpcError.builtIn('APPLICATION_ERROR');
         }
       }
-      this.publishRpcResponse(caller.identity, requestId, responsePayload, responseError);
+      await this.publishRpcResponse(caller.identity, requestId, responsePayload, responseError);
     }
 
     async publishRpcRequest(
