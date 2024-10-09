@@ -1,6 +1,7 @@
+import dotenv from 'dotenv';
 import express from 'express';
 import { AccessToken } from 'livekit-server-sdk';
-import dotenv from 'dotenv';
+
 dotenv.config({ path: '.env.local' });
 
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
@@ -29,7 +30,7 @@ app.post('/api/get-token', async (req, res) => {
 
   res.json({
     token: await token.toJwt(),
-    url: LIVEKIT_URL
+    url: LIVEKIT_URL,
   });
 });
 
