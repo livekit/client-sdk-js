@@ -99,7 +99,7 @@ export default class LocalTrackPublication extends TrackPublication {
         features.add(AudioTrackFeature.TF_STEREO);
       }
       if (!this.options?.dtx) {
-        features.add(AudioTrackFeature.TF_STEREO);
+        features.add(AudioTrackFeature.TF_NO_DTX);
       }
       if (this.track.enhancedNoiseCancellation) {
         features.add(AudioTrackFeature.TF_ENHANCED_NOISE_CANCELLATION);

@@ -7,6 +7,7 @@ import {
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
+  MetricsBatch,
   ParticipantInfo,
   ParticipantInfo_State,
   ParticipantPermission,
@@ -1556,6 +1557,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleRpcResponse(participant, packet.value.value);
     } else if (packet.value.case === 'rpcAck') {
       this.handleRpcAck(participant, packet.value.value);
+    } else if (packet.value.case === 'metrics') {
+      this.handleMetrics(packet.value.value, participant);
     }
   };
 
@@ -1643,6 +1646,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
     this.localParticipant.handleIncomingRpcAck(ack.requestId);
+  }
+
+  private handleMetrics = (metrics: MetricsBatch, participant?: Participant) => {
+    this.emit(RoomEvent.MetricsReceived, metrics, participant);
   };
 
   private handleAudioPlaybackStarted = () => {
@@ -2345,4 +2352,5 @@ export type RoomEventCallbacks = {
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
+  metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
 };
