@@ -50,7 +50,7 @@ describe('LocalParticipant', () => {
       localParticipant.publishRpcResponse = vi.fn();
 
       // Call the internal method that would be triggered by an incoming RPC request
-      await localParticipant['handleIncomingRpcRequest'](
+      await localParticipant.handleIncomingRpcRequest(
         mockCaller,
         'test-request-id',
         methodName,
@@ -88,7 +88,7 @@ describe('LocalParticipant', () => {
       localParticipant.publishRpcAck = mockPublishAck;
       localParticipant.publishRpcResponse = mockPublishResponse;
 
-      await localParticipant['handleIncomingRpcRequest'](
+      await localParticipant.handleIncomingRpcRequest(
         mockCaller,
         'test-error-request-id',
         methodName,
@@ -134,7 +134,7 @@ describe('LocalParticipant', () => {
       localParticipant.publishRpcAck = mockPublishAck;
       localParticipant.publishRpcResponse = mockPublishResponse;
 
-      await localParticipant['handleIncomingRpcRequest'](
+      await localParticipant.handleIncomingRpcRequest(
         mockCaller,
         'test-rpc-error-request-id',
         methodName,
@@ -204,9 +204,9 @@ describe('LocalParticipant', () => {
 
       mockPublishRequest.mockImplementationOnce((_, requestId) => {
         setTimeout(() => {
-          localParticipant['handleIncomingRpcAck'](requestId);
+          localParticipant.handleIncomingRpcAck(requestId);
           setTimeout(() => {
-            localParticipant['handleIncomingRpcResponse'](requestId, responsePayload, null);
+            localParticipant.handleIncomingRpcResponse(requestId, responsePayload, null);
           }, 10);
         }, 10);
       });
@@ -263,8 +263,8 @@ describe('LocalParticipant', () => {
 
       mockPublishRequest.mockImplementationOnce((_, requestId) => {
         setTimeout(() => {
-          localParticipant['handleIncomingRpcAck'](requestId);
-          localParticipant['handleIncomingRpcResponse'](
+          localParticipant.handleIncomingRpcAck(requestId);
+          localParticipant.handleIncomingRpcResponse(
             requestId,
             null,
             new RpcError(errorCode, errorMessage),
@@ -291,7 +291,7 @@ describe('LocalParticipant', () => {
 
       // Simulate a small delay before disconnection
       await new Promise((resolve) => setTimeout(resolve, 200));
-      localParticipant['handleParticipantDisconnected'](mockRemoteParticipant.identity);
+      localParticipant.handleParticipantDisconnected(mockRemoteParticipant.identity);
 
       await expect(resultPromise).rejects.toThrow('Recipient disconnected');
     });
