@@ -1,7 +1,12 @@
-import { Room, RoomEvent, type RoomOptions, RpcError, type RemoteParticipant, type RoomConnectOptions } from '../../src/index';
-import { AccessToken } from 'livekit-server-sdk';
+import { Room, RoomEvent, RpcError, type RemoteParticipant, type RoomConnectOptions } from '../../src/index';
 
 async function main() {
+  // Clear the log area
+  const logArea = document.getElementById('log') as HTMLTextAreaElement;
+  if (logArea) {
+    logArea.value = '';
+  }
+
   const roomName = `rpc-test-${Math.random().toString(36).substring(7)}`;
 
   console.log(`Connecting participants to room: ${roomName}`);
@@ -193,9 +198,8 @@ const connectParticipant = async (identity: string, roomName: string): Promise<R
   return room;
 };
 
-// Update the fetchToken function to return both token and URL
 const fetchToken = async (identity: string, roomName: string): Promise<{ token: string; url: string }> => {
-  const response = await fetch('http://localhost:3000/get-token', {
+  const response = await fetch('/api/get-token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -211,26 +215,31 @@ const fetchToken = async (identity: string, roomName: string): Promise<{ token: 
   return { token: data.token, url: data.url };
 };
 
-// Expose the main function to the global scope
 (window as any).runRpcDemo = main;
 
-// Add a function to log to the UI
 const logToUI = (message: string) => {
   const logArea = document.getElementById('log') as HTMLTextAreaElement;
   logArea.value += message + '\n';
   logArea.scrollTop = logArea.scrollHeight;
 };
 
-// Override console.log to also log to the UI
 const originalConsoleLog = console.log;
 console.log = (...args) => {
   originalConsoleLog.apply(console, args);
   logToUI(args.join(' '));
 };
 
-// Override console.error to also log to the UI
 const originalConsoleError = console.error;
 console.error = (...args) => {
   originalConsoleError.apply(console, args);
   logToUI('ERROR: ' + args.join(' '));
 };
+
+document.addEventListener('DOMContentLoaded', () => {
+  const runDemoButton = document.getElementById('run-demo');
+  if (runDemoButton) {
+    runDemoButton.addEventListener('click', () => {
+      (window as any).runRpcDemo();
+    });
+  }
+});

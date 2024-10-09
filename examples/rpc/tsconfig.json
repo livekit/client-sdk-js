@@ -1,21 +1,17 @@
 {
     "extends": "../../tsconfig",
     "compilerOptions": {
-      "target": "ESNext" /* Specify ECMAScript target version: 'ES3' (default), 'ES5', 'ES2015', 'ES2016', 'ES2017', 'ES2018', 'ES2019', 'ES2020', or 'ESNEXT'. */,
-      "module": "ESNext" /* Specify module code generation: 'none', 'commonjs', 'amd', 'system', 'umd', 'es2015', 'es2020', or 'ESNext'. */,
-      "outDir": "build",
-      "declaration": true,
-      "declarationMap": true,
-      "sourceMap": true,
-      "strict": true /* Enable all strict type-checking options. */,
-      "esModuleInterop": true /* Enables emit interoperability between CommonJS and ES Modules via creation of namespace objects for all imports. Implies 'allowSyntheticDefaultImports'. */,
-      "skipLibCheck": true /* Skip type checking of declaration files. */,
-      "noUnusedLocals": true,
-      "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */,
-      "moduleResolution": "node",
-      "resolveJsonModule": true
+        "target": "ES2020",
+        "module": "ESNext",
+        "lib": ["ES2020", "DOM", "DOM.Iterable"],
+        "skipLibCheck": true,
+
+        /* Bundler mode */
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "noEmit": true,
     },
-    "include": ["../../src/**/*", "rpc.ts"],
-    "exclude": ["**/*.test.ts", "build/**/*"]
-  }
-  
+    "include": ["api.ts", "rpc-demo.ts"]
+}
