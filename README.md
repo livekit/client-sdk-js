@@ -362,7 +362,7 @@ You may throw errors of the type `RpcError` with a string `message` in an RPC me
 
 ### Rpc Demo
 
-[examples/rpc](examples/rpc/) contains a demo webapp that uses the SDK to showcase the RPC capabilities. Run it with `pnpm install && pnpm examples:rpc`
+[examples/rpc](examples/rpc/) contains a demo webapp that uses the SDK to showcase the RPC capabilities. Run it with `pnpm install && pnpm dev` from the `examples/rpc` directory.
 
 ## Browser Support
 
