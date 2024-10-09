@@ -11,6 +11,9 @@ import {
   ParticipantInfo_State,
   ParticipantPermission,
   Room as RoomModel,
+  RpcAck,
+  RpcRequest,
+  RpcResponse,
   ServerInfo,
   SimulateScenario,
   SipDTMF,
@@ -26,9 +29,6 @@ import {
   TranscriptionSegment as TranscriptionSegmentModel,
   UserPacket,
   protoInt64,
-  RpcRequest,
-  RpcResponse,
-  RpcAck,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
@@ -59,6 +59,7 @@ import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
+import { RpcError } from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
@@ -71,7 +72,6 @@ import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, sourceToKind } from './track/utils';
-import { RpcError } from './rpc';
 import type {
   ChatMessage,
   SimulationOptions,
@@ -1609,14 +1609,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (!participant) {
       return;
     }
-    this.localParticipant.handleIncomingRpcRequest(participant, request.id, request.method, request.payload, request.responseTimeoutMs);
+    this.localParticipant.handleIncomingRpcRequest(
+      participant,
+      request.id,
+      request.method,
+      request.payload,
+      request.responseTimeoutMs,
+    );
   };
 
-  private handleRpcResponse = (participant: RemoteParticipant | undefined, response: RpcResponse) => {
+  private handleRpcResponse = (
+    participant: RemoteParticipant | undefined,
+    response: RpcResponse,
+  ) => {
     if (!participant) {
       return;
     }
-    
+
     let payload: string | null = null;
     let error: RpcError | null = null;
 

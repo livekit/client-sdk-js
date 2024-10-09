@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2024 LiveKit, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
-
 import { RpcError as RpcError_Proto } from '@livekit/protocol';
 
 /**
@@ -19,7 +18,7 @@ export class RpcError extends Error {
   static MAX_DATA_BYTES = 15360; // 15 KB
 
   code: number;
-  
+
   data?: string;
 
   /**
