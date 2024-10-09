@@ -17,6 +17,7 @@ describe('LocalParticipant', () => {
         client: {
           sendUpdateLocalMetadata: vi.fn(),
         },
+        on: vi.fn().mockReturnThis(),
       } as unknown as RTCEngine;
 
       mockRoomOptions = {} as InternalRoomOptions;
@@ -30,7 +31,7 @@ describe('LocalParticipant', () => {
 
       localParticipant.registerRpcMethod(methodName, handler);
 
-      const mockSender = new RemoteParticipant(
+      const mockCaller = new RemoteParticipant(
         {} as any, // SignalClient mock
         'remote-sid',
         'remote-identity',
@@ -44,10 +45,10 @@ describe('LocalParticipant', () => {
       localParticipant.publishRpcResponse = vi.fn();
 
       // Call the internal method that would be triggered by an incoming RPC request
-      await localParticipant['handleIncomingRpcRequest'](mockSender, 'test-request-id', methodName, 'test payload', 5000);
+      await localParticipant['handleIncomingRpcRequest'](mockCaller, 'test-request-id', methodName, 'test payload', 5000);
 
       // Verify that the handler was called with the correct arguments
-      expect(handler).toHaveBeenCalledWith(mockSender, 'test-request-id', 'test payload', 5000);
+      expect(handler).toHaveBeenCalledWith('test-request-id', mockCaller, 'test payload', 5000);
 
       // Verify that publishRpcAck and publishRpcResponse were called
       expect(localParticipant.publishRpcAck).toHaveBeenCalledTimes(1);
@@ -61,7 +62,7 @@ describe('LocalParticipant', () => {
 
       localParticipant.registerRpcMethod(methodName, handler);
 
-      const mockSender = new RemoteParticipant(
+      const mockCaller = new RemoteParticipant(
         {} as any, // SignalClient mock
         'remote-sid',
         'remote-identity',
@@ -76,16 +77,16 @@ describe('LocalParticipant', () => {
       localParticipant.publishRpcAck = mockPublishAck;
       localParticipant.publishRpcResponse = mockPublishResponse;
 
-      await localParticipant['handleIncomingRpcRequest'](mockSender, 'test-error-request-id', methodName, 'test payload', 5000);
+      await localParticipant['handleIncomingRpcRequest'](mockCaller, 'test-error-request-id', methodName, 'test payload', 5000);
 
-      expect(handler).toHaveBeenCalledWith(mockSender, 'test-error-request-id', 'test payload', 5000);
+      expect(handler).toHaveBeenCalledWith('test-error-request-id', mockCaller, 'test payload', 5000);
       expect(mockPublishAck).toHaveBeenCalledTimes(1);
       expect(mockPublishResponse).toHaveBeenCalledTimes(1);
 
       // Verify that the error response contains the correct error
       const errorResponse = mockPublishResponse.mock.calls[0][3];
       expect(errorResponse).toBeInstanceOf(RpcError);
-      expect(errorResponse.code).toBe(RpcError.ErrorCode.UNCAUGHT_ERROR);
+      expect(errorResponse.code).toBe(RpcError.ErrorCode.APPLICATION_ERROR);
     });
 
     it('should pass through RpcError thrown by the RPC method handler', async () => {
@@ -96,7 +97,7 @@ describe('LocalParticipant', () => {
 
       localParticipant.registerRpcMethod(methodName, handler);
 
-      const mockSender = new RemoteParticipant(
+      const mockCaller = new RemoteParticipant(
         {} as any, // SignalClient mock
         'remote-sid',
         'remote-identity',
@@ -111,9 +112,9 @@ describe('LocalParticipant', () => {
       localParticipant.publishRpcAck = mockPublishAck;
       localParticipant.publishRpcResponse = mockPublishResponse;
 
-      await localParticipant['handleIncomingRpcRequest'](mockSender, 'test-rpc-error-request-id', methodName, 'test payload', 5000);
+      await localParticipant['handleIncomingRpcRequest'](mockCaller, 'test-rpc-error-request-id', methodName, 'test payload', 5000);
 
-      expect(handler).toHaveBeenCalledWith(mockSender, 'test-rpc-error-request-id', 'test payload', 5000);
+      expect(handler).toHaveBeenCalledWith('test-rpc-error-request-id', mockCaller, 'test payload', 5000);
       expect(localParticipant.publishRpcAck).toHaveBeenCalledTimes(1);
       expect(localParticipant.publishRpcResponse).toHaveBeenCalledTimes(1);
 
@@ -137,6 +138,7 @@ describe('LocalParticipant', () => {
         client: {
           sendUpdateLocalMetadata: vi.fn(),
         },
+        on: vi.fn().mockReturnThis(), // Add this line to mock the 'on' method
       } as unknown as RTCEngine;
 
       mockRoomOptions = {} as InternalRoomOptions;
@@ -171,7 +173,7 @@ describe('LocalParticipant', () => {
         }, 10);
       });
 
-      const result = await localParticipant.performRpcRequest(
+      const result = await localParticipant.performRpc(
         mockRemoteParticipant.identity,
         method,
         payload,
@@ -188,7 +190,7 @@ describe('LocalParticipant', () => {
       // Set a short timeout for the test
       const timeoutMs = 50;
 
-      const resultPromise = localParticipant.performRpcRequest(
+      const resultPromise = localParticipant.performRpc(
         mockRemoteParticipant.identity,
         method,
         payload,
@@ -229,7 +231,7 @@ describe('LocalParticipant', () => {
       });
 
       await expect(
-        localParticipant.performRpcRequest(mockRemoteParticipant.identity, method, payload),
+        localParticipant.performRpc(mockRemoteParticipant.identity, method, payload),
       ).rejects.toThrow(errorMessage);
     });
 
@@ -237,7 +239,7 @@ describe('LocalParticipant', () => {
       const method = 'disconnectMethod';
       const payload = 'disconnectPayload';
 
-      const resultPromise = localParticipant.performRpcRequest(
+      const resultPromise = localParticipant.performRpc(
         mockRemoteParticipant.identity,
         method,
         payload,
