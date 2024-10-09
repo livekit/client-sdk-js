@@ -49,12 +49,21 @@ async function main() {
     console.error('Error:', error);
   }
 
+  try {
+    console.log('\n\nRunning disconnection example...');
+    const disconnectionAfterPromise = disconnectAfter(greetersRoom, 1000);
+    const disconnectionRpcPromise = performDisconnection(callersRoom);
+    
+    await Promise.all([disconnectionAfterPromise, disconnectionRpcPromise]);
+  } catch (error) {
+    console.error('Unexpected error:', error);
+  }
+
   console.log('\n\nParticipants done, disconnecting...');
   await callersRoom.disconnect();
-  await greetersRoom.disconnect();
   await mathGeniusRoom.disconnect();
 
-  console.log('Participants disconnected. Example completed.');
+  console.log('\n\nParticipants disconnected. Example completed.');
 }
 
 const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room): Promise<void> => {
@@ -133,6 +142,22 @@ const performGreeting = async (room: Room): Promise<void> => {
   } catch (error) {
     console.error('[Caller] RPC call failed:', error);
     throw error;
+  }
+};
+
+
+const performDisconnection = async (room: Room): Promise<void> => {
+  console.log("[Caller] Checking back in on the greeter...");
+  try {
+    const response = await room.localParticipant!.performRpc('greeter', 'arrival', 'You still there?');
+    console.log(`[Caller] That's nice, the greeter said: "${response}"`);
+  } catch (error) {
+    if (error instanceof RpcError && error.code === RpcError.ErrorCode.RECIPIENT_DISCONNECTED) {
+      console.log('[Caller] The greeter disconnected during the request.');
+    } else {
+      console.error('[Caller] Unexpected error:', error);
+      throw error;
+    }
   }
 };
 
@@ -269,3 +294,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+const disconnectAfter = async (room: Room, delay: number): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, delay));
+  await room.disconnect();
+};
