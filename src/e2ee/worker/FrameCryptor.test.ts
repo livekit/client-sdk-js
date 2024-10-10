@@ -165,12 +165,42 @@ describe('FrameCryptor', () => {
 
       expect(output.chunks).toEqual([]);
       expect(keys.hasValidKey).toBe(false);
+    } finally {
+      vitest.useRealTimers();
+    }
+  });
 
-      // this should still fail as keys are all marked as invalid
-      input.write(mockEncryptedRTCEncodedVideoFrame(0));
+  it('retries decryption on new key index', async () => {
+    vitest.useFakeTimers();
+    try {
+      const { keys, input, output } = prepareParticipantTestDecoder(participantIdentity, {
+        failureTolerance: 0,
+      });
+
+      vitest.spyOn(keys, 'getKeySet');
+
+      await keys.setKey(await createKeyMaterialFromString('password'), 0);
+
+      // send a frame
+      input.write(mockEncryptedRTCEncodedVideoFrame(1));
       await vitest.advanceTimersToNextTimerAsync();
 
       expect(output.chunks).toEqual([]);
+      expect(keys.hasValidKey).toBe(false);
+
+      // try again with same key index
+      input.write(mockEncryptedRTCEncodedVideoFrame(1));
+      await vitest.advanceTimersToNextTimerAsync();
+
+      expect(output.chunks).toEqual([]);
+      expect(keys.hasValidKey).toBe(false);
+
+      // now send one with a different, but still invalid key index
+      input.write(mockEncryptedRTCEncodedVideoFrame(2));
+      await vitest.advanceTimersToNextTimerAsync();
+
+      expect(output.chunks).toEqual([]);
+      expect(keys.getKeySet).toHaveBeenLastCalledWith(2);
       expect(keys.hasValidKey).toBe(false);
     } finally {
       vitest.useRealTimers();
@@ -212,17 +242,6 @@ describe('FrameCryptor', () => {
     expect(keys.decryptionFailure).toHaveBeenCalledTimes(1);
     expect(keys.getKeySet).toHaveBeenCalled();
     expect(keys.getKeySet).toHaveBeenLastCalledWith(1);
-    expect(keys.hasValidKey).toBe(false);
-
-    vitest.clearAllMocks();
-
-    // this should still fail as keys are all marked as invalid
-    input.write(mockEncryptedRTCEncodedVideoFrame(0));
-
-    await vitest.waitFor(() => expect(keys.getKeySet).toHaveBeenCalled());
-    // decryptionFailure() isn't called in this case
-    expect(keys.getKeySet).toHaveBeenCalled();
-    expect(keys.getKeySet).toHaveBeenLastCalledWith(0);
     expect(keys.hasValidKey).toBe(false);
   });
 
