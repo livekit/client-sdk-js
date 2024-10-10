@@ -139,6 +139,8 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
     this.monitorInterval = setInterval(() => {
       this.monitorSender();
     }, monitorFrequency);
+
+    this.registerTimeSyncUpdate();
   }
 
   protected monitorSender = async () => {
