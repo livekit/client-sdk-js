@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.5.8
+
+### Patch Changes
+
+- Add metrics support - [#1278](https://github.com/livekit/client-sdk-js/pull/1278) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix DTX and stereo feature reporting - [#1281](https://github.com/livekit/client-sdk-js/pull/1281) ([@lukasIO](https://github.com/lukasIO))
+
+- Add SIP publish DTMF feature - [#1277](https://github.com/livekit/client-sdk-js/pull/1277) ([@s-hamdananwar](https://github.com/s-hamdananwar))
+
 ## 2.5.7
 
 ### Patch Changes
