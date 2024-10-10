@@ -20,8 +20,8 @@
     "verbatimModuleSyntax": true,
     "ignoreDeprecations": "5.0"
   },
-  "exclude": ["dist", "**/*.test.ts"],
-  "include": ["src/**/*"],
+  "exclude": ["dist", "**/*.test.ts", "examples/**/dist"],
+  "include": ["src/**/*.ts", "examples/**/*.ts"],
   "typedocOptions": {
     "entryPoints": ["src/index.ts"],
     "excludeInternal": true,
