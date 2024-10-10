@@ -35,10 +35,16 @@ export class RpcError extends Error {
     this.data = data ? truncateBytes(data, RpcError.MAX_DATA_BYTES) : undefined;
   }
 
+  /**
+   * @internal
+   */
   static fromProto(proto: RpcError_Proto) {
     return new RpcError(proto.code, proto.message, proto.data);
   }
 
+  /**
+   * @internal
+   */
   toProto() {
     return new RpcError_Proto({
       code: this.code as number,
@@ -86,8 +92,9 @@ export class RpcError extends Error {
   }
 }
 
-/**
- * @internal
+/*
+ * Maximum payload size for RPC requests and responses. If a payload exceeds this size,
+ * the RPC call will fail with a REQUEST_PAYLOAD_TOO_LARGE(1402) or RESPONSE_PAYLOAD_TOO_LARGE(1504) error.
  */
 export const MAX_PAYLOAD_BYTES = 15360; // 15 KB
 
