@@ -112,3 +112,5 @@ docs/
 pkg/
 bin/
 examples/**/build/
+
+.env.local
