@@ -237,7 +237,7 @@ describe('LocalParticipant', () => {
 
       const startTime = Date.now();
 
-      await expect(resultPromise).rejects.toThrow('Connection timeout');
+      await expect(resultPromise).rejects.toThrow('Response timeout');
 
       const elapsedTime = Date.now() - startTime;
       expect(elapsedTime).toBeGreaterThanOrEqual(timeoutMs);
