@@ -1438,20 +1438,18 @@ export default class LocalParticipant extends Participant {
   }
 
   /**
-   * Initiate an RPC request to a remote participant.
-   * @param recipientIdentity - The `identity` of the destination participant
+   * Initiate an RPC call to a remote participant.
+   * @param destinationIdentity - The `identity` of the destination participant
    * @param method - The method name to call
    * @param payload - The method payload
-   * @param connectionTimeoutMs - Timeout for establishing initial connection
    * @param responseTimeoutMs - Timeout for receiving a response after initial connection
    * @returns A promise that resolves with the response payload or rejects with an error.
    * @throws Error on failure. Details in `message`.
    */
   async performRpc(
-    recipientIdentity: string,
+    destinationIdentity: string,
     method: string,
     payload: string,
-    connectionTimeoutMs: number = 5000,
     responseTimeoutMs: number = 10000,
   ): Promise<string> {
     const maxRoundTripLatencyMs = 2000;
@@ -1464,7 +1462,7 @@ export default class LocalParticipant extends Participant {
 
       const id = crypto.randomUUID();
       await this.publishRpcRequest(
-        recipientIdentity,
+        destinationIdentity,
         id,
         method,
         payload,
@@ -1476,13 +1474,13 @@ export default class LocalParticipant extends Participant {
         reject(RpcError.builtIn('CONNECTION_TIMEOUT'));
         this.pendingResponses.delete(id);
         clearTimeout(responseTimeoutId);
-      }, connectionTimeoutMs);
+      }, maxRoundTripLatencyMs);
 
       this.pendingAcks.set(id, {
         resolve: () => {
           clearTimeout(ackTimeoutId);
         },
-        participantIdentity: recipientIdentity,
+        participantIdentity: destinationIdentity,
       });
 
       const responseTimeoutId = setTimeout(() => {
@@ -1504,17 +1502,42 @@ export default class LocalParticipant extends Participant {
             resolve(responsePayload ?? '');
           }
         },
-        participantIdentity: recipientIdentity,
+        participantIdentity: destinationIdentity,
       });
     });
   }
 
   /**
-   * Etablishes the participant as a receiver for RPC calls of the specified method.
-   * Will overwrite any existing callback for the specified method.
+   * Establishes the participant as a receiver for calls of the specified RPC method.
+   * Will overwrite any existing callback for the same method.
    *
    * @param method - The name of the indicated RPC method
-   * @param callback - Will be called when an RPC request for this method is received, with the request and the sender. Respond with a string.
+   * @param handler - Will be invoked when an RPC request for this method is received
+   * @returns A promise that resolves when the method is successfully registered
+   *
+   * @example
+   * ```typescript
+   * room.localParticipant?.registerRpcMethod(
+   *   'greet',
+   *   async (requestId: string, caller: RemoteParticipant, payload: string, responseTimeoutMs: number) => {
+   *     console.log(`Received greeting from ${caller.identity}: ${payload}`);
+   *     return `Hello, ${caller.identity}!`;
+   *   }
+   * );
+   * ```
+   *
+   * The handler receives the following parameters:
+   * - `requestId`: A unique identifier for this RPC request
+   * - `caller`: The RemoteParticipant who initiated the RPC call
+   * - `payload`: The data sent by the caller (as a string)
+   * - `responseTimeoutMs`: The maximum time available to return a response
+   *
+   * The handler should return a Promise that resolves to a string.
+   * If unable to respond within `responseTimeoutMs`, the request will result in an error on the caller's side.
+   *
+   * You may throw errors of type `RpcError` with a string `message` in the handler,
+   * and they will be received on the caller's side with the message intact.
+   * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
    */
   registerRpcMethod(
     method: string,
@@ -1536,6 +1559,35 @@ export default class LocalParticipant extends Participant {
   unregisterRpcMethod(method: string) {
     this.rpcHandlers.delete(method);
   }
+
+  /**
+   * Control who can subscribe to LocalParticipant's published tracks.
+   *
+   * By default, all participants can subscribe. This allows fine-grained control over
+   * who is able to subscribe at a participant and track level.
+   *
+   * Note: if access is given at a track-level (i.e. both [allParticipantsAllowed] and
+   * [ParticipantTrackPermission.allTracksAllowed] are false), any newer published tracks
+   * will not grant permissions to any participants and will require a subsequent
+   * permissions update to allow subscription.
+   *
+   * @param allParticipantsAllowed Allows all participants to subscribe all tracks.
+   *  Takes precedence over [[participantTrackPermissions]] if set to true.
+   *  By default this is set to true.
+   * @param participantTrackPermissions Full list of individual permissions per
+   *  participant/track. Any omitted participants will not receive any permissions.
+   */
+  setTrackSubscriptionPermissions(
+    allParticipantsAllowed: boolean,
+    participantTrackPermissions: ParticipantTrackPermission[] = [],
+  ) {
+    this.participantTrackPermissions = participantTrackPermissions;
+    this.allParticipantsAllowedToSubscribe = allParticipantsAllowed;
+    if (!this.engine.client.isDisconnected) {
+      this.updateTrackSubscriptionPermissions();
+    }
+  }
+
 
   /** @internal */
   handleIncomingRpcAck(requestId: string) {
@@ -1606,6 +1658,7 @@ export default class LocalParticipant extends Participant {
     await this.publishRpcResponse(caller.identity, requestId, responsePayload, responseError);
   }
 
+  /** @internal */
   async publishRpcRequest(
     destinationIdentity: string,
     requestId: string,
@@ -1630,6 +1683,7 @@ export default class LocalParticipant extends Participant {
     await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
+  /** @internal */
   async publishRpcResponse(
     destinationIdentity: string,
     requestId: string,
@@ -1653,6 +1707,7 @@ export default class LocalParticipant extends Participant {
     await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
+  /** @internal */
   async publishRpcAck(destinationIdentity: string, requestId: string) {
     const packet = new DataPacket({
       destinationIdentities: [destinationIdentity],
@@ -1681,34 +1736,6 @@ export default class LocalParticipant extends Participant {
         resolve(null, RpcError.builtIn('RECIPIENT_DISCONNECTED'));
         this.pendingResponses.delete(id);
       }
-    }
-  }
-
-  /**
-   * Control who can subscribe to LocalParticipant's published tracks.
-   *
-   * By default, all participants can subscribe. This allows fine-grained control over
-   * who is able to subscribe at a participant and track level.
-   *
-   * Note: if access is given at a track-level (i.e. both [allParticipantsAllowed] and
-   * [ParticipantTrackPermission.allTracksAllowed] are false), any newer published tracks
-   * will not grant permissions to any participants and will require a subsequent
-   * permissions update to allow subscription.
-   *
-   * @param allParticipantsAllowed Allows all participants to subscribe all tracks.
-   *  Takes precedence over [[participantTrackPermissions]] if set to true.
-   *  By default this is set to true.
-   * @param participantTrackPermissions Full list of individual permissions per
-   *  participant/track. Any omitted participants will not receive any permissions.
-   */
-  setTrackSubscriptionPermissions(
-    allParticipantsAllowed: boolean,
-    participantTrackPermissions: ParticipantTrackPermission[] = [],
-  ) {
-    this.participantTrackPermissions = participantTrackPermissions;
-    this.allParticipantsAllowedToSubscribe = allParticipantsAllowed;
-    if (!this.engine.client.isDisconnected) {
-      this.updateTrackSubscriptionPermissions();
     }
   }
 
