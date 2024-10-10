@@ -166,7 +166,7 @@ describe('LocalParticipant', () => {
         client: {
           sendUpdateLocalMetadata: vi.fn(),
         },
-        on: vi.fn().mockReturnThis(), 
+        on: vi.fn().mockReturnThis(),
       } as unknown as RTCEngine;
 
       mockRoomOptions = {} as InternalRoomOptions;

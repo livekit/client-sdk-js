@@ -1588,7 +1588,6 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-
   /** @internal */
   handleIncomingRpcAck(requestId: string) {
     const handler = this.pendingAcks.get(requestId);
