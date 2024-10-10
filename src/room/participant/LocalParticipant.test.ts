@@ -37,7 +37,7 @@ describe('LocalParticipant', () => {
       localParticipant.registerRpcMethod(methodName, handler);
 
       const mockCaller = new RemoteParticipant(
-        {} as any, // SignalClient mock
+        {} as any,
         'remote-sid',
         'remote-identity',
         'Remote Participant',
@@ -49,7 +49,6 @@ describe('LocalParticipant', () => {
       localParticipant.publishRpcAck = vi.fn();
       localParticipant.publishRpcResponse = vi.fn();
 
-      // Call the internal method that would be triggered by an incoming RPC request
       await localParticipant.handleIncomingRpcRequest(
         mockCaller,
         'test-request-id',
@@ -58,10 +57,8 @@ describe('LocalParticipant', () => {
         5000,
       );
 
-      // Verify that the handler was called with the correct arguments
       expect(handler).toHaveBeenCalledWith('test-request-id', mockCaller, 'test payload', 5000);
 
-      // Verify that publishRpcAck and publishRpcResponse were called
       expect(localParticipant.publishRpcAck).toHaveBeenCalledTimes(1);
       expect(localParticipant.publishRpcResponse).toHaveBeenCalledTimes(1);
     });
@@ -74,7 +71,7 @@ describe('LocalParticipant', () => {
       localParticipant.registerRpcMethod(methodName, handler);
 
       const mockCaller = new RemoteParticipant(
-        {} as any, // SignalClient mock
+        {} as any,
         'remote-sid',
         'remote-identity',
         'Remote Participant',
@@ -105,7 +102,6 @@ describe('LocalParticipant', () => {
       expect(mockPublishAck).toHaveBeenCalledTimes(1);
       expect(mockPublishResponse).toHaveBeenCalledTimes(1);
 
-      // Verify that the error response contains the correct error
       const errorResponse = mockPublishResponse.mock.calls[0][3];
       expect(errorResponse).toBeInstanceOf(RpcError);
       expect(errorResponse.code).toBe(RpcError.ErrorCode.APPLICATION_ERROR);
@@ -120,7 +116,7 @@ describe('LocalParticipant', () => {
       localParticipant.registerRpcMethod(methodName, handler);
 
       const mockCaller = new RemoteParticipant(
-        {} as any, // SignalClient mock
+        {} as any,
         'remote-sid',
         'remote-identity',
         'Remote Participant',
@@ -151,7 +147,6 @@ describe('LocalParticipant', () => {
       expect(localParticipant.publishRpcAck).toHaveBeenCalledTimes(1);
       expect(localParticipant.publishRpcResponse).toHaveBeenCalledTimes(1);
 
-      // Verify that the error response contains the correct RpcError
       const errorResponse = mockPublishResponse.mock.calls[0][3];
       expect(errorResponse).toBeInstanceOf(RpcError);
       expect(errorResponse.code).toBe(errorCode);
@@ -171,7 +166,7 @@ describe('LocalParticipant', () => {
         client: {
           sendUpdateLocalMetadata: vi.fn(),
         },
-        on: vi.fn().mockReturnThis(), // Add this line to mock the 'on' method
+        on: vi.fn().mockReturnThis(), 
       } as unknown as RTCEngine;
 
       mockRoomOptions = {} as InternalRoomOptions;
@@ -184,7 +179,7 @@ describe('LocalParticipant', () => {
       );
 
       mockRemoteParticipant = new RemoteParticipant(
-        {} as any, // SignalClient mock
+        {} as any,
         'remote-sid',
         'remote-identity',
         'Remote Participant',
@@ -225,7 +220,6 @@ describe('LocalParticipant', () => {
       const method = 'timeoutMethod';
       const payload = 'timeoutPayload';
 
-      // Set a short timeout for the test
       const timeoutMs = 50;
 
       const resultPromise = localParticipant.performRpc(
@@ -235,7 +229,6 @@ describe('LocalParticipant', () => {
         timeoutMs,
       );
 
-      // Mock the publishRpcRequest method to simulate a delay longer than the timeout
       mockPublishRequest.mockImplementationOnce(() => {
         return new Promise((resolve) => {
           setTimeout(resolve, timeoutMs + 10);
@@ -244,10 +237,8 @@ describe('LocalParticipant', () => {
 
       const startTime = Date.now();
 
-      // Wait for the promise to reject
       await expect(resultPromise).rejects.toThrow('Connection timeout');
 
-      // Check that the time elapsed is close to the timeout value
       const elapsedTime = Date.now() - startTime;
       expect(elapsedTime).toBeGreaterThanOrEqual(timeoutMs);
       expect(elapsedTime).toBeLessThan(timeoutMs + 50); // Allow some margin for test execution
