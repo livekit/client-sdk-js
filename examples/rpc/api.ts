@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import express from 'express';
 import { AccessToken } from 'livekit-server-sdk';
+import type { Express } from 'express';
 
 dotenv.config({ path: '.env.local' });
 
@@ -15,7 +16,8 @@ app.post('/api/get-token', async (req, res) => {
   const { identity, roomName } = req.body;
 
   if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
-    return res.status(500).json({ error: 'Server misconfigured' });
+    res.status(500).json({ error: 'Server misconfigured' });
+    return;
   }
 
   const token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
@@ -34,4 +36,4 @@ app.post('/api/get-token', async (req, res) => {
   });
 });
 
-export const handler = app;
+export const handler: Express = app;
