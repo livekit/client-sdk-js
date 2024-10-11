@@ -206,23 +206,23 @@ describe('ParticipantKeyHandler', () => {
     }
   });
 
-  describe("resetKeyStatus", () => {
+  describe('resetKeyStatus', () => {
     it('marks all keys as valid if no index is provided', () => {
       const keyHandler = new ParticipantKeyHandler(participantIdentity, {
         ...KEY_PROVIDER_DEFAULTS,
         failureTolerance: 0,
       });
-  
+
       for (let i = 0; i < KEY_PROVIDER_DEFAULTS.keyringSize; i++) {
         keyHandler.decryptionFailure(i);
         expect(keyHandler.hasInvalidKeyAtIndex(i)).toBe(true);
       }
-  
+
       keyHandler.resetKeyStatus();
-  
+
       for (let i = 0; i < KEY_PROVIDER_DEFAULTS.keyringSize; i++) {
         expect(keyHandler.hasInvalidKeyAtIndex(i)).toBe(false);
       }
-    });  
+    });
   });
 });

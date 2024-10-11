@@ -401,7 +401,10 @@ describe('FrameCryptor', () => {
       vitest.useFakeTimers();
       try {
         // 1. we (the local participant) have just joined a room and do not have the existing key (index 0) for the existing/remote participant
-        const { keys, input, output } = prepareParticipantTestDecoder(participantIdentity, { failureTolerance: 1, ratchetWindowSize: 0 });
+        const { keys, input, output } = prepareParticipantTestDecoder(participantIdentity, {
+          failureTolerance: 1,
+          ratchetWindowSize: 0,
+        });
         vitest.spyOn(keys, 'decryptionFailure');
 
         // 2. we receive some frames from the existing participant encrypted with the existing key 0 that we don't have
@@ -431,17 +434,25 @@ describe('FrameCryptor', () => {
 
         // 6. the existing participant moves over to the new key index 1 and we start to receive frames for index 1 that we
         // should be able to decrypt even though we had the previous failures.
-        input.write(mockRTCEncodedVideoFrame(
-          new Uint8Array([
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 254, 96, 91, 111, 187, 132, 31, 12, 207, 136, 17, 221,
-            233, 116, 174, 6, 50, 37, 214, 71, 119, 196, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255,
-            199, 51, 12, 1,
-          ]),
-        ));
+        input.write(
+          mockRTCEncodedVideoFrame(
+            new Uint8Array([
+              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 254, 96, 91, 111, 187, 132, 31, 12, 207, 136, 17, 221,
+              233, 116, 174, 6, 50, 37, 214, 71, 119, 196, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255,
+              199, 51, 12, 1,
+            ]),
+          ),
+        );
 
-        input.write(mockRTCEncodedVideoFrame(
-          new Uint8Array([99, 2, 3, 4, 5, 6, 7, 8, 9, 10, 154, 108, 209, 239, 253, 33, 72, 111, 13, 125, 10, 101, 28, 209, 141, 162, 0, 238, 189, 254, 66, 156, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 96, 247, 12, 1])
-        ));
+        input.write(
+          mockRTCEncodedVideoFrame(
+            new Uint8Array([
+              99, 2, 3, 4, 5, 6, 7, 8, 9, 10, 154, 108, 209, 239, 253, 33, 72, 111, 13, 125, 10,
+              101, 28, 209, 141, 162, 0, 238, 189, 254, 66, 156, 255, 255, 255, 255, 0, 0, 0, 0,
+              255, 255, 96, 247, 12, 1,
+            ]),
+          ),
+        );
 
         await vitest.waitFor(() => expect(output.chunks.length).toEqual(2));
 

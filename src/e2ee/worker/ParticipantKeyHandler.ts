@@ -35,7 +35,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
   get hasValidKey(): boolean {
     return !this.hasInvalidKeyAtIndex(this.currentKeyIndex);
   }
-  
+
   constructor(participantIdentity: string, keyProviderOptions: KeyProviderOptions) {
     super();
     this.currentKeyIndex = 0;
@@ -51,7 +51,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   /**
    * Returns true if the key at the given index is marked as invalid.
-   * 
+   *
    * @param keyIndex the index of the key
    */
   hasInvalidKeyAtIndex(keyIndex: number): boolean {
@@ -63,7 +63,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   /**
    * Informs the key handler that a decryption failure occurred for an encryption key.
-   * 
+   *
    * @param keyIndex the key index for which the failure occurred. Defaults to the current key index.
    */
   decryptionFailure(keyIndex: number = this.currentKeyIndex): void {
@@ -82,7 +82,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   /**
    * Informs the key handler that a frame was successfully decrypted using an encryption key.
-   * 
+   *
    * @param keyIndex the key index for which the success occurred. Defaults to the current key index.
    */
   decryptionSuccess(keyIndex: number = this.currentKeyIndex): void {
@@ -92,7 +92,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
   /**
    * Call this after user initiated ratchet or a new key has been set in order to make sure to mark potentially
    * invalid keys as valid again
-   * 
+   *
    * @param keyIndex the index of the key. Defaults to the current key index.
    */
   resetKeyStatus(keyIndex?: number): void {
