@@ -103,7 +103,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
         );
 
         if (setKey) {
-          this.setKeyFromMaterial(newMaterial, currentKeyIndex, true);
+          await this.setKeyFromMaterial(newMaterial, currentKeyIndex, true);
           this.emit(
             KeyHandlerEvent.KeyRatcheted,
             newMaterial,
