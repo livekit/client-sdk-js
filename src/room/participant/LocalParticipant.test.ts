@@ -1,3 +1,4 @@
+import { DataPacket, DataPacket_Kind } from '@livekit/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InternalRoomOptions } from '../../options';
 import type RTCEngine from '../RTCEngine';
@@ -5,7 +6,6 @@ import { RpcError } from '../rpc';
 import LocalParticipant from './LocalParticipant';
 import { ParticipantKind } from './Participant';
 import RemoteParticipant from './RemoteParticipant';
-import { DataPacket, DataPacket_Kind } from '@livekit/protocol';
 
 describe('LocalParticipant', () => {
   describe('registerRpcMethod', () => {
