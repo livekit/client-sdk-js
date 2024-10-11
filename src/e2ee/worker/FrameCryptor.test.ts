@@ -165,9 +165,7 @@ describe('FrameCryptor', () => {
       try {
         const { cryptor, input, output } = prepareParticipantTestEncoder(participantIdentity, {});
 
-        const errorListener = vitest.fn().mockImplementation((e) => {
-          console.log('error', e);
-        });
+        const errorListener = vitest.fn();
         cryptor.on(CryptorEvent.Error, errorListener);
 
         const frame = mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
@@ -290,9 +288,7 @@ describe('FrameCryptor', () => {
       try {
         const { cryptor, keys, input } = prepareParticipantTestDecoder(participantIdentity, {});
 
-        const errorListener = vitest.fn().mockImplementation((e) => {
-          console.log('error', e);
-        });
+        const errorListener = vitest.fn();
         cryptor.on(CryptorEvent.Error, errorListener);
         vitest.spyOn(keys, 'decryptionFailure');
 
@@ -335,9 +331,7 @@ describe('FrameCryptor', () => {
 
         vitest.spyOn(crypto.subtle, 'decrypt');
         vitest.spyOn(keys, 'decryptionFailure');
-        const errorListener = vitest.fn().mockImplementation((e) => {
-          console.log('error', e);
-        });
+        const errorListener = vitest.fn();
         cryptor.on(CryptorEvent.Error, errorListener);
 
         await keys.setKey(await createKeyMaterialFromString('incorrect key'), 1);
