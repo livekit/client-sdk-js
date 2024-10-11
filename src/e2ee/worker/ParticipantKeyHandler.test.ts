@@ -171,7 +171,9 @@ describe('ParticipantKeyHandler', () => {
         await keyHandler.ratchetKey();
       }
       // check that all ciphertexts are unique
-      expect(new Set(ciphertexts.map(x => new TextDecoder().decode(x))).size).toEqual(ciphertexts.length);
+      expect(new Set(ciphertexts.map((x) => new TextDecoder().decode(x))).size).toEqual(
+        ciphertexts.length,
+      );
       expect(ciphertexts).matchSnapshot('ciphertexts');
     });
   });
