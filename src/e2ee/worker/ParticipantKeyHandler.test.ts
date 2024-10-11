@@ -35,38 +35,11 @@ describe('ParticipantKeyHandler', () => {
     expect(keyHandler.getKeySet(0)?.material).toEqual(materialB);
   });
 
-  it('defaults to key index of 0 when setting key', async () => {
-    const keyHandler = new ParticipantKeyHandler(participantIdentity, {
-      ...KEY_PROVIDER_DEFAULTS,
-    });
-
-    const materialA = await createKeyMaterialFromString('passwordA');
-
-    await keyHandler.setKey(materialA);
-
-    expect(keyHandler.getKeySet(0)?.material).toEqual(materialA);
-  });
-
-  it('defaults to current key index when getting key', async () => {
-    const keyHandler = new ParticipantKeyHandler(participantIdentity, {
-      ...KEY_PROVIDER_DEFAULTS,
-    });
-
-    const materialA = await createKeyMaterialFromString('passwordA');
-
-    await keyHandler.setKey(materialA, 10);
-
-    expect(keyHandler.getKeySet()?.material).toEqual(materialA);
-  });
-
-  it('marks current key invalid if more than failureTolerance failures', async () => {
+  it('marks invalid if more than failureTolerance failures', async () => {
     const keyHandler = new ParticipantKeyHandler(participantIdentity, {
       ...KEY_PROVIDER_DEFAULTS,
       failureTolerance: 2,
     });
-
-    keyHandler.setCurrentKeyIndex(10);
-
     expect(keyHandler.hasValidKey).toBe(true);
 
     // 1
@@ -82,13 +55,11 @@ describe('ParticipantKeyHandler', () => {
     expect(keyHandler.hasValidKey).toBe(false);
   });
 
-  it('marks current key valid on encryption success', async () => {
+  it('marks valid on encryption success', async () => {
     const keyHandler = new ParticipantKeyHandler(participantIdentity, {
       ...KEY_PROVIDER_DEFAULTS,
       failureTolerance: 0,
     });
-
-    keyHandler.setCurrentKeyIndex(10);
 
     expect(keyHandler.hasValidKey).toBe(true);
 
@@ -106,8 +77,6 @@ describe('ParticipantKeyHandler', () => {
       ...KEY_PROVIDER_DEFAULTS,
       failureTolerance: 0,
     });
-
-    keyHandler.setCurrentKeyIndex(10);
 
     expect(keyHandler.hasValidKey).toBe(true);
 
@@ -139,14 +108,7 @@ describe('ParticipantKeyHandler', () => {
     expect(keyHandler.getCurrentKeyIndex()).toBe(10);
   });
 
-  it('allows currentKeyIndex to be explicitly set', async () => {
-    const keyHandler = new ParticipantKeyHandler(participantIdentity, KEY_PROVIDER_DEFAULTS);
-
-    keyHandler.setCurrentKeyIndex(10);
-    expect(keyHandler.getCurrentKeyIndex()).toBe(10);
-  });
-
-  it('allows many failures if failureTolerance is less than zero', async () => {
+  it('allows many failures if failureTolerance is -1', async () => {
     const keyHandler = new ParticipantKeyHandler(participantIdentity, {
       ...KEY_PROVIDER_DEFAULTS,
       failureTolerance: -1,

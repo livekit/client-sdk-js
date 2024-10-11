@@ -60,21 +60,6 @@ class TestUnderlyingSink<T> implements UnderlyingSink<T> {
 function prepareParticipantTestDecoder(
   participantIdentity: string,
   partialKeyProviderOptions: Partial<KeyProviderOptions>,
-) {
-  return prepareParticipantTest("decode", participantIdentity, partialKeyProviderOptions);
-}
-
-function prepareParticipantTestEncoder(
-  participantIdentity: string,
-  partialKeyProviderOptions: Partial<KeyProviderOptions>,
-) {
-  return prepareParticipantTest("encode", participantIdentity, partialKeyProviderOptions);
-}
-
-function prepareParticipantTest(
-  mode: "encode" | "decode",
-  participantIdentity: string,
-  partialKeyProviderOptions: Partial<KeyProviderOptions>,  
 ): {
   keys: ParticipantKeyHandler;
   cryptor: FrameCryptor;
@@ -96,7 +81,7 @@ function prepareParticipantTest(
   const input = new TestUnderlyingSource<RTCEncodedVideoFrame>();
   const output = new TestUnderlyingSink<RTCEncodedVideoFrame>();
   cryptor.setupTransform(
-    mode,
+    'decode',
     new ReadableStream(input),
     new WritableStream(output),
     'testTrack',
@@ -107,6 +92,10 @@ function prepareParticipantTest(
 
 describe('FrameCryptor', () => {
   const participantIdentity = 'testParticipant';
+
+  afterEach(() => {
+    encryptionEnabledMap.clear();
+  });
 
   it('identifies server injected frame correctly', () => {
     const frameTrailer = new TextEncoder().encode('LKROCKS');
@@ -124,258 +113,154 @@ describe('FrameCryptor', () => {
     expect(isFrameServerInjected(frameData.buffer, frameTrailer)).toBe(false);
   });
 
-  describe("encode", () => {
-    afterEach(() => {
-      encryptionEnabledMap.clear();
-    });
+  it('passthrough if participant encryption disabled', async () => {
+    vitest.useFakeTimers();
+    try {
+      const { input, output } = prepareParticipantTestDecoder(participantIdentity, {});
 
-    it('passthrough if participant encryption disabled', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { input, output } = prepareParticipantTestEncoder(participantIdentity, {});
+      // disable encryption for participant
+      encryptionEnabledMap.set(participantIdentity, false);
 
-        // disable encryption for participant
-        encryptionEnabledMap.set(participantIdentity, false);
+      const frame = mockEncryptedRTCEncodedVideoFrame(1);
 
-        const frame = mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
+      input.write(frame);
+      await vitest.advanceTimersToNextTimerAsync();
 
-        input.write(frame);
-        await vitest.advanceTimersToNextTimerAsync();
-
-        expect(output.chunks).toEqual([frame]);
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
-
-    it('passthrough for empty frame', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { input, output } = prepareParticipantTestEncoder(participantIdentity, {});
-
-        // empty frame
-        const frame = mockRTCEncodedVideoFrame(new Uint8Array(0));
-
-        input.write(frame);
-        await vitest.advanceTimersToNextTimerAsync();
-
-        expect(output.chunks).toEqual([frame]);
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
-
-    it('immediately drops frame and emits error if no key set', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { cryptor, input, output } = prepareParticipantTestEncoder(participantIdentity, {});
-
-        const errorListener = vitest.fn().mockImplementation((e) => {
-          console.log('error', e);
-        });
-        cryptor.on(CryptorEvent.Error, errorListener);
-
-        const frame = mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]));
-
-        input.write(frame);
-        await vitest.advanceTimersToNextTimerAsync();
-
-        expect(output.chunks).toEqual([]);
-        expect(errorListener).toHaveBeenCalled();
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
-
-    it('encrypts frame', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { keys, input, output } = prepareParticipantTestEncoder(participantIdentity, {});
-
-        await keys.setKey(await createKeyMaterialFromString('key1'), 1);
-
-        const plainTextData = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
-        const frame = mockRTCEncodedVideoFrame(plainTextData);
-
-        input.write(frame);
-        await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
-
-        expect(output.chunks).toEqual([frame]);
-        expect(frame.data.byteLength).toBeGreaterThan(16);
-
-        // first bytes are unencrypted
-        expect(new Uint8Array(frame.data.slice(0, 10))).toEqual(plainTextData.subarray(0, 10));
-
-        // remainder should not be the same
-        expect(new Uint8Array(frame.data.slice(10, 16))).not.toEqual(plainTextData.subarray(10, 16));
-
-        const frameTrailer = new Uint8Array(frame.data.slice(frame.data.byteLength - 2));
-        // IV length
-        expect(frameTrailer[0]).toEqual(IV_LENGTH);
-        // key index
-        expect(frameTrailer[1]).toEqual(1);
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
+      expect(output.chunks).toEqual([frame]);
+    } finally {
+      vitest.useRealTimers();
+    }
   });
 
-  describe("decode", () => {
-    afterEach(() => {
-      encryptionEnabledMap.clear();
+  it('passthrough for empty frame', async () => {
+    vitest.useFakeTimers();
+    try {
+      const { input, output } = prepareParticipantTestDecoder(participantIdentity, {});
+
+      // empty frame
+      const frame = mockRTCEncodedVideoFrame(new Uint8Array(0));
+
+      input.write(frame);
+      await vitest.advanceTimersToNextTimerAsync();
+
+      expect(output.chunks).toEqual([frame]);
+    } finally {
+      vitest.useRealTimers();
+    }
+  });
+
+  it('drops frames when invalid key', async () => {
+    vitest.useFakeTimers();
+    try {
+      const { keys, input, output } = prepareParticipantTestDecoder(participantIdentity, {
+        failureTolerance: 0,
+      });
+
+      expect(keys.hasValidKey).toBe(true);
+
+      await keys.setKey(await createKeyMaterialFromString('password'), 0);
+
+      input.write(mockEncryptedRTCEncodedVideoFrame(1));
+      await vitest.advanceTimersToNextTimerAsync();
+
+      expect(output.chunks).toEqual([]);
+      expect(keys.hasValidKey).toBe(false);
+
+      // this should still fail as keys are all marked as invalid
+      input.write(mockEncryptedRTCEncodedVideoFrame(0));
+      await vitest.advanceTimersToNextTimerAsync();
+
+      expect(output.chunks).toEqual([]);
+      expect(keys.hasValidKey).toBe(false);
+    } finally {
+      vitest.useRealTimers();
+    }
+  });
+
+  it('marks key invalid after too many failures', async () => {
+    const { keys, cryptor, input } = prepareParticipantTestDecoder(participantIdentity, {
+      failureTolerance: 1,
     });
 
-    it('passthrough if participant encryption disabled', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { input, output } = prepareParticipantTestDecoder(participantIdentity, {});
+    expect(keys.hasValidKey).toBe(true);
 
-        // disable encryption for participant
-        encryptionEnabledMap.set(participantIdentity, false);
+    await keys.setKey(await createKeyMaterialFromString('password'), 0);
 
-        const frame = mockEncryptedRTCEncodedVideoFrame(1);
+    vitest.spyOn(keys, 'getKeySet');
+    vitest.spyOn(keys, 'decryptionFailure');
 
-        input.write(frame);
-        await vitest.advanceTimersToNextTimerAsync();
+    const errorListener = vitest.fn().mockImplementation((e) => {
+      console.log('error', e);
+    });
+    cryptor.on(CryptorEvent.Error, errorListener);
 
-        expect(output.chunks).toEqual([frame]);
-      } finally {
-        vitest.useRealTimers();
-      }
+    input.write(mockEncryptedRTCEncodedVideoFrame(1));
+
+    await vitest.waitFor(() => expect(keys.decryptionFailure).toHaveBeenCalled());
+    expect(errorListener).toHaveBeenCalled();
+    expect(keys.decryptionFailure).toHaveBeenCalledTimes(1);
+    expect(keys.getKeySet).toHaveBeenCalled();
+    expect(keys.getKeySet).toHaveBeenLastCalledWith(1);
+    expect(keys.hasValidKey).toBe(true);
+
+    vitest.clearAllMocks();
+
+    input.write(mockEncryptedRTCEncodedVideoFrame(1));
+
+    await vitest.waitFor(() => expect(keys.decryptionFailure).toHaveBeenCalled());
+    expect(errorListener).toHaveBeenCalled();
+    expect(keys.decryptionFailure).toHaveBeenCalledTimes(1);
+    expect(keys.getKeySet).toHaveBeenCalled();
+    expect(keys.getKeySet).toHaveBeenLastCalledWith(1);
+    expect(keys.hasValidKey).toBe(false);
+
+    vitest.clearAllMocks();
+
+    // this should still fail as keys are all marked as invalid
+    input.write(mockEncryptedRTCEncodedVideoFrame(0));
+
+    await vitest.waitFor(() => expect(keys.getKeySet).toHaveBeenCalled());
+    // decryptionFailure() isn't called in this case
+    expect(keys.getKeySet).toHaveBeenCalled();
+    expect(keys.getKeySet).toHaveBeenLastCalledWith(0);
+    expect(keys.hasValidKey).toBe(false);
+  });
+
+  it('mark as valid when a new key is set on same index', async () => {
+    const { keys, input } = prepareParticipantTestDecoder(participantIdentity, {
+      failureTolerance: 0,
     });
 
-    it('passthrough for empty frame', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { input, output } = prepareParticipantTestDecoder(participantIdentity, {});
+    const material = await createKeyMaterialFromString('password');
+    await keys.setKey(material, 0);
 
-        // empty frame
-        const frame = mockRTCEncodedVideoFrame(new Uint8Array(0));
+    expect(keys.hasValidKey).toBe(true);
 
-        input.write(frame);
-        await vitest.advanceTimersToNextTimerAsync();
+    input.write(mockEncryptedRTCEncodedVideoFrame(1));
 
-        expect(output.chunks).toEqual([frame]);
-      } finally {
-        vitest.useRealTimers();
-      }
+    expect(keys.hasValidKey).toBe(false);
+
+    await keys.setKey(material, 0);
+
+    expect(keys.hasValidKey).toBe(true);
+  });
+
+  it('mark as valid when a new key is set on new index', async () => {
+    const { keys, input } = prepareParticipantTestDecoder(participantIdentity, {
+      failureTolerance: 0,
     });
 
-    it('immediately drops frames when key marked invalid', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { keys, input, output } = prepareParticipantTestDecoder(participantIdentity, {
-          failureTolerance: 0,
-        });
+    const material = await createKeyMaterialFromString('password');
+    await keys.setKey(material, 0);
 
-        keys.decryptionFailure();
+    expect(keys.hasValidKey).toBe(true);
 
-        input.write(mockEncryptedRTCEncodedVideoFrame(1));
-        await vitest.advanceTimersToNextTimerAsync();
+    input.write(mockEncryptedRTCEncodedVideoFrame(1));
 
-        expect(output.chunks).toEqual([]);
+    expect(keys.hasValidKey).toBe(false);
 
-        keys.decryptionFailure();
+    await keys.setKey(material, 1);
 
-        input.write(mockEncryptedRTCEncodedVideoFrame(0));
-        await vitest.advanceTimersToNextTimerAsync();
-
-        expect(output.chunks).toEqual([]);
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
-
-    it('calls decryptionFailure on missing key and emits error', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { cryptor, keys, input } = prepareParticipantTestDecoder(participantIdentity, {});
-
-        const errorListener = vitest.fn().mockImplementation((e) => {
-          console.log('error', e);
-        });
-        cryptor.on(CryptorEvent.Error, errorListener);
-        vitest.spyOn(keys, 'decryptionFailure');
-
-        // no key is set at this index
-        input.write(mockEncryptedRTCEncodedVideoFrame(1));
-        await vitest.advanceTimersToNextTimerAsync();
-
-        expect(keys.decryptionFailure).toHaveBeenCalledTimes(1);
-        expect(errorListener).toHaveBeenCalled();
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
-
-    it('immediately drops frame if no key', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { input, output } = prepareParticipantTestDecoder(participantIdentity, {});
-
-        vitest.spyOn(crypto.subtle, 'decrypt');
-
-        input.write(mockEncryptedRTCEncodedVideoFrame(1));
-        await vitest.advanceTimersToNextTimerAsync();
-
-        expect(crypto.subtle.decrypt).not.toHaveBeenCalled();
-        expect(output.chunks).toEqual([]);
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
-
-    it('calls decryptionFailure with incorrect key and emits error', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { cryptor, keys, input, output } = prepareParticipantTestDecoder(participantIdentity, { ratchetWindowSize: 0 });
-
-        vitest.spyOn(crypto.subtle, 'decrypt');
-        vitest.spyOn(keys, 'decryptionFailure');
-        const errorListener = vitest.fn().mockImplementation((e) => {
-          console.log('error', e);
-        });
-        cryptor.on(CryptorEvent.Error, errorListener);
-
-        await keys.setKey(await createKeyMaterialFromString('incorrect key'), 1);
-
-        const frame = mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 254, 96, 91, 111, 187, 132, 31, 12, 207, 136, 17, 221, 233, 116, 174, 6, 50, 37, 214, 71, 119, 196, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 199, 51, 12, 1]));
-        // global.RTCEncodedAudioFrame = vitest.fn();
-        input.write(frame);
-        await vitest.waitFor(() => expect(keys.decryptionFailure).toHaveBeenCalled());
-
-        expect(crypto.subtle.decrypt).toHaveBeenCalled();
-        expect(output.chunks).toEqual([]);
-        expect(errorListener).toHaveBeenCalled();
-        expect(keys.decryptionFailure).toHaveBeenCalledTimes(1);
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
-
-    it('decrypts frame with correct key', async () => {
-      vitest.useFakeTimers();
-      try {
-        const { keys, input, output } = prepareParticipantTestDecoder(participantIdentity, {});
-
-        vitest.spyOn(keys, 'decryptionSuccess');
-
-        await keys.setKey(await createKeyMaterialFromString('key1'), 1);
-
-        const frame = mockRTCEncodedVideoFrame(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 254, 96, 91, 111, 187, 132, 31, 12, 207, 136, 17, 221, 233, 116, 174, 6, 50, 37, 214, 71, 119, 196, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 199, 51, 12, 1]));
-        input.write(frame);
-        await vitest.waitFor(() => expect(output.chunks).toHaveLength(1));
-
-        expect(output.chunks).toEqual([frame]);
-
-        expect(keys.decryptionSuccess).toHaveBeenCalledTimes(1);
-
-        expect(frame.data.byteLength).toBe(16);
-
-        expect(new Uint8Array(frame.data)).toEqual(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]));
-      } finally {
-        vitest.useRealTimers();
-      }
-    });
+    expect(keys.hasValidKey).toBe(true);
   });
 });
