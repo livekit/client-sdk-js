@@ -1,5 +1,4 @@
 import { describe, expect, it, vitest } from 'vitest';
-import { KeySet } from '..';
 import { ENCRYPTION_ALGORITHM, KEY_PROVIDER_DEFAULTS } from '../constants';
 import { KeyHandlerEvent } from '../events';
 import { createKeyMaterialFromString } from '../utils';
