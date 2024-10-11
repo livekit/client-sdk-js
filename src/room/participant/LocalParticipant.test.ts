@@ -46,8 +46,8 @@ describe('LocalParticipant', () => {
         ParticipantKind.STANDARD,
       );
 
-      localParticipant.publishRpcAck = vi.fn();
-      localParticipant.publishRpcResponse = vi.fn();
+      (localParticipant as any).publishRpcAck = vi.fn();
+      (localParticipant as any).publishRpcResponse = vi.fn();
 
       await localParticipant.handleIncomingRpcRequest(
         mockCaller,
@@ -59,8 +59,8 @@ describe('LocalParticipant', () => {
 
       expect(handler).toHaveBeenCalledWith('test-request-id', mockCaller, 'test payload', 5000);
 
-      expect(localParticipant.publishRpcAck).toHaveBeenCalledTimes(1);
-      expect(localParticipant.publishRpcResponse).toHaveBeenCalledTimes(1);
+      expect((localParticipant as any).publishRpcAck).toHaveBeenCalledTimes(1);
+      expect((localParticipant as any).publishRpcResponse).toHaveBeenCalledTimes(1);
     });
 
     it('should catch and transform unhandled errors in the RPC method handler', async () => {
@@ -82,8 +82,8 @@ describe('LocalParticipant', () => {
 
       const mockPublishAck = vi.fn();
       const mockPublishResponse = vi.fn();
-      localParticipant.publishRpcAck = mockPublishAck;
-      localParticipant.publishRpcResponse = mockPublishResponse;
+      (localParticipant as any).publishRpcAck = mockPublishAck;
+      (localParticipant as any).publishRpcResponse = mockPublishResponse;
 
       await localParticipant.handleIncomingRpcRequest(
         mockCaller,
@@ -127,8 +127,8 @@ describe('LocalParticipant', () => {
 
       const mockPublishAck = vi.fn();
       const mockPublishResponse = vi.fn();
-      localParticipant.publishRpcAck = mockPublishAck;
-      localParticipant.publishRpcResponse = mockPublishResponse;
+      (localParticipant as any).publishRpcAck = mockPublishAck;
+      (localParticipant as any).publishRpcResponse = mockPublishResponse;
 
       await localParticipant.handleIncomingRpcRequest(
         mockCaller,
@@ -144,8 +144,8 @@ describe('LocalParticipant', () => {
         'test payload',
         5000,
       );
-      expect(localParticipant.publishRpcAck).toHaveBeenCalledTimes(1);
-      expect(localParticipant.publishRpcResponse).toHaveBeenCalledTimes(1);
+      expect((localParticipant as any).publishRpcAck).toHaveBeenCalledTimes(1);
+      expect((localParticipant as any).publishRpcResponse).toHaveBeenCalledTimes(1);
 
       const errorResponse = mockPublishResponse.mock.calls[0][3];
       expect(errorResponse).toBeInstanceOf(RpcError);
@@ -189,7 +189,7 @@ describe('LocalParticipant', () => {
       );
 
       mockPublishRequest = vi.fn();
-      localParticipant.publishRpcRequest = mockPublishRequest;
+      (localParticipant as any).publishRpcRequest = mockPublishRequest;
     });
 
     it('should send RPC request and receive successful response', async () => {
@@ -243,7 +243,7 @@ describe('LocalParticipant', () => {
       expect(elapsedTime).toBeGreaterThanOrEqual(timeoutMs);
       expect(elapsedTime).toBeLessThan(timeoutMs + 50); // Allow some margin for test execution
 
-      expect(localParticipant.publishRpcRequest).toHaveBeenCalledTimes(1);
+      expect((localParticipant as any).publishRpcRequest).toHaveBeenCalledTimes(1);
     });
 
     it('should handle RPC error response', async () => {

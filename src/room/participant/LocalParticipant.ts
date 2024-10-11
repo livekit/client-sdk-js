@@ -1658,7 +1658,7 @@ export default class LocalParticipant extends Participant {
   }
 
   /** @internal */
-  async publishRpcRequest(
+  private async publishRpcRequest(
     destinationIdentity: string,
     requestId: string,
     method: string,
@@ -1683,7 +1683,7 @@ export default class LocalParticipant extends Participant {
   }
 
   /** @internal */
-  async publishRpcResponse(
+  private async publishRpcResponse(
     destinationIdentity: string,
     requestId: string,
     payload: string | null,
@@ -1707,7 +1707,7 @@ export default class LocalParticipant extends Participant {
   }
 
   /** @internal */
-  async publishRpcAck(destinationIdentity: string, requestId: string) {
+  private async publishRpcAck(destinationIdentity: string, requestId: string) {
     const packet = new DataPacket({
       destinationIdentities: [destinationIdentity],
       kind: DataPacket_Kind.RELIABLE,
