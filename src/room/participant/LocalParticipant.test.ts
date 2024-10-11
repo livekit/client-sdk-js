@@ -5,19 +5,23 @@ import { RpcError } from '../rpc';
 import LocalParticipant from './LocalParticipant';
 import { ParticipantKind } from './Participant';
 import RemoteParticipant from './RemoteParticipant';
+import { DataPacket, DataPacket_Kind } from '@livekit/protocol';
 
 describe('LocalParticipant', () => {
   describe('registerRpcMethod', () => {
     let localParticipant: LocalParticipant;
     let mockEngine: RTCEngine;
     let mockRoomOptions: InternalRoomOptions;
+    let mockSendDataPacket: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
+      mockSendDataPacket = vi.fn();
       mockEngine = {
         client: {
           sendUpdateLocalMetadata: vi.fn(),
         },
         on: vi.fn().mockReturnThis(),
+        sendDataPacket: mockSendDataPacket,
       } as unknown as RTCEngine;
 
       mockRoomOptions = {} as InternalRoomOptions;
@@ -46,9 +50,6 @@ describe('LocalParticipant', () => {
         ParticipantKind.STANDARD,
       );
 
-      (localParticipant as any).publishRpcAck = vi.fn();
-      (localParticipant as any).publishRpcResponse = vi.fn();
-
       await localParticipant.handleIncomingRpcRequest(
         mockCaller,
         'test-request-id',
@@ -59,8 +60,16 @@ describe('LocalParticipant', () => {
 
       expect(handler).toHaveBeenCalledWith('test-request-id', mockCaller, 'test payload', 5000);
 
-      expect((localParticipant as any).publishRpcAck).toHaveBeenCalledTimes(1);
-      expect((localParticipant as any).publishRpcResponse).toHaveBeenCalledTimes(1);
+      // Check if sendDataPacket was called twice (once for ACK and once for response)
+      expect(mockSendDataPacket).toHaveBeenCalledTimes(2);
+
+      // Check if the first call was for ACK
+      expect(mockSendDataPacket.mock.calls[0][0].value.case).toBe('rpcAck');
+      expect(mockSendDataPacket.mock.calls[0][1]).toBe(DataPacket_Kind.RELIABLE);
+
+      // Check if the second call was for response
+      expect(mockSendDataPacket.mock.calls[1][0].value.case).toBe('rpcResponse');
+      expect(mockSendDataPacket.mock.calls[1][1]).toBe(DataPacket_Kind.RELIABLE);
     });
 
     it('should catch and transform unhandled errors in the RPC method handler', async () => {
@@ -80,11 +89,6 @@ describe('LocalParticipant', () => {
         ParticipantKind.STANDARD,
       );
 
-      const mockPublishAck = vi.fn();
-      const mockPublishResponse = vi.fn();
-      (localParticipant as any).publishRpcAck = mockPublishAck;
-      (localParticipant as any).publishRpcResponse = mockPublishResponse;
-
       await localParticipant.handleIncomingRpcRequest(
         mockCaller,
         'test-error-request-id',
@@ -99,11 +103,12 @@ describe('LocalParticipant', () => {
         'test payload',
         5000,
       );
-      expect(mockPublishAck).toHaveBeenCalledTimes(1);
-      expect(mockPublishResponse).toHaveBeenCalledTimes(1);
 
-      const errorResponse = mockPublishResponse.mock.calls[0][3];
-      expect(errorResponse).toBeInstanceOf(RpcError);
+      // Check if sendDataPacket was called twice (once for ACK and once for error response)
+      expect(mockSendDataPacket).toHaveBeenCalledTimes(2);
+
+      // Check if the second call was for error response
+      const errorResponse = mockSendDataPacket.mock.calls[1][0].value.value.value.value;
       expect(errorResponse.code).toBe(RpcError.ErrorCode.APPLICATION_ERROR);
     });
 
@@ -125,11 +130,6 @@ describe('LocalParticipant', () => {
         ParticipantKind.STANDARD,
       );
 
-      const mockPublishAck = vi.fn();
-      const mockPublishResponse = vi.fn();
-      (localParticipant as any).publishRpcAck = mockPublishAck;
-      (localParticipant as any).publishRpcResponse = mockPublishResponse;
-
       await localParticipant.handleIncomingRpcRequest(
         mockCaller,
         'test-rpc-error-request-id',
@@ -144,29 +144,32 @@ describe('LocalParticipant', () => {
         'test payload',
         5000,
       );
-      expect((localParticipant as any).publishRpcAck).toHaveBeenCalledTimes(1);
-      expect((localParticipant as any).publishRpcResponse).toHaveBeenCalledTimes(1);
 
-      const errorResponse = mockPublishResponse.mock.calls[0][3];
-      expect(errorResponse).toBeInstanceOf(RpcError);
+      // Check if sendDataPacket was called twice (once for ACK and once for error response)
+      expect(mockSendDataPacket).toHaveBeenCalledTimes(2);
+
+      // Check if the second call was for error response
+      const errorResponse = mockSendDataPacket.mock.calls[1][0].value.value.value.value;
       expect(errorResponse.code).toBe(errorCode);
       expect(errorResponse.message).toBe(errorMessage);
     });
   });
 
-  describe('performRpcRequest', () => {
+  describe('performRpc', () => {
     let localParticipant: LocalParticipant;
     let mockRemoteParticipant: RemoteParticipant;
-    let mockPublishRequest: ReturnType<typeof vi.fn>;
     let mockEngine: RTCEngine;
     let mockRoomOptions: InternalRoomOptions;
+    let mockSendDataPacket: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
+      mockSendDataPacket = vi.fn();
       mockEngine = {
         client: {
           sendUpdateLocalMetadata: vi.fn(),
         },
         on: vi.fn().mockReturnThis(),
+        sendDataPacket: mockSendDataPacket,
       } as unknown as RTCEngine;
 
       mockRoomOptions = {} as InternalRoomOptions;
@@ -187,9 +190,6 @@ describe('LocalParticipant', () => {
         undefined,
         ParticipantKind.STANDARD,
       );
-
-      mockPublishRequest = vi.fn();
-      (localParticipant as any).publishRpcRequest = mockPublishRequest;
     });
 
     it('should send RPC request and receive successful response', async () => {
@@ -197,7 +197,8 @@ describe('LocalParticipant', () => {
       const payload = 'testPayload';
       const responsePayload = 'responsePayload';
 
-      mockPublishRequest.mockImplementationOnce((_, requestId) => {
+      mockSendDataPacket.mockImplementationOnce((packet: DataPacket) => {
+        const requestId = packet.value.value.id;
         setTimeout(() => {
           localParticipant.handleIncomingRpcAck(requestId);
           setTimeout(() => {
@@ -212,7 +213,7 @@ describe('LocalParticipant', () => {
         payload,
       );
 
-      expect(mockPublishRequest).toHaveBeenCalledTimes(1);
+      expect(mockSendDataPacket).toHaveBeenCalledTimes(1);
       expect(result).toBe(responsePayload);
     });
 
@@ -229,7 +230,7 @@ describe('LocalParticipant', () => {
         timeoutMs,
       );
 
-      mockPublishRequest.mockImplementationOnce(() => {
+      mockSendDataPacket.mockImplementationOnce(() => {
         return new Promise((resolve) => {
           setTimeout(resolve, timeoutMs + 10);
         });
@@ -243,7 +244,7 @@ describe('LocalParticipant', () => {
       expect(elapsedTime).toBeGreaterThanOrEqual(timeoutMs);
       expect(elapsedTime).toBeLessThan(timeoutMs + 50); // Allow some margin for test execution
 
-      expect((localParticipant as any).publishRpcRequest).toHaveBeenCalledTimes(1);
+      expect(mockSendDataPacket).toHaveBeenCalledTimes(1);
     });
 
     it('should handle RPC error response', async () => {
@@ -252,7 +253,8 @@ describe('LocalParticipant', () => {
       const errorCode = 101;
       const errorMessage = 'Test error message';
 
-      mockPublishRequest.mockImplementationOnce((_, requestId) => {
+      mockSendDataPacket.mockImplementationOnce((packet: DataPacket) => {
+        const requestId = packet.value.value.id;
         setTimeout(() => {
           localParticipant.handleIncomingRpcAck(requestId);
           localParticipant.handleIncomingRpcResponse(
@@ -272,7 +274,7 @@ describe('LocalParticipant', () => {
       const method = 'disconnectMethod';
       const payload = 'disconnectPayload';
 
-      mockPublishRequest.mockImplementationOnce(() => Promise.resolve());
+      mockSendDataPacket.mockImplementationOnce(() => Promise.resolve());
 
       const resultPromise = localParticipant.performRpc(
         mockRemoteParticipant.identity,
