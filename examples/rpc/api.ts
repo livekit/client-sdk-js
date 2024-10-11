@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import express from 'express';
-import { AccessToken } from 'livekit-server-sdk';
 import type { Express } from 'express';
+import { AccessToken } from 'livekit-server-sdk';
 
 dotenv.config({ path: '.env.local' });
 
