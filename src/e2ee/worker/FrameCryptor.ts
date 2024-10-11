@@ -542,7 +542,7 @@ export class FrameCryptor extends BaseFrameCryptor {
    *
    * See also https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams
    */
-  private makeIV(synchronizationSource: number, timestamp: number): Uint8Array {
+  private makeIV(synchronizationSource: number, timestamp: number) {
     const iv = new ArrayBuffer(IV_LENGTH);
     const ivView = new DataView(iv);
 
@@ -560,7 +560,7 @@ export class FrameCryptor extends BaseFrameCryptor {
 
     this.sendCounts.set(synchronizationSource, sendCount + 1);
 
-    return new Uint8Array(iv);
+    return iv;
   }
 
   private getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): {
