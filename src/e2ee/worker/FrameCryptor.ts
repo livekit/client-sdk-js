@@ -555,6 +555,8 @@ export class FrameCryptor extends BaseFrameCryptor {
 
     this.sendCounts.set(synchronizationSource, sendCount + 1);
 
+    // We convert to a Uint8Array to avoid issues with incompatible ArrayBuffer implementations.
+    // Specifically in the jsdom environment which we use for testing.
     return new Uint8Array(iv);
   }
 
