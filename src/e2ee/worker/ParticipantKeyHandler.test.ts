@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { KEY_PROVIDER_DEFAULTS } from '../constants';
+import { describe, expect, it, vitest } from 'vitest';
+import { ENCRYPTION_ALGORITHM, KEY_PROVIDER_DEFAULTS } from '../constants';
+import { KeyHandlerEvent } from '../events';
 import { createKeyMaterialFromString } from '../utils';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
@@ -156,5 +157,62 @@ describe('ParticipantKeyHandler', () => {
       keyHandler.decryptionFailure();
       expect(keyHandler.hasValidKey).toBe(true);
     }
+  });
+
+  describe('ratchetKey', () => {
+    it('emits event', async () => {
+      const keyHandler = new ParticipantKeyHandler(participantIdentity, KEY_PROVIDER_DEFAULTS);
+
+      const material = await createKeyMaterialFromString('password');
+
+      const keyRatched = vitest.fn();
+
+      keyHandler.on(KeyHandlerEvent.KeyRatcheted, keyRatched);
+
+      await keyHandler.setKey(material);
+
+      await keyHandler.ratchetKey();
+
+      const newMaterial = keyHandler.getKeySet()?.material;
+
+      expect(keyRatched).toHaveBeenCalledWith(newMaterial, participantIdentity, 0);
+    });
+
+    it('ratchets keys predictably', async () => {
+      // we can't extract the keys directly, so we instead use them to encrypt a known plaintext
+      const keyHandler = new ParticipantKeyHandler(participantIdentity, KEY_PROVIDER_DEFAULTS);
+
+      const originalMaterial = await createKeyMaterialFromString('password');
+
+      await keyHandler.setKey(originalMaterial);
+
+      const ciphertexts: Uint8Array[] = [];
+
+      const plaintext = new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+
+      const iv = new Uint8Array(12);
+      const additionalData = new Uint8Array(0);
+
+      for (let i = 0; i < 10; i++) {
+        const { encryptionKey } = keyHandler.getKeySet()!;
+
+        const ciphertext = await crypto.subtle.encrypt(
+          {
+            name: ENCRYPTION_ALGORITHM,
+            iv,
+            additionalData,
+          },
+          encryptionKey,
+          plaintext,
+        );
+        ciphertexts.push(new Uint8Array(ciphertext));
+        await keyHandler.ratchetKey();
+      }
+      // check that all ciphertexts are unique
+      expect(new Set(ciphertexts.map((x) => new TextDecoder().decode(x))).size).toEqual(
+        ciphertexts.length,
+      );
+      expect(ciphertexts).matchSnapshot('ciphertexts');
+    });
   });
 });
