@@ -282,7 +282,10 @@ export default class LocalParticipant extends Participant {
             (!name || this.name === name) &&
             (!metadata || this.metadata === metadata) &&
             (!attributes ||
-              Object.entries(attributes).every(([key, value]) => this.attributes[key] === value))
+              Object.entries(attributes).every(
+                ([key, value]) =>
+                  this.attributes[key] === value || (value === '' && !this.attributes[key]),
+              ))
           ) {
             this.pendingSignalRequests.delete(requestId);
             resolve();
