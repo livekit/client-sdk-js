@@ -63,7 +63,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   /**
    * Informs the key handler that a decryption failure occurred for an encryption key.
-   *
+   * @internal
    * @param keyIndex the key index for which the failure occurred. Defaults to the current key index.
    */
   decryptionFailure(keyIndex: number = this.currentKeyIndex): void {
@@ -82,7 +82,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   /**
    * Informs the key handler that a frame was successfully decrypted using an encryption key.
-   *
+   * @internal
    * @param keyIndex the key index for which the success occurred. Defaults to the current key index.
    */
   decryptionSuccess(keyIndex: number = this.currentKeyIndex): void {
