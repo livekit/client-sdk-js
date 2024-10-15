@@ -65,8 +65,12 @@ async function main() {
   }
 
   console.log('participants done, disconnecting');
-  await Promise.all([callersRoom.disconnect(), greetersRoom.disconnect(), mathGeniusRoom.disconnect()]);
-  
+  await Promise.all([
+    callersRoom.disconnect(),
+    greetersRoom.disconnect(),
+    mathGeniusRoom.disconnect(),
+  ]);
+
   console.log('\n\nParticipants disconnected. Example completed.');
 }
 
