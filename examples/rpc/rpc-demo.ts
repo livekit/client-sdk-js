@@ -148,7 +148,7 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
       );
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      
+
       if (denominator === 0) {
         throw new Error('Cannot divide by zero');
       }
