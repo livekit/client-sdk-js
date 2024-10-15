@@ -25,27 +25,6 @@ async function main() {
     connectParticipant('math-genius', roomName),
   ]);
 
-  const waitForOtherParticipants = async (room: Room): Promise<void> => {
-    return new Promise((resolve) => {
-      const checkParticipants = () => {
-        const participants = Array.from(room.remoteParticipants.values());
-        if (participants.length === 2) {
-          resolve();
-        } else {
-          setTimeout(checkParticipants, 100);
-        }
-      };
-      checkParticipants();
-    });
-  };
-
-  console.log('Waiting for all participants to connect...');
-  await Promise.all([
-    waitForOtherParticipants(callersRoom),
-    waitForOtherParticipants(greetersRoom),
-    waitForOtherParticipants(mathGeniusRoom),
-  ]);
-
   console.log('All participants connected and found each other.');
 
   await registerReceiverMethods(greetersRoom, mathGeniusRoom);
@@ -85,10 +64,9 @@ async function main() {
     console.error('Unexpected error:', error);
   }
 
-  console.log('\n\nParticipants done, disconnecting...');
-  await callersRoom.disconnect();
-  await mathGeniusRoom.disconnect();
-
+  console.log('participants done, disconnecting');
+  await Promise.all([callersRoom.disconnect(), greetersRoom.disconnect(), mathGeniusRoom.disconnect()]);
+  
   console.log('\n\nParticipants disconnected. Example completed.');
 }
 
@@ -251,7 +229,6 @@ const performDivision = async (room: Room): Promise<void> => {
     }
   }
 };
-
 const connectParticipant = async (identity: string, roomName: string): Promise<Room> => {
   const room = new Room();
   const { token, url } = await fetchToken(identity, roomName);
@@ -271,6 +248,30 @@ const connectParticipant = async (identity: string, roomName: string): Promise<R
       room.once(RoomEvent.Connected, () => resolve());
     }
   });
+
+  let remoteParticipants = room.remoteParticipants.size;
+
+  console.log(`[${identity}] I see ${remoteParticipants} others.`);
+
+  if (remoteParticipants < 2) {
+    await new Promise<void>((resolve) => {
+      const checkParticipants = () => {
+        const newRemoteParticipants = room.remoteParticipants.size;
+        if (newRemoteParticipants > remoteParticipants) {
+          console.log(`[${identity}] I see ${newRemoteParticipants} others.`);
+        }
+        remoteParticipants = newRemoteParticipants;
+        if (remoteParticipants >= 2) {
+          resolve();
+        } else {
+          setTimeout(checkParticipants, 100);
+        }
+      };
+      checkParticipants();
+    });
+  }
+
+  console.log(`[${identity}] Fully connected!`);
 
   return room;
 };
@@ -320,10 +321,12 @@ console.error = (...args) => {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  const runDemoButton = document.getElementById('run-demo');
+  const runDemoButton = document.getElementById('run-demo') as HTMLButtonElement;
   if (runDemoButton) {
-    runDemoButton.addEventListener('click', () => {
-      (window as any).runRpcDemo();
+    runDemoButton.addEventListener('click', async () => {
+      runDemoButton.disabled = true;
+      await (window as any).runRpcDemo();
+      runDemoButton.disabled = false;
     });
   }
 });

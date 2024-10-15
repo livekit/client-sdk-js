@@ -63,3 +63,15 @@ h1 {
 .btn:active {
   transform: translateY(0);
 }
+
+.btn:disabled {
+  background-color: #bdc3c7;
+  color: #7f8c8d;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn:disabled:hover {
+  background-color: #bdc3c7;
+  transform: none;
+}
