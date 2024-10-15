@@ -262,6 +262,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
     try {
       this._isClosed = true;
+      this.joinAttempts = 0;
       this.emit(EngineEvent.Closing);
       this.removeAllListeners();
       this.deregisterOnLineListener();
