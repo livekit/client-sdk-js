@@ -1557,7 +1557,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } else if (packet.value.case === 'rpcResponse') {
       this.handleRpcResponse(participant, packet.value.value);
     } else if (packet.value.case === 'rpcAck') {
-      this.handleRpcAck(participant, packet.value.value);
+      this.handleRpcAck(packet.value.value);
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
     }
@@ -1642,10 +1642,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant.handleIncomingRpcResponse(response.requestId, payload, error);
   };
 
-  private handleRpcAck = (participant: RemoteParticipant | undefined, ack: RpcAck) => {
-    if (!participant) {
-      return;
-    }
+  private handleRpcAck = (ack: RpcAck) => {
     this.localParticipant.handleIncomingRpcAck(ack.requestId);
   };
 

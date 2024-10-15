@@ -6,7 +6,10 @@ import {
   RpcError,
 } from '../../src/index';
 
+let startTime: number;
+
 async function main() {
+  startTime = Date.now();
   const logArea = document.getElementById('log') as HTMLTextAreaElement;
   if (logArea) {
     logArea.value = '';
@@ -21,6 +24,29 @@ async function main() {
     connectParticipant('greeter', roomName),
     connectParticipant('math-genius', roomName),
   ]);
+
+  const waitForOtherParticipants = async (room: Room): Promise<void> => {
+    return new Promise((resolve) => {
+      const checkParticipants = () => {
+        const participants = Array.from(room.remoteParticipants.values());
+        if (participants.length === 2) {
+          resolve();
+        } else {
+          setTimeout(checkParticipants, 100);
+        }
+      };
+      checkParticipants();
+    });
+  };
+
+  console.log('Waiting for all participants to connect...');
+  await Promise.all([
+    waitForOtherParticipants(callersRoom),
+    waitForOtherParticipants(greetersRoom),
+    waitForOtherParticipants(mathGeniusRoom),
+  ]);
+
+  console.log('All participants connected and found each other.');
 
   await registerReceiverMethods(greetersRoom, mathGeniusRoom);
 
@@ -122,7 +148,7 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
       );
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
-
+      
       if (denominator === 0) {
         throw new Error('Cannot divide by zero');
       }
@@ -279,14 +305,18 @@ const logToUI = (message: string) => {
 
 const originalConsoleLog = console.log;
 console.log = (...args) => {
-  originalConsoleLog.apply(console, args);
-  logToUI(args.join(' '));
+  const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(3);
+  const formattedMessage = `[+${elapsedTime}s] ${args.join(' ')}`;
+  originalConsoleLog.apply(console, [formattedMessage]);
+  logToUI(formattedMessage);
 };
 
 const originalConsoleError = console.error;
 console.error = (...args) => {
-  originalConsoleError.apply(console, args);
-  logToUI('ERROR: ' + args.join(' '));
+  const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(3);
+  const formattedMessage = `[+${elapsedTime}s] ERROR: ${args.join(' ')}`;
+  originalConsoleError.apply(console, [formattedMessage]);
+  logToUI(formattedMessage);
 };
 
 document.addEventListener('DOMContentLoaded', () => {
