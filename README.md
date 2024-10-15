@@ -318,11 +318,11 @@ The participant who implements the method and will receive its calls must first 
 room.localParticipant?.registerRpcMethod(
    // method name - can be any string that makes sense for your application
   'greet',
-
+  
   // method handler - will be called when the method is invoked by a RemoteParticipant
-  async (requestId: string, caller: RemoteParticipant, payload: string, responseTimeoutMs: number) => {
-    console.log(`Received greeting from ${caller.identity}: ${payload}`);
-    return `Hello, ${caller.identity}!`;
+  async (requestId: string, callerIdentity: string, payload: string, responseTimeoutMs: number) => {
+    console.log(`Received greeting from ${callerIdentity}: ${payload}`);
+    return `Hello, ${callerIdentity}!`;
   }
 );
 ```

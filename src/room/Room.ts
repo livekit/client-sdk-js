@@ -1553,9 +1553,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } else if (packet.value.case === 'chatMessage') {
       this.handleChatMessage(participant, packet.value.value);
     } else if (packet.value.case === 'rpcRequest') {
-      this.handleRpcRequest(participant, packet.value.value);
+      this.handleRpcRequest(packet.participantIdentity, packet.value.value);
     } else if (packet.value.case === 'rpcResponse') {
-      this.handleRpcResponse(participant, packet.value.value);
+      this.handleRpcResponse(packet.value.value);
     } else if (packet.value.case === 'rpcAck') {
       this.handleRpcAck(packet.value.value);
     } else if (packet.value.case === 'metrics') {
@@ -1609,12 +1609,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.ChatMessage, msg, participant);
   };
 
-  private handleRpcRequest = (participant: RemoteParticipant | undefined, request: RpcRequest) => {
-    if (!participant) {
-      return;
-    }
+  private handleRpcRequest = (callerIdentity: string, request: RpcRequest) => {
     this.localParticipant.handleIncomingRpcRequest(
-      participant,
+      callerIdentity,
       request.id,
       request.method,
       request.payload,
@@ -1622,14 +1619,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     );
   };
 
-  private handleRpcResponse = (
-    participant: RemoteParticipant | undefined,
-    response: RpcResponse,
-  ) => {
-    if (!participant) {
-      return;
-    }
-
+  private handleRpcResponse = (response: RpcResponse) => {
     let payload: string | null = null;
     let error: RpcError | null = null;
 

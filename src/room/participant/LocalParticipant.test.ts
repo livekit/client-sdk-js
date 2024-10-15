@@ -51,14 +51,19 @@ describe('LocalParticipant', () => {
       );
 
       await localParticipant.handleIncomingRpcRequest(
-        mockCaller,
+        mockCaller.identity,
         'test-request-id',
         methodName,
         'test payload',
         5000,
       );
 
-      expect(handler).toHaveBeenCalledWith('test-request-id', mockCaller, 'test payload', 5000);
+      expect(handler).toHaveBeenCalledWith(
+        'test-request-id',
+        mockCaller.identity,
+        'test payload',
+        5000,
+      );
 
       // Check if sendDataPacket was called twice (once for ACK and once for response)
       expect(mockSendDataPacket).toHaveBeenCalledTimes(2);
@@ -90,7 +95,7 @@ describe('LocalParticipant', () => {
       );
 
       await localParticipant.handleIncomingRpcRequest(
-        mockCaller,
+        mockCaller.identity,
         'test-error-request-id',
         methodName,
         'test payload',
@@ -99,7 +104,7 @@ describe('LocalParticipant', () => {
 
       expect(handler).toHaveBeenCalledWith(
         'test-error-request-id',
-        mockCaller,
+        mockCaller.identity,
         'test payload',
         5000,
       );
@@ -131,7 +136,7 @@ describe('LocalParticipant', () => {
       );
 
       await localParticipant.handleIncomingRpcRequest(
-        mockCaller,
+        mockCaller.identity,
         'test-rpc-error-request-id',
         methodName,
         'test payload',
@@ -140,7 +145,7 @@ describe('LocalParticipant', () => {
 
       expect(handler).toHaveBeenCalledWith(
         'test-rpc-error-request-id',
-        mockCaller,
+        mockCaller.identity,
         'test payload',
         5000,
       );

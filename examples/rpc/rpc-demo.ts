@@ -80,11 +80,11 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async (
       requestId: string,
-      caller: RemoteParticipant,
+      callerIdentity: string,
       payload: string,
       responseTimeoutMs: number,
     ) => {
-      console.log(`[Greeter] Oh ${caller.identity} arrived and said "${payload}"`);
+      console.log(`[Greeter] Oh ${callerIdentity} arrived and said "${payload}"`);
       await new Promise((resolve) => setTimeout(resolve, 2000));
       return 'Welcome and have a wonderful day!';
     },
@@ -94,14 +94,14 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
     'square-root',
     async (
       requestId: string,
-      caller: RemoteParticipant,
+      callerIdentity: string,
       payload: string,
       responseTimeoutMs: number,
     ) => {
       const jsonData = JSON.parse(payload);
       const number = jsonData.number;
       console.log(
-        `[Math Genius] I guess ${caller.identity} wants the square root of ${number}. I've only got ${responseTimeoutMs / 1000} seconds to respond but I think I can pull it off.`,
+        `[Math Genius] I guess ${callerIdentity} wants the square root of ${number}. I've only got ${responseTimeoutMs / 1000} seconds to respond but I think I can pull it off.`,
       );
 
       console.log(`[Math Genius] *doing math*…`);
@@ -118,7 +118,7 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async (
       requestId: string,
-      caller: RemoteParticipant,
+      callerIdentity: string,
       payload: string,
       responseTimeoutMs: number,
     ) => {
@@ -126,7 +126,7 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
       const { numerator, denominator } = jsonData;
 
       console.log(
-        `[Math Genius] ${caller.identity} wants to divide ${numerator} by ${denominator}. Let me think...`,
+        `[Math Genius] ${callerIdentity} wants to divide ${numerator} by ${denominator}. Let me think...`,
       );
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
