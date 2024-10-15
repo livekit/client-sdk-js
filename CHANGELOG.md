@@ -1,5 +1,27 @@
 # Change Log
 
+## 2.5.9
+
+### Patch Changes
+
+- Track E2EE key validity on a per index basis - [#1284](https://github.com/livekit/client-sdk-js/pull/1284) ([@hughns](https://github.com/hughns))
+
+- Use happy-dom for testing instead of jsdom - [#1283](https://github.com/livekit/client-sdk-js/pull/1283) ([@hughns](https://github.com/hughns))
+
+- Fix attribute deletion - [#1285](https://github.com/livekit/client-sdk-js/pull/1285) ([@lukasIO](https://github.com/lukasIO))
+
+- [e2ee] await key update before emitting key ratchet event - [#1288](https://github.com/livekit/client-sdk-js/pull/1288) ([@hughns](https://github.com/hughns))
+
+## 2.5.8
+
+### Patch Changes
+
+- Add metrics support - [#1278](https://github.com/livekit/client-sdk-js/pull/1278) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix DTX and stereo feature reporting - [#1281](https://github.com/livekit/client-sdk-js/pull/1281) ([@lukasIO](https://github.com/lukasIO))
+
+- Add SIP publish DTMF feature - [#1277](https://github.com/livekit/client-sdk-js/pull/1277) ([@s-hamdananwar](https://github.com/s-hamdananwar))
+
 ## 2.5.7
 
 ### Patch Changes

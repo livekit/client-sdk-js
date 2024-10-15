@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "2.5.7",
+  "version": "2.5.9",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -88,7 +88,7 @@
     "eslint-plugin-ecmascript-compat": "^3.0.0",
     "eslint-plugin-import": "2.30.0",
     "gh-pages": "6.1.1",
-    "jsdom": "^24.0.0",
+    "happy-dom": "^15.7.4",
     "prettier": "^3.0.0",
     "rollup": "4.24.0",
     "rollup-plugin-delete": "^2.0.0",
