@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.5.10
+
+### Patch Changes
+
+- Reset `joinAttempts` when closing RTCEngine - [#1291](https://github.com/livekit/client-sdk-js/pull/1291) ([@mpnri](https://github.com/mpnri))
+
+- Use shared mutex helper package - [#1289](https://github.com/livekit/client-sdk-js/pull/1289) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.5.9
 
 ### Patch Changes
