@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import {
   VideoQuality as ProtoVideoQuality,
   SubscribedCodec,
@@ -10,7 +11,7 @@ import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
-import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
+import { isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track, VideoQuality } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';

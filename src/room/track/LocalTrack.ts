@@ -1,10 +1,11 @@
+import { Mutex } from '@livekit/mutex';
 import { debounce } from 'ts-debounce';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
-import { Mutex, compareVersions, isMobile, sleep } from '../utils';
+import { compareVersions, isMobile, sleep } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';

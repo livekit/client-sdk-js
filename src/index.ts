@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import { DataPacket_Kind, DisconnectReason, SubscriptionError } from '@livekit/protocol';
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
@@ -26,7 +27,6 @@ import { TrackPublication } from './room/track/TrackPublication';
 import type { LiveKitReactNativeInfo } from './room/types';
 import type { AudioAnalyserOptions } from './room/utils';
 import {
-  Mutex,
   compareVersions,
   createAudioAnalyser,
   getEmptyAudioStreamTrack,

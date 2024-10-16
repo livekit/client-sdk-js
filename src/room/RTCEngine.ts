@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import {
   type AddTrackRequest,
   ClientConfigSetting,
@@ -63,7 +64,7 @@ import type { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
-import { Mutex, isVideoCodec, isWeb, sleep, supportsAddTrack, supportsTransceiver } from './utils';
+import { isVideoCodec, isWeb, sleep, supportsAddTrack, supportsTransceiver } from './utils';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
