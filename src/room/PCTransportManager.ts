@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import { SignalTarget } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import PCTransport, { PCEvents } from './PCTransport';
@@ -5,7 +6,7 @@ import { roomConnectOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
 import CriticalTimers from './timers';
 import type { LoggerOptions } from './types';
-import { Mutex, sleep } from './utils';
+import { sleep } from './utils';
 
 export enum PCTransportState {
   NEW,

@@ -1,4 +1,4 @@
-import { Mutex } from '../room/utils';
+import { Mutex } from '@livekit/mutex';
 
 type QueueTask<T> = () => PromiseLike<T>;
 

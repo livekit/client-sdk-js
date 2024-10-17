@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
 import { sleep } from '../room/utils';
 import { AsyncQueue } from './AsyncQueue';
 
@@ -49,7 +49,7 @@ describe('asyncQueue', () => {
         task2Executed = true;
       })
       .catch(() => {
-        fail('task 2 should not have thrown');
+        assert.fail('task 2 should not have thrown');
       });
 
     expect(task1threw).toBeTruthy();

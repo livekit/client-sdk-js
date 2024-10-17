@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import {
   AddTrackRequest,
   AudioTrackFeature,
@@ -42,7 +43,7 @@ import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
-import { Mutex, getClientInfo, isReactNative, sleep, toWebsocketUrl } from '../room/utils';
+import { getClientInfo, isReactNative, sleep, toWebsocketUrl } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
 
 // internal options

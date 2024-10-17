@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import {
   ChatMessage as ChatMessageModel,
   ConnectionQualityUpdate,
@@ -81,7 +82,6 @@ import type {
 } from './types';
 import {
   Future,
-  Mutex,
   createDummyVideoStreamTrack,
   extractChatMessage,
   extractTranscriptionSegments,
