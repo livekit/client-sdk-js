@@ -20,7 +20,7 @@
     "ignoreDeprecations": "5.0"
   },
   "exclude": ["dist", "**/*.test.ts"],
-  "include": ["src/**/*"],
+  "include": ["src/**/*.ts"],
   "typedocOptions": {
     "entryPoints": ["src/index.ts"],
     "excludeInternal": true,

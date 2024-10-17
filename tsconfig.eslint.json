@@ -10,5 +10,5 @@
     "rollup.config.worker.js",
     "vite.config.mjs"
   ],
-  "exclude": ["dist/**"]
+  "exclude": ["dist/**", "examples/**/dist"]
 }
