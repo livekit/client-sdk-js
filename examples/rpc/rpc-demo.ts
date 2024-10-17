@@ -1,10 +1,4 @@
-import {
-  type RemoteParticipant,
-  Room,
-  type RoomConnectOptions,
-  RoomEvent,
-  RpcError,
-} from '../../src/index';
+import { Room, type RoomConnectOptions, RoomEvent, RpcError } from '../../src/index';
 
 let startTime: number;
 
