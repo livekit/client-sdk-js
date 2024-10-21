@@ -1636,8 +1636,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleDeviceChange = async () => {
     // check for available devices, but don't request permissions in order to avoid prompts for kinds that haven't been used before
     const availableDevices = await DeviceManager.getInstance().getDevices(undefined, false);
-    // inputs are automatically handled via TrackEvent.Ended causing a TrackEvent.Restarted. Here we only need to worry about audiooutputs changing
-    const kinds: MediaDeviceKind[] = ['audiooutput'];
+    const defaultOrFirst = (devices: MediaDeviceInfo[]) => {
+      const defaultDevice = devices.find((info) => info.label.toLowerCase().includes('default'));
+      if (defaultDevice) {
+        return defaultDevice.deviceId;
+      }
+      return devices[0]?.deviceId;
+    };
+    // generally inputs are automatically handled via TrackEvent.Ended causing a TrackEvent.Restarted. Here we only need to worry about audiooutputs changing
+    // on Safari however when disconnecting bluetooth devices the associated mediastreamtrack might fail only after a certain time so we're adding audioinputs too
+    const kinds: MediaDeviceKind[] = ['audiooutput', 'audioinput'];
     for (let kind of kinds) {
       // switch to first available device if previously active device is not available any more
       const devicesOfKind = availableDevices.filter((d) => d.kind === kind);
@@ -1645,7 +1653,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         devicesOfKind.length > 0 &&
         !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === this.getActiveDevice(kind))
       ) {
-        await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
+        await this.switchActiveDevice(kind, defaultOrFirst(devicesOfKind));
       }
     }
 
