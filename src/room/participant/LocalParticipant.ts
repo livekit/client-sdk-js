@@ -212,7 +212,8 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
       .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
       .on(EngineEvent.Disconnected, this.handleDisconnected)
-      .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse);
+      .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse)
+      .on(EngineEvent.DataPacketReceived, this.handleDataPacket);
   }
 
   private handleReconnecting = () => {
@@ -243,6 +244,37 @@ export default class LocalParticipant extends Participant {
         targetRequest.reject(new SignalRequestError(message, reason));
       }
       this.pendingSignalRequests.delete(requestId);
+    }
+  };
+
+  private handleDataPacket = (packet: DataPacket) => {
+    switch (packet.value.case) {
+      case 'rpcRequest':
+        let rpcRequest = packet.value.value as RpcRequest;
+        this.handleIncomingRpcRequest(
+          packet.participantIdentity,
+          rpcRequest.id,
+          rpcRequest.method,
+          rpcRequest.payload,
+          rpcRequest.responseTimeoutMs,
+        );
+        break;
+      case 'rpcResponse':
+        let rpcResponse = packet.value.value as RpcResponse;
+        let payload: string | null = null;
+        let error: RpcError | null = null;
+
+        if (rpcResponse.value.case === 'payload') {
+          payload = rpcResponse.value.value;
+        } else if (rpcResponse.value.case === 'error') {
+          error = RpcError.fromProto(rpcResponse.value.value);
+        }
+        this.handleIncomingRpcResponse(rpcResponse.requestId, payload, error);
+        break;
+      case 'rpcAck':
+        let rpcAck = packet.value.value as RpcAck;
+        this.handleIncomingRpcAck(rpcAck.requestId);
+        break;
     }
   };
 
@@ -1600,8 +1632,7 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-  /** @internal */
-  handleIncomingRpcAck(requestId: string) {
+  private handleIncomingRpcAck(requestId: string) {
     const handler = this.pendingAcks.get(requestId);
     if (handler) {
       handler.resolve();
@@ -1611,8 +1642,11 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-  /** @internal */
-  handleIncomingRpcResponse(requestId: string, payload: string | null, error: RpcError | null) {
+  private handleIncomingRpcResponse(
+    requestId: string,
+    payload: string | null,
+    error: RpcError | null,
+  ) {
     const handler = this.pendingResponses.get(requestId);
     if (handler) {
       handler.resolve(payload, error);
@@ -1622,8 +1656,7 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-  /** @internal */
-  async handleIncomingRpcRequest(
+  private async handleIncomingRpcRequest(
     callerIdentity: string,
     requestId: string,
     method: string,

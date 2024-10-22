@@ -13,9 +13,6 @@ import {
   ParticipantInfo_State,
   ParticipantPermission,
   Room as RoomModel,
-  RpcAck,
-  RpcRequest,
-  RpcResponse,
   ServerInfo,
   SimulateScenario,
   SipDTMF,
@@ -61,7 +58,6 @@ import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import { RpcError } from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
@@ -1552,12 +1548,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleSipDtmf(participant, packet.value.value);
     } else if (packet.value.case === 'chatMessage') {
       this.handleChatMessage(participant, packet.value.value);
-    } else if (packet.value.case === 'rpcRequest') {
-      this.handleRpcRequest(packet.participantIdentity, packet.value.value);
-    } else if (packet.value.case === 'rpcResponse') {
-      this.handleRpcResponse(packet.value.value);
-    } else if (packet.value.case === 'rpcAck') {
-      this.handleRpcAck(packet.value.value);
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
     }
@@ -1607,33 +1597,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ) => {
     const msg = extractChatMessage(chatMessage);
     this.emit(RoomEvent.ChatMessage, msg, participant);
-  };
-
-  private handleRpcRequest = (callerIdentity: string, request: RpcRequest) => {
-    this.localParticipant.handleIncomingRpcRequest(
-      callerIdentity,
-      request.id,
-      request.method,
-      request.payload,
-      request.responseTimeoutMs,
-    );
-  };
-
-  private handleRpcResponse = (response: RpcResponse) => {
-    let payload: string | null = null;
-    let error: RpcError | null = null;
-
-    if (response.value.case === 'payload') {
-      payload = response.value.value;
-    } else if (response.value.case === 'error') {
-      error = RpcError.fromProto(response.value.value);
-    }
-
-    this.localParticipant.handleIncomingRpcResponse(response.requestId, payload, error);
-  };
-
-  private handleRpcAck = (ack: RpcAck) => {
-    this.localParticipant.handleIncomingRpcAck(ack.requestId);
   };
 
   private handleMetrics = (metrics: MetricsBatch, participant?: Participant) => {
