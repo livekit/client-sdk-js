@@ -447,13 +447,29 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   }
 
   private setupSignalClientCallbacks() {
+    const tryHandleInvalidStateError = (error: unknown, disconnectReason: ReconnectReason) => {
+      if (error instanceof DOMException && error.name === 'InvalidStateError') {
+        this.fullReconnectOnNext = true;
+        this.handleDisconnect('peerconnection failed', disconnectReason);
+      }
+    };
     // configure signaling client
     this.client.onAnswer = async (sd) => {
       if (!this.pcManager) {
         return;
       }
       this.log.debug('received server answer', { ...this.logContext, RTCSdpType: sd.type });
-      await this.pcManager.setPublisherAnswer(sd);
+
+      try {
+        await this.pcManager.setPublisherAnswer(sd);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'unknown error';
+        log.error(`failed to setPublisherAnswer: ${errorMessage}`, {
+          ...this.logContext,
+          RTCSdpType: sd.type,
+        });
+        tryHandleInvalidStateError(error, ReconnectReason.RR_PUBLISHER_FAILED);
+      }
     };
 
     // add candidate on trickle
@@ -462,7 +478,19 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
       this.log.trace('got ICE candidate from peer', { ...this.logContext, candidate, target });
-      this.pcManager.addIceCandidate(candidate, target);
+      this.pcManager.addIceCandidate(candidate, target).catch((error) => {
+        log.error(`failed to addIceCandidate: ${error.message}`, {
+          ...this.logContext,
+          candidate,
+          target,
+        });
+        tryHandleInvalidStateError(
+          error,
+          target === SignalTarget.PUBLISHER
+            ? ReconnectReason.RR_PUBLISHER_FAILED
+            : ReconnectReason.RR_SUBSCRIBER_FAILED,
+        );
+      });
     };
 
     // when server creates an offer for the client
@@ -470,8 +498,17 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
-      const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd);
-      this.client.sendAnswer(answer);
+
+      try {
+        const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd);
+        await this.client.sendAnswer(answer);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'unknown error';
+        log.error(`failed to createSubscriberAnswerFromOffer: ${errorMessage}`, {
+          ...this.logContext,
+        });
+        tryHandleInvalidStateError(error, ReconnectReason.RR_SUBSCRIBER_FAILED);
+      }
     };
 
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {
