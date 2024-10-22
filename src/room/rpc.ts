@@ -81,7 +81,7 @@ export class RpcError extends Error {
     UNSUPPORTED_METHOD: 'Method not supported at destination',
     RECIPIENT_NOT_FOUND: 'Recipient not found',
     REQUEST_PAYLOAD_TOO_LARGE: 'Request payload too large',
-    UNSUPPORTED_SERVER: 'Server version does not support RPC',
+    UNSUPPORTED_SERVER: 'RPC not supported by server',
   } as const;
 
   /**
