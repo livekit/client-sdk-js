@@ -19,7 +19,7 @@ async function main() {
     connectParticipant('math-genius', roomName),
   ]);
 
-  console.log('All participants connected and found each other.');
+  console.log('All participants connected, starting demo.');
 
   await registerReceiverMethods(greetersRoom, mathGeniusRoom);
 
@@ -247,29 +247,7 @@ const connectParticipant = async (identity: string, roomName: string): Promise<R
     }
   });
 
-  let remoteParticipants = room.remoteParticipants.size;
-
-  console.log(`[${identity}] I see ${remoteParticipants} others.`);
-
-  if (remoteParticipants < 2) {
-    await new Promise<void>((resolve) => {
-      const checkParticipants = () => {
-        const newRemoteParticipants = room.remoteParticipants.size;
-        if (newRemoteParticipants > remoteParticipants) {
-          console.log(`[${identity}] I see ${newRemoteParticipants} others.`);
-        }
-        remoteParticipants = newRemoteParticipants;
-        if (remoteParticipants >= 2) {
-          resolve();
-        } else {
-          setTimeout(checkParticipants, 100);
-        }
-      };
-      checkParticipants();
-    });
-  }
-
-  console.log(`[${identity}] Fully connected!`);
+  console.log(`${identity} connected.`);
 
   return room;
 };

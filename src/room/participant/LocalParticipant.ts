@@ -1456,6 +1456,8 @@ export default class LocalParticipant extends Participant {
   ): Promise<string> {
     const maxRoundTripLatencyMs = 2000;
 
+    console.log("Server Version ", this.engine.latestJoinResponse?.serverInfo?.version);
+
     return new Promise(async (resolve, reject) => {
       if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
         reject(RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE'));
@@ -1493,14 +1495,15 @@ export default class LocalParticipant extends Participant {
       this.pendingResponses.set(id, {
         resolve: (responsePayload: string | null, responseError: RpcError | null) => {
           clearTimeout(responseTimeoutId);
+          if (this.pendingAcks.has(id)) {
+            console.warn('RPC response received before ack', id);
+            this.pendingAcks.delete(id);
+            clearTimeout(ackTimeoutId);
+          }
+
           if (responseError) {
             reject(responseError);
-          } else {
-            if (this.pendingAcks.has(id)) {
-              console.warn('RPC response received before ack', id);
-              this.pendingAcks.delete(id);
-              clearTimeout(ackTimeoutId);
-            }
+          } else {  
             resolve(responsePayload ?? '');
           }
         },
