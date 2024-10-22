@@ -20,7 +20,6 @@ import {
   UserPacket,
   protoInt64,
 } from '@livekit/protocol';
-import semver from 'semver';
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
@@ -64,6 +63,7 @@ import {
   isSVCCodec,
   isSafari17,
   isWeb,
+  semverGte,
   sleep,
   supportsAV1,
   supportsVP9,
@@ -1465,7 +1465,7 @@ export default class LocalParticipant extends Participant {
 
       if (
         this.engine.latestJoinResponse?.serverInfo?.version &&
-        semver.lt(this.engine.latestJoinResponse?.serverInfo?.version, '1.8.0')
+        !semverGte(this.engine.latestJoinResponse?.serverInfo?.version, '1.8.0')
       ) {
         reject(RpcError.builtIn('UNSUPPORTED_SERVER'));
         return;

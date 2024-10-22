@@ -183,6 +183,22 @@ export function isCloud(serverUrl: URL) {
   );
 }
 
+/// Simple semantic version comparison
+export function semverGte(lhs: string, rhs: string): boolean {
+  const lhsParts = lhs.split('.').map(Number);
+  const rhsParts = rhs.split('.').map(Number);
+
+  for (let i = 0; i < Math.max(lhsParts.length, rhsParts.length); i++) {
+    const lhsPart = lhsParts[i] || 0;
+    const rhsPart = rhsParts[i] || 0;
+
+    if (lhsPart < rhsPart) return false;
+    if (lhsPart > rhsPart) return true;
+  }
+
+  return true;
+}
+
 function getLKReactNativeInfo(): LiveKitReactNativeInfo | undefined {
   // global defined only for ReactNative.
   // @ts-ignore
