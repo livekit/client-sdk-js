@@ -398,19 +398,19 @@ export namespace AudioPresets {
     maxBitrate: 12_000,
   };
   export const speech: AudioPreset = {
-    maxBitrate: 20_000,
+    maxBitrate: 24_000,
   };
   export const music: AudioPreset = {
-    maxBitrate: 32_000,
-  };
-  export const musicStereo: AudioPreset = {
     maxBitrate: 48_000,
   };
-  export const musicHighQuality: AudioPreset = {
+  export const musicStereo: AudioPreset = {
     maxBitrate: 64_000,
   };
-  export const musicHighQualityStereo: AudioPreset = {
+  export const musicHighQuality: AudioPreset = {
     maxBitrate: 96_000,
+  };
+  export const musicHighQualityStereo: AudioPreset = {
+    maxBitrate: 128_000,
   };
 }
 
