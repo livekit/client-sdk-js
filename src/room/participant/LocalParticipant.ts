@@ -56,6 +56,7 @@ import {
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
 import type { ChatMessage, DataPublishOptions } from '../types';
+import semver from 'semver';
 import {
   Future,
   isE2EESimulcastSupported,
@@ -1456,11 +1457,14 @@ export default class LocalParticipant extends Participant {
   ): Promise<string> {
     const maxRoundTripLatencyMs = 2000;
 
-    console.log("Server Version ", this.engine.latestJoinResponse?.serverInfo?.version);
-
     return new Promise(async (resolve, reject) => {
       if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
         reject(RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE'));
+        return;
+      }
+
+      if (this.engine.latestJoinResponse?.serverInfo?.version && semver.lt(this.engine.latestJoinResponse?.serverInfo?.version, '1.8.0')) {
+        reject(RpcError.builtIn('UNSUPPORTED_SERVER'));
         return;
       }
 
@@ -1503,7 +1507,7 @@ export default class LocalParticipant extends Participant {
 
           if (responseError) {
             reject(responseError);
-          } else {  
+          } else {
             resolve(responsePayload ?? '');
           }
         },
