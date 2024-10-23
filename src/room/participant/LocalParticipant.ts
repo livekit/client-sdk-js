@@ -4,6 +4,7 @@ import {
   Codec,
   DataPacket,
   DataPacket_Kind,
+  DataStreamPacket,
   Encryption_Type,
   ParticipantInfo,
   ParticipantPermission,
@@ -51,7 +52,7 @@ import {
   mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
-import type { ChatMessage, DataPublishOptions } from '../types';
+import { type ChatMessage, type DataPublishOptions, type FileStreamHeader } from '../types';
 import {
   Future,
   isE2EESimulcastSupported,
@@ -1413,6 +1414,65 @@ export default class LocalParticipant extends Participant {
     await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
     this.emit(ParticipantEvent.ChatMessage, msg);
     return msg;
+  }
+
+  CHUNK_SIZE = 15_000;
+
+  async sendFile(file: File, options: { mimeType: string; topic: string; encryptionType: 'none' }) {
+    const totalLength = file.size;
+    const totalChunks = Math.ceil(file.size / this.CHUNK_SIZE);
+    const messageId = crypto.randomUUID();
+    const header: FileStreamHeader = {
+      contentType: 'file',
+      totalChunks,
+      totalLength,
+      mimeType: options.mimeType,
+      messageId,
+      topic: options.topic,
+      encryptionType: options.encryptionType,
+      fileName: file.name,
+      streamType: 'finite',
+      timestamp: Date.now(),
+    };
+
+    await this.publishData(new TextEncoder().encode(JSON.stringify(header)), {
+      reliable: true,
+      topic: 'streamheader',
+    });
+    function read(b: Blob): Promise<Uint8Array> {
+      return new Promise((resolve) => {
+        const fr = new FileReader();
+        fr.onload = () => {
+          resolve(new Uint8Array(fr.result as ArrayBuffer));
+        };
+        fr.readAsArrayBuffer(b);
+      });
+    }
+    for (let i = 0; i < totalChunks; i++) {
+      while (
+        this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE)!.bufferedAmount >
+        this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE)!.bufferedAmountLowThreshold
+      ) {
+        await sleep(20);
+      }
+
+      const chunkData = await read(
+        file.slice(i * this.CHUNK_SIZE, Math.min((i + 1) * this.CHUNK_SIZE, totalLength)),
+      );
+      const chunk = new DataStreamPacket({
+        contentLength: chunkData.length,
+        content: chunkData,
+        messageId,
+        chunkId: i,
+      });
+
+      console.log('outgoing chunk size', chunk.toBinary().byteLength);
+
+      this.publishData(chunk.toBinary(), {
+        reliable: true,
+        topic: 'streamchunk',
+      });
+    }
   }
 
   /**

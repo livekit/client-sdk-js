@@ -70,6 +70,14 @@ function updateSearchParams(url: string, token: string, key: string) {
 
 // handles actions from the HTML
 const appActions = {
+  sendFile: async () => {
+    console.log('start sending');
+    currentRoom?.localParticipant.sendFile(($('file') as HTMLInputElement).files?.[0]!, {
+      mimeType: 'file/blob',
+      topic: 'test',
+      encryptionType: 'none',
+    });
+  },
   connectWithFormInput: async () => {
     const url = (<HTMLInputElement>$('url')).value;
     const token = (<HTMLInputElement>$('token')).value;

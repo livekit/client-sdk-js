@@ -1,3 +1,5 @@
+import type { DataStreamPacket } from '@livekit/protocol';
+
 export type SimulationOptions = {
   publish?: {
     audio?: boolean;
@@ -74,4 +76,67 @@ export interface ChatMessage {
   timestamp: number;
   message: string;
   editTimestamp?: number;
+}
+
+/**
+ * Shared header properties across all contentTypes
+ */
+export interface BaseDataStreamHeader {
+  messageId: string;
+  timestamp: number;
+  topic: string; // as suggested by ben, a way to differentiate between multiple text use cases in complex apps
+  streamType: 'finite' | 'streaming'; // if we know the size of the entire payload ahead of time it's `finite`, LLM text stream cases would be `streaming`
+  contentType: 'text' | 'image' | 'file'; // extensible, thinking images might be worth while as their own type due to their expected frequency in usage
+  mimeType: string; // could probably be more specific than string would be especially useful for different file types
+  totalLength?: number; // in bytes, would be unknown for LLM output ahead of time, but known for files + blobs, only present if `streamType` is `finite`
+  totalChunks?: number; // // would be unknown for LLM output ahead of time, but known for files + blobs, only present if `streamType` is `finite`
+  encryptionType?: 'aes-gcm' | 'none';
+}
+
+/**
+ * Header properties specific to contentType `text`
+ */
+export interface TextStreamHeader extends BaseDataStreamHeader {
+  contentType: 'text';
+  operationType: 'create' | 'update' | 'delete' | 'reaction';
+  version?: number; // optional versioning for edits/updates
+  replyToMessageId?: string; // set for replies to specific messages
+}
+
+/**
+ * Header properties specific to contentType `file` or `image`
+ */
+export interface FileStreamHeader extends BaseDataStreamHeader {
+  contentType: 'file' | 'image';
+  fileName?: string; // optional, the name of the file being transferred
+}
+
+/**
+ * Payload packets that follow an initial header packet
+ */
+// export interface DataStreamPacket {
+//   messageId: string;
+//   chunkId: number;
+//   content: string; // binary content, utf-8 if text. should be fully encryptable
+//   contentLength: number; // in bytes
+//   complete?: boolean; // for streaming use cases where we don't know the initial amount of packets, but still want to mark it as complete at some point
+//   iv?: Uint8Array; // initialization vector for AES-GCM (if encryption is used)
+// }
+
+/**
+ * Potentially interesting: a way to `Ack` both header retrieval and transfer completion
+ */
+export interface DataStreamAck {
+  messageId: string;
+  type: 'init_ack' | 'completion_ack';
+  status: 'ready' | 'error';
+  errorMessage?: string;
+  // missingChunkIds?: number[]; // TBD option to re-request missing chunks when completion ack has error status
+}
+
+export interface FileStreamBuffer {
+  header: FileStreamHeader;
+  chunks: Array<DataStreamPacket>;
+  startTime: number;
+  endTime?: number;
 }

@@ -4,6 +4,7 @@ import {
   ConnectionQualityUpdate,
   type DataPacket,
   DataPacket_Kind,
+  DataStreamPacket,
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
@@ -70,11 +71,13 @@ import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, sourceToKind } from './track/utils';
-import type {
-  ChatMessage,
-  SimulationOptions,
-  SimulationScenario,
-  TranscriptionSegment,
+import {
+  type ChatMessage,
+  type FileStreamBuffer,
+  type FileStreamHeader,
+  type SimulationOptions,
+  type SimulationScenario,
+  type TranscriptionSegment,
 } from './types';
 import {
   Future,
@@ -1541,6 +1544,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const participant = this.remoteParticipants.get(packet.participantIdentity);
     if (packet.value.case === 'user') {
       this.handleUserPacket(participant, packet.value.value, packet.kind);
+      if (packet.value.value.topic === 'streamheader') {
+        this.handleStreamHeader(
+          JSON.parse(new TextDecoder().decode(packet.value.value.payload)) as FileStreamHeader,
+        );
+      } else if (packet.value.value.topic === 'streamchunk') {
+        this.handleStreamChunk(DataStreamPacket.fromBinary(packet.value.value.payload));
+      }
     } else if (packet.value.case === 'transcription') {
       this.handleTranscription(participant, packet.value.value);
     } else if (packet.value.case === 'sipDtmf') {
@@ -1551,6 +1561,40 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleMetrics(packet.value.value, participant);
     }
   };
+
+  fileStreamBuffer = new Map<string, FileStreamBuffer>();
+
+  private handleStreamHeader(fileheader: FileStreamHeader) {
+    console.log('received header', fileheader);
+    this.fileStreamBuffer.set(fileheader.messageId, {
+      header: fileheader,
+      chunks: [],
+      startTime: Date.now(),
+    });
+  }
+
+  private handleStreamChunk(chunk: DataStreamPacket) {
+    console.log('received chunk', chunk.chunkId);
+
+    const buffer = this.fileStreamBuffer.get(chunk.messageId);
+    if (!buffer) {
+      throw Error('received chunks before header');
+    }
+    buffer.chunks.push(chunk);
+    if (buffer.chunks.length === buffer.header.totalChunks) {
+      const fileChunks = buffer.chunks.sort((a, b) => a.chunkId - b.chunkId).map((c) => c.content);
+
+      const result = new Blob(fileChunks, { type: 'application/pdf' });
+      const downloadLink = URL.createObjectURL(result);
+      const linkEl = document.createElement('a');
+      linkEl.href = downloadLink;
+      linkEl.innerText = buffer.header.fileName!;
+      linkEl.setAttribute('download', buffer.header.fileName!);
+      document.body.append(linkEl);
+      console.log({ downloadLink, timeToDownload: (Date.now() - buffer.startTime) / 1000 });
+      this.fileStreamBuffer.delete(chunk.messageId);
+    }
+  }
 
   private handleUserPacket = (
     participant: RemoteParticipant | undefined,
