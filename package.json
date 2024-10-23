@@ -4,11 +4,11 @@
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
-  "module": "./dist/livekit-client.esm.mjs",
+  "module": "./dist/esm/index.mjs",
   "exports": {
     ".": {
       "types": "./dist/src/index.d.ts",
-      "import": "./dist/livekit-client.esm.mjs",
+      "import": "./dist/esm/index.mjs",
       "require": "./dist/livekit-client.umd.js"
     },
     "./e2ee-worker": {
