@@ -58,6 +58,7 @@ import {
 import type { ChatMessage, DataPublishOptions } from '../types';
 import {
   Future,
+  compareVersions,
   isE2EESimulcastSupported,
   isFireFox,
   isSVCCodec,
@@ -66,7 +67,6 @@ import {
   sleep,
   supportsAV1,
   supportsVP9,
-  compareVersions
 } from '../utils';
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
