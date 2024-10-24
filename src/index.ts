@@ -39,6 +39,8 @@ import {
 } from './room/utils';
 import { getBrowser } from './utils/browserParser';
 
+export { RpcError } from './room/rpc';
+
 export * from './connectionHelper/ConnectionCheck';
 export * from './connectionHelper/checks/Checker';
 export * from './e2ee';

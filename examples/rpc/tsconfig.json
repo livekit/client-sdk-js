@@ -15,6 +15,6 @@
     "moduleResolution": "node",
     "resolveJsonModule": true
   },
-  "include": ["../../src/**/*", "demo.ts"],
+  "include": ["../../src/**/*", "rpc-demo.ts", "api.ts"],
   "exclude": ["**/*.test.ts", "build/**/*"]
 }
