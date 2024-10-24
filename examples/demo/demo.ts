@@ -241,7 +241,7 @@ const appActions = {
         );
       })
       .on(RoomEvent.TextStreamReceived, async (info, stream, participant) => {
-        if (info.isFinite) {
+        if (info.isFinite && info.topic === 'chat') {
           handleChatMessage(
             {
               id: info.messageId,
