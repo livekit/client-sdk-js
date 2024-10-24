@@ -39,7 +39,7 @@
     "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
     "build:watch": "rollup --watch --config --bundleConfigAsCjs",
     "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",
-    "build-docs": "typedoc",
+    "build-docs": "typedoc && mkdir docs/.github && cp .github/*.png docs/.github/",
     "proto": "protoc --es_out src/proto --es_opt target=ts -I./protocol ./protocol/livekit_rtc.proto ./protocol/livekit_models.proto",
     "examples:demo": "vite examples/demo -c vite.config.mjs",
     "lint": "eslint src",
