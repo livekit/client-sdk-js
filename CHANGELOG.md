@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.6.0
+
+### Minor Changes
+
+- RPC implementation - [#1282](https://github.com/livekit/client-sdk-js/pull/1282) ([@bcherry](https://github.com/bcherry))
+
+### Patch Changes
+
+- Keep dd extension id in the session - [#1297](https://github.com/livekit/client-sdk-js/pull/1297) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 2.5.10
 
 ### Patch Changes
