@@ -134,17 +134,25 @@ export interface ChatMessage {
 //   // missingChunkIds?: number[]; // TBD option to re-request missing chunks when completion ack has error status
 // }
 
-export interface StreamBuffer {
+export interface StreamBuffer<T extends string | Uint8Array> {
   header: DataStream_Header;
   chunks: Array<number>;
-  streamController: ReadableStreamDefaultController<Uint8Array>;
+  streamController: ReadableStreamDefaultController<T>;
   startTime: number;
   endTime?: number;
 }
 
-export interface FileStreamInfo {
-  fileName: string;
+interface BaseStreamInfo {
+  messageId: string;
   mimeType: string;
   size: number;
   topic: string;
+  timestamp: number;
+}
+export interface FileStreamInfo extends BaseStreamInfo {
+  fileName: string;
+}
+
+export interface TextStreamInfo extends BaseStreamInfo {
+  isFinite: boolean;
 }

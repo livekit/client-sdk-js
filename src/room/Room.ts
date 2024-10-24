@@ -6,6 +6,7 @@ import {
   DataPacket_Kind,
   DataStream_Header,
   DataStream_Packet,
+  DataStream_StreamType,
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
@@ -79,6 +80,7 @@ import {
   type SimulationOptions,
   type SimulationScenario,
   type StreamBuffer,
+  type TextStreamInfo,
   type TranscriptionSegment,
 } from './types';
 import {
@@ -1565,12 +1567,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  fileStreamBuffer = new Map<string, StreamBuffer>();
+  fileStreamBuffer = new Map<string, StreamBuffer<Uint8Array>>();
+
+  textStreamBuffer = new Map<string, StreamBuffer<string>>();
 
   private handleStreamHeader(streamHeader: DataStream_Header, participant?: Participant) {
     console.log('received header', streamHeader);
-    let streamController: ReadableStreamDefaultController<Uint8Array>;
     if (streamHeader.contentHeader.case === 'fileHeader') {
+      let streamController: ReadableStreamDefaultController<Uint8Array>;
       const stream = new StreamReader<Uint8Array>({
         start: (controller) => {
           streamController = controller;
@@ -1585,10 +1589,38 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.emit(
         RoomEvent.FileStreamReceived,
         {
+          messageId: streamHeader.messageId,
           fileName: streamHeader.contentHeader.value.fileName ?? 'unknown',
           mimeType: streamHeader.mimeType,
           size: streamHeader.totalLength,
           topic: streamHeader.topic,
+          timestamp: Number(streamHeader.timestamp),
+        },
+        stream,
+        participant,
+      );
+    } else if (streamHeader.contentHeader.case === 'textHeader') {
+      let streamController: ReadableStreamDefaultController<string>;
+      const stream = new StreamReader<string>({
+        start: (controller) => {
+          streamController = controller;
+          this.textStreamBuffer.set(streamHeader.messageId, {
+            header: streamHeader,
+            chunks: [],
+            streamController,
+            startTime: Date.now(),
+          });
+        },
+      });
+      this.emit(
+        RoomEvent.TextStreamReceived,
+        {
+          messageId: streamHeader.messageId,
+          mimeType: streamHeader.mimeType,
+          size: streamHeader.totalLength,
+          topic: streamHeader.topic,
+          isFinite: streamHeader.streamType === DataStream_StreamType.FINITE,
+          timestamp: Number(streamHeader.timestamp),
         },
         stream,
         participant,
@@ -1599,15 +1631,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleStreamChunk(chunk: DataStream_Packet) {
     console.log('received chunk', chunk.chunkId);
 
-    const buffer = this.fileStreamBuffer.get(chunk.messageId);
-    if (!buffer) {
-      throw Error('received chunks before header');
+    const fileBuffer = this.fileStreamBuffer.get(chunk.messageId);
+    if (fileBuffer) {
+      fileBuffer.streamController.enqueue(chunk.content);
+      fileBuffer.chunks.push(chunk.chunkId);
+      if (fileBuffer.chunks.length === fileBuffer.header.totalChunks || chunk.complete === true) {
+        fileBuffer.streamController.close();
+        this.fileStreamBuffer.delete(chunk.messageId);
+      }
     }
-    buffer.streamController.enqueue(chunk.content);
-    buffer.chunks.push(chunk.chunkId);
-    if (buffer.chunks.length === buffer.header.totalChunks || chunk.complete === true) {
-      buffer.streamController.close();
-      this.fileStreamBuffer.delete(chunk.messageId);
+    const textBuffer = this.textStreamBuffer.get(chunk.messageId);
+    if (textBuffer) {
+      textBuffer.streamController.enqueue(new TextDecoder().decode(chunk.content));
+      textBuffer.chunks.push(chunk.chunkId);
+      if (textBuffer.chunks.length === textBuffer.header.totalChunks || chunk.complete === true) {
+        textBuffer.streamController.close();
+        this.fileStreamBuffer.delete(chunk.messageId);
+      }
     }
   }
 
@@ -2367,5 +2407,9 @@ export type RoomEventCallbacks = {
     stream: StreamReader<Uint8Array>,
     participant?: Participant,
   ) => void;
-  textStreamReceived: (stream: StreamReader<string>, participant?: Participant) => void;
+  textStreamReceived: (
+    textInfo: TextStreamInfo,
+    stream: StreamReader<string>,
+    participant?: Participant,
+  ) => void;
 };

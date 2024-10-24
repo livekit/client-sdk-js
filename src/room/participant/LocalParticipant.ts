@@ -6,8 +6,10 @@ import {
   DataPacket_Kind,
   DataStream_FileHeader,
   DataStream_Header,
+  DataStream_OperationType,
   DataStream_Packet,
   DataStream_StreamType,
+  DataStream_TextHeader,
   Encryption_Type,
   ParticipantInfo,
   ParticipantPermission,
@@ -1421,12 +1423,61 @@ export default class LocalParticipant extends Participant {
 
   CHUNK_SIZE = 15_000;
 
+  async sendText(
+    text: string,
+    options: { topic: string; encryptionType?: Encryption_Type.NONE; replyToMessageId?: string },
+  ) {
+    const messageId = crypto.randomUUID();
+    const textInBytes = new TextEncoder().encode(text);
+    const totalLength = textInBytes.byteLength;
+    const totalChunks = Math.ceil(totalLength / this.CHUNK_SIZE);
+    const header = new DataStream_Header({
+      messageId,
+      totalChunks,
+      totalLength,
+      mimeType: 'plain/text',
+      topic: options.topic,
+      streamType: DataStream_StreamType.FINITE,
+      timestamp: BigInt(Date.now()),
+      encryptionType: options.encryptionType,
+      contentHeader: {
+        case: 'textHeader',
+        value: new DataStream_TextHeader({
+          operationType: DataStream_OperationType.CREATE,
+          replyToMessageId: options.replyToMessageId,
+        }),
+      },
+    });
+    await this.publishData(header.toBinary(), {
+      reliable: true,
+      topic: 'streamheader',
+    });
+
+    for (let i = 0; i < totalChunks; i++) {
+      const chunkData = textInBytes.slice(
+        i * this.CHUNK_SIZE,
+        Math.min((i + 1) * this.CHUNK_SIZE, totalLength),
+      );
+      await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
+      const chunk = new DataStream_Packet({
+        contentLength: chunkData.length,
+        content: chunkData,
+        messageId,
+        chunkId: i,
+      });
+      await this.publishData(chunk.toBinary(), {
+        reliable: true,
+        topic: 'streamchunk',
+      });
+    }
+  }
+
   async sendFile(
     file: File,
     options: { mimeType: string; topic: string; encryptionType?: Encryption_Type.NONE },
   ) {
     const totalLength = file.size;
-    const totalChunks = Math.ceil(file.size / this.CHUNK_SIZE);
+    const totalChunks = Math.ceil(totalLength / this.CHUNK_SIZE);
     const messageId = crypto.randomUUID();
     const header = new DataStream_Header({
       totalChunks,
@@ -1459,24 +1510,17 @@ export default class LocalParticipant extends Participant {
       });
     }
     for (let i = 0; i < totalChunks; i++) {
-      while (
-        this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE)!.bufferedAmount >
-        this.engine.dataChannelForKind(DataPacket_Kind.RELIABLE)!.bufferedAmountLowThreshold
-      ) {
-        await sleep(20);
-      }
-
       const chunkData = await read(
         file.slice(i * this.CHUNK_SIZE, Math.min((i + 1) * this.CHUNK_SIZE, totalLength)),
       );
+      await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
       const chunk = new DataStream_Packet({
         contentLength: chunkData.length,
         content: chunkData,
         messageId,
         chunkId: i,
       });
-
-      this.publishData(chunk.toBinary(), {
+      await this.publishData(chunk.toBinary(), {
         reliable: true,
         topic: 'streamchunk',
       });

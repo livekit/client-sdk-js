@@ -240,6 +240,20 @@ const appActions = {
           }) to ${streamState.toString()}`,
         );
       })
+      .on(RoomEvent.TextStreamReceived, async (info, stream, participant) => {
+        if (info.isFinite) {
+          handleChatMessage(
+            {
+              id: info.messageId,
+              timestamp: info.timestamp,
+              message: (await stream.readAll()).join(),
+            },
+            participant,
+          );
+        } else {
+          // TODO implement incrementally updating chat messages
+        }
+      })
       .on(RoomEvent.FileStreamReceived, async (info, stream, participant) => {
         appendLog(
           `started to receive a file called "${info.fileName}" from ${participant?.identity}`,
@@ -380,7 +394,7 @@ const appActions = {
     if (!currentRoom) return;
     const textField = <HTMLInputElement>$('entry');
     if (textField.value) {
-      currentRoom.localParticipant.sendChatMessage(textField.value);
+      currentRoom.localParticipant.sendText(textField.value, { topic: 'chat' });
       textField.value = '';
     }
   },
@@ -473,7 +487,7 @@ window.appActions = appActions;
 
 // --------------------------- event handlers ------------------------------- //
 
-function handleChatMessage(msg: ChatMessage, participant?: LocalParticipant | RemoteParticipant) {
+function handleChatMessage(msg: ChatMessage, participant?: Participant) {
   (<HTMLTextAreaElement>$('chat')).value +=
     `${participant?.identity}${participant instanceof LocalParticipant ? ' (me)' : ''}: ${msg.message}\n`;
 }
