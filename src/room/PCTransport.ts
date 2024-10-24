@@ -587,7 +587,6 @@ function ensureAudioNackAndStereo(
   }
 }
 
-
 function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
   stereoMids: string[];
   nackMids: string[];
