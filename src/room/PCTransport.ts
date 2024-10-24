@@ -48,6 +48,8 @@ export default class PCTransport extends EventEmitter {
 
   private loggerOptions: LoggerOptions;
 
+  private ddExtID = 0;
+
   pendingCandidates: RTCIceCandidateInit[] = [];
 
   restartingIce: boolean = false;
@@ -288,7 +290,7 @@ export default class PCTransport extends EventEmitter {
           }
 
           if (isSVCCodec(trackbr.codec)) {
-            ensureVideoDDExtensionForSVC(media);
+            this.ensureVideoDDExtensionForSVC(media);
           }
 
           // TODO: av1 slow starting issue already fixed in chrome 124, clean this after some versions
@@ -503,6 +505,36 @@ export default class PCTransport extends EventEmitter {
       throw new NegotiationError(msg);
     }
   }
+
+  private ensureVideoDDExtensionForSVC(
+    media: {
+      type: string;
+      port: number;
+      protocol: string;
+      payloads?: string | undefined;
+    } & MediaDescription,
+  ) {
+    let maxID = 0;
+    const ddFound = media.ext?.some((ext): boolean => {
+      if (ext.uri === ddExtensionURI) {
+        return true;
+      }
+      if (ext.value > maxID) {
+        maxID = ext.value;
+      }
+      return false;
+    });
+
+    if (!ddFound) {
+      if (this.ddExtID === 0) {
+        this.ddExtID = maxID + 1;
+      }
+      media.ext?.push({
+        value: this.ddExtID,
+        uri: ddExtensionURI,
+      });
+    }
+  }
 }
 
 function ensureAudioNackAndStereo(
@@ -555,32 +587,6 @@ function ensureAudioNackAndStereo(
   }
 }
 
-function ensureVideoDDExtensionForSVC(
-  media: {
-    type: string;
-    port: number;
-    protocol: string;
-    payloads?: string | undefined;
-  } & MediaDescription,
-) {
-  let maxID = 0;
-  const ddFound = media.ext?.some((ext): boolean => {
-    if (ext.uri === ddExtensionURI) {
-      return true;
-    }
-    if (ext.value > maxID) {
-      maxID = ext.value;
-    }
-    return false;
-  });
-
-  if (!ddFound) {
-    media.ext?.push({
-      value: maxID + 1,
-      uri: ddExtensionURI,
-    });
-  }
-}
 
 function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
   stereoMids: string[];
