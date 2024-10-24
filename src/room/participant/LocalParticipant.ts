@@ -4,7 +4,10 @@ import {
   Codec,
   DataPacket,
   DataPacket_Kind,
-  DataStreamPacket,
+  DataStream_FileHeader,
+  DataStream_Header,
+  DataStream_Packet,
+  DataStream_StreamType,
   Encryption_Type,
   ParticipantInfo,
   ParticipantPermission,
@@ -52,7 +55,7 @@ import {
   mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
-import { type ChatMessage, type DataPublishOptions, type FileStreamHeader } from '../types';
+import { type ChatMessage, type DataPublishOptions } from '../types';
 import {
   Future,
   isE2EESimulcastSupported,
@@ -1418,24 +1421,31 @@ export default class LocalParticipant extends Participant {
 
   CHUNK_SIZE = 15_000;
 
-  async sendFile(file: File, options: { mimeType: string; topic: string; encryptionType: 'none' }) {
+  async sendFile(
+    file: File,
+    options: { mimeType: string; topic: string; encryptionType?: Encryption_Type.NONE },
+  ) {
     const totalLength = file.size;
     const totalChunks = Math.ceil(file.size / this.CHUNK_SIZE);
     const messageId = crypto.randomUUID();
-    const header: FileStreamHeader = {
-      contentType: 'file',
+    const header = new DataStream_Header({
       totalChunks,
       totalLength,
       mimeType: options.mimeType,
       messageId,
       topic: options.topic,
       encryptionType: options.encryptionType,
-      fileName: file.name,
-      streamType: 'finite',
-      timestamp: Date.now(),
-    };
+      streamType: DataStream_StreamType.FINITE,
+      timestamp: BigInt(Date.now()),
+      contentHeader: {
+        case: 'fileHeader',
+        value: new DataStream_FileHeader({
+          fileName: file.name,
+        }),
+      },
+    });
 
-    await this.publishData(new TextEncoder().encode(JSON.stringify(header)), {
+    await this.publishData(header.toBinary(), {
       reliable: true,
       topic: 'streamheader',
     });
@@ -1459,14 +1469,12 @@ export default class LocalParticipant extends Participant {
       const chunkData = await read(
         file.slice(i * this.CHUNK_SIZE, Math.min((i + 1) * this.CHUNK_SIZE, totalLength)),
       );
-      const chunk = new DataStreamPacket({
+      const chunk = new DataStream_Packet({
         contentLength: chunkData.length,
         content: chunkData,
         messageId,
         chunkId: i,
       });
-
-      console.log('outgoing chunk size', chunk.toBinary().byteLength);
 
       this.publishData(chunk.toBinary(), {
         reliable: true,

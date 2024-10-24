@@ -4,7 +4,8 @@ import {
   ConnectionQualityUpdate,
   type DataPacket,
   DataPacket_Kind,
-  DataStreamPacket,
+  DataStream_Header,
+  DataStream_Packet,
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
@@ -46,6 +47,7 @@ import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
+import { StreamReader } from './StreamReader';
 import {
   audioDefaults,
   publishDefaults,
@@ -73,10 +75,10 @@ import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, sourceToKind } from './track/utils';
 import {
   type ChatMessage,
-  type FileStreamBuffer,
-  type FileStreamHeader,
+  type FileStreamInfo,
   type SimulationOptions,
   type SimulationScenario,
+  type StreamBuffer,
   type TranscriptionSegment,
 } from './types';
 import {
@@ -1546,10 +1548,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleUserPacket(participant, packet.value.value, packet.kind);
       if (packet.value.value.topic === 'streamheader') {
         this.handleStreamHeader(
-          JSON.parse(new TextDecoder().decode(packet.value.value.payload)) as FileStreamHeader,
+          DataStream_Header.fromBinary(packet.value.value.payload),
+          this.getParticipantByIdentity(packet.participantIdentity),
         );
       } else if (packet.value.value.topic === 'streamchunk') {
-        this.handleStreamChunk(DataStreamPacket.fromBinary(packet.value.value.payload));
+        this.handleStreamChunk(DataStream_Packet.fromBinary(packet.value.value.payload));
       }
     } else if (packet.value.case === 'transcription') {
       this.handleTranscription(participant, packet.value.value);
@@ -1562,36 +1565,48 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  fileStreamBuffer = new Map<string, FileStreamBuffer>();
+  fileStreamBuffer = new Map<string, StreamBuffer>();
 
-  private handleStreamHeader(fileheader: FileStreamHeader) {
-    console.log('received header', fileheader);
-    this.fileStreamBuffer.set(fileheader.messageId, {
-      header: fileheader,
-      chunks: [],
-      startTime: Date.now(),
-    });
+  private handleStreamHeader(streamHeader: DataStream_Header, participant?: Participant) {
+    console.log('received header', streamHeader);
+    let streamController: ReadableStreamDefaultController<Uint8Array>;
+    if (streamHeader.contentHeader.case === 'fileHeader') {
+      const stream = new StreamReader<Uint8Array>({
+        start: (controller) => {
+          streamController = controller;
+          this.fileStreamBuffer.set(streamHeader.messageId, {
+            header: streamHeader,
+            chunks: [],
+            streamController,
+            startTime: Date.now(),
+          });
+        },
+      });
+      this.emit(
+        RoomEvent.FileStreamReceived,
+        {
+          fileName: streamHeader.contentHeader.value.fileName ?? 'unknown',
+          mimeType: streamHeader.mimeType,
+          size: streamHeader.totalLength,
+          topic: streamHeader.topic,
+        },
+        stream,
+        participant,
+      );
+    }
   }
 
-  private handleStreamChunk(chunk: DataStreamPacket) {
+  private handleStreamChunk(chunk: DataStream_Packet) {
     console.log('received chunk', chunk.chunkId);
 
     const buffer = this.fileStreamBuffer.get(chunk.messageId);
     if (!buffer) {
       throw Error('received chunks before header');
     }
-    buffer.chunks.push(chunk);
-    if (buffer.chunks.length === buffer.header.totalChunks) {
-      const fileChunks = buffer.chunks.sort((a, b) => a.chunkId - b.chunkId).map((c) => c.content);
-
-      const result = new Blob(fileChunks, { type: 'application/pdf' });
-      const downloadLink = URL.createObjectURL(result);
-      const linkEl = document.createElement('a');
-      linkEl.href = downloadLink;
-      linkEl.innerText = buffer.header.fileName!;
-      linkEl.setAttribute('download', buffer.header.fileName!);
-      document.body.append(linkEl);
-      console.log({ downloadLink, timeToDownload: (Date.now() - buffer.startTime) / 1000 });
+    buffer.streamController.enqueue(chunk.content);
+    buffer.chunks.push(chunk.chunkId);
+    if (buffer.chunks.length === buffer.header.totalChunks || chunk.complete === true) {
+      buffer.streamController.close();
       this.fileStreamBuffer.delete(chunk.messageId);
     }
   }
@@ -2347,4 +2362,10 @@ export type RoomEventCallbacks = {
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
+  fileStreamReceived: (
+    fileInfo: FileStreamInfo,
+    stream: StreamReader<Uint8Array>,
+    participant?: Participant,
+  ) => void;
+  textStreamReceived: (stream: StreamReader<string>, participant?: Participant) => void;
 };

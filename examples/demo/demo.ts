@@ -72,10 +72,10 @@ function updateSearchParams(url: string, token: string, key: string) {
 const appActions = {
   sendFile: async () => {
     console.log('start sending');
-    currentRoom?.localParticipant.sendFile(($('file') as HTMLInputElement).files?.[0]!, {
-      mimeType: 'file/blob',
+    const file = ($('file') as HTMLInputElement).files?.[0]!;
+    currentRoom?.localParticipant.sendFile(file, {
+      mimeType: file.type,
       topic: 'test',
-      encryptionType: 'none',
     });
   },
   connectWithFormInput: async () => {
@@ -239,6 +239,21 @@ const appActions = {
             participant.identity
           }) to ${streamState.toString()}`,
         );
+      })
+      .on(RoomEvent.FileStreamReceived, async (info, stream, participant) => {
+        appendLog(
+          `started to receive a file called "${info.fileName}" from ${participant?.identity}`,
+        );
+        const result = new Blob(await stream.readAll(), { type: info.mimeType });
+        appendLog(
+          `completely received file called "${info.fileName}" from ${participant?.identity}`,
+        );
+        const downloadLink = URL.createObjectURL(result);
+        const linkEl = document.createElement('a');
+        linkEl.href = downloadLink;
+        linkEl.innerText = info.fileName;
+        linkEl.setAttribute('download', info.fileName);
+        document.body.append(linkEl);
       });
 
     try {
