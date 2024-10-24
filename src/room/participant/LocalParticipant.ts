@@ -63,10 +63,10 @@ import {
   isSVCCodec,
   isSafari17,
   isWeb,
-  semverGte,
   sleep,
   supportsAV1,
   supportsVP9,
+  compareVersions
 } from '../utils';
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
@@ -1497,7 +1497,7 @@ export default class LocalParticipant extends Participant {
 
       if (
         this.engine.latestJoinResponse?.serverInfo?.version &&
-        !semverGte(this.engine.latestJoinResponse?.serverInfo?.version, '1.8.0')
+        compareVersions(this.engine.latestJoinResponse?.serverInfo?.version, '1.8.0') < 0
       ) {
         reject(RpcError.builtIn('UNSUPPORTED_SERVER'));
         return;
