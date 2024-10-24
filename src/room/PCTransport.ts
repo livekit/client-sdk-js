@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { MediaDescription } from 'sdp-transform';
+import type { MediaDescription, SessionDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
@@ -290,7 +290,7 @@ export default class PCTransport extends EventEmitter {
           }
 
           if (isSVCCodec(trackbr.codec)) {
-            this.ensureVideoDDExtensionForSVC(media);
+            this.ensureVideoDDExtensionForSVC(media, sdpParsed);
           }
 
           // TODO: av1 slow starting issue already fixed in chrome 124, clean this after some versions
@@ -513,20 +513,28 @@ export default class PCTransport extends EventEmitter {
       protocol: string;
       payloads?: string | undefined;
     } & MediaDescription,
+    sdp: SessionDescription,
   ) {
-    let maxID = 0;
     const ddFound = media.ext?.some((ext): boolean => {
       if (ext.uri === ddExtensionURI) {
         return true;
-      }
-      if (ext.value > maxID) {
-        maxID = ext.value;
       }
       return false;
     });
 
     if (!ddFound) {
       if (this.ddExtID === 0) {
+        let maxID = 0;
+        sdp.media.forEach((m) => {
+          if (m.type !== 'video') {
+            return;
+          }
+          m.ext?.forEach((ext) => {
+            if (ext.value > maxID) {
+              maxID = ext.value;
+            }
+          });
+        });
         this.ddExtID = maxID + 1;
       }
       media.ext?.push({
