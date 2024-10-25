@@ -506,26 +506,26 @@ function handleChatMessage(msg: ChatMessage, participant?: Participant) {
   }
 }
 
-async function participantConnected(participant: Participant) {
-  appendLog('participant', participant.identity, 'connected', participant.metadata);
-  console.log('tracks', participant.trackPublications);
+async function sendGreetingTo(participant: Participant) {
+  const greeting = `Hello new participant ${participant.identity}. This is just an incrementally updating chat message from me, participant ${currentRoom?.localParticipant.identity}.`;
 
-  const streamWriter = await currentRoom?.localParticipant.streamText({
+  const streamWriter = await currentRoom!.localParticipant.streamText({
     topic: 'chat',
     destinationIdentities: [participant.identity],
   });
 
-  const greeting = `Hello new participant ${participant.identity}. This is just an incrementally updating chat message from me, participant ${currentRoom?.localParticipant.identity}.`;
-  if (streamWriter) {
-    const writer = streamWriter.getWriter();
-    for (const char of greeting) {
-      await writer.write(char);
-      await sleep(50);
-    }
-    await writer.close();
+  const writer = streamWriter.getWriter();
+  for (const char of greeting) {
+    await writer.write(char);
+    await sleep(50);
   }
+  await writer.close();
+}
 
-  setInterval(async () => {}, 400);
+async function participantConnected(participant: Participant) {
+  appendLog('participant', participant.identity, 'connected', participant.metadata);
+  console.log('tracks', participant.trackPublications);
+
   participant
     .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
       appendLog('track was muted', pub.trackSid, participant.identity);
@@ -541,6 +541,8 @@ async function participantConnected(participant: Participant) {
     .on(ParticipantEvent.ConnectionQualityChanged, () => {
       renderParticipant(participant);
     });
+
+  await sendGreetingTo(participant);
 }
 
 function participantDisconnected(participant: RemoteParticipant) {
