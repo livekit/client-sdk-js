@@ -507,7 +507,7 @@ function handleChatMessage(msg: ChatMessage, participant?: Participant) {
 }
 
 async function sendGreetingTo(participant: Participant) {
-  const greeting = `Hello new participant ${participant.identity}. This is just an incrementally updating chat message from me, participant ${currentRoom?.localParticipant.identity}.`;
+  const greeting = `Hello new participant ${participant.identity}. This is just an progressively updating chat message from me, participant ${currentRoom?.localParticipant.identity}.`;
 
   const streamWriter = await currentRoom!.localParticipant.streamText({
     topic: 'chat',
