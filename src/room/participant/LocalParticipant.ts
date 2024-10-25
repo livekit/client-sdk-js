@@ -1553,6 +1553,12 @@ export default class LocalParticipant extends Participant {
       },
     });
 
+    this.engine.once(EngineEvent.Closing, () => {
+      if (writableStream.locked) {
+        writableStream.abort();
+      }
+    });
+
     return writableStream.getWriter();
   }
 
