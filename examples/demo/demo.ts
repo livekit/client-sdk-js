@@ -514,12 +514,11 @@ async function sendGreetingTo(participant: Participant) {
     destinationIdentities: [participant.identity],
   });
 
-  const writer = streamWriter.getWriter();
   for (const char of greeting) {
-    await writer.write(char);
+    await streamWriter.write(char);
     await sleep(50);
   }
-  await writer.close();
+  await streamWriter.close();
 }
 
 async function participantConnected(participant: Participant) {

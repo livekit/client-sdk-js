@@ -1483,7 +1483,7 @@ export default class LocalParticipant extends Participant {
     encryptionType?: Encryption_Type.NONE;
     replyToMessageId?: string;
     destinationIdentities?: Array<string>;
-  }): Promise<WritableStream<string>> {
+  }): Promise<WritableStreamDefaultWriter<string>> {
     const messageId = crypto.randomUUID();
     const header = new DataStream_Header({
       messageId,
@@ -1553,7 +1553,7 @@ export default class LocalParticipant extends Participant {
       },
     });
 
-    return writableStream;
+    return writableStream.getWriter();
   }
 
   async sendFile(
