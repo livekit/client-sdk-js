@@ -1635,8 +1635,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     const fileBuffer = this.fileStreamBuffer.get(chunk.messageId);
     if (fileBuffer) {
-      fileBuffer.streamController.enqueue(chunk.content);
-      fileBuffer.chunks.push(chunk.chunkId);
+      if (chunk.contentLength > 0) {
+        fileBuffer.streamController.enqueue(chunk.content);
+        fileBuffer.chunks.push(chunk.chunkId);
+      }
       if (fileBuffer.chunks.length === fileBuffer.header.totalChunks || chunk.complete === true) {
         fileBuffer.streamController.close();
         this.fileStreamBuffer.delete(chunk.messageId);
@@ -1644,8 +1646,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     const textBuffer = this.textStreamBuffer.get(chunk.messageId);
     if (textBuffer) {
-      textBuffer.streamController.enqueue(new TextDecoder().decode(chunk.content));
-      textBuffer.chunks.push(chunk.chunkId);
+      if (chunk.contentLength > 0) {
+        textBuffer.streamController.enqueue(new TextDecoder().decode(chunk.content));
+        textBuffer.chunks.push(chunk.chunkId);
+      }
       if (textBuffer.chunks.length === textBuffer.header.totalChunks || chunk.complete === true) {
         textBuffer.streamController.close();
         this.fileStreamBuffer.delete(chunk.messageId);

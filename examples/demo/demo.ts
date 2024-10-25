@@ -35,7 +35,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
-import { isSVCCodec } from '../../src/room/utils';
+import { isSVCCodec, sleep } from '../../src/room/utils';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -46,6 +46,7 @@ const state = {
   defaultDevices: new Map<MediaDeviceKind, string>(),
   bitrateInterval: undefined as any,
   e2eeKeyProvider: new ExternalE2EEKeyProvider(),
+  chatMessages: new Map<string, { text: string; participant?: Participant }>(),
 };
 let currentRoom: Room | undefined;
 
@@ -246,12 +247,21 @@ const appActions = {
             {
               id: info.messageId,
               timestamp: info.timestamp,
-              message: (await stream.readAll()).join(),
+              message: (await stream.readAll()).join(''),
             },
             participant,
           );
         } else {
-          // TODO implement incrementally updating chat messages
+          for await (const msg of stream) {
+            handleChatMessage(
+              {
+                id: info.messageId,
+                timestamp: info.timestamp,
+                message: [state.chatMessages.get(info.messageId)?.text ?? '', msg].join(''),
+              },
+              participant,
+            );
+          }
         }
       })
       .on(RoomEvent.FileStreamReceived, async (info, stream, participant) => {
@@ -486,15 +496,36 @@ declare global {
 window.appActions = appActions;
 
 // --------------------------- event handlers ------------------------------- //
-
 function handleChatMessage(msg: ChatMessage, participant?: Participant) {
-  (<HTMLTextAreaElement>$('chat')).value +=
-    `${participant?.identity}${participant instanceof LocalParticipant ? ' (me)' : ''}: ${msg.message}\n`;
+  state.chatMessages.set(msg.id, { text: msg.message, participant });
+
+  const chatEl = <HTMLTextAreaElement>$('chat');
+  chatEl.value = '';
+  for (const chatMsg of state.chatMessages.values()) {
+    chatEl.value += `${chatMsg.participant?.identity}${chatMsg.participant instanceof LocalParticipant ? ' (me)' : ''}: ${chatMsg.text}\n`;
+  }
 }
 
-function participantConnected(participant: Participant) {
+async function participantConnected(participant: Participant) {
   appendLog('participant', participant.identity, 'connected', participant.metadata);
   console.log('tracks', participant.trackPublications);
+
+  const streamWriter = await currentRoom?.localParticipant.streamText({
+    topic: 'chat',
+    destinationIdentities: [participant.identity],
+  });
+
+  const greeting = `Hello new participant ${participant.identity}. This is just an incrementally updating chat message from me, participant ${currentRoom?.localParticipant.identity}.`;
+  if (streamWriter) {
+    const writer = streamWriter.getWriter();
+    for (const char of greeting) {
+      await writer.write(char);
+      await sleep(50);
+    }
+    await writer.close();
+  }
+
+  setInterval(async () => {}, 400);
   participant
     .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
       appendLog('track was muted', pub.trackSid, participant.identity);

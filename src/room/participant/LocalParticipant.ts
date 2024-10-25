@@ -1483,7 +1483,7 @@ export default class LocalParticipant extends Participant {
     encryptionType?: Encryption_Type.NONE;
     replyToMessageId?: string;
     destinationIdentities?: Array<string>;
-  }) {
+  }): Promise<WritableStream<string>> {
     const messageId = crypto.randomUUID();
     const header = new DataStream_Header({
       messageId,
@@ -1530,6 +1530,7 @@ export default class LocalParticipant extends Participant {
             topic: 'streamchunk',
             destinationIdentities: options.destinationIdentities,
           });
+          chunkId += 1;
           resolve();
         });
       },
