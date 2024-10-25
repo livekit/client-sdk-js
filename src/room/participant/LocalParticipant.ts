@@ -79,6 +79,8 @@ import {
   mediaTrackToLocalTrack,
 } from './publishUtils';
 
+const STREAM_CHUNK_SIZE = 15_000;
+
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
 
@@ -1421,16 +1423,19 @@ export default class LocalParticipant extends Participant {
     return msg;
   }
 
-  CHUNK_SIZE = 15_000;
-
   async sendText(
     text: string,
-    options: { topic: string; encryptionType?: Encryption_Type.NONE; replyToMessageId?: string },
+    options: {
+      topic: string;
+      encryptionType?: Encryption_Type.NONE;
+      replyToMessageId?: string;
+      destinationIdentities?: Array<string>;
+    },
   ) {
     const messageId = crypto.randomUUID();
     const textInBytes = new TextEncoder().encode(text);
     const totalLength = textInBytes.byteLength;
-    const totalChunks = Math.ceil(totalLength / this.CHUNK_SIZE);
+    const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
     const header = new DataStream_Header({
       messageId,
       totalChunks,
@@ -1455,8 +1460,8 @@ export default class LocalParticipant extends Participant {
 
     for (let i = 0; i < totalChunks; i++) {
       const chunkData = textInBytes.slice(
-        i * this.CHUNK_SIZE,
-        Math.min((i + 1) * this.CHUNK_SIZE, totalLength),
+        i * STREAM_CHUNK_SIZE,
+        Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength),
       );
       await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
       const chunk = new DataStream_Packet({
@@ -1468,16 +1473,99 @@ export default class LocalParticipant extends Participant {
       await this.publishData(chunk.toBinary(), {
         reliable: true,
         topic: 'streamchunk',
+        destinationIdentities: options.destinationIdentities,
       });
     }
   }
 
+  async streamText(options: {
+    topic: string;
+    encryptionType?: Encryption_Type.NONE;
+    replyToMessageId?: string;
+    destinationIdentities?: Array<string>;
+  }) {
+    const messageId = crypto.randomUUID();
+    const header = new DataStream_Header({
+      messageId,
+      mimeType: 'plain/text',
+      topic: options.topic,
+      streamType: DataStream_StreamType.STREAMING,
+      timestamp: BigInt(Date.now()),
+      encryptionType: options.encryptionType,
+      contentHeader: {
+        case: 'textHeader',
+        value: new DataStream_TextHeader({
+          operationType: DataStream_OperationType.CREATE,
+          replyToMessageId: options.replyToMessageId,
+        }),
+      },
+    });
+    await this.publishData(header.toBinary(), {
+      reliable: true,
+      topic: 'streamheader',
+    });
+
+    let chunkId = 0;
+    const localP = this;
+    const writableStream = new WritableStream<string>({
+      // Implement the sink
+      write(textChunk) {
+        const textInBytes = new TextEncoder().encode(textChunk);
+
+        if (textInBytes.byteLength > STREAM_CHUNK_SIZE) {
+          this.abort?.();
+          throw new Error('chunk size too large');
+        }
+
+        return new Promise(async (resolve) => {
+          await localP.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
+          const chunk = new DataStream_Packet({
+            contentLength: textChunk.length,
+            content: textInBytes,
+            messageId,
+            chunkId: chunkId,
+          });
+          await localP.publishData(chunk.toBinary(), {
+            reliable: true,
+            topic: 'streamchunk',
+            destinationIdentities: options.destinationIdentities,
+          });
+          resolve();
+        });
+      },
+      close() {
+        const chunk = new DataStream_Packet({
+          contentLength: 0,
+          messageId,
+          chunkId: chunkId,
+          complete: true,
+        });
+        localP.publishData(chunk.toBinary(), {
+          reliable: true,
+          topic: 'streamchunk',
+          destinationIdentities: options.destinationIdentities,
+        });
+      },
+      abort(err) {
+        console.log('Sink error:', err);
+        // TODO handle aborts to signal something to receiver side
+      },
+    });
+
+    return writableStream;
+  }
+
   async sendFile(
     file: File,
-    options: { mimeType: string; topic: string; encryptionType?: Encryption_Type.NONE },
+    options: {
+      mimeType: string;
+      topic: string;
+      encryptionType?: Encryption_Type.NONE;
+      destinationIdentities?: Array<string>;
+    },
   ) {
     const totalLength = file.size;
-    const totalChunks = Math.ceil(totalLength / this.CHUNK_SIZE);
+    const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
     const messageId = crypto.randomUUID();
     const header = new DataStream_Header({
       totalChunks,
@@ -1511,7 +1599,7 @@ export default class LocalParticipant extends Participant {
     }
     for (let i = 0; i < totalChunks; i++) {
       const chunkData = await read(
-        file.slice(i * this.CHUNK_SIZE, Math.min((i + 1) * this.CHUNK_SIZE, totalLength)),
+        file.slice(i * STREAM_CHUNK_SIZE, Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength)),
       );
       await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
       const chunk = new DataStream_Packet({
@@ -1523,6 +1611,7 @@ export default class LocalParticipant extends Participant {
       await this.publishData(chunk.toBinary(), {
         reliable: true,
         topic: 'streamchunk',
+        destinationIdentities: options.destinationIdentities,
       });
     }
   }

@@ -145,9 +145,10 @@ export interface StreamBuffer<T extends string | Uint8Array> {
 interface BaseStreamInfo {
   messageId: string;
   mimeType: string;
-  size: number;
   topic: string;
   timestamp: number;
+  size?: number;
+  extensions?: Record<string, string>;
 }
 export interface FileStreamInfo extends BaseStreamInfo {
   fileName: string;
