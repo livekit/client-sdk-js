@@ -1,4 +1,4 @@
-import { Room, type RoomConnectOptions, RoomEvent, RpcError } from '../../src/index';
+import { Room, type RoomConnectOptions, RoomEvent, RpcError, RpcInvocationData } from '../../src/index';
 
 let startTime: number;
 
@@ -72,13 +72,8 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
   await greetersRoom.localParticipant?.registerRpcMethod(
     'arrival',
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async (
-      requestId: string,
-      callerIdentity: string,
-      payload: string,
-      responseTimeout: number,
-    ) => {
-      console.log(`[Greeter] Oh ${callerIdentity} arrived and said "${payload}"`);
+    async (data: RpcInvocationData) => {
+      console.log(`[Greeter] Oh ${data.callerIdentity} arrived and said "${data.payload}"`);
       await new Promise((resolve) => setTimeout(resolve, 2000));
       return 'Welcome and have a wonderful day!';
     },
@@ -86,17 +81,12 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
 
   await mathGeniusRoom.localParticipant?.registerRpcMethod(
     'square-root',
-    async (
-      requestId: string,
-      callerIdentity: string,
-      payload: string,
-      responseTimeout: number,
-    ) => {
-      const jsonData = JSON.parse(payload);
+    async (data: RpcInvocationData) => {
+      const jsonData = JSON.parse(data.payload);
       const number = jsonData.number;
       
       console.log(
-        `[Math Genius] I guess ${callerIdentity} wants the square root of ${number}. I've only got ${responseTimeout / 1000} seconds to respond but I think I can pull it off.`,
+        `[Math Genius] I guess ${data.callerIdentity} wants the square root of ${number}. I've only got ${data.responseTimeout / 1000} seconds to respond but I think I can pull it off.`,
       );
 
       console.log(`[Math Genius] *doing math*…`);
@@ -110,18 +100,12 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
 
   await mathGeniusRoom.localParticipant?.registerRpcMethod(
     'divide',
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async (
-      requestId: string,
-      callerIdentity: string,
-      payload: string,
-      responseTimeout: number,
-    ) => {
-      const jsonData = JSON.parse(payload);
+    async (data: RpcInvocationData) => {
+      const jsonData = JSON.parse(data.payload);
       const { numerator, denominator } = jsonData;
 
       console.log(
-        `[Math Genius] ${callerIdentity} wants to divide ${numerator} by ${denominator}. Let me think...`,
+        `[Math Genius] ${data.callerIdentity} wants to divide ${numerator} by ${denominator}. Let me think...`,
       );
 
       await new Promise((resolve) => setTimeout(resolve, 2000));

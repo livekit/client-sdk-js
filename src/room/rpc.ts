@@ -4,6 +4,38 @@
 import { RpcError as RpcError_Proto } from '@livekit/protocol';
 
 /**
+ * Data passed to method handler for incoming RPC invocations
+ */
+export class RpcInvocationData {
+  /**
+   * The unique request ID. Will match at both sides of the call, useful for debugging or logging.
+   */
+  requestId: string;
+
+  /**
+   * The unique participant identity of the caller.
+   */
+  callerIdentity: string;
+
+  /**
+   * The payload of the request. User-definable format, typically JSON.
+   */
+  payload: string;
+
+  /**
+   * The maximum time the caller will wait for a response.
+   */
+  responseTimeout: number;
+
+  constructor(requestId: string, callerIdentity: string, payload: string, responseTimeout: number) {
+    this.requestId = requestId;
+    this.callerIdentity = callerIdentity;
+    this.payload = payload;
+    this.responseTimeout = responseTimeout;
+  }
+}
+
+/**
  * Specialized error handling for RPC methods.
  *
  * Instances of this type, when thrown in a method handler, will have their `message`

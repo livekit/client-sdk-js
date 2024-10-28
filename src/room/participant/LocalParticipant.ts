@@ -32,7 +32,7 @@ import {
   UnexpectedConnectionState,
 } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
-import { MAX_PAYLOAD_BYTES, RpcError, byteLength } from '../rpc';
+import { MAX_PAYLOAD_BYTES, RpcError, RpcInvocationData, byteLength } from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
@@ -124,15 +124,7 @@ export default class LocalParticipant extends Participant {
 
   private enabledPublishVideoCodecs: Codec[] = [];
 
-  private rpcHandlers: Map<
-    string,
-    (
-      requestId: string,
-      callerIdentity: string,
-      payload: string,
-      responseTimeout: number,
-    ) => Promise<string>
-  > = new Map();
+  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
   private pendingAcks = new Map<string, { resolve: () => void; participantIdentity: string }>();
 
@@ -1564,18 +1556,12 @@ export default class LocalParticipant extends Participant {
    * ```typescript
    * room.localParticipant?.registerRpcMethod(
    *   'greet',
-   *   async (requestId: string, callerIdentity: string, payload: string, responseTimeout: number) => {
-   *     console.log(`Received greeting from ${callerIdentity}: ${payload}`);
-   *     return `Hello, ${callerIdentity}!`;
+   *   async (data: RpcInvocationData) => {
+   *     console.log(`Received greeting from ${data.callerIdentity}: ${data.payload}`);
+   *     return `Hello, ${data.callerIdentity}!`;
    *   }
    * );
    * ```
-   *
-   * The handler receives the following parameters:
-   * - `requestId`: A unique identifier for this RPC request
-   * - `callerIdentity`: The identity of the RemoteParticipant who initiated the RPC call
-   * - `payload`: The data sent by the caller (as a string)
-   * - `responseTimeout`: The maximum time available to return a response (milliseconds)
    *
    * The handler should return a Promise that resolves to a string.
    * If unable to respond within `responseTimeout`, the request will result in an error on the caller's side.
@@ -1586,12 +1572,7 @@ export default class LocalParticipant extends Participant {
    */
   registerRpcMethod(
     method: string,
-    handler: (
-      requestId: string,
-      callerIdentity: string,
-      payload: string,
-      responseTimeout: number,
-    ) => Promise<string>,
+    handler: (data: RpcInvocationData) => Promise<string>,
   ) {
     this.rpcHandlers.set(method, handler);
   }
@@ -1693,7 +1674,9 @@ export default class LocalParticipant extends Participant {
     let responsePayload: string | null = null;
 
     try {
-      const response = await handler(requestId, callerIdentity, payload, responseTimeout);
+      const response = await handler(
+        new RpcInvocationData(requestId, callerIdentity, payload, responseTimeout),
+      );
       if (byteLength(response) > MAX_PAYLOAD_BYTES) {
         responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
         console.warn(`RPC Response payload too large for ${method}`);
