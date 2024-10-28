@@ -320,14 +320,14 @@ room.localParticipant?.registerRpcMethod(
   'greet',
   
   // method handler - will be called when the method is invoked by a RemoteParticipant
-  async (requestId: string, callerIdentity: string, payload: string, responseTimeoutMs: number) => {
+  async (requestId: string, callerIdentity: string, payload: string, responseTimeout: number) => {
     console.log(`Received greeting from ${callerIdentity}: ${payload}`);
     return `Hello, ${callerIdentity}!`;
   }
 );
 ```
 
-In addition to the payload, your handler will also receive `responseTimeoutMs`, which informs you the maximum time available to return a response. If you are unable to respond in time, the call will result in an error on the caller's side.
+In addition to the payload, your handler will also receive `responseTimeout`, which informs you the maximum time available to return a response. If you are unable to respond in time, the call will result in an error on the caller's side.
 
 #### Performing an RPC request
 
@@ -346,7 +346,7 @@ try {
 }
 ```
 
-You may find it useful to adjust the `responseTimeoutMs` parameter, which indicates the amount of time you will wait for a response. We recommend keeping this value as low as possible while still satisfying the constraints of your application.
+You may find it useful to adjust the `responseTimeout` parameter, which indicates the amount of time you will wait for a response. We recommend keeping this value as low as possible while still satisfying the constraints of your application.
 
 #### Errors
 
