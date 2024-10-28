@@ -1466,7 +1466,8 @@ export default class LocalParticipant extends Participant {
   }
 
   /**
-   * Initiate an RPC call to a remote participant.
+   * Initiate an RPC call to a remote participant
+   * @param params - Parameters for initiating the RPC call, see {@link PerformRpcParams}
    * @returns A promise that resolves with the response payload or rejects with an error.
    * @throws Error on failure. Details in `message`.
    */
