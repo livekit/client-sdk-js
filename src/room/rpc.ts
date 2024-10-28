@@ -3,6 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 import { RpcError as RpcError_Proto } from '@livekit/protocol';
 
+/** Parameters for initiating an RPC call */
+export interface PerformRpcParams {
+  /** The `identity` of the destination participant */
+  destinationIdentity: string;
+  /** The method name to call */
+  method: string;
+  /** The method payload */
+  payload: string;
+  /** Timeout for receiving a response after initial connection (milliseconds). Default: 10000 */
+  responseTimeout?: number;
+}
+
 /**
  * Data passed to method handler for incoming RPC invocations
  */

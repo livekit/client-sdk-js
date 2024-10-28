@@ -32,7 +32,7 @@ import {
   UnexpectedConnectionState,
 } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
-import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from '../rpc';
+import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength, type PerformRpcParams } from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
@@ -77,18 +77,6 @@ import {
   getDefaultDegradationPreference,
   mediaTrackToLocalTrack,
 } from './publishUtils';
-
-/** Parameters for performing an RPC call */
-interface PerformRpcParams {
-  /** The `identity` of the destination participant */
-  destinationIdentity: string;
-  /** The method name to call */
-  method: string;
-  /** The method payload */
-  payload: string;
-  /** Timeout for receiving a response after initial connection (milliseconds). Default: 10000 */
-  responseTimeout?: number;
-}
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
