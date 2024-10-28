@@ -56,14 +56,15 @@ describe('LocalParticipant', () => {
         methodName,
         'test payload',
         5000,
+        1,
       );
 
-      expect(handler).toHaveBeenCalledWith(
-        'test-request-id',
-        mockCaller.identity,
-        'test payload',
-        5000,
-      );
+      expect(handler).toHaveBeenCalledWith({
+        requestId: 'test-request-id',
+        callerIdentity: mockCaller.identity,
+        payload: 'test payload',
+        responseTimeout: 5000,
+      });
 
       // Check if sendDataPacket was called twice (once for ACK and once for response)
       expect(mockSendDataPacket).toHaveBeenCalledTimes(2);
@@ -100,14 +101,15 @@ describe('LocalParticipant', () => {
         methodName,
         'test payload',
         5000,
+        1,
       );
 
-      expect(handler).toHaveBeenCalledWith(
-        'test-error-request-id',
-        mockCaller.identity,
-        'test payload',
-        5000,
-      );
+      expect(handler).toHaveBeenCalledWith({
+        requestId: 'test-error-request-id',
+        callerIdentity: mockCaller.identity,
+        payload: 'test payload',
+        responseTimeout: 5000,
+      });
 
       // Check if sendDataPacket was called twice (once for ACK and once for error response)
       expect(mockSendDataPacket).toHaveBeenCalledTimes(2);
@@ -141,14 +143,15 @@ describe('LocalParticipant', () => {
         methodName,
         'test payload',
         5000,
+        1,
       );
 
-      expect(handler).toHaveBeenCalledWith(
-        'test-rpc-error-request-id',
-        mockCaller.identity,
-        'test payload',
-        5000,
-      );
+      expect(handler).toHaveBeenCalledWith({
+        requestId: 'test-rpc-error-request-id',
+        callerIdentity: mockCaller.identity,
+        payload: 'test payload',
+        responseTimeout: 5000,
+      });
 
       // Check if sendDataPacket was called twice (once for ACK and once for error response)
       expect(mockSendDataPacket).toHaveBeenCalledTimes(2);
@@ -212,11 +215,11 @@ describe('LocalParticipant', () => {
         }, 10);
       });
 
-      const result = await localParticipant.performRpc(
-        mockRemoteParticipant.identity,
+      const result = await localParticipant.performRpc({
+        destinationIdentity: mockRemoteParticipant.identity,
         method,
         payload,
-      );
+      });
 
       expect(mockSendDataPacket).toHaveBeenCalledTimes(1);
       expect(result).toBe(responsePayload);
@@ -226,18 +229,18 @@ describe('LocalParticipant', () => {
       const method = 'timeoutMethod';
       const payload = 'timeoutPayload';
 
-      const timeoutMs = 50;
+      const timeout = 50;
 
-      const resultPromise = localParticipant.performRpc(
-        mockRemoteParticipant.identity,
+      const resultPromise = localParticipant.performRpc({
+        destinationIdentity: mockRemoteParticipant.identity,
         method,
         payload,
-        timeoutMs,
-      );
+        responseTimeout: timeout,
+      });
 
       mockSendDataPacket.mockImplementationOnce(() => {
         return new Promise((resolve) => {
-          setTimeout(resolve, timeoutMs + 10);
+          setTimeout(resolve, timeout + 10);
         });
       });
 
@@ -246,8 +249,8 @@ describe('LocalParticipant', () => {
       await expect(resultPromise).rejects.toThrow('Response timeout');
 
       const elapsedTime = Date.now() - startTime;
-      expect(elapsedTime).toBeGreaterThanOrEqual(timeoutMs);
-      expect(elapsedTime).toBeLessThan(timeoutMs + 50); // Allow some margin for test execution
+      expect(elapsedTime).toBeGreaterThanOrEqual(timeout);
+      expect(elapsedTime).toBeLessThan(timeout + 50); // Allow some margin for test execution
 
       expect(mockSendDataPacket).toHaveBeenCalledTimes(1);
     });
@@ -271,7 +274,11 @@ describe('LocalParticipant', () => {
       });
 
       await expect(
-        localParticipant.performRpc(mockRemoteParticipant.identity, method, payload),
+        localParticipant.performRpc({
+          destinationIdentity: mockRemoteParticipant.identity,
+          method,
+          payload,
+        }),
       ).rejects.toThrow(errorMessage);
     });
 
@@ -281,11 +288,11 @@ describe('LocalParticipant', () => {
 
       mockSendDataPacket.mockImplementationOnce(() => Promise.resolve());
 
-      const resultPromise = localParticipant.performRpc(
-        mockRemoteParticipant.identity,
+      const resultPromise = localParticipant.performRpc({
+        destinationIdentity: mockRemoteParticipant.identity,
         method,
         payload,
-      );
+      });
 
       // Simulate a small delay before disconnection
       await new Promise((resolve) => setTimeout(resolve, 200));

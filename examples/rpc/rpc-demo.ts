@@ -130,7 +130,11 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
 const performGreeting = async (room: Room): Promise<void> => {
   console.log("[Caller] Letting the greeter know that I've arrived");
   try {
-    const response = await room.localParticipant!.performRpc('greeter', 'arrival', 'Hello');
+    const response = await room.localParticipant!.performRpc({
+      destinationIdentity: 'greeter',
+      method: 'arrival',
+      payload: 'Hello',
+    });
     console.log(`[Caller] That's nice, the greeter said: "${response}"`);
   } catch (error) {
     console.error('[Caller] RPC call failed:', error);
@@ -141,11 +145,11 @@ const performGreeting = async (room: Room): Promise<void> => {
 const performDisconnection = async (room: Room): Promise<void> => {
   console.log('[Caller] Checking back in on the greeter...');
   try {
-    const response = await room.localParticipant!.performRpc(
-      'greeter',
-      'arrival',
-      'You still there?',
-    );
+    const response = await room.localParticipant!.performRpc({
+      destinationIdentity: 'greeter',
+      method: 'arrival',
+      payload: 'You still there?',
+    });
     console.log(`[Caller] That's nice, the greeter said: "${response}"`);
   } catch (error) {
     if (error instanceof RpcError && error.code === RpcError.ErrorCode.RECIPIENT_DISCONNECTED) {
@@ -160,11 +164,11 @@ const performDisconnection = async (room: Room): Promise<void> => {
 const performSquareRoot = async (room: Room): Promise<void> => {
   console.log("[Caller] What's the square root of 16?");
   try {
-    const response = await room.localParticipant!.performRpc(
-      'math-genius',
-      'square-root',
-      JSON.stringify({ number: 16 }),
-    );
+    const response = await room.localParticipant!.performRpc({
+      destinationIdentity: 'math-genius',
+      method: 'square-root',
+      payload: JSON.stringify({ number: 16 }),
+    });
     const parsedResponse = JSON.parse(response);
     console.log(`[Caller] Nice, the answer was ${parsedResponse.result}`);
   } catch (error) {
@@ -176,11 +180,11 @@ const performSquareRoot = async (room: Room): Promise<void> => {
 const performQuantumHypergeometricSeries = async (room: Room): Promise<void> => {
   console.log("[Caller] What's the quantum hypergeometric series of 42?");
   try {
-    const response = await room.localParticipant!.performRpc(
-      'math-genius',
-      'quantum-hypergeometric-series',
-      JSON.stringify({ number: 42 }),
-    );
+    const response = await room.localParticipant!.performRpc({
+      destinationIdentity: 'math-genius',
+      method: 'quantum-hypergeometric-series',
+      payload: JSON.stringify({ number: 42 }),
+    });
     const parsedResponse = JSON.parse(response);
     console.log(`[Caller] genius says ${parsedResponse.result}!`);
   } catch (error) {
@@ -199,11 +203,11 @@ const performQuantumHypergeometricSeries = async (room: Room): Promise<void> => 
 const performDivision = async (room: Room): Promise<void> => {
   console.log("[Caller] Let's try dividing 10 by 0");
   try {
-    const response = await room.localParticipant!.performRpc(
-      'math-genius',
-      'divide',
-      JSON.stringify({ numerator: 10, denominator: 0 }),
-    );
+    const response = await room.localParticipant!.performRpc({
+      destinationIdentity: 'math-genius',
+      method: 'divide',
+      payload: JSON.stringify({ numerator: 10, denominator: 0 }),
+    });
     const parsedResponse = JSON.parse(response);
     console.log(`[Caller] The result is ${parsedResponse.result}`);
   } catch (error) {

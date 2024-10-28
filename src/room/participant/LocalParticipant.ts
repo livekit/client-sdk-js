@@ -32,7 +32,7 @@ import {
   UnexpectedConnectionState,
 } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
-import { MAX_PAYLOAD_BYTES, RpcError, RpcInvocationData, byteLength } from '../rpc';
+import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
@@ -77,6 +77,18 @@ import {
   getDefaultDegradationPreference,
   mediaTrackToLocalTrack,
 } from './publishUtils';
+
+/** Parameters for performing an RPC call */
+interface PerformRpcParams {
+  /** The `identity` of the destination participant */
+  destinationIdentity: string;
+  /** The method name to call */
+  method: string;
+  /** The method payload */
+  payload: string;
+  /** Timeout for receiving a response after initial connection (milliseconds). Default: 10000 */
+  responseTimeout?: number;
+}
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
@@ -1467,19 +1479,15 @@ export default class LocalParticipant extends Participant {
 
   /**
    * Initiate an RPC call to a remote participant.
-   * @param destinationIdentity - The `identity` of the destination participant
-   * @param method - The method name to call
-   * @param payload - The method payload
-   * @param responseTimeout - Timeout for receiving a response after initial connection (milliseconds)
    * @returns A promise that resolves with the response payload or rejects with an error.
    * @throws Error on failure. Details in `message`.
    */
-  async performRpc(
-    destinationIdentity: string,
-    method: string,
-    payload: string,
-    responseTimeout: number = 10000,
-  ): Promise<string> {
+  async performRpc({
+    destinationIdentity,
+    method,
+    payload,
+    responseTimeout = 10000,
+  }: PerformRpcParams): Promise<string> {
     const maxRoundTripLatency = 2000;
 
     return new Promise(async (resolve, reject) => {
@@ -1671,9 +1679,12 @@ export default class LocalParticipant extends Participant {
     let responsePayload: string | null = null;
 
     try {
-      const response = await handler(
-        new RpcInvocationData(requestId, callerIdentity, payload, responseTimeout),
-      );
+      const response = await handler({
+        requestId,
+        callerIdentity,
+        payload,
+        responseTimeout,
+      });
       if (byteLength(response) > MAX_PAYLOAD_BYTES) {
         responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
         console.warn(`RPC Response payload too large for ${method}`);

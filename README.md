@@ -316,9 +316,9 @@ The participant who implements the method and will receive its calls must first 
 
 ```typescript
 room.localParticipant?.registerRpcMethod(
-   // method name - can be any string that makes sense for your application
+  // method name - can be any string that makes sense for your application
   'greet',
-  
+
   // method handler - will be called when the method is invoked by a RemoteParticipant
   async (data: RpcInvocationData) => {
     console.log(`Received greeting from ${data.callerIdentity}: ${data.payload}`);

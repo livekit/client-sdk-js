@@ -39,7 +39,7 @@ import {
 } from './room/utils';
 import { getBrowser } from './utils/browserParser';
 
-export { RpcError, RpcInvocationData } from './room/rpc';
+export { RpcError, type RpcInvocationData } from './room/rpc';
 
 export * from './connectionHelper/ConnectionCheck';
 export * from './connectionHelper/checks/Checker';
