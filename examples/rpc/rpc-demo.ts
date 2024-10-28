@@ -1,4 +1,10 @@
-import { Room, type RoomConnectOptions, RoomEvent, RpcError, RpcInvocationData } from '../../src/index';
+import {
+  Room,
+  type RoomConnectOptions,
+  RoomEvent,
+  RpcError,
+  RpcInvocationData,
+} from '../../src/index';
 
 let startTime: number;
 
@@ -84,7 +90,7 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
     async (data: RpcInvocationData) => {
       const jsonData = JSON.parse(data.payload);
       const number = jsonData.number;
-      
+
       console.log(
         `[Math Genius] I guess ${data.callerIdentity} wants the square root of ${number}. I've only got ${data.responseTimeout / 1000} seconds to respond but I think I can pull it off.`,
       );

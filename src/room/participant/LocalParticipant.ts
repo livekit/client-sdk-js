@@ -1570,10 +1570,7 @@ export default class LocalParticipant extends Participant {
    * and they will be received on the caller's side with the message intact.
    * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
    */
-  registerRpcMethod(
-    method: string,
-    handler: (data: RpcInvocationData) => Promise<string>,
-  ) {
+  registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
     this.rpcHandlers.set(method, handler);
   }
 
