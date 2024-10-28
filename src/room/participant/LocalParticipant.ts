@@ -257,6 +257,7 @@ export default class LocalParticipant extends Participant {
           rpcRequest.method,
           rpcRequest.payload,
           rpcRequest.responseTimeoutMs,
+          rpcRequest.version,
         );
         break;
       case 'rpcResponse':
@@ -1662,8 +1663,19 @@ export default class LocalParticipant extends Participant {
     method: string,
     payload: string,
     responseTimeout: number,
+    version: number,
   ) {
     await this.publishRpcAck(callerIdentity, requestId);
+
+    if (version !== 1) {
+      await this.publishRpcResponse(
+        callerIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('UNSUPPORTED_VERSION'),
+      );
+      return;
+    }
 
     const handler = this.rpcHandlers.get(method);
 

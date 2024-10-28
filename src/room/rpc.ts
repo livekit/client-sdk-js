@@ -65,6 +65,7 @@ export class RpcError extends Error {
     RECIPIENT_NOT_FOUND: 1401,
     REQUEST_PAYLOAD_TOO_LARGE: 1402,
     UNSUPPORTED_SERVER: 1403,
+    UNSUPPORTED_VERSION: 1404,
   } as const;
 
   /**
@@ -82,6 +83,7 @@ export class RpcError extends Error {
     RECIPIENT_NOT_FOUND: 'Recipient not found',
     REQUEST_PAYLOAD_TOO_LARGE: 'Request payload too large',
     UNSUPPORTED_SERVER: 'RPC not supported by server',
+    UNSUPPORTED_VERSION: 'Unsupported RPC version',
   } as const;
 
   /**
