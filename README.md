@@ -335,11 +335,11 @@ The caller may then initiate an RPC call like so:
 
 ```typescript
 try {
-  const response = await room.localParticipant!.performRpc(
-    'recipient-identity',
-    'greet',
-    'Hello from RPC!',
-  );
+  const response = await room.localParticipant!.performRpc({
+    destinationIdentity: 'recipient-identity',
+    method: 'greet',
+    payload: 'Hello from RPC!',
+  });
   console.log('RPC response:', response);
 } catch (error) {
   console.error('RPC call failed:', error);
