@@ -32,7 +32,13 @@ import {
   UnexpectedConnectionState,
 } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
-import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength, type PerformRpcParams } from '../rpc';
+import {
+  MAX_PAYLOAD_BYTES,
+  type PerformRpcParams,
+  RpcError,
+  type RpcInvocationData,
+  byteLength,
+} from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
