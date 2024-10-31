@@ -32,7 +32,13 @@ import {
   UnexpectedConnectionState,
 } from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
-import { MAX_PAYLOAD_BYTES, RpcError, byteLength } from '../rpc';
+import {
+  MAX_PAYLOAD_BYTES,
+  type PerformRpcParams,
+  RpcError,
+  type RpcInvocationData,
+  byteLength,
+} from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
@@ -124,15 +130,7 @@ export default class LocalParticipant extends Participant {
 
   private enabledPublishVideoCodecs: Codec[] = [];
 
-  private rpcHandlers: Map<
-    string,
-    (
-      requestId: string,
-      callerIdentity: string,
-      payload: string,
-      responseTimeoutMs: number,
-    ) => Promise<string>
-  > = new Map();
+  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
   private pendingAcks = new Map<string, { resolve: () => void; participantIdentity: string }>();
 
@@ -257,6 +255,7 @@ export default class LocalParticipant extends Participant {
           rpcRequest.method,
           rpcRequest.payload,
           rpcRequest.responseTimeoutMs,
+          rpcRequest.version,
         );
         break;
       case 'rpcResponse':
@@ -1473,21 +1472,18 @@ export default class LocalParticipant extends Participant {
   }
 
   /**
-   * Initiate an RPC call to a remote participant.
-   * @param destinationIdentity - The `identity` of the destination participant
-   * @param method - The method name to call
-   * @param payload - The method payload
-   * @param responseTimeoutMs - Timeout for receiving a response after initial connection
+   * Initiate an RPC call to a remote participant
+   * @param params - Parameters for initiating the RPC call, see {@link PerformRpcParams}
    * @returns A promise that resolves with the response payload or rejects with an error.
    * @throws Error on failure. Details in `message`.
    */
-  async performRpc(
-    destinationIdentity: string,
-    method: string,
-    payload: string,
-    responseTimeoutMs: number = 10000,
-  ): Promise<string> {
-    const maxRoundTripLatencyMs = 2000;
+  async performRpc({
+    destinationIdentity,
+    method,
+    payload,
+    responseTimeout = 10000,
+  }: PerformRpcParams): Promise<string> {
+    const maxRoundTripLatency = 2000;
 
     return new Promise(async (resolve, reject) => {
       if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
@@ -1509,7 +1505,7 @@ export default class LocalParticipant extends Participant {
         id,
         method,
         payload,
-        responseTimeoutMs - maxRoundTripLatencyMs,
+        responseTimeout - maxRoundTripLatency,
       );
 
       const ackTimeoutId = setTimeout(() => {
@@ -1517,7 +1513,7 @@ export default class LocalParticipant extends Participant {
         reject(RpcError.builtIn('CONNECTION_TIMEOUT'));
         this.pendingResponses.delete(id);
         clearTimeout(responseTimeoutId);
-      }, maxRoundTripLatencyMs);
+      }, maxRoundTripLatency);
 
       this.pendingAcks.set(id, {
         resolve: () => {
@@ -1529,7 +1525,7 @@ export default class LocalParticipant extends Participant {
       const responseTimeoutId = setTimeout(() => {
         this.pendingResponses.delete(id);
         reject(RpcError.builtIn('RESPONSE_TIMEOUT'));
-      }, responseTimeoutMs);
+      }, responseTimeout);
 
       this.pendingResponses.set(id, {
         resolve: (responsePayload: string | null, responseError: RpcError | null) => {
@@ -1563,35 +1559,21 @@ export default class LocalParticipant extends Participant {
    * ```typescript
    * room.localParticipant?.registerRpcMethod(
    *   'greet',
-   *   async (requestId: string, callerIdentity: string, payload: string, responseTimeoutMs: number) => {
-   *     console.log(`Received greeting from ${callerIdentity}: ${payload}`);
-   *     return `Hello, ${callerIdentity}!`;
+   *   async (data: RpcInvocationData) => {
+   *     console.log(`Received greeting from ${data.callerIdentity}: ${data.payload}`);
+   *     return `Hello, ${data.callerIdentity}!`;
    *   }
    * );
    * ```
    *
-   * The handler receives the following parameters:
-   * - `requestId`: A unique identifier for this RPC request
-   * - `callerIdentity`: The identity of the RemoteParticipant who initiated the RPC call
-   * - `payload`: The data sent by the caller (as a string)
-   * - `responseTimeoutMs`: The maximum time available to return a response
-   *
    * The handler should return a Promise that resolves to a string.
-   * If unable to respond within `responseTimeoutMs`, the request will result in an error on the caller's side.
+   * If unable to respond within `responseTimeout`, the request will result in an error on the caller's side.
    *
    * You may throw errors of type `RpcError` with a string `message` in the handler,
    * and they will be received on the caller's side with the message intact.
    * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
    */
-  registerRpcMethod(
-    method: string,
-    handler: (
-      requestId: string,
-      callerIdentity: string,
-      payload: string,
-      responseTimeoutMs: number,
-    ) => Promise<string>,
-  ) {
+  registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
     this.rpcHandlers.set(method, handler);
   }
 
@@ -1661,9 +1643,20 @@ export default class LocalParticipant extends Participant {
     requestId: string,
     method: string,
     payload: string,
-    responseTimeoutMs: number,
+    responseTimeout: number,
+    version: number,
   ) {
     await this.publishRpcAck(callerIdentity, requestId);
+
+    if (version !== 1) {
+      await this.publishRpcResponse(
+        callerIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('UNSUPPORTED_VERSION'),
+      );
+      return;
+    }
 
     const handler = this.rpcHandlers.get(method);
 
@@ -1681,7 +1674,12 @@ export default class LocalParticipant extends Participant {
     let responsePayload: string | null = null;
 
     try {
-      const response = await handler(requestId, callerIdentity, payload, responseTimeoutMs);
+      const response = await handler({
+        requestId,
+        callerIdentity,
+        payload,
+        responseTimeout,
+      });
       if (byteLength(response) > MAX_PAYLOAD_BYTES) {
         responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
         console.warn(`RPC Response payload too large for ${method}`);
@@ -1708,7 +1706,7 @@ export default class LocalParticipant extends Participant {
     requestId: string,
     method: string,
     payload: string,
-    responseTimeoutMs: number,
+    responseTimeout: number,
   ) {
     const packet = new DataPacket({
       destinationIdentities: [destinationIdentity],
@@ -1719,7 +1717,8 @@ export default class LocalParticipant extends Participant {
           id: requestId,
           method,
           payload,
-          responseTimeoutMs,
+          responseTimeoutMs: responseTimeout,
+          version: 1,
         }),
       },
     });
