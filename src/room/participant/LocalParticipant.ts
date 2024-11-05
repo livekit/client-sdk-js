@@ -1382,11 +1382,12 @@ export default class LocalParticipant extends Participant {
     await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
   }
 
-  async sendChatMessage(text: string): Promise<ChatMessage> {
+  async sendChatMessage(text: string, options?: SendTextOptions): Promise<ChatMessage> {
     const msg = {
       id: crypto.randomUUID(),
       message: text,
       timestamp: Date.now(),
+      attachedFiles: options?.attachedFiles,
     } as const satisfies ChatMessage;
     const packet = new DataPacket({
       value: {
@@ -1632,6 +1633,7 @@ export default class LocalParticipant extends Participant {
         content: chunkData,
         messageId,
         chunkId: i,
+        complete: i === totalChunks - 1,
       });
       await this.publishData(chunk.toBinary(), {
         reliable: true,
