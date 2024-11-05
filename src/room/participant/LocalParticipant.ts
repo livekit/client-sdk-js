@@ -57,7 +57,7 @@ import {
   mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
-import { type ChatMessage, type DataPublishOptions } from '../types';
+import { type ChatMessage, type DataPublishOptions, type SendTextOptions } from '../types';
 import {
   Future,
   isE2EESimulcastSupported,
@@ -1423,19 +1423,14 @@ export default class LocalParticipant extends Participant {
     return msg;
   }
 
-  async sendText(
-    text: string,
-    options: {
-      topic: string;
-      encryptionType?: Encryption_Type.NONE;
-      replyToMessageId?: string;
-      destinationIdentities?: Array<string>;
-    },
-  ) {
+  async sendText(text: string, options: SendTextOptions) {
     const messageId = crypto.randomUUID();
     const textInBytes = new TextEncoder().encode(text);
     const totalLength = textInBytes.byteLength;
     const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
+
+    const fileIds = options.attachedFiles?.map(() => crypto.randomUUID());
+
     const header = new DataStream_Header({
       messageId,
       totalChunks,
@@ -1444,12 +1439,12 @@ export default class LocalParticipant extends Participant {
       topic: options.topic,
       streamType: DataStream_StreamType.FINITE,
       timestamp: BigInt(Date.now()),
-      encryptionType: options.encryptionType,
       contentHeader: {
         case: 'textHeader',
         value: new DataStream_TextHeader({
           operationType: DataStream_OperationType.CREATE,
           replyToMessageId: options.replyToMessageId,
+          attachedFileIds: fileIds,
         }),
       },
     });
@@ -1476,6 +1471,14 @@ export default class LocalParticipant extends Participant {
         destinationIdentities: options.destinationIdentities,
       });
     }
+    if (options.attachedFiles && fileIds) {
+      await Promise.all(
+        options.attachedFiles.map(async (file, idx) =>
+          this._sendFile(fileIds[idx], file, { topic: options.topic, mimeType: file.type }),
+        ),
+      );
+    }
+    return messageId;
   }
 
   async streamText(options: {
@@ -1571,9 +1574,23 @@ export default class LocalParticipant extends Participant {
       destinationIdentities?: Array<string>;
     },
   ) {
+    const messageId = crypto.randomUUID();
+    await this._sendFile(messageId, file, options);
+    return messageId;
+  }
+
+  private async _sendFile(
+    messageId: string,
+    file: File,
+    options: {
+      mimeType: string;
+      topic?: string;
+      encryptionType?: Encryption_Type.NONE;
+      destinationIdentities?: Array<string>;
+    },
+  ) {
     const totalLength = file.size;
     const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
-    const messageId = crypto.randomUUID();
     const header = new DataStream_Header({
       totalChunks,
       totalLength,
@@ -1604,6 +1621,7 @@ export default class LocalParticipant extends Participant {
         fr.readAsArrayBuffer(b);
       });
     }
+    // TODO we'd want actual progress reports here
     for (let i = 0; i < totalChunks; i++) {
       const chunkData = await read(
         file.slice(i * STREAM_CHUNK_SIZE, Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength)),

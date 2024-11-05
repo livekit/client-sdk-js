@@ -14,6 +14,13 @@ export type SimulationOptions = {
   };
 };
 
+export interface SendTextOptions {
+  topic?: string;
+  replyToMessageId?: string;
+  destinationIdentities?: Array<string>;
+  attachedFiles?: Array<File>;
+}
+
 export type DataPublishOptions = {
   /**
    * whether to send this as reliable or lossy.
@@ -76,6 +83,7 @@ export interface ChatMessage {
   timestamp: number;
   message: string;
   editTimestamp?: number;
+  attachedFiles?: Array<File>;
 }
 
 // /**
