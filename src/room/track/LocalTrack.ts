@@ -171,7 +171,7 @@ export default abstract class LocalTrack<
         unlock();
       }
     }
-    if (this.sender) {
+    if (this.sender && this.sender.transport?.state !== 'closed') {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
     }
     // if `newTrack` is different from the existing track, stop the
@@ -416,7 +416,9 @@ export default abstract class LocalTrack<
         // https://bugs.webkit.org/show_bug.cgi?id=184911
         throw new DeviceUnsupportedError('pauseUpstream is not supported on Safari < 12.');
       }
-      await this.sender.replaceTrack(null);
+      if (this.sender.transport?.state !== 'closed') {
+        await this.sender.replaceTrack(null);
+      }
     } finally {
       unlock();
     }
@@ -435,8 +437,10 @@ export default abstract class LocalTrack<
       this._isUpstreamPaused = false;
       this.emit(TrackEvent.UpstreamResumed, this);
 
-      // this operation is noop if mediastreamtrack is already being sent
-      await this.sender.replaceTrack(this.mediaStreamTrack);
+      if (this.sender.transport?.state !== 'closed') {
+        // this operation is noop if mediastreamtrack is already being sent
+        await this.sender.replaceTrack(this.mediaStreamTrack);
+      }
     } finally {
       unlock();
     }

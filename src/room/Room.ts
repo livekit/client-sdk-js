@@ -1625,7 +1625,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           extensions: streamHeader.extensions,
         },
         stream,
-        participant,
+        streamHeader.senderIdentity && streamHeader.senderIdentity !== ''
+          ? this.getParticipantByIdentity(streamHeader.senderIdentity)
+          : participant,
       );
     }
   }

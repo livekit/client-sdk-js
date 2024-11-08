@@ -1465,6 +1465,7 @@ export default class LocalParticipant extends Participant {
         content: chunkData,
         messageId,
         chunkId: i,
+        complete: i === totalChunks - 1,
       });
       await this.publishData(chunk.toBinary(), {
         reliable: true,
