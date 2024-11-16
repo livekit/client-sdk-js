@@ -163,7 +163,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     this.prevStats = stats;
   };
 
-  private async getReceiverStats(): Promise<VideoReceiverStats | undefined> {
+  async getReceiverStats(): Promise<VideoReceiverStats | undefined> {
     if (!this.receiver || !this.receiver.getStats) {
       return;
     }
