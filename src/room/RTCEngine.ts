@@ -313,7 +313,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       const publicationTimeout = setTimeout(() => {
         delete this.pendingTrackResolvers[req.cid];
         reject(
-          new ConnectionError('publication of local track timed out, no response from server'),
+          new ConnectionError(
+            'publication of local track timed out, no response from server',
+            ConnectionErrorReason.InternalError,
+          ),
         );
       }, 10_000);
       this.pendingTrackResolvers[req.cid] = {
@@ -1061,7 +1064,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     } catch (e: any) {
       // TODO do we need a `failed` state here for the PC?
       this.pcState = PCState.Disconnected;
-      throw new ConnectionError(`could not establish PC connection, ${e.message}`);
+      throw new ConnectionError(
+        `could not establish PC connection, ${e.message}`,
+        ConnectionErrorReason.InternalError,
+      );
     }
   }
 
@@ -1126,7 +1132,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const transport = subscriber ? this.pcManager.subscriber : this.pcManager.publisher;
     const transportName = subscriber ? 'Subscriber' : 'Publisher';
     if (!transport) {
-      throw new ConnectionError(`${transportName} connection not set`);
+      throw new ConnectionError(
+        `${transportName} connection not set`,
+        ConnectionErrorReason.InternalError,
+      );
     }
 
     let needNegotiation = false;
@@ -1167,6 +1176,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     throw new ConnectionError(
       `could not establish ${transportName} connection, state: ${transport.getICEConnectionState()}`,
+      ConnectionErrorReason.InternalError,
     );
   }
 

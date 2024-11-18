@@ -20,9 +20,9 @@ export const enum ConnectionErrorReason {
 export class ConnectionError extends LivekitError {
   status?: number;
 
-  reason?: ConnectionErrorReason;
+  reason: ConnectionErrorReason;
 
-  constructor(message?: string, reason?: ConnectionErrorReason, status?: number) {
+  constructor(message: string, reason: ConnectionErrorReason, status?: number) {
     super(1, message);
     this.status = status;
     this.reason = reason;
