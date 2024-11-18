@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.6.1
+
+### Patch Changes
+
+- Add ConnectionErrorReason when cancelling ongoing connection attempt - [#1315](https://github.com/livekit/client-sdk-js/pull/1315) ([@lukasIO](https://github.com/lukasIO))
+
+- Make Remote Tracks `getSenderStats` method public - [#1309](https://github.com/livekit/client-sdk-js/pull/1309) ([@mpnri](https://github.com/mpnri))
+
 ## 2.6.0
 
 ### Minor Changes
