@@ -714,7 +714,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } catch (err) {
       await this.engine.close();
       this.recreateEngine();
-      const resultingError = new ConnectionError(`could not establish signal connection`);
+      const resultingError = new ConnectionError(
+        `could not establish signal connection`,
+        ConnectionErrorReason.ServerUnreachable,
+      );
       if (err instanceof Error) {
         resultingError.message = `${resultingError.message}: ${err.message}`;
       }
@@ -732,7 +735,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (abortController.signal.aborted) {
       await this.engine.close();
       this.recreateEngine();
-      throw new ConnectionError(`Connection attempt aborted`);
+      throw new ConnectionError(`Connection attempt aborted`, ConnectionErrorReason.Cancelled);
     }
 
     try {
