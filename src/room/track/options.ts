@@ -247,6 +247,13 @@ export interface AudioCaptureOptions {
   noiseSuppression?: ConstrainBoolean;
 
   /**
+   * a stronger version of 'noiseSuppression', browser support is not widespread yet.
+   * If this is set (and supported) the value for 'noiseSuppression' will be ignored
+   * @see https://w3c.github.io/mediacapture-extensions/#voiceisolation-constraint
+   */
+  voiceIsolation?: ConstrainBoolean;
+
+  /**
    * the sample rate or range of sample rates which are acceptable and/or required.
    */
   sampleRate?: ConstrainULong;

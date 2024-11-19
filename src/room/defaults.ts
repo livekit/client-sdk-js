@@ -25,6 +25,7 @@ export const audioDefaults: AudioCaptureOptions = {
   autoGainControl: true,
   echoCancellation: true,
   noiseSuppression: true,
+  voiceIsolation: true,
 };
 
 export const videoDefaults: VideoCaptureOptions = {
