@@ -120,6 +120,14 @@ export default abstract class LocalTrack<
     return this.processor?.processedTrack ?? this._mediaStreamTrack;
   }
 
+  /**
+   * @internal
+   * returns mediaStreamTrack settings of the capturing mediastreamtrack source - ignoring processors
+   */
+  getSourceTrackSettings() {
+    return this._mediaStreamTrack.getSettings();
+  }
+
   private async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean) {
     if (newTrack === this._mediaStreamTrack && !force) {
       return;
