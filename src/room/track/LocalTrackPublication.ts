@@ -84,7 +84,7 @@ export default class LocalTrackPublication extends TrackPublication {
 
   getTrackFeatures() {
     if (this.track instanceof LocalAudioTrack) {
-      const settings = this.track!.mediaStreamTrack.getSettings();
+      const settings = this.track!.getSourceTrackSettings();
       const features: Set<AudioTrackFeature> = new Set();
       if (settings.autoGainControl) {
         features.add(AudioTrackFeature.TF_AUTO_GAIN_CONTROL);
