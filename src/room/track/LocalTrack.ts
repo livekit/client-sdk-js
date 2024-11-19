@@ -172,7 +172,17 @@ export default abstract class LocalTrack<
       }
     }
     if (this.sender) {
-      await this.sender.replaceTrack(processedTrack ?? newTrack);
+      try {
+        await this.sender.replaceTrack(processedTrack ?? newTrack);
+      } catch (e) {
+        this.log.error('failed to replace track on sender', {
+          ...this.logContext,
+          error: e,
+          newTrack: newTrack,
+          processedTrack: processedTrack,
+          sender: this.sender
+        });
+      }
     }
     // if `newTrack` is different from the existing track, stop the
     // older track just before replacing it
