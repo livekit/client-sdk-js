@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.6.2
+
+### Patch Changes
+
+- Use capturing mediastreamtrack settings for audio feature detection - [#1318](https://github.com/livekit/client-sdk-js/pull/1318) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.6.1
 
 ### Patch Changes
