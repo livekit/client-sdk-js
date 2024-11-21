@@ -278,6 +278,43 @@ const appActions = {
     await currentRoom.setE2EEEnabled(!currentRoom.isE2EEEnabled);
   },
 
+  togglePiP: async () => {
+    if (window.documentPictureInPicture?.window) {
+      window.documentPictureInPicture?.window.close();
+      return;
+    }
+
+    const pipWindow = await window.documentPictureInPicture?.requestWindow();
+    // Copy style sheets over from the initial document
+    // so that the views look the same.
+    [...document.styleSheets].forEach((styleSheet) => {
+      try {
+        const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
+        const style = document.createElement('style');
+        style.textContent = cssRules;
+        pipWindow.document.head.appendChild(style);
+      } catch (e) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.type = styleSheet.type;
+        link.media = styleSheet.media;
+        link.href = styleSheet.href;
+        pipWindow.document.head.appendChild(link);
+      }
+    });
+    // Move participant videos to the Picture-in-Picture window
+    const participantsArea = $('participants-area');
+    const pipParticipantsArea = document.createElement('div');
+    pipParticipantsArea.id = 'participants-area';
+    pipWindow.document.body.append(pipParticipantsArea);
+    [...participantsArea.children].forEach((child) => pipParticipantsArea.append(child));
+
+    // Move participant videos back when the Picture-in-Picture window closes.
+    pipWindow.addEventListener('pagehide', (event) => {
+      [...pipParticipantsArea.children].forEach((child) => participantsArea.append(child));
+    });
+  },
+
   ratchetE2EEKey: async () => {
     if (!currentRoom || !currentRoom.options.e2ee) {
       return;
@@ -525,10 +562,12 @@ function appendLog(...args: any[]) {
 
 // updates participant UI
 function renderParticipant(participant: Participant, remove: boolean = false) {
-  const container = $('participants-area');
+  const container =
+    window.documentPictureInPicture?.window?.document.querySelector('#participants-area') ||
+    $('participants-area');
   if (!container) return;
   const { identity } = participant;
-  let div = $(`participant-${identity}`);
+  let div = container.querySelector(`#participant-${identity}`);
   if (!div && !remove) {
     div = document.createElement('div');
     div.id = `participant-${identity}`;
@@ -570,8 +609,8 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
       updateVideoSize(videoElm!, sizeElm!);
     };
   }
-  const videoElm = <HTMLVideoElement>$(`video-${identity}`);
-  const audioELm = <HTMLAudioElement>$(`audio-${identity}`);
+  const videoElm = <HTMLVideoElement>container.querySelector(`#video-${identity}`);
+  const audioELm = <HTMLAudioElement>container.querySelector(`#audio-${identity}`);
   if (remove) {
     div?.remove();
     if (videoElm) {
@@ -586,12 +625,12 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
   }
 
   // update properties
-  $(`name-${identity}`)!.innerHTML = participant.identity;
+  container.querySelector(`#name-${identity}`)!.innerHTML = participant.identity;
   if (participant instanceof LocalParticipant) {
-    $(`name-${identity}`)!.innerHTML += ' (you)';
+    container.querySelector(`#name-${identity}`)!.innerHTML += ' (you)';
   }
-  const micElm = $(`mic-${identity}`)!;
-  const signalElm = $(`signal-${identity}`)!;
+  const micElm = container.querySelector(`#mic-${identity}`)!;
+  const signalElm = container.querySelector(`#signal-${identity}`)!;
   const cameraPub = participant.getTrackPublication(Track.Source.Camera);
   const micPub = participant.getTrackPublication(Track.Source.Microphone);
   if (participant.isSpeaking) {
@@ -601,7 +640,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
   }
 
   if (participant instanceof RemoteParticipant) {
-    const volumeSlider = <HTMLInputElement>$(`volume-${identity}`);
+    const volumeSlider = <HTMLInputElement>container.querySelector(`#volume-${identity}`);
     volumeSlider.addEventListener('input', (ev) => {
       participant.setVolume(Number.parseFloat((ev.target as HTMLInputElement).value));
     });
@@ -630,7 +669,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     cameraPub?.videoTrack?.attach(videoElm);
   } else {
     // clear information display
-    $(`size-${identity}`)!.innerHTML = '';
+    container.querySelector(`#size-${identity}`)!.innerHTML = '';
     if (cameraPub?.videoTrack) {
       // detach manually whenever possible
       cameraPub.videoTrack?.detach(videoElm);
@@ -659,7 +698,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     micElm.innerHTML = '<i class="fas fa-microphone-slash"></i>';
   }
 
-  const e2eeElm = $(`e2ee-${identity}`)!;
+  const e2eeElm = container.querySelector(`#e2ee-${identity}`)!;
   if (participant.isEncrypted) {
     e2eeElm.className = 'e2ee-on';
     e2eeElm.innerHTML = '<i class="fas fa-lock"></i>';
@@ -795,6 +834,7 @@ function setButtonsForState(connected: boolean) {
     'toggle-video-button',
     'toggle-audio-button',
     'share-screen-button',
+    'toggle-pip-button',
     'disconnect-ws-button',
     'disconnect-room-button',
     'flip-video-button',

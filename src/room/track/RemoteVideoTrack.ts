@@ -386,12 +386,12 @@ class HTMLElementInfo implements ElementInfo {
     getIntersectionObserver()?.unobserve(this.element);
     getResizeObserver()?.unobserve(this.element);
     (this.element as HTMLVideoElement).removeEventListener(
-        'enterpictureinpicture',
-        this.onEnterPiP,
+      'enterpictureinpicture',
+      this.onEnterPiP,
     );
     (this.element as HTMLVideoElement).removeEventListener(
-        'leavepictureinpicture',
-        this.onLeavePiP,
+      'leavepictureinpicture',
+      this.onLeavePiP,
     );
     window.documentPictureInPicture?.removeEventListener('enter', this.onEnterPiP);
     window.documentPictureInPicture?.window?.removeEventListener('pagehide', this.onLeavePiP);
@@ -400,11 +400,10 @@ class HTMLElementInfo implements ElementInfo {
 
 function isElementInPiP(el: HTMLElement) {
   // Simple video PiP
-  if(document.pictureInPictureElement === el)
-    return true;
+  if (document.pictureInPictureElement === el) return true;
   // Document PiP
-  if(window.documentPictureInPicture?.window)
-    return isElementInViewport(el,  window.documentPictureInPicture?.window);
+  if (window.documentPictureInPicture?.window)
+    return isElementInViewport(el, window.documentPictureInPicture?.window);
   return false;
 }
 
@@ -425,11 +424,11 @@ function isElementInViewport(el: HTMLElement, win?: Window) {
   }
 
   return (
-      top < viewportWindow.pageYOffset + viewportWindow.innerHeight &&
-      left < viewportWindow.pageXOffset + viewportWindow.innerWidth &&
-      top + height > viewportWindow.pageYOffset &&
-      left + width > viewportWindow.pageXOffset &&
-      !hidden &&
-      display !== 'none'
+    top < viewportWindow.pageYOffset + viewportWindow.innerHeight &&
+    left < viewportWindow.pageXOffset + viewportWindow.innerWidth &&
+    top + height > viewportWindow.pageYOffset &&
+    left + width > viewportWindow.pageXOffset &&
+    !hidden &&
+    display !== 'none'
   );
 }
