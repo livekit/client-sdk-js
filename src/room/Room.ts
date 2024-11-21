@@ -81,6 +81,7 @@ import {
   createDummyVideoStreamTrack,
   extractChatMessage,
   extractTranscriptionSegments,
+  getDisconnectReasonFromConnectionError,
   getEmptyAudioStreamTrack,
   isBrowserSupported,
   isCloud,
@@ -562,11 +563,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             this.recreateEngine();
             await connectFn(resolve, reject, nextUrl);
           } else {
-            this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+            this.handleDisconnect(
+              this.options.stopLocalTrackOnUnpublish,
+              getDisconnectReasonFromConnectionError(e),
+            );
             reject(e);
           }
         } else {
-          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+          let disconnectReason = DisconnectReason.UNKNOWN_REASON;
+          if (e instanceof ConnectionError) {
+            disconnectReason = getDisconnectReasonFromConnectionError(e);
+          }
+          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, disconnectReason);
           reject(e);
         }
       }

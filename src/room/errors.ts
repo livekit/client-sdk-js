@@ -1,4 +1,4 @@
-import { RequestResponse_Reason } from '@livekit/protocol';
+import { DisconnectReason, RequestResponse_Reason } from '@livekit/protocol';
 
 export class LivekitError extends Error {
   code: number;
@@ -20,12 +20,20 @@ export const enum ConnectionErrorReason {
 export class ConnectionError extends LivekitError {
   status?: number;
 
+  context?: unknown | DisconnectReason;
+
   reason: ConnectionErrorReason;
 
-  constructor(message: string, reason: ConnectionErrorReason, status?: number) {
+  constructor(
+    message: string,
+    reason: ConnectionErrorReason,
+    status?: number,
+    context?: unknown | DisconnectReason,
+  ) {
     super(1, message);
     this.status = status;
     this.reason = reason;
+    this.context = context;
   }
 }
 
