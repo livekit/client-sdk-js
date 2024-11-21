@@ -81,6 +81,7 @@ import {
   createDummyVideoStreamTrack,
   extractChatMessage,
   extractTranscriptionSegments,
+  getDisconnectReasonFromConnectionError,
   getEmptyAudioStreamTrack,
   isBrowserSupported,
   isCloud,
@@ -562,23 +563,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             this.recreateEngine();
             await connectFn(resolve, reject, nextUrl);
           } else {
-            let disconnectReason = DisconnectReason.UNKNOWN_REASON;
-            if (e.reason === ConnectionErrorReason.LeaveRequest && e.context) {
-              disconnectReason = e.context as DisconnectReason;
-            } else if (e.reason === ConnectionErrorReason.ServerUnreachable) {
-              disconnectReason = DisconnectReason.JOIN_FAILURE;
-            }
-            this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, disconnectReason);
+            this.handleDisconnect(
+              this.options.stopLocalTrackOnUnpublish,
+              getDisconnectReasonFromConnectionError(e),
+            );
             reject(e);
           }
         } else {
           let disconnectReason = DisconnectReason.UNKNOWN_REASON;
           if (e instanceof ConnectionError) {
-            if (e.reason === ConnectionErrorReason.Cancelled) {
-              disconnectReason = DisconnectReason.CLIENT_INITIATED;
-            } else if (e.reason === ConnectionErrorReason.NotAllowed) {
-              disconnectReason = DisconnectReason.USER_REJECTED;
-            }
+            disconnectReason = getDisconnectReasonFromConnectionError(e);
           }
           this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, disconnectReason);
           reject(e);
