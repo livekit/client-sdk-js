@@ -394,6 +394,8 @@ export class SignalClient {
                 new ConnectionError(
                   'Received leave request while trying to (re)connect',
                   ConnectionErrorReason.LeaveRequest,
+                  undefined,
+                  resp.message.value.reason,
                 ),
               );
             } else if (!opts.reconnect) {
