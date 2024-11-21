@@ -562,11 +562,25 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             this.recreateEngine();
             await connectFn(resolve, reject, nextUrl);
           } else {
-            this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+            let disconnectReason = DisconnectReason.UNKNOWN_REASON;
+            if (e.reason === ConnectionErrorReason.LeaveRequest && e.context) {
+              disconnectReason = e.context as DisconnectReason;
+            } else if (e.reason === ConnectionErrorReason.ServerUnreachable) {
+              disconnectReason = DisconnectReason.JOIN_FAILURE;
+            }
+            this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, disconnectReason);
             reject(e);
           }
         } else {
-          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+          let disconnectReason = DisconnectReason.UNKNOWN_REASON;
+          if (e instanceof ConnectionError) {
+            if (e.reason === ConnectionErrorReason.Cancelled) {
+              disconnectReason = DisconnectReason.CLIENT_INITIATED;
+            } else if (e.reason === ConnectionErrorReason.NotAllowed) {
+              disconnectReason = DisconnectReason.USER_REJECTED;
+            }
+          }
+          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, disconnectReason);
           reject(e);
         }
       }
