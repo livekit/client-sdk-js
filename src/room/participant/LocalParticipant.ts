@@ -2016,18 +2016,11 @@ export default class LocalParticipant extends Participant {
   }
 
   private async waitForPendingPublicationOfSource(source: Track.Source) {
-    const waitForPendingTimeout = 10_000;
-    const startTime = Date.now();
-
-    while (Date.now() < startTime + waitForPendingTimeout) {
-      const publishPromiseEntry = Array.from(this.pendingPublishPromises.entries()).find(
-        ([pendingTrack]) => pendingTrack.source === source,
-      );
-      if (publishPromiseEntry) {
-        return publishPromiseEntry[1];
-      }
-      sleep(20);
+    const publishPromiseEntry = Array.from(this.pendingPublishPromises.entries()).find(
+      ([pendingTrack]) => pendingTrack.source === source,
+    );
+    if (publishPromiseEntry) {
+      return publishPromiseEntry[1];
     }
-    throw new Error('waiting for pending publication promise timed out');
   }
 }
