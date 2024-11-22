@@ -285,6 +285,7 @@ const appActions = {
     }
 
     const pipWindow = await window.documentPictureInPicture?.requestWindow();
+    setButtonState('toggle-pip-button', 'Close PiP', true);
     // Copy style sheets over from the initial document
     // so that the views look the same.
     [...document.styleSheets].forEach((styleSheet) => {
@@ -311,8 +312,13 @@ const appActions = {
 
     // Move participant videos back when the Picture-in-Picture window closes.
     pipWindow.addEventListener('pagehide', (event) => {
-      [...pipParticipantsArea.children].forEach((child) => participantsArea.append(child));
+      setButtonState('toggle-pip-button', 'Open PiP', false);
+      if (currentRoom?.state === ConnectionState.Connected)
+        [...pipParticipantsArea.children].forEach((child) => participantsArea.append(child));
     });
+
+    // Close PiP when room disconnects
+    currentRoom.once('disconnected', (e) => window.documentPictureInPicture?.window.close());
   },
 
   ratchetE2EEKey: async () => {
@@ -562,9 +568,7 @@ function appendLog(...args: any[]) {
 
 // updates participant UI
 function renderParticipant(participant: Participant, remove: boolean = false) {
-  const container =
-    window.documentPictureInPicture?.window?.document.querySelector('#participants-area') ||
-    $('participants-area');
+  const container = getParticipantsAreaElement();
   if (!container) return;
   const { identity } = participant;
   let div = container.querySelector(`#participant-${identity}`);
@@ -603,8 +607,8 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     `;
     container.appendChild(div);
 
-    const sizeElm = $(`size-${identity}`);
-    const videoElm = <HTMLVideoElement>$(`video-${identity}`);
+    const sizeElm = container.querySelector(`#size-${identity}`);
+    const videoElm = <HTMLVideoElement>container.querySelector(`#video-${identity}`);
     videoElm.onresize = () => {
       updateVideoSize(videoElm!, sizeElm!);
     };
@@ -773,9 +777,10 @@ function renderBitrate() {
   }
   const participants: Participant[] = [...currentRoom.remoteParticipants.values()];
   participants.push(currentRoom.localParticipant);
+  const container = getParticipantsAreaElement();
 
   for (const p of participants) {
-    const elm = $(`bitrate-${p.identity}`);
+    const elm = container.querySelector(`#bitrate-${p.identity}`);
     let totalBitrate = 0;
     for (const t of p.trackPublications.values()) {
       if (t.track) {
@@ -784,7 +789,7 @@ function renderBitrate() {
 
       if (t.source === Track.Source.Camera) {
         if (t.videoTrack instanceof RemoteVideoTrack) {
-          const codecElm = $(`codec-${p.identity}`)!;
+          const codecElm = container.querySelector(`#codec-${p.identity}`)!;
           codecElm.innerHTML = t.videoTrack.getDecoderImplementation() ?? '';
         }
       }
@@ -797,6 +802,13 @@ function renderBitrate() {
       elm.innerHTML = displayText;
     }
   }
+}
+
+function getParticipantsAreaElement() {
+  return (
+    window.documentPictureInPicture?.window?.document.querySelector('#participants-area') ||
+    $('participants-area')
+  );
 }
 
 function updateVideoSize(element: HTMLVideoElement, target: HTMLElement) {
