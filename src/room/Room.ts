@@ -1606,7 +1606,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           messageId: streamHeader.messageId,
           fileName: streamHeader.contentHeader.value.fileName ?? 'unknown',
           mimeType: streamHeader.mimeType,
-          size: streamHeader.totalLength,
+          size: Number(streamHeader.totalLength),
           topic: streamHeader.topic,
           timestamp: Number(streamHeader.timestamp),
           extensions: streamHeader.extensions,
@@ -1632,30 +1632,31 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         {
           messageId: streamHeader.messageId,
           mimeType: streamHeader.mimeType,
-          size: streamHeader.totalLength,
+          size: Number(streamHeader.totalLength),
           topic: streamHeader.topic,
           isFinite: streamHeader.streamType === DataStream_StreamType.FINITE,
           timestamp: Number(streamHeader.timestamp),
           extensions: streamHeader.extensions,
         },
         stream,
-        streamHeader.senderIdentity && streamHeader.senderIdentity !== ''
-          ? this.getParticipantByIdentity(streamHeader.senderIdentity)
-          : participant,
+        participant,
       );
     }
   }
 
   private handleStreamChunk(chunk: DataStream_Packet) {
-    console.log('received chunk', chunk.chunkId);
+    console.log('received chunk', chunk.chunkIndex);
 
     const fileBuffer = this.fileStreamBuffer.get(chunk.messageId);
     if (fileBuffer) {
       if (chunk.contentLength > 0) {
         fileBuffer.streamController.enqueue(chunk.content);
-        fileBuffer.chunks.push(chunk.chunkId);
+        fileBuffer.chunks.push(Number(chunk.chunkIndex));
       }
-      if (fileBuffer.chunks.length === fileBuffer.header.totalChunks || chunk.complete === true) {
+      if (
+        fileBuffer.chunks.length === Number(fileBuffer.header.totalChunks) ||
+        chunk.complete === true
+      ) {
         fileBuffer.streamController.close();
         this.fileStreamBuffer.delete(chunk.messageId);
       }
@@ -1664,9 +1665,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (textBuffer) {
       if (chunk.contentLength > 0) {
         textBuffer.streamController.enqueue(new TextDecoder().decode(chunk.content));
-        textBuffer.chunks.push(chunk.chunkId);
+        textBuffer.chunks.push(Number(chunk.chunkIndex));
       }
-      if (textBuffer.chunks.length === textBuffer.header.totalChunks || chunk.complete === true) {
+      if (
+        textBuffer.chunks.length === Number(textBuffer.header.totalChunks) ||
+        chunk.complete === true
+      ) {
         textBuffer.streamController.close();
         this.fileStreamBuffer.delete(chunk.messageId);
       }

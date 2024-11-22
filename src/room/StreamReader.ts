@@ -1,4 +1,12 @@
 export class StreamReader<T> extends ReadableStream<T> {
+  constructor(
+    underlyingSource?: UnderlyingSource<T>,
+    strategy?: QueuingStrategy<T>,
+    totalChunkCount?: number,
+  ) {
+    super(underlyingSource, strategy);
+  }
+
   [Symbol.asyncIterator]() {
     const reader = this.getReader();
 
@@ -24,6 +32,8 @@ export class StreamReader<T> extends ReadableStream<T> {
       },
     };
   }
+
+  progress() {}
 
   async readAll(): Promise<Array<T>> {
     const chunks: Array<T> = [];
