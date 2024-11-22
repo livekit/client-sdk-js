@@ -88,6 +88,7 @@ import {
   createDummyVideoStreamTrack,
   extractChatMessage,
   extractTranscriptionSegments,
+  getDisconnectReasonFromConnectionError,
   getEmptyAudioStreamTrack,
   isBrowserSupported,
   isCloud,
@@ -569,11 +570,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             this.recreateEngine();
             await connectFn(resolve, reject, nextUrl);
           } else {
-            this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+            this.handleDisconnect(
+              this.options.stopLocalTrackOnUnpublish,
+              getDisconnectReasonFromConnectionError(e),
+            );
             reject(e);
           }
         } else {
-          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish);
+          let disconnectReason = DisconnectReason.UNKNOWN_REASON;
+          if (e instanceof ConnectionError) {
+            disconnectReason = getDisconnectReasonFromConnectionError(e);
+          }
+          this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, disconnectReason);
           reject(e);
         }
       }
@@ -721,7 +729,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } catch (err) {
       await this.engine.close();
       this.recreateEngine();
-      const resultingError = new ConnectionError(`could not establish signal connection`);
+      const resultingError = new ConnectionError(
+        `could not establish signal connection`,
+        ConnectionErrorReason.ServerUnreachable,
+      );
       if (err instanceof Error) {
         resultingError.message = `${resultingError.message}: ${err.message}`;
       }
@@ -739,7 +750,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (abortController.signal.aborted) {
       await this.engine.close();
       this.recreateEngine();
-      throw new ConnectionError(`Connection attempt aborted`);
+      throw new ConnectionError(`Connection attempt aborted`, ConnectionErrorReason.Cancelled);
     }
 
     try {
@@ -790,7 +801,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.log.warn('abort connection attempt', this.logContext);
         this.abortController?.abort();
         // in case the abort controller didn't manage to cancel the connection attempt, reject the connect promise explicitly
-        this.connectFuture?.reject?.(new ConnectionError('Client initiated disconnect'));
+        this.connectFuture?.reject?.(
+          new ConnectionError('Client initiated disconnect', ConnectionErrorReason.Cancelled),
+        );
         this.connectFuture = undefined;
       }
       // send leave
@@ -1421,6 +1434,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       participant.unpublishTrack(publication.trackSid, true);
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
+    this.localParticipant?.handleParticipantDisconnected(participant.identity);
   }
 
   // updates are sent only when there's a change to speaker ordering

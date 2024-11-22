@@ -9,7 +9,6 @@ import {
   type ScreenShareCaptureOptions,
   type VideoCaptureOptions,
   type VideoCodec,
-  videoCodecs,
 } from './options';
 import type { AudioTrack } from './types';
 
@@ -188,11 +187,7 @@ export function screenCaptureToDisplayMediaStreamOptions(
 }
 
 export function mimeTypeToVideoCodecString(mimeType: string) {
-  const codec = mimeType.split('/')[1].toLowerCase() as VideoCodec;
-  if (!videoCodecs.includes(codec)) {
-    throw Error(`Video codec not supported: ${codec}`);
-  }
-  return codec;
+  return mimeType.split('/')[1].toLowerCase() as VideoCodec;
 }
 
 export function getTrackPublicationInfo<T extends TrackPublication>(

@@ -2,10 +2,12 @@ import {
   ChatMessage as ChatMessageModel,
   ClientInfo,
   ClientInfo_SDK,
+  DisconnectReason,
   Transcription as TranscriptionModel,
 } from '@livekit/protocol';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
+import { type ConnectionError, ConnectionErrorReason } from './errors';
 import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
@@ -530,4 +532,19 @@ export function extractChatMessage(msg: ChatMessageModel): ChatMessage {
     editTimestamp: editTimestamp ? Number.parseInt(editTimestamp.toString()) : undefined,
     message,
   };
+}
+
+export function getDisconnectReasonFromConnectionError(e: ConnectionError) {
+  switch (e.reason) {
+    case ConnectionErrorReason.LeaveRequest:
+      return e.context as DisconnectReason;
+    case ConnectionErrorReason.Cancelled:
+      return DisconnectReason.CLIENT_INITIATED;
+    case ConnectionErrorReason.NotAllowed:
+      return DisconnectReason.USER_REJECTED;
+    case ConnectionErrorReason.ServerUnreachable:
+      return DisconnectReason.JOIN_FAILURE;
+    default:
+      return DisconnectReason.UNKNOWN_REASON;
+  }
 }

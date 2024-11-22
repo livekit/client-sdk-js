@@ -1,5 +1,49 @@
 # Change Log
 
+## 2.6.3
+
+### Patch Changes
+
+- Add voiceIsolation constraint to AudioCaptureOptions - [#1320](https://github.com/livekit/client-sdk-js/pull/1320) ([@lukasIO](https://github.com/lukasIO))
+
+- Forward disconnect reason on leave requests and ConnectionErrors - [#1323](https://github.com/livekit/client-sdk-js/pull/1323) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.6.2
+
+### Patch Changes
+
+- Use capturing mediastreamtrack settings for audio feature detection - [#1318](https://github.com/livekit/client-sdk-js/pull/1318) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.6.1
+
+### Patch Changes
+
+- Add ConnectionErrorReason when cancelling ongoing connection attempt - [#1315](https://github.com/livekit/client-sdk-js/pull/1315) ([@lukasIO](https://github.com/lukasIO))
+
+- Make Remote Tracks `getSenderStats` method public - [#1309](https://github.com/livekit/client-sdk-js/pull/1309) ([@mpnri](https://github.com/mpnri))
+
+## 2.6.0
+
+### Minor Changes
+
+- Add RPC feature support - [#1282](https://github.com/livekit/client-sdk-js/pull/1282) ([@bcherry](https://github.com/bcherry))
+
+### Patch Changes
+
+- fix: mimeTypeToVideoCodecString should not throw - [#1302](https://github.com/livekit/client-sdk-js/pull/1302) ([@davidzhao](https://github.com/davidzhao))
+
+- Keep dd extension id in the session - [#1297](https://github.com/livekit/client-sdk-js/pull/1297) ([@cnderrauber](https://github.com/cnderrauber))
+
+## 2.5.10
+
+### Patch Changes
+
+- Reset `joinAttempts` when closing RTCEngine - [#1291](https://github.com/livekit/client-sdk-js/pull/1291) ([@mpnri](https://github.com/mpnri))
+
+- Increase default audio bitrates - [#1295](https://github.com/livekit/client-sdk-js/pull/1295) ([@davidzhao](https://github.com/davidzhao))
+
+- Use shared mutex helper package - [#1289](https://github.com/livekit/client-sdk-js/pull/1289) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.5.9
 
 ### Patch Changes

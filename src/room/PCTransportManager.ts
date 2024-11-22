@@ -342,7 +342,12 @@ export class PCTransportManager {
 
       const connectTimeout = CriticalTimers.setTimeout(() => {
         abortController?.signal.removeEventListener('abort', abortHandler);
-        reject(new ConnectionError('could not establish pc connection'));
+        reject(
+          new ConnectionError(
+            'could not establish pc connection',
+            ConnectionErrorReason.InternalError,
+          ),
+        );
       }, timeout);
 
       while (this.state !== PCTransportState.CONNECTED) {

@@ -3276,8 +3276,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.7.0-dev.20241024:
-    resolution: {integrity: sha512-PffMQ+uB2IVWjH3/OvtOCjfuZZc+dcIP1HtlEPTsaT6T0EZFmqR+urMPNVFbw0KtiyFWzuSquxb7Uz3NlrfHFg==}
+  typescript@5.8.0-dev.20241122:
+    resolution: {integrity: sha512-7CqLgMl/tulgpSh/EVpI2rqBgrDkJzxJFOv1/zZKZLmwtdLrDHYOEkxscR2a384kdbEwE9vq0aeLFGAtEWHiqw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5516,7 +5516,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.7.0-dev.20241024
+      typescript: 5.8.0-dev.20241122
 
   electron-to-chromium@1.5.4: {}
 
@@ -7141,7 +7141,7 @@ snapshots:
 
   typescript@5.6.2: {}
 
-  typescript@5.7.0-dev.20241024: {}
+  typescript@5.8.0-dev.20241122: {}
 
   uc.micro@2.1.0: {}
 
