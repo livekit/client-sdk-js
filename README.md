@@ -11,7 +11,9 @@
 # JavaScript/TypeScript client SDK for LiveKit
 
 <!--BEGIN_DESCRIPTION-->
+
 Use this SDK to add realtime video, audio and data features to your JavaScript/TypeScript app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multi-modal AI, live streaming, or video calls with just a few lines of code.
+
 <!--END_DESCRIPTION-->
 
 ## Docs
@@ -22,7 +24,7 @@ Docs and guides at [https://docs.livekit.io](https://docs.livekit.io)
 
 > [!NOTE]
 > This is v2 of `livekit-client`. When migrating from v1.x to v2.x you might encounter a small set of breaking changes.
-> Read the [migration guide](https://docs.livekit.io/guides/migrate-from-v1/) for a detailed overview of what has changed.
+> Read the [migration guide](https://docs.livekit.io/recipes/migrate-from-v1/) for a detailed overview of what has changed.
 
 ## Installation
 
@@ -69,16 +71,16 @@ await room.connect(...);
 
 ```typescript
 import {
+  LocalParticipant,
+  LocalTrackPublication,
   Participant,
   RemoteParticipant,
   RemoteTrack,
   RemoteTrackPublication,
   Room,
   RoomEvent,
-  VideoPresets,
   Track,
-  LocalTrackPublication,
-  LocalParticipant
+  VideoPresets,
 } from 'livekit-client';
 
 // creates a new room with options
@@ -153,7 +155,7 @@ function handleDisconnect() {
 
 In order to connect to a room, you need to first create an access token.
 
-See [access token docs](https://docs.livekit.io/guides/access-tokens) for details
+See [authentication docs](https://docs.livekit.io/home/get-started/authentication/) for details
 
 ### Handling common track types
 
@@ -306,7 +308,7 @@ setLogExtension((level: LogLevel, msg: string, context: object) => {
 
 ### RPC
 
-Perform your own predefined method calls from one participant to another. 
+Perform your own predefined method calls from one participant to another.
 
 This feature is especially powerful when used with [Agents](https://docs.livekit.io/agents), for instance to forward LLM function calls to your client application.
 
@@ -323,7 +325,7 @@ room.localParticipant?.registerRpcMethod(
   async (data: RpcInvocationData) => {
     console.log(`Received greeting from ${data.callerIdentity}: ${data.payload}`);
     return `Hello, ${data.callerIdentity}!`;
-  }
+  },
 );
 ```
 
@@ -350,7 +352,7 @@ You may find it useful to adjust the `responseTimeout` parameter, which indicate
 
 #### Errors
 
-LiveKit is a dynamic realtime environment and calls can fail for various reasons. 
+LiveKit is a dynamic realtime environment and calls can fail for various reasons.
 
 You may throw errors of the type `RpcError` with a string `message` in an RPC method handler and they will be received on the caller's side with the message intact. Other errors will not be transmitted and will instead arrive to the caller as `1500` ("Application Error"). Other built-in errors are detailed in `RpcError`.
 
@@ -385,7 +387,9 @@ If you are targeting legacy browsers, but still want adaptiveStream functionalit
 Also when targeting legacy browsers, older than the ones specified in our browserslist target, make sure to transpile the library code to your desired target and include required polyfills with babel and/or corejs.
 
 <!--BEGIN_REPO_NAV-->
+
 <br/><table>
+
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>
 <tr><td>Realtime SDKs</td><td><a href="https://github.com/livekit/components-js">React Components</a> · <b>Browser</b> · <a href="https://github.com/livekit/components-swift">Swift Components</a> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS/visionOS</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (web)</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity (beta)</a></td></tr><tr></tr>
