@@ -77,6 +77,7 @@ const appActions = {
     currentRoom?.localParticipant.sendFile(file, {
       mimeType: file.type,
       topic: 'test',
+      onProgress: (progress) => console.log('sending file, progress', Math.ceil(progress * 100)),
     });
   },
   connectWithFormInput: async () => {

@@ -101,10 +101,5 @@
     "vite": "5.4.8",
     "vitest": "^1.0.0"
   },
-  "packageManager": "pnpm@9.12.0",
-  "pnpm": {
-    "overrides": {
-      "@livekit/protocol": "file:../protocol/packages/javascript"
-    }
-  }
+  "packageManager": "pnpm@9.12.0"
 }

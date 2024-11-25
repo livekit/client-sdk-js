@@ -1491,11 +1491,9 @@ export default class LocalParticipant extends Participant {
 
     const progresses = new Array<number>(fileIds ? fileIds.length + 1 : 1).fill(0);
 
-    let totalProgress = 0;
-
     const handleProgress = (progress: number, idx: number) => {
       progresses[idx] = progress;
-      totalProgress = progresses.reduce((acc, val) => acc + val, 0);
+      const totalProgress = progresses.reduce((acc, val) => acc + val, 0);
       options?.onProgress?.(totalProgress);
     };
 
@@ -1536,7 +1534,7 @@ export default class LocalParticipant extends Participant {
         topic: 'streamchunk',
         destinationIdentities: options?.destinationIdentities,
       });
-      handleProgress(Math.ceil(i / totalTextChunks), 0);
+      handleProgress(Math.ceil((i + 1) / totalTextChunks), 0);
     }
     if (options?.attachedFiles && fileIds) {
       await Promise.all(
@@ -1693,7 +1691,6 @@ export default class LocalParticipant extends Participant {
         file.slice(i * STREAM_CHUNK_SIZE, Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength)),
       );
       await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
-      options?.onProgress?.(i / totalChunks);
       const chunk = new DataStream_Chunk({
         content: chunkData,
         streamId,
@@ -1705,6 +1702,7 @@ export default class LocalParticipant extends Participant {
         topic: 'streamchunk',
         destinationIdentities: options?.destinationIdentities,
       });
+      options?.onProgress?.((i + 1) / totalChunks);
     }
   }
 
