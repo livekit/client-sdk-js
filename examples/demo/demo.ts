@@ -268,6 +268,9 @@ const appActions = {
         appendLog(
           `started to receive a file called "${info.fileName}" from ${participant?.identity}`,
         );
+        stream.onProgress = (progress) => {
+          console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
+        };
         const result = new Blob(await stream.readAll(), { type: info.mimeType });
         appendLog(
           `completely received file called "${info.fileName}" from ${participant?.identity}`,
@@ -340,14 +343,14 @@ const appActions = {
         const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
         const style = document.createElement('style');
         style.textContent = cssRules;
-        pipWindow.document.head.appendChild(style);
+        pipWindow?.document.head.appendChild(style);
       } catch (e) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.type = styleSheet.type;
         link.media = styleSheet.media;
         link.href = styleSheet.href;
-        pipWindow.document.head.appendChild(link);
+        pipWindow?.document.head.appendChild(link);
       }
     });
     // Move participant videos to the Picture-in-Picture window

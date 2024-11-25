@@ -1490,8 +1490,8 @@ export default class LocalParticipant extends Participant {
 
     const header = new DataStream_Header({
       messageId,
-      totalChunks,
-      totalLength,
+      totalChunks: BigInt(totalChunks),
+      totalLength: BigInt(totalLength),
       mimeType: 'plain/text',
       topic: options.topic,
       streamType: DataStream_StreamType.FINITE,
@@ -1520,7 +1520,7 @@ export default class LocalParticipant extends Participant {
         contentLength: chunkData.length,
         content: chunkData,
         messageId,
-        chunkId: i,
+        chunkIndex: BigInt(i),
         complete: i === totalChunks - 1,
       });
       await this.publishData(chunk.toBinary(), {
@@ -1584,7 +1584,7 @@ export default class LocalParticipant extends Participant {
             contentLength: textChunk.length,
             content: textInBytes,
             messageId,
-            chunkId: chunkId,
+            chunkIndex: BigInt(chunkId),
           });
           await localP.publishData(chunk.toBinary(), {
             reliable: true,
@@ -1599,7 +1599,7 @@ export default class LocalParticipant extends Participant {
         const chunk = new DataStream_Packet({
           contentLength: 0,
           messageId,
-          chunkId: chunkId,
+          chunkIndex: BigInt(chunkId),
           complete: true,
         });
         localP.publishData(chunk.toBinary(), {
@@ -1650,8 +1650,8 @@ export default class LocalParticipant extends Participant {
     const totalLength = file.size;
     const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
     const header = new DataStream_Header({
-      totalChunks,
-      totalLength,
+      totalChunks: BigInt(totalChunks),
+      totalLength: BigInt(totalLength),
       mimeType: options.mimeType,
       messageId,
       topic: options.topic,
@@ -1689,7 +1689,7 @@ export default class LocalParticipant extends Participant {
         contentLength: chunkData.length,
         content: chunkData,
         messageId,
-        chunkId: i,
+        chunkIndex: BigInt(i),
         complete: i === totalChunks - 1,
       });
       await this.publishData(chunk.toBinary(), {

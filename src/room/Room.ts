@@ -1589,17 +1589,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     console.log('received header', streamHeader);
     if (streamHeader.contentHeader.case === 'fileHeader') {
       let streamController: ReadableStreamDefaultController<Uint8Array>;
-      const stream = new StreamReader<Uint8Array>({
-        start: (controller) => {
-          streamController = controller;
-          this.fileStreamBuffer.set(streamHeader.messageId, {
-            header: streamHeader,
-            chunks: [],
-            streamController,
-            startTime: Date.now(),
-          });
+      const stream = new StreamReader<Uint8Array>(
+        {
+          start: (controller) => {
+            streamController = controller;
+            this.fileStreamBuffer.set(streamHeader.messageId, {
+              header: streamHeader,
+              chunks: [],
+              streamController,
+              startTime: Date.now(),
+            });
+          },
         },
-      });
+        undefined,
+        Number(streamHeader.totalChunks),
+      );
       this.emit(
         RoomEvent.FileStreamReceived,
         {
@@ -1616,17 +1620,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       );
     } else if (streamHeader.contentHeader.case === 'textHeader') {
       let streamController: ReadableStreamDefaultController<string>;
-      const stream = new StreamReader<string>({
-        start: (controller) => {
-          streamController = controller;
-          this.textStreamBuffer.set(streamHeader.messageId, {
-            header: streamHeader,
-            chunks: [],
-            streamController,
-            startTime: Date.now(),
-          });
+      const stream = new StreamReader<string>(
+        {
+          start: (controller) => {
+            streamController = controller;
+            this.textStreamBuffer.set(streamHeader.messageId, {
+              header: streamHeader,
+              chunks: [],
+              streamController,
+              startTime: Date.now(),
+            });
+          },
         },
-      });
+        undefined,
+        Number(streamHeader.totalChunks),
+      );
       this.emit(
         RoomEvent.TextStreamReceived,
         {
