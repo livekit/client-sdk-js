@@ -94,6 +94,7 @@ import {
   isCloud,
   isReactNative,
   isWeb,
+  numberToBigInt,
   supportsSetSinkId,
   toHttpUrl,
   unpackStreamId,
