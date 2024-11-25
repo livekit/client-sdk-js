@@ -16,7 +16,7 @@ export type SimulationOptions = {
 
 export interface SendTextOptions {
   topic?: string;
-  replyToMessageId?: string;
+  // replyToMessageId?: string;
   destinationIdentities?: Array<string>;
   attachedFiles?: Array<File>;
 }

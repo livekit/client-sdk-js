@@ -1563,6 +1563,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (packet.value.case === 'user') {
       this.handleUserPacket(participant, packet.value.value, packet.kind);
       if (packet.value.value.topic === 'streamheader') {
+        console.log('handle stream header from ', packet.participantIdentity);
         this.handleStreamHeader(
           DataStream_Header.fromBinary(packet.value.value.payload),
           this.getParticipantByIdentity(packet.participantIdentity),

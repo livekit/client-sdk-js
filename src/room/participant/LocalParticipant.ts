@@ -4,11 +4,10 @@ import {
   Codec,
   DataPacket,
   DataPacket_Kind,
+  DataStream_Chunk,
   DataStream_FileHeader,
   DataStream_Header,
   DataStream_OperationType,
-  DataStream_Packet,
-  DataStream_StreamType,
   DataStream_TextHeader,
   Encryption_Type,
   ParticipantInfo,
@@ -1455,6 +1454,7 @@ export default class LocalParticipant extends Participant {
       },
     });
     await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+
     this.emit(ParticipantEvent.ChatMessage, msg);
     return msg;
   }
@@ -1480,28 +1480,26 @@ export default class LocalParticipant extends Participant {
     return msg;
   }
 
-  async sendText(text: string, options: SendTextOptions) {
-    const messageId = crypto.randomUUID();
+  async sendText(text: string, options?: SendTextOptions): Promise<{ streamId: string }> {
+    const streamId = crypto.randomUUID();
     const textInBytes = new TextEncoder().encode(text);
     const totalLength = textInBytes.byteLength;
     const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
 
-    const fileIds = options.attachedFiles?.map(() => crypto.randomUUID());
+    const fileIds = options?.attachedFiles?.map(() => crypto.randomUUID());
 
     const header = new DataStream_Header({
-      messageId,
+      streamId,
       totalChunks: BigInt(totalChunks),
       totalLength: BigInt(totalLength),
       mimeType: 'plain/text',
-      topic: options.topic,
-      streamType: DataStream_StreamType.FINITE,
+      topic: options?.topic,
       timestamp: BigInt(Date.now()),
       contentHeader: {
         case: 'textHeader',
         value: new DataStream_TextHeader({
           operationType: DataStream_OperationType.CREATE,
-          replyToMessageId: options.replyToMessageId,
-          attachedFileIds: fileIds,
+          attachedStreamIds: fileIds,
         }),
       },
     });
@@ -1516,48 +1514,42 @@ export default class LocalParticipant extends Participant {
         Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength),
       );
       await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
-      const chunk = new DataStream_Packet({
-        contentLength: chunkData.length,
+      const chunk = new DataStream_Chunk({
         content: chunkData,
-        messageId,
+        streamId,
         chunkIndex: BigInt(i),
         complete: i === totalChunks - 1,
       });
       await this.publishData(chunk.toBinary(), {
         reliable: true,
         topic: 'streamchunk',
-        destinationIdentities: options.destinationIdentities,
+        destinationIdentities: options?.destinationIdentities,
       });
     }
-    if (options.attachedFiles && fileIds) {
+    if (options?.attachedFiles && fileIds) {
       await Promise.all(
         options.attachedFiles.map(async (file, idx) =>
           this._sendFile(fileIds[idx], file, { topic: options.topic, mimeType: file.type }),
         ),
       );
     }
-    return messageId;
+    return { streamId };
   }
 
-  async streamText(options: {
-    topic: string;
-    encryptionType?: Encryption_Type.NONE;
-    replyToMessageId?: string;
+  async streamText(options?: {
+    topic?: string;
     destinationIdentities?: Array<string>;
   }): Promise<WritableStreamDefaultWriter<string>> {
-    const messageId = crypto.randomUUID();
+    const streamId = crypto.randomUUID();
     const header = new DataStream_Header({
-      messageId,
+      streamId,
       mimeType: 'plain/text',
-      topic: options.topic,
-      streamType: DataStream_StreamType.STREAMING,
+      topic: options?.topic,
       timestamp: BigInt(Date.now()),
-      encryptionType: options.encryptionType,
       contentHeader: {
         case: 'textHeader',
         value: new DataStream_TextHeader({
           operationType: DataStream_OperationType.CREATE,
-          replyToMessageId: options.replyToMessageId,
         }),
       },
     });
@@ -1580,32 +1572,30 @@ export default class LocalParticipant extends Participant {
 
         return new Promise(async (resolve) => {
           await localP.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
-          const chunk = new DataStream_Packet({
-            contentLength: textChunk.length,
+          const chunk = new DataStream_Chunk({
             content: textInBytes,
-            messageId,
+            streamId,
             chunkIndex: BigInt(chunkId),
           });
           await localP.publishData(chunk.toBinary(), {
             reliable: true,
             topic: 'streamchunk',
-            destinationIdentities: options.destinationIdentities,
+            destinationIdentities: options?.destinationIdentities,
           });
           chunkId += 1;
           resolve();
         });
       },
       close() {
-        const chunk = new DataStream_Packet({
-          contentLength: 0,
-          messageId,
+        const chunk = new DataStream_Chunk({
+          streamId,
           chunkIndex: BigInt(chunkId),
           complete: true,
         });
         localP.publishData(chunk.toBinary(), {
           reliable: true,
           topic: 'streamchunk',
-          destinationIdentities: options.destinationIdentities,
+          destinationIdentities: options?.destinationIdentities,
         });
       },
       abort(err) {
@@ -1625,23 +1615,22 @@ export default class LocalParticipant extends Participant {
 
   async sendFile(
     file: File,
-    options: {
-      mimeType: string;
-      topic: string;
-      encryptionType?: Encryption_Type.NONE;
+    options?: {
+      mimeType?: string;
+      topic?: string;
       destinationIdentities?: Array<string>;
     },
   ) {
-    const messageId = crypto.randomUUID();
-    await this._sendFile(messageId, file, options);
-    return messageId;
+    const streamId = crypto.randomUUID();
+    await this._sendFile(streamId, file, options);
+    return streamId;
   }
 
   private async _sendFile(
-    messageId: string,
+    streamId: string,
     file: File,
-    options: {
-      mimeType: string;
+    options?: {
+      mimeType?: string;
       topic?: string;
       encryptionType?: Encryption_Type.NONE;
       destinationIdentities?: Array<string>;
@@ -1652,11 +1641,10 @@ export default class LocalParticipant extends Participant {
     const header = new DataStream_Header({
       totalChunks: BigInt(totalChunks),
       totalLength: BigInt(totalLength),
-      mimeType: options.mimeType,
-      messageId,
-      topic: options.topic,
-      encryptionType: options.encryptionType,
-      streamType: DataStream_StreamType.FINITE,
+      mimeType: options?.mimeType ?? file.type,
+      streamId,
+      topic: options?.topic,
+      encryptionType: options?.encryptionType,
       timestamp: BigInt(Date.now()),
       contentHeader: {
         case: 'fileHeader',
@@ -1685,17 +1673,16 @@ export default class LocalParticipant extends Participant {
         file.slice(i * STREAM_CHUNK_SIZE, Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength)),
       );
       await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
-      const chunk = new DataStream_Packet({
-        contentLength: chunkData.length,
+      const chunk = new DataStream_Chunk({
         content: chunkData,
-        messageId,
+        streamId,
         chunkIndex: BigInt(i),
         complete: i === totalChunks - 1,
       });
       await this.publishData(chunk.toBinary(), {
         reliable: true,
         topic: 'streamchunk',
-        destinationIdentities: options.destinationIdentities,
+        destinationIdentities: options?.destinationIdentities,
       });
     }
   }
