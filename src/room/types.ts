@@ -151,10 +151,11 @@ export interface StreamBuffer<T extends string | Uint8Array> {
 }
 
 interface BaseStreamInfo {
-  messageId: string;
+  id: string;
   mimeType: string;
   topic: string;
   timestamp: number;
+  /** total size in bytes for finite streams and undefined for streams of unknown size */
   size?: number;
   extensions?: Record<string, string>;
 }
@@ -162,6 +163,4 @@ export interface FileStreamInfo extends BaseStreamInfo {
   fileName: string;
 }
 
-export interface TextStreamInfo extends BaseStreamInfo {
-  isFinite: boolean;
-}
+export interface TextStreamInfo extends BaseStreamInfo {}

@@ -14,7 +14,7 @@ export class StreamReader<T> extends ReadableStream<T> {
   }
 
   constructor(
-    underlyingSource?: UnderlyingSource<T>,
+    underlyingSource: UnderlyingDefaultSource<T>,
     strategy?: QueuingStrategy<T>,
     totalChunkCount?: number,
   ) {

@@ -4,9 +4,8 @@ import {
   ConnectionQualityUpdate,
   type DataPacket,
   DataPacket_Kind,
+  DataStream_Chunk,
   DataStream_Header,
-  DataStream_Packet,
-  DataStream_StreamType,
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
@@ -85,6 +84,7 @@ import {
 } from './types';
 import {
   Future,
+  bigIntToNumber,
   createDummyVideoStreamTrack,
   extractChatMessage,
   extractTranscriptionSegments,
@@ -942,7 +942,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         req = new SimulateScenario({
           scenario: {
             case: 'subscriberBandwidth',
-            value: BigInt(arg),
+            value: numberToBigInt(arg),
           },
         });
         break;
@@ -1569,7 +1569,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.getParticipantByIdentity(packet.participantIdentity),
         );
       } else if (packet.value.value.topic === 'streamchunk') {
-        this.handleStreamChunk(DataStream_Packet.fromBinary(packet.value.value.payload));
+        this.handleStreamChunk(DataStream_Chunk.fromBinary(packet.value.value.payload));
       }
     } else if (packet.value.case === 'transcription') {
       this.handleTranscription(participant, packet.value.value);
@@ -1594,7 +1594,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         {
           start: (controller) => {
             streamController = controller;
-            this.fileStreamBuffer.set(streamHeader.messageId, {
+            this.fileStreamBuffer.set(streamHeader.streamId, {
               header: streamHeader,
               chunks: [],
               streamController,
@@ -1603,17 +1603,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         },
         undefined,
-        Number(streamHeader.totalChunks),
+        bigIntToNumber(streamHeader.totalChunks),
       );
       this.emit(
         RoomEvent.FileStreamReceived,
         {
-          messageId: streamHeader.messageId,
+          id: streamHeader.streamId,
           fileName: streamHeader.contentHeader.value.fileName ?? 'unknown',
           mimeType: streamHeader.mimeType,
-          size: Number(streamHeader.totalLength),
+          size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
           topic: streamHeader.topic,
-          timestamp: Number(streamHeader.timestamp),
+          timestamp: bigIntToNumber(streamHeader.timestamp),
           extensions: streamHeader.extensions,
         },
         stream,
@@ -1625,7 +1625,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         {
           start: (controller) => {
             streamController = controller;
-            this.textStreamBuffer.set(streamHeader.messageId, {
+            this.textStreamBuffer.set(streamHeader.streamId, {
               header: streamHeader,
               chunks: [],
               streamController,
@@ -1634,16 +1634,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         },
         undefined,
-        Number(streamHeader.totalChunks),
+        bigIntToNumber(streamHeader.totalChunks),
       );
       this.emit(
         RoomEvent.TextStreamReceived,
         {
-          messageId: streamHeader.messageId,
+          id: streamHeader.streamId,
           mimeType: streamHeader.mimeType,
-          size: Number(streamHeader.totalLength),
+          size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
           topic: streamHeader.topic,
-          isFinite: streamHeader.streamType === DataStream_StreamType.FINITE,
           timestamp: Number(streamHeader.timestamp),
           extensions: streamHeader.extensions,
         },
@@ -1653,35 +1652,35 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private handleStreamChunk(chunk: DataStream_Packet) {
+  private handleStreamChunk(chunk: DataStream_Chunk) {
     console.log('received chunk', chunk.chunkIndex);
 
-    const fileBuffer = this.fileStreamBuffer.get(chunk.messageId);
+    const fileBuffer = this.fileStreamBuffer.get(chunk.streamId);
     if (fileBuffer) {
-      if (chunk.contentLength > 0) {
+      if (chunk.content.length > 0) {
         fileBuffer.streamController.enqueue(chunk.content);
-        fileBuffer.chunks.push(Number(chunk.chunkIndex));
+        fileBuffer.chunks.push(bigIntToNumber(chunk.chunkIndex));
       }
       if (
-        fileBuffer.chunks.length === Number(fileBuffer.header.totalChunks) ||
+        fileBuffer.chunks.length === bigIntToNumber(fileBuffer.header.totalChunks) ||
         chunk.complete === true
       ) {
         fileBuffer.streamController.close();
-        this.fileStreamBuffer.delete(chunk.messageId);
+        this.fileStreamBuffer.delete(chunk.streamId);
       }
     }
-    const textBuffer = this.textStreamBuffer.get(chunk.messageId);
+    const textBuffer = this.textStreamBuffer.get(chunk.streamId);
     if (textBuffer) {
-      if (chunk.contentLength > 0) {
+      if (chunk.content.length > 0) {
         textBuffer.streamController.enqueue(new TextDecoder().decode(chunk.content));
-        textBuffer.chunks.push(Number(chunk.chunkIndex));
+        textBuffer.chunks.push(bigIntToNumber(chunk.chunkIndex));
       }
       if (
-        textBuffer.chunks.length === Number(textBuffer.header.totalChunks) ||
+        textBuffer.chunks.length === bigIntToNumber(textBuffer.header.totalChunks) ||
         chunk.complete === true
       ) {
         textBuffer.streamController.close();
-        this.fileStreamBuffer.delete(chunk.messageId);
+        this.fileStreamBuffer.delete(chunk.streamId);
       }
     }
   }

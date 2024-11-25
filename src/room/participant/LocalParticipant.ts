@@ -75,6 +75,7 @@ import {
   isSVCCodec,
   isSafari17,
   isWeb,
+  numberToBigInt,
   sleep,
   supportsAV1,
   supportsVP9,
@@ -1490,11 +1491,11 @@ export default class LocalParticipant extends Participant {
 
     const header = new DataStream_Header({
       streamId,
-      totalChunks: BigInt(totalChunks),
-      totalLength: BigInt(totalLength),
-      mimeType: 'plain/text',
+      totalChunks: numberToBigInt(totalChunks),
+      totalLength: numberToBigInt(totalLength),
+      mimeType: 'text/plain',
       topic: options?.topic,
-      timestamp: BigInt(Date.now()),
+      timestamp: numberToBigInt(Date.now()),
       contentHeader: {
         case: 'textHeader',
         value: new DataStream_TextHeader({
@@ -1517,7 +1518,7 @@ export default class LocalParticipant extends Participant {
       const chunk = new DataStream_Chunk({
         content: chunkData,
         streamId,
-        chunkIndex: BigInt(i),
+        chunkIndex: numberToBigInt(i),
         complete: i === totalChunks - 1,
       });
       await this.publishData(chunk.toBinary(), {
@@ -1543,9 +1544,9 @@ export default class LocalParticipant extends Participant {
     const streamId = crypto.randomUUID();
     const header = new DataStream_Header({
       streamId,
-      mimeType: 'plain/text',
+      mimeType: 'text/plain',
       topic: options?.topic,
-      timestamp: BigInt(Date.now()),
+      timestamp: numberToBigInt(Date.now()),
       contentHeader: {
         case: 'textHeader',
         value: new DataStream_TextHeader({
@@ -1575,7 +1576,7 @@ export default class LocalParticipant extends Participant {
           const chunk = new DataStream_Chunk({
             content: textInBytes,
             streamId,
-            chunkIndex: BigInt(chunkId),
+            chunkIndex: numberToBigInt(chunkId),
           });
           await localP.publishData(chunk.toBinary(), {
             reliable: true,
@@ -1589,7 +1590,7 @@ export default class LocalParticipant extends Participant {
       close() {
         const chunk = new DataStream_Chunk({
           streamId,
-          chunkIndex: BigInt(chunkId),
+          chunkIndex: numberToBigInt(chunkId),
           complete: true,
         });
         localP.publishData(chunk.toBinary(), {
@@ -1639,13 +1640,13 @@ export default class LocalParticipant extends Participant {
     const totalLength = file.size;
     const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
     const header = new DataStream_Header({
-      totalChunks: BigInt(totalChunks),
-      totalLength: BigInt(totalLength),
+      totalChunks: numberToBigInt(totalChunks),
+      totalLength: numberToBigInt(totalLength),
       mimeType: options?.mimeType ?? file.type,
       streamId,
       topic: options?.topic,
       encryptionType: options?.encryptionType,
-      timestamp: BigInt(Date.now()),
+      timestamp: numberToBigInt(Date.now()),
       contentHeader: {
         case: 'fileHeader',
         value: new DataStream_FileHeader({
@@ -1676,7 +1677,7 @@ export default class LocalParticipant extends Participant {
       const chunk = new DataStream_Chunk({
         content: chunkData,
         streamId,
-        chunkIndex: BigInt(i),
+        chunkIndex: numberToBigInt(i),
         complete: i === totalChunks - 1,
       });
       await this.publishData(chunk.toBinary(), {
