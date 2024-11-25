@@ -1484,15 +1484,25 @@ export default class LocalParticipant extends Participant {
   async sendText(text: string, options?: SendTextOptions): Promise<{ streamId: string }> {
     const streamId = crypto.randomUUID();
     const textInBytes = new TextEncoder().encode(text);
-    const totalLength = textInBytes.byteLength;
-    const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
+    const totalTextLength = textInBytes.byteLength;
+    const totalTextChunks = Math.ceil(totalTextLength / STREAM_CHUNK_SIZE);
 
     const fileIds = options?.attachedFiles?.map(() => crypto.randomUUID());
 
+    const progresses = new Array<number>(fileIds ? fileIds.length + 1 : 1).fill(0);
+
+    let totalProgress = 0;
+
+    const handleProgress = (progress: number, idx: number) => {
+      progresses[idx] = progress;
+      totalProgress = progresses.reduce((acc, val) => acc + val, 0);
+      options?.onProgress?.(totalProgress);
+    };
+
     const header = new DataStream_Header({
       streamId,
-      totalChunks: numberToBigInt(totalChunks),
-      totalLength: numberToBigInt(totalLength),
+      totalChunks: numberToBigInt(totalTextChunks),
+      totalLength: numberToBigInt(totalTextLength),
       mimeType: 'text/plain',
       topic: options?.topic,
       timestamp: numberToBigInt(Date.now()),
@@ -1509,28 +1519,35 @@ export default class LocalParticipant extends Participant {
       topic: 'streamheader',
     });
 
-    for (let i = 0; i < totalChunks; i++) {
+    for (let i = 0; i < totalTextChunks; i++) {
       const chunkData = textInBytes.slice(
         i * STREAM_CHUNK_SIZE,
-        Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength),
+        Math.min((i + 1) * STREAM_CHUNK_SIZE, totalTextLength),
       );
       await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
       const chunk = new DataStream_Chunk({
         content: chunkData,
         streamId,
         chunkIndex: numberToBigInt(i),
-        complete: i === totalChunks - 1,
+        complete: i === totalTextChunks - 1,
       });
       await this.publishData(chunk.toBinary(), {
         reliable: true,
         topic: 'streamchunk',
         destinationIdentities: options?.destinationIdentities,
       });
+      handleProgress(Math.ceil(i / totalTextChunks), 0);
     }
     if (options?.attachedFiles && fileIds) {
       await Promise.all(
         options.attachedFiles.map(async (file, idx) =>
-          this._sendFile(fileIds[idx], file, { topic: options.topic, mimeType: file.type }),
+          this._sendFile(fileIds[idx], file, {
+            topic: options.topic,
+            mimeType: file.type,
+            onProgress: (progress) => {
+              handleProgress(progress, idx + 1);
+            },
+          }),
         ),
       );
     }
@@ -1620,6 +1637,7 @@ export default class LocalParticipant extends Participant {
       mimeType?: string;
       topic?: string;
       destinationIdentities?: Array<string>;
+      onProgress?: (progress: number) => void;
     },
   ) {
     const streamId = crypto.randomUUID();
@@ -1635,6 +1653,7 @@ export default class LocalParticipant extends Participant {
       topic?: string;
       encryptionType?: Encryption_Type.NONE;
       destinationIdentities?: Array<string>;
+      onProgress?: (progress: number) => void;
     },
   ) {
     const totalLength = file.size;
@@ -1674,6 +1693,7 @@ export default class LocalParticipant extends Participant {
         file.slice(i * STREAM_CHUNK_SIZE, Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength)),
       );
       await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
+      options?.onProgress?.(i / totalChunks);
       const chunk = new DataStream_Chunk({
         content: chunkData,
         streamId,

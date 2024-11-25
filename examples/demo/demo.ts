@@ -242,10 +242,10 @@ const appActions = {
         );
       })
       .on(RoomEvent.TextStreamReceived, async (info, stream, participant) => {
-        if (info.isFinite && info.topic === 'chat') {
+        if (info.size && info.topic === 'chat') {
           handleChatMessage(
             {
-              id: info.messageId,
+              id: info.id,
               timestamp: info.timestamp,
               message: (await stream.readAll()).join(''),
             },
@@ -255,9 +255,9 @@ const appActions = {
           for await (const msg of stream) {
             handleChatMessage(
               {
-                id: info.messageId,
+                id: info.id,
                 timestamp: info.timestamp,
-                message: [state.chatMessages.get(info.messageId)?.text ?? '', msg].join(''),
+                message: [state.chatMessages.get(info.id)?.text ?? '', msg].join(''),
               },
               participant,
             );
@@ -349,7 +349,7 @@ const appActions = {
         link.rel = 'stylesheet';
         link.type = styleSheet.type;
         link.media = styleSheet.media;
-        link.href = styleSheet.href;
+        link.href = styleSheet.href!;
         pipWindow?.document.head.appendChild(link);
       }
     });
@@ -357,18 +357,18 @@ const appActions = {
     const participantsArea = $('participants-area');
     const pipParticipantsArea = document.createElement('div');
     pipParticipantsArea.id = 'participants-area';
-    pipWindow.document.body.append(pipParticipantsArea);
+    pipWindow?.document.body.append(pipParticipantsArea);
     [...participantsArea.children].forEach((child) => pipParticipantsArea.append(child));
 
     // Move participant videos back when the Picture-in-Picture window closes.
-    pipWindow.addEventListener('pagehide', (event) => {
+    pipWindow?.addEventListener('pagehide', () => {
       setButtonState('toggle-pip-button', 'Open PiP', false);
       if (currentRoom?.state === ConnectionState.Connected)
         [...pipParticipantsArea.children].forEach((child) => participantsArea.append(child));
     });
 
     // Close PiP when room disconnects
-    currentRoom.once('disconnected', (e) => window.documentPictureInPicture?.window.close());
+    currentRoom!.once('disconnected', () => window.documentPictureInPicture?.window?.close());
   },
 
   ratchetE2EEKey: async () => {
@@ -876,14 +876,14 @@ function renderBitrate() {
   }
 }
 
-function getParticipantsAreaElement() {
+function getParticipantsAreaElement(): HTMLElement {
   return (
     window.documentPictureInPicture?.window?.document.querySelector('#participants-area') ||
     $('participants-area')
   );
 }
 
-function updateVideoSize(element: HTMLVideoElement, target: HTMLElement) {
+function updateVideoSize(element: HTMLVideoElement, target: Element) {
   target.innerHTML = `(${element.videoWidth}x${element.videoHeight})`;
 }
 

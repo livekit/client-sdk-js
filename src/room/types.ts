@@ -19,6 +19,7 @@ export interface SendTextOptions {
   // replyToMessageId?: string;
   destinationIdentities?: Array<string>;
   attachedFiles?: Array<File>;
+  onProgress?: (progress: number) => void;
 }
 
 export type DataPublishOptions = {
