@@ -12,8 +12,8 @@ importers:
         specifier: 1.0.0
         version: 1.0.0
       '@livekit/protocol':
-        specifier: file:../protocol/packages/javascript
-        version: file:../protocol/packages/javascript
+        specifier: 1.29.0
+        version: 1.29.0
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -1032,8 +1032,8 @@ packages:
   '@livekit/mutex@1.0.0':
     resolution: {integrity: sha512-aiUhoThBNF9UyGTxEURFzJLhhPLIVTnQiEVMjRhPnfHNKLfo2JY9xovHKIus7B78UD5hsP6DlgpmAsjrz4U0Iw==}
 
-  '@livekit/protocol@file:../protocol/packages/javascript':
-    resolution: {directory: ../protocol/packages/javascript, type: directory}
+  '@livekit/protocol@1.29.0':
+    resolution: {integrity: sha512-M5YRsHnFgafRnGr4tkF3zIOSuudAj7sNKIO/y5S9S6rreS0mrkmChaiNsZBOPKNxMUQw21tk6X4IYsMLWg4vCw==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -3276,8 +3276,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.8.0-dev.20241125:
-    resolution: {integrity: sha512-hZERLOYr8LieXCWI1B0nP7c17/OQHWiPAJ0QtpPT5vQ3fSPhWNdHvYQR7sP8JQ0c2hRgQ8ADHD+LdkY5WwdbRw==}
+  typescript@5.8.0-dev.20241128:
+    resolution: {integrity: sha512-tBV3lvFeLokgidFDFHvuGjqPpT/Ozl2i+dstK7rh1PCCp3ol5mdsc36NGE5uCakTXh94YHtvdAAs5gAsum6nLQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4662,7 +4662,7 @@ snapshots:
 
   '@livekit/mutex@1.0.0': {}
 
-  '@livekit/protocol@file:../protocol/packages/javascript':
+  '@livekit/protocol@1.29.0':
     dependencies:
       '@bufbuild/protobuf': 1.10.0
 
@@ -5516,7 +5516,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.8.0-dev.20241125
+      typescript: 5.8.0-dev.20241128
 
   electron-to-chromium@1.5.4: {}
 
@@ -7141,7 +7141,7 @@ snapshots:
 
   typescript@5.6.2: {}
 
-  typescript@5.8.0-dev.20241125: {}
+  typescript@5.8.0-dev.20241128: {}
 
   uc.micro@2.1.0: {}
 
