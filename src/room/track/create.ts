@@ -14,34 +14,12 @@ import type {
   VideoCaptureOptions,
 } from './options';
 import { ScreenSharePresets } from './options';
-import type {
-  AudioProcessorOptions,
-  TrackProcessor,
-  VideoProcessorOptions,
-} from './processor/types';
 import {
   constraintsForOptions,
+  extractProcessorsFromOptions,
   mergeDefaultOptions,
   screenCaptureToDisplayMediaStreamOptions,
 } from './utils';
-
-/** @internal */
-export function extractProcessorsFromOptions(options: CreateLocalTracksOptions) {
-  const newOptions = options;
-  let audioProcessor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
-  let videoProcessor: TrackProcessor<Track.Kind.Video, VideoProcessorOptions> | undefined;
-
-  if (typeof newOptions.audio === 'object' && newOptions.audio.processor) {
-    audioProcessor = newOptions.audio.processor;
-    newOptions.audio.processor = undefined;
-  }
-  if (typeof newOptions.video === 'object' && newOptions.video.processor) {
-    videoProcessor = newOptions.video.processor;
-    newOptions.video.processor = undefined;
-  }
-
-  return { audioProcessor, videoProcessor, optionsWithoutProcessor: newOptions };
-}
 
 /**
  * Creates a local video and audio track at the same time. When acquiring both

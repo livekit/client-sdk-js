@@ -1,9 +1,9 @@
 import { TrackPublishedResponse } from '@livekit/protocol';
+import type { AudioProcessorOptions, TrackProcessor, VideoProcessorOptions } from '../..';
 import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
 import { Track } from './Track';
 import type { TrackPublication } from './TrackPublication';
-import { extractProcessorsFromOptions } from './create';
 import {
   type AudioCaptureOptions,
   type CreateLocalTracksOptions,
@@ -269,4 +269,22 @@ export function diffAttributes(
   }
 
   return diff;
+}
+
+/** @internal */
+export function extractProcessorsFromOptions(options: CreateLocalTracksOptions) {
+  const newOptions = { ...options };
+  let audioProcessor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
+  let videoProcessor: TrackProcessor<Track.Kind.Video, VideoProcessorOptions> | undefined;
+
+  if (typeof newOptions.audio === 'object' && newOptions.audio.processor) {
+    audioProcessor = newOptions.audio.processor;
+    newOptions.audio.processor = undefined;
+  }
+  if (typeof newOptions.video === 'object' && newOptions.video.processor) {
+    videoProcessor = newOptions.video.processor;
+    newOptions.video.processor = undefined;
+  }
+
+  return { audioProcessor, videoProcessor, optionsWithoutProcessor: newOptions };
 }
