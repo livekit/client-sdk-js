@@ -27,17 +27,20 @@ import {
 
 /** @internal */
 export function extractProcessorsFromOptions(options: CreateLocalTracksOptions) {
+  const newOptions = options;
   let audioProcessor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
   let videoProcessor: TrackProcessor<Track.Kind.Video, VideoProcessorOptions> | undefined;
 
-  if (typeof options.audio === 'object' && options.audio.processor) {
-    audioProcessor = options.audio.processor;
+  if (typeof newOptions.audio === 'object' && newOptions.audio.processor) {
+    audioProcessor = newOptions.audio.processor;
+    newOptions.audio.processor = undefined;
   }
-  if (typeof options.video === 'object' && options.video.processor) {
-    videoProcessor = options.video.processor;
+  if (typeof newOptions.video === 'object' && newOptions.video.processor) {
+    videoProcessor = newOptions.video.processor;
+    newOptions.video.processor = undefined;
   }
 
-  return { audioProcessor, videoProcessor };
+  return { audioProcessor, videoProcessor, optionsWithoutProcessor: newOptions };
 }
 
 /**

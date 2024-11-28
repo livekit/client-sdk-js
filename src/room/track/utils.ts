@@ -3,6 +3,7 @@ import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
 import { Track } from './Track';
 import type { TrackPublication } from './TrackPublication';
+import { extractProcessorsFromOptions } from './create';
 import {
   type AudioCaptureOptions,
   type CreateLocalTracksOptions,
@@ -17,24 +18,33 @@ export function mergeDefaultOptions(
   audioDefaults?: AudioCaptureOptions,
   videoDefaults?: VideoCaptureOptions,
 ): CreateLocalTracksOptions {
-  const opts: CreateLocalTracksOptions = cloneDeep(options) ?? {};
-  if (opts.audio === true) opts.audio = {};
-  if (opts.video === true) opts.video = {};
+  const { optionsWithoutProcessor, audioProcessor, videoProcessor } = extractProcessorsFromOptions(
+    options ?? {},
+  );
+  const clonedOptions: CreateLocalTracksOptions = cloneDeep(optionsWithoutProcessor) ?? {};
+  if (clonedOptions.audio === true) clonedOptions.audio = {};
+  if (clonedOptions.video === true) clonedOptions.video = {};
 
   // use defaults
-  if (opts.audio) {
+  if (clonedOptions.audio) {
     mergeObjectWithoutOverwriting(
-      opts.audio as Record<string, unknown>,
+      clonedOptions.audio as Record<string, unknown>,
       audioDefaults as Record<string, unknown>,
     );
+    if (audioProcessor) {
+      clonedOptions.audio.processor = audioProcessor;
+    }
   }
-  if (opts.video) {
+  if (clonedOptions.video) {
     mergeObjectWithoutOverwriting(
-      opts.video as Record<string, unknown>,
+      clonedOptions.video as Record<string, unknown>,
       videoDefaults as Record<string, unknown>,
     );
+    if (videoProcessor) {
+      clonedOptions.video.processor = videoProcessor;
+    }
   }
-  return opts;
+  return clonedOptions;
 }
 
 function mergeObjectWithoutOverwriting(
