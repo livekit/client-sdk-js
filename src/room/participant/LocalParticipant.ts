@@ -44,7 +44,6 @@ import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
-import { extractProcessorsFromOptions } from '../track/create';
 import type {
   AudioCaptureOptions,
   BackupVideoCodec,
@@ -56,6 +55,7 @@ import type {
 import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
 import {
   constraintsForOptions,
+  extractProcessorsFromOptions,
   getLogContextFromTrack,
   mergeDefaultOptions,
   mimeTypeToVideoCodecString,
@@ -563,10 +563,11 @@ export default class LocalParticipant extends Participant {
    */
   async createTracks(options?: CreateLocalTracksOptions): Promise<LocalTrack[]> {
     options ??= {};
-    const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(options);
+    const { audioProcessor, videoProcessor, optionsWithoutProcessor } =
+      extractProcessorsFromOptions(options);
 
     const mergedOptions = mergeDefaultOptions(
-      options,
+      optionsWithoutProcessor,
       this.roomOptions?.audioCaptureDefaults,
       this.roomOptions?.videoCaptureDefaults,
     );
