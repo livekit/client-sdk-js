@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.7.1
+
+### Patch Changes
+
+- Fix processor passing in CreateLocalTracks options - [#1329](https://github.com/livekit/client-sdk-js/pull/1329) ([@lukasIO](https://github.com/lukasIO))
+
+- Await pending publications with timeout - [#1324](https://github.com/livekit/client-sdk-js/pull/1324) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.7.0
 
 ### Minor Changes
