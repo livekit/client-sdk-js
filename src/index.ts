@@ -2,6 +2,7 @@ import { Mutex } from '@livekit/mutex';
 import { DataPacket_Kind, DisconnectReason, SubscriptionError } from '@livekit/protocol';
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
+import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
 import Room, { ConnectionState } from './room/Room';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality, ParticipantKind } from './room/participant/Participant';
@@ -109,4 +110,6 @@ export type {
   AudioSenderStats,
   VideoReceiverStats,
   VideoSenderStats,
+  ReconnectContext,
+  ReconnectPolicy,
 };

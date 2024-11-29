@@ -49,7 +49,6 @@ import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
-import { extractProcessorsFromOptions } from '../track/create';
 import type {
   AudioCaptureOptions,
   BackupVideoCodec,
@@ -61,6 +60,7 @@ import type {
 import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
 import {
   constraintsForOptions,
+  extractProcessorsFromOptions,
   getLogContextFromTrack,
   mergeDefaultOptions,
   mimeTypeToVideoCodecString,
@@ -571,10 +571,11 @@ export default class LocalParticipant extends Participant {
    */
   async createTracks(options?: CreateLocalTracksOptions): Promise<LocalTrack[]> {
     options ??= {};
-    const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(options);
+    const { audioProcessor, videoProcessor, optionsWithoutProcessor } =
+      extractProcessorsFromOptions(options);
 
     const mergedOptions = mergeDefaultOptions(
-      options,
+      optionsWithoutProcessor,
       this.roomOptions?.audioCaptureDefaults,
       this.roomOptions?.videoCaptureDefaults,
     );
@@ -2251,11 +2252,18 @@ export default class LocalParticipant extends Participant {
   }
 
   private async waitForPendingPublicationOfSource(source: Track.Source) {
-    const publishPromiseEntry = Array.from(this.pendingPublishPromises.entries()).find(
-      ([pendingTrack]) => pendingTrack.source === source,
-    );
-    if (publishPromiseEntry) {
-      return publishPromiseEntry[1];
+    const waitForPendingTimeout = 10_000;
+    const startTime = Date.now();
+
+    while (Date.now() < startTime + waitForPendingTimeout) {
+      const publishPromiseEntry = Array.from(this.pendingPublishPromises.entries()).find(
+        ([pendingTrack]) => pendingTrack.source === source,
+      );
+      if (publishPromiseEntry) {
+        return publishPromiseEntry[1];
+      }
+      sleep(20);
     }
+    throw new Error('waiting for pending publication promise timed out');
   }
 }

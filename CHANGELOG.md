@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.7.0
+
+### Minor Changes
+
+- Add support for detecting video element visibility in Document PiP (can be tested on the examples/demo) - [#1325](https://github.com/livekit/client-sdk-js/pull/1325) ([@davideberlein](https://github.com/davideberlein))
+
+### Patch Changes
+
+- Expose `ReconnectContext` and `ReconnectPolicy`, for use in custom reconnection implementations. - [#1328](https://github.com/livekit/client-sdk-js/pull/1328) ([@wuhkuh](https://github.com/wuhkuh))
+
 ## 2.6.3
 
 ### Patch Changes
