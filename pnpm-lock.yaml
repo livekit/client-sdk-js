@@ -12,8 +12,8 @@ importers:
         specifier: 1.0.0
         version: 1.0.0
       '@livekit/protocol':
-        specifier: 1.24.0
-        version: 1.24.0
+        specifier: 1.29.3
+        version: 1.29.3
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -1032,8 +1032,8 @@ packages:
   '@livekit/mutex@1.0.0':
     resolution: {integrity: sha512-aiUhoThBNF9UyGTxEURFzJLhhPLIVTnQiEVMjRhPnfHNKLfo2JY9xovHKIus7B78UD5hsP6DlgpmAsjrz4U0Iw==}
 
-  '@livekit/protocol@1.24.0':
-    resolution: {integrity: sha512-9dCsqnkMn7lvbI4NGh18zhLDsrXyUcpS++TEFgEk5Xv1WM3R2kT3EzqgL1P/mr3jaabM6rJ8wZA/KJLuQNpF5w==}
+  '@livekit/protocol@1.29.3':
+    resolution: {integrity: sha512-5La/pm2LsSeCbm7xNe/TvHGYu7uVwDpLrlycpgo5nzofGq/TH67255vS8ni/1Y7vrFuAI8VYG/s42mcC1UF6tQ==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -1429,6 +1429,7 @@ packages:
 
   acorn-import-assertions@1.9.0:
     resolution: {integrity: sha512-cmMwop9x+8KFhxvKrKfPYmN6/pKTYYHBqLa0DfvVZcKMJWNyWLnaqND7dx/qn66R7ewM1UX5XMaDVP5wlVTaVA==}
+    deprecated: package has been renamed to acorn-import-attributes
     peerDependencies:
       acorn: ^8
 
@@ -1957,6 +1958,7 @@ packages:
   eslint@8.57.1:
     resolution: {integrity: sha512-ypowyDxpVSYpkXr9WPv2PAZCtNip1Mv5KTW0SCurXv/9iOpcrH9PaqUElksqEB6pChqHGDRCFTyrZlGhnLNGiA==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
 
   espree@9.6.1:
@@ -3276,8 +3278,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.7.0-dev.20241022:
-    resolution: {integrity: sha512-Z8PXMDow1rJGCzBQ9FEeNQHBDEGwqSMAlaM00C9qn/DlUH7DC5dS/pNNEcrQBktPbbIwOjR4XuXYOddJUH2klQ==}
+  typescript@5.8.0-dev.20241129:
+    resolution: {integrity: sha512-IuSZV1kgkJ24wRAfBt7rJz2LwhflIrelUrLeQsrRkG1Ej51n04Diou318d9xewwfvkkRIsR+g/hph6P5+Fb5Tw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4662,7 +4664,7 @@ snapshots:
 
   '@livekit/mutex@1.0.0': {}
 
-  '@livekit/protocol@1.24.0':
+  '@livekit/protocol@1.29.3':
     dependencies:
       '@bufbuild/protobuf': 1.10.0
 
@@ -5516,7 +5518,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.7.0-dev.20241022
+      typescript: 5.8.0-dev.20241129
 
   electron-to-chromium@1.5.4: {}
 
@@ -7141,7 +7143,7 @@ snapshots:
 
   typescript@5.6.2: {}
 
-  typescript@5.7.0-dev.20241022: {}
+  typescript@5.8.0-dev.20241129: {}
 
   uc.micro@2.1.0: {}
 
