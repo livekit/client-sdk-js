@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
