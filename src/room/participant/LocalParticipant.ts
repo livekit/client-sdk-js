@@ -456,7 +456,10 @@ export default class LocalParticipant extends Participant {
         if (this.pendingPublishing.has(source)) {
           const pendingTrack = await this.waitForPendingPublicationOfSource(source);
           if (!pendingTrack) {
-            this.log.info('skipping duplicate published source', { ...this.logContext, source });
+            this.log.info('waiting for pending publication promise timed out', {
+              ...this.logContext,
+              source,
+            });
           }
           await pendingTrack?.unmute();
           return pendingTrack;
@@ -508,9 +511,15 @@ export default class LocalParticipant extends Participant {
         }
       }
     } else {
-      if (!track?.track) {
+      if (!track?.track && this.pendingPublishing.has(source)) {
         // if there's no track available yet first wait for pending publishing promises of that source to see if it becomes available
         track = await this.waitForPendingPublicationOfSource(source);
+        if (!track) {
+          this.log.info('waiting for pending publication promise timed out', {
+            ...this.logContext,
+            source,
+          });
+        }
       }
       if (track && track.track) {
         // screenshare cannot be muted, unpublish instead
@@ -2029,6 +2038,5 @@ export default class LocalParticipant extends Participant {
       }
       await sleep(20);
     }
-    throw new Error('waiting for pending publication promise timed out');
   }
 }
