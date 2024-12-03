@@ -2027,7 +2027,7 @@ export default class LocalParticipant extends Participant {
       if (publishPromiseEntry) {
         return publishPromiseEntry[1];
       }
-      sleep(20);
+      await sleep(20);
     }
     throw new Error('waiting for pending publication promise timed out');
   }
