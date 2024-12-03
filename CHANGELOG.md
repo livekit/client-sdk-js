@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.7.2
+
+### Patch Changes
+
+- Fix blocking main thread on parallel publishing requests - [#1336](https://github.com/livekit/client-sdk-js/pull/1336) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.7.1
 
 ### Patch Changes
