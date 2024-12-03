@@ -273,7 +273,7 @@ export function diffAttributes(
 
 /** @internal */
 export function extractProcessorsFromOptions(options: CreateLocalTracksOptions) {
-  const newOptions = { ...options };
+  const newOptions = cloneDeep(options);
   let audioProcessor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
   let videoProcessor: TrackProcessor<Track.Kind.Video, VideoProcessorOptions> | undefined;
 
