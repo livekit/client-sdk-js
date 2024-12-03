@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.7.3
+
+### Patch Changes
+
+- Only wait for publications that are pending already - [#1339](https://github.com/livekit/client-sdk-js/pull/1339) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.7.2
 
 ### Patch Changes
