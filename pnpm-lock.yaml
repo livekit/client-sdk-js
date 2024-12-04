@@ -67,8 +67,8 @@ importers:
         specifier: ^0.4.0
         version: 0.4.4(rollup@4.24.0)
       '@size-limit/file':
-        specifier: ^8.2.4
-        version: 8.2.6(size-limit@8.2.6)
+        specifier: ^11.0.0
+        version: 11.1.6(size-limit@8.2.6)
       '@size-limit/webpack':
         specifier: ^8.2.4
         version: 8.2.6(size-limit@8.2.6)
@@ -1219,11 +1219,11 @@ packages:
   '@sinclair/typebox@0.27.8':
     resolution: {integrity: sha512-+Fj43pSMwJs4KRrH/938Uf+uAELIgVBmQzg/q1YG10djyfA3TnrU8N8XzqCh/okZdszqBQTZf96idMfE5lnwTA==}
 
-  '@size-limit/file@8.2.6':
-    resolution: {integrity: sha512-B7ayjxiJsbtXdIIWazJkB5gezi5WBMecdHTFPMDhI3NwEML1RVvUjAkrb1mPAAkIpt2LVHPnhdCUHjqDdjugwg==}
-    engines: {node: ^14.0.0 || ^16.0.0 || >=18.0.0}
+  '@size-limit/file@11.1.6':
+    resolution: {integrity: sha512-ojzzJMrTfcSECRnaTjGy0wNIolTCRdyqZTSWG9sG5XEoXG6PNgHXDDS6gf6YNxnqb+rWfCfVe93u6aKi3wEocQ==}
+    engines: {node: ^18.0.0 || >=20.0.0}
     peerDependencies:
-      size-limit: 8.2.6
+      size-limit: 11.1.6
 
   '@size-limit/webpack@8.2.6':
     resolution: {integrity: sha512-y2sB66m5sJxIjZ8SEAzpWbiw3/+bnQHDHfk9cSbV5ChKklq02AlYg8BS5KxGWmMpdyUo4TzpjSCP9oEudY+hxQ==}
@@ -2981,11 +2981,6 @@ packages:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
     hasBin: true
 
-  semver@7.5.3:
-    resolution: {integrity: sha512-QBlUtyVk/5EeHbi7X0fw6liDZc7BBmEaSYn01fMU1OUYbf6GPsbTtd8WmnqbI20SeycoHSeiybkE/q1Q+qlThQ==}
-    engines: {node: '>=10'}
-    hasBin: true
-
   semver@7.6.0:
     resolution: {integrity: sha512-EnwXhrlwXMk9gKu5/flx5sv/an57AkRplG3hTK68W7FRDN+k+OWBj65M7719OkA82XLBxrcX0KSHj+X5COhOVg==}
     engines: {node: '>=10'}
@@ -3278,8 +3273,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.8.0-dev.20241129:
-    resolution: {integrity: sha512-IuSZV1kgkJ24wRAfBt7rJz2LwhflIrelUrLeQsrRkG1Ej51n04Diou318d9xewwfvkkRIsR+g/hph6P5+Fb5Tw==}
+  typescript@5.8.0-dev.20241130:
+    resolution: {integrity: sha512-cJ/17qrj874di4GaOZOxdH7kzhC25jyGXrxBhjUUUCq2HiQAo9nl8R33PKOqIejOA1ljGASS6jyHwWsBOjRwow==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4836,9 +4831,8 @@ snapshots:
 
   '@sinclair/typebox@0.27.8': {}
 
-  '@size-limit/file@8.2.6(size-limit@8.2.6)':
+  '@size-limit/file@11.1.6(size-limit@8.2.6)':
     dependencies:
-      semver: 7.5.3
       size-limit: 8.2.6
 
   '@size-limit/webpack@8.2.6(size-limit@8.2.6)':
@@ -5518,7 +5512,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.8.0-dev.20241129
+      typescript: 5.8.0-dev.20241130
 
   electron-to-chromium@1.5.4: {}
 
@@ -6846,10 +6840,6 @@ snapshots:
 
   semver@6.3.1: {}
 
-  semver@7.5.3:
-    dependencies:
-      lru-cache: 6.0.0
-
   semver@7.6.0:
     dependencies:
       lru-cache: 6.0.0
@@ -7143,7 +7133,7 @@ snapshots:
 
   typescript@5.6.2: {}
 
-  typescript@5.8.0-dev.20241129: {}
+  typescript@5.8.0-dev.20241130: {}
 
   uc.micro@2.1.0: {}
 
