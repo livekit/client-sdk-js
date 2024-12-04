@@ -109,6 +109,8 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     this.monitorInterval = setInterval(() => {
       this.monitorSender();
     }, monitorFrequency);
+
+    this.registerTimeSyncUpdate();
   }
 
   stop() {
