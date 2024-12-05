@@ -142,10 +142,12 @@ export type E2EEManagerOptions = {
   keyProvider: BaseKeyProvider;
   worker: Worker;
 };
-export type E2EEOptions = E2EEManagerOptions | {
-  /** For react-native usage. */
-  e2eeManager: BaseE2EEManager;
-};
+export type E2EEOptions =
+  | E2EEManagerOptions
+  | {
+      /** For react-native usage. */
+      e2eeManager: BaseE2EEManager;
+    };
 
 export type DecodeRatchetOptions = {
   /** attempts  */

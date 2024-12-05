@@ -33,7 +33,7 @@ import { EventEmitter } from 'events';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
 import { EncryptionEvent } from '../e2ee';
-import { E2EEManager, type BaseE2EEManager } from '../e2ee/E2eeManager';
+import { type BaseE2EEManager, E2EEManager } from '../e2ee/E2eeManager';
 import log, { LoggerNames, getLogger } from '../logger';
 import type {
   InternalRoomConnectOptions,
@@ -253,9 +253,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private setupE2EE() {
     if (this.options.e2ee) {
       if ('e2eeManager' in this.options.e2ee) {
-        this.e2eeManager = this.options.e2ee.e2eeManager
+        this.e2eeManager = this.options.e2ee.e2eeManager;
       } else {
-        this.e2eeManager = new E2EEManager(this.options.e2ee)
+        this.e2eeManager = new E2EEManager(this.options.e2ee);
       }
       this.e2eeManager.on(
         EncryptionEvent.ParticipantEncryptionStatusChanged,

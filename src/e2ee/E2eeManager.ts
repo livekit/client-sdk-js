@@ -36,13 +36,16 @@ export interface BaseE2EEManager {
   setupEngine(engine: RTCEngine): void;
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
   setSifTrailer(trailer: Uint8Array): void;
-  on<E extends keyof E2EEManagerCallbacks> (event: E, listener: E2EEManagerCallbacks[E]): this
+  on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
 }
 
 /**
  * @experimental
  */
-export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2EEManagerCallbacks>) implements BaseE2EEManager {
+export class E2EEManager
+  extends (EventEmitter as new () => TypedEventEmitter<E2EEManagerCallbacks>)
+  implements BaseE2EEManager
+{
   protected worker: Worker;
 
   protected room?: Room;
