@@ -268,6 +268,7 @@ export default class PCTransport extends EventEmitter {
 
     const sdpParsed = parse(offer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
+      ensureIPAddrMatchVersion(media);
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, [], []);
       } else if (media.type === 'video') {
@@ -325,6 +326,7 @@ export default class PCTransport extends EventEmitter {
     const answer = await this.pc.createAnswer();
     const sdpParsed = parse(answer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
+      ensureIPAddrMatchVersion(media);
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, this.remoteStereoMids, this.remoteNackMids);
       }
@@ -629,4 +631,18 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
     }
   });
   return { stereoMids, nackMids };
+}
+
+function ensureIPAddrMatchVersion(media: MediaDescription) {
+  // Chrome could generate sdp with c = IN IP4 <ipv6 addr>
+  // in edge case and return error when set sdp.This is not a
+  // sdk error but correct it if the issue detected.
+  if (media.connection) {
+    const isV6 = media.connection.ip.indexOf(':') >= 0;
+    if ((media.connection.version === 4 && isV6) || (media.connection.version === 6 && !isV6)) {
+      // fallback to dummy address
+      media.connection.ip = '0.0.0.0';
+      media.connection.version = 4;
+    }
+  }
 }

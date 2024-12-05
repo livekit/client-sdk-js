@@ -54,6 +54,6 @@ export default {
   plugins: [
     del({ targets: 'dist/*' }),
     typescript({ tsconfig: './tsconfig.json' }),
-    ...commonPlugins
+    ...commonPlugins,
   ],
 };
