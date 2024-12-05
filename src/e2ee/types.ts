@@ -1,5 +1,6 @@
 import type { LogLevel } from '../logger';
 import type { VideoCodec } from '../room/track/options';
+import type { BaseE2EEManager } from './E2eeManager';
 import type { BaseKeyProvider } from './KeyProvider';
 
 export interface BaseMessage {
@@ -137,10 +138,16 @@ export type KeyInfo = {
   keyIndex?: number;
 };
 
-export type E2EEOptions = {
+export type E2EEManagerOptions = {
   keyProvider: BaseKeyProvider;
   worker: Worker;
 };
+export type E2EEOptions =
+  | E2EEManagerOptions
+  | {
+      /** For react-native usage. */
+      e2eeManager: BaseE2EEManager;
+    };
 
 export type DecodeRatchetOptions = {
   /** attempts  */

@@ -16,7 +16,7 @@ import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
 import type {
-  E2EEOptions,
+  E2EEManagerOptions,
   E2EEWorkerMessage,
   EnableMessage,
   EncodeMessage,
@@ -31,10 +31,21 @@ import type {
 } from './types';
 import { isE2EESupported, isScriptTransformSupported } from './utils';
 
+export interface BaseE2EEManager {
+  setup(room: Room): void;
+  setupEngine(engine: RTCEngine): void;
+  setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
+  setSifTrailer(trailer: Uint8Array): void;
+  on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
+}
+
 /**
  * @experimental
  */
-export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2EEManagerCallbacks>) {
+export class E2EEManager
+  extends (EventEmitter as new () => TypedEventEmitter<E2EEManagerCallbacks>)
+  implements BaseE2EEManager
+{
   protected worker: Worker;
 
   protected room?: Room;
@@ -43,7 +54,7 @@ export class E2EEManager extends (EventEmitter as new () => TypedEventEmitter<E2
 
   private keyProvider: BaseKeyProvider;
 
-  constructor(options: E2EEOptions) {
+  constructor(options: E2EEManagerOptions) {
     super();
     this.keyProvider = options.keyProvider;
     this.worker = options.worker;
