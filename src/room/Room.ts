@@ -1733,10 +1733,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         loggerName: this.options.loggerName,
       });
     } else {
-      participant = new RemoteParticipant(this.engine.client, '', identity, undefined, undefined, {
-        loggerContextCb: () => this.logContext,
-        loggerName: this.options.loggerName,
-      });
+      participant = new RemoteParticipant(
+        this.engine.client,
+        '',
+        identity,
+        undefined,
+        undefined,
+        undefined,
+        {
+          loggerContextCb: () => this.logContext,
+          loggerName: this.options.loggerName,
+        },
+      );
     }
     if (this.options.webAudioMix) {
       participant.setAudioContext(this.audioContext);

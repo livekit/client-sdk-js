@@ -144,7 +144,7 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
-    super(sid, identity, undefined, undefined, {
+    super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
       loggerContextCb: () => this.engine.logContext,
     });
