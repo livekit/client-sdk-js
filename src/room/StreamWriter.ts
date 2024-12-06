@@ -3,9 +3,12 @@ class BaseStreamWriter<T> {
 
   protected defaultWriter: WritableStreamDefaultWriter<T>;
 
-  constructor(writableStream: WritableStream<T>) {
+  protected onClose?: () => void;
+
+  constructor(writableStream: WritableStream<T>, onClose?: () => void) {
     this.writableStream = writableStream;
     this.defaultWriter = writableStream.getWriter();
+    this.onClose = onClose;
   }
 
   write(chunk: T): Promise<void> {
@@ -15,7 +18,7 @@ class BaseStreamWriter<T> {
   async close() {
     await this.defaultWriter.close();
     this.defaultWriter.releaseLock();
-    console.log('stream status', this.writableStream.locked);
+    this.onClose?.();
   }
 }
 

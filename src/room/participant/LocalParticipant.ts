@@ -1608,18 +1608,8 @@ export default class LocalParticipant extends Participant {
 
     let chunkId = 0;
     const localP = this;
-    let onEngineClose = async () => {
-      if (writableStream.locked) {
-        console.warn('writable stream still locked');
-        await writableStream.abort('engine closed');
-      } else {
-        await writableStream.close();
-      }
-    };
+
     const writableStream = new WritableStream<string>({
-      start() {
-        localP.engine.once(EngineEvent.Closing, onEngineClose);
-      },
       // Implement the sink
       write(textChunk) {
         const textInBytes = new TextEncoder().encode(textChunk);
@@ -1663,7 +1653,6 @@ export default class LocalParticipant extends Participant {
           },
         });
         await localP.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
-        localP.engine.off(EngineEvent.Closing, onEngineClose);
       },
       abort(err) {
         console.log('Sink error:', err);
@@ -1671,7 +1660,15 @@ export default class LocalParticipant extends Participant {
       },
     });
 
-    const writer = new TextStreamWriter(writableStream);
+    let onEngineClose = async () => {
+      await writer.close();
+    };
+
+    localP.engine.once(EngineEvent.Closing, onEngineClose);
+
+    const writer = new TextStreamWriter(writableStream, () =>
+      this.engine.off(EngineEvent.Closing, onEngineClose),
+    );
 
     return writer;
   }
