@@ -835,7 +835,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @internal for testing
    */
   async simulateScenario(scenario: SimulationScenario, arg?: any) {
-    let postAction = () => {};
+    let postAction = () => { };
     let req: SimulateScenario | undefined;
     switch (scenario) {
       case 'signal-reconnect':
@@ -1160,7 +1160,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     }
-    if (deviceHasChanged && success) {
+    if (deviceHasChanged) {
       this.localParticipant.activeDeviceMap.set(kind, deviceId);
       this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
     }
@@ -2104,14 +2104,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         new LocalVideoTrack(
           publishOptions.useRealTracks
             ? (
-                await window.navigator.mediaDevices.getUserMedia({ video: true })
-              ).getVideoTracks()[0]
+              await window.navigator.mediaDevices.getUserMedia({ video: true })
+            ).getVideoTracks()[0]
             : createDummyVideoStreamTrack(
-                160 * (participantOptions.aspectRatios[0] ?? 1),
-                160,
-                true,
-                true,
-              ),
+              160 * (participantOptions.aspectRatios[0] ?? 1),
+              160,
+              true,
+              true,
+            ),
           undefined,
           false,
           { loggerName: this.options.loggerName, loggerContextCb: () => this.logContext },
