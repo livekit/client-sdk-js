@@ -1,5 +1,25 @@
 # Change Log
 
+## 2.7.3
+
+### Patch Changes
+
+- Only wait for publications that are pending already - [#1339](https://github.com/livekit/client-sdk-js/pull/1339) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.7.2
+
+### Patch Changes
+
+- Fix blocking main thread on parallel publishing requests - [#1336](https://github.com/livekit/client-sdk-js/pull/1336) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.7.1
+
+### Patch Changes
+
+- Fix processor passing in CreateLocalTracks options - [#1329](https://github.com/livekit/client-sdk-js/pull/1329) ([@lukasIO](https://github.com/lukasIO))
+
+- Await pending publications with timeout - [#1324](https://github.com/livekit/client-sdk-js/pull/1324) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.7.0
 
 ### Minor Changes

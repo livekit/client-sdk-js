@@ -279,11 +279,11 @@ export function extractProcessorsFromOptions(options: CreateLocalTracksOptions) 
 
   if (typeof newOptions.audio === 'object' && newOptions.audio.processor) {
     audioProcessor = newOptions.audio.processor;
-    newOptions.audio.processor = undefined;
+    newOptions.audio = { ...newOptions.audio, processor: undefined };
   }
   if (typeof newOptions.video === 'object' && newOptions.video.processor) {
     videoProcessor = newOptions.video.processor;
-    newOptions.video.processor = undefined;
+    newOptions.video = { ...newOptions.video, processor: undefined };
   }
 
   return { audioProcessor, videoProcessor, optionsWithoutProcessor: newOptions };
