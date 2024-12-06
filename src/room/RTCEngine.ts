@@ -1124,10 +1124,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (this.isBufferStatusLow(kind)) {
         resolve();
       } else {
-        this.once(EngineEvent.Closing, () => reject('Engine closed'));
+        const onClosing = () => reject('Engine closed');
+        this.once(EngineEvent.Closing, onClosing);
         while (!this.dcBufferStatus.get(kind)) {
           await sleep(10);
         }
+        this.off(EngineEvent.Closing, onClosing);
         resolve();
       }
     });

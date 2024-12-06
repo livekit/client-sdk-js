@@ -1563,15 +1563,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const participant = this.remoteParticipants.get(packet.participantIdentity);
     if (packet.value.case === 'user') {
       this.handleUserPacket(participant, packet.value.value, packet.kind);
-      if (packet.value.value.topic === 'streamheader') {
-        console.log('handle stream header from ', packet.participantIdentity);
-        this.handleStreamHeader(
-          DataStream_Header.fromBinary(packet.value.value.payload),
-          this.getParticipantByIdentity(packet.participantIdentity),
-        );
-      } else if (packet.value.value.topic === 'streamchunk') {
-        this.handleStreamChunk(DataStream_Chunk.fromBinary(packet.value.value.payload));
-      }
     } else if (packet.value.case === 'transcription') {
       this.handleTranscription(participant, packet.value.value);
     } else if (packet.value.case === 'sipDtmf') {
@@ -1580,6 +1571,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleChatMessage(participant, packet.value.value);
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
+    } else if (packet.value.case === 'streamHeader') {
+      console.log('handle stream header from ', packet.participantIdentity);
+      this.handleStreamHeader(packet.value.value, packet.participantIdentity);
+    } else if (packet.value.case === 'streamChunk') {
+      this.handleStreamChunk(packet.value.value);
     }
   };
 
@@ -1587,7 +1583,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   textStreamBuffer = new Map<string, StreamBuffer<DataStream_Chunk>>();
 
-  private handleStreamHeader(streamHeader: DataStream_Header, participant?: Participant) {
+  private handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
     console.log('received header', streamHeader);
     if (streamHeader.contentHeader.case === 'fileHeader') {
       if (this.listeners(RoomEvent.FileStreamReceived).length === 0) {
@@ -1618,7 +1614,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.emit(
         RoomEvent.FileStreamReceived,
         new BinaryStreamReader(info, stream, bigIntToNumber(streamHeader.totalChunks)),
-        participant,
+        { identity: participantIdentity },
       );
     } else if (streamHeader.contentHeader.case === 'textHeader') {
       if (this.listeners(RoomEvent.TextStreamReceived).length === 0) {
@@ -1648,7 +1644,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.emit(
         RoomEvent.TextStreamReceived,
         new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalChunks)),
-        participant,
+        { identity: participantIdentity },
       );
     }
   }
@@ -2437,6 +2433,6 @@ export type RoomEventCallbacks = {
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
-  fileStreamReceived: (reader: BinaryStreamReader, participant?: Participant) => void;
-  textStreamReceived: (reader: TextStreamReader, participant?: Participant) => void;
+  fileStreamReceived: (reader: BinaryStreamReader, participantInfo: { identity: string }) => void;
+  textStreamReceived: (reader: TextStreamReader, participantInfo: { identity: string }) => void;
 };

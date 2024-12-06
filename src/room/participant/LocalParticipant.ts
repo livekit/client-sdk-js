@@ -1522,10 +1522,18 @@ export default class LocalParticipant extends Participant {
         }),
       },
     });
-    await this.publishData(header.toBinary(), {
-      reliable: true,
-      topic: 'streamheader',
+
+    const destinationIdentities = options?.destinationIdentities;
+
+    const packet = new DataPacket({
+      destinationIdentities,
+      value: {
+        case: 'streamHeader',
+        value: header,
+      },
     });
+
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
 
     for (let i = 0; i < totalTextChunks; i++) {
       const chunkData = textInBytes.slice(
@@ -1539,11 +1547,15 @@ export default class LocalParticipant extends Participant {
         chunkIndex: numberToBigInt(i),
         complete: i === totalTextChunks - 1,
       });
-      await this.publishData(chunk.toBinary(), {
-        reliable: true,
-        topic: 'streamchunk',
-        destinationIdentities: options?.destinationIdentities,
+      const chunkPacket = new DataPacket({
+        destinationIdentities,
+        value: {
+          case: 'streamChunk',
+          value: chunk,
+        },
       });
+
+      await this.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
       handleProgress(Math.ceil((i + 1) / totalTextChunks), 0);
     }
     if (options?.attachedFiles && fileIds) {
@@ -1562,6 +1574,10 @@ export default class LocalParticipant extends Participant {
     return { streamId };
   }
 
+  /**
+   * @internal
+   * @experimental CAUTION, might get removed in a minor release
+   */
   async streamText(options?: {
     topic?: string;
     destinationIdentities?: Array<string>;
@@ -1579,10 +1595,15 @@ export default class LocalParticipant extends Participant {
         }),
       },
     });
-    await this.publishData(header.toBinary(), {
-      reliable: true,
-      topic: 'streamheader',
+    const destinationIdentities = options?.destinationIdentities;
+    const packet = new DataPacket({
+      destinationIdentities,
+      value: {
+        case: 'streamHeader',
+        value: header,
+      },
     });
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
 
     let chunkId = 0;
     const localP = this;
@@ -1603,11 +1624,15 @@ export default class LocalParticipant extends Participant {
             streamId,
             chunkIndex: numberToBigInt(chunkId),
           });
-          await localP.publishData(chunk.toBinary(), {
-            reliable: true,
-            topic: 'streamchunk',
-            destinationIdentities: options?.destinationIdentities,
+          const chunkPacket = new DataPacket({
+            destinationIdentities,
+            value: {
+              case: 'streamChunk',
+              value: chunk,
+            },
           });
+          await localP.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
+
           chunkId += 1;
           resolve();
         });
@@ -1682,10 +1707,16 @@ export default class LocalParticipant extends Participant {
       },
     });
 
-    await this.publishData(header.toBinary(), {
-      reliable: true,
-      topic: 'streamheader',
+    const destinationIdentities = options?.destinationIdentities;
+    const packet = new DataPacket({
+      destinationIdentities,
+      value: {
+        case: 'streamHeader',
+        value: header,
+      },
     });
+
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
     function read(b: Blob): Promise<Uint8Array> {
       return new Promise((resolve) => {
         const fr = new FileReader();
@@ -1707,11 +1738,14 @@ export default class LocalParticipant extends Participant {
         chunkIndex: numberToBigInt(i),
         complete: i === totalChunks - 1,
       });
-      await this.publishData(chunk.toBinary(), {
-        reliable: true,
-        topic: 'streamchunk',
-        destinationIdentities: options?.destinationIdentities,
+      const chunkPacket = new DataPacket({
+        destinationIdentities,
+        value: {
+          case: 'streamChunk',
+          value: chunk,
+        },
       });
+      await this.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
       options?.onProgress?.((i + 1) / totalChunks);
     }
   }

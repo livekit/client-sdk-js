@@ -251,7 +251,7 @@ const appActions = {
               timestamp: info.timestamp,
               message: await reader.readAll(),
             },
-            participant,
+            room.getParticipantByIdentity(participant?.identity),
           );
         } else {
           for await (const msg of reader) {
@@ -261,7 +261,7 @@ const appActions = {
                 timestamp: info.timestamp,
                 message: msg,
               },
-              participant,
+              room.getParticipantByIdentity(participant?.identity),
             );
           }
         }
