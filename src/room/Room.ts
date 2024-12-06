@@ -47,7 +47,7 @@ import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
-import { StreamReader } from './StreamReader';
+import { BinaryStreamReader, TextStreamReader } from './StreamReader';
 import {
   audioDefaults,
   publishDefaults,
@@ -1595,33 +1595,29 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return;
       }
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const stream = new StreamReader(
-        {
-          start: (controller) => {
-            streamController = controller;
-            this.fileStreamBuffer.set(streamHeader.streamId, {
-              header: streamHeader,
-              chunks: [],
-              streamController,
-              startTime: Date.now(),
-            });
-          },
+      const stream = new ReadableStream({
+        start: (controller) => {
+          streamController = controller;
+          this.fileStreamBuffer.set(streamHeader.streamId, {
+            header: streamHeader,
+            chunks: [],
+            streamController,
+            startTime: Date.now(),
+          });
         },
-        undefined,
-        bigIntToNumber(streamHeader.totalChunks),
-      );
+      });
+      const info: FileStreamInfo = {
+        id: streamHeader.streamId,
+        fileName: streamHeader.contentHeader.value.fileName ?? 'unknown',
+        mimeType: streamHeader.mimeType,
+        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
+        topic: streamHeader.topic,
+        timestamp: bigIntToNumber(streamHeader.timestamp),
+        extensions: streamHeader.extensions,
+      };
       this.emit(
         RoomEvent.FileStreamReceived,
-        {
-          id: streamHeader.streamId,
-          fileName: streamHeader.contentHeader.value.fileName ?? 'unknown',
-          mimeType: streamHeader.mimeType,
-          size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
-          topic: streamHeader.topic,
-          timestamp: bigIntToNumber(streamHeader.timestamp),
-          extensions: streamHeader.extensions,
-        },
-        stream,
+        new BinaryStreamReader(info, stream, bigIntToNumber(streamHeader.totalChunks)),
         participant,
       );
     } else if (streamHeader.contentHeader.case === 'textHeader') {
@@ -1630,32 +1626,28 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return;
       }
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const stream = new StreamReader(
-        {
-          start: (controller) => {
-            streamController = controller;
-            this.textStreamBuffer.set(streamHeader.streamId, {
-              header: streamHeader,
-              chunks: [],
-              streamController,
-              startTime: Date.now(),
-            });
-          },
+      const stream = new ReadableStream<DataStream_Chunk>({
+        start: (controller) => {
+          streamController = controller;
+          this.textStreamBuffer.set(streamHeader.streamId, {
+            header: streamHeader,
+            chunks: [],
+            streamController,
+            startTime: Date.now(),
+          });
         },
-        undefined,
-        bigIntToNumber(streamHeader.totalChunks),
-      );
+      });
+      const info: TextStreamInfo = {
+        id: streamHeader.streamId,
+        mimeType: streamHeader.mimeType,
+        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
+        topic: streamHeader.topic,
+        timestamp: Number(streamHeader.timestamp),
+        extensions: streamHeader.extensions,
+      };
       this.emit(
         RoomEvent.TextStreamReceived,
-        {
-          id: streamHeader.streamId,
-          mimeType: streamHeader.mimeType,
-          size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
-          topic: streamHeader.topic,
-          timestamp: Number(streamHeader.timestamp),
-          extensions: streamHeader.extensions,
-        },
-        stream,
+        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalChunks)),
         participant,
       );
     }
@@ -1667,7 +1659,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const fileBuffer = this.fileStreamBuffer.get(chunk.streamId);
     if (fileBuffer) {
       if (chunk.content.length > 0) {
-        fileBuffer.streamController.enqueue(chunk.content);
+        fileBuffer.streamController.enqueue(chunk);
         fileBuffer.chunks.push(bigIntToNumber(chunk.chunkIndex));
       }
       if (
@@ -1681,7 +1673,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const textBuffer = this.textStreamBuffer.get(chunk.streamId);
     if (textBuffer) {
       if (chunk.content.length > 0) {
-        textBuffer.streamController.enqueue(new TextDecoder().decode(chunk.content));
+        textBuffer.streamController.enqueue(chunk);
         textBuffer.chunks.push(bigIntToNumber(chunk.chunkIndex));
       }
       if (
@@ -2445,14 +2437,6 @@ export type RoomEventCallbacks = {
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
-  fileStreamReceived: (
-    fileInfo: FileStreamInfo,
-    stream: StreamReader<Uint8Array>,
-    participant?: Participant,
-  ) => void;
-  textStreamReceived: (
-    textInfo: TextStreamInfo,
-    stream: StreamReader<string>,
-    participant?: Participant,
-  ) => void;
+  fileStreamReceived: (reader: BinaryStreamReader, participant?: Participant) => void;
+  textStreamReceived: (reader: TextStreamReader, participant?: Participant) => void;
 };

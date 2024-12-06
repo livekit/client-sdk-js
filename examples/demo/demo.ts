@@ -242,37 +242,40 @@ const appActions = {
           }) to ${streamState.toString()}`,
         );
       })
-      .on(RoomEvent.TextStreamReceived, async (info, stream, participant) => {
+      .on(RoomEvent.TextStreamReceived, async (reader, participant) => {
+        const info = reader.info;
         if (info.size && info.topic === 'chat') {
           handleChatMessage(
             {
               id: info.id,
               timestamp: info.timestamp,
-              message: (await stream.readAll()).join(''),
+              message: await reader.readAll(),
             },
             participant,
           );
         } else {
-          for await (const msg of stream) {
+          for await (const msg of reader) {
             handleChatMessage(
               {
                 id: info.id,
                 timestamp: info.timestamp,
-                message: [state.chatMessages.get(info.id)?.text ?? '', msg].join(''),
+                message: msg,
               },
               participant,
             );
           }
         }
       })
-      .on(RoomEvent.FileStreamReceived, async (info, stream, participant) => {
+      .on(RoomEvent.FileStreamReceived, async (reader, participant) => {
+        const info = reader.info;
+
         appendLog(
           `started to receive a file called "${info.fileName}" from ${participant?.identity}`,
         );
-        stream.onProgress = (progress) => {
+        reader.onProgress = (progress) => {
           console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
         };
-        const result = new Blob(await stream.readAll(), { type: info.mimeType });
+        const result = new Blob(await reader.readAll(), { type: info.mimeType });
         appendLog(
           `completely received file called "${info.fileName}" from ${participant?.identity}`,
         );
@@ -563,9 +566,9 @@ async function sendGreetingTo(participant: Participant) {
 
   for (const char of greeting) {
     await streamWriter.write(char);
-    await sleep(50);
+    await sleep(20);
   }
-  await streamWriter.close();
+  await streamWriter.releaseLock();
 }
 
 async function participantConnected(participant: Participant) {

@@ -151,7 +151,7 @@ export interface StreamBuffer<T extends DataStream_Chunk> {
   endTime?: number;
 }
 
-interface BaseStreamInfo {
+export interface BaseStreamInfo {
   id: string;
   mimeType: string;
   topic: string;
