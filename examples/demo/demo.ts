@@ -264,6 +264,7 @@ const appActions = {
               room.getParticipantByIdentity(participant?.identity),
             );
           }
+          appendLog('text stream finished');
         }
       })
       .on(RoomEvent.FileStreamReceived, async (reader, participant) => {
@@ -568,7 +569,7 @@ async function sendGreetingTo(participant: Participant) {
     await streamWriter.write(char);
     await sleep(20);
   }
-  await streamWriter.releaseLock();
+  await streamWriter.close();
 }
 
 async function participantConnected(participant: Participant) {

@@ -28,6 +28,7 @@ import {
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
+import { TextStreamWriter } from '../StreamWriter';
 import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
@@ -1581,7 +1582,7 @@ export default class LocalParticipant extends Participant {
   async streamText(options?: {
     topic?: string;
     destinationIdentities?: Array<string>;
-  }): Promise<WritableStreamDefaultWriter<string>> {
+  }): Promise<TextStreamWriter> {
     const streamId = crypto.randomUUID();
     const header = new DataStream_Header({
       streamId,
@@ -1607,7 +1608,18 @@ export default class LocalParticipant extends Participant {
 
     let chunkId = 0;
     const localP = this;
+    let onEngineClose = async () => {
+      if (writableStream.locked) {
+        console.warn('writable stream still locked');
+        await writableStream.abort('engine closed');
+      } else {
+        await writableStream.close();
+      }
+    };
     const writableStream = new WritableStream<string>({
+      start() {
+        localP.engine.once(EngineEvent.Closing, onEngineClose);
+      },
       // Implement the sink
       write(textChunk) {
         const textInBytes = new TextEncoder().encode(textChunk);
@@ -1637,17 +1649,21 @@ export default class LocalParticipant extends Participant {
           resolve();
         });
       },
-      close() {
+      async close() {
         const chunk = new DataStream_Chunk({
           streamId,
           chunkIndex: numberToBigInt(chunkId),
           complete: true,
         });
-        localP.publishData(chunk.toBinary(), {
-          reliable: true,
-          topic: 'streamchunk',
-          destinationIdentities: options?.destinationIdentities,
+        const chunkPacket = new DataPacket({
+          destinationIdentities,
+          value: {
+            case: 'streamChunk',
+            value: chunk,
+          },
         });
+        await localP.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
+        localP.engine.off(EngineEvent.Closing, onEngineClose);
       },
       abort(err) {
         console.log('Sink error:', err);
@@ -1655,13 +1671,9 @@ export default class LocalParticipant extends Participant {
       },
     });
 
-    this.engine.once(EngineEvent.Closing, () => {
-      if (writableStream.locked) {
-        writableStream.abort();
-      }
-    });
+    const writer = new TextStreamWriter(writableStream);
 
-    return writableStream.getWriter();
+    return writer;
   }
 
   async sendFile(
