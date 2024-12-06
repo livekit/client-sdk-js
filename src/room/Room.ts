@@ -1583,15 +1583,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  fileStreamBuffer = new Map<string, StreamBuffer<Uint8Array>>();
+  fileStreamBuffer = new Map<string, StreamBuffer<DataStream_Chunk>>();
 
-  textStreamBuffer = new Map<string, StreamBuffer<string>>();
+  textStreamBuffer = new Map<string, StreamBuffer<DataStream_Chunk>>();
 
   private handleStreamHeader(streamHeader: DataStream_Header, participant?: Participant) {
     console.log('received header', streamHeader);
     if (streamHeader.contentHeader.case === 'fileHeader') {
-      let streamController: ReadableStreamDefaultController<Uint8Array>;
-      const stream = new StreamReader<Uint8Array>(
+      if (this.listeners(RoomEvent.FileStreamReceived).length === 0) {
+        this.log.debug('ignoring incoming file stream due to no listeners');
+        return;
+      }
+      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const stream = new StreamReader(
         {
           start: (controller) => {
             streamController = controller;
@@ -1621,8 +1625,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         participant,
       );
     } else if (streamHeader.contentHeader.case === 'textHeader') {
-      let streamController: ReadableStreamDefaultController<string>;
-      const stream = new StreamReader<string>(
+      if (this.listeners(RoomEvent.TextStreamReceived).length === 0) {
+        this.log.debug('ignoring incoming text stream due to no listeners');
+        return;
+      }
+      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const stream = new StreamReader(
         {
           start: (controller) => {
             streamController = controller;

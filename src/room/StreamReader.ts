@@ -1,11 +1,16 @@
-export class StreamReader<T> extends ReadableStream<T> {
+import type { DataStream_Chunk } from '@livekit/protocol';
+import { bigIntToNumber } from './utils';
+
+export class StreamReader<T extends DataStream_Chunk = DataStream_Chunk> extends ReadableStream<T> {
   totalChunkCount?: number;
 
-  private _chunksReceived = 0;
+  private _chunksReceived: Set<number>;
 
-  set chunksReceived(value: number) {
-    this._chunksReceived = value;
-    const currentProgress = this.totalChunkCount ? value / this.totalChunkCount : undefined;
+  handleChunkReceived(id: number) {
+    this._chunksReceived = this._chunksReceived.add(id);
+    const currentProgress = this.totalChunkCount
+      ? this._chunksReceived.size / this.totalChunkCount
+      : undefined;
     this.onProgress?.(currentProgress);
   }
 
@@ -20,11 +25,11 @@ export class StreamReader<T> extends ReadableStream<T> {
   ) {
     super(underlyingSource, strategy);
     this.totalChunkCount = totalChunkCount;
-    this._chunksReceived = 0;
+    this._chunksReceived = new Set();
   }
 
   [Symbol.asyncIterator]() {
-    const reader = this.getReader();
+    const reader: ReadableStreamDefaultReader<T> = super.getReader();
 
     return {
       next: async (): Promise<IteratorResult<T>> => {
@@ -33,7 +38,7 @@ export class StreamReader<T> extends ReadableStream<T> {
           if (done) {
             return { done: true, value: undefined as any };
           } else {
-            this.chunksReceived += 1;
+            this.handleChunkReceived(bigIntToNumber(value.chunkIndex));
             return { done: false, value };
           }
         } catch (error) {
