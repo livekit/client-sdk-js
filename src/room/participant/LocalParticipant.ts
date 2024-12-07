@@ -1266,6 +1266,8 @@ export default class LocalParticipant extends Participant {
     }
     if (stopOnUnpublish) {
       track.stop();
+    } else {
+      track.stopMonitor();
     }
 
     let negotiationNeeded = false;
