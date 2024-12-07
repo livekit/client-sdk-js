@@ -1347,6 +1347,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (shouldStopTracks) {
           pub.track?.detach();
           pub.track?.stop();
+        } else {
+          pub.track?.stopMonitor();
         }
       });
 
