@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.7.4
+
+### Patch Changes
+
+- fix: prevent monitoring leak when stopOnUnpublish is false - [#1348](https://github.com/livekit/client-sdk-js/pull/1348) ([@davidzhao](https://github.com/davidzhao))
+
+- Fix sdp connection address mismatch - [#1342](https://github.com/livekit/client-sdk-js/pull/1342) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 2.7.3
 
 ### Patch Changes
