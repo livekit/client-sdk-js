@@ -1454,7 +1454,7 @@ export default class LocalParticipant extends Participant {
       id: crypto.randomUUID(),
       message: text,
       timestamp: Date.now(),
-      attachedFiles: options?.attachedFiles,
+      attachedFiles: options?.attachments,
     } as const satisfies ChatMessage;
     const packet = new DataPacket({
       value: {
@@ -1498,7 +1498,7 @@ export default class LocalParticipant extends Participant {
     const totalTextLength = textInBytes.byteLength;
     const totalTextChunks = Math.ceil(totalTextLength / STREAM_CHUNK_SIZE);
 
-    const fileIds = options?.attachedFiles?.map(() => crypto.randomUUID());
+    const fileIds = options?.attachments?.map(() => crypto.randomUUID());
 
     const progresses = new Array<number>(fileIds ? fileIds.length + 1 : 1).fill(0);
 
@@ -1559,9 +1559,9 @@ export default class LocalParticipant extends Participant {
       await this.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
       handleProgress(Math.ceil((i + 1) / totalTextChunks), 0);
     }
-    if (options?.attachedFiles && fileIds) {
+    if (options?.attachments && fileIds) {
       await Promise.all(
-        options.attachedFiles.map(async (file, idx) =>
+        options.attachments.map(async (file, idx) =>
           this._sendFile(fileIds[idx], file, {
             topic: options.topic,
             mimeType: file.type,

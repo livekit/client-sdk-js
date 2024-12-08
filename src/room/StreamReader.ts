@@ -123,7 +123,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     const decoder = new TextDecoder();
 
     return {
-      next: async (): Promise<IteratorResult<string>> => {
+      next: async (): Promise<IteratorResult<{ id: number; chunk: string; partial: string }>> => {
         try {
           const { done, value } = await reader.read();
           if (done) {
@@ -132,10 +132,14 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
             this.handleChunkReceived(value);
             return {
               done: false,
-              value: Array.from(this.receivedChunks.values())
-                .sort((a, b) => bigIntToNumber(a.chunkIndex) - bigIntToNumber(b.chunkIndex))
-                .map((chunk) => decoder.decode(chunk.content))
-                .join(''),
+              value: {
+                id: bigIntToNumber(value.chunkIndex),
+                chunk: decoder.decode(value.content),
+                partial: Array.from(this.receivedChunks.values())
+                  .sort((a, b) => bigIntToNumber(a.chunkIndex) - bigIntToNumber(b.chunkIndex))
+                  .map((chunk) => decoder.decode(chunk.content))
+                  .join(''),
+              },
             };
           }
         } catch (error) {
@@ -144,7 +148,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
         }
       },
 
-      return(): IteratorResult<string> {
+      return(): IteratorResult<{ id: number; chunk: string; partial: string }> {
         reader.releaseLock();
         return { done: true, value: undefined };
       },
@@ -153,8 +157,8 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
 
   async readAll(): Promise<string> {
     let latestString: string = '';
-    for await (const currentString of this) {
-      latestString = currentString;
+    for await (const { partial } of this) {
+      latestString = partial;
     }
     return latestString;
   }

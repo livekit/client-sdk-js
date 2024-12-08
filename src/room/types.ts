@@ -18,7 +18,7 @@ export interface SendTextOptions {
   topic?: string;
   // replyToMessageId?: string;
   destinationIdentities?: Array<string>;
-  attachedFiles?: Array<File>;
+  attachments?: Array<File>;
   onProgress?: (progress: number) => void;
 }
 
