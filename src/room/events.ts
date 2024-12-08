@@ -335,6 +335,9 @@ export enum RoomEvent {
    * fired when the client receives connection metrics from other participants
    */
   MetricsReceived = 'metricsReceived',
+
+  FileStreamReceived = 'fileStreamReceived',
+  TextStreamReceived = 'textStreamReceived',
 }
 
 export enum ParticipantEvent {

@@ -270,7 +270,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     await this.restart(constraints);
 
     for await (const sc of this.simulcastCodecs.values()) {
-      if (sc.sender) {
+      if (sc.sender && sc.sender.transport?.state !== 'closed') {
         sc.mediaStreamTrack = this.mediaStreamTrack.clone();
         await sc.sender.replaceTrack(sc.mediaStreamTrack);
       }

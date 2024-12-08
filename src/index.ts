@@ -59,6 +59,7 @@ export type {
   SimulationScenario,
   TranscriptionSegment,
   ChatMessage,
+  SendTextOptions,
 } from './room/types';
 export * from './version';
 export {
