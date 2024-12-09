@@ -1904,7 +1904,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           ...this.logContext,
           numFailures: consecutiveFailures,
           engine: {
-            closed: this.engine.isClosed,
+            closed: !!this.engine?.isClosed,
             transportsConnected: this.engine.verifyTransport(),
           },
         });
