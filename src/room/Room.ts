@@ -1903,10 +1903,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.log.warn('detected connection state mismatch', {
           ...this.logContext,
           numFailures: consecutiveFailures,
-          engine: {
-            closed: !!this.engine?.isClosed,
-            transportsConnected: !!this.engine?.verifyTransport(),
-          },
+          engine: this.engine
+            ? {
+                closed: this.engine.isClosed,
+                transportsConnected: this.engine.verifyTransport(),
+              }
+            : undefined,
         });
         if (consecutiveFailures >= 3) {
           this.recreateEngine();
