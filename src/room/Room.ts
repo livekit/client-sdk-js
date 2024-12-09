@@ -1905,7 +1905,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           numFailures: consecutiveFailures,
           engine: {
             closed: !!this.engine?.isClosed,
-            transportsConnected: this.engine.verifyTransport(),
+            transportsConnected: !!this.engine?.verifyTransport(),
           },
         });
         if (consecutiveFailures >= 3) {
