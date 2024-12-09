@@ -47,6 +47,7 @@ describe('LocalParticipant', () => {
         'Remote Participant',
         '',
         undefined,
+        undefined,
         ParticipantKind.STANDARD,
       );
 
@@ -92,6 +93,7 @@ describe('LocalParticipant', () => {
         'Remote Participant',
         '',
         undefined,
+        undefined,
         ParticipantKind.STANDARD,
       );
 
@@ -133,6 +135,7 @@ describe('LocalParticipant', () => {
         'remote-identity',
         'Remote Participant',
         '',
+        undefined,
         undefined,
         ParticipantKind.STANDARD,
       );
@@ -195,6 +198,7 @@ describe('LocalParticipant', () => {
         'remote-identity',
         'Remote Participant',
         '',
+        undefined,
         undefined,
         ParticipantKind.STANDARD,
       );
