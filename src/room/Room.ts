@@ -1862,6 +1862,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (info) {
       participant.updateInfo(info);
     }
+    // in order to keep backwards compatibility, manually trigger a attributes changed event after creating the participant
+    if (Object.keys(info.attributes).length > 0) {
+      participant.emit(ParticipantEvent.AttributesChanged, info.attributes);
+    }
+
     return participant;
   }
 
