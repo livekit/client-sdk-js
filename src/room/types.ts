@@ -165,3 +165,9 @@ export interface FileStreamInfo extends BaseStreamInfo {
 }
 
 export interface TextStreamInfo extends BaseStreamInfo {}
+
+export type TextStreamChunk = {
+  index: number;
+  current: string;
+  collected: string;
+};

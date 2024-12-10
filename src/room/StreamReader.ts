@@ -1,5 +1,5 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
-import type { BaseStreamInfo, FileStreamInfo, TextStreamInfo } from './types';
+import type { BaseStreamInfo, FileStreamInfo, TextStreamChunk, TextStreamInfo } from './types';
 import { bigIntToNumber } from './utils';
 
 abstract class BaseStreamReader<T extends BaseStreamInfo> {
@@ -82,9 +82,9 @@ export class BinaryStreamReader extends BaseStreamReader<FileStreamInfo> {
     return Array.from(chunks);
   }
 }
+
 /**
- * A TextStreamReader instance can be used as an AsyncIterator that returns the entire string
- * that has been received up to the current point in time.
+ * A class to read chunks from a ReadableStream and provide them in a structured format.
  */
 export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
   private receivedChunks: Map<number, DataStream_Chunk>;
@@ -116,14 +116,16 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
   onProgress?: (progress: number | undefined) => void;
 
   /**
-   * returns an AsyncIterable<string> with the string being the entire string that has been received so far
+   * Async iterator implementation to allow usage of `for await...of` syntax.
+   * Yields structured chunks from the stream.
+   *
    */
   [Symbol.asyncIterator]() {
     const reader = this.reader.getReader();
     const decoder = new TextDecoder();
 
     return {
-      next: async (): Promise<IteratorResult<{ id: number; chunk: string; partial: string }>> => {
+      next: async (): Promise<IteratorResult<TextStreamChunk>> => {
         try {
           const { done, value } = await reader.read();
           if (done) {
@@ -133,9 +135,9 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
             return {
               done: false,
               value: {
-                id: bigIntToNumber(value.chunkIndex),
-                chunk: decoder.decode(value.content),
-                partial: Array.from(this.receivedChunks.values())
+                index: bigIntToNumber(value.chunkIndex),
+                current: decoder.decode(value.content),
+                collected: Array.from(this.receivedChunks.values())
                   .sort((a, b) => bigIntToNumber(a.chunkIndex) - bigIntToNumber(b.chunkIndex))
                   .map((chunk) => decoder.decode(chunk.content))
                   .join(''),
@@ -148,7 +150,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
         }
       },
 
-      return(): IteratorResult<{ id: number; chunk: string; partial: string }> {
+      return(): IteratorResult<TextStreamChunk> {
         reader.releaseLock();
         return { done: true, value: undefined };
       },
@@ -157,8 +159,8 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
 
   async readAll(): Promise<string> {
     let latestString: string = '';
-    for await (const { partial } of this) {
-      latestString = partial;
+    for await (const { collected } of this) {
+      latestString = collected;
     }
     return latestString;
   }
