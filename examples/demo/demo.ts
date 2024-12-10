@@ -263,6 +263,7 @@ const appActions = {
       participantConnected(participant);
     });
     participantConnected(room.localParticipant);
+    updateButtonsForPublishState();
 
     return room;
   },
