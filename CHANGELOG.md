@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.7.5
+
+### Patch Changes
+
+- fix(deps): update dependency @livekit/protocol to v1.29.4 - [#1352](https://github.com/livekit/client-sdk-js/pull/1352) ([@renovate](https://github.com/apps/renovate))
+
 ## 2.7.4
 
 ### Patch Changes
