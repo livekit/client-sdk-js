@@ -492,7 +492,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       unlockDisconnect();
       return this.connectFuture.promise;
     }
-
+    const connectStartTime = performance.now();
     this.setAndEmitConnectionState(ConnectionState.Connecting);
     if (this.regionUrlProvider?.getServerUrl().toString() !== url) {
       this.regionUrl = undefined;
@@ -709,6 +709,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.engine.peerConnectionTimeout = this.connOptions.peerConnectionTimeout;
     }
 
+    const connectStart = performance.now();
+
     try {
       const joinResponse = await this.connectSignal(
         url,
@@ -750,16 +752,24 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       throw new ConnectionError(`Connection attempt aborted`, ConnectionErrorReason.Cancelled);
     }
 
+    const signalConnectTime = performance.now() - connectStart;
+
     try {
       await this.engine.waitForPCInitialConnection(
         this.connOptions.peerConnectionTimeout,
         abortController,
       );
     } catch (e) {
+      if (e instanceof Error) {
+        await this.engine.client.sendConnectionError(new ConnectionError(e.message));
+      }
+
       await this.engine.close();
       this.recreateEngine();
       throw e;
     }
+
+    const pcConnectTime = performance.now() - signalConnectTime;
 
     // also hook unload event
     if (isWeb() && this.options.disconnectOnPageLeave) {
@@ -774,6 +784,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Connected);
     this.registerConnectionReconcile();
+    await this.engine.client.sendConnectionTimes({
+      signal: signalConnectTime,
+      subscriber: pcConnectTime,
+    });
   };
 
   /**
