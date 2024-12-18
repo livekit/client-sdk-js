@@ -234,6 +234,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.options.e2ee) {
       this.setupE2EE();
     }
+
+    const self = this
+    this.options = new Proxy(this.options, {
+      set: function (target: InternalRoomOptions, key: keyof InternalRoomOptions, value) {
+        if (key == 'disconnectOnPageLeave' && value !== target[key]) {
+          value === true 
+            ? window.addEventListener('beforeunload', self.onPageLeave) 
+            : window.removeEventListener('beforeunload', self.onPageLeave) 
+        }
+        
+        return true;
+      }
+    })
   }
 
   /**
