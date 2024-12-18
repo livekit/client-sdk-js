@@ -235,9 +235,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.setupE2EE();
     }
 
+    /**
+     * Proxy for interception of changes to InternalRoomOptions after Room has been instantiated.
+     */
     this.options = new Proxy(this.options, {
       set: (target: InternalRoomOptions, key: keyof InternalRoomOptions, value) => {
-        console.log("Proxy is intercepting!", key, value)
         if (key == 'disconnectOnPageLeave' && value !== target[key]) {
           value === true ? this.registerUnloadEvents() : this.unregisterUnloadEvents()
         }
