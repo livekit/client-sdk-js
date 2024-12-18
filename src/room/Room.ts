@@ -2013,7 +2013,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.LocalAudioSilenceDetected, pub);
       }
     }
-    const deviceId = await pub.track?.getDeviceId();
+    const deviceId = await pub.track?.getDeviceId(false);
     const deviceKind = sourceToKind(pub.source);
     if (
       deviceKind &&
