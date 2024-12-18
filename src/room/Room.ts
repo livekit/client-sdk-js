@@ -78,7 +78,7 @@ import {
   type FileStreamInfo,
   type SimulationOptions,
   type SimulationScenario,
-  type StreamBuffer,
+  type StreamController,
   type TextStreamInfo,
   type TranscriptionSegment,
 } from './types';
@@ -1579,9 +1579,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  fileStreamBuffer = new Map<string, StreamBuffer<DataStream_Chunk>>();
+  fileStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
-  textStreamBuffer = new Map<string, StreamBuffer<DataStream_Chunk>>();
+  textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
   private handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
     console.log('received header', streamHeader);
@@ -1594,10 +1594,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const stream = new ReadableStream({
         start: (controller) => {
           streamController = controller;
-          this.fileStreamBuffer.set(streamHeader.streamId, {
+          this.fileStreamControllers.set(streamHeader.streamId, {
             header: streamHeader,
-            chunks: [],
-            streamController,
+            controller: streamController,
             startTime: Date.now(),
           });
         },
@@ -1625,10 +1624,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const stream = new ReadableStream<DataStream_Chunk>({
         start: (controller) => {
           streamController = controller;
-          this.textStreamBuffer.set(streamHeader.streamId, {
+          this.textStreamControllers.set(streamHeader.streamId, {
             header: streamHeader,
-            chunks: [],
-            streamController,
+            controller: streamController,
             startTime: Date.now(),
           });
         },
@@ -1652,32 +1650,24 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private handleStreamChunk(chunk: DataStream_Chunk) {
     console.log('received chunk', chunk.chunkIndex);
 
-    const fileBuffer = this.fileStreamBuffer.get(chunk.streamId);
+    const fileBuffer = this.fileStreamControllers.get(chunk.streamId);
     if (fileBuffer) {
       if (chunk.content.length > 0) {
-        fileBuffer.streamController.enqueue(chunk);
-        fileBuffer.chunks.push(bigIntToNumber(chunk.chunkIndex));
+        fileBuffer.controller.enqueue(chunk);
       }
-      if (
-        fileBuffer.chunks.length === bigIntToNumber(fileBuffer.header.totalChunks) ||
-        chunk.complete === true
-      ) {
-        fileBuffer.streamController.close();
-        this.fileStreamBuffer.delete(chunk.streamId);
+      if (chunk.complete === true) {
+        fileBuffer.controller.close();
+        this.fileStreamControllers.delete(chunk.streamId);
       }
     }
-    const textBuffer = this.textStreamBuffer.get(chunk.streamId);
+    const textBuffer = this.textStreamControllers.get(chunk.streamId);
     if (textBuffer) {
       if (chunk.content.length > 0) {
-        textBuffer.streamController.enqueue(chunk);
-        textBuffer.chunks.push(bigIntToNumber(chunk.chunkIndex));
+        textBuffer.controller.enqueue(chunk);
       }
-      if (
-        textBuffer.chunks.length === bigIntToNumber(textBuffer.header.totalChunks) ||
-        chunk.complete === true
-      ) {
-        textBuffer.streamController.close();
-        this.fileStreamBuffer.delete(chunk.streamId);
+      if (chunk.complete === true) {
+        textBuffer.controller.close();
+        this.fileStreamControllers.delete(chunk.streamId);
       }
     }
   }

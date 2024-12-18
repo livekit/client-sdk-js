@@ -143,10 +143,9 @@ export interface ChatMessage {
 //   // missingChunkIds?: number[]; // TBD option to re-request missing chunks when completion ack has error status
 // }
 
-export interface StreamBuffer<T extends DataStream_Chunk> {
+export interface StreamController<T extends DataStream_Chunk> {
   header: DataStream_Header;
-  chunks: Array<number>;
-  streamController: ReadableStreamDefaultController<T>;
+  controller: ReadableStreamDefaultController<T>;
   startTime: number;
   endTime?: number;
 }

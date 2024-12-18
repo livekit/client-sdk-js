@@ -103,7 +103,13 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
   }
 
   protected handleChunkReceived(chunk: DataStream_Chunk) {
-    this.receivedChunks.set(bigIntToNumber(chunk.chunkIndex), chunk);
+    const index = bigIntToNumber(chunk.chunkIndex);
+    const previousChunkAtIndex = this.receivedChunks.get(index);
+    if (previousChunkAtIndex && previousChunkAtIndex.version > chunk.version) {
+      // we have a newer version already, dropping the old one
+      return;
+    }
+    this.receivedChunks.set(index, chunk);
     const currentProgress = this.totalChunkCount
       ? this.receivedChunks.size / this.totalChunkCount
       : undefined;
