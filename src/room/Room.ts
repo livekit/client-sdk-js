@@ -86,6 +86,7 @@ import {
   isBrowserSupported,
   isCloud,
   isReactNative,
+  isSafari,
   isWeb,
   supportsSetSinkId,
   toHttpUrl,
@@ -1097,14 +1098,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @param deviceId
    */
   async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = false) {
-    let deviceHasChanged = false;
     let success = true;
     const deviceConstraint = exact ? { exact: deviceId } : deviceId;
     if (kind === 'audioinput') {
       const prevDeviceId =
         this.getActiveDevice(kind) ?? this.options.audioCaptureDefaults!.deviceId;
       this.options.audioCaptureDefaults!.deviceId = deviceConstraint;
-      deviceHasChanged = prevDeviceId !== deviceConstraint;
+      // deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.audioTrackPublications.values()).filter(
         (track) => track.source === Track.Source.Microphone,
       );
@@ -1120,7 +1120,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const prevDeviceId =
         this.getActiveDevice(kind) ?? this.options.videoCaptureDefaults!.deviceId;
       this.options.videoCaptureDefaults!.deviceId = deviceConstraint;
-      deviceHasChanged = prevDeviceId !== deviceConstraint;
+      // deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.videoTrackPublications.values()).filter(
         (track) => track.source === Track.Source.Camera,
       );
@@ -1147,7 +1147,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.options.audioOutput ??= {};
       const prevDeviceId = this.getActiveDevice(kind) ?? this.options.audioOutput.deviceId;
       this.options.audioOutput.deviceId = deviceId;
-      deviceHasChanged = prevDeviceId !== deviceConstraint;
+      // deviceHasChanged = prevDeviceId !== deviceConstraint;
 
       try {
         if (this.options.webAudioMix) {
@@ -1164,10 +1164,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     }
-    if (deviceHasChanged && success) {
-      this.localParticipant.activeDeviceMap.set(kind, deviceId);
-      this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
-    }
+    // if (deviceHasChanged && success) {
+    //   this.localParticipant.activeDeviceMap.set(kind, deviceId);
+    //   this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
+    // }
 
     return success;
   }
@@ -1684,8 +1684,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     // inputs are automatically handled via TrackEvent.Ended causing a TrackEvent.Restarted. Here we only need to worry about audiooutputs changing
-    const kinds: MediaDeviceKind[] = ['audiooutput'];
+    const kinds: MediaDeviceKind[] = ['audiooutput', 'audioinput'];
     for (let kind of kinds) {
+      if (kind === 'audioinput' && !isSafari()) {
+        // airpods on Safari need special handling for audioinput as the track doesn't end as soon as you take them out
+        return;
+      }
       // switch to first available device if previously active device is not available any more
       const devicesOfKind = availableDevices.filter((d) => d.kind === kind);
       if (
@@ -2071,6 +2075,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.logContext,
       );
       this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
+      console.log('track restarted active device handling');
       this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
     }
   };
