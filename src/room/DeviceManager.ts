@@ -17,6 +17,12 @@ export default class DeviceManager {
 
   static userMediaPromiseMap: Map<MediaDeviceKind, Promise<MediaStream>> = new Map();
 
+  private _previousDevices: MediaDeviceInfo[] = [];
+
+  get previousDevices() {
+    return this._previousDevices;
+  }
+
   async getDevices(
     kind?: MediaDeviceKind,
     requestPermissions: boolean = true,
@@ -60,10 +66,11 @@ export default class DeviceManager {
         });
       }
     }
+    this._previousDevices = devices;
+
     if (kind) {
       devices = devices.filter((device) => device.kind === kind);
     }
-
     return devices;
   }
 

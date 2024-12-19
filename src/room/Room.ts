@@ -86,6 +86,7 @@ import {
   isBrowserSupported,
   isCloud,
   isReactNative,
+  isSafari,
   isWeb,
   supportsSetSinkId,
   toHttpUrl,
@@ -1097,14 +1098,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @param deviceId
    */
   async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = false) {
-    let deviceHasChanged = false;
     let success = true;
     const deviceConstraint = exact ? { exact: deviceId } : deviceId;
     if (kind === 'audioinput') {
       const prevDeviceId =
         this.getActiveDevice(kind) ?? this.options.audioCaptureDefaults!.deviceId;
       this.options.audioCaptureDefaults!.deviceId = deviceConstraint;
-      deviceHasChanged = prevDeviceId !== deviceConstraint;
+      // deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.audioTrackPublications.values()).filter(
         (track) => track.source === Track.Source.Microphone,
       );
@@ -1120,7 +1120,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const prevDeviceId =
         this.getActiveDevice(kind) ?? this.options.videoCaptureDefaults!.deviceId;
       this.options.videoCaptureDefaults!.deviceId = deviceConstraint;
-      deviceHasChanged = prevDeviceId !== deviceConstraint;
+      // deviceHasChanged = prevDeviceId !== deviceConstraint;
       const tracks = Array.from(this.localParticipant.videoTrackPublications.values()).filter(
         (track) => track.source === Track.Source.Camera,
       );
@@ -1147,7 +1147,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.options.audioOutput ??= {};
       const prevDeviceId = this.getActiveDevice(kind) ?? this.options.audioOutput.deviceId;
       this.options.audioOutput.deviceId = deviceId;
-      deviceHasChanged = prevDeviceId !== deviceConstraint;
+      // deviceHasChanged = prevDeviceId !== deviceConstraint;
 
       try {
         if (this.options.webAudioMix) {
@@ -1164,10 +1164,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     }
-    if (deviceHasChanged && success) {
-      this.localParticipant.activeDeviceMap.set(kind, deviceId);
-      this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
-    }
+    // if (deviceHasChanged && success) {
+    //   this.localParticipant.activeDeviceMap.set(kind, deviceId);
+    //   this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
+    // }
 
     return success;
   }
@@ -1654,13 +1654,62 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleDeviceChange = async () => {
+    const previousDevices = DeviceManager.getInstance().previousDevices;
     // check for available devices, but don't request permissions in order to avoid prompts for kinds that haven't been used before
     const availableDevices = await DeviceManager.getInstance().getDevices(undefined, false);
+
+    console.log({ previousDevices, availableDevices });
+    const browser = getBrowser();
+    if (browser?.name === 'Chrome' && browser.os !== 'iOS') {
+      for (let availableDevice of availableDevices) {
+        const previousDevice = previousDevices.find(
+          (info) => info.deviceId === availableDevice.deviceId,
+        );
+        if (
+          previousDevice &&
+          previousDevice.label !== '' &&
+          previousDevice.kind === availableDevice.kind &&
+          previousDevice.label !== availableDevice.label
+        ) {
+          // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
+          console.log(
+            'default device switch detected',
+            availableDevice.kind,
+            availableDevice.label,
+            previousDevice.label,
+          );
+          if (this.getActiveDevice(availableDevice.kind) === 'default') {
+            // emit an active device change event only if the selected output device is actually on `default`
+            this.emit(
+              RoomEvent.ActiveDeviceChanged,
+              availableDevice.kind,
+              availableDevice.deviceId,
+            );
+          }
+        }
+      }
+    }
+
     // inputs are automatically handled via TrackEvent.Ended causing a TrackEvent.Restarted. Here we only need to worry about audiooutputs changing
-    const kinds: MediaDeviceKind[] = ['audiooutput'];
+    const kinds: MediaDeviceKind[] = ['audiooutput', 'audioinput', 'videoinput'];
     for (let kind of kinds) {
-      // switch to first available device if previously active device is not available any more
       const devicesOfKind = availableDevices.filter((d) => d.kind === kind);
+      const activeDevice = this.getActiveDevice(kind);
+
+      if (activeDevice === previousDevices.filter((info) => info.kind === kind)[0]?.deviceId) {
+        // in  Safari the first device is always the default, so we assume a user on the default device would like to switch to the default once it changes
+        // FF doesn't emit an event when the default device changes, so we perform the same best effort and switch to the new device once connected and if it's the first in the array
+        if (devicesOfKind.length > 0 && devicesOfKind[0]?.deviceId !== activeDevice) {
+          await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
+          continue;
+        }
+      }
+
+      if ((kind === 'audioinput' && !isSafari()) || kind === 'videoinput') {
+        // airpods on Safari need special handling for audioinput as the track doesn't end as soon as you take them out
+        continue;
+      }
+      // switch to first available device if previously active device is not available any more
       if (
         devicesOfKind.length > 0 &&
         !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === this.getActiveDevice(kind))
@@ -2013,7 +2062,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.emit(RoomEvent.LocalAudioSilenceDetected, pub);
       }
     }
-    const deviceId = await pub.track?.getDeviceId();
+    const deviceId = await pub.track?.getDeviceId(false);
     const deviceKind = sourceToKind(pub.source);
     if (
       deviceKind &&
@@ -2044,6 +2093,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.logContext,
       );
       this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
+      console.log('track restarted active device handling');
       this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
     }
   };

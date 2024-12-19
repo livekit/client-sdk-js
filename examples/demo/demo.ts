@@ -85,7 +85,7 @@ const appActions = {
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
 
-    setLogLevel(LogLevel.debug);
+    setLogLevel(LogLevel.info);
     updateSearchParams(url, token, cryptoKey);
 
     const roomOpts: RoomOptions = {
@@ -439,9 +439,8 @@ const appActions = {
       return;
     }
 
-    state.defaultDevices.set(kind, deviceId);
-
     if (currentRoom) {
+      console.log('handling device select due to change in select element');
       await currentRoom.switchActiveDevice(kind, deviceId);
     }
   },
@@ -872,6 +871,7 @@ const elementMapping: { [k: string]: MediaDeviceKind } = {
 } as const;
 
 async function handleDevicesChanged() {
+  console.log('devices changed');
   Promise.all(
     Object.keys(elementMapping).map(async (id) => {
       const kind = elementMapping[id];
@@ -880,12 +880,15 @@ async function handleDevicesChanged() {
       }
       const devices = await Room.getLocalDevices(kind);
       const element = <HTMLSelectElement>$(id);
+      console.log('default device', kind, state.defaultDevices.get(kind));
       populateSelect(element, devices, state.defaultDevices.get(kind));
     }),
   );
 }
 
 async function handleActiveDeviceChanged(kind: MediaDeviceKind, deviceId: string) {
+  console.trace('active device changed to', kind, deviceId);
+  state.defaultDevices.set(kind, deviceId);
   const devices = await Room.getLocalDevices(kind);
   const element = <HTMLSelectElement>$(
     Object.entries(elementMapping)
