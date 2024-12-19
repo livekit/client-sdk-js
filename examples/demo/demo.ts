@@ -440,6 +440,7 @@ const appActions = {
     }
 
     if (currentRoom) {
+      console.log('handling device select due to change in select element');
       await currentRoom.switchActiveDevice(kind, deviceId);
     }
   },
@@ -879,13 +880,14 @@ async function handleDevicesChanged() {
       }
       const devices = await Room.getLocalDevices(kind);
       const element = <HTMLSelectElement>$(id);
+      console.log('default device', kind, state.defaultDevices.get(kind));
       populateSelect(element, devices, state.defaultDevices.get(kind));
     }),
   );
 }
 
 async function handleActiveDeviceChanged(kind: MediaDeviceKind, deviceId: string) {
-  console.log('active device changed to', kind, deviceId);
+  console.trace('active device changed to', kind, deviceId);
   state.defaultDevices.set(kind, deviceId);
   const devices = await Room.getLocalDevices(kind);
   const element = <HTMLSelectElement>$(

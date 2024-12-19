@@ -129,6 +129,7 @@ export default abstract class LocalTrack<
   }
 
   private async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean) {
+    console.trace('setting new media stream track');
     if (newTrack === this._mediaStreamTrack && !force) {
       return;
     }

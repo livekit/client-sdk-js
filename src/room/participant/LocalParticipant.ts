@@ -154,7 +154,11 @@ export default class LocalParticipant extends Participant {
     this.engine = engine;
     this.roomOptions = options;
     this.setupEngine(engine);
-    this.activeDeviceMap = new Map();
+    this.activeDeviceMap = new Map([
+      ['audioinput', 'default'],
+      ['videoinput', 'default'],
+      ['audiooutput', 'default'],
+    ]);
     this.pendingSignalRequests = new Map();
   }
 

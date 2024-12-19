@@ -1659,39 +1659,57 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const availableDevices = await DeviceManager.getInstance().getDevices(undefined, false);
 
     console.log({ previousDevices, availableDevices });
-    for (let availableDevice of availableDevices) {
-      const previousDevice = previousDevices.find(
-        (info) => info.deviceId === availableDevice.deviceId,
-      );
-      if (
-        previousDevice &&
-        previousDevice.label !== '' &&
-        previousDevice.kind === availableDevice.kind &&
-        previousDevice.label !== availableDevice.label
-      ) {
-        // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
-        console.log(
-          'default device switch detected',
-          availableDevice.kind,
-          availableDevice.label,
-          previousDevice.label,
+    const browser = getBrowser();
+    if (browser?.name === 'Chrome' && browser.os !== 'iOS') {
+      for (let availableDevice of availableDevices) {
+        const previousDevice = previousDevices.find(
+          (info) => info.deviceId === availableDevice.deviceId,
         );
-        if (this.getActiveDevice(availableDevice.kind) === 'default') {
-          // emit an active device change event only if the selected output device is actually on `default`
-          this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
+        if (
+          previousDevice &&
+          previousDevice.label !== '' &&
+          previousDevice.kind === availableDevice.kind &&
+          previousDevice.label !== availableDevice.label
+        ) {
+          // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
+          console.log(
+            'default device switch detected',
+            availableDevice.kind,
+            availableDevice.label,
+            previousDevice.label,
+          );
+          if (this.getActiveDevice(availableDevice.kind) === 'default') {
+            // emit an active device change event only if the selected output device is actually on `default`
+            this.emit(
+              RoomEvent.ActiveDeviceChanged,
+              availableDevice.kind,
+              availableDevice.deviceId,
+            );
+          }
         }
       }
     }
 
     // inputs are automatically handled via TrackEvent.Ended causing a TrackEvent.Restarted. Here we only need to worry about audiooutputs changing
-    const kinds: MediaDeviceKind[] = ['audiooutput', 'audioinput'];
+    const kinds: MediaDeviceKind[] = ['audiooutput', 'audioinput', 'videoinput'];
     for (let kind of kinds) {
-      if (kind === 'audioinput' && !isSafari()) {
+      const devicesOfKind = availableDevices.filter((d) => d.kind === kind);
+      const activeDevice = this.getActiveDevice(kind);
+
+      if (activeDevice === previousDevices.filter((info) => info.kind === kind)[0]?.deviceId) {
+        // in  Safari the first device is always the default, so we assume a user on the default device would like to switch to the default once it changes
+        // FF doesn't emit an event when the default device changes, so we perform the same best effort and switch to the new device once connected and if it's the first in the array
+        if (devicesOfKind.length > 0 && devicesOfKind[0]?.deviceId !== activeDevice) {
+          await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
+          continue;
+        }
+      }
+
+      if ((kind === 'audioinput' && !isSafari()) || kind === 'videoinput') {
         // airpods on Safari need special handling for audioinput as the track doesn't end as soon as you take them out
-        return;
+        continue;
       }
       // switch to first available device if previously active device is not available any more
-      const devicesOfKind = availableDevices.filter((d) => d.kind === kind);
       if (
         devicesOfKind.length > 0 &&
         !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === this.getActiveDevice(kind))
