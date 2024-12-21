@@ -138,6 +138,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
             return { done: true, value: undefined };
           } else {
             this.handleChunkReceived(value);
+
             return {
               done: false,
               value: {

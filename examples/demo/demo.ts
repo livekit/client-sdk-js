@@ -259,7 +259,7 @@ const appActions = {
               {
                 id: info.id,
                 timestamp: info.timestamp,
-                message: msg,
+                message: msg.collected,
               },
               room.getParticipantByIdentity(participant?.identity),
             );
