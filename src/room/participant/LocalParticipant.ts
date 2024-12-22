@@ -1510,7 +1510,6 @@ export default class LocalParticipant extends Participant {
 
     const header = new DataStream_Header({
       streamId,
-      totalChunks: numberToBigInt(totalTextChunks),
       totalLength: numberToBigInt(totalTextLength),
       mimeType: 'text/plain',
       topic: options?.topic,
@@ -1699,9 +1698,7 @@ export default class LocalParticipant extends Participant {
     },
   ) {
     const totalLength = file.size;
-    const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
     const header = new DataStream_Header({
-      totalChunks: numberToBigInt(totalChunks),
       totalLength: numberToBigInt(totalLength),
       mimeType: options?.mimeType ?? file.type,
       streamId,
@@ -1735,7 +1732,7 @@ export default class LocalParticipant extends Participant {
         fr.readAsArrayBuffer(b);
       });
     }
-    // TODO we'd want actual progress reports here
+    const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
     for (let i = 0; i < totalChunks; i++) {
       const chunkData = await read(
         file.slice(i * STREAM_CHUNK_SIZE, Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength)),

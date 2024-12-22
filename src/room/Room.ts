@@ -1612,7 +1612,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       };
       this.emit(
         RoomEvent.FileStreamReceived,
-        new BinaryStreamReader(info, stream, bigIntToNumber(streamHeader.totalChunks)),
+        new BinaryStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
         { identity: participantIdentity },
       );
     } else if (streamHeader.contentHeader.case === 'textHeader') {
@@ -1641,7 +1641,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       };
       this.emit(
         RoomEvent.TextStreamReceived,
-        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalChunks)),
+        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
         { identity: participantIdentity },
       );
     }

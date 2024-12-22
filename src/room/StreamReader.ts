@@ -5,18 +5,21 @@ import { bigIntToNumber } from './utils';
 abstract class BaseStreamReader<T extends BaseStreamInfo> {
   protected reader: ReadableStream<DataStream_Chunk>;
 
-  protected totalChunkCount?: number;
+  protected totalByteSize?: number;
 
   protected _info: T;
+
+  protected bytesReceived: number;
 
   get info() {
     return this._info;
   }
 
-  constructor(info: T, stream: ReadableStream<DataStream_Chunk>, totalChunkCount?: number) {
+  constructor(info: T, stream: ReadableStream<DataStream_Chunk>, totalByteSize?: number) {
     this.reader = stream;
-    this.totalChunkCount = totalChunkCount;
+    this.totalByteSize = totalByteSize;
     this._info = info;
+    this.bytesReceived = 0;
   }
 
   protected abstract handleChunkReceived(chunk: DataStream_Chunk): void;
@@ -27,21 +30,10 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
 }
 
 export class BinaryStreamReader extends BaseStreamReader<FileStreamInfo> {
-  private chunksReceived: Set<number>;
-
-  constructor(
-    info: FileStreamInfo,
-    stream: ReadableStream<DataStream_Chunk>,
-    totalChunkCount?: number,
-  ) {
-    super(info, stream, totalChunkCount);
-    this.chunksReceived = new Set();
-  }
-
   protected handleChunkReceived(chunk: DataStream_Chunk) {
-    this.chunksReceived.add(bigIntToNumber(chunk.chunkIndex));
-    const currentProgress = this.totalChunkCount
-      ? this.chunksReceived.size / this.totalChunkCount
+    this.bytesReceived += chunk.content.byteLength;
+    const currentProgress = this.totalByteSize
+      ? this.bytesReceived / this.totalByteSize
       : undefined;
     this.onProgress?.(currentProgress);
   }
@@ -110,8 +102,9 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
       return;
     }
     this.receivedChunks.set(index, chunk);
-    const currentProgress = this.totalChunkCount
-      ? this.receivedChunks.size / this.totalChunkCount
+    this.bytesReceived += chunk.content.byteLength;
+    const currentProgress = this.totalByteSize
+      ? this.bytesReceived / this.totalByteSize
       : undefined;
     this.onProgress?.(currentProgress);
   }
