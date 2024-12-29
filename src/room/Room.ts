@@ -242,17 +242,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       set: (target: InternalRoomOptions, key: keyof InternalRoomOptions, value) => {
         if (key == 'disconnectOnPageLeave' && value !== target[key]) {
           if (value === true) {
-            this.registerUnloadEvents()
+            this.registerUnloadEvents();
           } else {
-            this.unregisterUnloadEvents()
+            this.unregisterUnloadEvents();
           }
         }
 
-        (target[key] as any) = value
+        (target[key] as any) = value;
 
         return true;
-      }
-    })
+      },
+    });
   }
 
   /**
@@ -782,7 +782,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (isWeb()) {
       if (this.options.disconnectOnPageLeave) {
-        this.registerUnloadEvents()
+        this.registerUnloadEvents();
       }
       document.addEventListener('freeze', this.onPageLeave);
       navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
@@ -981,7 +981,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private registerUnloadEvents = () => {
     window.addEventListener('pagehide', this.onPageLeave);
     window.addEventListener('beforeunload', this.onPageLeave);
-  }
+  };
 
   /**
    * Remove listeners for 'pagehide' and 'beforeunload' which would handle disconnect and cleanup
@@ -989,7 +989,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private unregisterUnloadEvents = () => {
     window.removeEventListener('beforeunload', this.onPageLeave);
     window.removeEventListener('pagehide', this.onPageLeave);
-  }
+  };
 
   private onPageLeave = async () => {
     this.log.info('Page leave detected, disconnecting', this.logContext);
@@ -1419,7 +1419,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
       if (isWeb()) {
         if (this.options.disconnectOnPageLeave) {
-          this.unregisterUnloadEvents()
+          this.unregisterUnloadEvents();
         }
         window.removeEventListener('freeze', this.onPageLeave);
         navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
