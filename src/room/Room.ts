@@ -241,7 +241,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.options = new Proxy(this.options, {
       set: (target: InternalRoomOptions, key: keyof InternalRoomOptions, value) => {
         if (key == 'disconnectOnPageLeave' && value !== target[key]) {
-          value === true ? this.registerUnloadEvents() : this.unregisterUnloadEvents()
+          if (value === true) {
+            this.registerUnloadEvents()
+          } else {
+            this.unregisterUnloadEvents()
+          }
         }
 
         (target[key] as any) = value
@@ -777,7 +781,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     if (isWeb()) {
-      this.options.disconnectOnPageLeave && this.registerUnloadEvents()
+      if (this.options.disconnectOnPageLeave) {
+        this.registerUnloadEvents()
+      }
       document.addEventListener('freeze', this.onPageLeave);
       navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
     }
@@ -1412,7 +1418,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.audioContext = undefined;
       }
       if (isWeb()) {
-        this.options.disconnectOnPageLeave && this.unregisterUnloadEvents()
+        if (this.options.disconnectOnPageLeave) {
+          this.unregisterUnloadEvents()
+        }
         window.removeEventListener('freeze', this.onPageLeave);
         navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
       }
