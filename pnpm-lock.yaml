@@ -22,7 +22,7 @@ importers:
         version: 1.9.1
       sdp-transform:
         specifier: ^2.14.1
-        version: 2.14.1
+        version: 2.15.0
       ts-debounce:
         specifier: ^4.0.0
         version: 4.0.0
@@ -2920,8 +2920,8 @@ packages:
     resolution: {integrity: sha512-pN/yOAvcC+5rQ5nERGuwrjLlYvLTbCibnZ1I7B1LaiAz9BRBlE9GMgE/eqV30P7aJQUf7Ddimy/RsbYO/GrVGg==}
     engines: {node: '>= 10.13.0'}
 
-  sdp-transform@2.14.1:
-    resolution: {integrity: sha512-RjZyX3nVwJyCuTo5tGPx+PZWkDMCg7oOLpSlhjDdZfwUoNqG1mM8nyj31IGHyaPWXhjbP7cdK3qZ2bmkJ1GzRw==}
+  sdp-transform@2.15.0:
+    resolution: {integrity: sha512-KrOH82c/W+GYQ0LHqtr3caRpM3ITglq3ljGUIb8LTki7ByacJZ9z+piSGiwZDsRyhQbYBOBJgr2k6X4BZXi3Kw==}
     hasBin: true
 
   sdp@3.2.0:
@@ -6638,7 +6638,7 @@ snapshots:
       ajv: 6.12.6
       ajv-keywords: 3.5.2(ajv@6.12.6)
 
-  sdp-transform@2.14.1: {}
+  sdp-transform@2.15.0: {}
 
   sdp@3.2.0: {}
 
