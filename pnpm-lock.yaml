@@ -19,7 +19,7 @@ importers:
         version: 3.3.0
       loglevel:
         specifier: ^1.8.0
-        version: 1.9.1
+        version: 1.9.2
       sdp-transform:
         specifier: ^2.14.1
         version: 2.14.1
@@ -2481,8 +2481,8 @@ packages:
   lodash@4.17.21:
     resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
 
-  loglevel@1.9.1:
-    resolution: {integrity: sha512-hP3I3kCrDIMuRwAwHltphhDM1r8i55H33GgqjXbrisuJhF4kRhW1dNuxsRklp4bXl8DSdLaNLuiL4A/LWRfxvg==}
+  loglevel@1.9.2:
+    resolution: {integrity: sha512-HgMmCqIJSAKqo68l0rS2AanEWfkxaZ5wNiEFb5ggm08lDs9Xl2KxBlX3PTcaD2chBM1gXAYf491/M2Rv8Jwayg==}
     engines: {node: '>= 0.6.0'}
 
   loupe@2.3.7:
@@ -6190,7 +6190,7 @@ snapshots:
 
   lodash@4.17.21: {}
 
-  loglevel@1.9.1: {}
+  loglevel@1.9.2: {}
 
   loupe@2.3.7:
     dependencies:
