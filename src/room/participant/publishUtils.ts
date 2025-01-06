@@ -125,7 +125,7 @@ export function computeVideoEncodings(
     log.debug('using video encoding', videoEncoding);
   }
 
-  const sourceFrameRate = videoEncoding.maxFramerate;
+  const sourceFramerate = videoEncoding.maxFramerate;
 
   const original = new VideoPreset(
     width,
@@ -218,10 +218,10 @@ export function computeVideoEncodings(
     //      based on other conditions.
     const size = Math.max(width, height);
     if (size >= 960 && midPreset) {
-      return encodingsFromPresets(width, height, [lowPreset, midPreset, original], sourceFrameRate);
+      return encodingsFromPresets(width, height, [lowPreset, midPreset, original], sourceFramerate);
     }
     if (size >= 480) {
-      return encodingsFromPresets(width, height, [lowPreset, original], sourceFrameRate);
+      return encodingsFromPresets(width, height, [lowPreset, original], sourceFramerate);
     }
   }
   return encodingsFromPresets(width, height, [original]);
@@ -361,7 +361,8 @@ function encodingsFromPresets(
       scaleResolutionDownBy: Math.max(1, size / Math.min(preset.width, preset.height)),
       maxBitrate: preset.encoding.maxBitrate,
     };
-    // ensure that the sourceFramerate is the highest framerate applied across all layers so that the original doesn't get bumped by any of the other layers
+    // ensure that the sourceFramerate is the highest framerate applied across all layers so that the
+    // original encoding doesn't get bumped unintentionally by any of the other layers
     const maxFramerate =
       sourceFramerate && preset.encoding.maxFramerate
         ? Math.min(sourceFramerate, preset.encoding.maxFramerate)
