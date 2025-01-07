@@ -85,7 +85,7 @@ const appActions = {
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
 
-    setLogLevel(LogLevel.info);
+    setLogLevel(LogLevel.debug);
     updateSearchParams(url, token, cryptoKey);
 
     const roomOpts: RoomOptions = {
