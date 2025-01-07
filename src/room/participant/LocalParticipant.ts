@@ -478,7 +478,6 @@ export default class LocalParticipant extends Participant {
 
               break;
             case Track.Source.Microphone:
-              console.log('acquiring mic with', options ?? true);
               localTracks = await this.createTracks({
                 audio: (options as AudioCaptureOptions | undefined) ?? true,
               });
@@ -589,8 +588,6 @@ export default class LocalParticipant extends Participant {
     const constraints = constraintsForOptions(mergedOptions);
     let stream: MediaStream | undefined;
     try {
-      console.log('acquiring media devices with', constraints);
-
       stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (err) {
       if (err instanceof Error) {

@@ -43,7 +43,7 @@ const state = {
   isFrontFacing: false,
   encoder: new TextEncoder(),
   decoder: new TextDecoder(),
-  defaultDevices: new Map<MediaDeviceKind, string>(),
+  defaultDevices: new Map<MediaDeviceKind, string>([['audioinput', 'default']]),
   bitrateInterval: undefined as any,
   e2eeKeyProvider: new ExternalE2EEKeyProvider(),
 };
@@ -440,7 +440,6 @@ const appActions = {
     }
 
     if (currentRoom) {
-      console.log('handling device select due to change in select element');
       await currentRoom.switchActiveDevice(kind, deviceId);
     }
   },
@@ -500,7 +499,6 @@ function handleChatMessage(msg: ChatMessage, participant?: LocalParticipant | Re
 
 function participantConnected(participant: Participant) {
   appendLog('participant', participant.identity, 'connected', participant.metadata);
-  console.log('tracks', participant.trackPublications);
   participant
     .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
       appendLog('track was muted', pub.trackSid, participant.identity);
@@ -871,7 +869,6 @@ const elementMapping: { [k: string]: MediaDeviceKind } = {
 } as const;
 
 async function handleDevicesChanged() {
-  console.log('devices changed');
   Promise.all(
     Object.keys(elementMapping).map(async (id) => {
       const kind = elementMapping[id];
@@ -880,14 +877,12 @@ async function handleDevicesChanged() {
       }
       const devices = await Room.getLocalDevices(kind);
       const element = <HTMLSelectElement>$(id);
-      console.log('default device', kind, state.defaultDevices.get(kind));
       populateSelect(element, devices, state.defaultDevices.get(kind));
     }),
   );
 }
 
 async function handleActiveDeviceChanged(kind: MediaDeviceKind, deviceId: string) {
-  console.trace('active device changed to', kind, deviceId);
   state.defaultDevices.set(kind, deviceId);
   const devices = await Room.getLocalDevices(kind);
   const element = <HTMLSelectElement>$(
