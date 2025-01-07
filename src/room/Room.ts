@@ -238,6 +238,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     if (isWeb()) {
       const abortController = new AbortController();
+
+      // in order to catch device changes prior to room connection we need to register the event in the constructor
       navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange, {
         signal: abortController.signal,
       });
