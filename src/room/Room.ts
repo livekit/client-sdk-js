@@ -1671,12 +1671,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           previousDevice.label !== availableDevice.label
         ) {
           // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
-          console.log(
-            'default device switch detected',
-            availableDevice.kind,
-            availableDevice.label,
-            previousDevice.label,
-          );
           if (this.getActiveDevice(availableDevice.kind) === 'default') {
             // emit an active device change event only if the selected output device is actually on `default`
             this.emit(
@@ -2092,7 +2086,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.logContext,
       );
       this.localParticipant.activeDeviceMap.set(deviceKind, deviceId);
-      console.log('track restarted active device handling');
       this.emit(RoomEvent.ActiveDeviceChanged, deviceKind, deviceId);
     }
   };
