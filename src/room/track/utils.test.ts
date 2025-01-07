@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { audioDefaults } from '../defaults';
 import { AudioCaptureOptions, VideoCaptureOptions, VideoPresets } from './options';
 import { constraintsForOptions, diffAttributes, mergeDefaultOptions } from './utils';
 
@@ -6,6 +7,7 @@ describe('mergeDefaultOptions', () => {
   const audioDefaults: AudioCaptureOptions = {
     autoGainControl: true,
     channelCount: 2,
+    deviceId: 'default',
   };
   const videoDefaults: VideoCaptureOptions = {
     deviceId: 'video123',
@@ -69,7 +71,7 @@ describe('constraintsForOptions', () => {
     const constraints = constraintsForOptions({
       audio: true,
     });
-    expect(constraints.audio).toEqual(true);
+    expect(constraints.audio).toEqual({ deviceId: audioDefaults.deviceId });
     expect(constraints.video).toEqual(false);
   });
 
@@ -81,7 +83,7 @@ describe('constraintsForOptions', () => {
       },
     });
     const audioOpts = constraints.audio as MediaTrackConstraints;
-    expect(Object.keys(audioOpts)).toEqual(['noiseSuppression', 'echoCancellation']);
+    expect(Object.keys(audioOpts)).toEqual(['noiseSuppression', 'echoCancellation', 'deviceId']);
     expect(audioOpts.noiseSuppression).toEqual(true);
     expect(audioOpts.echoCancellation).toEqual(false);
   });

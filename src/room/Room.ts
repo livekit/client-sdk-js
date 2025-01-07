@@ -235,6 +235,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.options.e2ee) {
       this.setupE2EE();
     }
+
+    if (isWeb()) {
+      const abortController = new AbortController();
+      navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange, {
+        signal: abortController.signal,
+      });
+
+      if (Room.cleanupRegistry) {
+        Room.cleanupRegistry.register(this, () => {
+          abortController.abort();
+        });
+      }
+    }
   }
 
   /**
@@ -434,6 +447,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   ): Promise<MediaDeviceInfo[]> {
     return DeviceManager.getInstance().getDevices(kind, requestPermissions);
   }
+
+  static cleanupRegistry =
+    typeof FinalizationRegistry !== 'undefined' &&
+    new FinalizationRegistry((cleanup: () => void) => {
+      cleanup();
+      console.info('cleaning up room');
+    });
 
   /**
    * prepareConnection should be called as soon as the page is loaded, in order
@@ -770,7 +790,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     if (isWeb()) {
       document.addEventListener('freeze', this.onPageLeave);
-      navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
     }
     this.setAndEmitConnectionState(ConnectionState.Connected);
     this.emit(RoomEvent.Connected);
@@ -1099,8 +1118,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = false) {
     let success = true;
+    let needsUpdateWithoutTracks = false;
     const deviceConstraint = exact ? { exact: deviceId } : deviceId;
     if (kind === 'audioinput') {
+      needsUpdateWithoutTracks = this.localParticipant.audioTrackPublications.size === 0;
       const prevDeviceId =
         this.getActiveDevice(kind) ?? this.options.audioCaptureDefaults!.deviceId;
       this.options.audioCaptureDefaults!.deviceId = deviceConstraint;
@@ -1117,6 +1138,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     } else if (kind === 'videoinput') {
+      needsUpdateWithoutTracks = this.localParticipant.videoTrackPublications.size === 0;
       const prevDeviceId =
         this.getActiveDevice(kind) ?? this.options.videoCaptureDefaults!.deviceId;
       this.options.videoCaptureDefaults!.deviceId = deviceConstraint;
@@ -1164,10 +1186,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     }
-    // if (deviceHasChanged && success) {
-    //   this.localParticipant.activeDeviceMap.set(kind, deviceId);
-    //   this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
-    // }
+    if (needsUpdateWithoutTracks) {
+      this.localParticipant.activeDeviceMap.set(kind, deviceId);
+      this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
+    }
 
     return success;
   }
