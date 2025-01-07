@@ -1,19 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { audioDefaults } from '../defaults';
-import { AudioCaptureOptions, VideoCaptureOptions, VideoPresets } from './options';
+import { audioDefaults, videoDefaults } from '../defaults';
+import { type AudioCaptureOptions, VideoPresets } from './options';
 import { constraintsForOptions, diffAttributes, mergeDefaultOptions } from './utils';
 
 describe('mergeDefaultOptions', () => {
-  const audioDefaults: AudioCaptureOptions = {
-    autoGainControl: true,
-    channelCount: 2,
-    deviceId: 'default',
-  };
-  const videoDefaults: VideoCaptureOptions = {
-    deviceId: 'video123',
-    resolution: VideoPresets.h1080.resolution,
-  };
-
   it('does not enable undefined options', () => {
     const opts = mergeDefaultOptions(undefined, audioDefaults, videoDefaults);
     expect(opts.audio).toEqual(undefined);
