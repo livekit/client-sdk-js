@@ -37,6 +37,8 @@ import {
 } from '../../src/index';
 import { isSVCCodec } from '../../src/room/utils';
 
+setLogLevel(LogLevel.debug);
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const state = {
@@ -85,7 +87,6 @@ const appActions = {
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
 
-    setLogLevel(LogLevel.debug);
     updateSearchParams(url, token, cryptoKey);
 
     const roomOpts: RoomOptions = {
@@ -883,6 +884,7 @@ async function handleDevicesChanged() {
 }
 
 async function handleActiveDeviceChanged(kind: MediaDeviceKind, deviceId: string) {
+  console.debug('active device changed', kind, deviceId);
   state.defaultDevices.set(kind, deviceId);
   const devices = await Room.getLocalDevices(kind);
   const element = <HTMLSelectElement>$(

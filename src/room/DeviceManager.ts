@@ -57,7 +57,7 @@ export default class DeviceManager {
       if (isDummyDeviceOrEmpty) {
         const permissionsToAcquire = {
           video: kind !== 'audioinput' && kind !== 'audiooutput',
-          audio: kind !== 'videoinput',
+          audio: kind !== 'videoinput' && { deviceId: 'default' },
         };
         const stream = await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
         devices = await navigator.mediaDevices.enumerateDevices();

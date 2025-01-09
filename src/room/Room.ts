@@ -454,7 +454,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     typeof FinalizationRegistry !== 'undefined' &&
     new FinalizationRegistry((cleanup: () => void) => {
       cleanup();
-      console.info('cleaning up room');
     });
 
   /**
@@ -1678,7 +1677,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const previousDevices = DeviceManager.getInstance().previousDevices;
     // check for available devices, but don't request permissions in order to avoid prompts for kinds that haven't been used before
     const availableDevices = await DeviceManager.getInstance().getDevices(undefined, false);
-
     const browser = getBrowser();
     if (browser?.name === 'Chrome' && browser.os !== 'iOS') {
       for (let availableDevice of availableDevices) {
