@@ -17,6 +17,12 @@ export default class DeviceManager {
 
   static userMediaPromiseMap: Map<MediaDeviceKind, Promise<MediaStream>> = new Map();
 
+  private _previousDevices: MediaDeviceInfo[] = [];
+
+  get previousDevices() {
+    return this._previousDevices;
+  }
+
   async getDevices(
     kind?: MediaDeviceKind,
     requestPermissions: boolean = true,
@@ -51,7 +57,7 @@ export default class DeviceManager {
       if (isDummyDeviceOrEmpty) {
         const permissionsToAcquire = {
           video: kind !== 'audioinput' && kind !== 'audiooutput',
-          audio: kind !== 'videoinput',
+          audio: kind !== 'videoinput' && { deviceId: 'default' },
         };
         const stream = await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
         devices = await navigator.mediaDevices.enumerateDevices();
@@ -60,10 +66,11 @@ export default class DeviceManager {
         });
       }
     }
+    this._previousDevices = devices;
+
     if (kind) {
       devices = devices.filter((device) => device.kind === kind);
     }
-
     return devices;
   }
 

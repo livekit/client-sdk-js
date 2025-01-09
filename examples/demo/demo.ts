@@ -37,13 +37,15 @@ import {
 } from '../../src/index';
 import { isSVCCodec } from '../../src/room/utils';
 
+setLogLevel(LogLevel.debug);
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const state = {
   isFrontFacing: false,
   encoder: new TextEncoder(),
   decoder: new TextDecoder(),
-  defaultDevices: new Map<MediaDeviceKind, string>(),
+  defaultDevices: new Map<MediaDeviceKind, string>([['audioinput', 'default']]),
   bitrateInterval: undefined as any,
   e2eeKeyProvider: new ExternalE2EEKeyProvider(),
 };
@@ -85,7 +87,6 @@ const appActions = {
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
 
-    setLogLevel(LogLevel.debug);
     updateSearchParams(url, token, cryptoKey);
 
     const roomOpts: RoomOptions = {
@@ -439,8 +440,6 @@ const appActions = {
       return;
     }
 
-    state.defaultDevices.set(kind, deviceId);
-
     if (currentRoom) {
       await currentRoom.switchActiveDevice(kind, deviceId);
     }
@@ -501,7 +500,6 @@ function handleChatMessage(msg: ChatMessage, participant?: LocalParticipant | Re
 
 function participantConnected(participant: Participant) {
   appendLog('participant', participant.identity, 'connected', participant.metadata);
-  console.log('tracks', participant.trackPublications);
   participant
     .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
       appendLog('track was muted', pub.trackSid, participant.identity);
@@ -886,6 +884,8 @@ async function handleDevicesChanged() {
 }
 
 async function handleActiveDeviceChanged(kind: MediaDeviceKind, deviceId: string) {
+  console.debug('active device changed', kind, deviceId);
+  state.defaultDevices.set(kind, deviceId);
   const devices = await Room.getLocalDevices(kind);
   const element = <HTMLSelectElement>$(
     Object.entries(elementMapping)
