@@ -490,6 +490,16 @@ export default class LocalParticipant extends Participant {
             default:
               throw new TrackInvalidError(source);
           }
+        } catch (e: unknown) {
+          localTracks?.forEach((tr) => {
+            tr.stop();
+          });
+          if (e instanceof Error) {
+            this.emit(ParticipantEvent.MediaDevicesError, e);
+          }
+          throw e;
+        }
+        try {
           const publishPromises: Array<Promise<LocalTrackPublication>> = [];
           for (const localTrack of localTracks) {
             this.log.info('publishing track', {
@@ -506,9 +516,6 @@ export default class LocalParticipant extends Participant {
           localTracks?.forEach((tr) => {
             tr.stop();
           });
-          if (e instanceof Error && !(e instanceof TrackInvalidError)) {
-            this.emit(ParticipantEvent.MediaDevicesError, e);
-          }
           throw e;
         } finally {
           this.pendingPublishing.delete(source);
