@@ -234,6 +234,25 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (this.options.e2ee) {
       this.setupE2EE();
     }
+
+    /**
+     * Proxy for interception of changes to InternalRoomOptions after Room has been instantiated.
+     */
+    this.options = new Proxy(this.options, {
+      set: (target: InternalRoomOptions, key: keyof InternalRoomOptions, value) => {
+        if (key == 'disconnectOnPageLeave' && value !== target[key]) {
+          if (value === true) {
+            this.registerUnloadEvents();
+          } else {
+            this.unregisterUnloadEvents();
+          }
+        }
+
+        (target[key] as any) = value;
+
+        return true;
+      },
+    });
   }
 
   /**
@@ -761,13 +780,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       throw e;
     }
 
-    // also hook unload event
-    if (isWeb() && this.options.disconnectOnPageLeave) {
-      // capturing both 'pagehide' and 'beforeunload' to capture broadest set of browser behaviors
-      window.addEventListener('pagehide', this.onPageLeave);
-      window.addEventListener('beforeunload', this.onPageLeave);
-    }
     if (isWeb()) {
+      if (this.options.disconnectOnPageLeave) {
+        this.registerUnloadEvents();
+      }
       document.addEventListener('freeze', this.onPageLeave);
       navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange);
     }
@@ -957,6 +973,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       await postAction();
     }
   }
+
+  /**
+   * Add listeners for 'pagehide' and 'beforeunload' events (capturing broadest set of browser behaviors)
+   * to handle disconnect and cleanup
+   */
+  private registerUnloadEvents = () => {
+    window.addEventListener('pagehide', this.onPageLeave);
+    window.addEventListener('beforeunload', this.onPageLeave);
+  };
+
+  /**
+   * Remove listeners for 'pagehide' and 'beforeunload' which would handle disconnect and cleanup
+   */
+  private unregisterUnloadEvents = () => {
+    window.removeEventListener('beforeunload', this.onPageLeave);
+    window.removeEventListener('pagehide', this.onPageLeave);
+  };
 
   private onPageLeave = async () => {
     this.log.info('Page leave detected, disconnecting', this.logContext);
@@ -1385,8 +1418,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.audioContext = undefined;
       }
       if (isWeb()) {
-        window.removeEventListener('beforeunload', this.onPageLeave);
-        window.removeEventListener('pagehide', this.onPageLeave);
+        if (this.options.disconnectOnPageLeave) {
+          this.unregisterUnloadEvents();
+        }
         window.removeEventListener('freeze', this.onPageLeave);
         navigator.mediaDevices?.removeEventListener('devicechange', this.handleDeviceChange);
       }
