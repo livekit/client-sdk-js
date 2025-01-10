@@ -1510,7 +1510,7 @@ export default class LocalParticipant extends Participant {
     return msg;
   }
 
-  async sendText(text: string, options?: SendTextOptions): Promise<{ streamId: string }> {
+  async sendText(text: string, options?: SendTextOptions): Promise<{ id: string }> {
     const streamId = crypto.randomUUID();
     const textInBytes = new TextEncoder().encode(text);
     const totalTextLength = textInBytes.byteLength;
@@ -1589,7 +1589,7 @@ export default class LocalParticipant extends Participant {
         ),
       );
     }
-    return { streamId };
+    return { id: streamId };
   }
 
   /**
@@ -1705,10 +1705,10 @@ export default class LocalParticipant extends Participant {
       destinationIdentities?: Array<string>;
       onProgress?: (progress: number) => void;
     },
-  ) {
+  ): Promise<{ id: string }> {
     const streamId = crypto.randomUUID();
     await this._sendFile(streamId, file, options);
-    return streamId;
+    return { id: streamId };
   }
 
   private async _sendFile(
