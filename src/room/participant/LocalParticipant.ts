@@ -67,7 +67,12 @@ import {
   mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
-import { type ChatMessage, type DataPublishOptions, type SendTextOptions } from '../types';
+import {
+  type ChatMessage,
+  type DataPublishOptions,
+  type SendTextOptions,
+  type TextStreamInfo,
+} from '../types';
 import {
   Future,
   compareVersions,
@@ -1596,11 +1601,18 @@ export default class LocalParticipant extends Participant {
     destinationIdentities?: Array<string>;
   }): Promise<TextStreamWriter> {
     const streamId = crypto.randomUUID();
+
+    const info: TextStreamInfo = {
+      id: streamId,
+      mimeType: 'text/plain',
+      timestamp: Date.now(),
+      topic: options?.topic ?? '',
+    };
     const header = new DataStream_Header({
       streamId,
-      mimeType: 'text/plain',
-      topic: options?.topic,
-      timestamp: numberToBigInt(Date.now()),
+      mimeType: info.mimeType,
+      topic: info.topic,
+      timestamp: numberToBigInt(info.timestamp),
       contentHeader: {
         case: 'textHeader',
         value: new DataStream_TextHeader({
@@ -1621,9 +1633,9 @@ export default class LocalParticipant extends Participant {
     let chunkId = 0;
     const localP = this;
 
-    const writableStream = new WritableStream<string>({
+    const writableStream = new WritableStream<[string, number?]>({
       // Implement the sink
-      write(textChunk) {
+      write([textChunk]) {
         const textInBytes = new TextEncoder().encode(textChunk);
 
         if (textInBytes.byteLength > STREAM_CHUNK_SIZE) {
@@ -1678,7 +1690,7 @@ export default class LocalParticipant extends Participant {
 
     localP.engine.once(EngineEvent.Closing, onEngineClose);
 
-    const writer = new TextStreamWriter(writableStream, () =>
+    const writer = new TextStreamWriter(writableStream, info, () =>
       this.engine.off(EngineEvent.Closing, onEngineClose),
     );
 
