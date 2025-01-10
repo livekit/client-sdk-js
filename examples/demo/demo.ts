@@ -267,6 +267,7 @@ const appActions = {
           }
           appendLog('text stream finished');
         }
+        console.log('final info including close extensions', reader.info);
       })
       .on(RoomEvent.FileStreamReceived, async (reader, participant) => {
         const info = reader.info;

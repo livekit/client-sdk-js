@@ -6,6 +6,7 @@ import {
   DataPacket_Kind,
   DataStream_Chunk,
   DataStream_Header,
+  DataStream_Trailer,
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
@@ -96,6 +97,7 @@ import {
   isSafari,
   isWeb,
   numberToBigInt,
+  sleep,
   supportsSetSinkId,
   toHttpUrl,
   unpackStreamId,
@@ -1598,10 +1600,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
     } else if (packet.value.case === 'streamHeader') {
-      console.log('handle stream header from ', packet.participantIdentity);
       this.handleStreamHeader(packet.value.value, packet.participantIdentity);
     } else if (packet.value.case === 'streamChunk') {
       this.handleStreamChunk(packet.value.value);
+    } else if (packet.value.case === 'streamTrailer') {
+      this.handleStreamTrailer(packet.value.value);
     }
   };
 
@@ -1609,24 +1612,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
-  private handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
-    console.log('received header', streamHeader);
+  private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
     if (streamHeader.contentHeader.case === 'fileHeader') {
       if (this.listeners(RoomEvent.FileStreamReceived).length === 0) {
         this.log.debug('ignoring incoming file stream due to no listeners');
         return;
       }
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const stream = new ReadableStream({
-        start: (controller) => {
-          streamController = controller;
-          this.fileStreamControllers.set(streamHeader.streamId, {
-            header: streamHeader,
-            controller: streamController,
-            startTime: Date.now(),
-          });
-        },
-      });
       const info: FileStreamInfo = {
         id: streamHeader.streamId,
         fileName: streamHeader.contentHeader.value.fileName ?? 'unknown',
@@ -1636,6 +1628,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         timestamp: bigIntToNumber(streamHeader.timestamp),
         extensions: streamHeader.extensions,
       };
+      const stream = new ReadableStream({
+        start: (controller) => {
+          streamController = controller;
+          this.fileStreamControllers.set(streamHeader.streamId, {
+            info,
+            controller: streamController,
+            startTime: Date.now(),
+          });
+        },
+      });
+
       this.emit(
         RoomEvent.FileStreamReceived,
         new BinaryStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
@@ -1647,16 +1650,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return;
       }
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const stream = new ReadableStream<DataStream_Chunk>({
-        start: (controller) => {
-          streamController = controller;
-          this.textStreamControllers.set(streamHeader.streamId, {
-            header: streamHeader,
-            controller: streamController,
-            startTime: Date.now(),
-          });
-        },
-      });
       const info: TextStreamInfo = {
         id: streamHeader.streamId,
         mimeType: streamHeader.mimeType,
@@ -1665,6 +1658,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         timestamp: Number(streamHeader.timestamp),
         extensions: streamHeader.extensions,
       };
+
+      const stream = new ReadableStream<DataStream_Chunk>({
+        start: (controller) => {
+          streamController = controller;
+          this.textStreamControllers.set(streamHeader.streamId, {
+            info,
+            controller: streamController,
+            startTime: Date.now(),
+          });
+        },
+      });
+
       this.emit(
         RoomEvent.TextStreamReceived,
         new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
@@ -1674,16 +1679,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private handleStreamChunk(chunk: DataStream_Chunk) {
-    console.log('received chunk', chunk.chunkIndex);
-
     const fileBuffer = this.fileStreamControllers.get(chunk.streamId);
     if (fileBuffer) {
       if (chunk.content.length > 0) {
         fileBuffer.controller.enqueue(chunk);
-      }
-      if (chunk.complete === true) {
-        fileBuffer.controller.close();
-        this.fileStreamControllers.delete(chunk.streamId);
       }
     }
     const textBuffer = this.textStreamControllers.get(chunk.streamId);
@@ -1691,9 +1690,27 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       if (chunk.content.length > 0) {
         textBuffer.controller.enqueue(chunk);
       }
-      if (chunk.complete === true) {
-        textBuffer.controller.close();
-        this.fileStreamControllers.delete(chunk.streamId);
+    }
+  }
+
+  private handleStreamTrailer(trailer: DataStream_Trailer) {
+    const textBuffer = this.textStreamControllers.get(trailer.streamId);
+
+    if (textBuffer) {
+      textBuffer.info.extensions = {
+        ...textBuffer.info.extensions,
+        ...trailer.extensions,
+      };
+      textBuffer.controller.close();
+      this.fileStreamControllers.delete(trailer.streamId);
+    }
+
+    const fileBuffer = this.fileStreamControllers.get(trailer.streamId);
+    if (fileBuffer) {
+      {
+        fileBuffer.info.extensions = { ...fileBuffer.info.extensions, ...trailer.extensions };
+        fileBuffer.controller.close();
+        this.fileStreamControllers.delete(trailer.streamId);
       }
     }
   }

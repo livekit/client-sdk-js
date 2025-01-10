@@ -144,7 +144,7 @@ export interface ChatMessage {
 // }
 
 export interface StreamController<T extends DataStream_Chunk> {
-  header: DataStream_Header;
+  info: BaseStreamInfo;
   controller: ReadableStreamDefaultController<T>;
   startTime: number;
   endTime?: number;

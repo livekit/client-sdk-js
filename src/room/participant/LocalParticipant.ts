@@ -9,6 +9,7 @@ import {
   DataStream_Header,
   DataStream_OperationType,
   DataStream_TextHeader,
+  DataStream_Trailer,
   Encryption_Type,
   ParticipantInfo,
   ParticipantPermission,
@@ -1563,7 +1564,6 @@ export default class LocalParticipant extends Participant {
         content: chunkData,
         streamId,
         chunkIndex: numberToBigInt(i),
-        complete: i === totalTextChunks - 1,
       });
       const chunkPacket = new DataPacket({
         destinationIdentities,
@@ -1576,6 +1576,19 @@ export default class LocalParticipant extends Participant {
       await this.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
       handleProgress(Math.ceil((i + 1) / totalTextChunks), 0);
     }
+
+    const trailer = new DataStream_Trailer({
+      streamId,
+    });
+    const trailerPacket = new DataPacket({
+      destinationIdentities,
+      value: {
+        case: 'streamTrailer',
+        value: trailer,
+      },
+    });
+    await this.engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
+
     if (options?.attachments && fileIds) {
       await Promise.all(
         options.attachments.map(async (file, idx) =>
@@ -1664,19 +1677,17 @@ export default class LocalParticipant extends Participant {
         });
       },
       async close() {
-        const chunk = new DataStream_Chunk({
+        const trailer = new DataStream_Trailer({
           streamId,
-          chunkIndex: numberToBigInt(chunkId),
-          complete: true,
         });
-        const chunkPacket = new DataPacket({
+        const trailerPacket = new DataPacket({
           destinationIdentities,
           value: {
-            case: 'streamChunk',
-            value: chunk,
+            case: 'streamTrailer',
+            value: trailer,
           },
         });
-        await localP.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
+        await localP.engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
       },
       abort(err) {
         console.log('Sink error:', err);
@@ -1767,7 +1778,6 @@ export default class LocalParticipant extends Participant {
         content: chunkData,
         streamId,
         chunkIndex: numberToBigInt(i),
-        complete: i === totalChunks - 1,
       });
       const chunkPacket = new DataPacket({
         destinationIdentities,
@@ -1779,6 +1789,17 @@ export default class LocalParticipant extends Participant {
       await this.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
       options?.onProgress?.((i + 1) / totalChunks);
     }
+    const trailer = new DataStream_Trailer({
+      streamId,
+    });
+    const trailerPacket = new DataPacket({
+      destinationIdentities,
+      value: {
+        case: 'streamTrailer',
+        value: trailer,
+      },
+    });
+    await this.engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
   }
 
   /**
