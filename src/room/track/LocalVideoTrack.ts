@@ -11,7 +11,7 @@ import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
-import { isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
+import { isFireFox, isMobile, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track, VideoQuality } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
@@ -239,24 +239,6 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     }
     this.log.debug(`setting publishing quality. max quality ${maxQuality}`, this.logContext);
     this.setPublishingLayers(qualities);
-  }
-
-  async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
-    if (
-      this._constraints.deviceId === deviceId &&
-      this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)
-    ) {
-      return true;
-    }
-    this._constraints.deviceId = deviceId;
-    // when video is muted, underlying media stream track is stopped and
-    // will be restarted later
-    if (!this.isMuted) {
-      await this.restartTrack();
-    }
-    return (
-      this.isMuted || unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId
-    );
   }
 
   async restartTrack(options?: VideoCaptureOptions) {

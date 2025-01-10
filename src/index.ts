@@ -45,6 +45,7 @@ export { RpcError, type RpcInvocationData, type PerformRpcParams } from './room/
 export * from './connectionHelper/ConnectionCheck';
 export * from './connectionHelper/checks/Checker';
 export * from './e2ee';
+export type { BaseE2EEManager } from './e2ee/E2eeManager';
 export * from './options';
 export * from './room/errors';
 export * from './room/events';

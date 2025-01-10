@@ -126,6 +126,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     identity: string,
     name?: string,
     metadata?: string,
+    attributes?: Record<string, string>,
     loggerOptions?: LoggerOptions,
     kind: ParticipantKind = ParticipantKind.STANDARD,
   ) {
@@ -143,7 +144,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this.videoTrackPublications = new Map();
     this.trackPublications = new Map();
     this._kind = kind;
-    this._attributes = {};
+    this._attributes = attributes ?? {};
   }
 
   getTrackPublications(): TrackPublication[] {

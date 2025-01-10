@@ -37,13 +37,15 @@ import {
 } from '../../src/index';
 import { isSVCCodec, sleep } from '../../src/room/utils';
 
+setLogLevel(LogLevel.debug);
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const state = {
   isFrontFacing: false,
   encoder: new TextEncoder(),
   decoder: new TextDecoder(),
-  defaultDevices: new Map<MediaDeviceKind, string>(),
+  defaultDevices: new Map<MediaDeviceKind, string>([['audioinput', 'default']]),
   bitrateInterval: undefined as any,
   e2eeKeyProvider: new ExternalE2EEKeyProvider(),
   chatMessages: new Map<string, { text: string; participant?: Participant }>(),
@@ -95,7 +97,6 @@ const appActions = {
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
 
-    setLogLevel(LogLevel.debug);
     updateSearchParams(url, token, cryptoKey);
 
     const roomOpts: RoomOptions = {
@@ -318,6 +319,7 @@ const appActions = {
       participantConnected(participant);
     });
     participantConnected(room.localParticipant);
+    updateButtonsForPublishState();
 
     return room;
   },
@@ -493,8 +495,6 @@ const appActions = {
       return;
     }
 
-    state.defaultDevices.set(kind, deviceId);
-
     if (currentRoom) {
       await currentRoom.switchActiveDevice(kind, deviceId);
     }
@@ -574,8 +574,6 @@ async function sendGreetingTo(participant: Participant) {
 
 async function participantConnected(participant: Participant) {
   appendLog('participant', participant.identity, 'connected', participant.metadata);
-  console.log('tracks', participant.trackPublications);
-
   participant
     .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
       appendLog('track was muted', pub.trackSid, participant.identity);
@@ -962,6 +960,8 @@ async function handleDevicesChanged() {
 }
 
 async function handleActiveDeviceChanged(kind: MediaDeviceKind, deviceId: string) {
+  console.debug('active device changed', kind, deviceId);
+  state.defaultDevices.set(kind, deviceId);
   const devices = await Room.getLocalDevices(kind);
   const element = <HTMLSelectElement>$(
     Object.entries(elementMapping)

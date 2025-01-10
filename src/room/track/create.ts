@@ -32,8 +32,8 @@ export async function createLocalTracks(
 ): Promise<Array<LocalTrack>> {
   // set default options to true
   options ??= {};
-  options.audio ??= true;
-  options.video ??= true;
+  options.audio ??= { deviceId: 'default' };
+  options.video ??= { deviceId: 'default' };
 
   const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(options);
   const opts = mergeDefaultOptions(options, audioDefaults, videoDefaults);

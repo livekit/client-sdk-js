@@ -125,6 +125,8 @@ export function computeVideoEncodings(
     log.debug('using video encoding', videoEncoding);
   }
 
+  const sourceFramerate = videoEncoding.maxFramerate;
+
   const original = new VideoPreset(
     width,
     height,
@@ -216,10 +218,10 @@ export function computeVideoEncodings(
     //      based on other conditions.
     const size = Math.max(width, height);
     if (size >= 960 && midPreset) {
-      return encodingsFromPresets(width, height, [lowPreset, midPreset, original]);
+      return encodingsFromPresets(width, height, [lowPreset, midPreset, original], sourceFramerate);
     }
     if (size >= 480) {
-      return encodingsFromPresets(width, height, [lowPreset, original]);
+      return encodingsFromPresets(width, height, [lowPreset, original], sourceFramerate);
     }
   }
   return encodingsFromPresets(width, height, [original]);
@@ -344,6 +346,7 @@ function encodingsFromPresets(
   width: number,
   height: number,
   presets: VideoPreset[],
+  sourceFramerate?: number | undefined,
 ): RTCRtpEncodingParameters[] {
   const encodings: RTCRtpEncodingParameters[] = [];
   presets.forEach((preset, idx) => {
@@ -352,13 +355,20 @@ function encodingsFromPresets(
     }
     const size = Math.min(width, height);
     const rid = videoRids[idx];
+
     const encoding: RTCRtpEncodingParameters = {
       rid,
       scaleResolutionDownBy: Math.max(1, size / Math.min(preset.width, preset.height)),
       maxBitrate: preset.encoding.maxBitrate,
     };
-    if (preset.encoding.maxFramerate) {
-      encoding.maxFramerate = preset.encoding.maxFramerate;
+    // ensure that the sourceFramerate is the highest framerate applied across all layers so that the
+    // original encoding doesn't get bumped unintentionally by any of the other layers
+    const maxFramerate =
+      sourceFramerate && preset.encoding.maxFramerate
+        ? Math.min(sourceFramerate, preset.encoding.maxFramerate)
+        : preset.encoding.maxFramerate;
+    if (maxFramerate) {
+      encoding.maxFramerate = maxFramerate;
     }
     const canSetPriority = isFireFox() || idx === 0;
     if (preset.encoding.priority && canSetPriority) {

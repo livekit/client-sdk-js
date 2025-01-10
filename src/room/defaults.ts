@@ -22,6 +22,7 @@ export const publishDefaults: TrackPublishDefaults = {
 } as const;
 
 export const audioDefaults: AudioCaptureOptions = {
+  deviceId: 'default',
   autoGainControl: true,
   echoCancellation: true,
   noiseSuppression: true,
@@ -29,6 +30,7 @@ export const audioDefaults: AudioCaptureOptions = {
 };
 
 export const videoDefaults: VideoCaptureOptions = {
+  deviceId: 'default',
   resolution: VideoPresets.h720.resolution,
 };
 

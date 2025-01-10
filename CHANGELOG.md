@@ -1,5 +1,25 @@
 # Change Log
 
+## 2.7.5
+
+### Patch Changes
+
+- fix(deps): update dependency @livekit/protocol to v1.29.4 - [#1352](https://github.com/livekit/client-sdk-js/pull/1352) ([@renovate](https://github.com/apps/renovate))
+
+## 2.7.4
+
+### Patch Changes
+
+- Support swapping out the E2EEManager for react-native - [#1345](https://github.com/livekit/client-sdk-js/pull/1345) ([@davidliu](https://github.com/davidliu))
+
+- fix: prevent monitoring leak when stopOnUnpublish is false - [#1348](https://github.com/livekit/client-sdk-js/pull/1348) ([@davidzhao](https://github.com/davidzhao))
+
+- Prevent undefined access to engine in connection reconciler - [#1349](https://github.com/livekit/client-sdk-js/pull/1349) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix sdp connection address mismatch - [#1342](https://github.com/livekit/client-sdk-js/pull/1342) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Set participant attributes as soon as possible, making them available in all related events - [#1344](https://github.com/livekit/client-sdk-js/pull/1344) ([@holzgeist](https://github.com/holzgeist))
+
 ## 2.7.3
 
 ### Patch Changes

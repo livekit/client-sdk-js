@@ -153,7 +153,7 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
-    super(sid, identity, undefined, undefined, {
+    super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
       loggerContextCb: () => this.engine.logContext,
     });
@@ -163,7 +163,11 @@ export default class LocalParticipant extends Participant {
     this.engine = engine;
     this.roomOptions = options;
     this.setupEngine(engine);
-    this.activeDeviceMap = new Map();
+    this.activeDeviceMap = new Map([
+      ['audioinput', 'default'],
+      ['videoinput', 'default'],
+      ['audiooutput', 'default'],
+    ]);
     this.pendingSignalRequests = new Map();
   }
 
@@ -495,6 +499,16 @@ export default class LocalParticipant extends Participant {
             default:
               throw new TrackInvalidError(source);
           }
+        } catch (e: unknown) {
+          localTracks?.forEach((tr) => {
+            tr.stop();
+          });
+          if (e instanceof Error) {
+            this.emit(ParticipantEvent.MediaDevicesError, e);
+          }
+          throw e;
+        }
+        try {
           const publishPromises: Array<Promise<LocalTrackPublication>> = [];
           for (const localTrack of localTracks) {
             this.log.info('publishing track', {
@@ -511,9 +525,6 @@ export default class LocalParticipant extends Participant {
           localTracks?.forEach((tr) => {
             tr.stop();
           });
-          if (e instanceof Error && !(e instanceof TrackInvalidError)) {
-            this.emit(ParticipantEvent.MediaDevicesError, e);
-          }
           throw e;
         } finally {
           this.pendingPublishing.delete(source);
@@ -1275,6 +1286,8 @@ export default class LocalParticipant extends Participant {
     }
     if (stopOnUnpublish) {
       track.stop();
+    } else {
+      track.stopMonitor();
     }
 
     let negotiationNeeded = false;
