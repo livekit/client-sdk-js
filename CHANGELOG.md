@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.8.0
+
+### Minor Changes
+
+- Improve default device handling - [#1357](https://github.com/livekit/client-sdk-js/pull/1357) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Ensure maxFps applies for very low framerates - [#1362](https://github.com/livekit/client-sdk-js/pull/1362) ([@lukasIO](https://github.com/lukasIO))
+
+- Emit MediaDeviceError only when acquiring tracks fails - [#1365](https://github.com/livekit/client-sdk-js/pull/1365) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.7.5
 
 ### Patch Changes
