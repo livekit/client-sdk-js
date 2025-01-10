@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.8.1
+
+### Patch Changes
+
+- expose inbound-rtp.id as streamId - [#1367](https://github.com/livekit/client-sdk-js/pull/1367) ([@s-hamdananwar](https://github.com/s-hamdananwar))
+
 ## 2.8.0
 
 ### Minor Changes
