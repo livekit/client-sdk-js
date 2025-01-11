@@ -298,7 +298,11 @@ export class SignalClient {
           abortHandler();
         }
         abortSignal?.addEventListener('abort', abortHandler);
-        this.log.debug(`connecting to ${urlObj}`, this.logContext);
+        this.log.debug(`connecting to ${urlObj.host}`, {
+          reconnect: opts.reconnect,
+          reconnectReason: opts.reconnectReason,
+          ...this.logContext,
+        });
         if (this.ws) {
           await this.close(false);
         }
