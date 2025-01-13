@@ -97,7 +97,6 @@ import {
   isSafari,
   isWeb,
   numberToBigInt,
-  sleep,
   supportsSetSinkId,
   toHttpUrl,
   unpackStreamId,
