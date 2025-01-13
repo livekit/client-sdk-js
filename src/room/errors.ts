@@ -99,7 +99,7 @@ export enum MediaDeviceFailure {
 export namespace MediaDeviceFailure {
   export function getFailure(error: any): MediaDeviceFailure | undefined {
     if (!error || !('name' in error)) {
-      return undefined
+      return undefined;
     }
 
     if (['NotFoundError', 'DevicesNotFoundError'].includes(error.name)) {
