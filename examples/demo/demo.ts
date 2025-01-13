@@ -35,7 +35,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
-import { isSVCCodec } from '../../src/room/utils';
+import { isSVCCodec, sleep } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
 
@@ -48,6 +48,7 @@ const state = {
   defaultDevices: new Map<MediaDeviceKind, string>([['audioinput', 'default']]),
   bitrateInterval: undefined as any,
   e2eeKeyProvider: new ExternalE2EEKeyProvider(),
+  chatMessages: new Map<string, { text: string; participant?: Participant }>(),
 };
 let currentRoom: Room | undefined;
 
@@ -72,6 +73,15 @@ function updateSearchParams(url: string, token: string, key: string) {
 
 // handles actions from the HTML
 const appActions = {
+  sendFile: async () => {
+    console.log('start sending');
+    const file = ($('file') as HTMLInputElement).files?.[0]!;
+    currentRoom?.localParticipant.sendFile(file, {
+      mimeType: file.type,
+      topic: 'test',
+      onProgress: (progress) => console.log('sending file, progress', Math.ceil(progress * 100)),
+    });
+  },
   connectWithFormInput: async () => {
     const url = (<HTMLInputElement>$('url')).value;
     const token = (<HTMLInputElement>$('token')).value;
@@ -232,6 +242,52 @@ const appActions = {
             participant.identity
           }) to ${streamState.toString()}`,
         );
+      })
+      .on(RoomEvent.TextStreamReceived, async (reader, participant) => {
+        const info = reader.info;
+        if (info.size && info.topic === 'chat') {
+          handleChatMessage(
+            {
+              id: info.id,
+              timestamp: info.timestamp,
+              message: await reader.readAll(),
+            },
+            room.getParticipantByIdentity(participant?.identity),
+          );
+        } else {
+          for await (const msg of reader) {
+            handleChatMessage(
+              {
+                id: info.id,
+                timestamp: info.timestamp,
+                message: msg.collected,
+              },
+              room.getParticipantByIdentity(participant?.identity),
+            );
+          }
+          appendLog('text stream finished');
+        }
+        console.log('final info including close extensions', reader.info);
+      })
+      .on(RoomEvent.FileStreamReceived, async (reader, participant) => {
+        const info = reader.info;
+
+        appendLog(
+          `started to receive a file called "${info.fileName}" from ${participant?.identity}`,
+        );
+        reader.onProgress = (progress) => {
+          console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
+        };
+        const result = new Blob(await reader.readAll(), { type: info.mimeType });
+        appendLog(
+          `completely received file called "${info.fileName}" from ${participant?.identity}`,
+        );
+        const downloadLink = URL.createObjectURL(result);
+        const linkEl = document.createElement('a');
+        linkEl.href = downloadLink;
+        linkEl.innerText = info.fileName;
+        linkEl.setAttribute('download', info.fileName);
+        document.body.append(linkEl);
       });
 
     try {
@@ -295,32 +351,32 @@ const appActions = {
         const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
         const style = document.createElement('style');
         style.textContent = cssRules;
-        pipWindow.document.head.appendChild(style);
+        pipWindow?.document.head.appendChild(style);
       } catch (e) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.type = styleSheet.type;
         link.media = styleSheet.media;
-        link.href = styleSheet.href;
-        pipWindow.document.head.appendChild(link);
+        link.href = styleSheet.href!;
+        pipWindow?.document.head.appendChild(link);
       }
     });
     // Move participant videos to the Picture-in-Picture window
     const participantsArea = $('participants-area');
     const pipParticipantsArea = document.createElement('div');
     pipParticipantsArea.id = 'participants-area';
-    pipWindow.document.body.append(pipParticipantsArea);
+    pipWindow?.document.body.append(pipParticipantsArea);
     [...participantsArea.children].forEach((child) => pipParticipantsArea.append(child));
 
     // Move participant videos back when the Picture-in-Picture window closes.
-    pipWindow.addEventListener('pagehide', (event) => {
+    pipWindow?.addEventListener('pagehide', () => {
       setButtonState('toggle-pip-button', 'Open PiP', false);
       if (currentRoom?.state === ConnectionState.Connected)
         [...pipParticipantsArea.children].forEach((child) => participantsArea.append(child));
     });
 
     // Close PiP when room disconnects
-    currentRoom.once('disconnected', (e) => window.documentPictureInPicture?.window.close());
+    currentRoom!.once('disconnected', () => window.documentPictureInPicture?.window?.close());
   },
 
   ratchetE2EEKey: async () => {
@@ -402,7 +458,7 @@ const appActions = {
     if (!currentRoom) return;
     const textField = <HTMLInputElement>$('entry');
     if (textField.value) {
-      currentRoom.localParticipant.sendChatMessage(textField.value);
+      currentRoom.localParticipant.sendText(textField.value, { topic: 'chat' });
       textField.value = '';
     }
   },
@@ -492,13 +548,32 @@ declare global {
 window.appActions = appActions;
 
 // --------------------------- event handlers ------------------------------- //
+function handleChatMessage(msg: ChatMessage, participant?: Participant) {
+  state.chatMessages.set(msg.id, { text: msg.message, participant });
 
-function handleChatMessage(msg: ChatMessage, participant?: LocalParticipant | RemoteParticipant) {
-  (<HTMLTextAreaElement>$('chat')).value +=
-    `${participant?.identity}${participant instanceof LocalParticipant ? ' (me)' : ''}: ${msg.message}\n`;
+  const chatEl = <HTMLTextAreaElement>$('chat');
+  chatEl.value = '';
+  for (const chatMsg of state.chatMessages.values()) {
+    chatEl.value += `${chatMsg.participant?.identity}${chatMsg.participant instanceof LocalParticipant ? ' (me)' : ''}: ${chatMsg.text}\n`;
+  }
 }
 
-function participantConnected(participant: Participant) {
+async function sendGreetingTo(participant: Participant) {
+  const greeting = `Hello new participant ${participant.identity}. This is just an progressively updating chat message from me, participant ${currentRoom?.localParticipant.identity}.`;
+
+  const streamWriter = await currentRoom!.localParticipant.streamText({
+    topic: 'chat',
+    destinationIdentities: [participant.identity],
+  });
+
+  for (const char of greeting) {
+    await streamWriter.write(char);
+    await sleep(20);
+  }
+  await streamWriter.close();
+}
+
+async function participantConnected(participant: Participant) {
   appendLog('participant', participant.identity, 'connected', participant.metadata);
   participant
     .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
@@ -515,6 +590,8 @@ function participantConnected(participant: Participant) {
     .on(ParticipantEvent.ConnectionQualityChanged, () => {
       renderParticipant(participant);
     });
+
+  await sendGreetingTo(participant);
 }
 
 function participantDisconnected(participant: RemoteParticipant) {
@@ -803,14 +880,14 @@ function renderBitrate() {
   }
 }
 
-function getParticipantsAreaElement() {
+function getParticipantsAreaElement(): HTMLElement {
   return (
     window.documentPictureInPicture?.window?.document.querySelector('#participants-area') ||
     $('participants-area')
   );
 }
 
-function updateVideoSize(element: HTMLVideoElement, target: HTMLElement) {
+function updateVideoSize(element: HTMLVideoElement, target: Element) {
   target.innerHTML = `(${element.videoWidth}x${element.videoHeight})`;
 }
 

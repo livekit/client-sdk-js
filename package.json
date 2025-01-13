@@ -55,7 +55,7 @@
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
-    "@livekit/protocol": "1.30.0",
+    "@livekit/protocol": "1.31.0",
     "events": "^3.3.0",
     "loglevel": "^1.8.0",
     "sdp-transform": "^2.14.1",

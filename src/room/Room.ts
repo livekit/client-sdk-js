@@ -4,6 +4,9 @@ import {
   ConnectionQualityUpdate,
   type DataPacket,
   DataPacket_Kind,
+  DataStream_Chunk,
+  DataStream_Header,
+  DataStream_Trailer,
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
@@ -45,6 +48,7 @@ import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
+import { BinaryStreamReader, TextStreamReader } from './StreamReader';
 import {
   audioDefaults,
   publishDefaults,
@@ -70,14 +74,18 @@ import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, sourceToKind } from './track/utils';
-import type {
-  ChatMessage,
-  SimulationOptions,
-  SimulationScenario,
-  TranscriptionSegment,
+import {
+  type ChatMessage,
+  type FileStreamInfo,
+  type SimulationOptions,
+  type SimulationScenario,
+  type StreamController,
+  type TextStreamInfo,
+  type TranscriptionSegment,
 } from './types';
 import {
   Future,
+  bigIntToNumber,
   createDummyVideoStreamTrack,
   extractChatMessage,
   extractTranscriptionSegments,
@@ -88,6 +96,7 @@ import {
   isReactNative,
   isSafari,
   isWeb,
+  numberToBigInt,
   supportsSetSinkId,
   toHttpUrl,
   unpackStreamId,
@@ -960,7 +969,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         req = new SimulateScenario({
           scenario: {
             case: 'subscriberBandwidth',
-            value: BigInt(arg),
+            value: numberToBigInt(arg),
           },
         });
         break;
@@ -1589,8 +1598,121 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleChatMessage(participant, packet.value.value);
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
+    } else if (packet.value.case === 'streamHeader') {
+      this.handleStreamHeader(packet.value.value, packet.participantIdentity);
+    } else if (packet.value.case === 'streamChunk') {
+      this.handleStreamChunk(packet.value.value);
+    } else if (packet.value.case === 'streamTrailer') {
+      this.handleStreamTrailer(packet.value.value);
     }
   };
+
+  fileStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+
+  textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+
+  private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
+    if (streamHeader.contentHeader.case === 'fileHeader') {
+      if (this.listeners(RoomEvent.FileStreamReceived).length === 0) {
+        this.log.debug('ignoring incoming file stream due to no listeners');
+        return;
+      }
+      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const info: FileStreamInfo = {
+        id: streamHeader.streamId,
+        fileName: streamHeader.contentHeader.value.fileName ?? 'unknown',
+        mimeType: streamHeader.mimeType,
+        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
+        topic: streamHeader.topic,
+        timestamp: bigIntToNumber(streamHeader.timestamp),
+        extensions: streamHeader.extensions,
+      };
+      const stream = new ReadableStream({
+        start: (controller) => {
+          streamController = controller;
+          this.fileStreamControllers.set(streamHeader.streamId, {
+            info,
+            controller: streamController,
+            startTime: Date.now(),
+          });
+        },
+      });
+
+      this.emit(
+        RoomEvent.FileStreamReceived,
+        new BinaryStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        { identity: participantIdentity },
+      );
+    } else if (streamHeader.contentHeader.case === 'textHeader') {
+      if (this.listeners(RoomEvent.TextStreamReceived).length === 0) {
+        this.log.debug('ignoring incoming text stream due to no listeners');
+        return;
+      }
+      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const info: TextStreamInfo = {
+        id: streamHeader.streamId,
+        mimeType: streamHeader.mimeType,
+        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
+        topic: streamHeader.topic,
+        timestamp: Number(streamHeader.timestamp),
+        extensions: streamHeader.extensions,
+      };
+
+      const stream = new ReadableStream<DataStream_Chunk>({
+        start: (controller) => {
+          streamController = controller;
+          this.textStreamControllers.set(streamHeader.streamId, {
+            info,
+            controller: streamController,
+            startTime: Date.now(),
+          });
+        },
+      });
+
+      this.emit(
+        RoomEvent.TextStreamReceived,
+        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        { identity: participantIdentity },
+      );
+    }
+  }
+
+  private handleStreamChunk(chunk: DataStream_Chunk) {
+    const fileBuffer = this.fileStreamControllers.get(chunk.streamId);
+    if (fileBuffer) {
+      if (chunk.content.length > 0) {
+        fileBuffer.controller.enqueue(chunk);
+      }
+    }
+    const textBuffer = this.textStreamControllers.get(chunk.streamId);
+    if (textBuffer) {
+      if (chunk.content.length > 0) {
+        textBuffer.controller.enqueue(chunk);
+      }
+    }
+  }
+
+  private handleStreamTrailer(trailer: DataStream_Trailer) {
+    const textBuffer = this.textStreamControllers.get(trailer.streamId);
+
+    if (textBuffer) {
+      textBuffer.info.extensions = {
+        ...textBuffer.info.extensions,
+        ...trailer.extensions,
+      };
+      textBuffer.controller.close();
+      this.fileStreamControllers.delete(trailer.streamId);
+    }
+
+    const fileBuffer = this.fileStreamControllers.get(trailer.streamId);
+    if (fileBuffer) {
+      {
+        fileBuffer.info.extensions = { ...fileBuffer.info.extensions, ...trailer.extensions };
+        fileBuffer.controller.close();
+        this.fileStreamControllers.delete(trailer.streamId);
+      }
+    }
+  }
 
   private handleUserPacket = (
     participant: RemoteParticipant | undefined,
@@ -2394,4 +2516,6 @@ export type RoomEventCallbacks = {
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
+  fileStreamReceived: (reader: BinaryStreamReader, participantInfo: { identity: string }) => void;
+  textStreamReceived: (reader: TextStreamReader, participantInfo: { identity: string }) => void;
 };
