@@ -98,17 +98,20 @@ export enum MediaDeviceFailure {
 
 export namespace MediaDeviceFailure {
   export function getFailure(error: any): MediaDeviceFailure | undefined {
-    if (error && 'name' in error) {
-      if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        return MediaDeviceFailure.NotFound;
-      }
-      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        return MediaDeviceFailure.PermissionDenied;
-      }
-      if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        return MediaDeviceFailure.DeviceInUse;
-      }
-      return MediaDeviceFailure.Other;
+    if (!error || !('name' in error)) {
+      return undefined;
     }
+
+    if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+      return MediaDeviceFailure.NotFound;
+    }
+    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+      return MediaDeviceFailure.PermissionDenied;
+    }
+    if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+      return MediaDeviceFailure.DeviceInUse;
+    }
+
+    return MediaDeviceFailure.Other;
   }
 }
