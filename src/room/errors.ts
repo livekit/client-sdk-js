@@ -102,13 +102,15 @@ export namespace MediaDeviceFailure {
       return undefined;
     }
 
-    if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+    if (['NotFoundError', 'DevicesNotFoundError'].includes(error.name)) {
       return MediaDeviceFailure.NotFound;
     }
-    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+
+    if (['NotAllowedError', 'PermissionDeniedError'].includes(error.name)) {
       return MediaDeviceFailure.PermissionDenied;
     }
-    if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+
+    if (['NotReadableError', 'TrackStartError'].includes(error.name)) {
       return MediaDeviceFailure.DeviceInUse;
     }
 
