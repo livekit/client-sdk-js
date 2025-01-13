@@ -244,6 +244,7 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
       if (v.type === 'inbound-rtp') {
         receiverStats = {
           type: 'audio',
+          streamId: v.id,
           timestamp: v.timestamp,
           jitter: v.jitter,
           bytesReceived: v.bytesReceived,

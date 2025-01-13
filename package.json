@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "2.7.5",
+  "version": "2.8.0",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -73,7 +73,7 @@
     "@rollup/plugin-babel": "6.0.4",
     "@rollup/plugin-commonjs": "28.0.2",
     "@rollup/plugin-json": "6.1.0",
-    "@rollup/plugin-node-resolve": "15.3.1",
+    "@rollup/plugin-node-resolve": "16.0.0",
     "@rollup/plugin-terser": "^0.4.0",
     "@size-limit/file": "^8.2.4",
     "@size-limit/webpack": "^8.2.4",
@@ -102,5 +102,5 @@
     "vite": "5.4.11",
     "vitest": "^1.0.0"
   },
-  "packageManager": "pnpm@9.12.0"
+  "packageManager": "pnpm@9.15.3"
 }

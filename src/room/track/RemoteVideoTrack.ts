@@ -177,6 +177,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
         codecID = v.codecId;
         receiverStats = {
           type: 'video',
+          streamId: v.id,
           framesDecoded: v.framesDecoded,
           framesDropped: v.framesDropped,
           framesReceived: v.framesReceived,
