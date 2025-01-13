@@ -1,5 +1,5 @@
 import { Mutex } from '@livekit/mutex';
-import { DataPacket_Kind, DisconnectReason, SubscriptionError } from '@livekit/protocol';
+import { DataPacket_Kind, DisconnectReason, SubscriptionError, TrackType } from '@livekit/protocol';
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
@@ -112,4 +112,5 @@ export type {
   VideoSenderStats,
   ReconnectContext,
   ReconnectPolicy,
+  TrackType,
 };
