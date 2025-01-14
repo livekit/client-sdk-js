@@ -222,10 +222,13 @@ export default abstract class LocalTrack<
   }
 
   async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
+    console.log('[DEBUG]::set device id', { deviceId, source: this.source });
     if (
       this._constraints.deviceId === deviceId &&
       this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)
     ) {
+      console.log('[DEBUG]::device is already active', { deviceId, source: this.source });
+
       return true;
     }
     this._constraints.deviceId = deviceId;
@@ -236,7 +239,16 @@ export default abstract class LocalTrack<
       return true;
     }
 
+    console.log('[DEBUG]::restarting track to acquire new device is already active', {
+      deviceId,
+      source: this.source,
+    });
+
     await this.restartTrack();
+    console.log('[DEBUG]::track id after restart', {
+      deviceId: this._mediaStreamTrack.getSettings().deviceId,
+      source: this.source,
+    });
 
     return unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId;
   }
