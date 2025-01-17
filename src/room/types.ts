@@ -1,4 +1,4 @@
-import type { DataStream_Chunk, DataStream_Header } from '@livekit/protocol';
+import type { DataStream_Chunk } from '@livekit/protocol';
 
 export type SimulationOptions = {
   publish?: {
