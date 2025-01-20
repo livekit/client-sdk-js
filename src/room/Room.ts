@@ -1184,8 +1184,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         throw e;
       }
     }
-    if (needsUpdateWithoutTracks) {
-      this.localParticipant.activeDeviceMap.set(kind, deviceId);
+    if (needsUpdateWithoutTracks || kind === 'audiooutput') {
+      // if there are not active tracks yet or we're switching audiooutput, we need to manually update the active device map here as changing audio output won't result in a track restart
+      this.localParticipant.activeDeviceMap.set(
+        kind,
+        (kind === 'audiooutput' && this.options.audioOutput?.deviceId) || deviceId,
+      );
       this.emit(RoomEvent.ActiveDeviceChanged, kind, deviceId);
     }
 
