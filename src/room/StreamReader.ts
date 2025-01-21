@@ -165,3 +165,13 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     return latestString;
   }
 }
+
+export type ByteStreamHandler = (
+  reader: ByteStreamReader,
+  participantInfo: { identity: string },
+) => void;
+
+export type TextStreamHandler = (
+  reader: TextStreamReader,
+  participantInfo: { identity: string },
+) => void;
