@@ -69,7 +69,7 @@ export class NegotiationError extends LivekitError {
 
 export class PublishDataError extends LivekitError {
   constructor(message?: string) {
-    super(13, message ?? 'unable to publish data');
+    super(14, message ?? 'unable to publish data');
   }
 }
 
