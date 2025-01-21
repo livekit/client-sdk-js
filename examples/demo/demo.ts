@@ -244,7 +244,7 @@ const appActions = {
         );
       });
 
-    room.setTextStreamHandler('chat', async (reader, participant) => {
+    room.setTextStreamHandler(async (reader, participant) => {
       const info = reader.info;
       if (info.size) {
         handleChatMessage(
@@ -269,9 +269,9 @@ const appActions = {
         appendLog('text stream finished');
       }
       console.log('final info including close extensions', reader.info);
-    });
+    }, 'chat');
 
-    room.setByteStreamHandler('test', async (reader, participant) => {
+    room.setByteStreamHandler(async (reader, participant) => {
       const info = reader.info;
 
       appendLog(`started to receive a file called "${info.name}" from ${participant?.identity}`);
@@ -286,7 +286,7 @@ const appActions = {
       linkEl.innerText = info.name;
       linkEl.setAttribute('download', info.name);
       document.body.append(linkEl);
-    });
+    }, 'myTopic');
 
     try {
       // read and set current key from input

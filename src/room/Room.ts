@@ -274,7 +274,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  setTextStreamHandler(topic: string, callback: TextStreamHandler | undefined) {
+  setTextStreamHandler(callback: TextStreamHandler | undefined, topic: string = '') {
     if (!callback) {
       this.textStreamHandlers.delete(topic);
     } else {
@@ -282,7 +282,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  setByteStreamHandler(topic: string, callback: ByteStreamHandler | undefined) {
+  setByteStreamHandler(callback: ByteStreamHandler | undefined, topic: string = '') {
     if (!callback) {
       this.byteStreamHandlers.delete(topic);
     } else {
