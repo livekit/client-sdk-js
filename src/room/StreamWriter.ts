@@ -1,4 +1,4 @@
-import type { BaseStreamInfo, FileStreamInfo, TextStreamInfo } from './types';
+import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from './types';
 
 class BaseStreamWriter<T, InfoType extends BaseStreamInfo> {
   protected writableStream: WritableStream<[T, number?]>;
@@ -29,4 +29,4 @@ class BaseStreamWriter<T, InfoType extends BaseStreamInfo> {
 
 export class TextStreamWriter extends BaseStreamWriter<string, TextStreamInfo> {}
 
-export class BinaryStreamWriter extends BaseStreamWriter<Uint8Array, FileStreamInfo> {}
+export class BinaryStreamWriter extends BaseStreamWriter<Uint8Array, ByteStreamInfo> {}

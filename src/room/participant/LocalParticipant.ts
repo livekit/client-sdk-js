@@ -4,8 +4,8 @@ import {
   Codec,
   DataPacket,
   DataPacket_Kind,
+  DataStream_ByteHeader,
   DataStream_Chunk,
-  DataStream_FileHeader,
   DataStream_Header,
   DataStream_OperationType,
   DataStream_TextHeader,
@@ -1742,9 +1742,9 @@ export default class LocalParticipant extends Participant {
       encryptionType: options?.encryptionType,
       timestamp: numberToBigInt(Date.now()),
       contentHeader: {
-        case: 'fileHeader',
-        value: new DataStream_FileHeader({
-          fileName: file.name,
+        case: 'byteHeader',
+        value: new DataStream_ByteHeader({
+          name: file.name,
         }),
       },
     });

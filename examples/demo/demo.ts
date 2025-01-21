@@ -269,24 +269,20 @@ const appActions = {
         }
         console.log('final info including close extensions', reader.info);
       })
-      .on(RoomEvent.FileStreamReceived, async (reader, participant) => {
+      .on(RoomEvent.ByteStreamReceived, async (reader, participant) => {
         const info = reader.info;
 
-        appendLog(
-          `started to receive a file called "${info.fileName}" from ${participant?.identity}`,
-        );
+        appendLog(`started to receive a file called "${info.name}" from ${participant?.identity}`);
         reader.onProgress = (progress) => {
           console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
         };
         const result = new Blob(await reader.readAll(), { type: info.mimeType });
-        appendLog(
-          `completely received file called "${info.fileName}" from ${participant?.identity}`,
-        );
+        appendLog(`completely received file called "${info.name}" from ${participant?.identity}`);
         const downloadLink = URL.createObjectURL(result);
         const linkEl = document.createElement('a');
         linkEl.href = downloadLink;
-        linkEl.innerText = info.fileName;
-        linkEl.setAttribute('download', info.fileName);
+        linkEl.innerText = info.name;
+        linkEl.setAttribute('download', info.name);
         document.body.append(linkEl);
       });
 

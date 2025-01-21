@@ -1,5 +1,5 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
-import type { BaseStreamInfo, FileStreamInfo, TextStreamChunk, TextStreamInfo } from './types';
+import type { BaseStreamInfo, ByteStreamInfo, TextStreamChunk, TextStreamInfo } from './types';
 import { bigIntToNumber } from './utils';
 
 abstract class BaseStreamReader<T extends BaseStreamInfo> {
@@ -29,7 +29,7 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
   abstract readAll(): Promise<string | Array<Uint8Array>>;
 }
 
-export class BinaryStreamReader extends BaseStreamReader<FileStreamInfo> {
+export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
   protected handleChunkReceived(chunk: DataStream_Chunk) {
     this.bytesReceived += chunk.content.byteLength;
     const currentProgress = this.totalByteSize

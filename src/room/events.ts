@@ -336,7 +336,7 @@ export enum RoomEvent {
    */
   MetricsReceived = 'metricsReceived',
 
-  FileStreamReceived = 'fileStreamReceived',
+  ByteStreamReceived = 'byteStreamReceived',
   TextStreamReceived = 'textStreamReceived',
 }
 
