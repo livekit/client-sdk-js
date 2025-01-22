@@ -88,6 +88,7 @@ import {
   isReactNative,
   isSafari,
   isWeb,
+  sleep,
   supportsSetSinkId,
   toHttpUrl,
   unpackStreamId,
@@ -1771,16 +1772,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.audioContext = getNewAudioContext() ?? undefined;
     }
 
-    if (this.audioContext && this.audioContext.state === 'suspended') {
-      // for iOS a newly created AudioContext is always in `suspended` state.
-      // we try our best to resume the context here, if that doesn't work, we just continue with regular processing
-      try {
-        await this.audioContext.resume();
-      } catch (e: any) {
-        this.log.warn('Could not resume audio context', { ...this.logContext, error: e });
-      }
-    }
-
     if (this.options.webAudioMix) {
       this.remoteParticipants.forEach((participant) =>
         participant.setAudioContext(this.audioContext),
@@ -1788,6 +1779,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.localParticipant.setAudioContext(this.audioContext);
+
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      // for iOS a newly created AudioContext is always in `suspended` state.
+      // we try our best to resume the context here, if that doesn't work, we just continue with regular processing
+      try {
+        await Promise.race([this.audioContext.resume(), sleep(200)]);
+      } catch (e: any) {
+        this.log.warn('Could not resume audio context', { ...this.logContext, error: e });
+      }
+    }
 
     const newContextIsRunning = this.audioContext?.state === 'running';
     if (newContextIsRunning !== this.canPlaybackAudio) {
