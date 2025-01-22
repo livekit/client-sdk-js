@@ -78,7 +78,7 @@ const appActions = {
     const file = ($('file') as HTMLInputElement).files?.[0]!;
     currentRoom?.localParticipant.sendFile(file, {
       mimeType: file.type,
-      topic: 'test',
+      topic: 'welcome',
       onProgress: (progress) => console.log('sending file, progress', Math.ceil(progress * 100)),
     });
   },
@@ -242,49 +242,51 @@ const appActions = {
             participant.identity
           }) to ${streamState.toString()}`,
         );
-      })
-      .on(RoomEvent.TextStreamReceived, async (reader, participant) => {
-        const info = reader.info;
-        if (info.size && info.topic === 'chat') {
+      });
+
+    room.setTextStreamHandler(async (reader, participant) => {
+      const info = reader.info;
+      if (info.size) {
+        handleChatMessage(
+          {
+            id: info.id,
+            timestamp: info.timestamp,
+            message: await reader.readAll(),
+          },
+          room.getParticipantByIdentity(participant?.identity),
+        );
+      } else {
+        for await (const msg of reader) {
           handleChatMessage(
             {
               id: info.id,
               timestamp: info.timestamp,
-              message: await reader.readAll(),
+              message: msg.collected,
             },
             room.getParticipantByIdentity(participant?.identity),
           );
-        } else {
-          for await (const msg of reader) {
-            handleChatMessage(
-              {
-                id: info.id,
-                timestamp: info.timestamp,
-                message: msg.collected,
-              },
-              room.getParticipantByIdentity(participant?.identity),
-            );
-          }
-          appendLog('text stream finished');
         }
-        console.log('final info including close extensions', reader.info);
-      })
-      .on(RoomEvent.ByteStreamReceived, async (reader, participant) => {
-        const info = reader.info;
+        appendLog('text stream finished');
+      }
+      console.log('final info including close extensions', reader.info);
+    }, 'chat');
 
-        appendLog(`started to receive a file called "${info.name}" from ${participant?.identity}`);
-        reader.onProgress = (progress) => {
-          console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
-        };
-        const result = new Blob(await reader.readAll(), { type: info.mimeType });
-        appendLog(`completely received file called "${info.name}" from ${participant?.identity}`);
-        const downloadLink = URL.createObjectURL(result);
-        const linkEl = document.createElement('a');
-        linkEl.href = downloadLink;
-        linkEl.innerText = info.name;
-        linkEl.setAttribute('download', info.name);
-        document.body.append(linkEl);
-      });
+    room.setByteStreamHandler(async (reader, participant) => {
+      const info = reader.info;
+
+      appendLog(`started to receive a file called "${info.name}" from ${participant?.identity}`);
+      reader.onProgress = (progress) => {
+        console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
+      };
+      const result = new Blob(await reader.readAll(), { type: info.mimeType });
+      appendLog(`completely received file called "${info.name}" from ${participant?.identity}`);
+      const downloadLink = URL.createObjectURL(result);
+      const linkEl = document.createElement('a');
+      linkEl.href = downloadLink;
+      linkEl.innerText = info.name;
+      linkEl.setAttribute('download', info.name);
+      document.body.append(linkEl);
+    }, 'welcome');
 
     try {
       // read and set current key from input
