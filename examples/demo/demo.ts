@@ -78,7 +78,7 @@ const appActions = {
     const file = ($('file') as HTMLInputElement).files?.[0]!;
     currentRoom?.localParticipant.sendFile(file, {
       mimeType: file.type,
-      topic: 'test',
+      topic: 'welcome',
       onProgress: (progress) => console.log('sending file, progress', Math.ceil(progress * 100)),
     });
   },
@@ -286,7 +286,7 @@ const appActions = {
       linkEl.innerText = info.name;
       linkEl.setAttribute('download', info.name);
       document.body.append(linkEl);
-    }, 'myTopic');
+    }, 'welcome');
 
     try {
       // read and set current key from input
