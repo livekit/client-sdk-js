@@ -7,7 +7,6 @@ import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
 import { DeviceUnsupportedError } from '../room/errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
-import LocalTrack from '../room/track/LocalTrack';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
