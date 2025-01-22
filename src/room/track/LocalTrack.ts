@@ -120,7 +120,7 @@ export default abstract class LocalTrack<
     return this.processor?.processedTrack ?? this._mediaStreamTrack;
   }
 
-  override get isLocal() {
+  get isLocal() {
     return true;
   }
 

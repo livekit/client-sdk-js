@@ -23,6 +23,10 @@ export default abstract class RemoteTrack<
     this.receiver = receiver;
   }
 
+  get isLocal() {
+    return false;
+  }
+
   /** @internal */
   setMuted(muted: boolean) {
     if (this.isMuted !== muted) {
