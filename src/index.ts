@@ -32,7 +32,11 @@ import {
   createAudioAnalyser,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
+  isAudioTrack,
   isBrowserSupported,
+  isLocalTrack,
+  isRemoteTrack,
+  isVideoTrack,
   supportsAV1,
   supportsAdaptiveStream,
   supportsDynacast,
@@ -100,6 +104,10 @@ export {
   supportsDynacast,
   supportsVP9,
   Mutex,
+  isAudioTrack,
+  isLocalTrack,
+  isRemoteTrack,
+  isVideoTrack,
 };
 export type {
   AudioAnalyserOptions,

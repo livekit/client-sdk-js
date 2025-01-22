@@ -1,6 +1,7 @@
 import { AudioTrackFeature, TrackInfo } from '@livekit/protocol';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
+import { isAudioTrack } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import type LocalVideoTrack from './LocalVideoTrack';
@@ -51,6 +52,10 @@ export default class LocalTrackPublication extends TrackPublication {
     return super.videoTrack as LocalVideoTrack | undefined;
   }
 
+  get isLocal() {
+    return true;
+  }
+
   /**
    * Mute the track associated with this publication
    */
@@ -83,7 +88,7 @@ export default class LocalTrackPublication extends TrackPublication {
   }
 
   getTrackFeatures() {
-    if (this.track instanceof LocalAudioTrack) {
+    if (isAudioTrack(this.track)) {
       const settings = this.track!.getSourceTrackSettings();
       const features: Set<AudioTrackFeature> = new Set();
       if (settings.autoGainControl) {

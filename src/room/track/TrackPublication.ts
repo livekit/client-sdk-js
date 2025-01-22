@@ -10,6 +10,7 @@ import type TypedEventEmitter from 'typed-emitter';
 import log, { LoggerNames, getLogger } from '../../logger';
 import { TrackEvent } from '../events';
 import type { LoggerOptions, TranscriptionSegment } from '../types';
+import { isAudioTrack, isVideoTrack } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import RemoteAudioTrack from './RemoteAudioTrack';
@@ -18,7 +19,7 @@ import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
 import { getLogContextFromTrack } from './utils';
 
-export class TrackPublication extends (EventEmitter as new () => TypedEventEmitter<PublicationEventCallbacks>) {
+export abstract class TrackPublication extends (EventEmitter as new () => TypedEventEmitter<PublicationEventCallbacks>) {
   kind: Track.Kind;
 
   trackName: string;
@@ -99,11 +100,13 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
     return this.encryption !== Encryption_Type.NONE;
   }
 
+  abstract get isLocal(): boolean;
+
   /**
    * an [AudioTrack] if this publication holds an audio track
    */
   get audioTrack(): LocalAudioTrack | RemoteAudioTrack | undefined {
-    if (this.track instanceof LocalAudioTrack || this.track instanceof RemoteAudioTrack) {
+    if (isAudioTrack(this.track)) {
       return this.track;
     }
   }
@@ -112,7 +115,7 @@ export class TrackPublication extends (EventEmitter as new () => TypedEventEmitt
    * an [VideoTrack] if this publication holds a video track
    */
   get videoTrack(): LocalVideoTrack | RemoteVideoTrack | undefined {
-    if (this.track instanceof LocalVideoTrack || this.track instanceof RemoteVideoTrack) {
+    if (isVideoTrack(this.track)) {
       return this.track;
     }
   }

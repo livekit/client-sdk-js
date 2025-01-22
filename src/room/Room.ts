@@ -85,7 +85,10 @@ import {
   getEmptyAudioStreamTrack,
   isBrowserSupported,
   isCloud,
+  isLocalAudioTrack,
+  isLocalParticipant,
   isReactNative,
+  isRemotePub,
   isSafari,
   isWeb,
   supportsSetSinkId,
@@ -276,7 +279,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.e2eeManager.on(
         EncryptionEvent.ParticipantEncryptionStatusChanged,
         (enabled, participant) => {
-          if (participant instanceof LocalParticipant) {
+          if (isLocalParticipant(participant)) {
             this.isE2EEEnabled = enabled;
           }
           this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
@@ -1950,7 +1953,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private updateSubscriptions() {
     for (const p of this.remoteParticipants.values()) {
       for (const pub of p.videoTrackPublications.values()) {
-        if (pub.isSubscribed && pub instanceof RemoteTrackPublication) {
+        if (pub.isSubscribed && isRemotePub(pub)) {
           pub.emitTrackUpdate();
         }
       }
@@ -2072,7 +2075,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
 
-    if (pub.track instanceof LocalAudioTrack) {
+    if (isLocalAudioTrack(pub.track)) {
       const trackIsSilent = await pub.track.checkForSilence();
       if (trackIsSilent) {
         this.emit(RoomEvent.LocalAudioSilenceDetected, pub);

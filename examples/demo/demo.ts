@@ -35,7 +35,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
-import { isSVCCodec } from '../../src/room/utils';
+import { isLocalParticipant, isRemoteTrack, isSVCCodec } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
 
@@ -165,7 +165,7 @@ const appActions = {
       .on(RoomEvent.LocalTrackPublished, (pub) => {
         const track = pub.track as LocalAudioTrack;
 
-        if (track instanceof LocalAudioTrack) {
+        if (isLocalAudioTrack(track)) {
           const { calculateVolume } = createAudioAnalyser(track);
 
           setInterval(() => {
@@ -495,7 +495,7 @@ window.appActions = appActions;
 
 function handleChatMessage(msg: ChatMessage, participant?: LocalParticipant | RemoteParticipant) {
   (<HTMLTextAreaElement>$('chat')).value +=
-    `${participant?.identity}${participant instanceof LocalParticipant ? ' (me)' : ''}: ${msg.message}\n`;
+    `${participant?.identity}${isLocalParticipant(participant) ? ' (me)' : ''}: ${msg.message}\n`;
 }
 
 function participantConnected(participant: Participant) {
@@ -596,7 +596,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         </div>
       </div>
       ${
-        participant instanceof RemoteParticipant
+        !isLocalParticipant(participant)
           ? `<div class="volume-control">
         <input id="volume-${identity}" type="range" min="0" max="1" step="0.1" value="1" orient="vertical" />
       </div>`
@@ -629,7 +629,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
   // update properties
   container.querySelector(`#name-${identity}`)!.innerHTML = participant.identity;
-  if (participant instanceof LocalParticipant) {
+  if (isLocalParticipant(participant)) {
     container.querySelector(`#name-${identity}`)!.innerHTML += ' (you)';
   }
   const micElm = container.querySelector(`#mic-${identity}`)!;
@@ -642,7 +642,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     div!.classList.remove('speaking');
   }
 
-  if (participant instanceof RemoteParticipant) {
+  if (!isLocalParticipant(participant)) {
     const volumeSlider = <HTMLInputElement>container.querySelector(`#volume-${identity}`);
     volumeSlider.addEventListener('input', (ev) => {
       participant.setVolume(Number.parseFloat((ev.target as HTMLInputElement).value));
@@ -651,7 +651,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
   const cameraEnabled = cameraPub && cameraPub.isSubscribed && !cameraPub.isMuted;
   if (cameraEnabled) {
-    if (participant instanceof LocalParticipant) {
+    if (isLocalParticipant(participant)) {
       // flip
       videoElm.style.transform = 'scale(-1, 1)';
     } else if (!cameraPub?.videoTrack?.attachedElements.includes(videoElm)) {
@@ -684,7 +684,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
   const micEnabled = micPub && micPub.isSubscribed && !micPub.isMuted;
   if (micEnabled) {
-    if (!(participant instanceof LocalParticipant)) {
+    if (!isLocalParticipant(participant)) {
       // don't attach local audio
       audioELm.onloadeddata = () => {
         if (participant.joinedAt && participant.joinedAt.getTime() < startTime) {
@@ -787,7 +787,7 @@ function renderBitrate() {
       }
 
       if (t.source === Track.Source.Camera) {
-        if (t.videoTrack instanceof RemoteVideoTrack) {
+        if (isRemoteTrack(t.videoTrack)) {
           const codecElm = container.querySelector(`#codec-${p.identity}`)!;
           codecElm.innerHTML = t.videoTrack.getDecoderImplementation() ?? '';
         }

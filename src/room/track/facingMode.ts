@@ -1,4 +1,5 @@
 import log from '../../logger';
+import { isLocalTrack } from '../utils';
 import LocalTrack from './LocalTrack';
 import type { VideoCaptureOptions } from './options';
 
@@ -37,7 +38,7 @@ export function facingModeFromLocalTrack(
   localTrack: LocalTrack | MediaStreamTrack,
   options: FacingModeFromLocalTrackOptions = {},
 ): FacingModeFromLocalTrackReturnValue {
-  const track = localTrack instanceof LocalTrack ? localTrack.mediaStreamTrack : localTrack;
+  const track = isLocalTrack(localTrack) ? localTrack.mediaStreamTrack : localTrack;
   const trackSettings = track.getSettings();
   let result: FacingModeFromLocalTrackReturnValue = {
     facingMode: options.defaultFacingMode ?? 'user',
