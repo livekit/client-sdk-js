@@ -2,7 +2,7 @@ import DeviceManager from '../DeviceManager';
 import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
-import { isSafari17 } from '../utils';
+import { isAudioTrack, isSafari17, isVideoTrack } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
@@ -81,9 +81,10 @@ export async function createLocalTracks(
         track.source = Track.Source.Microphone;
       }
       track.mediaStream = stream;
-      if (track instanceof LocalAudioTrack && audioProcessor) {
+
+      if (isAudioTrack(track) && audioProcessor) {
         await track.setProcessor(audioProcessor);
-      } else if (track instanceof LocalVideoTrack && videoProcessor) {
+      } else if (isVideoTrack(track) && videoProcessor) {
         await track.setProcessor(videoProcessor);
       }
 

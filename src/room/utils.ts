@@ -8,9 +8,20 @@ import {
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import { type ConnectionError, ConnectionErrorReason } from './errors';
+import type LocalParticipant from './participant/LocalParticipant';
+import type Participant from './participant/Participant';
+import type RemoteParticipant from './participant/RemoteParticipant';
 import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
+import type LocalTrack from './track/LocalTrack';
+import type LocalTrackPublication from './track/LocalTrackPublication';
+import type LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
+import type RemoteTrack from './track/RemoteTrack';
+import type RemoteTrackPublication from './track/RemoteTrackPublication';
+import type RemoteVideoTrack from './track/RemoteVideoTrack';
+import { Track } from './track/Track';
+import type { TrackPublication } from './track/TrackPublication';
 import { type VideoCodec, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
 import type { ChatMessage, LiveKitReactNativeInfo, TranscriptionSegment } from './types';
@@ -547,4 +558,56 @@ export function getDisconnectReasonFromConnectionError(e: ConnectionError) {
     default:
       return DisconnectReason.UNKNOWN_REASON;
   }
+}
+
+export function isLocalTrack(track: Track | MediaStreamTrack | undefined): track is LocalTrack {
+  return !!track && !(track instanceof MediaStreamTrack) && track.isLocal;
+}
+
+export function isAudioTrack(
+  track: Track | undefined,
+): track is LocalAudioTrack | RemoteAudioTrack {
+  return !!track && track.kind == Track.Kind.Audio;
+}
+
+export function isVideoTrack(
+  track: Track | undefined,
+): track is LocalVideoTrack | RemoteVideoTrack {
+  return !!track && track.kind == Track.Kind.Video;
+}
+
+export function isLocalVideoTrack(
+  track: Track | MediaStreamTrack | undefined,
+): track is LocalVideoTrack {
+  return isLocalTrack(track) && isVideoTrack(track);
+}
+
+export function isLocalAudioTrack(
+  track: Track | MediaStreamTrack | undefined,
+): track is LocalAudioTrack {
+  return isLocalTrack(track) && isAudioTrack(track);
+}
+
+export function isRemoteTrack(track: Track | undefined): track is RemoteTrack {
+  return !!track && !track.isLocal;
+}
+
+export function isRemotePub(pub: TrackPublication | undefined): pub is RemoteTrackPublication {
+  return !!pub && !pub.isLocal;
+}
+
+export function isLocalPub(pub: TrackPublication | undefined): pub is LocalTrackPublication {
+  return !!pub && !pub.isLocal;
+}
+
+export function isRemoteVideoTrack(track: Track | undefined): track is RemoteVideoTrack {
+  return isRemoteTrack(track) && isVideoTrack(track);
+}
+
+export function isLocalParticipant(p: Participant): p is LocalParticipant {
+  return p.isLocal;
+}
+
+export function isRemoteParticipant(p: Participant): p is RemoteParticipant {
+  return !p.isLocal;
 }
