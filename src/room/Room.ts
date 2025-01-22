@@ -48,7 +48,12 @@ import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
-import { ByteStreamReader, TextStreamReader } from './StreamReader';
+import {
+  type ByteStreamHandler,
+  ByteStreamReader,
+  type TextStreamHandler,
+  TextStreamReader,
+} from './StreamReader';
 import {
   audioDefaults,
   publishDefaults,
@@ -189,6 +194,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   private transcriptionReceivedTimes: Map<string, number>;
 
+  private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+
+  private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+
+  private byteStreamHandlers = new Map<string, ByteStreamHandler>();
+
+  private textStreamHandlers = new Map<string, TextStreamHandler>();
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -258,6 +271,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           abortController.abort();
         });
       }
+    }
+  }
+
+  setTextStreamHandler(callback: TextStreamHandler | undefined, topic: string = '') {
+    if (!callback) {
+      this.textStreamHandlers.delete(topic);
+    } else {
+      this.textStreamHandlers.set(topic, callback);
+    }
+  }
+
+  setByteStreamHandler(callback: ByteStreamHandler | undefined, topic: string = '') {
+    if (!callback) {
+      this.byteStreamHandlers.delete(topic);
+    } else {
+      this.byteStreamHandlers.set(topic, callback);
     }
   }
 
@@ -1607,14 +1636,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
-
-  textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
-
   private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
     if (streamHeader.contentHeader.case === 'byteHeader') {
-      if (this.listeners(RoomEvent.ByteStreamReceived).length === 0) {
-        this.log.debug('ignoring incoming file stream due to no listeners');
+      const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
+
+      if (!streamHandlerCallback) {
+        this.log.debug(
+          'ignoring incoming byte stream due to no handler for topic',
+          streamHeader.topic,
+        );
         return;
       }
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
@@ -1637,15 +1667,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           });
         },
       });
-
-      this.emit(
-        RoomEvent.ByteStreamReceived,
+      streamHandlerCallback(
         new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
-        { identity: participantIdentity },
+        {
+          identity: participantIdentity,
+        },
       );
     } else if (streamHeader.contentHeader.case === 'textHeader') {
-      if (this.listeners(RoomEvent.TextStreamReceived).length === 0) {
-        this.log.debug('ignoring incoming text stream due to no listeners');
+      const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
+
+      if (!streamHandlerCallback) {
+        this.log.debug(
+          'ignoring incoming text stream due to no handler for topic',
+          streamHeader.topic,
+        );
         return;
       }
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
@@ -1668,9 +1703,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           });
         },
       });
-
-      this.emit(
-        RoomEvent.TextStreamReceived,
+      streamHandlerCallback(
         new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
         { identity: participantIdentity },
       );
@@ -2516,6 +2549,4 @@ export type RoomEventCallbacks = {
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
-  byteStreamReceived: (reader: ByteStreamReader, participantInfo: { identity: string }) => void;
-  textStreamReceived: (reader: TextStreamReader, participantInfo: { identity: string }) => void;
 };
