@@ -139,8 +139,8 @@ importers:
         specifier: 5.7.2
         version: 5.7.2
       vite:
-        specifier: 5.4.11
-        version: 5.4.11(@types/node@22.7.4)(terser@5.24.0)
+        specifier: 5.4.12
+        version: 5.4.12(@types/node@22.7.4)(terser@5.24.0)
       vitest:
         specifier: ^1.0.0
         version: 1.6.0(@types/node@22.7.4)(happy-dom@15.10.2)(jsdom@24.1.3)(terser@5.24.0)
@@ -3205,8 +3205,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.8.0-dev.20250103:
-    resolution: {integrity: sha512-PT/H6jgiDGZHb+f431Oq8uqRe1IhfFDtgoJK/IB1tevn6s5P7O59oe1uuHZKAVtiLfw55tLgOXcE9nen3VteyA==}
+  typescript@5.8.0-dev.20250121:
+    resolution: {integrity: sha512-cRbtTDQVu4ZV28kEzT6EgGd1mT75C92i/5pFcQHVqa60S2HhbFbY+4Wpo0ebumER/YMoC63sfTzruaR2Z6kOJw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -3276,8 +3276,8 @@ packages:
     engines: {node: ^18.0.0 || >=20.0.0}
     hasBin: true
 
-  vite@5.4.11:
-    resolution: {integrity: sha512-c7jFQRklXua0mTzneGW9QVyxFjUgwcihC4bXEtujIo2ouWCe1Ajt/amn2PCxYnhYfd5k09JX3SB7OYWFKYqj8Q==}
+  vite@5.4.12:
+    resolution: {integrity: sha512-KwUaKB27TvWwDJr1GjjWthLMATbGEbeWYZIbGZ5qFIsgPP3vWzLu4cVooqhm5/Z2SPDUMjyPVjTztm5tYKwQxA==}
     engines: {node: ^18.0.0 || >=20.0.0}
     hasBin: true
     peerDependencies:
@@ -5355,7 +5355,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.8.0-dev.20250103
+      typescript: 5.8.0-dev.20250121
 
   electron-to-chromium@1.5.4: {}
 
@@ -6915,7 +6915,7 @@ snapshots:
 
   typescript@5.7.2: {}
 
-  typescript@5.8.0-dev.20250103: {}
+  typescript@5.8.0-dev.20250121: {}
 
   uc.micro@2.1.0: {}
 
@@ -6978,7 +6978,7 @@ snapshots:
       debug: 4.3.6
       pathe: 1.1.2
       picocolors: 1.1.0
-      vite: 5.4.11(@types/node@22.7.4)(terser@5.24.0)
+      vite: 5.4.12(@types/node@22.7.4)(terser@5.24.0)
     transitivePeerDependencies:
       - '@types/node'
       - less
@@ -6990,7 +6990,7 @@ snapshots:
       - supports-color
       - terser
 
-  vite@5.4.11(@types/node@22.7.4)(terser@5.24.0):
+  vite@5.4.12(@types/node@22.7.4)(terser@5.24.0):
     dependencies:
       esbuild: 0.21.5
       postcss: 8.4.44
@@ -7019,7 +7019,7 @@ snapshots:
       strip-literal: 2.1.0
       tinybench: 2.8.0
       tinypool: 0.8.4
-      vite: 5.4.11(@types/node@22.7.4)(terser@5.24.0)
+      vite: 5.4.12(@types/node@22.7.4)(terser@5.24.0)
       vite-node: 1.6.0(@types/node@22.7.4)(terser@5.24.0)
       why-is-node-running: 2.2.2
     optionalDependencies:

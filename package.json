@@ -99,7 +99,7 @@
     "typedoc": "0.27.6",
     "typedoc-plugin-no-inherit": "1.4.0",
     "typescript": "5.7.2",
-    "vite": "5.4.11",
+    "vite": "5.4.12",
     "vitest": "^1.0.0"
   },
   "packageManager": "pnpm@9.15.3"
