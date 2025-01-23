@@ -497,6 +497,7 @@ export default class LocalParticipant extends Participant {
           if (e instanceof Error) {
             this.emit(ParticipantEvent.MediaDevicesError, e);
           }
+          this.pendingPublishing.delete(source);
           throw e;
         }
         try {
