@@ -2304,7 +2304,10 @@ function mapArgs(args: unknown[]): any {
       return mapArgs(arg);
     }
     if (typeof arg === 'object') {
-      return 'logContext' in arg && arg.logContext;
+      if (!('logContext' in arg)) {
+        return undefined;
+      }
+      return JSON.stringify(arg.logContext);
     }
     return arg;
   });
