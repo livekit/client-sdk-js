@@ -2304,7 +2304,7 @@ function mapArgs(args: unknown[]): any {
       return mapArgs(arg);
     }
     if (typeof arg === 'object') {
-      return 'logContext' in arg && arg.logContext;
+      return 'logContext' in arg ? arg.logContext : undefined;
     }
     return arg;
   });
