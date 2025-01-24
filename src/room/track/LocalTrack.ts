@@ -137,6 +137,7 @@ export default abstract class LocalTrack<
       return;
     }
     if (this._mediaStreamTrack) {
+      this.log.debug('replacing MediaStreamTrack', { ...this.logContext, mediaStreamTrack: this._mediaStreamTrack });
       // detach
       this.attachedElements.forEach((el) => {
         detachTrack(this._mediaStreamTrack, el);
@@ -145,6 +146,8 @@ export default abstract class LocalTrack<
       this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
       this._mediaStreamTrack.removeEventListener('mute', this.handleTrackMuteEvent);
       this._mediaStreamTrack.removeEventListener('unmute', this.handleTrackUnmuteEvent);
+    } else {
+      this.log.debug('setting MediaStreamTrack for the first time', this.logContext);
     }
 
     this.mediaStream = new MediaStream([newTrack]);
@@ -184,7 +187,33 @@ export default abstract class LocalTrack<
       }
     }
     if (this.sender) {
-      await this.sender.replaceTrack(processedTrack ?? newTrack);
+      const currentTrack = this._mediaStreamTrack;
+      const replacementTrack = processedTrack ?? newTrack;
+      const trackLogContext = {
+        ...this.logContext,
+        currentTrack,
+        newTrack,
+        processedTrack,
+        replacementTrack,
+        sender: this.sender
+      };
+
+      if (replacementTrack.readyState == "ended") {
+        this.log.warn('track is ended, not replacing track on sender', trackLogContext);
+        return;
+      }
+
+      try {
+        await this.sender.replaceTrack(replacementTrack);
+        this.log.debug('successfully replaced track on sender', trackLogContext);
+      } catch (e: any) {
+        const errorMessage = `failed to replace track on sender: ${e.message}`;
+        this.log.error(errorMessage, {
+          ...trackLogContext,
+          error: e,
+        });
+        throw new TrackInvalidError(errorMessage);
+      }
     }
     // if `newTrack` is different from the existing track, stop the
     // older track just before replacing it
