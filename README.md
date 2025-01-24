@@ -356,6 +356,20 @@ LiveKit is a dynamic realtime environment and calls can fail for various reasons
 
 You may throw errors of the type `RpcError` with a string `message` in an RPC method handler and they will be received on the caller's side with the message intact. Other errors will not be transmitted and will instead arrive to the caller as `1500` ("Application Error"). Other built-in errors are detailed in `RpcError`.
 
+## Error Codes
+
+| Code  | Name                        | Reason             |
+| ----- | --------------------------- | ------------------ |
+| 1     | `ConnectionError`           | 0: `NotAllowed`<br>1: `ServerUnreachable`<br>2: `InternalError`<br>3: `Cancelled`<br>4:`LeaveRequest` |  
+| 10    | `UnsupportedServer`         |             |
+| 12    | `UnexpectedConnectionState` |             |
+| 13    | `NegotiationError`          |             |
+| 14    | `PublishDataError`          |             |
+| 15    | `SignalRequestError`        |             |
+| 20    | `TrackInvalidError`         |             |
+| 21    | `DeviceUnsupportedError`    |             |
+| 40    | `CryptorError`              |             |
+
 ## Examples
 
 ### Demo App
