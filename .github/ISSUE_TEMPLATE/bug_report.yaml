@@ -35,7 +35,7 @@ body:
     id: system-info
     attributes:
       label: System Info
-      description: Please mention the OS (incl. Version) and Browser (including exact version) on which you are seeing this issue. For ease of use you can run `npx envinfo --system --binaries --browsers --npmPackages "{livekit-client, @livekit/*}"` from within your livekit project, to give us all the needed info about your current environment
+      description: Please mention the OS (incl. Version) and Browser (including exact version) on which you are seeing this issue. For ease of use you can run `npx envinfo --system --binaries --browsers --npmPackages "{livekit-*,@livekit/*}"` from within your livekit project, to give us all the needed info about your current environment
       render: shell
       placeholder: System, Binaries, Browsers
     validations:

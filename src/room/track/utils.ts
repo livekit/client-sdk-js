@@ -222,7 +222,7 @@ export function getTrackPublicationInfo<T extends TrackPublication>(
 }
 
 export function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown> {
-  if (track instanceof Track) {
+  if ('mediaStreamTrack' in track) {
     return {
       trackID: track.sid,
       source: track.source,

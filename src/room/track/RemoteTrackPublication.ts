@@ -7,8 +7,8 @@ import {
 } from '@livekit/protocol';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
+import { isRemoteVideoTrack } from '../utils';
 import type RemoteTrack from './RemoteTrack';
-import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track, VideoQuality } from './Track';
 import { TrackPublication } from './TrackPublication';
 
@@ -108,6 +108,10 @@ export default class RemoteTrackPublication extends TrackPublication {
     return !this.disabled;
   }
 
+  get isLocal() {
+    return false;
+  }
+
   /**
    * disable server from sending down data for this track. this is useful when
    * the participant is off screen, you may disable streaming down their video
@@ -150,7 +154,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     ) {
       return;
     }
-    if (this.track instanceof RemoteVideoTrack) {
+    if (isRemoteVideoTrack(this.track)) {
       this.videoDimensions = dimensions;
     }
     this.currentVideoQuality = undefined;
@@ -163,7 +167,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       return;
     }
 
-    if (!(this.track instanceof RemoteVideoTrack)) {
+    if (!isRemoteVideoTrack(this.track)) {
       return;
     }
 
@@ -276,7 +280,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   };
 
   protected get isAdaptiveStream(): boolean {
-    return this.track instanceof RemoteVideoTrack && this.track.isAdaptiveStream;
+    return isRemoteVideoTrack(this.track) && this.track.isAdaptiveStream;
   }
 
   protected handleVisibilityChange = (visible: boolean) => {

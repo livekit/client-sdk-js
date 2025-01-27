@@ -106,6 +106,8 @@ export abstract class Track<
     return this._mediaStreamTrack;
   }
 
+  abstract get isLocal(): boolean;
+
   /**
    * @internal
    * used for keep mediaStream's first id, since it's id might change

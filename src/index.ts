@@ -1,5 +1,5 @@
 import { Mutex } from '@livekit/mutex';
-import { DataPacket_Kind, DisconnectReason, SubscriptionError } from '@livekit/protocol';
+import { DataPacket_Kind, DisconnectReason, SubscriptionError, TrackType } from '@livekit/protocol';
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
@@ -32,7 +32,13 @@ import {
   createAudioAnalyser,
   getEmptyAudioStreamTrack,
   getEmptyVideoStreamTrack,
+  isAudioTrack,
   isBrowserSupported,
+  isLocalParticipant,
+  isLocalTrack,
+  isRemoteParticipant,
+  isRemoteTrack,
+  isVideoTrack,
   supportsAV1,
   supportsAdaptiveStream,
   supportsDynacast,
@@ -101,6 +107,12 @@ export {
   supportsDynacast,
   supportsVP9,
   Mutex,
+  isAudioTrack,
+  isLocalTrack,
+  isRemoteTrack,
+  isVideoTrack,
+  isLocalParticipant,
+  isRemoteParticipant,
 };
 export type {
   AudioAnalyserOptions,
@@ -113,4 +125,5 @@ export type {
   VideoSenderStats,
   ReconnectContext,
   ReconnectPolicy,
+  TrackType,
 };

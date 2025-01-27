@@ -77,10 +77,15 @@ import {
 import {
   Future,
   compareVersions,
+  isAudioTrack,
   isE2EESimulcastSupported,
   isFireFox,
+  isLocalAudioTrack,
+  isLocalTrack,
+  isLocalVideoTrack,
   isSVCCodec,
   isSafari17,
+  isVideoTrack,
   isWeb,
   numberToBigInt,
   sleep,
@@ -512,6 +517,7 @@ export default class LocalParticipant extends Participant {
           if (e instanceof Error) {
             this.emit(ParticipantEvent.MediaDevicesError, e);
           }
+          this.pendingPublishing.delete(source);
           throw e;
         }
         try {
@@ -655,9 +661,9 @@ export default class LocalParticipant extends Participant {
           track.setAudioContext(this.audioContext);
         }
         track.mediaStream = stream;
-        if (track instanceof LocalAudioTrack && audioProcessor) {
+        if (isAudioTrack(track) && audioProcessor) {
           await track.setProcessor(audioProcessor);
-        } else if (track instanceof LocalVideoTrack && videoProcessor) {
+        } else if (isVideoTrack(track) && videoProcessor) {
           await track.setProcessor(videoProcessor);
         }
         return track;
@@ -732,7 +738,7 @@ export default class LocalParticipant extends Participant {
     options?: TrackPublishOptions,
     isRepublish = false,
   ): Promise<LocalTrackPublication> {
-    if (track instanceof LocalAudioTrack) {
+    if (isLocalAudioTrack(track)) {
       track.setAudioContext(this.audioContext);
     }
 
@@ -740,7 +746,7 @@ export default class LocalParticipant extends Participant {
     if (this.republishPromise && !isRepublish) {
       await this.republishPromise;
     }
-    if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
+    if (isLocalTrack(track) && this.pendingPublishPromises.has(track)) {
       await this.pendingPublishPromises.get(track);
     }
     let defaultConstraints: MediaTrackConstraints | undefined;
@@ -872,7 +878,7 @@ export default class LocalParticipant extends Participant {
 
   private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
     const existingTrackOfSource = Array.from(this.trackPublications.values()).find(
-      (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
+      (publishedTrack) => isLocalTrack(track) && publishedTrack.source === track.source,
     );
     if (existingTrackOfSource && track.source !== Track.Source.Unknown) {
       this.log.info(`publishing a second track with the same source: ${track.source}`, {
@@ -880,7 +886,7 @@ export default class LocalParticipant extends Participant {
         ...getLogContextFromTrack(track),
       });
     }
-    if (opts.stopMicTrackOnMute && track instanceof LocalAudioTrack) {
+    if (opts.stopMicTrackOnMute && isAudioTrack(track)) {
       track.stopOnMute = true;
     }
 
@@ -965,7 +971,7 @@ export default class LocalParticipant extends Participant {
       req.width = dims.width;
       req.height = dims.height;
       // for svc codecs, disable simulcast and use vp8 for backup codec
-      if (track instanceof LocalVideoTrack) {
+      if (isLocalVideoTrack(track)) {
         if (isSVCCodec(videoCodec)) {
           if (track.source === Track.Source.ScreenShare) {
             // vp9 svc with screenshare cannot encode multiple spatial layers
@@ -1051,7 +1057,7 @@ export default class LocalParticipant extends Participant {
 
       track.sender = await this.engine.createSender(track, opts, encodings);
 
-      if (track instanceof LocalVideoTrack) {
+      if (isLocalVideoTrack(track)) {
         opts.degradationPreference ??= getDefaultDegradationPreference(track);
         track.setDegradationPreference(opts.degradationPreference);
       }
@@ -1141,9 +1147,9 @@ export default class LocalParticipant extends Participant {
       trackInfo: ti,
     });
 
-    if (track instanceof LocalVideoTrack) {
+    if (isLocalVideoTrack(track)) {
       track.startMonitor(this.engine.client);
-    } else if (track instanceof LocalAudioTrack) {
+    } else if (isLocalAudioTrack(track)) {
       track.startMonitor();
     }
 
@@ -1184,7 +1190,7 @@ export default class LocalParticipant extends Participant {
       throw new TrackInvalidError('track is not published');
     }
 
-    if (!(track instanceof LocalVideoTrack)) {
+    if (!isLocalVideoTrack(track)) {
       throw new TrackInvalidError('track is not a video track');
     }
 
@@ -1251,7 +1257,7 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     stopOnUnpublish?: boolean,
   ): Promise<LocalTrackPublication | undefined> {
-    if (track instanceof LocalTrack) {
+    if (isLocalTrack(track)) {
       const publishPromise = this.pendingPublishPromises.get(track);
       if (publishPromise) {
         this.log.info('awaiting publish promise before attempting to unpublish', {
@@ -1318,7 +1324,7 @@ export default class LocalParticipant extends Participant {
         if (this.engine.removeTrack(trackSender)) {
           negotiationNeeded = true;
         }
-        if (track instanceof LocalVideoTrack) {
+        if (isLocalVideoTrack(track)) {
           for (const [, trackInfo] of track.simulcastCodecs) {
             if (trackInfo.sender) {
               if (this.engine.removeTrack(trackInfo.sender)) {
@@ -1364,9 +1370,7 @@ export default class LocalParticipant extends Participant {
     tracks: LocalTrack[] | MediaStreamTrack[],
   ): Promise<LocalTrackPublication[]> {
     const results = await Promise.all(tracks.map((track) => this.unpublishTrack(track)));
-    return results.filter(
-      (track) => track instanceof LocalTrackPublication,
-    ) as LocalTrackPublication[];
+    return results.filter((track) => !!track);
   }
 
   async republishAllTracks(options?: TrackPublishOptions, restartTracks: boolean = true) {
@@ -1394,7 +1398,7 @@ export default class LocalParticipant extends Participant {
               !track.isMuted &&
               track.source !== Track.Source.ScreenShare &&
               track.source !== Track.Source.ScreenShareAudio &&
-              (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
+              (isLocalAudioTrack(track) || isLocalVideoTrack(track)) &&
               !track.isUserProvided
             ) {
               // generally we need to restart the track before publishing, often a full reconnect
@@ -2270,7 +2274,7 @@ export default class LocalParticipant extends Participant {
       this.unpublishTrack(track);
     } else if (track.isUserProvided) {
       await track.mute();
-    } else if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
+    } else if (isLocalAudioTrack(track) || isLocalVideoTrack(track)) {
       try {
         if (isWeb()) {
           try {
@@ -2305,7 +2309,7 @@ export default class LocalParticipant extends Participant {
             ...this.logContext,
             ...getLogContextFromTrack(track),
           });
-          if (track instanceof LocalAudioTrack) {
+          if (isLocalAudioTrack(track)) {
             // fall back to default device if available
             await track.restartTrack({ deviceId: 'default' });
           } else {
@@ -2334,7 +2338,7 @@ export default class LocalParticipant extends Participant {
 
       // this looks overly complicated due to this object tree
       if (track instanceof MediaStreamTrack) {
-        if (localTrack instanceof LocalAudioTrack || localTrack instanceof LocalVideoTrack) {
+        if (isLocalAudioTrack(localTrack) || isLocalVideoTrack(localTrack)) {
           if (localTrack.mediaStreamTrack === track) {
             publication = <LocalTrackPublication>pub;
           }

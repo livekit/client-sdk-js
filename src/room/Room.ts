@@ -98,10 +98,14 @@ import {
   getEmptyAudioStreamTrack,
   isBrowserSupported,
   isCloud,
+  isLocalAudioTrack,
+  isLocalParticipant,
   isReactNative,
+  isRemotePub,
   isSafari,
   isWeb,
   numberToBigInt,
+  sleep,
   supportsSetSinkId,
   toHttpUrl,
   unpackStreamId,
@@ -320,7 +324,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.e2eeManager.on(
         EncryptionEvent.ParticipantEncryptionStatusChanged,
         (enabled, participant) => {
-          if (participant instanceof LocalParticipant) {
+          if (isLocalParticipant(participant)) {
             this.isE2EEEnabled = enabled;
           }
           this.emit(RoomEvent.ParticipantEncryptionStatusChanged, enabled, participant);
@@ -1932,16 +1936,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.audioContext = getNewAudioContext() ?? undefined;
     }
 
-    if (this.audioContext && this.audioContext.state === 'suspended') {
-      // for iOS a newly created AudioContext is always in `suspended` state.
-      // we try our best to resume the context here, if that doesn't work, we just continue with regular processing
-      try {
-        await this.audioContext.resume();
-      } catch (e: any) {
-        this.log.warn('Could not resume audio context', { ...this.logContext, error: e });
-      }
-    }
-
     if (this.options.webAudioMix) {
       this.remoteParticipants.forEach((participant) =>
         participant.setAudioContext(this.audioContext),
@@ -1949,6 +1943,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.localParticipant.setAudioContext(this.audioContext);
+
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      // for iOS a newly created AudioContext is always in `suspended` state.
+      // we try our best to resume the context here, if that doesn't work, we just continue with regular processing
+      try {
+        await Promise.race([this.audioContext.resume(), sleep(200)]);
+      } catch (e: any) {
+        this.log.warn('Could not resume audio context', { ...this.logContext, error: e });
+      }
+    }
 
     const newContextIsRunning = this.audioContext?.state === 'running';
     if (newContextIsRunning !== this.canPlaybackAudio) {
@@ -2111,7 +2115,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private updateSubscriptions() {
     for (const p of this.remoteParticipants.values()) {
       for (const pub of p.videoTrackPublications.values()) {
-        if (pub.isSubscribed && pub instanceof RemoteTrackPublication) {
+        if (pub.isSubscribed && isRemotePub(pub)) {
           pub.emitTrackUpdate();
         }
       }
@@ -2233,7 +2237,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant);
 
-    if (pub.track instanceof LocalAudioTrack) {
+    if (isLocalAudioTrack(pub.track)) {
       const trackIsSilent = await pub.track.checkForSilence();
       if (trackIsSilent) {
         this.emit(RoomEvent.LocalAudioSilenceDetected, pub);
@@ -2461,7 +2465,7 @@ function mapArgs(args: unknown[]): any {
       return mapArgs(arg);
     }
     if (typeof arg === 'object') {
-      return 'logContext' in arg && arg.logContext;
+      return 'logContext' in arg ? arg.logContext : undefined;
     }
     return arg;
   });

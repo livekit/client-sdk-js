@@ -7,11 +7,11 @@ import type Room from '../room/Room';
 import { ConnectionState } from '../room/Room';
 import { DeviceUnsupportedError } from '../room/errors';
 import { EngineEvent, ParticipantEvent, RoomEvent } from '../room/events';
-import LocalTrack from '../room/track/LocalTrack';
 import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
+import { isLocalTrack } from '../room/utils';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
@@ -317,7 +317,7 @@ export class E2EEManager
   }
 
   private setupE2EESender(track: Track, sender: RTCRtpSender) {
-    if (!(track instanceof LocalTrack) || !sender) {
+    if (!isLocalTrack(track) || !sender) {
       if (!sender) log.warn('early return because sender is not ready');
       return;
     }

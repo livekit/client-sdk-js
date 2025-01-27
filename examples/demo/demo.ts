@@ -15,14 +15,12 @@ import {
   DisconnectReason,
   ExternalE2EEKeyProvider,
   LocalAudioTrack,
-  LocalParticipant,
   LogLevel,
   MediaDeviceFailure,
   Participant,
   ParticipantEvent,
   RemoteParticipant,
   RemoteTrackPublication,
-  RemoteVideoTrack,
   Room,
   RoomEvent,
   ScreenSharePresets,
@@ -31,6 +29,11 @@ import {
   VideoPresets,
   VideoQuality,
   createAudioAnalyser,
+  isAudioTrack,
+  isLocalParticipant,
+  isLocalTrack,
+  isRemoteParticipant,
+  isRemoteTrack,
   setLogLevel,
   supportsAV1,
   supportsVP9,
@@ -173,9 +176,9 @@ const appActions = {
       })
       .on(RoomEvent.ActiveDeviceChanged, handleActiveDeviceChanged)
       .on(RoomEvent.LocalTrackPublished, (pub) => {
-        const track = pub.track as LocalAudioTrack;
+        const track = pub.track;
 
-        if (track instanceof LocalAudioTrack) {
+        if (isLocalTrack(track) && isAudioTrack(track)) {
           const { calculateVolume } = createAudioAnalyser(track);
 
           setInterval(() => {
@@ -552,7 +555,7 @@ function handleChatMessage(msg: ChatMessage, participant?: Participant) {
   const chatEl = <HTMLTextAreaElement>$('chat');
   chatEl.value = '';
   for (const chatMsg of state.chatMessages.values()) {
-    chatEl.value += `${chatMsg.participant?.identity}${chatMsg.participant instanceof LocalParticipant ? ' (me)' : ''}: ${chatMsg.text}\n`;
+    chatEl.value += `${chatMsg.participant?.identity}${participant && isLocalParticipant(participant) ? ' (me)' : ''}: ${chatMsg.text}\n`;
   }
 }
 
@@ -671,7 +674,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
         </div>
       </div>
       ${
-        participant instanceof RemoteParticipant
+        !isLocalParticipant(participant)
           ? `<div class="volume-control">
         <input id="volume-${identity}" type="range" min="0" max="1" step="0.1" value="1" orient="vertical" />
       </div>`
@@ -704,7 +707,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
   // update properties
   container.querySelector(`#name-${identity}`)!.innerHTML = participant.identity;
-  if (participant instanceof LocalParticipant) {
+  if (isLocalParticipant(participant)) {
     container.querySelector(`#name-${identity}`)!.innerHTML += ' (you)';
   }
   const micElm = container.querySelector(`#mic-${identity}`)!;
@@ -717,7 +720,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     div!.classList.remove('speaking');
   }
 
-  if (participant instanceof RemoteParticipant) {
+  if (isRemoteParticipant(participant)) {
     const volumeSlider = <HTMLInputElement>container.querySelector(`#volume-${identity}`);
     volumeSlider.addEventListener('input', (ev) => {
       participant.setVolume(Number.parseFloat((ev.target as HTMLInputElement).value));
@@ -726,7 +729,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
   const cameraEnabled = cameraPub && cameraPub.isSubscribed && !cameraPub.isMuted;
   if (cameraEnabled) {
-    if (participant instanceof LocalParticipant) {
+    if (isLocalParticipant(participant)) {
       // flip
       videoElm.style.transform = 'scale(-1, 1)';
     } else if (!cameraPub?.videoTrack?.attachedElements.includes(videoElm)) {
@@ -759,7 +762,7 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
 
   const micEnabled = micPub && micPub.isSubscribed && !micPub.isMuted;
   if (micEnabled) {
-    if (!(participant instanceof LocalParticipant)) {
+    if (!isLocalParticipant(participant)) {
       // don't attach local audio
       audioELm.onloadeddata = () => {
         if (participant.joinedAt && participant.joinedAt.getTime() < startTime) {
@@ -862,7 +865,7 @@ function renderBitrate() {
       }
 
       if (t.source === Track.Source.Camera) {
-        if (t.videoTrack instanceof RemoteVideoTrack) {
+        if (isRemoteTrack(t.videoTrack)) {
           const codecElm = container.querySelector(`#codec-${p.identity}`)!;
           codecElm.innerHTML = t.videoTrack.getDecoderImplementation() ?? '';
         }
