@@ -1126,6 +1126,22 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     }
   };
 
+  waitForBufferStatusLow(kind: DataPacket_Kind): Promise<void> {
+    return new Promise(async (resolve, reject) => {
+      if (this.isBufferStatusLow(kind)) {
+        resolve();
+      } else {
+        const onClosing = () => reject('Engine closed');
+        this.once(EngineEvent.Closing, onClosing);
+        while (!this.dcBufferStatus.get(kind)) {
+          await sleep(10);
+        }
+        this.off(EngineEvent.Closing, onClosing);
+        resolve();
+      }
+    });
+  }
+
   /**
    * @internal
    */

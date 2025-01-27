@@ -34,7 +34,9 @@ import {
   getEmptyVideoStreamTrack,
   isAudioTrack,
   isBrowserSupported,
+  isLocalParticipant,
   isLocalTrack,
+  isRemoteParticipant,
   isRemoteTrack,
   isVideoTrack,
   supportsAV1,
@@ -64,6 +66,7 @@ export type {
   SimulationScenario,
   TranscriptionSegment,
   ChatMessage,
+  SendTextOptions,
 } from './room/types';
 export * from './version';
 export {
@@ -108,6 +111,8 @@ export {
   isLocalTrack,
   isRemoteTrack,
   isVideoTrack,
+  isLocalParticipant,
+  isRemoteParticipant,
 };
 export type {
   AudioAnalyserOptions,

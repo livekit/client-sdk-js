@@ -4,6 +4,9 @@ import {
   ConnectionQualityUpdate,
   type DataPacket,
   DataPacket_Kind,
+  DataStream_Chunk,
+  DataStream_Header,
+  DataStream_Trailer,
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
@@ -46,6 +49,12 @@ import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import {
+  type ByteStreamHandler,
+  ByteStreamReader,
+  type TextStreamHandler,
+  TextStreamReader,
+} from './StreamReader';
+import {
   audioDefaults,
   publishDefaults,
   roomConnectOptionDefaults,
@@ -70,14 +79,18 @@ import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, sourceToKind } from './track/utils';
-import type {
-  ChatMessage,
-  SimulationOptions,
-  SimulationScenario,
-  TranscriptionSegment,
+import {
+  type ByteStreamInfo,
+  type ChatMessage,
+  type SimulationOptions,
+  type SimulationScenario,
+  type StreamController,
+  type TextStreamInfo,
+  type TranscriptionSegment,
 } from './types';
 import {
   Future,
+  bigIntToNumber,
   createDummyVideoStreamTrack,
   extractChatMessage,
   extractTranscriptionSegments,
@@ -91,6 +104,7 @@ import {
   isRemotePub,
   isSafari,
   isWeb,
+  numberToBigInt,
   sleep,
   supportsSetSinkId,
   toHttpUrl,
@@ -184,6 +198,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   private transcriptionReceivedTimes: Map<string, number>;
 
+  private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+
+  private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+
+  private byteStreamHandlers = new Map<string, ByteStreamHandler>();
+
+  private textStreamHandlers = new Map<string, TextStreamHandler>();
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -254,6 +276,28 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         });
       }
     }
+  }
+
+  setTextStreamHandler(callback: TextStreamHandler, topic: string = '') {
+    if (this.textStreamHandlers.has(topic)) {
+      throw new TypeError(`A text stream handler for topic "${topic}" has already been set.`);
+    }
+    this.textStreamHandlers.set(topic, callback);
+  }
+
+  removeTextStreamHandler(topic: string = '') {
+    this.textStreamHandlers.delete(topic);
+  }
+
+  setByteStreamHandler(callback: ByteStreamHandler, topic: string = '') {
+    if (this.byteStreamHandlers.has(topic)) {
+      throw new TypeError(`A byte stream handler for topic "${topic}" has already been set.`);
+    }
+    this.byteStreamHandlers.set(topic, callback);
+  }
+
+  removeByteStreamHandler(topic: string = '') {
+    this.byteStreamHandlers.delete(topic);
   }
 
   /**
@@ -964,7 +1008,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         req = new SimulateScenario({
           scenario: {
             case: 'subscriberBandwidth',
-            value: BigInt(arg),
+            value: numberToBigInt(arg),
           },
         });
         break;
@@ -1597,8 +1641,125 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleChatMessage(participant, packet.value.value);
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
+    } else if (packet.value.case === 'streamHeader') {
+      this.handleStreamHeader(packet.value.value, packet.participantIdentity);
+    } else if (packet.value.case === 'streamChunk') {
+      this.handleStreamChunk(packet.value.value);
+    } else if (packet.value.case === 'streamTrailer') {
+      this.handleStreamTrailer(packet.value.value);
     }
   };
+
+  private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
+    if (streamHeader.contentHeader.case === 'byteHeader') {
+      const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
+
+      if (!streamHandlerCallback) {
+        this.log.debug(
+          'ignoring incoming byte stream due to no handler for topic',
+          streamHeader.topic,
+        );
+        return;
+      }
+      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const info: ByteStreamInfo = {
+        id: streamHeader.streamId,
+        name: streamHeader.contentHeader.value.name ?? 'unknown',
+        mimeType: streamHeader.mimeType,
+        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
+        topic: streamHeader.topic,
+        timestamp: bigIntToNumber(streamHeader.timestamp),
+        attributes: streamHeader.attributes,
+      };
+      const stream = new ReadableStream({
+        start: (controller) => {
+          streamController = controller;
+          this.byteStreamControllers.set(streamHeader.streamId, {
+            info,
+            controller: streamController,
+            startTime: Date.now(),
+          });
+        },
+      });
+      streamHandlerCallback(
+        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        {
+          identity: participantIdentity,
+        },
+      );
+    } else if (streamHeader.contentHeader.case === 'textHeader') {
+      const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
+
+      if (!streamHandlerCallback) {
+        this.log.debug(
+          'ignoring incoming text stream due to no handler for topic',
+          streamHeader.topic,
+        );
+        return;
+      }
+      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const info: TextStreamInfo = {
+        id: streamHeader.streamId,
+        mimeType: streamHeader.mimeType,
+        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
+        topic: streamHeader.topic,
+        timestamp: Number(streamHeader.timestamp),
+        attributes: streamHeader.attributes,
+      };
+
+      const stream = new ReadableStream<DataStream_Chunk>({
+        start: (controller) => {
+          streamController = controller;
+          this.textStreamControllers.set(streamHeader.streamId, {
+            info,
+            controller: streamController,
+            startTime: Date.now(),
+          });
+        },
+      });
+      streamHandlerCallback(
+        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        { identity: participantIdentity },
+      );
+    }
+  }
+
+  private handleStreamChunk(chunk: DataStream_Chunk) {
+    const fileBuffer = this.byteStreamControllers.get(chunk.streamId);
+    if (fileBuffer) {
+      if (chunk.content.length > 0) {
+        fileBuffer.controller.enqueue(chunk);
+      }
+    }
+    const textBuffer = this.textStreamControllers.get(chunk.streamId);
+    if (textBuffer) {
+      if (chunk.content.length > 0) {
+        textBuffer.controller.enqueue(chunk);
+      }
+    }
+  }
+
+  private handleStreamTrailer(trailer: DataStream_Trailer) {
+    const textBuffer = this.textStreamControllers.get(trailer.streamId);
+
+    if (textBuffer) {
+      textBuffer.info.attributes = {
+        ...textBuffer.info.attributes,
+        ...trailer.attributes,
+      };
+      textBuffer.controller.close();
+      this.byteStreamControllers.delete(trailer.streamId);
+    }
+
+    const fileBuffer = this.byteStreamControllers.get(trailer.streamId);
+    if (fileBuffer) {
+      {
+        fileBuffer.info.attributes = { ...fileBuffer.info.attributes, ...trailer.attributes };
+        fileBuffer.controller.close();
+        this.byteStreamControllers.delete(trailer.streamId);
+      }
+    }
+  }
 
   private handleUserPacket = (
     participant: RemoteParticipant | undefined,

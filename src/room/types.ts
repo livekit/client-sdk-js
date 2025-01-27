@@ -1,3 +1,5 @@
+import type { DataStream_Chunk } from '@livekit/protocol';
+
 export type SimulationOptions = {
   publish?: {
     audio?: boolean;
@@ -11,6 +13,14 @@ export type SimulationOptions = {
     video?: boolean;
   };
 };
+
+export interface SendTextOptions {
+  topic?: string;
+  // replyToMessageId?: string;
+  destinationIdentities?: Array<string>;
+  attachments?: Array<File>;
+  onProgress?: (progress: number) => void;
+}
 
 export type DataPublishOptions = {
   /**
@@ -74,4 +84,33 @@ export interface ChatMessage {
   timestamp: number;
   message: string;
   editTimestamp?: number;
+  attachedFiles?: Array<File>;
 }
+
+export interface StreamController<T extends DataStream_Chunk> {
+  info: BaseStreamInfo;
+  controller: ReadableStreamDefaultController<T>;
+  startTime: number;
+  endTime?: number;
+}
+
+export interface BaseStreamInfo {
+  id: string;
+  mimeType: string;
+  topic: string;
+  timestamp: number;
+  /** total size in bytes for finite streams and undefined for streams of unknown size */
+  size?: number;
+  attributes?: Record<string, string>;
+}
+export interface ByteStreamInfo extends BaseStreamInfo {
+  name: string;
+}
+
+export interface TextStreamInfo extends BaseStreamInfo {}
+
+export type TextStreamChunk = {
+  index: number;
+  current: string;
+  collected: string;
+};
