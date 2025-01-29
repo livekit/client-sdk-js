@@ -61,6 +61,8 @@ export class RegionUrlProvider {
   async fetchRegionSettings(signal?: AbortSignal) {
     const regionSettingsResponse = await fetch(`${getCloudConfigUrl(this.serverUrl)}/regions`, {
       headers: { authorization: `Bearer ${this.token}` },
+      credentials: 'include',
+      mode: 'no-cors',
       signal,
     });
     if (regionSettingsResponse.ok) {

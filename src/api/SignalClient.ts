@@ -310,7 +310,9 @@ export class SignalClient {
             this.state = SignalConnectionState.DISCONNECTED;
             clearTimeout(wsTimeout);
             try {
-              const resp = await fetch(`http${url.substring(2)}/validate${params}`);
+              const resp = await fetch(`http${url.substring(2)}/validate${params}`, {
+                credentials: 'include', mode: 'no-cors'
+              });
               if (resp.status.toFixed(0).startsWith('4')) {
                 const msg = await resp.text();
                 reject(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
