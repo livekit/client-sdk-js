@@ -2,7 +2,7 @@ import DeviceManager from '../DeviceManager';
 import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
-import { isAudioTrack, isSafari17, isVideoTrack } from '../utils';
+import { isAudioTrack, isSafari17, isVideoTrack, unwrapConstraint } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
@@ -68,10 +68,14 @@ export async function createLocalTracks(
 
       // update the constraints with the device id the user gave permissions to in the permission prompt
       // otherwise each track restart (e.g. mute - unmute) will try to initialize the device again -> causing additional permission prompts
-      if (trackConstraints) {
-        trackConstraints.deviceId = mediaStreamTrack.getSettings().deviceId;
+      const newDeviceId = mediaStreamTrack.getSettings().deviceId;
+      if (
+        trackConstraints?.deviceId &&
+        unwrapConstraint(trackConstraints.deviceId) !== newDeviceId
+      ) {
+        trackConstraints.deviceId = newDeviceId;
       } else {
-        trackConstraints = { deviceId: mediaStreamTrack.getSettings().deviceId };
+        trackConstraints = { deviceId: newDeviceId };
       }
 
       const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
