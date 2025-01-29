@@ -81,7 +81,7 @@ const appActions = {
     const file = ($('file') as HTMLInputElement).files?.[0]!;
     currentRoom?.localParticipant.sendFile(file, {
       mimeType: file.type,
-      topic: 'welcome',
+      topic: 'files',
       onProgress: (progress) => console.log('sending file, progress', Math.ceil(progress * 100)),
     });
   },
@@ -290,7 +290,7 @@ const appActions = {
       
       progressContainer.appendChild(progressLabel);
       progressContainer.appendChild(progressBar);
-      $('chat').after(progressContainer);
+      $('chat-area').after(progressContainer);
 
       appendLog(`Started receiving file "${info.name}" from ${participant?.identity}`);
       
@@ -328,7 +328,7 @@ const appActions = {
         
         imgContainer.appendChild(img);
         imgContainer.appendChild(downloadLink);
-        $('chat').after(imgContainer);
+        $('chat-area').after(imgContainer);
       } else {
         // Non-images get a text download link instead
         const downloadLink = document.createElement('a');
@@ -338,9 +338,9 @@ const appActions = {
         downloadLink.style.margin = '10px';
         downloadLink.style.padding = '5px';
         downloadLink.style.display = 'block';
-        $('chat').after(downloadLink);
+        $('chat-area').after(downloadLink);
       }
-    }, 'welcome');
+    }, 'files');
 
     try {
       // read and set current key from input
