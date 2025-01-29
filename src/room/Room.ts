@@ -526,11 +526,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         // to avoid overriding regionUrl after a new connection attempt had started
         if (regionUrl && this.state === ConnectionState.Disconnected) {
           this.regionUrl = regionUrl;
-          await fetch(toHttpUrl(regionUrl), { method: 'HEAD' });
+          await fetch(toHttpUrl(regionUrl), { method: 'HEAD', credentials: 'include', mode: 'no-cors' });
           this.log.debug(`prepared connection to ${regionUrl}`, this.logContext);
         }
       } else {
-        await fetch(toHttpUrl(url), { method: 'HEAD' });
+        await fetch(toHttpUrl(url), { method: 'HEAD', credentials: 'include', mode: 'no-cors' });
       }
     } catch (e) {
       this.log.warn('could not prepare connection', { ...this.logContext, error: e });
