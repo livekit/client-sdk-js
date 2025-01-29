@@ -74,7 +74,7 @@ export async function createLocalTracks(
         unwrapConstraint(trackConstraints.deviceId) !== newDeviceId
       ) {
         trackConstraints.deviceId = newDeviceId;
-      } else {
+      } else if (!trackConstraints) {
         trackConstraints = { deviceId: newDeviceId };
       }
 
