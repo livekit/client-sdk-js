@@ -278,25 +278,25 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  setTextStreamHandler(callback: TextStreamHandler, topic: string = '') {
+  registerTextStreamHandler(callback: TextStreamHandler, topic: string = '') {
     if (this.textStreamHandlers.has(topic)) {
       throw new TypeError(`A text stream handler for topic "${topic}" has already been set.`);
     }
     this.textStreamHandlers.set(topic, callback);
   }
 
-  removeTextStreamHandler(topic: string = '') {
+  unregisterTextStreamHandler(topic: string = '') {
     this.textStreamHandlers.delete(topic);
   }
 
-  setByteStreamHandler(callback: ByteStreamHandler, topic: string = '') {
+  registerByteStreamHandler(callback: ByteStreamHandler, topic: string = '') {
     if (this.byteStreamHandlers.has(topic)) {
       throw new TypeError(`A byte stream handler for topic "${topic}" has already been set.`);
     }
     this.byteStreamHandlers.set(topic, callback);
   }
 
-  removeByteStreamHandler(topic: string = '') {
+  unregisterByteStreamHandler(topic: string = '') {
     this.byteStreamHandlers.delete(topic);
   }
 
