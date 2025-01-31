@@ -287,13 +287,13 @@ const appActions = {
       progressBar.max = 100;
       progressBar.value = 0;
       progressBar.style.width = '100%';
-      
+
       progressContainer.appendChild(progressLabel);
       progressContainer.appendChild(progressBar);
       $('chat-area').after(progressContainer);
 
       appendLog(`Started receiving file "${info.name}" from ${participant?.identity}`);
-      
+
       reader.onProgress = (progress) => {
         console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
 
@@ -313,19 +313,19 @@ const appActions = {
         const imgContainer = document.createElement('div');
         imgContainer.style.margin = '10px 0';
         imgContainer.style.padding = '10px';
-        
+
         const img = document.createElement('img');
         img.style.maxWidth = '300px';
         img.style.maxHeight = '300px';
         img.src = URL.createObjectURL(result);
-        
+
         const downloadLink = document.createElement('a');
         downloadLink.href = img.src;
         downloadLink.innerText = `Download ${info.name}`;
         downloadLink.setAttribute('download', info.name);
         downloadLink.style.display = 'block';
         downloadLink.style.marginTop = '5px';
-        
+
         imgContainer.appendChild(img);
         imgContainer.appendChild(downloadLink);
         $('chat-area').after(imgContainer);
