@@ -2042,9 +2042,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.emit(RoomEvent.TrackUnsubscribed, track, publication, participant);
         },
       )
-      .on(ParticipantEvent.TrackSubscriptionFailed, (sid: string) => {
-        this.emit(RoomEvent.TrackSubscriptionFailed, sid, participant);
-      })
       .on(ParticipantEvent.TrackMuted, (pub: TrackPublication) => {
         this.emitWhenConnected(RoomEvent.TrackMuted, pub, participant);
       })
