@@ -81,7 +81,7 @@ const appActions = {
     const file = ($('file') as HTMLInputElement).files?.[0]!;
     currentRoom?.localParticipant.sendFile(file, {
       mimeType: file.type,
-      topic: 'welcome',
+      topic: 'files',
       onProgress: (progress) => console.log('sending file, progress', Math.ceil(progress * 100)),
     });
   },
@@ -278,18 +278,69 @@ const appActions = {
       const info = reader.info;
 
       appendLog(`started to receive a file called "${info.name}" from ${participant?.identity}`);
+
+      const progressContainer = document.createElement('div');
+      progressContainer.style.margin = '10px 0';
+      const progressLabel = document.createElement('div');
+      progressLabel.innerText = `Receiving "${info.name}" from ${participant?.identity}...`;
+      const progressBar = document.createElement('progress');
+      progressBar.max = 100;
+      progressBar.value = 0;
+      progressBar.style.width = '100%';
+
+      progressContainer.appendChild(progressLabel);
+      progressContainer.appendChild(progressBar);
+      $('chat-area').after(progressContainer);
+
+      appendLog(`Started receiving file "${info.name}" from ${participant?.identity}`);
+
       reader.onProgress = (progress) => {
         console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
+
+        if (progress) {
+          progressBar.value = progress * 100;
+          progressLabel.innerText = `Receiving "${info.name}" from ${participant?.identity} (${(progress * 100).toFixed(0)}%)`;
+        }
       };
+
       const result = new Blob(await reader.readAll(), { type: info.mimeType });
-      appendLog(`completely received file called "${info.name}" from ${participant?.identity}`);
-      const downloadLink = URL.createObjectURL(result);
-      const linkEl = document.createElement('a');
-      linkEl.href = downloadLink;
-      linkEl.innerText = info.name;
-      linkEl.setAttribute('download', info.name);
-      document.body.append(linkEl);
-    }, 'welcome');
+      appendLog(`Completely received file "${info.name}" from ${participant?.identity}`);
+
+      progressContainer.remove();
+
+      if (info.mimeType.startsWith('image/')) {
+        // Embed images directly in HTML
+        const imgContainer = document.createElement('div');
+        imgContainer.style.margin = '10px 0';
+        imgContainer.style.padding = '10px';
+
+        const img = document.createElement('img');
+        img.style.maxWidth = '300px';
+        img.style.maxHeight = '300px';
+        img.src = URL.createObjectURL(result);
+
+        const downloadLink = document.createElement('a');
+        downloadLink.href = img.src;
+        downloadLink.innerText = `Download ${info.name}`;
+        downloadLink.setAttribute('download', info.name);
+        downloadLink.style.display = 'block';
+        downloadLink.style.marginTop = '5px';
+
+        imgContainer.appendChild(img);
+        imgContainer.appendChild(downloadLink);
+        $('chat-area').after(imgContainer);
+      } else {
+        // Non-images get a text download link instead
+        const downloadLink = document.createElement('a');
+        downloadLink.href = URL.createObjectURL(result);
+        downloadLink.innerText = `Download ${info.name}`;
+        downloadLink.setAttribute('download', info.name);
+        downloadLink.style.margin = '10px';
+        downloadLink.style.padding = '5px';
+        downloadLink.style.display = 'block';
+        $('chat-area').after(downloadLink);
+      }
+    }, 'files');
 
     try {
       // read and set current key from input
