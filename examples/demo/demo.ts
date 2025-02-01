@@ -14,7 +14,6 @@ import {
   ConnectionState,
   DisconnectReason,
   ExternalE2EEKeyProvider,
-  LocalAudioTrack,
   LogLevel,
   MediaDeviceFailure,
   Participant,
@@ -247,7 +246,7 @@ const appActions = {
         );
       });
 
-    room.setTextStreamHandler(async (reader, participant) => {
+    room.registerTextStreamHandler('chat', async (reader, participant) => {
       const info = reader.info;
       if (info.size) {
         handleChatMessage(
@@ -272,9 +271,9 @@ const appActions = {
         appendLog('text stream finished');
       }
       console.log('final info including close extensions', reader.info);
-    }, 'chat');
+    });
 
-    room.setByteStreamHandler(async (reader, participant) => {
+    room.registerByteStreamHandler('files', async (reader, participant) => {
       const info = reader.info;
 
       appendLog(`started to receive a file called "${info.name}" from ${participant?.identity}`);
@@ -340,7 +339,7 @@ const appActions = {
         downloadLink.style.display = 'block';
         $('chat-area').after(downloadLink);
       }
-    }, 'files');
+    });
 
     try {
       // read and set current key from input
