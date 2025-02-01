@@ -1,5 +1,29 @@
 # Change Log
 
+## 2.9.0
+
+### Minor Changes
+
+- Add DataStream support - [#1301](https://github.com/livekit/client-sdk-js/pull/1301) ([@lukasIO](https://github.com/lukasIO))
+
+- Populate name property of LiveKit errors and add reasonName for enums - [#1385](https://github.com/livekit/client-sdk-js/pull/1385) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Replace internal instanceof checks with typeguards - [#1378](https://github.com/livekit/client-sdk-js/pull/1378) ([@lukasIO](https://github.com/lukasIO))
+
+- Remove track from pending publishing on device errors - [#1380](https://github.com/livekit/client-sdk-js/pull/1380) ([@lukasIO](https://github.com/lukasIO))
+
+- Refine room event argument logs - [#1382](https://github.com/livekit/client-sdk-js/pull/1382) ([@lukasIO](https://github.com/lukasIO))
+
+- use a error code 14 for data publish errors - [#1374](https://github.com/livekit/client-sdk-js/pull/1374) ([@davidzhao](https://github.com/davidzhao))
+
+- Export TrackType from @livekit/protocol - [#1370](https://github.com/livekit/client-sdk-js/pull/1370) ([@Philzen](https://github.com/Philzen))
+
+- Only emit TrackSubscriptionEvent once on room - [#1392](https://github.com/livekit/client-sdk-js/pull/1392) ([@lukasIO](https://github.com/lukasIO))
+
+- Don't hang on audio context trying to resume - [#1379](https://github.com/livekit/client-sdk-js/pull/1379) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.8.1
 
 ### Patch Changes
