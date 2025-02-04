@@ -16,6 +16,9 @@ import {
   type ReconnectResponse,
   RequestResponse,
   Room as RoomModel,
+  RpcAck,
+  RpcRequest,
+  RpcResponse,
   SignalTarget,
   SpeakerInfo,
   type StreamStateUpdate,
@@ -54,6 +57,7 @@ import {
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
+import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
@@ -173,6 +177,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private loggerOptions: LoggerOptions;
 
   private publisherConnectionPromise: Promise<void> | undefined;
+
+  rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
   constructor(private options: InternalRoomOptions) {
     super();
@@ -664,15 +670,28 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
       const dp = DataPacket.fromBinary(new Uint8Array(buffer));
-      if (dp.value?.case === 'speaker') {
-        // dispatch speaker updates
-        this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
-      } else {
-        if (dp.value?.case === 'user') {
-          // compatibility
+
+      switch (dp.value.case) {
+        case 'speaker':
+          // dispatch speaker updates
+          this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
+          break;
+
+        case 'rpcRequest':
+          let rpcRequest = dp.value.value as RpcRequest;
+          this.handleIncomingRpcRequest(
+            dp.participantIdentity,
+            rpcRequest.id,
+            rpcRequest.method,
+            rpcRequest.payload,
+            rpcRequest.responseTimeoutMs,
+            rpcRequest.version,
+          );
+          break;
+        case 'user':
           applyUserDataCompat(dp, dp.value.value);
-        }
-        this.emit(EngineEvent.DataPacketReceived, dp);
+        default:
+          this.emit(EngineEvent.DataPacketReceived, dp);
       }
     } finally {
       unlock();
@@ -1095,6 +1114,108 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.once(EngineEvent.Disconnected, onDisconnected);
     });
   };
+
+  private async handleIncomingRpcRequest(
+    callerIdentity: string,
+    requestId: string,
+    method: string,
+    payload: string,
+    responseTimeout: number,
+    version: number,
+  ) {
+    await this.publishRpcAck(callerIdentity, requestId);
+
+    if (version !== 1) {
+      await this.publishRpcResponse(
+        callerIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('UNSUPPORTED_VERSION'),
+      );
+      return;
+    }
+
+    const handler = this.rpcHandlers.get(method);
+
+    if (!handler) {
+      await this.publishRpcResponse(
+        callerIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('UNSUPPORTED_METHOD'),
+      );
+      return;
+    }
+
+    let responseError: RpcError | null = null;
+    let responsePayload: string | null = null;
+
+    try {
+      const response = await handler({
+        requestId,
+        callerIdentity,
+        payload,
+        responseTimeout,
+      });
+      if (byteLength(response) > MAX_PAYLOAD_BYTES) {
+        responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
+        console.warn(`RPC Response payload too large for ${method}`);
+      } else {
+        responsePayload = response;
+      }
+    } catch (error) {
+      if (error instanceof RpcError) {
+        responseError = error;
+      } else {
+        console.warn(
+          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
+          error,
+        );
+        responseError = RpcError.builtIn('APPLICATION_ERROR');
+      }
+    }
+    await this.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
+  }
+
+  /** @internal */
+  private async publishRpcResponse(
+    destinationIdentity: string,
+    requestId: string,
+    payload: string | null,
+    error: RpcError | null,
+  ) {
+    const packet = new DataPacket({
+      destinationIdentities: [destinationIdentity],
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'rpcResponse',
+        value: new RpcResponse({
+          requestId,
+          value: error
+            ? { case: 'error', value: error.toProto() }
+            : { case: 'payload', value: payload ?? '' },
+        }),
+      },
+    });
+
+    await this.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
+
+  /** @internal */
+  private async publishRpcAck(destinationIdentity: string, requestId: string) {
+    const packet = new DataPacket({
+      destinationIdentities: [destinationIdentity],
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'rpcAck',
+        value: new RpcAck({
+          requestId,
+        }),
+      },
+    });
+
+    await this.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
 
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {

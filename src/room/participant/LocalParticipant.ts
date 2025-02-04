@@ -150,8 +150,6 @@ export default class LocalParticipant extends Participant {
 
   private enabledPublishVideoCodecs: Codec[] = [];
 
-  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
-
   private pendingAcks = new Map<string, { resolve: () => void; participantIdentity: string }>();
 
   private pendingResponses = new Map<
@@ -271,17 +269,6 @@ export default class LocalParticipant extends Participant {
 
   private handleDataPacket = (packet: DataPacket) => {
     switch (packet.value.case) {
-      case 'rpcRequest':
-        let rpcRequest = packet.value.value as RpcRequest;
-        this.handleIncomingRpcRequest(
-          packet.participantIdentity,
-          rpcRequest.id,
-          rpcRequest.method,
-          rpcRequest.payload,
-          rpcRequest.responseTimeoutMs,
-          rpcRequest.version,
-        );
-        break;
       case 'rpcResponse':
         let rpcResponse = packet.value.value as RpcResponse;
         let payload: string | null = null;
@@ -1883,42 +1870,17 @@ export default class LocalParticipant extends Participant {
   }
 
   /**
-   * Establishes the participant as a receiver for calls of the specified RPC method.
-   * Will overwrite any existing callback for the same method.
-   *
-   * @param method - The name of the indicated RPC method
-   * @param handler - Will be invoked when an RPC request for this method is received
-   * @returns A promise that resolves when the method is successfully registered
-   *
-   * @example
-   * ```typescript
-   * room.localParticipant?.registerRpcMethod(
-   *   'greet',
-   *   async (data: RpcInvocationData) => {
-   *     console.log(`Received greeting from ${data.callerIdentity}: ${data.payload}`);
-   *     return `Hello, ${data.callerIdentity}!`;
-   *   }
-   * );
-   * ```
-   *
-   * The handler should return a Promise that resolves to a string.
-   * If unable to respond within `responseTimeout`, the request will result in an error on the caller's side.
-   *
-   * You may throw errors of type `RpcError` with a string `message` in the handler,
-   * and they will be received on the caller's side with the message intact.
-   * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
+   * @deprecated use `room.registerRpcMethod` instead
    */
   registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
-    this.rpcHandlers.set(method, handler);
+    this.engine.rpcHandlers.set(method, handler);
   }
 
   /**
-   * Unregisters a previously registered RPC method.
-   *
-   * @param method - The name of the RPC method to unregister
+   * @deprecated use `room.unregisterRpcMethod` instead
    */
   unregisterRpcMethod(method: string) {
-    this.rpcHandlers.delete(method);
+    this.engine.rpcHandlers.delete(method);
   }
 
   /**
@@ -1973,68 +1935,6 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-  private async handleIncomingRpcRequest(
-    callerIdentity: string,
-    requestId: string,
-    method: string,
-    payload: string,
-    responseTimeout: number,
-    version: number,
-  ) {
-    await this.publishRpcAck(callerIdentity, requestId);
-
-    if (version !== 1) {
-      await this.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_VERSION'),
-      );
-      return;
-    }
-
-    const handler = this.rpcHandlers.get(method);
-
-    if (!handler) {
-      await this.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_METHOD'),
-      );
-      return;
-    }
-
-    let responseError: RpcError | null = null;
-    let responsePayload: string | null = null;
-
-    try {
-      const response = await handler({
-        requestId,
-        callerIdentity,
-        payload,
-        responseTimeout,
-      });
-      if (byteLength(response) > MAX_PAYLOAD_BYTES) {
-        responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
-        console.warn(`RPC Response payload too large for ${method}`);
-      } else {
-        responsePayload = response;
-      }
-    } catch (error) {
-      if (error instanceof RpcError) {
-        responseError = error;
-      } else {
-        console.warn(
-          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
-          error,
-        );
-        responseError = RpcError.builtIn('APPLICATION_ERROR');
-      }
-    }
-    await this.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
-  }
-
   /** @internal */
   private async publishRpcRequest(
     destinationIdentity: string,
@@ -2054,46 +1954,6 @@ export default class LocalParticipant extends Participant {
           payload,
           responseTimeoutMs: responseTimeout,
           version: 1,
-        }),
-      },
-    });
-
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
-  }
-
-  /** @internal */
-  private async publishRpcResponse(
-    destinationIdentity: string,
-    requestId: string,
-    payload: string | null,
-    error: RpcError | null,
-  ) {
-    const packet = new DataPacket({
-      destinationIdentities: [destinationIdentity],
-      kind: DataPacket_Kind.RELIABLE,
-      value: {
-        case: 'rpcResponse',
-        value: new RpcResponse({
-          requestId,
-          value: error
-            ? { case: 'error', value: error.toProto() }
-            : { case: 'payload', value: payload ?? '' },
-        }),
-      },
-    });
-
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
-  }
-
-  /** @internal */
-  private async publishRpcAck(destinationIdentity: string, requestId: string) {
-    const packet = new DataPacket({
-      destinationIdentities: [destinationIdentity],
-      kind: DataPacket_Kind.RELIABLE,
-      value: {
-        case: 'rpcAck',
-        value: new RpcAck({
-          requestId,
         }),
       },
     });
