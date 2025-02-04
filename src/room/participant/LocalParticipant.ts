@@ -139,6 +139,8 @@ export default class LocalParticipant extends Participant {
 
   private reconnectFuture?: Future<void>;
 
+  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>;
+
   private pendingSignalRequests: Map<
     number,
     {
@@ -161,7 +163,13 @@ export default class LocalParticipant extends Participant {
   >();
 
   /** @internal */
-  constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
+  constructor(
+    sid: string,
+    identity: string,
+    engine: RTCEngine,
+    options: InternalRoomOptions,
+    rpcCallbacks: Map<string, (data: RpcInvocationData) => Promise<string>>,
+  ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
       loggerContextCb: () => this.engine.logContext,
@@ -178,6 +186,7 @@ export default class LocalParticipant extends Participant {
       ['audiooutput', 'default'],
     ]);
     this.pendingSignalRequests = new Map();
+    this.rpcHandlers = rpcCallbacks;
   }
 
   get lastCameraError(): Error | undefined {
@@ -1873,14 +1882,20 @@ export default class LocalParticipant extends Participant {
    * @deprecated use `room.registerRpcMethod` instead
    */
   registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
-    this.engine.rpcHandlers.set(method, handler);
+    if (this.rpcHandlers.has(method)) {
+      this.log.warn(
+        `you're overriding the RPC handler for method ${method}, in the future this will throw an error`,
+      );
+    }
+
+    this.rpcHandlers.set(method, handler);
   }
 
   /**
    * @deprecated use `room.unregisterRpcMethod` instead
    */
   unregisterRpcMethod(method: string) {
-    this.engine.rpcHandlers.delete(method);
+    this.rpcHandlers.delete(method);
   }
 
   /**
