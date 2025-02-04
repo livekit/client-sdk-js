@@ -3,7 +3,7 @@ import { TrackEvent } from '../events';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { AudioSenderStats } from '../stats';
 import type { LoggerOptions } from '../types';
-import { isWeb, unwrapConstraint } from '../utils';
+import { isReactNative, isWeb, unwrapConstraint } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track } from './Track';
 import type { AudioCaptureOptions } from './options';
@@ -171,7 +171,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
   async setProcessor(processor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>) {
     const unlock = await this.processorLock.lock();
     try {
-      if (!this.audioContext) {
+      if (!isReactNative() && !this.audioContext) {
         throw Error(
           'Audio context needs to be set on LocalAudioTrack in order to enable processors',
         );
@@ -183,7 +183,8 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       const processorOptions = {
         kind: this.kind,
         track: this._mediaStreamTrack,
-        audioContext: this.audioContext,
+        // RN won't have or use AudioContext
+        audioContext: this.audioContext as AudioContext,
       };
       this.log.debug(`setting up audio processor ${processor.name}`, this.logContext);
 
