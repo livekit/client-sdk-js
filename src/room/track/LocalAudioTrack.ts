@@ -183,12 +183,11 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
       const processorOptions = {
         kind: this.kind,
         track: this._mediaStreamTrack,
-        audioContext: this.audioContext,
+        // RN won't have or use AudioContext
+        audioContext: this.audioContext as AudioContext,
       };
       this.log.debug(`setting up audio processor ${processor.name}`, this.logContext);
 
-      // RN won't have AudioContext.
-      // @ts-expect-error
       await processor.init(processorOptions);
       this.processor = processor;
       if (this.processor.processedTrack) {
