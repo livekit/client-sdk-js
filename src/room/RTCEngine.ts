@@ -668,16 +668,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       const dp = DataPacket.fromBinary(new Uint8Array(buffer));
 
-      switch (dp.value.case) {
-        case 'speaker':
-          // dispatch speaker updates
-          this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
-          break;
-        case 'user':
+      if (dp.value?.case === 'speaker') {
+        // dispatch speaker updates
+        this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
+      } else {
+        if (dp.value?.case === 'user') {
+          // compatibility
           applyUserDataCompat(dp, dp.value.value);
-        default:
-          this.emit(EngineEvent.DataPacketReceived, dp);
-          break;
+        }
+        this.emit(EngineEvent.DataPacketReceived, dp);
       }
     } finally {
       unlock();
