@@ -1,44 +1,37 @@
 import { DataPacket, DataPacket_Kind } from '@livekit/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { InternalRoomOptions } from '../../options';
-import type RTCEngine from '../RTCEngine';
-import { RpcError } from '../rpc';
-import LocalParticipant from './LocalParticipant';
-import { ParticipantKind } from './Participant';
-import RemoteParticipant from './RemoteParticipant';
+import type { InternalRoomOptions } from '../options';
+import type RTCEngine from './RTCEngine';
+import Room from './Room';
+import LocalParticipant from './participant/LocalParticipant';
+import { ParticipantKind } from './participant/Participant';
+import RemoteParticipant from './participant/RemoteParticipant';
+import { RpcError } from './rpc';
 
 describe('LocalParticipant', () => {
   describe('registerRpcMethod', () => {
-    let localParticipant: LocalParticipant;
-    let mockEngine: RTCEngine;
-    let mockRoomOptions: InternalRoomOptions;
+    let room: Room;
     let mockSendDataPacket: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
       mockSendDataPacket = vi.fn();
-      mockEngine = {
-        client: {
-          sendUpdateLocalMetadata: vi.fn(),
-        },
-        on: vi.fn().mockReturnThis(),
-        sendDataPacket: mockSendDataPacket,
-      } as unknown as RTCEngine;
 
-      mockRoomOptions = {} as InternalRoomOptions;
+      room = new Room();
+      room.engine.client = {
+        sendUpdateLocalMetadata: vi.fn(),
+      };
+      room.engine.on = vi.fn().mockReturnThis();
+      room.engine.sendDataPacket = mockSendDataPacket;
 
-      localParticipant = new LocalParticipant(
-        'test-sid',
-        'test-identity',
-        mockEngine,
-        mockRoomOptions,
-      );
+      room.localParticipant.sid = 'test-sid';
+      room.localParticipant.identity = 'test-identity';
     });
 
     it('should register an RPC method handler', async () => {
       const methodName = 'testMethod';
       const handler = vi.fn().mockResolvedValue('test response');
 
-      localParticipant.registerRpcMethod(methodName, handler);
+      room.registerRpcMethod(methodName, handler);
 
       const mockCaller = new RemoteParticipant(
         {} as any,
@@ -51,7 +44,7 @@ describe('LocalParticipant', () => {
         ParticipantKind.STANDARD,
       );
 
-      await localParticipant.handleIncomingRpcRequest(
+      await room.handleIncomingRpcRequest(
         mockCaller.identity,
         'test-request-id',
         methodName,
@@ -84,7 +77,7 @@ describe('LocalParticipant', () => {
       const errorMessage = 'Test error';
       const handler = vi.fn().mockRejectedValue(new Error(errorMessage));
 
-      localParticipant.registerRpcMethod(methodName, handler);
+      room.registerRpcMethod(methodName, handler);
 
       const mockCaller = new RemoteParticipant(
         {} as any,
@@ -97,7 +90,7 @@ describe('LocalParticipant', () => {
         ParticipantKind.STANDARD,
       );
 
-      await localParticipant.handleIncomingRpcRequest(
+      await room.handleIncomingRpcRequest(
         mockCaller.identity,
         'test-error-request-id',
         methodName,
@@ -127,7 +120,7 @@ describe('LocalParticipant', () => {
       const errorMessage = 'some-error-message';
       const handler = vi.fn().mockRejectedValue(new RpcError(errorCode, errorMessage));
 
-      localParticipant.registerRpcMethod(methodName, handler);
+      room.localParticipant.registerRpcMethod(methodName, handler);
 
       const mockCaller = new RemoteParticipant(
         {} as any,
@@ -140,7 +133,7 @@ describe('LocalParticipant', () => {
         ParticipantKind.STANDARD,
       );
 
-      await localParticipant.handleIncomingRpcRequest(
+      await room.handleIncomingRpcRequest(
         mockCaller.identity,
         'test-rpc-error-request-id',
         methodName,

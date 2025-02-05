@@ -16,6 +16,8 @@ import {
   type ReconnectResponse,
   RequestResponse,
   Room as RoomModel,
+  RpcAck,
+  RpcResponse,
   SignalTarget,
   SpeakerInfo,
   type StreamStateUpdate,
@@ -54,6 +56,7 @@ import {
   UnexpectedConnectionState,
 } from './errors';
 import { EngineEvent } from './events';
+import { RpcError } from './rpc';
 import CriticalTimers from './timers';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
@@ -664,6 +667,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         return;
       }
       const dp = DataPacket.fromBinary(new Uint8Array(buffer));
+
       if (dp.value?.case === 'speaker') {
         // dispatch speaker updates
         this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
@@ -1095,6 +1099,46 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.once(EngineEvent.Disconnected, onDisconnected);
     });
   };
+
+  /** @internal */
+  async publishRpcResponse(
+    destinationIdentity: string,
+    requestId: string,
+    payload: string | null,
+    error: RpcError | null,
+  ) {
+    const packet = new DataPacket({
+      destinationIdentities: [destinationIdentity],
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'rpcResponse',
+        value: new RpcResponse({
+          requestId,
+          value: error
+            ? { case: 'error', value: error.toProto() }
+            : { case: 'payload', value: payload ?? '' },
+        }),
+      },
+    });
+
+    await this.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
+
+  /** @internal */
+  async publishRpcAck(destinationIdentity: string, requestId: string) {
+    const packet = new DataPacket({
+      destinationIdentities: [destinationIdentity],
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'rpcAck',
+        value: new RpcAck({
+          requestId,
+        }),
+      },
+    });
+
+    await this.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
 
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {

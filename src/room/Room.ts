@@ -67,6 +67,7 @@ import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
+import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
@@ -206,6 +207,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private textStreamHandlers = new Map<string, TextStreamHandler>();
 
+  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -237,7 +240,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.disconnectLock = new Mutex();
 
-    this.localParticipant = new LocalParticipant('', '', this.engine, this.options);
+    this.localParticipant = new LocalParticipant(
+      '',
+      '',
+      this.engine,
+      this.options,
+      this.rpcHandlers,
+    );
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
@@ -298,6 +307,113 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   unregisterByteStreamHandler(topic: string) {
     this.byteStreamHandlers.delete(topic);
+  }
+
+  /**
+   * Establishes the participant as a receiver for calls of the specified RPC method.
+   * Will overwrite any existing callback for the same method.
+   *
+   * @param method - The name of the indicated RPC method
+   * @param handler - Will be invoked when an RPC request for this method is received
+   * @returns A promise that resolves when the method is successfully registered
+   * @throws {Error} if the handler for a specific method has already been registered already
+   *
+   * @example
+   * ```typescript
+   * room.localParticipant?.registerRpcMethod(
+   *   'greet',
+   *   async (data: RpcInvocationData) => {
+   *     console.log(`Received greeting from ${data.callerIdentity}: ${data.payload}`);
+   *     return `Hello, ${data.callerIdentity}!`;
+   *   }
+   * );
+   * ```
+   *
+   * The handler should return a Promise that resolves to a string.
+   * If unable to respond within `responseTimeout`, the request will result in an error on the caller's side.
+   *
+   * You may throw errors of type `RpcError` with a string `message` in the handler,
+   * and they will be received on the caller's side with the message intact.
+   * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
+   */
+  registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
+    if (this.rpcHandlers.has(method)) {
+      throw Error(
+        `RPC handler already registered for method ${method}, unregisterRpcMethod before trying to register again`,
+      );
+    }
+    this.rpcHandlers.set(method, handler);
+  }
+
+  /**
+   * Unregisters a previously registered RPC method.
+   *
+   * @param method - The name of the RPC method to unregister
+   */
+  unregisterRpcMethod(method: string) {
+    this.rpcHandlers.delete(method);
+  }
+
+  private async handleIncomingRpcRequest(
+    callerIdentity: string,
+    requestId: string,
+    method: string,
+    payload: string,
+    responseTimeout: number,
+    version: number,
+  ) {
+    await this.engine.publishRpcAck(callerIdentity, requestId);
+
+    if (version !== 1) {
+      await this.engine.publishRpcResponse(
+        callerIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('UNSUPPORTED_VERSION'),
+      );
+      return;
+    }
+
+    const handler = this.rpcHandlers.get(method);
+
+    if (!handler) {
+      await this.engine.publishRpcResponse(
+        callerIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('UNSUPPORTED_METHOD'),
+      );
+      return;
+    }
+
+    let responseError: RpcError | null = null;
+    let responsePayload: string | null = null;
+
+    try {
+      const response = await handler({
+        requestId,
+        callerIdentity,
+        payload,
+        responseTimeout,
+      });
+      if (byteLength(response) > MAX_PAYLOAD_BYTES) {
+        responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
+        console.warn(`RPC Response payload too large for ${method}`);
+      } else {
+        responsePayload = response;
+      }
+    } catch (error) {
+      if (error instanceof RpcError) {
+        responseError = error;
+      } else {
+        console.warn(
+          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
+          error,
+        );
+        responseError = RpcError.builtIn('APPLICATION_ERROR');
+      }
+    }
+    await this.engine.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
   }
 
   /**
@@ -1647,6 +1763,16 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleStreamChunk(packet.value.value);
     } else if (packet.value.case === 'streamTrailer') {
       this.handleStreamTrailer(packet.value.value);
+    } else if (packet.value.case === 'rpcRequest') {
+      const rpc = packet.value.value;
+      this.handleIncomingRpcRequest(
+        packet.participantIdentity,
+        rpc.id,
+        rpc.method,
+        rpc.payload,
+        rpc.responseTimeoutMs,
+        rpc.version,
+      );
     }
   };
 
