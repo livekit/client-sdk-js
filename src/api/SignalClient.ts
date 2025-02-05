@@ -326,7 +326,7 @@ export class SignalClient {
             } catch (e) {
               reject(
                 new ConnectionError(
-                  'server was not reachable',
+                  e instanceof Error ? e.message : 'server was not reachable',
                   ConnectionErrorReason.ServerUnreachable,
                 ),
               );
