@@ -316,6 +316,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @param method - The name of the indicated RPC method
    * @param handler - Will be invoked when an RPC request for this method is received
    * @returns A promise that resolves when the method is successfully registered
+   * @throws {Error} if the handler for a specific method has already been registered already
    *
    * @example
    * ```typescript

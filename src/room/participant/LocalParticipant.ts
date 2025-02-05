@@ -168,7 +168,7 @@ export default class LocalParticipant extends Participant {
     identity: string,
     engine: RTCEngine,
     options: InternalRoomOptions,
-    rpcCallbacks: Map<string, (data: RpcInvocationData) => Promise<string>>,
+    roomRpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>,
   ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
@@ -186,7 +186,7 @@ export default class LocalParticipant extends Participant {
       ['audiooutput', 'default'],
     ]);
     this.pendingSignalRequests = new Map();
-    this.rpcHandlers = rpcCallbacks;
+    this.rpcHandlers = roomRpcHandlers;
   }
 
   get lastCameraError(): Error | undefined {
