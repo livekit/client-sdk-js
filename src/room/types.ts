@@ -22,6 +22,17 @@ export interface SendTextOptions {
   onProgress?: (progress: number) => void;
 }
 
+export interface StreamTextOptions {
+  topic?: string;
+  destinationIdentities?: Array<string>;
+  type?: 'create' | 'update';
+  streamId?: string;
+  version?: number;
+  attachedStreamIds?: Array<string>;
+  replyToStreamId?: string;
+  totalSize?: number;
+}
+
 export type DataPublishOptions = {
   /**
    * whether to send this as reliable or lossy.
