@@ -12,7 +12,7 @@ export interface TrackPublishDefaults {
   videoEncoding?: VideoEncoding;
 
   /**
-   * Advance codecs (VP9/AV1/H265) are not supported by all browser clients. When backupCodec is
+   * Advanced codecs (VP9/AV1/H265) are not supported by all browser clients. When backupCodec is
    * set, when an incompatible client attempts to subscribe to the track, LiveKit
    * will automatically publish a secondary track encoded with the backup codec.
    *
