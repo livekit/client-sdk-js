@@ -27,7 +27,7 @@ export interface TrackPublishDefaults {
    * When backup codec is enabled, there are two options to decide whether to
    * send the primary codec at the same time:
    *   * codec regression: publisher stops sending primary codec and all subscribers
-   *       will receive backup codec even primary codec is supported. It is the default
+   *       will receive backup codec even if the primary codec is supported on their browser. It is the default
    *       behavior and provides maximum compatibility and reduced device performance
    *       and bandwidth consumption for publisher.
    *   * multi-codec simulcast: publisher encodes and sends both codecs at same time,
