@@ -34,8 +34,6 @@ export interface TrackPublishDefaults {
    *       subscribers will get most efficient codec. It will provide most bandwidth
    *       efficiency, especially in the large 1:N room but requires more device performance
    *       and bandwidth consumption for publisher.
-   *
-   * Defaults to `false`
    */
   backupCodecPolicy?: BackupCodecPolicy;
 
