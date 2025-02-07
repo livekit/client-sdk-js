@@ -1567,6 +1567,42 @@ export default class LocalParticipant extends Participant {
     return writer.info;
   }
 
+  /** @experimental CAUTION, might get removed or changed in a minor release */
+  async updateText(
+    streamId: string,
+    text: string,
+    options?: {
+      topic?: string;
+      destinationIdentities?: Array<string>;
+    },
+  ): Promise<TextStreamInfo> {
+    const textInBytes = new TextEncoder().encode(text);
+    const totalTextLength = textInBytes.byteLength;
+
+    const writer = await this.streamText({
+      streamId,
+      totalSize: totalTextLength,
+      destinationIdentities: options?.destinationIdentities,
+      topic: options?.topic,
+      type: 'update',
+    });
+
+    const textChunkSize = Math.floor(STREAM_CHUNK_SIZE / 4); // utf8 is at most 4 bytes long, so play it safe and take a quarter of the byte size to slice the string
+    const totalTextChunks = Math.ceil(totalTextLength / textChunkSize);
+
+    for (let i = 0; i < totalTextChunks; i++) {
+      const chunkData = text.slice(
+        i * textChunkSize,
+        Math.min((i + 1) * textChunkSize, totalTextLength),
+      );
+      await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
+      await writer.write(chunkData);
+    }
+
+    await writer.close();
+    return writer.info;
+  }
+
   /**
    * @internal
    * @experimental CAUTION, might get removed in a minor release
@@ -1580,6 +1616,8 @@ export default class LocalParticipant extends Participant {
       timestamp: Date.now(),
       topic: options?.topic ?? '',
       size: options?.totalSize,
+      version: options?.version,
+      type: options?.type ?? 'create',
     };
     const header = new DataStream_Header({
       streamId,
@@ -1590,11 +1628,11 @@ export default class LocalParticipant extends Participant {
       contentHeader: {
         case: 'textHeader',
         value: new DataStream_TextHeader({
-          version: options?.version,
+          version: info?.version,
           attachedStreamIds: options?.attachedStreamIds,
           replyToStreamId: options?.replyToStreamId,
           operationType:
-            options?.type === 'update'
+            info.type === 'update'
               ? DataStream_OperationType.UPDATE
               : DataStream_OperationType.CREATE,
         }),

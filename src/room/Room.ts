@@ -6,6 +6,7 @@ import {
   DataPacket_Kind,
   DataStream_Chunk,
   DataStream_Header,
+  DataStream_OperationType,
   DataStream_Trailer,
   DisconnectReason,
   JoinResponse,
@@ -1831,6 +1832,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         topic: streamHeader.topic,
         timestamp: Number(streamHeader.timestamp),
         attributes: streamHeader.attributes,
+        version: streamHeader.contentHeader.value.version,
+        type:
+          streamHeader.contentHeader.value.operationType === DataStream_OperationType.UPDATE
+            ? 'update'
+            : 'create',
       };
 
       const stream = new ReadableStream<DataStream_Chunk>({
