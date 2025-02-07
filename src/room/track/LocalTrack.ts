@@ -232,7 +232,9 @@ export default abstract class LocalTrack<
     ) {
       return true;
     }
-    this._constraints.deviceId = deviceId;
+    const { deviceId: oldDeviceId, ...prevConstraints } = this._constraints;
+    // try to re-order constraints as spec says
+    this._constraints = { deviceId, ...prevConstraints };
 
     // when track is muted, underlying media stream track is stopped and
     // will be restarted later
@@ -313,6 +315,7 @@ export default abstract class LocalTrack<
       if (!constraints) {
         constraints = this._constraints;
       }
+      const { deviceId, ...otherConstraints } = this._constraints;
       this.log.debug('restarting track with constraints', { ...this.logContext, constraints });
 
       const streamConstraints: MediaStreamConstraints = {
@@ -321,9 +324,9 @@ export default abstract class LocalTrack<
       };
 
       if (this.kind === Track.Kind.Video) {
-        streamConstraints.video = constraints;
+        streamConstraints.video = deviceId ? { deviceId } : true;
       } else {
-        streamConstraints.audio = constraints;
+        streamConstraints.audio = deviceId ? { deviceId } : true;
       }
 
       // these steps are duplicated from setMediaStreamTrack because we must stop
@@ -340,6 +343,7 @@ export default abstract class LocalTrack<
       // create new track and attach
       const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
       const newTrack = mediaStream.getTracks()[0];
+      await newTrack.applyConstraints(otherConstraints);
       newTrack.addEventListener('ended', this.handleEnded);
       this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 
