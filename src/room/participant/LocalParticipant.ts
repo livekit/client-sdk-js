@@ -936,6 +936,7 @@ export default class LocalParticipant extends Participant {
       stereo: isStereo,
       disableRed: this.isE2EEEnabled || !(opts.red ?? true),
       stream: opts?.stream,
+      backupCodecPolicy: opts?.backupCodecPolicy,
     });
 
     // compute encodings and layers for video
