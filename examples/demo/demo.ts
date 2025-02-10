@@ -10,6 +10,7 @@ import type {
   VideoCodec,
 } from '../../src/index';
 import {
+  BackupCodecPolicy,
   ConnectionQuality,
   ConnectionState,
   DisconnectReason,
@@ -98,6 +99,10 @@ const appActions = {
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
+    let backupCodecPolicy: BackupCodecPolicy | undefined;
+    if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
+      backupCodecPolicy = BackupCodecPolicy.SIMULCAST;
+    }
 
     updateSearchParams(url, token, cryptoKey);
 
@@ -116,6 +121,7 @@ const appActions = {
         forceStereo: false,
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
         scalabilityMode: 'L3T3_KEY',
+        backupCodecPolicy: backupCodecPolicy,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
