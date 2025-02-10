@@ -59,7 +59,7 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
         }
       },
 
-      return(): IteratorResult<Uint8Array> {
+      async return(): Promise<IteratorResult<Uint8Array>> {
         reader.releaseLock();
         return { done: true, value: undefined };
       },
@@ -150,7 +150,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
         }
       },
 
-      return(): IteratorResult<TextStreamChunk> {
+      async return(): Promise<IteratorResult<TextStreamChunk>> {
         reader.releaseLock();
         return { done: true, value: undefined };
       },
