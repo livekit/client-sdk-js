@@ -12,7 +12,7 @@ export interface TrackPublishDefaults {
   videoEncoding?: VideoEncoding;
 
   /**
-   * Advance codecs (VP9/AV1/H265) are not supported by all browser clients. When backupCodec is
+   * Advanced codecs (VP9/AV1/H265) are not supported by all browser clients. When backupCodec is
    * set, when an incompatible client attempts to subscribe to the track, LiveKit
    * will automatically publish a secondary track encoded with the backup codec.
    *
@@ -27,8 +27,8 @@ export interface TrackPublishDefaults {
    * When backup codec is enabled, there are two options to decide whether to
    * send the primary codec at the same time:
    *   * codec regression: publisher stops sending primary codec and all subscribers
-   *       will receive backup codec even primary codec is supported. It is the default
-   *       behavior and provides maximum compatibility and reduced device performance
+   *       will receive backup codec even if the primary codec is supported on their browser. It is the default
+   *       behavior and provides maximum compatibility. It also reduces CPU
    *       and bandwidth consumption for publisher.
    *   * multi-codec simulcast: publisher encodes and sends both codecs at same time,
    *       subscribers will get most efficient codec. It will provide most bandwidth
