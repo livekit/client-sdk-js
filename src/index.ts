@@ -95,6 +95,7 @@ export {
   Room,
   SubscriptionError,
   TrackPublication,
+  TrackType,
   compareVersions,
   createAudioAnalyser,
   getBrowser,
@@ -127,5 +128,4 @@ export type {
   VideoSenderStats,
   ReconnectContext,
   ReconnectPolicy,
-  TrackType,
 };
