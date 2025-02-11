@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.9.1
+
+### Patch Changes
+
+- Fix correct typing on async iterator stream readers - [#1401](https://github.com/livekit/client-sdk-js/pull/1401) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.9.0
 
 ### Minor Changes
