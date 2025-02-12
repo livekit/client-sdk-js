@@ -1,5 +1,46 @@
 # Change Log
 
+## 2.9.1
+
+### Patch Changes
+
+- Fix correct typing on async iterator stream readers - [#1401](https://github.com/livekit/client-sdk-js/pull/1401) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.9.0
+
+### Minor Changes
+
+- Add backupCodecPolicy to TrackPublishDefaults - [#1399](https://github.com/livekit/client-sdk-js/pull/1399) ([@cnderrauber](https://github.com/cnderrauber))
+
+  The default policy of backup codec is `codec regression` for maxium compatibility, which means the publisher stops sending primary codec and all subscribers will receive backup codec even primary codec is supported.
+  It changes the default behavior `multi-codec simulcast` in the previous version, will not break the functionality of the previous version but only cause potential extra bandwidth usage. The user can set the policy to `multi-codec simulcast` to keep the previous behavior.
+
+- Add DataStream support - [#1301](https://github.com/livekit/client-sdk-js/pull/1301) ([@lukasIO](https://github.com/lukasIO))
+
+- Move RPC registration to room level and deprecate localParticipant level registration - [#1396](https://github.com/livekit/client-sdk-js/pull/1396) ([@lukasIO](https://github.com/lukasIO))
+
+- Populate name property of LiveKit errors and add reasonName for enums - [#1385](https://github.com/livekit/client-sdk-js/pull/1385) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Replace internal instanceof checks with typeguards - [#1378](https://github.com/livekit/client-sdk-js/pull/1378) ([@lukasIO](https://github.com/lukasIO))
+
+- Remove track from pending publishing on device errors - [#1380](https://github.com/livekit/client-sdk-js/pull/1380) ([@lukasIO](https://github.com/lukasIO))
+
+- Refine room event argument logs - [#1382](https://github.com/livekit/client-sdk-js/pull/1382) ([@lukasIO](https://github.com/lukasIO))
+
+- Allow audio processing for react native without AudioContext - [#1395](https://github.com/livekit/client-sdk-js/pull/1395) ([@davidliu](https://github.com/davidliu))
+
+- use a error code 14 for data publish errors - [#1374](https://github.com/livekit/client-sdk-js/pull/1374) ([@davidzhao](https://github.com/davidzhao))
+
+- Export TrackType from @livekit/protocol - [#1370](https://github.com/livekit/client-sdk-js/pull/1370) ([@Philzen](https://github.com/Philzen))
+
+- Only emit TrackSubscriptionEvent once on room - [#1392](https://github.com/livekit/client-sdk-js/pull/1392) ([@lukasIO](https://github.com/lukasIO))
+
+- Redact access_token parameter in debug logs - [#1394](https://github.com/livekit/client-sdk-js/pull/1394) ([@hughns](https://github.com/hughns))
+
+- Don't hang on audio context trying to resume - [#1379](https://github.com/livekit/client-sdk-js/pull/1379) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.8.1
 
 ### Patch Changes

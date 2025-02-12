@@ -12,8 +12,8 @@ importers:
         specifier: 1.1.1
         version: 1.1.1
       '@livekit/protocol':
-        specifier: 1.32.0
-        version: 1.32.0
+        specifier: 1.33.0
+        version: 1.33.0
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -1033,8 +1033,8 @@ packages:
   '@livekit/mutex@1.1.1':
     resolution: {integrity: sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==}
 
-  '@livekit/protocol@1.32.0':
-    resolution: {integrity: sha512-GXH59x4Zk5D7I9Bk5si+HiTP6R+I/Ynf1e+5rYRKkskgxdsnBdzCehF09qau55bEoGyVcmCQ4gmekHKetjEC3Q==}
+  '@livekit/protocol@1.33.0':
+    resolution: {integrity: sha512-361mBlFgI3nvn8oSQIL38gDUBGbOSwsEOqPgX0c1Jwz75/sD/TTvPeAM4zAz6OrV5Q4vI4Ruswecnyv5SG4oig==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -4587,7 +4587,7 @@ snapshots:
 
   '@livekit/mutex@1.1.1': {}
 
-  '@livekit/protocol@1.32.0':
+  '@livekit/protocol@1.33.0':
     dependencies:
       '@bufbuild/protobuf': 1.10.0
 

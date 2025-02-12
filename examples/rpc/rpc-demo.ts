@@ -3,7 +3,7 @@ import {
   type RoomConnectOptions,
   RoomEvent,
   RpcError,
-  RpcInvocationData,
+  type RpcInvocationData,
 } from '../../src/index';
 
 let startTime: number;
@@ -75,7 +75,7 @@ async function main() {
 }
 
 const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room): Promise<void> => {
-  await greetersRoom.localParticipant?.registerRpcMethod(
+  await greetersRoom.registerRpcMethod(
     'arrival',
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async (data: RpcInvocationData) => {
@@ -85,52 +85,46 @@ const registerReceiverMethods = async (greetersRoom: Room, mathGeniusRoom: Room)
     },
   );
 
-  await mathGeniusRoom.localParticipant?.registerRpcMethod(
-    'square-root',
-    async (data: RpcInvocationData) => {
-      const jsonData = JSON.parse(data.payload);
-      const number = jsonData.number;
+  await mathGeniusRoom.registerRpcMethod('square-root', async (data: RpcInvocationData) => {
+    const jsonData = JSON.parse(data.payload);
+    const number = jsonData.number;
 
-      console.log(
-        `[Math Genius] I guess ${data.callerIdentity} wants the square root of ${number}. I've only got ${data.responseTimeout / 1000} seconds to respond but I think I can pull it off.`,
-      );
+    console.log(
+      `[Math Genius] I guess ${data.callerIdentity} wants the square root of ${number}. I've only got ${data.responseTimeout / 1000} seconds to respond but I think I can pull it off.`,
+    );
 
-      console.log(`[Math Genius] *doing math*…`);
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log(`[Math Genius] *doing math*…`);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      const result = Math.sqrt(number);
-      console.log(`[Math Genius] Aha! It's ${result}`);
-      return JSON.stringify({ result });
-    },
-  );
+    const result = Math.sqrt(number);
+    console.log(`[Math Genius] Aha! It's ${result}`);
+    return JSON.stringify({ result });
+  });
 
-  await mathGeniusRoom.localParticipant?.registerRpcMethod(
-    'divide',
-    async (data: RpcInvocationData) => {
-      const jsonData = JSON.parse(data.payload);
-      const { numerator, denominator } = jsonData;
+  await mathGeniusRoom.registerRpcMethod('divide', async (data: RpcInvocationData) => {
+    const jsonData = JSON.parse(data.payload);
+    const { numerator, denominator } = jsonData;
 
-      console.log(
-        `[Math Genius] ${data.callerIdentity} wants to divide ${numerator} by ${denominator}. Let me think...`,
-      );
+    console.log(
+      `[Math Genius] ${data.callerIdentity} wants to divide ${numerator} by ${denominator}. Let me think...`,
+    );
 
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      if (denominator === 0) {
-        throw new Error('Cannot divide by zero');
-      }
+    if (denominator === 0) {
+      throw new Error('Cannot divide by zero');
+    }
 
-      const result = numerator / denominator;
-      console.log(`[Math Genius] ${numerator} / ${denominator} = ${result}`);
-      return JSON.stringify({ result });
-    },
-  );
+    const result = numerator / denominator;
+    console.log(`[Math Genius] ${numerator} / ${denominator} = ${result}`);
+    return JSON.stringify({ result });
+  });
 };
 
 const performGreeting = async (room: Room): Promise<void> => {
   console.log("[Caller] Letting the greeter know that I've arrived");
   try {
-    const response = await room.localParticipant!.performRpc({
+    const response = await room.localParticipant.performRpc({
       destinationIdentity: 'greeter',
       method: 'arrival',
       payload: 'Hello',
@@ -145,7 +139,7 @@ const performGreeting = async (room: Room): Promise<void> => {
 const performDisconnection = async (room: Room): Promise<void> => {
   console.log('[Caller] Checking back in on the greeter...');
   try {
-    const response = await room.localParticipant!.performRpc({
+    const response = await room.localParticipant.performRpc({
       destinationIdentity: 'greeter',
       method: 'arrival',
       payload: 'You still there?',
@@ -164,7 +158,7 @@ const performDisconnection = async (room: Room): Promise<void> => {
 const performSquareRoot = async (room: Room): Promise<void> => {
   console.log("[Caller] What's the square root of 16?");
   try {
-    const response = await room.localParticipant!.performRpc({
+    const response = await room.localParticipant.performRpc({
       destinationIdentity: 'math-genius',
       method: 'square-root',
       payload: JSON.stringify({ number: 16 }),
@@ -180,7 +174,7 @@ const performSquareRoot = async (room: Room): Promise<void> => {
 const performQuantumHypergeometricSeries = async (room: Room): Promise<void> => {
   console.log("[Caller] What's the quantum hypergeometric series of 42?");
   try {
-    const response = await room.localParticipant!.performRpc({
+    const response = await room.localParticipant.performRpc({
       destinationIdentity: 'math-genius',
       method: 'quantum-hypergeometric-series',
       payload: JSON.stringify({ number: 42 }),
@@ -203,7 +197,7 @@ const performQuantumHypergeometricSeries = async (room: Room): Promise<void> => 
 const performDivision = async (room: Room): Promise<void> => {
   console.log("[Caller] Let's try dividing 10 by 0");
   try {
-    const response = await room.localParticipant!.performRpc({
+    const response = await room.localParticipant.performRpc({
       destinationIdentity: 'math-genius',
       method: 'divide',
       payload: JSON.stringify({ numerator: 10, denominator: 0 }),

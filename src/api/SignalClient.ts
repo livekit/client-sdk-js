@@ -294,7 +294,10 @@ export class SignalClient {
           abortHandler();
         }
         abortSignal?.addEventListener('abort', abortHandler);
-        this.log.debug(`connecting to ${url + params}`, this.logContext);
+        this.log.debug(
+          `connecting to ${url + params.replace(/access_token=([^&#$]*)/, 'access_token=<redacted>')}`,
+          this.logContext,
+        );
         if (this.ws) {
           await this.close(false);
         }
@@ -326,7 +329,7 @@ export class SignalClient {
             } catch (e) {
               reject(
                 new ConnectionError(
-                  'server was not reachable',
+                  e instanceof Error ? e.message : 'server was not reachable',
                   ConnectionErrorReason.ServerUnreachable,
                 ),
               );

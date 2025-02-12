@@ -10,11 +10,11 @@ import type {
   VideoCodec,
 } from '../../src/index';
 import {
+  BackupCodecPolicy,
   ConnectionQuality,
   ConnectionState,
   DisconnectReason,
   ExternalE2EEKeyProvider,
-  LocalAudioTrack,
   LogLevel,
   MediaDeviceFailure,
   Participant,
@@ -99,6 +99,10 @@ const appActions = {
     const autoSubscribe = (<HTMLInputElement>$('auto-subscribe')).checked;
     const e2eeEnabled = (<HTMLInputElement>$('e2ee')).checked;
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
+    let backupCodecPolicy: BackupCodecPolicy | undefined;
+    if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
+      backupCodecPolicy = BackupCodecPolicy.SIMULCAST;
+    }
 
     updateSearchParams(url, token, cryptoKey);
 
@@ -117,6 +121,7 @@ const appActions = {
         forceStereo: false,
         screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
         scalabilityMode: 'L3T3_KEY',
+        backupCodecPolicy: backupCodecPolicy,
       },
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
@@ -247,7 +252,7 @@ const appActions = {
         );
       });
 
-    room.setTextStreamHandler(async (reader, participant) => {
+    room.registerTextStreamHandler('chat', async (reader, participant) => {
       const info = reader.info;
       if (info.size) {
         handleChatMessage(
@@ -272,9 +277,9 @@ const appActions = {
         appendLog('text stream finished');
       }
       console.log('final info including close extensions', reader.info);
-    }, 'chat');
+    });
 
-    room.setByteStreamHandler(async (reader, participant) => {
+    room.registerByteStreamHandler('files', async (reader, participant) => {
       const info = reader.info;
 
       appendLog(`started to receive a file called "${info.name}" from ${participant?.identity}`);
@@ -340,7 +345,7 @@ const appActions = {
         downloadLink.style.display = 'block';
         $('chat-area').after(downloadLink);
       }
-    }, 'files');
+    });
 
     try {
       // read and set current key from input

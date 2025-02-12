@@ -72,6 +72,7 @@ import {
   type ChatMessage,
   type DataPublishOptions,
   type SendTextOptions,
+  type StreamTextOptions,
   type TextStreamInfo,
 } from '../types';
 import {
@@ -139,6 +140,8 @@ export default class LocalParticipant extends Participant {
 
   private reconnectFuture?: Future<void>;
 
+  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>;
+
   private pendingSignalRequests: Map<
     number,
     {
@@ -149,8 +152,6 @@ export default class LocalParticipant extends Participant {
   >;
 
   private enabledPublishVideoCodecs: Codec[] = [];
-
-  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
   private pendingAcks = new Map<string, { resolve: () => void; participantIdentity: string }>();
 
@@ -163,7 +164,13 @@ export default class LocalParticipant extends Participant {
   >();
 
   /** @internal */
-  constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
+  constructor(
+    sid: string,
+    identity: string,
+    engine: RTCEngine,
+    options: InternalRoomOptions,
+    roomRpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>,
+  ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
       loggerContextCb: () => this.engine.logContext,
@@ -180,6 +187,7 @@ export default class LocalParticipant extends Participant {
       ['audiooutput', 'default'],
     ]);
     this.pendingSignalRequests = new Map();
+    this.rpcHandlers = roomRpcHandlers;
   }
 
   get lastCameraError(): Error | undefined {
@@ -271,17 +279,6 @@ export default class LocalParticipant extends Participant {
 
   private handleDataPacket = (packet: DataPacket) => {
     switch (packet.value.case) {
-      case 'rpcRequest':
-        let rpcRequest = packet.value.value as RpcRequest;
-        this.handleIncomingRpcRequest(
-          packet.participantIdentity,
-          rpcRequest.id,
-          rpcRequest.method,
-          rpcRequest.payload,
-          rpcRequest.responseTimeoutMs,
-          rpcRequest.version,
-        );
-        break;
       case 'rpcResponse':
         let rpcResponse = packet.value.value as RpcResponse;
         let payload: string | null = null;
@@ -940,6 +937,7 @@ export default class LocalParticipant extends Participant {
       stereo: isStereo,
       disableRed: this.isE2EEEnabled || !(opts.red ?? true),
       stream: opts?.stream,
+      backupCodecPolicy: opts?.backupCodecPolicy,
     });
 
     // compute encodings and layers for video
@@ -1515,11 +1513,10 @@ export default class LocalParticipant extends Participant {
     return msg;
   }
 
-  async sendText(text: string, options?: SendTextOptions): Promise<{ id: string }> {
+  async sendText(text: string, options?: SendTextOptions): Promise<TextStreamInfo> {
     const streamId = crypto.randomUUID();
     const textInBytes = new TextEncoder().encode(text);
     const totalTextLength = textInBytes.byteLength;
-    const totalTextChunks = Math.ceil(totalTextLength / STREAM_CHUNK_SIZE);
 
     const fileIds = options?.attachments?.map(() => crypto.randomUUID());
 
@@ -1531,67 +1528,29 @@ export default class LocalParticipant extends Participant {
       options?.onProgress?.(totalProgress);
     };
 
-    const header = new DataStream_Header({
+    const writer = await this.streamText({
       streamId,
-      totalLength: numberToBigInt(totalTextLength),
-      mimeType: 'text/plain',
+      totalSize: totalTextLength,
+      destinationIdentities: options?.destinationIdentities,
       topic: options?.topic,
-      timestamp: numberToBigInt(Date.now()),
-      contentHeader: {
-        case: 'textHeader',
-        value: new DataStream_TextHeader({
-          operationType: DataStream_OperationType.CREATE,
-          attachedStreamIds: fileIds,
-        }),
-      },
+      attachedStreamIds: fileIds,
     });
 
-    const destinationIdentities = options?.destinationIdentities;
-
-    const packet = new DataPacket({
-      destinationIdentities,
-      value: {
-        case: 'streamHeader',
-        value: header,
-      },
-    });
-
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    const textChunkSize = Math.floor(STREAM_CHUNK_SIZE / 4); // utf8 is at most 4 bytes long, so play it safe and take a quarter of the byte size to slice the string
+    const totalTextChunks = Math.ceil(totalTextLength / textChunkSize);
 
     for (let i = 0; i < totalTextChunks; i++) {
-      const chunkData = textInBytes.slice(
-        i * STREAM_CHUNK_SIZE,
-        Math.min((i + 1) * STREAM_CHUNK_SIZE, totalTextLength),
+      const chunkData = text.slice(
+        i * textChunkSize,
+        Math.min((i + 1) * textChunkSize, totalTextLength),
       );
       await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
-      const chunk = new DataStream_Chunk({
-        content: chunkData,
-        streamId,
-        chunkIndex: numberToBigInt(i),
-      });
-      const chunkPacket = new DataPacket({
-        destinationIdentities,
-        value: {
-          case: 'streamChunk',
-          value: chunk,
-        },
-      });
+      await writer.write(chunkData);
 
-      await this.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
       handleProgress(Math.ceil((i + 1) / totalTextChunks), 0);
     }
 
-    const trailer = new DataStream_Trailer({
-      streamId,
-    });
-    const trailerPacket = new DataPacket({
-      destinationIdentities,
-      value: {
-        case: 'streamTrailer',
-        value: trailer,
-      },
-    });
-    await this.engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
+    await writer.close();
 
     if (options?.attachments && fileIds) {
       await Promise.all(
@@ -1606,34 +1565,39 @@ export default class LocalParticipant extends Participant {
         ),
       );
     }
-    return { id: streamId };
+    return writer.info;
   }
 
   /**
    * @internal
    * @experimental CAUTION, might get removed in a minor release
    */
-  async streamText(options?: {
-    topic?: string;
-    destinationIdentities?: Array<string>;
-  }): Promise<TextStreamWriter> {
-    const streamId = crypto.randomUUID();
+  async streamText(options?: StreamTextOptions): Promise<TextStreamWriter> {
+    const streamId = options?.streamId ?? crypto.randomUUID();
 
     const info: TextStreamInfo = {
       id: streamId,
       mimeType: 'text/plain',
       timestamp: Date.now(),
       topic: options?.topic ?? '',
+      size: options?.totalSize,
     };
     const header = new DataStream_Header({
       streamId,
       mimeType: info.mimeType,
       topic: info.topic,
       timestamp: numberToBigInt(info.timestamp),
+      totalLength: numberToBigInt(options?.totalSize),
       contentHeader: {
         case: 'textHeader',
         value: new DataStream_TextHeader({
-          operationType: DataStream_OperationType.CREATE,
+          version: options?.version,
+          attachedStreamIds: options?.attachedStreamIds,
+          replyToStreamId: options?.replyToStreamId,
+          operationType:
+            options?.type === 'update'
+              ? DataStream_OperationType.UPDATE
+              : DataStream_OperationType.CREATE,
         }),
       },
     });
@@ -1883,39 +1847,20 @@ export default class LocalParticipant extends Participant {
   }
 
   /**
-   * Establishes the participant as a receiver for calls of the specified RPC method.
-   * Will overwrite any existing callback for the same method.
-   *
-   * @param method - The name of the indicated RPC method
-   * @param handler - Will be invoked when an RPC request for this method is received
-   * @returns A promise that resolves when the method is successfully registered
-   *
-   * @example
-   * ```typescript
-   * room.localParticipant?.registerRpcMethod(
-   *   'greet',
-   *   async (data: RpcInvocationData) => {
-   *     console.log(`Received greeting from ${data.callerIdentity}: ${data.payload}`);
-   *     return `Hello, ${data.callerIdentity}!`;
-   *   }
-   * );
-   * ```
-   *
-   * The handler should return a Promise that resolves to a string.
-   * If unable to respond within `responseTimeout`, the request will result in an error on the caller's side.
-   *
-   * You may throw errors of type `RpcError` with a string `message` in the handler,
-   * and they will be received on the caller's side with the message intact.
-   * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
+   * @deprecated use `room.registerRpcMethod` instead
    */
   registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
+    if (this.rpcHandlers.has(method)) {
+      this.log.warn(
+        `you're overriding the RPC handler for method ${method}, in the future this will throw an error`,
+      );
+    }
+
     this.rpcHandlers.set(method, handler);
   }
 
   /**
-   * Unregisters a previously registered RPC method.
-   *
-   * @param method - The name of the RPC method to unregister
+   * @deprecated use `room.unregisterRpcMethod` instead
    */
   unregisterRpcMethod(method: string) {
     this.rpcHandlers.delete(method);
@@ -1973,68 +1918,6 @@ export default class LocalParticipant extends Participant {
     }
   }
 
-  private async handleIncomingRpcRequest(
-    callerIdentity: string,
-    requestId: string,
-    method: string,
-    payload: string,
-    responseTimeout: number,
-    version: number,
-  ) {
-    await this.publishRpcAck(callerIdentity, requestId);
-
-    if (version !== 1) {
-      await this.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_VERSION'),
-      );
-      return;
-    }
-
-    const handler = this.rpcHandlers.get(method);
-
-    if (!handler) {
-      await this.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_METHOD'),
-      );
-      return;
-    }
-
-    let responseError: RpcError | null = null;
-    let responsePayload: string | null = null;
-
-    try {
-      const response = await handler({
-        requestId,
-        callerIdentity,
-        payload,
-        responseTimeout,
-      });
-      if (byteLength(response) > MAX_PAYLOAD_BYTES) {
-        responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
-        console.warn(`RPC Response payload too large for ${method}`);
-      } else {
-        responsePayload = response;
-      }
-    } catch (error) {
-      if (error instanceof RpcError) {
-        responseError = error;
-      } else {
-        console.warn(
-          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
-          error,
-        );
-        responseError = RpcError.builtIn('APPLICATION_ERROR');
-      }
-    }
-    await this.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
-  }
-
   /** @internal */
   private async publishRpcRequest(
     destinationIdentity: string,
@@ -2054,46 +1937,6 @@ export default class LocalParticipant extends Participant {
           payload,
           responseTimeoutMs: responseTimeout,
           version: 1,
-        }),
-      },
-    });
-
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
-  }
-
-  /** @internal */
-  private async publishRpcResponse(
-    destinationIdentity: string,
-    requestId: string,
-    payload: string | null,
-    error: RpcError | null,
-  ) {
-    const packet = new DataPacket({
-      destinationIdentities: [destinationIdentity],
-      kind: DataPacket_Kind.RELIABLE,
-      value: {
-        case: 'rpcResponse',
-        value: new RpcResponse({
-          requestId,
-          value: error
-            ? { case: 'error', value: error.toProto() }
-            : { case: 'payload', value: payload ?? '' },
-        }),
-      },
-    });
-
-    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
-  }
-
-  /** @internal */
-  private async publishRpcAck(destinationIdentity: string, requestId: string) {
-    const packet = new DataPacket({
-      destinationIdentities: [destinationIdentity],
-      kind: DataPacket_Kind.RELIABLE,
-      value: {
-        case: 'rpcAck',
-        value: new RpcAck({
-          requestId,
         }),
       },
     });
