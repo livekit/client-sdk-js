@@ -23,11 +23,14 @@ export class ConnectionProtocolCheck extends Checker {
     const udpStats = await this.checkConnectionProtocol('udp');
     const tcpStats = await this.checkConnectionProtocol('tcp');
     this.bestStats = udpStats;
+    // udp should is the better protocol typically. however, we'd prefer TCP when either of these conditions are true:
+    // 1. the bandwidth limitation is worse on UDP by 500ms (10% of the test duration)
+    // 2. the packet loss is higher on UDP by 1%
     if (
       udpStats.qualityLimitationDurations.bandwidth -
         tcpStats.qualityLimitationDurations.bandwidth >
-        1 ||
-      (udpStats.packetsLost - tcpStats.packetsLost) / udpStats.packetsSent > 0.2
+        0.5 ||
+      (udpStats.packetsLost - tcpStats.packetsLost) / udpStats.packetsSent > 0.01
     ) {
       this.appendMessage('best connection quality via TCP');
       this.bestStats = tcpStats;
