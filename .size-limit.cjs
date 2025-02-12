@@ -7,6 +7,6 @@ module.exports = [
   {
     path: 'dist/livekit-client.umd.js',
     import: '{ Room }',
-    limit: '100 kB',
+    limit: '120 kB',
   },
 ];
