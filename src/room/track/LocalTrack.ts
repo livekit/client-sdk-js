@@ -232,9 +232,8 @@ export default abstract class LocalTrack<
     ) {
       return true;
     }
-    const { deviceId: oldDeviceId, ...prevConstraints } = this._constraints;
-    // try to re-order constraints as spec says
-    this._constraints = { deviceId, ...prevConstraints };
+
+    this._constraints.deviceId = deviceId;
 
     // when track is muted, underlying media stream track is stopped and
     // will be restarted later
