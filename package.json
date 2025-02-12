@@ -33,7 +33,7 @@
     }
   },
   "repository": "git@github.com:livekit/client-sdk-js.git",
-  "author": "David Zhao <david@davidzhao.com>",
+  "author": "LiveKit <hello@livekit.io>",
   "license": "Apache-2.0",
   "scripts": {
     "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
@@ -53,6 +53,13 @@
     "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js",
     "size-limit": "size-limit"
   },
+  "size-limit": [
+    {
+      "path": "dist/livekit-client.umd.js",
+      "import": "{ Room }",
+      "limit": "110 kB"
+    }
+  ],
   "dependencies": {
     "@livekit/mutex": "1.1.1",
     "@livekit/protocol": "1.33.0",
