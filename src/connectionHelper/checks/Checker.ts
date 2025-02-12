@@ -5,6 +5,7 @@ import type RTCEngine from '../../room/RTCEngine';
 import Room, { ConnectionState } from '../../room/Room';
 import { RoomEvent } from '../../room/events';
 import type { SimulationScenario } from '../../room/types';
+import { sleep } from '../../room/utils';
 
 type LogMessage = {
   level: 'info' | 'warning' | 'error';
@@ -126,18 +127,31 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
     this.setStatus(CheckStatus.SKIPPED);
   }
 
-  protected async switchProtocol(protocol: 'tcp' | 'tls') {
-    this.room.simulateScenario(`force-${protocol}` as SimulationScenario);
-    const promise = new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Timeout waiting for reconnection'));
-      }, 10000);
-      this.room.once(RoomEvent.Reconnected, () => {
-        clearTimeout(timeout);
-        resolve();
-      });
+  protected async switchProtocol(protocol: 'udp' | 'tcp' | 'tls') {
+    let hasReconnecting = false;
+    let hasReconnected = false;
+    this.room.on(RoomEvent.Reconnecting, () => {
+      hasReconnecting = true;
     });
-    return promise;
+    this.room.once(RoomEvent.Reconnected, () => {
+      hasReconnected = true;
+    });
+    this.room.simulateScenario(`force-${protocol}` as SimulationScenario);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (!hasReconnecting) {
+      // no need to wait for reconnection
+      return;
+    }
+
+    // wait for 10 seconds for reconnection
+    const timeout = Date.now() + 10000;
+    while (Date.now() < timeout) {
+      if (hasReconnected) {
+        return;
+      }
+      await sleep(100);
+    }
+    throw new Error(`Could not reconnect using ${protocol} protocol after 10 seconds`);
   }
 
   protected appendMessage(message: string) {

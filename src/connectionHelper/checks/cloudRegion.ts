@@ -45,7 +45,7 @@ export class CloudRegionCheck extends Checker {
     });
     const bestRegion = regionStats[0];
     this.bestStats = bestRegion;
-    this.appendMessage(`Best Cloud region: ${bestRegion.region}`);
+    this.appendMessage(`best Cloud region: ${bestRegion.region}`);
   }
 
   getInfo(): CheckInfo {
@@ -84,7 +84,6 @@ export class CloudRegionCheck extends Checker {
     };
     stats?.forEach((stat) => {
       if (stat.type === 'candidate-pair' && stat.nominated) {
-        console.log('stat', stat);
         regionStats.rtt = stat.currentRoundTripTime * 1000;
       }
     });

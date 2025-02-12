@@ -12,6 +12,8 @@ export interface ProtocolStats {
   count: number;
 }
 
+const TEST_DURATION = 10000;
+
 export class ConnectionProtocolCheck extends Checker {
   private bestStats?: ProtocolStats;
 
@@ -24,7 +26,7 @@ export class ConnectionProtocolCheck extends Checker {
     const tcpStats = await this.checkConnectionProtocol('tcp');
     this.bestStats = udpStats;
     // udp should is the better protocol typically. however, we'd prefer TCP when either of these conditions are true:
-    // 1. the bandwidth limitation is worse on UDP by 500ms (10% of the test duration)
+    // 1. the bandwidth limitation is worse on UDP by 500ms
     // 2. the packet loss is higher on UDP by 1%
     if (
       udpStats.qualityLimitationDurations.bandwidth -
@@ -32,35 +34,32 @@ export class ConnectionProtocolCheck extends Checker {
         0.5 ||
       (udpStats.packetsLost - tcpStats.packetsLost) / udpStats.packetsSent > 0.01
     ) {
-      this.appendMessage('best connection quality via TCP');
+      this.appendMessage('best connection quality via tcp');
       this.bestStats = tcpStats;
     } else {
-      this.appendMessage('best connection quality via UDP');
+      this.appendMessage('best connection quality via udp');
     }
 
+    const stats = this.bestStats;
     this.appendMessage(
-      `upstream bitrate: ${(this.bestStats.bitrateTotal / this.bestStats.count / 1000 / 1000).toFixed(2)} mbps`,
+      `upstream bitrate: ${(stats.bitrateTotal / stats.count / 1000 / 1000).toFixed(2)} mbps`,
     );
-    this.appendMessage(
-      `RTT: ${((this.bestStats.rttTotal / this.bestStats.count) * 1000).toFixed(2)} ms`,
-    );
-    this.appendMessage(
-      `jitter: ${((this.bestStats.jitterTotal / this.bestStats.count) * 1000).toFixed(2)} ms`,
-    );
+    this.appendMessage(`RTT: ${((stats.rttTotal / stats.count) * 1000).toFixed(2)} ms`);
+    this.appendMessage(`jitter: ${((stats.jitterTotal / stats.count) * 1000).toFixed(2)} ms`);
 
-    if (this.bestStats.packetsLost > 0) {
-      this.appendMessage(
-        `packets lost: ${((this.bestStats.packetsLost / this.bestStats.packetsSent) * 100).toFixed(2)}%`,
+    if (stats.packetsLost > 0) {
+      this.appendWarning(
+        `packets lost: ${((stats.packetsLost / stats.packetsSent) * 100).toFixed(2)}%`,
       );
     }
-    if (this.bestStats.qualityLimitationDurations.bandwidth > 0) {
+    if (stats.qualityLimitationDurations.bandwidth > 1) {
       this.appendWarning(
-        `bandwidth limited ${((this.bestStats.qualityLimitationDurations.bandwidth / 5) * 100).toFixed(2)}%`,
+        `bandwidth limited ${((stats.qualityLimitationDurations.bandwidth / (TEST_DURATION / 1000)) * 100).toFixed(2)}%`,
       );
     }
-    if (this.bestStats.qualityLimitationDurations.cpu > 0) {
+    if (stats.qualityLimitationDurations.cpu > 0) {
       this.appendWarning(
-        `cpu limited ${((this.bestStats.qualityLimitationDurations.cpu / 5) * 100).toFixed(2)}%`,
+        `cpu limited ${((stats.qualityLimitationDurations.cpu / (TEST_DURATION / 1000)) * 100).toFixed(2)}%`,
       );
     }
   }
@@ -72,10 +71,11 @@ export class ConnectionProtocolCheck extends Checker {
   }
 
   private async checkConnectionProtocol(protocol: 'tcp' | 'udp'): Promise<ProtocolStats> {
-    this.appendMessage(`connecting via ${protocol}`);
     await this.connect();
     if (protocol === 'tcp') {
       await this.switchProtocol('tcp');
+    } else {
+      await this.switchProtocol('udp');
     }
 
     // create a canvas with animated content
@@ -103,8 +103,12 @@ export class ConnectionProtocolCheck extends Checker {
     // publish to room
     const pub = await this.room.localParticipant.publishTrack(videoTrack, {
       simulcast: false,
+      degradationPreference: 'maintain-resolution',
+      videoEncoding: {
+        maxBitrate: 2000000,
+      },
     });
-    const track = pub.track!;
+    const track = pub!.track!;
 
     const protocolStats: ProtocolStats = {
       protocol,
@@ -124,7 +128,6 @@ export class ConnectionProtocolCheck extends Checker {
           protocolStats.packetsSent = stat.packetsSent;
           protocolStats.qualityLimitationDurations = stat.qualityLimitationDurations;
           protocolStats.bitrateTotal += stat.targetBitrate;
-
           protocolStats.count++;
         } else if (stat.type === 'remote-inbound-rtp') {
           protocolStats.packetsLost = stat.packetsLost;
@@ -135,10 +138,11 @@ export class ConnectionProtocolCheck extends Checker {
     }, 1000);
 
     // wait a bit to gather stats
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, TEST_DURATION));
     clearInterval(interval);
 
     videoTrack.stop();
+    canvas.remove();
     await this.disconnect();
     return protocolStats;
   }
