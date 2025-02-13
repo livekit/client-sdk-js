@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.9.2
+
+### Patch Changes
+
+- added new connection tests - [#1402](https://github.com/livekit/client-sdk-js/pull/1402) ([@davidzhao](https://github.com/davidzhao))
+
 ## 2.9.1
 
 ### Patch Changes
