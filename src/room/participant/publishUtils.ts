@@ -256,6 +256,10 @@ export function computeTrackBackupEncodings(
   const width = settings.width ?? track.dimensions?.width;
   const height = settings.height ?? track.dimensions?.height;
 
+  // disable simulcast for screenshare backup codec since L1Tx is used by primary codec
+  if (track.source === Track.Source.ScreenShare && opts.simulcast) {
+    opts.simulcast = false;
+  }
   const encodings = computeVideoEncodings(
     track.source === Track.Source.ScreenShare,
     width,
