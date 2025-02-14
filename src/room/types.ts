@@ -118,7 +118,10 @@ export interface ByteStreamInfo extends BaseStreamInfo {
   name: string;
 }
 
-export interface TextStreamInfo extends BaseStreamInfo {}
+export interface TextStreamInfo extends BaseStreamInfo {
+  version?: number;
+  type: 'create' | 'update';
+}
 
 export type TextStreamChunk = {
   index: number;
