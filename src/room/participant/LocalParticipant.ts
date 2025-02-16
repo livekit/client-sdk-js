@@ -90,6 +90,7 @@ import {
   isWeb,
   numberToBigInt,
   sleep,
+  splitUtf8,
   supportsAV1,
   supportsVP9,
 } from '../utils';
@@ -1614,20 +1615,13 @@ export default class LocalParticipant extends Participant {
     let chunkId = 0;
     const localP = this;
 
-    const writableStream = new WritableStream<[string, number?]>({
+    const writableStream = new WritableStream<string>({
       // Implement the sink
-      write([textChunk]) {
-        const textInBytes = new TextEncoder().encode(textChunk);
-
-        if (textInBytes.byteLength > STREAM_CHUNK_SIZE) {
-          this.abort?.();
-          throw new Error('chunk size too large');
-        }
-
-        return new Promise(async (resolve) => {
+      async write(text) {
+        for (const textChunk in splitUtf8(text, STREAM_CHUNK_SIZE)) {
           await localP.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
           const chunk = new DataStream_Chunk({
-            content: textInBytes,
+            content: new TextEncoder().encode(textChunk),
             streamId,
             chunkIndex: numberToBigInt(chunkId),
           });
@@ -1641,8 +1635,7 @@ export default class LocalParticipant extends Participant {
           await localP.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
 
           chunkId += 1;
-          resolve();
-        });
+        }
       },
       async close() {
         const trailer = new DataStream_Trailer({
