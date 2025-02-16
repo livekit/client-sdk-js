@@ -1537,19 +1537,9 @@ export default class LocalParticipant extends Participant {
       attachedStreamIds: fileIds,
     });
 
-    const textChunkSize = Math.floor(STREAM_CHUNK_SIZE / 4); // utf8 is at most 4 bytes long, so play it safe and take a quarter of the byte size to slice the string
-    const totalTextChunks = Math.ceil(totalTextLength / textChunkSize);
-
-    for (let i = 0; i < totalTextChunks; i++) {
-      const chunkData = text.slice(
-        i * textChunkSize,
-        Math.min((i + 1) * textChunkSize, totalTextLength),
-      );
-      await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
-      await writer.write(chunkData);
-
-      handleProgress(Math.ceil((i + 1) / totalTextChunks), 0);
-    }
+    await writer.write(text);
+    // set text part of progress to 1
+    handleProgress(1, 0);
 
     await writer.close();
 
