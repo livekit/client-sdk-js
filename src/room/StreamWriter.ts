@@ -1,15 +1,15 @@
 import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from './types';
 
 class BaseStreamWriter<T, InfoType extends BaseStreamInfo> {
-  protected writableStream: WritableStream<[T, number?]>;
+  protected writableStream: WritableStream<T>;
 
-  protected defaultWriter: WritableStreamDefaultWriter<[T, number?]>;
+  protected defaultWriter: WritableStreamDefaultWriter<T>;
 
   protected onClose?: () => void;
 
   readonly info: InfoType;
 
-  constructor(writableStream: WritableStream<[T, number?]>, info: InfoType, onClose?: () => void) {
+  constructor(writableStream: WritableStream<T>, info: InfoType, onClose?: () => void) {
     this.writableStream = writableStream;
     this.defaultWriter = writableStream.getWriter();
     this.onClose = onClose;
@@ -17,7 +17,7 @@ class BaseStreamWriter<T, InfoType extends BaseStreamInfo> {
   }
 
   write(chunk: T): Promise<void> {
-    return this.defaultWriter.write([chunk]);
+    return this.defaultWriter.write(chunk);
   }
 
   async close() {

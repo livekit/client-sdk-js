@@ -90,6 +90,7 @@ import {
   isWeb,
   numberToBigInt,
   sleep,
+  splitUtf8,
   supportsAV1,
   supportsVP9,
 } from '../utils';
@@ -1536,19 +1537,9 @@ export default class LocalParticipant extends Participant {
       attachedStreamIds: fileIds,
     });
 
-    const textChunkSize = Math.floor(STREAM_CHUNK_SIZE / 4); // utf8 is at most 4 bytes long, so play it safe and take a quarter of the byte size to slice the string
-    const totalTextChunks = Math.ceil(totalTextLength / textChunkSize);
-
-    for (let i = 0; i < totalTextChunks; i++) {
-      const chunkData = text.slice(
-        i * textChunkSize,
-        Math.min((i + 1) * textChunkSize, totalTextLength),
-      );
-      await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
-      await writer.write(chunkData);
-
-      handleProgress(Math.ceil((i + 1) / totalTextChunks), 0);
-    }
+    await writer.write(text);
+    // set text part of progress to 1
+    handleProgress(1, 0);
 
     await writer.close();
 
@@ -1614,20 +1605,13 @@ export default class LocalParticipant extends Participant {
     let chunkId = 0;
     const localP = this;
 
-    const writableStream = new WritableStream<[string, number?]>({
+    const writableStream = new WritableStream<string>({
       // Implement the sink
-      write([textChunk]) {
-        const textInBytes = new TextEncoder().encode(textChunk);
-
-        if (textInBytes.byteLength > STREAM_CHUNK_SIZE) {
-          this.abort?.();
-          throw new Error('chunk size too large');
-        }
-
-        return new Promise(async (resolve) => {
+      async write(text) {
+        for (const textChunk in splitUtf8(text, STREAM_CHUNK_SIZE)) {
           await localP.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
           const chunk = new DataStream_Chunk({
-            content: textInBytes,
+            content: new TextEncoder().encode(textChunk),
             streamId,
             chunkIndex: numberToBigInt(chunkId),
           });
@@ -1641,8 +1625,7 @@ export default class LocalParticipant extends Participant {
           await localP.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
 
           chunkId += 1;
-          resolve();
-        });
+        }
       },
       async close() {
         const trailer = new DataStream_Trailer({

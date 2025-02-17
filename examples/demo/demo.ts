@@ -264,16 +264,15 @@ const appActions = {
           room.getParticipantByIdentity(participant?.identity),
         );
       } else {
-        for await (const msg of reader) {
-          handleChatMessage(
-            {
-              id: info.id,
-              timestamp: info.timestamp,
-              message: msg.collected,
-            },
-            room.getParticipantByIdentity(participant?.identity),
-          );
-        }
+        handleChatMessage(
+          {
+            id: info.id,
+            timestamp: info.timestamp,
+            message: await reader.readAll(),
+          },
+          room.getParticipantByIdentity(participant?.identity),
+        );
+
         appendLog('text stream finished');
       }
       console.log('final info including close extensions', reader.info);
@@ -515,7 +514,7 @@ const appActions = {
     if (!currentRoom) return;
     const textField = <HTMLInputElement>$('entry');
     if (textField.value) {
-      currentRoom.localParticipant.sendText(textField.value, { topic: 'chat' });
+      currentRoom.localParticipant.sendText(textField.value, { topic: 'lk.chat' });
       textField.value = '';
     }
   },
@@ -619,7 +618,7 @@ async function sendGreetingTo(participant: Participant) {
   const greeting = `Hello new participant ${participant.identity}. This is just an progressively updating chat message from me, participant ${currentRoom?.localParticipant.identity}.`;
 
   const streamWriter = await currentRoom!.localParticipant.streamText({
-    topic: 'chat',
+    topic: 'lk.chat',
     destinationIdentities: [participant.identity],
   });
 
