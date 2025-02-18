@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.9.2
+
+### Patch Changes
+
+- Add auto chunking to text streams - [#1410](https://github.com/livekit/client-sdk-js/pull/1410) ([@lukasIO](https://github.com/lukasIO))
+
+- Disable simulcast for screenshare backup codec - [#1409](https://github.com/livekit/client-sdk-js/pull/1409) ([@cnderrauber](https://github.com/cnderrauber))
+
+- added new connection tests - [#1402](https://github.com/livekit/client-sdk-js/pull/1402) ([@davidzhao](https://github.com/davidzhao))
+
 ## 2.9.1
 
 ### Patch Changes
