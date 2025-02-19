@@ -626,18 +626,19 @@ export function isRemoteParticipant(p: Participant): p is RemoteParticipant {
   return !p.isLocal;
 }
 
-export function splitUtf8(s: string, n: number): string[] {
+export function splitUtf8(s: string, n: number): Uint8Array[] {
   // adapted from https://stackoverflow.com/a/6043797
-  const result: string[] = [];
-  while (s.length > n) {
+  const result: Uint8Array[] = [];
+  let encoded = new TextEncoder().encode(s);
+  while (encoded.length > n) {
     let k = n;
     // Move back to find the start of a UTF-8 character
-    while ((s.charCodeAt(k) & 0xc0) === 0x80) {
+    while ((encoded[k] & 0xc0) === 0x80) {
       k--;
     }
-    result.push(s.slice(0, k));
-    s = s.slice(k);
+    result.push(encoded.slice(0, k));
+    encoded = encoded.slice(k);
   }
-  result.push(s);
+  result.push(encoded);
   return result;
 }
