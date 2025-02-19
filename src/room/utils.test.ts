@@ -23,4 +23,37 @@ describe('splitUtf8', () => {
       new TextEncoder().encode('d'),
     ]);
   });
+
+  it('splits a string with special characters into chunks of the given size', () => {
+    expect(splitUtf8('héllo wörld', 5)).toEqual([
+      new TextEncoder().encode('héll'),
+      new TextEncoder().encode('o wö'),
+      new TextEncoder().encode('rld'),
+    ]);
+  });
+
+  it('splits a string with multi-byte utf8 characters correctly', () => {
+    expect(splitUtf8('こんにちは世界', 5)).toEqual([
+      new TextEncoder().encode('こん'),
+      new TextEncoder().encode('にち'),
+      new TextEncoder().encode('は世'),
+      new TextEncoder().encode('界'),
+    ]);
+  });
+
+  it('handles a string with a single multi-byte utf8 character', () => {
+    expect(splitUtf8('😊', 5)).toEqual([new TextEncoder().encode('😊')]);
+  });
+
+  it('handles a string with mixed single and multi-byte utf8 characters', () => {
+    expect(splitUtf8('a😊b', 2)).toEqual([
+      new TextEncoder().encode('a'),
+      new TextEncoder().encode('😊'),
+      new TextEncoder().encode('b'),
+    ]);
+  });
+
+  it('handles an empty string', () => {
+    expect(splitUtf8('', 5)).toEqual([]);
+  });
 });
