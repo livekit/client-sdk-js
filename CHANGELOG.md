@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.9.3
+
+### Patch Changes
+
+- Fix utf8 text split iteration - [#1412](https://github.com/livekit/client-sdk-js/pull/1412) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.9.2
 
 ### Patch Changes
