@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.9.4
+
+### Patch Changes
+
+- Improve utf8 text split and add unit test - [#1414](https://github.com/livekit/client-sdk-js/pull/1414) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.9.3
 
 ### Patch Changes
