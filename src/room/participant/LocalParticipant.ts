@@ -1608,10 +1608,10 @@ export default class LocalParticipant extends Participant {
     const writableStream = new WritableStream<string>({
       // Implement the sink
       async write(text) {
-        for (const textChunk of splitUtf8(text, STREAM_CHUNK_SIZE)) {
+        for (const textByteChunk of splitUtf8(text, STREAM_CHUNK_SIZE)) {
           await localP.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
           const chunk = new DataStream_Chunk({
-            content: new TextEncoder().encode(textChunk),
+            content: textByteChunk,
             streamId,
             chunkIndex: numberToBigInt(chunkId),
           });

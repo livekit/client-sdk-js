@@ -626,18 +626,27 @@ export function isRemoteParticipant(p: Participant): p is RemoteParticipant {
   return !p.isLocal;
 }
 
-export function splitUtf8(s: string, n: number): string[] {
+export function splitUtf8(s: string, n: number): Uint8Array[] {
+  if (n < 4) {
+    throw new Error('n must be at least 4 due to utf8 encoding rules');
+  }
   // adapted from https://stackoverflow.com/a/6043797
-  const result: string[] = [];
-  while (s.length > n) {
+  const result: Uint8Array[] = [];
+  let encoded = new TextEncoder().encode(s);
+  while (encoded.length > n) {
     let k = n;
-    // Move back to find the start of a UTF-8 character
-    while ((s.charCodeAt(k) & 0xc0) === 0x80) {
+    while (k > 0) {
+      const byte = encoded[k];
+      if (byte !== undefined && (byte & 0xc0) !== 0x80) {
+        break;
+      }
       k--;
     }
-    result.push(s.slice(0, k));
-    s = s.slice(k);
+    result.push(encoded.slice(0, k));
+    encoded = encoded.slice(k);
   }
-  result.push(s);
+  if (encoded.length > 0) {
+    result.push(encoded);
+  }
   return result;
 }
