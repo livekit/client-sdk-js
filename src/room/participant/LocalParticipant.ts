@@ -602,16 +602,17 @@ export default class LocalParticipant extends Participant {
    */
   async createTracks(options?: CreateLocalTracksOptions): Promise<LocalTrack[]> {
     options ??= {};
-    const { audioProcessor, videoProcessor, optionsWithoutProcessor } =
-      extractProcessorsFromOptions(options);
 
-    const mergedOptions = mergeDefaultOptions(
-      optionsWithoutProcessor,
+    const mergedOptionsWithProcessors = mergeDefaultOptions(
+      options,
       this.roomOptions?.audioCaptureDefaults,
       this.roomOptions?.videoCaptureDefaults,
     );
 
-    const constraints = constraintsForOptions(mergedOptions);
+    const { audioProcessor, videoProcessor, optionsWithoutProcessor } =
+      extractProcessorsFromOptions(mergedOptionsWithProcessors);
+
+    const constraints = constraintsForOptions(optionsWithoutProcessor);
     let stream: MediaStream | undefined;
     try {
       stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -639,10 +640,6 @@ export default class LocalParticipant extends Participant {
     return Promise.all(
       stream.getTracks().map(async (mediaStreamTrack) => {
         const isAudio = mediaStreamTrack.kind === 'audio';
-        let trackOptions = isAudio ? mergedOptions!.audio : mergedOptions!.video;
-        if (typeof trackOptions === 'boolean' || !trackOptions) {
-          trackOptions = {};
-        }
         let trackConstraints: MediaTrackConstraints | undefined;
         const conOrBool = isAudio ? constraints.audio : constraints.video;
         if (typeof conOrBool !== 'boolean') {
