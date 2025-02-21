@@ -21,6 +21,8 @@ export function mergeDefaultOptions(
   const { optionsWithoutProcessor, audioProcessor, videoProcessor } = extractProcessorsFromOptions(
     options ?? {},
   );
+  const defaultAudioProcessor = audioDefaults?.processor;
+  const defaultVideoProcessor = videoDefaults?.processor;
   const clonedOptions: CreateLocalTracksOptions = cloneDeep(optionsWithoutProcessor) ?? {};
   if (clonedOptions.audio === true) clonedOptions.audio = {};
   if (clonedOptions.video === true) clonedOptions.video = {};
@@ -32,8 +34,8 @@ export function mergeDefaultOptions(
       audioDefaults as Record<string, unknown>,
     );
     clonedOptions.audio.deviceId ??= 'default';
-    if (audioProcessor) {
-      clonedOptions.audio.processor = audioProcessor;
+    if (audioProcessor || defaultAudioProcessor) {
+      clonedOptions.audio.processor = audioProcessor ?? defaultAudioProcessor;
     }
   }
   if (clonedOptions.video) {
@@ -42,8 +44,8 @@ export function mergeDefaultOptions(
       videoDefaults as Record<string, unknown>,
     );
     clonedOptions.video.deviceId ??= 'default';
-    if (videoProcessor) {
-      clonedOptions.video.processor = videoProcessor;
+    if (videoProcessor || defaultVideoProcessor) {
+      clonedOptions.video.processor = videoProcessor ?? defaultVideoProcessor;
     }
   }
   return clonedOptions;
