@@ -34,6 +34,7 @@ import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
   LivekitError,
+  PublishTrackError,
   SignalRequestError,
   TrackInvalidError,
   UnexpectedConnectionState,
@@ -64,6 +65,7 @@ import {
   constraintsForOptions,
   extractProcessorsFromOptions,
   getLogContextFromTrack,
+  getTrackSourceFromProto,
   mergeDefaultOptions,
   mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
@@ -871,7 +873,29 @@ export default class LocalParticipant extends Participant {
     }
   }
 
+  private hasPermissionsToPublish(track: LocalTrack): boolean {
+    if (!this.permissions) {
+      return false;
+    }
+    const { canPublish, canPublishSources } = this.permissions;
+    if (
+      !canPublish ||
+      (canPublishSources &&
+        !canPublishSources.map((source) => getTrackSourceFromProto(source)).includes(track.source))
+    ) {
+      this.log.error('no sufficient permissions to publish', {
+        ...this.logContext,
+        ...getLogContextFromTrack(track),
+      });
+      return false;
+    }
+    return true;
+  }
+
   private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
+    if (!this.hasPermissionsToPublish(track)) {
+      throw new PublishTrackError('failed to publish track, no sufficient permissions', 403);
+    }
     const existingTrackOfSource = Array.from(this.trackPublications.values()).find(
       (publishedTrack) => isLocalTrack(track) && publishedTrack.source === track.source,
     );

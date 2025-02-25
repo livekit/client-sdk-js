@@ -1,4 +1,4 @@
-import { TrackPublishedResponse } from '@livekit/protocol';
+import { TrackPublishedResponse, TrackSource } from '@livekit/protocol';
 import type { AudioProcessorOptions, TrackProcessor, VideoProcessorOptions } from '../..';
 import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
@@ -293,4 +293,19 @@ export function extractProcessorsFromOptions(options: CreateLocalTracksOptions) 
   }
 
   return { audioProcessor, videoProcessor, optionsWithoutProcessor: newOptions };
+}
+
+export function getTrackSourceFromProto(source: TrackSource): Track.Source {
+  switch (source) {
+    case TrackSource.CAMERA:
+      return Track.Source.Camera;
+    case TrackSource.MICROPHONE:
+      return Track.Source.Microphone;
+    case TrackSource.SCREEN_SHARE:
+      return Track.Source.ScreenShare;
+    case TrackSource.SCREEN_SHARE_AUDIO:
+      return Track.Source.ScreenShareAudio;
+    default:
+      return Track.Source.Unknown;
+  }
 }
