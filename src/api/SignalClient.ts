@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import {
   AddTrackRequest,
   AudioTrackFeature,
@@ -6,11 +7,13 @@ import {
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
+  LeaveRequest_Action,
   MuteTrackRequest,
   ParticipantInfo,
   Ping,
   ReconnectReason,
   ReconnectResponse,
+  RequestResponse,
   Room,
   SessionDescription,
   SignalRequest,
@@ -40,7 +43,7 @@ import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
-import { Mutex, getClientInfo, isReactNative, sleep, toWebsocketUrl } from '../room/utils';
+import { getClientInfo, isReactNative, sleep, toWebsocketUrl } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
 
 // internal options
@@ -140,6 +143,10 @@ export class SignalClient {
 
   onLeave?: (leave: LeaveRequest) => void;
 
+  onRequestResponse?: (response: RequestResponse) => void;
+
+  onLocalTrackSubscribed?: (trackSid: string) => void;
+
   connectOptions?: ConnectOpts;
 
   ws?: WebSocket;
@@ -162,6 +169,11 @@ export class SignalClient {
     );
   }
 
+  private getNextRequestId() {
+    this._requestId += 1;
+    return this._requestId;
+  }
+
   private options?: SignalOptions;
 
   private pingTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -181,6 +193,8 @@ export class SignalClient {
   private log = log;
 
   private loggerContextCb?: LoggerOptions['loggerContextCb'];
+
+  private _requestId = 0;
 
   constructor(useJSON: boolean = false, loggerOptions: LoggerOptions = {}) {
     this.log = getLogger(loggerOptions.loggerName ?? LoggerNames.Signal);
@@ -258,19 +272,32 @@ export class SignalClient {
         const abortHandler = async () => {
           this.close();
           clearTimeout(wsTimeout);
-          reject(new ConnectionError('room connection has been cancelled (signal)'));
+          reject(
+            new ConnectionError(
+              'room connection has been cancelled (signal)',
+              ConnectionErrorReason.Cancelled,
+            ),
+          );
         };
 
         const wsTimeout = setTimeout(() => {
           this.close();
-          reject(new ConnectionError('room connection has timed out (signal)'));
+          reject(
+            new ConnectionError(
+              'room connection has timed out (signal)',
+              ConnectionErrorReason.ServerUnreachable,
+            ),
+          );
         }, opts.websocketTimeout);
 
         if (abortSignal?.aborted) {
           abortHandler();
         }
         abortSignal?.addEventListener('abort', abortHandler);
-        this.log.debug(`connecting to ${url + params}`, this.logContext);
+        this.log.debug(
+          `connecting to ${url + params.replace(/access_token=([^&#$]*)/, 'access_token=<redacted>')}`,
+          this.logContext,
+        );
         if (this.ws) {
           await this.close(false);
         }
@@ -302,7 +329,7 @@ export class SignalClient {
             } catch (e) {
               reject(
                 new ConnectionError(
-                  'server was not reachable',
+                  e instanceof Error ? e.message : 'server was not reachable',
                   ConnectionErrorReason.ServerUnreachable,
                 ),
               );
@@ -370,6 +397,8 @@ export class SignalClient {
                 new ConnectionError(
                   'Received leave request while trying to (re)connect',
                   ConnectionErrorReason.LeaveRequest,
+                  undefined,
+                  resp.message.value.reason,
                 ),
               );
             } else if (!opts.reconnect) {
@@ -377,6 +406,7 @@ export class SignalClient {
               reject(
                 new ConnectionError(
                   `did not receive join response, got ${resp.message?.case} instead`,
+                  ConnectionErrorReason.InternalError,
                 ),
               );
             }
@@ -393,7 +423,12 @@ export class SignalClient {
 
         this.ws.onclose = (ev: CloseEvent) => {
           if (this.isEstablishingConnection) {
-            reject(new ConnectionError('Websocket got closed during a (re)connection attempt'));
+            reject(
+              new ConnectionError(
+                'Websocket got closed during a (re)connection attempt',
+                ConnectionErrorReason.InternalError,
+              ),
+            );
           }
 
           this.log.warn(`websocket closed`, {
@@ -429,6 +464,7 @@ export class SignalClient {
   async close(updateState: boolean = true) {
     const unlock = await this.closingLock.lock();
     try {
+      this.clearPingInterval();
       if (updateState) {
         this.state = SignalConnectionState.DISCONNECTING;
       }
@@ -459,7 +495,6 @@ export class SignalClient {
       if (updateState) {
         this.state = SignalConnectionState.DISCONNECTED;
       }
-      this.clearPingInterval();
       unlock();
     }
   }
@@ -510,14 +545,22 @@ export class SignalClient {
     });
   }
 
-  sendUpdateLocalMetadata(metadata: string, name: string) {
-    return this.sendRequest({
+  async sendUpdateLocalMetadata(
+    metadata: string,
+    name: string,
+    attributes: Record<string, string> = {},
+  ) {
+    const requestId = this.getNextRequestId();
+    await this.sendRequest({
       case: 'updateMetadata',
       value: new UpdateParticipantMetadata({
+        requestId,
         metadata,
         name,
+        attributes,
       }),
     });
+    return requestId;
   }
 
   sendUpdateTrackSettings(settings: UpdateTrackSettings) {
@@ -596,8 +639,9 @@ export class SignalClient {
     return this.sendRequest({
       case: 'leave',
       value: new LeaveRequest({
-        canReconnect: false,
         reason: DisconnectReason.CLIENT_INITIATED,
+        // server doesn't process this field, keeping it here to indicate the intent of a full disconnect
+        action: LeaveRequest_Action.DISCONNECT,
       }),
     });
   }
@@ -719,6 +763,14 @@ export class SignalClient {
       this.rtt = Date.now() - Number.parseInt(msg.value.lastPingTimestamp.toString());
       this.resetPingTimeout();
       pingHandled = true;
+    } else if (msg.case === 'requestResponse') {
+      if (this.onRequestResponse) {
+        this.onRequestResponse(msg.value);
+      }
+    } else if (msg.case === 'trackSubscribed') {
+      if (this.onLocalTrackSubscribed) {
+        this.onLocalTrackSubscribed(msg.value.trackSid);
+      }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });
     }

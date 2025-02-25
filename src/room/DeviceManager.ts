@@ -17,6 +17,12 @@ export default class DeviceManager {
 
   static userMediaPromiseMap: Map<MediaDeviceKind, Promise<MediaStream>> = new Map();
 
+  private _previousDevices: MediaDeviceInfo[] = [];
+
+  get previousDevices() {
+    return this._previousDevices;
+  }
+
   async getDevices(
     kind?: MediaDeviceKind,
     requestPermissions: boolean = true,
@@ -41,7 +47,7 @@ export default class DeviceManager {
       !(isSafari() && this.hasDeviceInUse(kind))
     ) {
       const isDummyDeviceOrEmpty =
-        devices.length === 0 ||
+        devices.filter((d) => d.kind === kind).length === 0 ||
         devices.some((device) => {
           const noLabel = device.label === '';
           const isRelevant = kind ? device.kind === kind : true;
@@ -51,7 +57,7 @@ export default class DeviceManager {
       if (isDummyDeviceOrEmpty) {
         const permissionsToAcquire = {
           video: kind !== 'audioinput' && kind !== 'audiooutput',
-          audio: kind !== 'videoinput',
+          audio: kind !== 'videoinput' && { deviceId: 'default' },
         };
         const stream = await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
         devices = await navigator.mediaDevices.enumerateDevices();
@@ -60,10 +66,11 @@ export default class DeviceManager {
         });
       }
     }
+    this._previousDevices = devices;
+
     if (kind) {
       devices = devices.filter((device) => device.kind === kind);
     }
-
     return devices;
   }
 
@@ -80,16 +87,21 @@ export default class DeviceManager {
     // device has been chosen
     const devices = await this.getDevices(kind);
 
-    // `default` devices will have the same groupId as the entry with the actual device id so we store the counts for each group id
-    const groupIdCounts = new Map(devices.map((d) => [d.groupId, 0]));
+    const defaultDevice = devices.find((d) => d.deviceId === defaultId);
 
-    devices.forEach((d) => groupIdCounts.set(d.groupId, (groupIdCounts.get(d.groupId) ?? 0) + 1));
+    if (!defaultDevice) {
+      log.warn('could not reliably determine default device');
+      return undefined;
+    }
 
     const device = devices.find(
-      (d) =>
-        (groupId === d.groupId || (groupIdCounts.get(d.groupId) ?? 0) > 1) &&
-        d.deviceId !== defaultId,
+      (d) => d.deviceId !== defaultId && d.groupId === (groupId ?? defaultDevice.groupId),
     );
+
+    if (!device) {
+      log.warn('could not reliably determine default device');
+      return undefined;
+    }
 
     return device?.deviceId;
   }

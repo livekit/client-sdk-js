@@ -1,4 +1,6 @@
 import { workerLogger } from '../../logger';
+import type { VideoCodec } from '../../room/track/options';
+import { AsyncQueue } from '../../utils/AsyncQueue';
 import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';
 import { CryptorEvent, KeyHandlerEvent } from '../events';
@@ -16,6 +18,7 @@ import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 const participantCryptors: FrameCryptor[] = [];
 const participantKeys: Map<string, ParticipantKeyHandler> = new Map();
 let sharedKeyHandler: ParticipantKeyHandler | undefined;
+let messageQueue = new AsyncQueue();
 
 let isEncryptionEnabled: boolean = false;
 
@@ -25,87 +28,92 @@ let sifTrailer: Uint8Array | undefined;
 
 let keyProviderOptions: KeyProviderOptions = KEY_PROVIDER_DEFAULTS;
 
+let rtpMap: Map<number, VideoCodec> = new Map();
+
 workerLogger.setDefaultLevel('info');
 
 onmessage = (ev) => {
-  const { kind, data }: E2EEWorkerMessage = ev.data;
+  messageQueue.run(async () => {
+    const { kind, data }: E2EEWorkerMessage = ev.data;
 
-  switch (kind) {
-    case 'init':
-      workerLogger.setLevel(data.loglevel);
-      workerLogger.info('worker initialized');
-      keyProviderOptions = data.keyProviderOptions;
-      useSharedKey = !!data.keyProviderOptions.sharedKey;
-      // acknowledge init successful
-      const ackMsg: InitAck = {
-        kind: 'initAck',
-        data: { enabled: isEncryptionEnabled },
-      };
-      postMessage(ackMsg);
-      break;
-    case 'enable':
-      setEncryptionEnabled(data.enabled, data.participantIdentity);
-      workerLogger.info(
-        `updated e2ee enabled status for ${data.participantIdentity} to ${data.enabled}`,
-      );
-      // acknowledge enable call successful
-      postMessage(ev.data);
-      break;
-    case 'decode':
-      let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
-      cryptor.setupTransform(
-        kind,
-        data.readableStream,
-        data.writableStream,
-        data.trackId,
-        data.codec,
-      );
-      break;
-    case 'encode':
-      let pubCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
-      pubCryptor.setupTransform(
-        kind,
-        data.readableStream,
-        data.writableStream,
-        data.trackId,
-        data.codec,
-      );
-      break;
-    case 'setKey':
-      if (useSharedKey) {
-        setSharedKey(data.key, data.keyIndex);
-      } else if (data.participantIdentity) {
+    switch (kind) {
+      case 'init':
+        workerLogger.setLevel(data.loglevel);
+        workerLogger.info('worker initialized');
+        keyProviderOptions = data.keyProviderOptions;
+        useSharedKey = !!data.keyProviderOptions.sharedKey;
+        // acknowledge init successful
+        const ackMsg: InitAck = {
+          kind: 'initAck',
+          data: { enabled: isEncryptionEnabled },
+        };
+        postMessage(ackMsg);
+        break;
+      case 'enable':
+        setEncryptionEnabled(data.enabled, data.participantIdentity);
         workerLogger.info(
-          `set participant sender key ${data.participantIdentity} index ${data.keyIndex}`,
+          `updated e2ee enabled status for ${data.participantIdentity} to ${data.enabled}`,
         );
-        getParticipantKeyHandler(data.participantIdentity).setKey(data.key, data.keyIndex);
-      } else {
-        workerLogger.error('no participant Id was provided and shared key usage is disabled');
-      }
-      break;
-    case 'removeTransform':
-      unsetCryptorParticipant(data.trackId, data.participantIdentity);
-      break;
-    case 'updateCodec':
-      getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
-      break;
-    case 'setRTPMap':
-      // this is only used for the local participant
-      participantCryptors.forEach((cr) => {
-        if (cr.getParticipantIdentity() === data.participantIdentity) {
-          cr.setRtpMap(data.map);
+        // acknowledge enable call successful
+        postMessage(ev.data);
+        break;
+      case 'decode':
+        let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        cryptor.setupTransform(
+          kind,
+          data.readableStream,
+          data.writableStream,
+          data.trackId,
+          data.codec,
+        );
+        break;
+      case 'encode':
+        let pubCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        pubCryptor.setupTransform(
+          kind,
+          data.readableStream,
+          data.writableStream,
+          data.trackId,
+          data.codec,
+        );
+        break;
+      case 'setKey':
+        if (useSharedKey) {
+          await setSharedKey(data.key, data.keyIndex);
+        } else if (data.participantIdentity) {
+          workerLogger.info(
+            `set participant sender key ${data.participantIdentity} index ${data.keyIndex}`,
+          );
+          await getParticipantKeyHandler(data.participantIdentity).setKey(data.key, data.keyIndex);
+        } else {
+          workerLogger.error('no participant Id was provided and shared key usage is disabled');
         }
-      });
-      break;
-    case 'ratchetRequest':
-      handleRatchetRequest(data);
-      break;
-    case 'setSifTrailer':
-      handleSifTrailer(data.trailer);
-      break;
-    default:
-      break;
-  }
+        break;
+      case 'removeTransform':
+        unsetCryptorParticipant(data.trackId, data.participantIdentity);
+        break;
+      case 'updateCodec':
+        getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
+        break;
+      case 'setRTPMap':
+        // this is only used for the local participant
+        rtpMap = data.map;
+        participantCryptors.forEach((cr) => {
+          if (cr.getParticipantIdentity() === data.participantIdentity) {
+            cr.setRtpMap(data.map);
+          }
+        });
+        break;
+      case 'ratchetRequest':
+        handleRatchetRequest(data);
+        break;
+      case 'setSifTrailer':
+        handleSifTrailer(data.trailer);
+        break;
+      default:
+        break;
+    }
+  });
 };
 
 async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
@@ -149,7 +157,7 @@ function getTrackCryptor(participantIdentity: string, trackId: string) {
       keyProviderOptions,
       sifTrailer,
     });
-
+    cryptor.setRtpMap(rtpMap);
     setupCryptorErrorEvents(cryptor);
     participantCryptors.push(cryptor);
   } else if (participantIdentity !== cryptor.getParticipantIdentity()) {
@@ -206,9 +214,9 @@ function setEncryptionEnabled(enable: boolean, participantIdentity: string) {
   encryptionEnabledMap.set(participantIdentity, enable);
 }
 
-function setSharedKey(key: CryptoKey, index?: number) {
+async function setSharedKey(key: CryptoKey, index?: number) {
   workerLogger.info('set shared key', { index });
-  getSharedKeyHandler().setKey(key, index);
+  await getSharedKeyHandler().setKey(key, index);
 }
 
 function setupCryptorErrorEvents(cryptor: FrameCryptor) {

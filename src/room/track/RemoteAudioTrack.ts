@@ -25,7 +25,7 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
-    receiver?: RTCRtpReceiver,
+    receiver: RTCRtpReceiver,
     audioContext?: AudioContext,
     audioOutput?: AudioOutputOptions,
     loggerOptions?: LoggerOptions,
@@ -233,7 +233,7 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
     this.prevStats = stats;
   };
 
-  protected async getReceiverStats(): Promise<AudioReceiverStats | undefined> {
+  async getReceiverStats(): Promise<AudioReceiverStats | undefined> {
     if (!this.receiver || !this.receiver.getStats) {
       return;
     }
@@ -244,6 +244,7 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
       if (v.type === 'inbound-rtp') {
         receiverStats = {
           type: 'audio',
+          streamId: v.id,
           timestamp: v.timestamp,
           jitter: v.jitter,
           bytesReceived: v.bytesReceived,

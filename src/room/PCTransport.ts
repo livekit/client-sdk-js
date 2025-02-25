@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { MediaDescription } from 'sdp-transform';
+import type { MediaDescription, SessionDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
 import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
@@ -23,6 +23,8 @@ eliminate this issue.
 */
 const startBitrateForSVC = 0.7;
 
+const debounceInterval = 20;
+
 export const PCEvents = {
   NegotiationStarted: 'negotiationStarted',
   NegotiationComplete: 'negotiationComplete',
@@ -45,6 +47,8 @@ export default class PCTransport extends EventEmitter {
   private log = log;
 
   private loggerOptions: LoggerOptions;
+
+  private ddExtID = 0;
 
   pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -228,7 +232,7 @@ export default class PCTransport extends EventEmitter {
         throw e;
       }
     }
-  }, 100);
+  }, debounceInterval);
 
   async createAndSendOffer(options?: RTCOfferOptions) {
     if (this.onOffer === undefined) {
@@ -260,14 +264,14 @@ export default class PCTransport extends EventEmitter {
     // actually negotiate
     this.log.debug('starting to negotiate', this.logContext);
     const offer = await this.pc.createOffer(options);
+    this.log.debug('original offer', { sdp: offer.sdp, ...this.logContext });
 
     const sdpParsed = parse(offer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
+      ensureIPAddrMatchVersion(media);
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, [], []);
       } else if (media.type === 'video') {
-        ensureVideoDDExtensionForSVC(media);
-        // mung sdp for codec bitrate setting that can't apply by sendEncoding
         this.trackBitrates.some((trackbr): boolean => {
           if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
             return false;
@@ -283,6 +287,16 @@ export default class PCTransport extends EventEmitter {
           });
 
           if (codecPayload === 0) {
+            return true;
+          }
+
+          if (isSVCCodec(trackbr.codec)) {
+            this.ensureVideoDDExtensionForSVC(media, sdpParsed);
+          }
+
+          // TODO: av1 slow starting issue already fixed in chrome 124, clean this after some versions
+          // mung sdp for av1 bitrate setting that can't apply by sendEncoding
+          if (trackbr.codec !== 'av1') {
             return true;
           }
 
@@ -312,6 +326,7 @@ export default class PCTransport extends EventEmitter {
     const answer = await this.pc.createAnswer();
     const sdpParsed = parse(answer.sdp ?? '');
     sdpParsed.media.forEach((media) => {
+      ensureIPAddrMatchVersion(media);
       if (media.type === 'audio') {
         ensureAudioNackAndStereo(media, this.remoteStereoMids, this.remoteNackMids);
       }
@@ -474,8 +489,6 @@ export default class PCTransport extends EventEmitter {
         await this.pc.setLocalDescription(sd);
       }
     } catch (e) {
-      // this error cannot always be caught.
-      // If the local description has a setCodecPreferences error, this error will be uncaught
       let msg = 'unknown error';
       if (e instanceof Error) {
         msg = e.message;
@@ -492,6 +505,44 @@ export default class PCTransport extends EventEmitter {
       }
       this.log.error(`unable to set ${sd.type}`, { ...this.logContext, fields });
       throw new NegotiationError(msg);
+    }
+  }
+
+  private ensureVideoDDExtensionForSVC(
+    media: {
+      type: string;
+      port: number;
+      protocol: string;
+      payloads?: string | undefined;
+    } & MediaDescription,
+    sdp: SessionDescription,
+  ) {
+    const ddFound = media.ext?.some((ext): boolean => {
+      if (ext.uri === ddExtensionURI) {
+        return true;
+      }
+      return false;
+    });
+
+    if (!ddFound) {
+      if (this.ddExtID === 0) {
+        let maxID = 0;
+        sdp.media.forEach((m) => {
+          if (m.type !== 'video') {
+            return;
+          }
+          m.ext?.forEach((ext) => {
+            if (ext.value > maxID) {
+              maxID = ext.value;
+            }
+          });
+        });
+        this.ddExtID = maxID + 1;
+      }
+      media.ext?.push({
+        value: this.ddExtID,
+        uri: ddExtensionURI,
+      });
     }
   }
 }
@@ -546,38 +597,6 @@ function ensureAudioNackAndStereo(
   }
 }
 
-function ensureVideoDDExtensionForSVC(
-  media: {
-    type: string;
-    port: number;
-    protocol: string;
-    payloads?: string | undefined;
-  } & MediaDescription,
-) {
-  const codec = media.rtp[0]?.codec?.toLowerCase();
-  if (!isSVCCodec(codec)) {
-    return;
-  }
-
-  let maxID = 0;
-  const ddFound = media.ext?.some((ext): boolean => {
-    if (ext.uri === ddExtensionURI) {
-      return true;
-    }
-    if (ext.value > maxID) {
-      maxID = ext.value;
-    }
-    return false;
-  });
-
-  if (!ddFound) {
-    media.ext?.push({
-      value: maxID + 1,
-      uri: ddExtensionURI,
-    });
-  }
-}
-
 function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
   stereoMids: string[];
   nackMids: string[];
@@ -612,4 +631,18 @@ function extractStereoAndNackAudioFromOffer(offer: RTCSessionDescriptionInit): {
     }
   });
   return { stereoMids, nackMids };
+}
+
+function ensureIPAddrMatchVersion(media: MediaDescription) {
+  // Chrome could generate sdp with c = IN IP4 <ipv6 addr>
+  // in edge case and return error when set sdp.This is not a
+  // sdk error but correct it if the issue detected.
+  if (media.connection) {
+    const isV6 = media.connection.ip.indexOf(':') >= 0;
+    if ((media.connection.version === 4 && isV6) || (media.connection.version === 6 && !isV6)) {
+      // fallback to dummy address
+      media.connection.ip = '0.0.0.0';
+      media.connection.version = 4;
+    }
+  }
 }

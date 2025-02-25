@@ -1,4 +1,5 @@
 import { TrackPublishedResponse } from '@livekit/protocol';
+import type { AudioProcessorOptions, TrackProcessor, VideoProcessorOptions } from '../..';
 import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
 import { Track } from './Track';
@@ -8,8 +9,7 @@ import {
   type CreateLocalTracksOptions,
   type ScreenShareCaptureOptions,
   type VideoCaptureOptions,
-  VideoCodec,
-  videoCodecs,
+  type VideoCodec,
 } from './options';
 import type { AudioTrack } from './types';
 
@@ -18,24 +18,37 @@ export function mergeDefaultOptions(
   audioDefaults?: AudioCaptureOptions,
   videoDefaults?: VideoCaptureOptions,
 ): CreateLocalTracksOptions {
-  const opts: CreateLocalTracksOptions = cloneDeep(options) ?? {};
-  if (opts.audio === true) opts.audio = {};
-  if (opts.video === true) opts.video = {};
+  const { optionsWithoutProcessor, audioProcessor, videoProcessor } = extractProcessorsFromOptions(
+    options ?? {},
+  );
+  const defaultAudioProcessor = audioDefaults?.processor;
+  const defaultVideoProcessor = videoDefaults?.processor;
+  const clonedOptions: CreateLocalTracksOptions = cloneDeep(optionsWithoutProcessor) ?? {};
+  if (clonedOptions.audio === true) clonedOptions.audio = {};
+  if (clonedOptions.video === true) clonedOptions.video = {};
 
   // use defaults
-  if (opts.audio) {
+  if (clonedOptions.audio) {
     mergeObjectWithoutOverwriting(
-      opts.audio as Record<string, unknown>,
+      clonedOptions.audio as Record<string, unknown>,
       audioDefaults as Record<string, unknown>,
     );
+    clonedOptions.audio.deviceId ??= 'default';
+    if (audioProcessor || defaultAudioProcessor) {
+      clonedOptions.audio.processor = audioProcessor ?? defaultAudioProcessor;
+    }
   }
-  if (opts.video) {
+  if (clonedOptions.video) {
     mergeObjectWithoutOverwriting(
-      opts.video as Record<string, unknown>,
+      clonedOptions.video as Record<string, unknown>,
       videoDefaults as Record<string, unknown>,
     );
+    clonedOptions.video.deviceId ??= 'default';
+    if (videoProcessor || defaultVideoProcessor) {
+      clonedOptions.video.processor = videoProcessor ?? defaultVideoProcessor;
+    }
   }
-  return opts;
+  return clonedOptions;
 }
 
 function mergeObjectWithoutOverwriting(
@@ -68,8 +81,9 @@ export function constraintsForOptions(options: CreateLocalTracksOptions): MediaS
         }
       });
       constraints.video = videoOptions;
+      constraints.video.deviceId ??= 'default';
     } else {
-      constraints.video = options.video;
+      constraints.video = options.video ? { deviceId: 'default' } : false;
     }
   } else {
     constraints.video = false;
@@ -78,8 +92,9 @@ export function constraintsForOptions(options: CreateLocalTracksOptions): MediaS
   if (options.audio) {
     if (typeof options.audio === 'object') {
       constraints.audio = options.audio;
+      constraints.audio.deviceId ??= 'default';
     } else {
-      constraints.audio = true;
+      constraints.audio = { deviceId: 'default' };
     }
   } else {
     constraints.audio = false;
@@ -188,11 +203,7 @@ export function screenCaptureToDisplayMediaStreamOptions(
 }
 
 export function mimeTypeToVideoCodecString(mimeType: string) {
-  const codec = mimeType.split('/')[1].toLowerCase() as VideoCodec;
-  if (!videoCodecs.includes(codec)) {
-    throw Error(`Video codec not supported: ${codec}`);
-  }
-  return codec;
+  return mimeType.split('/')[1].toLowerCase() as VideoCodec;
 }
 
 export function getTrackPublicationInfo<T extends TrackPublication>(
@@ -213,7 +224,7 @@ export function getTrackPublicationInfo<T extends TrackPublication>(
 }
 
 export function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown> {
-  if (track instanceof Track) {
+  if ('mediaStreamTrack' in track) {
     return {
       trackID: track.sid,
       source: track.source,
@@ -238,4 +249,48 @@ export function getLogContextFromTrack(track: Track | TrackPublication): Record<
       },
     };
   }
+}
+
+export function supportsSynchronizationSources(): boolean {
+  return typeof RTCRtpReceiver !== 'undefined' && 'getSynchronizationSources' in RTCRtpReceiver;
+}
+
+export function diffAttributes(
+  oldValues: Record<string, string> | undefined,
+  newValues: Record<string, string> | undefined,
+) {
+  if (oldValues === undefined) {
+    oldValues = {};
+  }
+  if (newValues === undefined) {
+    newValues = {};
+  }
+  const allKeys = [...Object.keys(newValues), ...Object.keys(oldValues)];
+  const diff: Record<string, string> = {};
+
+  for (const key of allKeys) {
+    if (oldValues[key] !== newValues[key]) {
+      diff[key] = newValues[key] ?? '';
+    }
+  }
+
+  return diff;
+}
+
+/** @internal */
+export function extractProcessorsFromOptions(options: CreateLocalTracksOptions) {
+  const newOptions = { ...options };
+  let audioProcessor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
+  let videoProcessor: TrackProcessor<Track.Kind.Video, VideoProcessorOptions> | undefined;
+
+  if (typeof newOptions.audio === 'object' && newOptions.audio.processor) {
+    audioProcessor = newOptions.audio.processor;
+    newOptions.audio = { ...newOptions.audio, processor: undefined };
+  }
+  if (typeof newOptions.video === 'object' && newOptions.video.processor) {
+    videoProcessor = newOptions.video.processor;
+    newOptions.video = { ...newOptions.video, processor: undefined };
+  }
+
+  return { audioProcessor, videoProcessor, optionsWithoutProcessor: newOptions };
 }

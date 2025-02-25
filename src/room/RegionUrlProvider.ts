@@ -70,10 +70,17 @@ export class RegionUrlProvider {
     } else {
       throw new ConnectionError(
         `Could not fetch region settings: ${regionSettingsResponse.statusText}`,
-        regionSettingsResponse.status === 401 ? ConnectionErrorReason.NotAllowed : undefined,
+        regionSettingsResponse.status === 401
+          ? ConnectionErrorReason.NotAllowed
+          : ConnectionErrorReason.InternalError,
         regionSettingsResponse.status,
       );
     }
+  }
+
+  setServerReportedRegions(regions: RegionSettings) {
+    this.regionSettings = regions;
+    this.lastUpdateAt = Date.now();
   }
 }
 

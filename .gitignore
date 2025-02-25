@@ -110,4 +110,6 @@ docs/
 
 pkg/
 bin/
-example/build/
+examples/**/build/
+
+.env.local

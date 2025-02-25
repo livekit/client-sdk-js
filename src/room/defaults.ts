@@ -22,12 +22,15 @@ export const publishDefaults: TrackPublishDefaults = {
 } as const;
 
 export const audioDefaults: AudioCaptureOptions = {
+  deviceId: 'default',
   autoGainControl: true,
   echoCancellation: true,
   noiseSuppression: true,
+  voiceIsolation: true,
 };
 
 export const videoDefaults: VideoCaptureOptions = {
+  deviceId: 'default',
   resolution: VideoPresets.h720.resolution,
 };
 
@@ -37,7 +40,7 @@ export const roomOptionDefaults: InternalRoomOptions = {
   stopLocalTrackOnUnpublish: true,
   reconnectPolicy: new DefaultReconnectPolicy(),
   disconnectOnPageLeave: true,
-  webAudioMix: true,
+  webAudioMix: false,
 } as const;
 
 export const roomConnectOptionDefaults: InternalRoomConnectOptions = {

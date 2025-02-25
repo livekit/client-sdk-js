@@ -19,6 +19,7 @@ import {
   isReactNative,
   isSVCCodec,
   isSafari,
+  unwrapConstraint,
 } from '../utils';
 
 /** @internal */
@@ -124,6 +125,8 @@ export function computeVideoEncodings(
     log.debug('using video encoding', videoEncoding);
   }
 
+  const sourceFramerate = videoEncoding.maxFramerate;
+
   const original = new VideoPreset(
     width,
     height,
@@ -148,6 +151,10 @@ export function computeVideoEncodings(
     const browser = getBrowser();
     if (
       isSafari() ||
+      // Even tho RN runs M114, it does not produce SVC layers when a single encoding
+      // is provided. So we'll use the legacy SVC specification for now.
+      // TODO: when we upstream libwebrtc, this will need additional verification
+      isReactNative() ||
       (browser?.name === 'Chrome' && compareVersions(browser?.version, '113') < 0)
     ) {
       const bitratesRatio = sm.suffix == 'h' ? 2 : 3;
@@ -169,6 +176,11 @@ export function computeVideoEncodings(
         /* @ts-ignore */
         scalabilityMode: scalabilityMode,
       });
+    }
+
+    if (original.encoding.priority) {
+      encodings[0].priority = original.encoding.priority;
+      encodings[0].networkPriority = original.encoding.priority;
     }
 
     log.debug(`using svc encoding`, { encodings });
@@ -206,10 +218,10 @@ export function computeVideoEncodings(
     //      based on other conditions.
     const size = Math.max(width, height);
     if (size >= 960 && midPreset) {
-      return encodingsFromPresets(width, height, [lowPreset, midPreset, original]);
+      return encodingsFromPresets(width, height, [lowPreset, midPreset, original], sourceFramerate);
     }
     if (size >= 480) {
-      return encodingsFromPresets(width, height, [lowPreset, original]);
+      return encodingsFromPresets(width, height, [lowPreset, original], sourceFramerate);
     }
   }
   return encodingsFromPresets(width, height, [original]);
@@ -244,6 +256,10 @@ export function computeTrackBackupEncodings(
   const width = settings.width ?? track.dimensions?.width;
   const height = settings.height ?? track.dimensions?.height;
 
+  // disable simulcast for screenshare backup codec since L1Tx is used by primary codec
+  if (track.source === Track.Source.ScreenShare && opts.simulcast) {
+    opts.simulcast = false;
+  }
   const encodings = computeVideoEncodings(
     track.source === Track.Source.ScreenShare,
     width,
@@ -334,6 +350,7 @@ function encodingsFromPresets(
   width: number,
   height: number,
   presets: VideoPreset[],
+  sourceFramerate?: number | undefined,
 ): RTCRtpEncodingParameters[] {
   const encodings: RTCRtpEncodingParameters[] = [];
   presets.forEach((preset, idx) => {
@@ -342,13 +359,20 @@ function encodingsFromPresets(
     }
     const size = Math.min(width, height);
     const rid = videoRids[idx];
+
     const encoding: RTCRtpEncodingParameters = {
       rid,
       scaleResolutionDownBy: Math.max(1, size / Math.min(preset.width, preset.height)),
       maxBitrate: preset.encoding.maxBitrate,
     };
-    if (preset.encoding.maxFramerate) {
-      encoding.maxFramerate = preset.encoding.maxFramerate;
+    // ensure that the sourceFramerate is the highest framerate applied across all layers so that the
+    // original encoding doesn't get bumped unintentionally by any of the other layers
+    const maxFramerate =
+      sourceFramerate && preset.encoding.maxFramerate
+        ? Math.min(sourceFramerate, preset.encoding.maxFramerate)
+        : preset.encoding.maxFramerate;
+    if (maxFramerate) {
+      encoding.maxFramerate = maxFramerate;
     }
     const canSetPriority = isFireFox() || idx === 0;
     if (preset.encoding.priority && canSetPriority) {
@@ -433,5 +457,19 @@ export class ScalabilityMode {
 
   toString(): string {
     return `L${this.spatial}T${this.temporal}${this.suffix ?? ''}`;
+  }
+}
+
+export function getDefaultDegradationPreference(track: LocalVideoTrack): RTCDegradationPreference {
+  // a few of reasons we have different default paths:
+  // 1. without this, Chrome seems to aggressively resize the SVC video stating `quality-limitation: bandwidth` even when BW isn't an issue
+  // 2. since we are overriding contentHint to motion (to workaround L1T3 publishing), it overrides the default degradationPreference to `balanced`
+  if (
+    track.source === Track.Source.ScreenShare ||
+    (track.constraints.height && unwrapConstraint(track.constraints.height) >= 1080)
+  ) {
+    return 'maintain-resolution';
+  } else {
+    return 'balanced';
   }
 }

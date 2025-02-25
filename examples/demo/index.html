@@ -81,6 +81,10 @@
                 disabled="true"
               ></select>
             </div>
+            <div>
+              <input type="checkbox" class="form-check-input" id="multicodec-simulcast" />
+              <label for="multicodec-simulcast" class="form-check-label">MultiCodec-Simulcast </label>
+            </div>
           </div>
 
           <!-- actions -->
@@ -133,6 +137,15 @@
                 Share Screen
               </button>
               <button
+                id="toggle-pip-button"
+                class="btn btn-secondary mt-1"
+                disabled
+                type="button"
+                onclick="appActions.togglePiP()"
+              >
+                Open PiP
+              </button>
+              <button
                 id="toggle-e2ee-button"
                 class="btn btn-secondary mt-1"
                 disabled
@@ -150,6 +163,8 @@
               >
                 Ratchet Key
               </button>
+              <input id="file" type="file" />
+              <button onclick="appActions.sendFile()">Send file</button>
               <select
                 id="simulate-scenario"
                 class="custom-select"
@@ -172,6 +187,7 @@
                 <option value="force-tls">Force TURN/TLS</option>
                 <option value="subscribe-all">Subscribe all</option>
                 <option value="unsubscribe-all">Unsubscribe all</option>
+                <option value="leave-full-reconnect">Leave Request Full Reconnect</option>
               </select>
               <button
                 id="disconnect-room-button"
@@ -289,7 +305,7 @@
         <textarea id="log"></textarea>
       </div>
     </div>
-    <script src="./sample.ts" type="module"></script>
+    <script src="./demo.ts" type="module"></script>
     <!-- for icons -->
     <script src="https://kit.fontawesome.com/7c1c4c7e9c.js" crossorigin="anonymous"></script>
   </body>

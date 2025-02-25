@@ -2,7 +2,7 @@ import DeviceManager from '../DeviceManager';
 import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
-import { isSafari17 } from '../utils';
+import { isAudioTrack, isSafari17, isVideoTrack, unwrapConstraint } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
@@ -16,6 +16,7 @@ import type {
 import { ScreenSharePresets } from './options';
 import {
   constraintsForOptions,
+  extractProcessorsFromOptions,
   mergeDefaultOptions,
   screenCaptureToDisplayMediaStreamOptions,
 } from './utils';
@@ -31,9 +32,10 @@ export async function createLocalTracks(
 ): Promise<Array<LocalTrack>> {
   // set default options to true
   options ??= {};
-  options.audio ??= true;
-  options.video ??= true;
+  options.audio ??= { deviceId: 'default' };
+  options.video ??= { deviceId: 'default' };
 
+  const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(options);
   const opts = mergeDefaultOptions(options, audioDefaults, videoDefaults);
   const constraints = constraintsForOptions(opts);
 
@@ -51,35 +53,48 @@ export async function createLocalTracks(
   }
 
   const stream = await mediaPromise;
-  return stream.getTracks().map((mediaStreamTrack) => {
-    const isAudio = mediaStreamTrack.kind === 'audio';
-    let trackOptions = isAudio ? options!.audio : options!.video;
-    if (typeof trackOptions === 'boolean' || !trackOptions) {
-      trackOptions = {};
-    }
-    let trackConstraints: MediaTrackConstraints | undefined;
-    const conOrBool = isAudio ? constraints.audio : constraints.video;
-    if (typeof conOrBool !== 'boolean') {
-      trackConstraints = conOrBool;
-    }
+  return Promise.all(
+    stream.getTracks().map(async (mediaStreamTrack) => {
+      const isAudio = mediaStreamTrack.kind === 'audio';
+      let trackOptions = isAudio ? opts!.audio : opts!.video;
+      if (typeof trackOptions === 'boolean' || !trackOptions) {
+        trackOptions = {};
+      }
+      let trackConstraints: MediaTrackConstraints | undefined;
+      const conOrBool = isAudio ? constraints.audio : constraints.video;
+      if (typeof conOrBool !== 'boolean') {
+        trackConstraints = conOrBool;
+      }
 
-    // update the constraints with the device id the user gave permissions to in the permission prompt
-    // otherwise each track restart (e.g. mute - unmute) will try to initialize the device again -> causing additional permission prompts
-    if (trackConstraints) {
-      trackConstraints.deviceId = mediaStreamTrack.getSettings().deviceId;
-    } else {
-      trackConstraints = { deviceId: mediaStreamTrack.getSettings().deviceId };
-    }
+      // update the constraints with the device id the user gave permissions to in the permission prompt
+      // otherwise each track restart (e.g. mute - unmute) will try to initialize the device again -> causing additional permission prompts
+      const newDeviceId = mediaStreamTrack.getSettings().deviceId;
+      if (
+        trackConstraints?.deviceId &&
+        unwrapConstraint(trackConstraints.deviceId) !== newDeviceId
+      ) {
+        trackConstraints.deviceId = newDeviceId;
+      } else if (!trackConstraints) {
+        trackConstraints = { deviceId: newDeviceId };
+      }
 
-    const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
-    if (track.kind === Track.Kind.Video) {
-      track.source = Track.Source.Camera;
-    } else if (track.kind === Track.Kind.Audio) {
-      track.source = Track.Source.Microphone;
-    }
-    track.mediaStream = stream;
-    return track;
-  });
+      const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
+      if (track.kind === Track.Kind.Video) {
+        track.source = Track.Source.Camera;
+      } else if (track.kind === Track.Kind.Audio) {
+        track.source = Track.Source.Microphone;
+      }
+      track.mediaStream = stream;
+
+      if (isAudioTrack(track) && audioProcessor) {
+        await track.setProcessor(audioProcessor);
+      } else if (isVideoTrack(track) && videoProcessor) {
+        await track.setProcessor(videoProcessor);
+      }
+
+      return track;
+    }),
+  );
 }
 
 /**

@@ -8,7 +8,7 @@ import {
 import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
-import log, { LoggerNames, StructuredLogger, getLogger } from '../../logger';
+import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
 import { isFireFox, isSafari, isWeb } from '../utils';
@@ -53,6 +53,9 @@ export abstract class Track<
    */
   streamState: Track.StreamState = Track.StreamState.Active;
 
+  /** @internal */
+  rtpTimestamp: number | undefined;
+
   protected _mediaStreamTrack: MediaStreamTrack;
 
   protected _mediaStreamID: string;
@@ -62,6 +65,8 @@ export abstract class Track<
   private backgroundTimeout: ReturnType<typeof setTimeout> | undefined;
 
   private loggerContextCb: LoggerOptions['loggerContextCb'];
+
+  protected timeSyncHandle: number | undefined;
 
   protected _currentBitrate: number = 0;
 
@@ -101,6 +106,8 @@ export abstract class Track<
     return this._mediaStreamTrack;
   }
 
+  abstract get isLocal(): boolean;
+
   /**
    * @internal
    * used for keep mediaStream's first id, since it's id might change
@@ -124,7 +131,7 @@ export abstract class Track<
     if (this.kind === Track.Kind.Video) {
       elementType = 'video';
     }
-    if (this.attachedElements.length === 0 && Track.Kind.Video) {
+    if (this.attachedElements.length === 0 && this.kind === Track.Kind.Video) {
       this.addAppVisibilityListener();
     }
     if (!element) {
@@ -254,6 +261,9 @@ export abstract class Track<
   stopMonitor() {
     if (this.monitorInterval) {
       clearInterval(this.monitorInterval);
+    }
+    if (this.timeSyncHandle) {
+      cancelAnimationFrame(this.timeSyncHandle);
     }
   }
 
@@ -517,4 +527,5 @@ export type TrackEventCallbacks = {
   upstreamResumed: (track: any) => void;
   trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
   audioTrackFeatureUpdate: (track: any, feature: AudioTrackFeature, enabled: boolean) => void;
+  timeSyncUpdate: (update: { timestamp: number; rtpTimestamp: number }) => void;
 };

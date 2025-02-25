@@ -1,4 +1,9 @@
 import type { Track } from './Track';
+import type {
+  AudioProcessorOptions,
+  TrackProcessor,
+  VideoProcessorOptions,
+} from './processor/types';
 
 export interface TrackPublishDefaults {
   /**
@@ -7,8 +12,7 @@ export interface TrackPublishDefaults {
   videoEncoding?: VideoEncoding;
 
   /**
-   * Multi-codec Simulcast
-   * VP9 and AV1 are not supported by all browser clients. When backupCodec is
+   * Advanced codecs (VP9/AV1/H265) are not supported by all browser clients. When backupCodec is
    * set, when an incompatible client attempts to subscribe to the track, LiveKit
    * will automatically publish a secondary track encoded with the backup codec.
    *
@@ -18,6 +22,20 @@ export interface TrackPublishDefaults {
    * Defaults to `true`
    */
   backupCodec?: true | false | { codec: BackupVideoCodec; encoding?: VideoEncoding };
+
+  /**
+   * When backup codec is enabled, there are two options to decide whether to
+   * send the primary codec at the same time:
+   *   * codec regression: publisher stops sending primary codec and all subscribers
+   *       will receive backup codec even if the primary codec is supported on their browser. It is the default
+   *       behavior and provides maximum compatibility. It also reduces CPU
+   *       and bandwidth consumption for publisher.
+   *   * multi-codec simulcast: publisher encodes and sends both codecs at same time,
+   *       subscribers will get most efficient codec. It will provide most bandwidth
+   *       efficiency, especially in the large 1:N room but requires more device performance
+   *       and bandwidth consumption for publisher.
+   */
+  backupCodecPolicy?: BackupCodecPolicy;
 
   /**
    * encoding parameters for screen share track
@@ -59,10 +77,15 @@ export interface TrackPublishDefaults {
   simulcast?: boolean;
 
   /**
-   * scalability mode for svc codecs, defaults to 'L3T3'.
+   * scalability mode for svc codecs, defaults to 'L3T3_KEY'.
    * for svc codecs, simulcast is disabled.
    */
   scalabilityMode?: ScalabilityMode;
+
+  /**
+   * degradation preference
+   */
+  degradationPreference?: RTCDegradationPreference;
 
   /**
    * Up to two additional simulcast layers to publish in addition to the original
@@ -147,6 +170,11 @@ export interface VideoCaptureOptions {
   facingMode?: 'user' | 'environment' | 'left' | 'right';
 
   resolution?: VideoResolution;
+
+  /**
+   * initialize the track with a given processor
+   */
+  processor?: TrackProcessor<Track.Kind.Video, VideoProcessorOptions>;
 }
 
 export interface ScreenShareCaptureOptions {
@@ -232,6 +260,14 @@ export interface AudioCaptureOptions {
   noiseSuppression?: ConstrainBoolean;
 
   /**
+   * @experimental
+   * a stronger version of 'noiseSuppression', browser support is not widespread yet.
+   * If this is set (and supported) the value for 'noiseSuppression' will be ignored
+   * @see https://w3c.github.io/mediacapture-extensions/#voiceisolation-constraint
+   */
+  voiceIsolation?: ConstrainBoolean;
+
+  /**
    * the sample rate or range of sample rates which are acceptable and/or required.
    */
   sampleRate?: ConstrainULong;
@@ -240,6 +276,11 @@ export interface AudioCaptureOptions {
    * sample size or range of sample sizes which are acceptable and/or required.
    */
   sampleSize?: ConstrainULong;
+
+  /**
+   * initialize the track with a given processor
+   */
+  processor?: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>;
 }
 
 export interface AudioOutputOptions {
@@ -347,6 +388,11 @@ export function isBackupCodec(codec: string): codec is BackupVideoCodec {
   return !!backupCodecs.find((backup) => backup === codec);
 }
 
+export enum BackupCodecPolicy {
+  REGRESSION = 0,
+  SIMULCAST = 1,
+}
+
 /**
  * scalability modes for svc.
  */
@@ -378,19 +424,19 @@ export namespace AudioPresets {
     maxBitrate: 12_000,
   };
   export const speech: AudioPreset = {
-    maxBitrate: 20_000,
+    maxBitrate: 24_000,
   };
   export const music: AudioPreset = {
-    maxBitrate: 32_000,
-  };
-  export const musicStereo: AudioPreset = {
     maxBitrate: 48_000,
   };
-  export const musicHighQuality: AudioPreset = {
+  export const musicStereo: AudioPreset = {
     maxBitrate: 64_000,
   };
-  export const musicHighQualityStereo: AudioPreset = {
+  export const musicHighQuality: AudioPreset = {
     maxBitrate: 96_000,
+  };
+  export const musicHighQualityStereo: AudioPreset = {
+    maxBitrate: 128_000,
   };
 }
 

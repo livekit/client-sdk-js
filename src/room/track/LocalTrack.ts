@@ -1,10 +1,11 @@
+import { Mutex } from '@livekit/mutex';
 import { debounce } from 'ts-debounce';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
-import { Mutex, compareVersions, isMobile, sleep } from '../utils';
+import { compareVersions, isMobile, sleep, unwrapConstraint } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
@@ -15,8 +16,17 @@ const defaultDimensionsTimeout = 1000;
 export default abstract class LocalTrack<
   TrackKind extends Track.Kind = Track.Kind,
 > extends Track<TrackKind> {
+  protected _sender?: RTCRtpSender;
+
   /** @internal */
-  sender?: RTCRtpSender;
+  get sender(): RTCRtpSender | undefined {
+    return this._sender;
+  }
+
+  /** @internal */
+  set sender(sender: RTCRtpSender | undefined) {
+    this._sender = sender;
+  }
 
   /** @internal */
   codec?: VideoCodec;
@@ -42,6 +52,8 @@ export default abstract class LocalTrack<
   protected processorLock: Mutex;
 
   protected audioContext?: AudioContext;
+
+  protected manuallyStopped: boolean = false;
 
   private restartLock: Mutex;
 
@@ -108,6 +120,18 @@ export default abstract class LocalTrack<
     return this.processor?.processedTrack ?? this._mediaStreamTrack;
   }
 
+  get isLocal() {
+    return true;
+  }
+
+  /**
+   * @internal
+   * returns mediaStreamTrack settings of the capturing mediastreamtrack source - ignoring processors
+   */
+  getSourceTrackSettings() {
+    return this._mediaStreamTrack.getSettings();
+  }
+
   private async setMediaStreamTrack(newTrack: MediaStreamTrack, force?: boolean) {
     if (newTrack === this._mediaStreamTrack && !force) {
       return;
@@ -159,7 +183,7 @@ export default abstract class LocalTrack<
         unlock();
       }
     }
-    if (this.sender) {
+    if (this.sender && this.sender.transport?.state !== 'closed') {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
     }
     // if `newTrack` is different from the existing track, stop the
@@ -201,10 +225,33 @@ export default abstract class LocalTrack<
     throw new TrackInvalidError('unable to get track dimensions after timeout');
   }
 
+  async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
+    if (
+      this._constraints.deviceId === deviceId &&
+      this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)
+    ) {
+      return true;
+    }
+
+    this._constraints.deviceId = deviceId;
+
+    // when track is muted, underlying media stream track is stopped and
+    // will be restarted later
+    if (this.isMuted) {
+      return true;
+    }
+
+    await this.restartTrack();
+
+    return unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId;
+  }
+
+  abstract restartTrack(constraints?: unknown): Promise<void>;
+
   /**
    * @returns DeviceID of the device that is currently being used for this track
    */
-  async getDeviceId(): Promise<string | undefined> {
+  async getDeviceId(normalize = true): Promise<string | undefined> {
     // screen share doesn't have a usable device id
     if (this.source === Track.Source.ScreenShare) {
       return;
@@ -212,7 +259,9 @@ export default abstract class LocalTrack<
     const { deviceId, groupId } = this._mediaStreamTrack.getSettings();
     const kind = this.kind === Track.Kind.Audio ? 'audioinput' : 'videoinput';
 
-    return DeviceManager.getInstance().normalizeDeviceId(kind, deviceId, groupId);
+    return normalize
+      ? DeviceManager.getInstance().normalizeDeviceId(kind, deviceId, groupId)
+      : deviceId;
   }
 
   async mute() {
@@ -259,11 +308,13 @@ export default abstract class LocalTrack<
   }
 
   protected async restart(constraints?: MediaTrackConstraints) {
+    this.manuallyStopped = false;
     const unlock = await this.restartLock.lock();
     try {
       if (!constraints) {
         constraints = this._constraints;
       }
+      const { deviceId, ...otherConstraints } = this._constraints;
       this.log.debug('restarting track with constraints', { ...this.logContext, constraints });
 
       const streamConstraints: MediaStreamConstraints = {
@@ -272,9 +323,9 @@ export default abstract class LocalTrack<
       };
 
       if (this.kind === Track.Kind.Video) {
-        streamConstraints.video = constraints;
+        streamConstraints.video = deviceId ? { deviceId } : true;
       } else {
-        streamConstraints.audio = constraints;
+        streamConstraints.audio = deviceId ? { deviceId } : true;
       }
 
       // these steps are duplicated from setMediaStreamTrack because we must stop
@@ -291,13 +342,20 @@ export default abstract class LocalTrack<
       // create new track and attach
       const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
       const newTrack = mediaStream.getTracks()[0];
+      await newTrack.applyConstraints(otherConstraints);
       newTrack.addEventListener('ended', this.handleEnded);
       this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 
       await this.setMediaStreamTrack(newTrack);
       this._constraints = constraints;
-
       this.emit(TrackEvent.Restarted, this);
+      if (this.manuallyStopped) {
+        this.log.warn(
+          'track was stopped during a restart, stopping restarted track',
+          this.logContext,
+        );
+        this.stop();
+      }
       return this;
     } finally {
       unlock();
@@ -361,6 +419,7 @@ export default abstract class LocalTrack<
   };
 
   stop() {
+    this.manuallyStopped = true;
     super.stop();
 
     this._mediaStreamTrack.removeEventListener('ended', this.handleEnded);
@@ -394,7 +453,9 @@ export default abstract class LocalTrack<
         // https://bugs.webkit.org/show_bug.cgi?id=184911
         throw new DeviceUnsupportedError('pauseUpstream is not supported on Safari < 12.');
       }
-      await this.sender.replaceTrack(null);
+      if (this.sender.transport?.state !== 'closed') {
+        await this.sender.replaceTrack(null);
+      }
     } finally {
       unlock();
     }
@@ -413,8 +474,10 @@ export default abstract class LocalTrack<
       this._isUpstreamPaused = false;
       this.emit(TrackEvent.UpstreamResumed, this);
 
-      // this operation is noop if mediastreamtrack is already being sent
-      await this.sender.replaceTrack(this._mediaStreamTrack);
+      if (this.sender.transport?.state !== 'closed') {
+        // this operation is noop if mediastreamtrack is already being sent
+        await this.sender.replaceTrack(this.mediaStreamTrack);
+      }
     } finally {
       unlock();
     }
@@ -449,16 +512,17 @@ export default abstract class LocalTrack<
     try {
       this.log.debug('setting up processor', this.logContext);
 
-      this.processorElement =
-        this.processorElement ?? (document.createElement(this.kind) as HTMLMediaElement);
+      const processorElement = document.createElement(this.kind) as HTMLMediaElement;
 
       const processorOptions = {
         kind: this.kind,
         track: this._mediaStreamTrack,
-        element: this.processorElement,
+        element: processorElement,
         audioContext: this.audioContext,
       };
       await processor.init(processorOptions);
+      this.log.debug('processor initialized', this.logContext);
+
       if (this.processor) {
         await this.stopProcessor();
       }
@@ -466,16 +530,17 @@ export default abstract class LocalTrack<
         throw TypeError('cannot set processor on track of unknown kind');
       }
 
-      attachToElement(this._mediaStreamTrack, this.processorElement);
-      this.processorElement.muted = true;
+      attachToElement(this._mediaStreamTrack, processorElement);
+      processorElement.muted = true;
 
-      this.processorElement
+      processorElement
         .play()
         .catch((error) =>
           this.log.error('failed to play processor element', { ...this.logContext, error }),
         );
 
       this.processor = processor;
+      this.processorElement = processorElement;
       if (this.processor.processedTrack) {
         for (const el of this.attachedElements) {
           if (el !== this.processorElement && showProcessedStreamLocally) {
@@ -502,15 +567,17 @@ export default abstract class LocalTrack<
    * @experimental
    * @returns
    */
-  async stopProcessor() {
+  async stopProcessor(keepElement = true) {
     if (!this.processor) return;
 
     this.log.debug('stopping processor', this.logContext);
     this.processor.processedTrack?.stop();
     await this.processor.destroy();
     this.processor = undefined;
-    this.processorElement?.remove();
-    this.processorElement = undefined;
+    if (!keepElement) {
+      this.processorElement?.remove();
+      this.processorElement = undefined;
+    }
     // apply original track constraints in case the processor changed them
     await this._mediaStreamTrack.applyConstraints(this._constraints);
     // force re-setting of the mediaStreamTrack on the sender

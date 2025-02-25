@@ -1,17 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { AudioCaptureOptions, VideoCaptureOptions, VideoPresets } from './options';
-import { constraintsForOptions, mergeDefaultOptions } from './utils';
+import { audioDefaults, videoDefaults } from '../defaults';
+import { type AudioCaptureOptions, VideoPresets } from './options';
+import { constraintsForOptions, diffAttributes, mergeDefaultOptions } from './utils';
 
 describe('mergeDefaultOptions', () => {
-  const audioDefaults: AudioCaptureOptions = {
-    autoGainControl: true,
-    channelCount: 2,
-  };
-  const videoDefaults: VideoCaptureOptions = {
-    deviceId: 'video123',
-    resolution: VideoPresets.h1080.resolution,
-  };
-
   it('does not enable undefined options', () => {
     const opts = mergeDefaultOptions(undefined, audioDefaults, videoDefaults);
     expect(opts.audio).toEqual(undefined);
@@ -69,7 +61,7 @@ describe('constraintsForOptions', () => {
     const constraints = constraintsForOptions({
       audio: true,
     });
-    expect(constraints.audio).toEqual(true);
+    expect(constraints.audio).toEqual({ deviceId: audioDefaults.deviceId });
     expect(constraints.video).toEqual(false);
   });
 
@@ -81,7 +73,7 @@ describe('constraintsForOptions', () => {
       },
     });
     const audioOpts = constraints.audio as MediaTrackConstraints;
-    expect(Object.keys(audioOpts)).toEqual(['noiseSuppression', 'echoCancellation']);
+    expect(Object.keys(audioOpts)).toEqual(['noiseSuppression', 'echoCancellation', 'deviceId']);
     expect(audioOpts.noiseSuppression).toEqual(true);
     expect(audioOpts.echoCancellation).toEqual(false);
   });
@@ -107,5 +99,39 @@ describe('constraintsForOptions', () => {
     expect(videoOpts.height).toEqual(VideoPresets.h720.resolution.height);
     expect(videoOpts.frameRate).toEqual(VideoPresets.h720.resolution.frameRate);
     expect(videoOpts.aspectRatio).toEqual(VideoPresets.h720.resolution.aspectRatio);
+  });
+});
+
+describe('diffAttributes', () => {
+  it('detects changed values', () => {
+    const oldValues: Record<string, string> = { a: 'value', b: 'initial', c: 'value' };
+    const newValues: Record<string, string> = { a: 'value', b: 'updated', c: 'value' };
+
+    const diff = diffAttributes(oldValues, newValues);
+    expect(Object.keys(diff).length).toBe(1);
+    expect(diff.b).toBe('updated');
+  });
+  it('detects new values', () => {
+    const newValues: Record<string, string> = { a: 'value', b: 'value', c: 'value' };
+    const oldValues: Record<string, string> = { a: 'value', b: 'value' };
+
+    const diff = diffAttributes(oldValues, newValues);
+    expect(Object.keys(diff).length).toBe(1);
+    expect(diff.c).toBe('value');
+  });
+  it('detects deleted values as empty strings', () => {
+    const newValues: Record<string, string> = { a: 'value', b: 'value' };
+    const oldValues: Record<string, string> = { a: 'value', b: 'value', c: 'value' };
+
+    const diff = diffAttributes(oldValues, newValues);
+    expect(Object.keys(diff).length).toBe(1);
+    expect(diff.c).toBe('');
+  });
+  it('compares with undefined values', () => {
+    const newValues: Record<string, string> = { a: 'value', b: 'value' };
+
+    const diff = diffAttributes(undefined, newValues);
+    expect(Object.keys(diff).length).toBe(2);
+    expect(diff.a).toBe('value');
   });
 });

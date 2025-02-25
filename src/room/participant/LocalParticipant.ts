@@ -1,21 +1,51 @@
 import {
   AddTrackRequest,
+  ChatMessage as ChatMessageModel,
+  Codec,
   DataPacket,
   DataPacket_Kind,
+  DataStream_ByteHeader,
+  DataStream_Chunk,
+  DataStream_Header,
+  DataStream_OperationType,
+  DataStream_TextHeader,
+  DataStream_Trailer,
   Encryption_Type,
   ParticipantInfo,
   ParticipantPermission,
+  RequestResponse,
+  RequestResponse_Reason,
+  RpcAck,
+  RpcRequest,
+  RpcResponse,
   SimulcastCodec,
+  SipDTMF,
   SubscribedQualityUpdate,
+  TrackInfo,
   TrackUnpublishedResponse,
   UserPacket,
+  protoInt64,
 } from '@livekit/protocol';
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
+import { TextStreamWriter } from '../StreamWriter';
 import { defaultVideoCodec } from '../defaults';
-import { DeviceUnsupportedError, TrackInvalidError, UnexpectedConnectionState } from '../errors';
+import {
+  DeviceUnsupportedError,
+  LivekitError,
+  SignalRequestError,
+  TrackInvalidError,
+  UnexpectedConnectionState,
+} from '../errors';
 import { EngineEvent, ParticipantEvent, TrackEvent } from '../events';
+import {
+  MAX_PAYLOAD_BYTES,
+  type PerformRpcParams,
+  RpcError,
+  type RpcInvocationData,
+  byteLength,
+} from '../rpc';
 import LocalAudioTrack from '../track/LocalAudioTrack';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
@@ -32,19 +62,35 @@ import type {
 import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
 import {
   constraintsForOptions,
+  extractProcessorsFromOptions,
   getLogContextFromTrack,
   mergeDefaultOptions,
   mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
-import type { DataPublishOptions } from '../types';
+import {
+  type ChatMessage,
+  type DataPublishOptions,
+  type SendTextOptions,
+  type StreamTextOptions,
+  type TextStreamInfo,
+} from '../types';
 import {
   Future,
+  compareVersions,
+  isAudioTrack,
+  isE2EESimulcastSupported,
   isFireFox,
+  isLocalAudioTrack,
+  isLocalTrack,
+  isLocalVideoTrack,
   isSVCCodec,
-  isSafari,
   isSafari17,
+  isVideoTrack,
   isWeb,
+  numberToBigInt,
+  sleep,
+  splitUtf8,
   supportsAV1,
   supportsVP9,
 } from '../utils';
@@ -54,8 +100,11 @@ import { trackPermissionToProto } from './ParticipantTrackPermission';
 import {
   computeTrackBackupEncodings,
   computeVideoEncodings,
+  getDefaultDegradationPreference,
   mediaTrackToLocalTrack,
 } from './publishUtils';
+
+const STREAM_CHUNK_SIZE = 15_000;
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
@@ -75,6 +124,8 @@ export default class LocalParticipant extends Participant {
 
   private pendingPublishPromises = new Map<LocalTrack, Promise<LocalTrackPublication>>();
 
+  private republishPromise: Promise<void> | undefined;
+
   private cameraError: Error | undefined;
 
   private microphoneError: Error | undefined;
@@ -90,9 +141,38 @@ export default class LocalParticipant extends Participant {
 
   private reconnectFuture?: Future<void>;
 
+  private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>;
+
+  private pendingSignalRequests: Map<
+    number,
+    {
+      resolve: (arg: any) => void;
+      reject: (reason: LivekitError) => void;
+      values: Partial<Record<keyof LocalParticipant, any>>;
+    }
+  >;
+
+  private enabledPublishVideoCodecs: Codec[] = [];
+
+  private pendingAcks = new Map<string, { resolve: () => void; participantIdentity: string }>();
+
+  private pendingResponses = new Map<
+    string,
+    {
+      resolve: (payload: string | null, error: RpcError | null) => void;
+      participantIdentity: string;
+    }
+  >();
+
   /** @internal */
-  constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions) {
-    super(sid, identity, undefined, undefined, {
+  constructor(
+    sid: string,
+    identity: string,
+    engine: RTCEngine,
+    options: InternalRoomOptions,
+    roomRpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>,
+  ) {
+    super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
       loggerContextCb: () => this.engine.logContext,
     });
@@ -102,7 +182,13 @@ export default class LocalParticipant extends Participant {
     this.engine = engine;
     this.roomOptions = options;
     this.setupEngine(engine);
-    this.activeDeviceMap = new Map();
+    this.activeDeviceMap = new Map([
+      ['audioinput', 'default'],
+      ['videoinput', 'default'],
+      ['audiooutput', 'default'],
+    ]);
+    this.pendingSignalRequests = new Map();
+    this.rpcHandlers = roomRpcHandlers;
   }
 
   get lastCameraError(): Error | undefined {
@@ -156,7 +242,9 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.Resuming, this.handleReconnecting)
       .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
       .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
-      .on(EngineEvent.Disconnected, this.handleDisconnected);
+      .on(EngineEvent.Disconnected, this.handleDisconnected)
+      .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse)
+      .on(EngineEvent.DataPacketReceived, this.handleDataPacket);
   }
 
   private handleReconnecting = () => {
@@ -179,26 +267,117 @@ export default class LocalParticipant extends Participant {
     }
   };
 
+  private handleSignalRequestResponse = (response: RequestResponse) => {
+    const { requestId, reason, message } = response;
+    const targetRequest = this.pendingSignalRequests.get(requestId);
+    if (targetRequest) {
+      if (reason !== RequestResponse_Reason.OK) {
+        targetRequest.reject(new SignalRequestError(message, reason));
+      }
+      this.pendingSignalRequests.delete(requestId);
+    }
+  };
+
+  private handleDataPacket = (packet: DataPacket) => {
+    switch (packet.value.case) {
+      case 'rpcResponse':
+        let rpcResponse = packet.value.value as RpcResponse;
+        let payload: string | null = null;
+        let error: RpcError | null = null;
+
+        if (rpcResponse.value.case === 'payload') {
+          payload = rpcResponse.value.value;
+        } else if (rpcResponse.value.case === 'error') {
+          error = RpcError.fromProto(rpcResponse.value.value);
+        }
+        this.handleIncomingRpcResponse(rpcResponse.requestId, payload, error);
+        break;
+      case 'rpcAck':
+        let rpcAck = packet.value.value as RpcAck;
+        this.handleIncomingRpcAck(rpcAck.requestId);
+        break;
+    }
+  };
+
   /**
    * Sets and updates the metadata of the local participant.
-   * The change does not take immediate effect.
-   * If successful, a `ParticipantEvent.MetadataChanged` event will be emitted on the local participant.
    * Note: this requires `canUpdateOwnMetadata` permission.
+   * method will throw if the user doesn't have the required permissions
    * @param metadata
    */
-  setMetadata(metadata: string): void {
-    this.engine.client.sendUpdateLocalMetadata(metadata, this.name ?? '');
+  async setMetadata(metadata: string): Promise<void> {
+    await this.requestMetadataUpdate({ metadata });
   }
 
   /**
    * Sets and updates the name of the local participant.
-   * The change does not take immediate effect.
-   * If successful, a `ParticipantEvent.ParticipantNameChanged` event will be emitted on the local participant.
    * Note: this requires `canUpdateOwnMetadata` permission.
+   * method will throw if the user doesn't have the required permissions
    * @param metadata
    */
-  setName(name: string): void {
-    this.engine.client.sendUpdateLocalMetadata(this.metadata ?? '', name);
+  async setName(name: string): Promise<void> {
+    await this.requestMetadataUpdate({ name });
+  }
+
+  /**
+   * Set or update participant attributes. It will make updates only to keys that
+   * are present in `attributes`, and will not override others.
+   * Note: this requires `canUpdateOwnMetadata` permission.
+   * @param attributes attributes to update
+   */
+  async setAttributes(attributes: Record<string, string>) {
+    await this.requestMetadataUpdate({ attributes });
+  }
+
+  private async requestMetadataUpdate({
+    metadata,
+    name,
+    attributes,
+  }: {
+    metadata?: string;
+    name?: string;
+    attributes?: Record<string, string>;
+  }) {
+    return new Promise<void>(async (resolve, reject) => {
+      try {
+        let isRejected = false;
+        const requestId = await this.engine.client.sendUpdateLocalMetadata(
+          metadata ?? this.metadata ?? '',
+          name ?? this.name ?? '',
+          attributes,
+        );
+        const startTime = performance.now();
+        this.pendingSignalRequests.set(requestId, {
+          resolve,
+          reject: (error: LivekitError) => {
+            reject(error);
+            isRejected = true;
+          },
+          values: { name, metadata, attributes },
+        });
+        while (performance.now() - startTime < 5_000 && !isRejected) {
+          if (
+            (!name || this.name === name) &&
+            (!metadata || this.metadata === metadata) &&
+            (!attributes ||
+              Object.entries(attributes).every(
+                ([key, value]) =>
+                  this.attributes[key] === value || (value === '' && !this.attributes[key]),
+              ))
+          ) {
+            this.pendingSignalRequests.delete(requestId);
+            resolve();
+            return;
+          }
+          await sleep(50);
+        }
+        reject(
+          new SignalRequestError('Request to update local metadata timed out', 'TimeoutError'),
+        );
+      } catch (e: any) {
+        if (e instanceof Error) reject(e);
+      }
+    });
   }
 
   /**
@@ -287,6 +466,9 @@ export default class LocalParticipant extends Participant {
     publishOptions?: TrackPublishOptions,
   ) {
     this.log.debug('setTrackEnabled', { ...this.logContext, source, enabled });
+    if (this.republishPromise) {
+      await this.republishPromise;
+    }
     let track = this.getTrackPublication(source);
     if (enabled) {
       if (track) {
@@ -294,9 +476,15 @@ export default class LocalParticipant extends Participant {
       } else {
         let localTracks: Array<LocalTrack> | undefined;
         if (this.pendingPublishing.has(source)) {
-          this.log.info('skipping duplicate published source', { ...this.logContext, source });
-          // no-op it's already been requested
-          return;
+          const pendingTrack = await this.waitForPendingPublicationOfSource(source);
+          if (!pendingTrack) {
+            this.log.info('waiting for pending publication promise timed out', {
+              ...this.logContext,
+              source,
+            });
+          }
+          await pendingTrack?.unmute();
+          return pendingTrack;
         }
         this.pendingPublishing.add(source);
         try {
@@ -320,6 +508,17 @@ export default class LocalParticipant extends Participant {
             default:
               throw new TrackInvalidError(source);
           }
+        } catch (e: unknown) {
+          localTracks?.forEach((tr) => {
+            tr.stop();
+          });
+          if (e instanceof Error) {
+            this.emit(ParticipantEvent.MediaDevicesError, e);
+          }
+          this.pendingPublishing.delete(source);
+          throw e;
+        }
+        try {
           const publishPromises: Array<Promise<LocalTrackPublication>> = [];
           for (const localTrack of localTracks) {
             this.log.info('publishing track', {
@@ -336,24 +535,33 @@ export default class LocalParticipant extends Participant {
           localTracks?.forEach((tr) => {
             tr.stop();
           });
-          if (e instanceof Error && !(e instanceof TrackInvalidError)) {
-            this.emit(ParticipantEvent.MediaDevicesError, e);
-          }
           throw e;
         } finally {
           this.pendingPublishing.delete(source);
         }
       }
-    } else if (track && track.track) {
-      // screenshare cannot be muted, unpublish instead
-      if (source === Track.Source.ScreenShare) {
-        track = await this.unpublishTrack(track.track);
-        const screenAudioTrack = this.getTrackPublication(Track.Source.ScreenShareAudio);
-        if (screenAudioTrack && screenAudioTrack.track) {
-          this.unpublishTrack(screenAudioTrack.track);
+    } else {
+      if (!track?.track && this.pendingPublishing.has(source)) {
+        // if there's no track available yet first wait for pending publishing promises of that source to see if it becomes available
+        track = await this.waitForPendingPublicationOfSource(source);
+        if (!track) {
+          this.log.info('waiting for pending publication promise timed out', {
+            ...this.logContext,
+            source,
+          });
         }
-      } else {
-        await track.mute();
+      }
+      if (track && track.track) {
+        // screenshare cannot be muted, unpublish instead
+        if (source === Track.Source.ScreenShare) {
+          track = await this.unpublishTrack(track.track);
+          const screenAudioTrack = this.getTrackPublication(Track.Source.ScreenShareAudio);
+          if (screenAudioTrack && screenAudioTrack.track) {
+            this.unpublishTrack(screenAudioTrack.track);
+          }
+        } else {
+          await track.mute();
+        }
       }
     }
     return track;
@@ -393,13 +601,18 @@ export default class LocalParticipant extends Participant {
    * @returns
    */
   async createTracks(options?: CreateLocalTracksOptions): Promise<LocalTrack[]> {
-    const opts = mergeDefaultOptions(
+    options ??= {};
+
+    const mergedOptionsWithProcessors = mergeDefaultOptions(
       options,
       this.roomOptions?.audioCaptureDefaults,
       this.roomOptions?.videoCaptureDefaults,
     );
 
-    const constraints = constraintsForOptions(opts);
+    const { audioProcessor, videoProcessor, optionsWithoutProcessor } =
+      extractProcessorsFromOptions(mergedOptionsWithProcessors);
+
+    const constraints = constraintsForOptions(optionsWithoutProcessor);
     let stream: MediaStream | undefined;
     try {
       stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -424,29 +637,33 @@ export default class LocalParticipant extends Participant {
       this.cameraError = undefined;
     }
 
-    return stream.getTracks().map((mediaStreamTrack) => {
-      const isAudio = mediaStreamTrack.kind === 'audio';
-      let trackOptions = isAudio ? options!.audio : options!.video;
-      if (typeof trackOptions === 'boolean' || !trackOptions) {
-        trackOptions = {};
-      }
-      let trackConstraints: MediaTrackConstraints | undefined;
-      const conOrBool = isAudio ? constraints.audio : constraints.video;
-      if (typeof conOrBool !== 'boolean') {
-        trackConstraints = conOrBool;
-      }
-      const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints, {
-        loggerName: this.roomOptions.loggerName,
-        loggerContextCb: () => this.logContext,
-      });
-      if (track.kind === Track.Kind.Video) {
-        track.source = Track.Source.Camera;
-      } else if (track.kind === Track.Kind.Audio) {
-        track.source = Track.Source.Microphone;
-      }
-      track.mediaStream = stream;
-      return track;
-    });
+    return Promise.all(
+      stream.getTracks().map(async (mediaStreamTrack) => {
+        const isAudio = mediaStreamTrack.kind === 'audio';
+        let trackConstraints: MediaTrackConstraints | undefined;
+        const conOrBool = isAudio ? constraints.audio : constraints.video;
+        if (typeof conOrBool !== 'boolean') {
+          trackConstraints = conOrBool;
+        }
+        const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints, {
+          loggerName: this.roomOptions.loggerName,
+          loggerContextCb: () => this.logContext,
+        });
+        if (track.kind === Track.Kind.Video) {
+          track.source = Track.Source.Camera;
+        } else if (track.kind === Track.Kind.Audio) {
+          track.source = Track.Source.Microphone;
+          track.setAudioContext(this.audioContext);
+        }
+        track.mediaStream = stream;
+        if (isAudioTrack(track) && audioProcessor) {
+          await track.setProcessor(audioProcessor);
+        } else if (isVideoTrack(track) && videoProcessor) {
+          await track.setProcessor(videoProcessor);
+        }
+        return track;
+      }),
+    );
   }
 
   /**
@@ -507,16 +724,24 @@ export default class LocalParticipant extends Participant {
    * @param track
    * @param options
    */
-  async publishTrack(
+  async publishTrack(track: LocalTrack | MediaStreamTrack, options?: TrackPublishOptions) {
+    return this.publishOrRepublishTrack(track, options);
+  }
+
+  private async publishOrRepublishTrack(
     track: LocalTrack | MediaStreamTrack,
     options?: TrackPublishOptions,
+    isRepublish = false,
   ): Promise<LocalTrackPublication> {
-    if (track instanceof LocalAudioTrack) {
+    if (isLocalAudioTrack(track)) {
       track.setAudioContext(this.audioContext);
     }
 
     await this.reconnectFuture?.promise;
-    if (track instanceof LocalTrack && this.pendingPublishPromises.has(track)) {
+    if (this.republishPromise && !isRepublish) {
+      await this.republishPromise;
+    }
+    if (isLocalTrack(track) && this.pendingPublishPromises.has(track)) {
       await this.pendingPublishPromises.get(track);
     }
     let defaultConstraints: MediaTrackConstraints | undefined;
@@ -621,10 +846,9 @@ export default class LocalParticipant extends Participant {
       ...options,
     };
 
-    // disable simulcast if e2ee is set on safari
-    if (isSafari() && this.roomOptions.e2ee) {
+    if (!isE2EESimulcastSupported() && this.roomOptions.e2ee) {
       this.log.info(
-        `End-to-end encryption is set up, simulcast publishing will be disabled on Safari`,
+        `End-to-end encryption is set up, simulcast publishing will be disabled on Safari versions and iOS browsers running iOS < v17.2`,
         {
           ...this.logContext,
         },
@@ -649,7 +873,7 @@ export default class LocalParticipant extends Participant {
 
   private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
     const existingTrackOfSource = Array.from(this.trackPublications.values()).find(
-      (publishedTrack) => track instanceof LocalTrack && publishedTrack.source === track.source,
+      (publishedTrack) => isLocalTrack(track) && publishedTrack.source === track.source,
     );
     if (existingTrackOfSource && track.source !== Track.Source.Unknown) {
       this.log.info(`publishing a second track with the same source: ${track.source}`, {
@@ -657,7 +881,7 @@ export default class LocalParticipant extends Participant {
         ...getLogContextFromTrack(track),
       });
     }
-    if (opts.stopMicTrackOnMute && track instanceof LocalAudioTrack) {
+    if (opts.stopMicTrackOnMute && isAudioTrack(track)) {
       track.stopOnMute = true;
     }
 
@@ -677,6 +901,17 @@ export default class LocalParticipant extends Participant {
     if (opts.videoCodec === undefined) {
       opts.videoCodec = defaultVideoCodec;
     }
+    if (this.enabledPublishVideoCodecs.length > 0) {
+      // fallback to a supported codec if it is not supported
+      if (
+        !this.enabledPublishVideoCodecs.some(
+          (c) => opts.videoCodec === mimeTypeToVideoCodecString(c.mime),
+        )
+      ) {
+        opts.videoCodec = mimeTypeToVideoCodecString(this.enabledPublishVideoCodecs[0].mime);
+      }
+    }
+
     const videoCodec = opts.videoCodec;
 
     // handle track actions
@@ -700,6 +935,7 @@ export default class LocalParticipant extends Participant {
       stereo: isStereo,
       disableRed: this.isE2EEEnabled || !(opts.red ?? true),
       stream: opts?.stream,
+      backupCodecPolicy: opts?.backupCodecPolicy,
     });
 
     // compute encodings and layers for video
@@ -731,7 +967,7 @@ export default class LocalParticipant extends Participant {
       req.width = dims.width;
       req.height = dims.height;
       // for svc codecs, disable simulcast and use vp8 for backup codec
-      if (track instanceof LocalVideoTrack) {
+      if (isLocalVideoTrack(track)) {
         if (isSVCCodec(videoCodec)) {
           if (track.source === Track.Source.ScreenShare) {
             // vp9 svc with screenshare cannot encode multiple spatial layers
@@ -810,34 +1046,87 @@ export default class LocalParticipant extends Participant {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
     }
 
-    const ti = await this.engine.addTrack(req);
-    // server might not support the codec the client has requested, in that case, fallback
-    // to a supported codec
-    let primaryCodecMime: string | undefined;
-    ti.codecs.forEach((codec) => {
-      if (primaryCodecMime === undefined) {
-        primaryCodecMime = codec.mimeType;
+    const negotiate = async () => {
+      if (!this.engine.pcManager) {
+        throw new UnexpectedConnectionState('pcManager is not ready');
       }
-    });
-    if (primaryCodecMime && track.kind === Track.Kind.Video) {
-      const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
-      if (updatedCodec !== videoCodec) {
-        this.log.debug('falling back to server selected codec', {
-          ...this.logContext,
-          ...getLogContextFromTrack(track),
-          codec: updatedCodec,
-        });
-        /* @ts-ignore */
-        opts.videoCodec = updatedCodec;
 
-        // recompute encodings since bitrates/etc could have changed
-        encodings = computeVideoEncodings(
-          track.source === Track.Source.ScreenShare,
-          req.width,
-          req.height,
-          opts,
-        );
+      track.sender = await this.engine.createSender(track, opts, encodings);
+
+      if (isLocalVideoTrack(track)) {
+        opts.degradationPreference ??= getDefaultDegradationPreference(track);
+        track.setDegradationPreference(opts.degradationPreference);
       }
+
+      if (encodings) {
+        if (isFireFox() && track.kind === Track.Kind.Audio) {
+          /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
+             livekit-server uses maxaveragebitrate=510000 in the answer sdp to permit client to
+             publish high quality audio track. But firefox always uses this value as the actual
+             bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
+             So the client need to modify maxaverragebitrates in answer sdp to user provided value to
+             fix the issue.
+           */
+          let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
+          for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
+            if (transceiver.sender === track.sender) {
+              trackTransceiver = transceiver;
+              break;
+            }
+          }
+          if (trackTransceiver) {
+            this.engine.pcManager.publisher.setTrackCodecBitrate({
+              transceiver: trackTransceiver,
+              codec: 'opus',
+              maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
+            });
+          }
+        } else if (track.codec && isSVCCodec(track.codec) && encodings[0]?.maxBitrate) {
+          this.engine.pcManager.publisher.setTrackCodecBitrate({
+            cid: req.cid,
+            codec: track.codec,
+            maxbr: encodings[0].maxBitrate / 1000,
+          });
+        }
+      }
+
+      await this.engine.negotiate();
+    };
+
+    let ti: TrackInfo;
+    if (this.enabledPublishVideoCodecs.length > 0) {
+      const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
+      ti = rets[0];
+    } else {
+      ti = await this.engine.addTrack(req);
+      // server might not support the codec the client has requested, in that case, fallback
+      // to a supported codec
+      let primaryCodecMime: string | undefined;
+      ti.codecs.forEach((codec) => {
+        if (primaryCodecMime === undefined) {
+          primaryCodecMime = codec.mimeType;
+        }
+      });
+      if (primaryCodecMime && track.kind === Track.Kind.Video) {
+        const updatedCodec = mimeTypeToVideoCodecString(primaryCodecMime);
+        if (updatedCodec !== videoCodec) {
+          this.log.debug('falling back to server selected codec', {
+            ...this.logContext,
+            ...getLogContextFromTrack(track),
+            codec: updatedCodec,
+          });
+          opts.videoCodec = updatedCodec;
+
+          // recompute encodings since bitrates/etc could have changed
+          encodings = computeVideoEncodings(
+            track.source === Track.Source.ScreenShare,
+            req.width,
+            req.height,
+            opts,
+          );
+        }
+      }
+      await negotiate();
     }
 
     const publication = new LocalTrackPublication(track.kind, ti, track, {
@@ -848,69 +1137,15 @@ export default class LocalParticipant extends Participant {
     publication.options = opts;
     track.sid = ti.sid;
 
-    if (!this.engine.pcManager) {
-      throw new UnexpectedConnectionState('pcManager is not ready');
-    }
     this.log.debug(`publishing ${track.kind} with encodings`, {
       ...this.logContext,
       encodings,
       trackInfo: ti,
     });
 
-    track.sender = await this.engine.createSender(track, opts, encodings);
-
-    if (encodings) {
-      if (isFireFox() && track.kind === Track.Kind.Audio) {
-        /* Refer to RFC https://datatracker.ietf.org/doc/html/rfc7587#section-6.1,
-           livekit-server uses maxaveragebitrate=510000 in the answer sdp to permit client to
-           publish high quality audio track. But firefox always uses this value as the actual
-           bitrates, causing the audio bitrates to rise to 510Kbps in any stereo case unexpectedly.
-           So the client need to modify maxaverragebitrates in answer sdp to user provided value to
-           fix the issue.
-         */
-        let trackTransceiver: RTCRtpTransceiver | undefined = undefined;
-        for (const transceiver of this.engine.pcManager.publisher.getTransceivers()) {
-          if (transceiver.sender === track.sender) {
-            trackTransceiver = transceiver;
-            break;
-          }
-        }
-        if (trackTransceiver) {
-          this.engine.pcManager.publisher.setTrackCodecBitrate({
-            transceiver: trackTransceiver,
-            codec: 'opus',
-            maxbr: encodings[0]?.maxBitrate ? encodings[0].maxBitrate / 1000 : 0,
-          });
-        }
-      } else if (track.codec && track.codec == 'av1' && encodings[0]?.maxBitrate) {
-        // AV1 requires setting x-start-bitrate in SDP
-        this.engine.pcManager.publisher.setTrackCodecBitrate({
-          cid: req.cid,
-          codec: track.codec,
-          maxbr: encodings[0].maxBitrate / 1000,
-        });
-      }
-    }
-
-    if (track.kind === Track.Kind.Video && track.source === Track.Source.ScreenShare) {
-      // a few of reasons we are forcing this setting without allowing overrides:
-      // 1. without this, Chrome seems to aggressively resize the SVC video stating `quality-limitation: bandwidth` even when BW isn't an issue
-      // 2. since we are overriding contentHint to motion (to workaround L1T3 publishing), it overrides the default degradationPreference to `balanced`
-      try {
-        this.log.debug(`setting degradationPreference to maintain-resolution`);
-        const params = track.sender.getParameters();
-        params.degradationPreference = 'maintain-resolution';
-        await track.sender.setParameters(params);
-      } catch (e) {
-        this.log.warn(`failed to set degradationPreference: ${e}`);
-      }
-    }
-
-    await this.engine.negotiate();
-
-    if (track instanceof LocalVideoTrack) {
+    if (isLocalVideoTrack(track)) {
       track.startMonitor(this.engine.client);
-    } else if (track instanceof LocalAudioTrack) {
+    } else if (isLocalAudioTrack(track)) {
       track.startMonitor();
     }
 
@@ -951,7 +1186,7 @@ export default class LocalParticipant extends Participant {
       throw new TrackInvalidError('track is not published');
     }
 
-    if (!(track instanceof LocalVideoTrack)) {
+    if (!isLocalVideoTrack(track)) {
       throw new TrackInvalidError('track is not a video track');
     }
 
@@ -994,15 +1229,19 @@ export default class LocalParticipant extends Participant {
       throw new UnexpectedConnectionState('cannot publish track when not connected');
     }
 
-    const ti = await this.engine.addTrack(req);
+    const negotiate = async () => {
+      const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
+      if (encodings) {
+        transceiverInit.sendEncodings = encodings;
+      }
+      await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
 
-    const transceiverInit: RTCRtpTransceiverInit = { direction: 'sendonly' };
-    if (encodings) {
-      transceiverInit.sendEncodings = encodings;
-    }
-    await this.engine.createSimulcastSender(track, simulcastTrack, opts, encodings);
+      await this.engine.negotiate();
+    };
 
-    await this.engine.negotiate();
+    const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
+    const ti = rets[0];
+
     this.log.debug(`published ${videoCodec} for track ${track.sid}`, {
       ...this.logContext,
       encodings,
@@ -1014,6 +1253,16 @@ export default class LocalParticipant extends Participant {
     track: LocalTrack | MediaStreamTrack,
     stopOnUnpublish?: boolean,
   ): Promise<LocalTrackPublication | undefined> {
+    if (isLocalTrack(track)) {
+      const publishPromise = this.pendingPublishPromises.get(track);
+      if (publishPromise) {
+        this.log.info('awaiting publish promise before attempting to unpublish', {
+          ...this.logContext,
+          ...getLogContextFromTrack(track),
+        });
+        await publishPromise;
+      }
+    }
     // look through all published tracks to find the right ones
     const publication = this.getPublicationForTrack(track);
 
@@ -1045,6 +1294,8 @@ export default class LocalParticipant extends Participant {
     }
     if (stopOnUnpublish) {
       track.stop();
+    } else {
+      track.stopMonitor();
     }
 
     let negotiationNeeded = false;
@@ -1069,7 +1320,7 @@ export default class LocalParticipant extends Participant {
         if (this.engine.removeTrack(trackSender)) {
           negotiationNeeded = true;
         }
-        if (track instanceof LocalVideoTrack) {
+        if (isLocalVideoTrack(track)) {
           for (const [, trackInfo] of track.simulcastCodecs) {
             if (trackInfo.sender) {
               if (this.engine.removeTrack(trackInfo.sender)) {
@@ -1115,45 +1366,57 @@ export default class LocalParticipant extends Participant {
     tracks: LocalTrack[] | MediaStreamTrack[],
   ): Promise<LocalTrackPublication[]> {
     const results = await Promise.all(tracks.map((track) => this.unpublishTrack(track)));
-    return results.filter(
-      (track) => track instanceof LocalTrackPublication,
-    ) as LocalTrackPublication[];
+    return results.filter((track) => !!track);
   }
 
   async republishAllTracks(options?: TrackPublishOptions, restartTracks: boolean = true) {
-    const localPubs: LocalTrackPublication[] = [];
-    this.trackPublications.forEach((pub) => {
-      if (pub.track) {
-        if (options) {
-          pub.options = { ...pub.options, ...options };
-        }
-        localPubs.push(pub);
+    if (this.republishPromise) {
+      await this.republishPromise;
+    }
+    this.republishPromise = new Promise(async (resolve, reject) => {
+      try {
+        const localPubs: LocalTrackPublication[] = [];
+        this.trackPublications.forEach((pub) => {
+          if (pub.track) {
+            if (options) {
+              pub.options = { ...pub.options, ...options };
+            }
+            localPubs.push(pub);
+          }
+        });
+
+        await Promise.all(
+          localPubs.map(async (pub) => {
+            const track = pub.track!;
+            await this.unpublishTrack(track, false);
+            if (
+              restartTracks &&
+              !track.isMuted &&
+              track.source !== Track.Source.ScreenShare &&
+              track.source !== Track.Source.ScreenShareAudio &&
+              (isLocalAudioTrack(track) || isLocalVideoTrack(track)) &&
+              !track.isUserProvided
+            ) {
+              // generally we need to restart the track before publishing, often a full reconnect
+              // is necessary because computer had gone to sleep.
+              this.log.debug('restarting existing track', {
+                ...this.logContext,
+                track: pub.trackSid,
+              });
+              await track.restartTrack();
+            }
+            await this.publishOrRepublishTrack(track, pub.options, true);
+          }),
+        );
+        resolve();
+      } catch (error: any) {
+        reject(error);
+      } finally {
+        this.republishPromise = undefined;
       }
     });
 
-    await Promise.all(
-      localPubs.map(async (pub) => {
-        const track = pub.track!;
-        await this.unpublishTrack(track, false);
-        if (
-          restartTracks &&
-          !track.isMuted &&
-          track.source !== Track.Source.ScreenShare &&
-          track.source !== Track.Source.ScreenShareAudio &&
-          (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) &&
-          !track.isUserProvided
-        ) {
-          // generally we need to restart the track before publishing, often a full reconnect
-          // is necessary because computer had gone to sleep.
-          this.log.debug('restarting existing track', {
-            ...this.logContext,
-            track: pub.trackSid,
-          });
-          await track.restartTrack();
-        }
-        await this.publishTrack(track, pub.options);
-      }),
-    );
+    await this.republishPromise;
   }
 
   /**
@@ -1185,6 +1448,405 @@ export default class LocalParticipant extends Participant {
   }
 
   /**
+   * Publish SIP DTMF message to the room.
+   *
+   * @param code DTMF code
+   * @param digit DTMF digit
+   */
+  async publishDtmf(code: number, digit: string): Promise<void> {
+    const packet = new DataPacket({
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'sipDtmf',
+        value: new SipDTMF({
+          code: code,
+          digit: digit,
+        }),
+      },
+    });
+
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
+
+  async sendChatMessage(text: string, options?: SendTextOptions): Promise<ChatMessage> {
+    const msg = {
+      id: crypto.randomUUID(),
+      message: text,
+      timestamp: Date.now(),
+      attachedFiles: options?.attachments,
+    } as const satisfies ChatMessage;
+    const packet = new DataPacket({
+      value: {
+        case: 'chatMessage',
+        value: new ChatMessageModel({
+          ...msg,
+          timestamp: protoInt64.parse(msg.timestamp),
+        }),
+      },
+    });
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+
+    this.emit(ParticipantEvent.ChatMessage, msg);
+    return msg;
+  }
+
+  async editChatMessage(editText: string, originalMessage: ChatMessage) {
+    const msg = {
+      ...originalMessage,
+      message: editText,
+      editTimestamp: Date.now(),
+    } as const satisfies ChatMessage;
+    const packet = new DataPacket({
+      value: {
+        case: 'chatMessage',
+        value: new ChatMessageModel({
+          ...msg,
+          timestamp: protoInt64.parse(msg.timestamp),
+          editTimestamp: protoInt64.parse(msg.editTimestamp),
+        }),
+      },
+    });
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    this.emit(ParticipantEvent.ChatMessage, msg);
+    return msg;
+  }
+
+  async sendText(text: string, options?: SendTextOptions): Promise<TextStreamInfo> {
+    const streamId = crypto.randomUUID();
+    const textInBytes = new TextEncoder().encode(text);
+    const totalTextLength = textInBytes.byteLength;
+
+    const fileIds = options?.attachments?.map(() => crypto.randomUUID());
+
+    const progresses = new Array<number>(fileIds ? fileIds.length + 1 : 1).fill(0);
+
+    const handleProgress = (progress: number, idx: number) => {
+      progresses[idx] = progress;
+      const totalProgress = progresses.reduce((acc, val) => acc + val, 0);
+      options?.onProgress?.(totalProgress);
+    };
+
+    const writer = await this.streamText({
+      streamId,
+      totalSize: totalTextLength,
+      destinationIdentities: options?.destinationIdentities,
+      topic: options?.topic,
+      attachedStreamIds: fileIds,
+    });
+
+    await writer.write(text);
+    // set text part of progress to 1
+    handleProgress(1, 0);
+
+    await writer.close();
+
+    if (options?.attachments && fileIds) {
+      await Promise.all(
+        options.attachments.map(async (file, idx) =>
+          this._sendFile(fileIds[idx], file, {
+            topic: options.topic,
+            mimeType: file.type,
+            onProgress: (progress) => {
+              handleProgress(progress, idx + 1);
+            },
+          }),
+        ),
+      );
+    }
+    return writer.info;
+  }
+
+  /**
+   * @internal
+   * @experimental CAUTION, might get removed in a minor release
+   */
+  async streamText(options?: StreamTextOptions): Promise<TextStreamWriter> {
+    const streamId = options?.streamId ?? crypto.randomUUID();
+
+    const info: TextStreamInfo = {
+      id: streamId,
+      mimeType: 'text/plain',
+      timestamp: Date.now(),
+      topic: options?.topic ?? '',
+      size: options?.totalSize,
+    };
+    const header = new DataStream_Header({
+      streamId,
+      mimeType: info.mimeType,
+      topic: info.topic,
+      timestamp: numberToBigInt(info.timestamp),
+      totalLength: numberToBigInt(options?.totalSize),
+      contentHeader: {
+        case: 'textHeader',
+        value: new DataStream_TextHeader({
+          version: options?.version,
+          attachedStreamIds: options?.attachedStreamIds,
+          replyToStreamId: options?.replyToStreamId,
+          operationType:
+            options?.type === 'update'
+              ? DataStream_OperationType.UPDATE
+              : DataStream_OperationType.CREATE,
+        }),
+      },
+    });
+    const destinationIdentities = options?.destinationIdentities;
+    const packet = new DataPacket({
+      destinationIdentities,
+      value: {
+        case: 'streamHeader',
+        value: header,
+      },
+    });
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+
+    let chunkId = 0;
+    const localP = this;
+
+    const writableStream = new WritableStream<string>({
+      // Implement the sink
+      async write(text) {
+        for (const textByteChunk of splitUtf8(text, STREAM_CHUNK_SIZE)) {
+          await localP.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
+          const chunk = new DataStream_Chunk({
+            content: textByteChunk,
+            streamId,
+            chunkIndex: numberToBigInt(chunkId),
+          });
+          const chunkPacket = new DataPacket({
+            destinationIdentities,
+            value: {
+              case: 'streamChunk',
+              value: chunk,
+            },
+          });
+          await localP.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
+
+          chunkId += 1;
+        }
+      },
+      async close() {
+        const trailer = new DataStream_Trailer({
+          streamId,
+        });
+        const trailerPacket = new DataPacket({
+          destinationIdentities,
+          value: {
+            case: 'streamTrailer',
+            value: trailer,
+          },
+        });
+        await localP.engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
+      },
+      abort(err) {
+        console.log('Sink error:', err);
+        // TODO handle aborts to signal something to receiver side
+      },
+    });
+
+    let onEngineClose = async () => {
+      await writer.close();
+    };
+
+    localP.engine.once(EngineEvent.Closing, onEngineClose);
+
+    const writer = new TextStreamWriter(writableStream, info, () =>
+      this.engine.off(EngineEvent.Closing, onEngineClose),
+    );
+
+    return writer;
+  }
+
+  async sendFile(
+    file: File,
+    options?: {
+      mimeType?: string;
+      topic?: string;
+      destinationIdentities?: Array<string>;
+      onProgress?: (progress: number) => void;
+    },
+  ): Promise<{ id: string }> {
+    const streamId = crypto.randomUUID();
+    await this._sendFile(streamId, file, options);
+    return { id: streamId };
+  }
+
+  private async _sendFile(
+    streamId: string,
+    file: File,
+    options?: {
+      mimeType?: string;
+      topic?: string;
+      encryptionType?: Encryption_Type.NONE;
+      destinationIdentities?: Array<string>;
+      onProgress?: (progress: number) => void;
+    },
+  ) {
+    const totalLength = file.size;
+    const header = new DataStream_Header({
+      totalLength: numberToBigInt(totalLength),
+      mimeType: options?.mimeType ?? file.type,
+      streamId,
+      topic: options?.topic,
+      encryptionType: options?.encryptionType,
+      timestamp: numberToBigInt(Date.now()),
+      contentHeader: {
+        case: 'byteHeader',
+        value: new DataStream_ByteHeader({
+          name: file.name,
+        }),
+      },
+    });
+
+    const destinationIdentities = options?.destinationIdentities;
+    const packet = new DataPacket({
+      destinationIdentities,
+      value: {
+        case: 'streamHeader',
+        value: header,
+      },
+    });
+
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+    function read(b: Blob): Promise<Uint8Array> {
+      return new Promise((resolve) => {
+        const fr = new FileReader();
+        fr.onload = () => {
+          resolve(new Uint8Array(fr.result as ArrayBuffer));
+        };
+        fr.readAsArrayBuffer(b);
+      });
+    }
+    const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
+    for (let i = 0; i < totalChunks; i++) {
+      const chunkData = await read(
+        file.slice(i * STREAM_CHUNK_SIZE, Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength)),
+      );
+      await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
+      const chunk = new DataStream_Chunk({
+        content: chunkData,
+        streamId,
+        chunkIndex: numberToBigInt(i),
+      });
+      const chunkPacket = new DataPacket({
+        destinationIdentities,
+        value: {
+          case: 'streamChunk',
+          value: chunk,
+        },
+      });
+      await this.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
+      options?.onProgress?.((i + 1) / totalChunks);
+    }
+    const trailer = new DataStream_Trailer({
+      streamId,
+    });
+    const trailerPacket = new DataPacket({
+      destinationIdentities,
+      value: {
+        case: 'streamTrailer',
+        value: trailer,
+      },
+    });
+    await this.engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
+  }
+
+  /**
+   * Initiate an RPC call to a remote participant
+   * @param params - Parameters for initiating the RPC call, see {@link PerformRpcParams}
+   * @returns A promise that resolves with the response payload or rejects with an error.
+   * @throws Error on failure. Details in `message`.
+   */
+  async performRpc({
+    destinationIdentity,
+    method,
+    payload,
+    responseTimeout = 10000,
+  }: PerformRpcParams): Promise<string> {
+    const maxRoundTripLatency = 2000;
+
+    return new Promise(async (resolve, reject) => {
+      if (byteLength(payload) > MAX_PAYLOAD_BYTES) {
+        reject(RpcError.builtIn('REQUEST_PAYLOAD_TOO_LARGE'));
+        return;
+      }
+
+      if (
+        this.engine.latestJoinResponse?.serverInfo?.version &&
+        compareVersions(this.engine.latestJoinResponse?.serverInfo?.version, '1.8.0') < 0
+      ) {
+        reject(RpcError.builtIn('UNSUPPORTED_SERVER'));
+        return;
+      }
+
+      const id = crypto.randomUUID();
+      await this.publishRpcRequest(
+        destinationIdentity,
+        id,
+        method,
+        payload,
+        responseTimeout - maxRoundTripLatency,
+      );
+
+      const ackTimeoutId = setTimeout(() => {
+        this.pendingAcks.delete(id);
+        reject(RpcError.builtIn('CONNECTION_TIMEOUT'));
+        this.pendingResponses.delete(id);
+        clearTimeout(responseTimeoutId);
+      }, maxRoundTripLatency);
+
+      this.pendingAcks.set(id, {
+        resolve: () => {
+          clearTimeout(ackTimeoutId);
+        },
+        participantIdentity: destinationIdentity,
+      });
+
+      const responseTimeoutId = setTimeout(() => {
+        this.pendingResponses.delete(id);
+        reject(RpcError.builtIn('RESPONSE_TIMEOUT'));
+      }, responseTimeout);
+
+      this.pendingResponses.set(id, {
+        resolve: (responsePayload: string | null, responseError: RpcError | null) => {
+          clearTimeout(responseTimeoutId);
+          if (this.pendingAcks.has(id)) {
+            console.warn('RPC response received before ack', id);
+            this.pendingAcks.delete(id);
+            clearTimeout(ackTimeoutId);
+          }
+
+          if (responseError) {
+            reject(responseError);
+          } else {
+            resolve(responsePayload ?? '');
+          }
+        },
+        participantIdentity: destinationIdentity,
+      });
+    });
+  }
+
+  /**
+   * @deprecated use `room.registerRpcMethod` instead
+   */
+  registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
+    if (this.rpcHandlers.has(method)) {
+      this.log.warn(
+        `you're overriding the RPC handler for method ${method}, in the future this will throw an error`,
+      );
+    }
+
+    this.rpcHandlers.set(method, handler);
+  }
+
+  /**
+   * @deprecated use `room.unregisterRpcMethod` instead
+   */
+  unregisterRpcMethod(method: string) {
+    this.rpcHandlers.delete(method);
+  }
+
+  /**
    * Control who can subscribe to LocalParticipant's published tracks.
    *
    * By default, all participants can subscribe. This allows fine-grained control over
@@ -1210,6 +1872,79 @@ export default class LocalParticipant extends Participant {
     if (!this.engine.client.isDisconnected) {
       this.updateTrackSubscriptionPermissions();
     }
+  }
+
+  private handleIncomingRpcAck(requestId: string) {
+    const handler = this.pendingAcks.get(requestId);
+    if (handler) {
+      handler.resolve();
+      this.pendingAcks.delete(requestId);
+    } else {
+      console.error('Ack received for unexpected RPC request', requestId);
+    }
+  }
+
+  private handleIncomingRpcResponse(
+    requestId: string,
+    payload: string | null,
+    error: RpcError | null,
+  ) {
+    const handler = this.pendingResponses.get(requestId);
+    if (handler) {
+      handler.resolve(payload, error);
+      this.pendingResponses.delete(requestId);
+    } else {
+      console.error('Response received for unexpected RPC request', requestId);
+    }
+  }
+
+  /** @internal */
+  private async publishRpcRequest(
+    destinationIdentity: string,
+    requestId: string,
+    method: string,
+    payload: string,
+    responseTimeout: number,
+  ) {
+    const packet = new DataPacket({
+      destinationIdentities: [destinationIdentity],
+      kind: DataPacket_Kind.RELIABLE,
+      value: {
+        case: 'rpcRequest',
+        value: new RpcRequest({
+          id: requestId,
+          method,
+          payload,
+          responseTimeoutMs: responseTimeout,
+          version: 1,
+        }),
+      },
+    });
+
+    await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
+  }
+
+  /** @internal */
+  handleParticipantDisconnected(participantIdentity: string) {
+    for (const [id, { participantIdentity: pendingIdentity }] of this.pendingAcks) {
+      if (pendingIdentity === participantIdentity) {
+        this.pendingAcks.delete(id);
+      }
+    }
+
+    for (const [id, { participantIdentity: pendingIdentity, resolve }] of this.pendingResponses) {
+      if (pendingIdentity === participantIdentity) {
+        resolve(null, RpcError.builtIn('RECIPIENT_DISCONNECTED'));
+        this.pendingResponses.delete(id);
+      }
+    }
+  }
+
+  /** @internal */
+  setEnabledPublishCodecs(codecs: Codec[]) {
+    this.enabledPublishVideoCodecs = codecs.filter(
+      (c) => c.mime.split('/')[0].toLowerCase() === 'video',
+    );
   }
 
   /** @internal */
@@ -1362,7 +2097,7 @@ export default class LocalParticipant extends Participant {
       this.unpublishTrack(track);
     } else if (track.isUserProvided) {
       await track.mute();
-    } else if (track instanceof LocalAudioTrack || track instanceof LocalVideoTrack) {
+    } else if (isLocalAudioTrack(track) || isLocalVideoTrack(track)) {
       try {
         if (isWeb()) {
           try {
@@ -1397,7 +2132,12 @@ export default class LocalParticipant extends Participant {
             ...this.logContext,
             ...getLogContextFromTrack(track),
           });
-          await track.restartTrack();
+          if (isLocalAudioTrack(track)) {
+            // fall back to default device if available
+            await track.restartTrack({ deviceId: 'default' });
+          } else {
+            await track.restartTrack();
+          }
         }
       } catch (e) {
         this.log.warn(`could not restart track, muting instead`, {
@@ -1421,7 +2161,7 @@ export default class LocalParticipant extends Participant {
 
       // this looks overly complicated due to this object tree
       if (track instanceof MediaStreamTrack) {
-        if (localTrack instanceof LocalAudioTrack || localTrack instanceof LocalVideoTrack) {
+        if (isLocalAudioTrack(localTrack) || isLocalVideoTrack(localTrack)) {
           if (localTrack.mediaStreamTrack === track) {
             publication = <LocalTrackPublication>pub;
           }
@@ -1431,5 +2171,20 @@ export default class LocalParticipant extends Participant {
       }
     });
     return publication;
+  }
+
+  private async waitForPendingPublicationOfSource(source: Track.Source) {
+    const waitForPendingTimeout = 10_000;
+    const startTime = Date.now();
+
+    while (Date.now() < startTime + waitForPendingTimeout) {
+      const publishPromiseEntry = Array.from(this.pendingPublishPromises.entries()).find(
+        ([pendingTrack]) => pendingTrack.source === source,
+      );
+      if (publishPromiseEntry) {
+        return publishPromiseEntry[1];
+      }
+      await sleep(20);
+    }
   }
 }

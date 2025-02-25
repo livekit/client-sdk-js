@@ -3,6 +3,9 @@ import type TypedEmitter from 'typed-emitter';
 import type { RoomConnectOptions, RoomOptions } from '../../options';
 import type RTCEngine from '../../room/RTCEngine';
 import Room, { ConnectionState } from '../../room/Room';
+import { RoomEvent } from '../../room/events';
+import type { SimulationScenario } from '../../room/types';
+import { sleep } from '../../room/utils';
 
 type LogMessage = {
   level: 'info' | 'warning' | 'error';
@@ -22,12 +25,14 @@ export type CheckInfo = {
   logs: Array<LogMessage>;
   status: CheckStatus;
   description: string;
+  data?: any;
 };
 
 export interface CheckerOptions {
   errorsAsWarnings?: boolean;
   roomOptions?: RoomOptions;
   connectOptions?: RoomConnectOptions;
+  protocol?: 'udp' | 'tcp';
 }
 
 export abstract class Checker extends (EventEmitter as new () => TypedEmitter<CheckerCallbacks>) {
@@ -43,9 +48,9 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
 
   logs: Array<LogMessage> = [];
 
-  errorsAsWarnings: boolean = false;
-
   name: string;
+
+  options: CheckerOptions = {};
 
   constructor(url: string, token: string, options: CheckerOptions = {}) {
     super();
@@ -54,9 +59,7 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
     this.name = this.constructor.name;
     this.room = new Room(options.roomOptions);
     this.connectOptions = options.connectOptions;
-    if (options.errorsAsWarnings) {
-      this.errorsAsWarnings = options.errorsAsWarnings;
-    }
+    this.options = options;
   }
 
   abstract get description(): string;
@@ -73,7 +76,7 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
       await this.perform();
     } catch (err) {
       if (err instanceof Error) {
-        if (this.errorsAsWarnings) {
+        if (this.options.errorsAsWarnings) {
           this.appendWarning(err.message);
         } else {
           this.appendError(err.message);
@@ -101,11 +104,14 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
     return !this.logs.some((l) => l.level === 'error');
   }
 
-  protected async connect(): Promise<Room> {
+  protected async connect(url?: string): Promise<Room> {
     if (this.room.state === ConnectionState.Connected) {
       return this.room;
     }
-    await this.room.connect(this.url, this.token);
+    if (!url) {
+      url = this.url;
+    }
+    await this.room.connect(url, this.token, this.connectOptions);
     return this.room;
   }
 
@@ -119,6 +125,33 @@ export abstract class Checker extends (EventEmitter as new () => TypedEmitter<Ch
 
   protected skip() {
     this.setStatus(CheckStatus.SKIPPED);
+  }
+
+  protected async switchProtocol(protocol: 'udp' | 'tcp' | 'tls') {
+    let hasReconnecting = false;
+    let hasReconnected = false;
+    this.room.on(RoomEvent.Reconnecting, () => {
+      hasReconnecting = true;
+    });
+    this.room.once(RoomEvent.Reconnected, () => {
+      hasReconnected = true;
+    });
+    this.room.simulateScenario(`force-${protocol}` as SimulationScenario);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (!hasReconnecting) {
+      // no need to wait for reconnection
+      return;
+    }
+
+    // wait for 10 seconds for reconnection
+    const timeout = Date.now() + 10000;
+    while (Date.now() < timeout) {
+      if (hasReconnected) {
+        return;
+      }
+      await sleep(100);
+    }
+    throw new Error(`Could not reconnect using ${protocol} protocol after 10 seconds`);
   }
 
   protected appendMessage(message: string) {

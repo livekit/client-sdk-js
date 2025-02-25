@@ -11,9 +11,7 @@
 # JavaScript/TypeScript client SDK for LiveKit
 
 <!--BEGIN_DESCRIPTION-->
-
-Use this SDK to add real-time video, audio and data features to your JavaScript/TypeScript app. By connecting to a self- or cloud-hosted <a href="https://livekit.io/">LiveKit</a> server, you can quickly build applications like interactive live streaming or video calls with just a few lines of code.
-
+Use this SDK to add realtime video, audio and data features to your JavaScript/TypeScript app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multi-modal AI, live streaming, or video calls with just a few lines of code.
 <!--END_DESCRIPTION-->
 
 ## Docs
@@ -24,7 +22,7 @@ Docs and guides at [https://docs.livekit.io](https://docs.livekit.io)
 
 > [!NOTE]
 > This is v2 of `livekit-client`. When migrating from v1.x to v2.x you might encounter a small set of breaking changes.
-> Read the [migration guide](https://docs.livekit.io/guides/migrate-from-v1/) for a detailed overview of what has changed.
+> Read the [migration guide](https://docs.livekit.io/recipes/migrate-from-v1/) for a detailed overview of what has changed.
 
 ## Installation
 
@@ -71,12 +69,16 @@ await room.connect(...);
 
 ```typescript
 import {
+  LocalParticipant,
+  LocalTrackPublication,
   Participant,
   RemoteParticipant,
   RemoteTrack,
   RemoteTrackPublication,
   Room,
   RoomEvent,
+  Track,
+  VideoPresets,
 } from 'livekit-client';
 
 // creates a new room with options
@@ -151,7 +153,7 @@ function handleDisconnect() {
 
 In order to connect to a room, you need to first create an access token.
 
-See [access token docs](https://docs.livekit.io/guides/access-tokens) for details
+See [authentication docs](https://docs.livekit.io/home/get-started/authentication/) for details
 
 ### Handling common track types
 
@@ -302,11 +304,79 @@ setLogExtension((level: LogLevel, msg: string, context: object) => {
 });
 ```
 
+### RPC
+
+Perform your own predefined method calls from one participant to another.
+
+This feature is especially powerful when used with [Agents](https://docs.livekit.io/agents), for instance to forward LLM function calls to your client application.
+
+#### Registering an RPC method
+
+The participant who implements the method and will receive its calls must first register support:
+
+```typescript
+room.localParticipant?.registerRpcMethod(
+  // method name - can be any string that makes sense for your application
+  'greet',
+
+  // method handler - will be called when the method is invoked by a RemoteParticipant
+  async (data: RpcInvocationData) => {
+    console.log(`Received greeting from ${data.callerIdentity}: ${data.payload}`);
+    return `Hello, ${data.callerIdentity}!`;
+  },
+);
+```
+
+In addition to the payload, your handler will also receive `responseTimeout`, which informs you the maximum time available to return a response. If you are unable to respond in time, the call will result in an error on the caller's side.
+
+#### Performing an RPC request
+
+The caller may then initiate an RPC call like so:
+
+```typescript
+try {
+  const response = await room.localParticipant!.performRpc({
+    destinationIdentity: 'recipient-identity',
+    method: 'greet',
+    payload: 'Hello from RPC!',
+  });
+  console.log('RPC response:', response);
+} catch (error) {
+  console.error('RPC call failed:', error);
+}
+```
+
+You may find it useful to adjust the `responseTimeout` parameter, which indicates the amount of time you will wait for a response. We recommend keeping this value as low as possible while still satisfying the constraints of your application.
+
+#### Errors
+
+LiveKit is a dynamic realtime environment and calls can fail for various reasons.
+
+You may throw errors of the type `RpcError` with a string `message` in an RPC method handler and they will be received on the caller's side with the message intact. Other errors will not be transmitted and will instead arrive to the caller as `1500` ("Application Error"). Other built-in errors are detailed in `RpcError`.
+
+## Error Codes
+
+| Code  | Name                        | Reason             |
+| ----- | --------------------------- | ------------------ |
+| 1     | `ConnectionError`           | 0: `NotAllowed`<br>1: `ServerUnreachable`<br>2: `InternalError`<br>3: `Cancelled`<br>4:`LeaveRequest` |  
+| 10    | `UnsupportedServer`         |             |
+| 12    | `UnexpectedConnectionState` |             |
+| 13    | `NegotiationError`          |             |
+| 14    | `PublishDataError`          |             |
+| 15    | `SignalRequestError`        |             |
+| 20    | `TrackInvalidError`         |             |
+| 21    | `DeviceUnsupportedError`    |             |
+| 40    | `CryptorError`              |             |
+
 ## Examples
 
-### SDK Sample
+### Demo App
 
-[example/sample.ts](example/sample.ts) contains a demo webapp that uses the SDK. Run it with `pnpm install && pnpm sample`
+[examples/demo](examples/demo/) contains a demo webapp that uses the SDK. Run it with `pnpm install && pnpm examples:demo`
+
+### RPC Demo
+
+[examples/rpc](examples/rpc/) contains a demo webapp that uses the SDK to showcase the RPC capabilities. Run it with `pnpm install && pnpm dev` from the `examples/rpc` directory.
 
 ## Browser Support
 
@@ -329,16 +399,15 @@ If you are targeting legacy browsers, but still want adaptiveStream functionalit
 Also when targeting legacy browsers, older than the ones specified in our browserslist target, make sure to transpile the library code to your desired target and include required polyfills with babel and/or corejs.
 
 <!--BEGIN_REPO_NAV-->
-
 <br/><table>
-
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>
-<tr><td>Real-time SDKs</td><td><a href="https://github.com/livekit/components-js">React Components</a> · <b>JavaScript</b> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/client-sdk-rust">Rust</a> · <a href="https://github.com/livekit/client-sdk-python">Python</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (web)</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity (beta)</a></td></tr><tr></tr>
-<tr><td>Server APIs</td><td><a href="https://github.com/livekit/server-sdk-js">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/livekit/client-sdk-python">Python</a> · <a href="https://github.com/livekit/client-sdk-rust">Rust</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a></td></tr><tr></tr>
-<tr><td>Agents Frameworks</td><td><a href="https://github.com/livekit/agents">Python</a> · <a href="https://github.com/livekit/agent-playground">Playground</a></td></tr><tr></tr>
-<tr><td>Services</td><td><a href="https://github.com/livekit/livekit">Livekit server</a> · <a href="https://github.com/livekit/egress">Egress</a> · <a href="https://github.com/livekit/ingress">Ingress</a> · <a href="https://github.com/livekit/sip">SIP</a></td></tr><tr></tr>
-<tr><td>Resources</td><td><a href="https://docs.livekit.io">Docs</a> · <a href="https://github.com/livekit-examples">Example apps</a> · <a href="https://livekit.io/cloud">Cloud</a> · <a href="https://docs.livekit.io/oss/deployment">Self-hosting</a> · <a href="https://github.com/livekit/livekit-cli">CLI</a></td></tr>
+<tr><td>LiveKit SDKs</td><td><b>Browser</b> · <a href="https://github.com/livekit/client-sdk-swift">iOS/macOS/visionOS</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (WebGL)</a></td></tr><tr></tr>
+<tr><td>Server APIs</td><td><a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a> · <a href="https://github.com/pabloFuente/livekit-server-sdk-dotnet">.NET (community)</a></td></tr><tr></tr>
+<tr><td>UI Components</td><td><a href="https://github.com/livekit/components-js">React</a> · <a href="https://github.com/livekit/components-android">Android Compose</a> · <a href="https://github.com/livekit/components-swift">SwiftUI</a></td></tr><tr></tr>
+<tr><td>Agents Frameworks</td><td><a href="https://github.com/livekit/agents">Python</a> · <a href="https://github.com/livekit/agents-js">Node.js</a> · <a href="https://github.com/livekit/agent-playground">Playground</a></td></tr><tr></tr>
+<tr><td>Services</td><td><a href="https://github.com/livekit/livekit">LiveKit server</a> · <a href="https://github.com/livekit/egress">Egress</a> · <a href="https://github.com/livekit/ingress">Ingress</a> · <a href="https://github.com/livekit/sip">SIP</a></td></tr><tr></tr>
+<tr><td>Resources</td><td><a href="https://docs.livekit.io">Docs</a> · <a href="https://github.com/livekit-examples">Example apps</a> · <a href="https://livekit.io/cloud">Cloud</a> · <a href="https://docs.livekit.io/home/self-hosting/deployment">Self-hosting</a> · <a href="https://github.com/livekit/livekit-cli">CLI</a></td></tr>
 </tbody>
 </table>
 <!--END_REPO_NAV-->

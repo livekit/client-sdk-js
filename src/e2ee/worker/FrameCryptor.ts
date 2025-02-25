@@ -6,7 +6,7 @@ import { workerLogger } from '../../logger';
 import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
-import { CryptorCallbacks, CryptorEvent } from '../events';
+import { type CryptorCallbacks, CryptorEvent } from '../events';
 import type { DecodeRatchetOptions, KeyProviderOptions, KeySet } from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
@@ -156,8 +156,8 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   setupTransform(
     operation: 'encode' | 'decode',
-    readable: ReadableStream,
-    writable: WritableStream,
+    readable: ReadableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
+    writable: WritableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
     trackId: string,
     codec?: VideoCodec,
   ) {
@@ -183,7 +183,12 @@ export class FrameCryptor extends BaseFrameCryptor {
       .pipeTo(writable)
       .catch((e) => {
         workerLogger.warn(e);
-        this.emit(CryptorEvent.Error, e instanceof CryptorError ? e : new CryptorError(e.message));
+        this.emit(
+          CryptorEvent.Error,
+          e instanceof CryptorError
+            ? e
+            : new CryptorError(e.message, undefined, this.participantIdentity),
+        );
       });
     this.trackId = trackId;
   }
@@ -228,11 +233,17 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
     const keySet = this.keys.getKeySet();
     if (!keySet) {
-      throw new TypeError(
-        `key set not found for ${
-          this.participantIdentity
-        } at index ${this.keys.getCurrentKeyIndex()}`,
+      this.emit(
+        CryptorEvent.Error,
+        new CryptorError(
+          `key set not found for ${
+            this.participantIdentity
+          } at index ${this.keys.getCurrentKeyIndex()}`,
+          CryptorErrorReason.MissingKey,
+          this.participantIdentity,
+        ),
       );
+      return;
     }
     const { encryptionKey } = keySet;
     const keyIndex = this.keys.getCurrentKeyIndex();
@@ -294,10 +305,14 @@ export class FrameCryptor extends BaseFrameCryptor {
         workerLogger.error(e);
       }
     } else {
-      workerLogger.debug('failed to decrypt, emitting error', this.logContext);
+      workerLogger.debug('failed to encrypt, emitting error', this.logContext);
       this.emit(
         CryptorEvent.Error,
-        new CryptorError(`encryption key missing for encoding`, CryptorErrorReason.MissingKey),
+        new CryptorError(
+          `encryption key missing for encoding`,
+          CryptorErrorReason.MissingKey,
+          this.participantIdentity,
+        ),
       );
     }
   }
@@ -342,33 +357,41 @@ export class FrameCryptor extends BaseFrameCryptor {
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
 
-    if (this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
+    if (this.keys.hasInvalidKeyAtIndex(keyIndex)) {
+      // drop frame
+      return;
+    }
+
+    if (this.keys.getKeySet(keyIndex)) {
       try {
         const decodedFrame = await this.decryptFrame(encodedFrame, keyIndex);
-        this.keys.decryptionSuccess();
+        this.keys.decryptionSuccess(keyIndex);
         if (decodedFrame) {
           return controller.enqueue(decodedFrame);
         }
       } catch (error) {
         if (error instanceof CryptorError && error.reason === CryptorErrorReason.InvalidKey) {
+          // emit an error if the key handler thinks we have a valid key
           if (this.keys.hasValidKey) {
             this.emit(CryptorEvent.Error, error);
-            this.keys.decryptionFailure();
+            this.keys.decryptionFailure(keyIndex);
           }
         } else {
           workerLogger.warn('decoding frame failed', { error });
         }
       }
-    } else if (!this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
-      // emit an error in case the key index is out of bounds but the key handler thinks we still have a valid key
+    } else {
+      // emit an error if the key index is out of bounds but the key handler thinks we still have a valid key
       workerLogger.warn(`skipping decryption due to missing key at index ${keyIndex}`);
       this.emit(
         CryptorEvent.Error,
         new CryptorError(
           `missing key at index ${keyIndex} for participant ${this.participantIdentity}`,
           CryptorErrorReason.MissingKey,
+          this.participantIdentity,
         ),
       );
+      this.keys.decryptionFailure(keyIndex);
     }
   }
 
@@ -487,12 +510,14 @@ export class FrameCryptor extends BaseFrameCryptor {
           throw new CryptorError(
             `valid key missing for participant ${this.participantIdentity}`,
             CryptorErrorReason.InvalidKey,
+            this.participantIdentity,
           );
         }
       } else {
         throw new CryptorError(
           `Decryption failed: ${error.message}`,
           CryptorErrorReason.InvalidKey,
+          this.participantIdentity,
         );
       }
     }
@@ -554,12 +579,14 @@ export class FrameCryptor extends BaseFrameCryptor {
         this.detectedCodec = detectedCodec;
       }
 
-      if (detectedCodec === 'av1' || detectedCodec === 'vp9') {
+      if (detectedCodec === 'av1') {
         throw new Error(`${detectedCodec} is not yet supported for end to end encryption`);
       }
 
       if (detectedCodec === 'vp8') {
         frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
+      } else if (detectedCodec === 'vp9') {
+        frameInfo.unencryptedBytes = 0;
         return frameInfo;
       }
 

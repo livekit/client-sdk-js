@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import {
   VideoQuality as ProtoVideoQuality,
   SubscribedCodec,
@@ -10,7 +11,7 @@ import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
-import { Mutex, isFireFox, isMobile, isWeb, unwrapConstraint } from '../utils';
+import { isFireFox, isMobile, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track, VideoQuality } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
@@ -52,6 +53,19 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   // could lead to the browser throwing an exception in `setParameter`, due to
   // a missing `getParameter` call.
   private senderLock: Mutex;
+
+  private degradationPreference: RTCDegradationPreference = 'balanced';
+
+  get sender(): RTCRtpSender | undefined {
+    return this._sender;
+  }
+
+  set sender(sender: RTCRtpSender | undefined) {
+    this._sender = sender;
+    if (this.degradationPreference) {
+      this.setDegradationPreference(this.degradationPreference);
+    }
+  }
 
   /**
    *
@@ -227,24 +241,6 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     this.setPublishingLayers(qualities);
   }
 
-  async setDeviceId(deviceId: ConstrainDOMString): Promise<boolean> {
-    if (
-      this._constraints.deviceId === deviceId &&
-      this._mediaStreamTrack.getSettings().deviceId === unwrapConstraint(deviceId)
-    ) {
-      return true;
-    }
-    this._constraints.deviceId = deviceId;
-    // when video is muted, underlying media stream track is stopped and
-    // will be restarted later
-    if (!this.isMuted) {
-      await this.restartTrack();
-    }
-    return (
-      this.isMuted || unwrapConstraint(deviceId) === this._mediaStreamTrack.getSettings().deviceId
-    );
-  }
-
   async restartTrack(options?: VideoCaptureOptions) {
     let constraints: MediaTrackConstraints | undefined;
     if (options) {
@@ -256,19 +252,36 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     await this.restart(constraints);
 
     for await (const sc of this.simulcastCodecs.values()) {
-      if (sc.sender) {
+      if (sc.sender && sc.sender.transport?.state !== 'closed') {
         sc.mediaStreamTrack = this.mediaStreamTrack.clone();
         await sc.sender.replaceTrack(sc.mediaStreamTrack);
       }
     }
   }
 
-  async setProcessor(processor: TrackProcessor<Track.Kind>, showProcessedStreamLocally = true) {
+  async setProcessor(
+    processor: TrackProcessor<Track.Kind.Video>,
+    showProcessedStreamLocally = true,
+  ) {
     await super.setProcessor(processor, showProcessedStreamLocally);
 
     if (this.processor?.processedTrack) {
       for await (const sc of this.simulcastCodecs.values()) {
         await sc.sender?.replaceTrack(this.processor.processedTrack);
+      }
+    }
+  }
+
+  async setDegradationPreference(preference: RTCDegradationPreference) {
+    this.degradationPreference = preference;
+    if (this.sender) {
+      try {
+        this.log.debug(`setting degradationPreference to ${preference}`, this.logContext);
+        const params = this.sender.getParameters();
+        params.degradationPreference = preference;
+        this.sender.setParameters(params);
+      } catch (e: any) {
+        this.log.warn(`failed to set degradationPreference`, { error: e, ...this.logContext });
       }
     }
   }
@@ -577,7 +590,7 @@ export function videoLayersFromEncodings(
     for (let i = 0; i < sm.spatial; i += 1) {
       layers.push(
         new VideoLayer({
-          quality: VideoQuality.HIGH - i,
+          quality: Math.min(VideoQuality.HIGH, sm.spatial - 1) - i,
           width: Math.ceil(width / resRatio ** i),
           height: Math.ceil(height / resRatio ** i),
           bitrate: encodings[0].maxBitrate

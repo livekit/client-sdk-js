@@ -29,12 +29,14 @@ describe('browser parser', () => {
     expect(details?.name).toBe('Safari');
     expect(details?.version).toBe('16.3');
     expect(details?.os).toBe('macOS');
+    expect(details?.osVersion).toBe('10.15.7');
   });
   it('parses Safari iOS correctly', () => {
     const details = getBrowser(iOSSafariUA, true);
     expect(details?.name).toBe('Safari');
     expect(details?.version).toBe('16.5');
     expect(details?.os).toBe('iOS');
+    expect(details?.osVersion).toBe('16.5.1');
   });
   it('parses Firefox correctly', () => {
     const details = getBrowser(firefoxUA, true);
@@ -46,6 +48,7 @@ describe('browser parser', () => {
     expect(details?.name).toBe('Firefox');
     expect(details?.version).toBe('115.0');
     expect(details?.os).toBe('iOS');
+    expect(details?.osVersion).toBe('13.4.1');
   });
   it('parses Chrome correctly', () => {
     const details = getBrowser(chromeUA, true);
@@ -57,6 +60,7 @@ describe('browser parser', () => {
     expect(details?.name).toBe('Chrome');
     expect(details?.version).toBe('115.0.5790.130');
     expect(details?.os).toBe('iOS');
+    expect(details?.osVersion).toBe('16.5');
   });
   it('detects brave as chromium based', () => {
     const details = getBrowser(braveUA, true);

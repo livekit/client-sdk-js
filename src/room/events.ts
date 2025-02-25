@@ -21,6 +21,13 @@ export enum RoomEvent {
   Reconnecting = 'reconnecting',
 
   /**
+   * When the signal connection to the server has been interrupted. This isn't noticeable to users most of the time.
+   * It will resolve with a `RoomEvent.Reconnected` once the signal connection has been re-established.
+   * If media fails additionally it an additional `RoomEvent.Reconnecting` will be emitted.
+   */
+  SignalReconnecting = 'signalReconnecting',
+
+  /**
    * Fires when a reconnection has been successful.
    */
   Reconnected = 'reconnected',
@@ -179,6 +186,14 @@ export enum RoomEvent {
   ParticipantNameChanged = 'participantNameChanged',
 
   /**
+   * Participant attributes is an app-specific key value state to be pushed to
+   * all users.
+   * When a participant's attributes changed, this event will be emitted with the changed attributes and the participant
+   * args: (changedAttributes: [[Record<string, string]], participant: [[Participant]])
+   */
+  ParticipantAttributesChanged = 'participantAttributesChanged',
+
+  /**
    * Room metadata is a simple way for app-specific state to be pushed to
    * all users.
    * When RoomService.UpdateRoomMetadata is called to change a room's state,
@@ -196,6 +211,19 @@ export enum RoomEvent {
    * args: (payload: Uint8Array, participant: [[Participant]], kind: [[DataPacket_Kind]], topic?: string)
    */
   DataReceived = 'dataReceived',
+
+  /**
+   * SIP DTMF tones received from another participant.
+   *
+   * args: (participant: [[Participant]], dtmf: [[DataPacket_Kind]])
+   */
+  SipDTMFReceived = 'sipDTMFReceived',
+
+  /**
+   * Transcription received from a participant's track.
+   * @beta
+   */
+  TranscriptionReceived = 'transcriptionReceived',
 
   /**
    * Connection quality was changed for a Participant. It'll receive updates
@@ -266,7 +294,7 @@ export enum RoomEvent {
   MediaDevicesError = 'mediaDevicesError',
 
   /**
-   * A participant's permission has changed. Currently only fired on LocalParticipant.
+   * A participant's permission has changed.
    * args: (prevPermissions: [[ParticipantPermission]], participant: [[Participant]])
    */
   ParticipantPermissionsChanged = 'participantPermissionsChanged',
@@ -296,6 +324,17 @@ export enum RoomEvent {
    * args: (kind: MediaDeviceKind, deviceId: string)
    */
   ActiveDeviceChanged = 'activeDeviceChanged',
+
+  ChatMessage = 'chatMessage',
+  /**
+   * fired when the first remote participant has subscribed to the localParticipant's track
+   */
+  LocalTrackSubscribed = 'localTrackSubscribed',
+
+  /**
+   * fired when the client receives connection metrics from other participants
+   */
+  MetricsReceived = 'metricsReceived',
 }
 
 export enum ParticipantEvent {
@@ -403,6 +442,19 @@ export enum ParticipantEvent {
   DataReceived = 'dataReceived',
 
   /**
+   * SIP DTMF tones received from this participant as sender.
+   *
+   * args: (dtmf: [[DataPacket_Kind]])
+   */
+  SipDTMFReceived = 'sipDTMFReceived',
+
+  /**
+   * Transcription received from this participant as data source.
+   * @beta
+   */
+  TranscriptionReceived = 'transcriptionReceived',
+
+  /**
    * Has speaking status changed for the current participant
    *
    * args: (speaking: boolean)
@@ -455,13 +507,29 @@ export enum ParticipantEvent {
   AudioStreamAcquired = 'audioStreamAcquired',
 
   /**
-   * A participant's permission has changed. Currently only fired on LocalParticipant.
+   * A participant's permission has changed.
    * args: (prevPermissions: [[ParticipantPermission]])
    */
   ParticipantPermissionsChanged = 'participantPermissionsChanged',
 
   /** @internal */
   PCTrackAdded = 'pcTrackAdded',
+
+  /**
+   * Participant attributes is an app-specific key value state to be pushed to
+   * all users.
+   * When a participant's attributes changed, this event will be emitted with the changed attributes
+   * args: (changedAttributes: [[Record<string, string]])
+   */
+  AttributesChanged = 'attributesChanged',
+
+  /**
+   * fired on local participant only, when the first remote participant has subscribed to the track specified in the payload
+   */
+  LocalTrackSubscribed = 'localTrackSubscribed',
+
+  /** only emitted on local participant */
+  ChatMessage = 'chatMessage',
 }
 
 /** @internal */
@@ -491,7 +559,9 @@ export enum EngineEvent {
   RemoteMute = 'remoteMute',
   SubscribedQualityUpdate = 'subscribedQualityUpdate',
   LocalTrackUnpublished = 'localTrackUnpublished',
+  LocalTrackSubscribed = 'localTrackSubscribed',
   Offline = 'offline',
+  SignalRequestResponse = 'signalRequestResponse',
 }
 
 export enum TrackEvent {
@@ -562,4 +632,14 @@ export enum TrackEvent {
    * @internal
    */
   AudioTrackFeatureUpdate = 'audioTrackFeatureUpdate',
+
+  /**
+   * @beta
+   */
+  TranscriptionReceived = 'transcriptionReceived',
+
+  /**
+   * @experimental
+   */
+  TimeSyncUpdate = 'timeSyncUpdate',
 }

@@ -26,7 +26,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   constructor(
     mediaTrack: MediaStreamTrack,
     sid: string,
-    receiver?: RTCRtpReceiver,
+    receiver: RTCRtpReceiver,
     adaptiveStreamSettings?: AdaptiveStreamSettings,
     loggerOptions?: LoggerOptions,
   ) {
@@ -163,7 +163,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     this.prevStats = stats;
   };
 
-  private async getReceiverStats(): Promise<VideoReceiverStats | undefined> {
+  async getReceiverStats(): Promise<VideoReceiverStats | undefined> {
     if (!this.receiver || !this.receiver.getStats) {
       return;
     }
@@ -177,6 +177,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
         codecID = v.codecId;
         receiverStats = {
           type: 'video',
+          streamId: v.id,
           framesDecoded: v.framesDecoded,
           framesDropped: v.framesDropped,
           framesReceived: v.framesReceived,
@@ -226,7 +227,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     );
 
     const backgroundPause =
-      this.adaptiveStreamSettings?.pauseVideoInBackground ?? true // default to true
+      (this.adaptiveStreamSettings?.pauseVideoInBackground ?? true) // default to true
         ? this.isInBackground
         : false;
     const isPiPMode = this.elementInfos.some((info) => info.pictureInPicture);
@@ -331,7 +332,7 @@ class HTMLElementInfo implements ElementInfo {
   constructor(element: HTMLMediaElement, visible?: boolean) {
     this.element = element;
     this.isIntersecting = visible ?? isElementInViewport(element);
-    this.isPiP = isWeb() && document.pictureInPictureElement === element;
+    this.isPiP = isWeb() && isElementInPiP(element);
     this.visibilityChangedAt = 0;
   }
 
@@ -346,7 +347,7 @@ class HTMLElementInfo implements ElementInfo {
   observe() {
     // make sure we update the current visible state once we start to observe
     this.isIntersecting = isElementInViewport(this.element);
-    this.isPiP = document.pictureInPictureElement === this.element;
+    this.isPiP = isElementInPiP(this.element);
 
     (this.element as ObservableMediaElement).handleResize = () => {
       this.handleResize?.();
@@ -357,24 +358,28 @@ class HTMLElementInfo implements ElementInfo {
     getResizeObserver().observe(this.element);
     (this.element as HTMLVideoElement).addEventListener('enterpictureinpicture', this.onEnterPiP);
     (this.element as HTMLVideoElement).addEventListener('leavepictureinpicture', this.onLeavePiP);
+    window.documentPictureInPicture?.addEventListener('enter', this.onEnterPiP);
+    window.documentPictureInPicture?.window?.addEventListener('pagehide', this.onLeavePiP);
   }
 
   private onVisibilityChanged = (entry: IntersectionObserverEntry) => {
     const { target, isIntersecting } = entry;
     if (target === this.element) {
       this.isIntersecting = isIntersecting;
+      this.isPiP = isElementInPiP(this.element);
       this.visibilityChangedAt = Date.now();
       this.handleVisibilityChanged?.();
     }
   };
 
   private onEnterPiP = () => {
-    this.isPiP = true;
+    window.documentPictureInPicture?.window?.addEventListener('pagehide', this.onLeavePiP);
+    this.isPiP = isElementInPiP(this.element);
     this.handleVisibilityChanged?.();
   };
 
   private onLeavePiP = () => {
-    this.isPiP = false;
+    this.isPiP = isElementInPiP(this.element);
     this.handleVisibilityChanged?.();
   };
 
@@ -389,17 +394,29 @@ class HTMLElementInfo implements ElementInfo {
       'leavepictureinpicture',
       this.onLeavePiP,
     );
+    window.documentPictureInPicture?.removeEventListener('enter', this.onEnterPiP);
+    window.documentPictureInPicture?.window?.removeEventListener('pagehide', this.onLeavePiP);
   }
 }
 
-// does not account for occlusion by other elements
-function isElementInViewport(el: HTMLElement) {
+function isElementInPiP(el: HTMLElement) {
+  // Simple video PiP
+  if (document.pictureInPictureElement === el) return true;
+  // Document PiP
+  if (window.documentPictureInPicture?.window)
+    return isElementInViewport(el, window.documentPictureInPicture?.window);
+  return false;
+}
+
+// does not account for occlusion by other elements or opacity property
+function isElementInViewport(el: HTMLElement, win?: Window) {
+  const viewportWindow = win || window;
   let top = el.offsetTop;
   let left = el.offsetLeft;
   const width = el.offsetWidth;
   const height = el.offsetHeight;
   const { hidden } = el;
-  const { opacity, display } = getComputedStyle(el);
+  const { display } = getComputedStyle(el);
 
   while (el.offsetParent) {
     el = el.offsetParent as HTMLElement;
@@ -408,12 +425,11 @@ function isElementInViewport(el: HTMLElement) {
   }
 
   return (
-    top < window.pageYOffset + window.innerHeight &&
-    left < window.pageXOffset + window.innerWidth &&
-    top + height > window.pageYOffset &&
-    left + width > window.pageXOffset &&
+    top < viewportWindow.pageYOffset + viewportWindow.innerHeight &&
+    left < viewportWindow.pageXOffset + viewportWindow.innerWidth &&
+    top + height > viewportWindow.pageYOffset &&
+    left + width > viewportWindow.pageXOffset &&
     !hidden &&
-    (opacity !== '' ? parseFloat(opacity) > 0 : true) &&
     display !== 'none'
   );
 }

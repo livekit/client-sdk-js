@@ -1,13 +1,30 @@
-import { ClientInfo, ClientInfo_SDK } from '@livekit/protocol';
-import type { DetectableBrowser } from '../utils/browserParser';
+import {
+  ChatMessage as ChatMessageModel,
+  ClientInfo,
+  ClientInfo_SDK,
+  DisconnectReason,
+  Transcription as TranscriptionModel,
+} from '@livekit/protocol';
 import { getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
+import { type ConnectionError, ConnectionErrorReason } from './errors';
+import type LocalParticipant from './participant/LocalParticipant';
+import type Participant from './participant/Participant';
+import type RemoteParticipant from './participant/RemoteParticipant';
 import CriticalTimers from './timers';
 import type LocalAudioTrack from './track/LocalAudioTrack';
+import type LocalTrack from './track/LocalTrack';
+import type LocalTrackPublication from './track/LocalTrackPublication';
+import type LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
-import { VideoCodec, videoCodecs } from './track/options';
+import type RemoteTrack from './track/RemoteTrack';
+import type RemoteTrackPublication from './track/RemoteTrackPublication';
+import type RemoteVideoTrack from './track/RemoteVideoTrack';
+import { Track } from './track/Track';
+import type { TrackPublication } from './track/TrackPublication';
+import { type VideoCodec, videoCodecs } from './track/options';
 import { getNewAudioContext } from './track/utils';
-import type { LiveKitReactNativeInfo } from './types';
+import type { ChatMessage, LiveKitReactNativeInfo, TranscriptionSegment } from './types';
 
 const separator = '|';
 export const ddExtensionURI =
@@ -107,31 +124,6 @@ export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
   return 'setSinkId' in elm;
 }
 
-const setCodecPreferencesVersions: Record<DetectableBrowser, string> = {
-  Chrome: '100',
-  Safari: '15',
-  Firefox: '100',
-};
-
-export function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boolean {
-  if (!isWeb()) {
-    return false;
-  }
-  if (!('setCodecPreferences' in transceiver)) {
-    return false;
-  }
-  const browser = getBrowser();
-  if (!browser?.name || !browser.version) {
-    // version is required
-    return false;
-  }
-  const v = setCodecPreferencesVersions[browser.name];
-  if (v) {
-    return compareVersions(browser.version, v) >= 0;
-  }
-  return false;
-}
-
 export function isBrowserSupported() {
   if (typeof RTCPeerConnection === 'undefined') {
     return false;
@@ -158,7 +150,35 @@ export function isSafari17(): boolean {
 
 export function isMobile(): boolean {
   if (!isWeb()) return false;
-  return /Tablet|iPad|Mobile|Android|BlackBerry/.test(navigator.userAgent);
+
+  return (
+    // @ts-expect-error `userAgentData` is not yet part of typescript
+    navigator.userAgentData?.mobile ??
+    /Tablet|iPad|Mobile|Android|BlackBerry/.test(navigator.userAgent)
+  );
+}
+
+export function isE2EESimulcastSupported() {
+  const browser = getBrowser();
+  const supportedSafariVersion = '17.2'; // see https://bugs.webkit.org/show_bug.cgi?id=257803
+  if (browser) {
+    if (browser.name !== 'Safari' && browser.os !== 'iOS') {
+      return true;
+    } else if (
+      browser.os === 'iOS' &&
+      browser.osVersion &&
+      compareVersions(supportedSafariVersion, browser.osVersion) >= 0
+    ) {
+      return true;
+    } else if (
+      browser.name === 'Safari' &&
+      compareVersions(supportedSafariVersion, browser.version) >= 0
+    ) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 }
 
 export function isWeb(): boolean {
@@ -447,50 +467,14 @@ export function createAudioAnalyser(
   return { calculateVolume, analyser, cleanup };
 }
 
-/**
- * @internal
- */
-export class Mutex {
-  private _locking: Promise<void>;
-
-  private _locks: number;
-
-  constructor() {
-    this._locking = Promise.resolve();
-    this._locks = 0;
-  }
-
-  isLocked() {
-    return this._locks > 0;
-  }
-
-  lock() {
-    this._locks += 1;
-
-    let unlockNext: () => void;
-
-    const willLock = new Promise<void>(
-      (resolve) =>
-        (unlockNext = () => {
-          this._locks -= 1;
-          resolve();
-        }),
-    );
-
-    const willUnlock = this._locking.then(() => unlockNext);
-
-    this._locking = this._locking.then(() => willLock);
-
-    return willUnlock;
-  }
-}
-
 export function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec {
   return videoCodecs.includes(maybeCodec as VideoCodec);
 }
 
-export function unwrapConstraint(constraint: ConstrainDOMString): string {
-  if (typeof constraint === 'string') {
+export function unwrapConstraint(constraint: ConstrainDOMString): string;
+export function unwrapConstraint(constraint: ConstrainULong): number;
+export function unwrapConstraint(constraint: ConstrainDOMString | ConstrainULong): string | number {
+  if (typeof constraint === 'string' || typeof constraint === 'number') {
     return constraint;
   }
 
@@ -524,4 +508,145 @@ export function toHttpUrl(url: string): string {
     return url.replace(/^(ws)/, 'http');
   }
   return url;
+}
+
+export function extractTranscriptionSegments(
+  transcription: TranscriptionModel,
+  firstReceivedTimesMap: Map<string, number>,
+): TranscriptionSegment[] {
+  return transcription.segments.map(({ id, text, language, startTime, endTime, final }) => {
+    const firstReceivedTime = firstReceivedTimesMap.get(id) ?? Date.now();
+    const lastReceivedTime = Date.now();
+    if (final) {
+      firstReceivedTimesMap.delete(id);
+    } else {
+      firstReceivedTimesMap.set(id, firstReceivedTime);
+    }
+    return {
+      id,
+      text,
+      startTime: Number.parseInt(startTime.toString()),
+      endTime: Number.parseInt(endTime.toString()),
+      final,
+      language,
+      firstReceivedTime,
+      lastReceivedTime,
+    };
+  });
+}
+
+export function extractChatMessage(msg: ChatMessageModel): ChatMessage {
+  const { id, timestamp, message, editTimestamp } = msg;
+  return {
+    id,
+    timestamp: Number.parseInt(timestamp.toString()),
+    editTimestamp: editTimestamp ? Number.parseInt(editTimestamp.toString()) : undefined,
+    message,
+  };
+}
+
+export function getDisconnectReasonFromConnectionError(e: ConnectionError) {
+  switch (e.reason) {
+    case ConnectionErrorReason.LeaveRequest:
+      return e.context as DisconnectReason;
+    case ConnectionErrorReason.Cancelled:
+      return DisconnectReason.CLIENT_INITIATED;
+    case ConnectionErrorReason.NotAllowed:
+      return DisconnectReason.USER_REJECTED;
+    case ConnectionErrorReason.ServerUnreachable:
+      return DisconnectReason.JOIN_FAILURE;
+    default:
+      return DisconnectReason.UNKNOWN_REASON;
+  }
+}
+
+/** convert bigints to numbers preserving undefined values */
+export function bigIntToNumber<T extends BigInt | undefined>(
+  value: T,
+): T extends BigInt ? number : undefined {
+  return (value !== undefined ? Number(value) : undefined) as T extends BigInt ? number : undefined;
+}
+
+/** convert numbers to bigints preserving undefined values */
+export function numberToBigInt<T extends number | undefined>(
+  value: T,
+): T extends number ? bigint : undefined {
+  return (value !== undefined ? BigInt(value) : undefined) as T extends number ? bigint : undefined;
+}
+
+export function isLocalTrack(track: Track | MediaStreamTrack | undefined): track is LocalTrack {
+  return !!track && !(track instanceof MediaStreamTrack) && track.isLocal;
+}
+
+export function isAudioTrack(
+  track: Track | undefined,
+): track is LocalAudioTrack | RemoteAudioTrack {
+  return !!track && track.kind == Track.Kind.Audio;
+}
+
+export function isVideoTrack(
+  track: Track | undefined,
+): track is LocalVideoTrack | RemoteVideoTrack {
+  return !!track && track.kind == Track.Kind.Video;
+}
+
+export function isLocalVideoTrack(
+  track: Track | MediaStreamTrack | undefined,
+): track is LocalVideoTrack {
+  return isLocalTrack(track) && isVideoTrack(track);
+}
+
+export function isLocalAudioTrack(
+  track: Track | MediaStreamTrack | undefined,
+): track is LocalAudioTrack {
+  return isLocalTrack(track) && isAudioTrack(track);
+}
+
+export function isRemoteTrack(track: Track | undefined): track is RemoteTrack {
+  return !!track && !track.isLocal;
+}
+
+export function isRemotePub(pub: TrackPublication | undefined): pub is RemoteTrackPublication {
+  return !!pub && !pub.isLocal;
+}
+
+export function isLocalPub(pub: TrackPublication | undefined): pub is LocalTrackPublication {
+  return !!pub && !pub.isLocal;
+}
+
+export function isRemoteVideoTrack(track: Track | undefined): track is RemoteVideoTrack {
+  return isRemoteTrack(track) && isVideoTrack(track);
+}
+
+export function isLocalParticipant(p: Participant): p is LocalParticipant {
+  return p.isLocal;
+}
+
+export function isRemoteParticipant(p: Participant): p is RemoteParticipant {
+  return !p.isLocal;
+}
+
+export function splitUtf8(s: string, n: number): Uint8Array[] {
+  if (n < 4) {
+    throw new Error('n must be at least 4 due to utf8 encoding rules');
+  }
+  // adapted from https://stackoverflow.com/a/6043797
+  const result: Uint8Array[] = [];
+  let encoded = new TextEncoder().encode(s);
+  while (encoded.length > n) {
+    let k = n;
+    while (k > 0) {
+      const byte = encoded[k];
+      if (byte !== undefined && (byte & 0xc0) !== 0x80) {
+        break;
+      }
+      k--;
+    }
+    result.push(encoded.slice(0, k));
+    encoded = encoded.slice(k);
+  }
+  if (encoded.length > 0) {
+    result.push(encoded);
+  }
+  return result;
 }
