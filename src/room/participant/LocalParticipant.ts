@@ -883,7 +883,7 @@ export default class LocalParticipant extends Participant {
       (canPublishSources &&
         !canPublishSources.map((source) => getTrackSourceFromProto(source)).includes(track.source))
     ) {
-      this.log.error('no sufficient permissions to publish', {
+      this.log.error('insufficient permissions to publish', {
         ...this.logContext,
         ...getLogContextFromTrack(track),
       });
@@ -894,7 +894,7 @@ export default class LocalParticipant extends Participant {
 
   private async publish(track: LocalTrack, opts: TrackPublishOptions, isStereo: boolean) {
     if (!this.hasPermissionsToPublish(track)) {
-      throw new PublishTrackError('failed to publish track, no sufficient permissions', 403);
+      throw new PublishTrackError('failed to publish track, insufficient permissions', 403);
     }
     const existingTrackOfSource = Array.from(this.trackPublications.values()).find(
       (publishedTrack) => isLocalTrack(track) && publishedTrack.source === track.source,
