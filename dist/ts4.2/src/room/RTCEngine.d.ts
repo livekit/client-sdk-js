@@ -1,5 +1,5 @@
 import type { AddTrackRequest, ConnectionQualityUpdate, JoinResponse, StreamStateUpdate, SubscriptionPermissionUpdate, SubscriptionResponse } from '@livekit/protocol';
-import { DataPacket, DataPacket_Kind, DisconnectReason, ParticipantInfo, Room as RoomModel, SpeakerInfo, SubscribedQualityUpdate, TrackInfo, TrackUnpublishedResponse, UserPacket } from '@livekit/protocol';
+import { DataPacket, DataPacket_Kind, DisconnectReason, ParticipantInfo, RequestResponse, Room as RoomModel, SpeakerInfo, SubscribedQualityUpdate, TrackInfo, TrackUnpublishedResponse, Transcription } from '@livekit/protocol';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalOptions } from '../api/SignalClient';
 import { SignalClient } from '../api/SignalClient';
@@ -7,12 +7,13 @@ import type { InternalRoomOptions } from '../options';
 import PCTransport from './PCTransport';
 import { PCTransportManager } from './PCTransportManager';
 import type { RegionUrlProvider } from './RegionUrlProvider';
+import { RpcError } from './rpc';
 import type LocalTrack from './track/LocalTrack';
 import type LocalTrackPublication from './track/LocalTrackPublication';
-import type LocalVideoTrack from './track/LocalVideoTrack';
+import LocalVideoTrack from './track/LocalVideoTrack';
 import type { SimulcastTrackInfo } from './track/LocalVideoTrack';
 import type RemoteTrackPublication from './track/RemoteTrackPublication';
-import { Track } from './track/Track';
+import type { Track } from './track/Track';
 import type { TrackPublishOptions, VideoCodec } from './track/options';
 declare const RTCEngine_base: new () => TypedEventEmitter<EngineEventCallbacks>;
 /** @internal */
@@ -91,7 +92,6 @@ export default class RTCEngine extends RTCEngine_base {
     private handleDataMessage;
     private handleDataError;
     private handleBufferedAmountLow;
-    private setPreferredCodec;
     createSender(track: LocalTrack, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]): Promise<RTCRtpSender>;
     createSimulcastSender(track: LocalVideoTrack, simulcastTrack: SimulcastTrackInfo, opts: TrackPublishOptions, encodings?: RTCRtpEncodingParameters[]): Promise<RTCRtpSender | undefined>;
     private createTransceiverRTCRtpSender;
@@ -105,9 +105,14 @@ export default class RTCEngine extends RTCEngine_base {
     waitForPCInitialConnection(timeout?: number, abortController?: AbortController): Promise<void>;
     private waitForPCReconnected;
     waitForRestarted: () => Promise<void>;
+    /** @internal */
+    publishRpcResponse(destinationIdentity: string, requestId: string, payload: string | null, error: RpcError | null): Promise<void>;
+    /** @internal */
+    publishRpcAck(destinationIdentity: string, requestId: string): Promise<void>;
     sendDataPacket(packet: DataPacket, kind: DataPacket_Kind): Promise<void>;
     private updateAndEmitDCBufferStatus;
     private isBufferStatusLow;
+    waitForBufferStatusLow(kind: DataPacket_Kind): Promise<void>;
     /**
      * @internal
      */
@@ -137,9 +142,10 @@ export type EngineEventCallbacks = {
     signalResumed: () => void;
     signalRestarted: (joinResp: JoinResponse) => void;
     closing: () => void;
-    mediaTrackAdded: (track: MediaStreamTrack, streams: MediaStream, receiver?: RTCRtpReceiver) => void;
+    mediaTrackAdded: (track: MediaStreamTrack, streams: MediaStream, receiver: RTCRtpReceiver) => void;
     activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
-    dataPacketReceived: (userPacket: UserPacket, kind: DataPacket_Kind) => void;
+    dataPacketReceived: (packet: DataPacket) => void;
+    transcriptionReceived: (transcription: Transcription) => void;
     transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
     /** @internal */
     trackSenderAdded: (track: Track, sender: RTCRtpSender) => void;
@@ -154,8 +160,10 @@ export type EngineEventCallbacks = {
     subscriptionPermissionUpdate: (update: SubscriptionPermissionUpdate) => void;
     subscribedQualityUpdate: (update: SubscribedQualityUpdate) => void;
     localTrackUnpublished: (unpublishedResponse: TrackUnpublishedResponse) => void;
+    localTrackSubscribed: (trackSid: string) => void;
     remoteMute: (trackSid: string, muted: boolean) => void;
     offline: () => void;
+    signalRequestResponse: (response: RequestResponse) => void;
 };
 export {};
 //# sourceMappingURL=RTCEngine.d.ts.map

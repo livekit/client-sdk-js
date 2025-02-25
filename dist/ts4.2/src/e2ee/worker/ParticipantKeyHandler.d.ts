@@ -13,20 +13,40 @@ declare const ParticipantKeyHandler_base: new () => TypedEventEmitter<Participan
 export declare class ParticipantKeyHandler extends ParticipantKeyHandler_base {
     private currentKeyIndex;
     private cryptoKeyRing;
+    private decryptionFailureCounts;
     private keyProviderOptions;
     private ratchetPromiseMap;
     private participantIdentity;
-    private decryptionFailureCount;
-    private _hasValidKey;
+    /**
+     * true if the current key has not been marked as invalid
+     */
     get hasValidKey(): boolean;
     constructor(participantIdentity: string, keyProviderOptions: KeyProviderOptions);
-    decryptionFailure(): void;
-    decryptionSuccess(): void;
+    /**
+     * Returns true if the key at the given index is marked as invalid.
+     *
+     * @param keyIndex the index of the key
+     */
+    hasInvalidKeyAtIndex(keyIndex: number): boolean;
+    /**
+     * Informs the key handler that a decryption failure occurred for an encryption key.
+     * @internal
+     * @param keyIndex the key index for which the failure occurred. Defaults to the current key index.
+     */
+    decryptionFailure(keyIndex?: number): void;
+    /**
+     * Informs the key handler that a frame was successfully decrypted using an encryption key.
+     * @internal
+     * @param keyIndex the key index for which the success occurred. Defaults to the current key index.
+     */
+    decryptionSuccess(keyIndex?: number): void;
     /**
      * Call this after user initiated ratchet or a new key has been set in order to make sure to mark potentially
      * invalid keys as valid again
+     *
+     * @param keyIndex the index of the key. Defaults to the current key index.
      */
-    resetKeyStatus(): void;
+    resetKeyStatus(keyIndex?: number): void;
     /**
      * Ratchets the current key (or the one at keyIndex if provided) and
      * returns the ratcheted material

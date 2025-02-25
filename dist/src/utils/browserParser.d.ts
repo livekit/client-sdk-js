@@ -4,6 +4,7 @@ export type BrowserDetails = {
     name: DetectableBrowser;
     version: string;
     os?: DetectableOS;
+    osVersion?: string;
 };
 /**
  * @internal

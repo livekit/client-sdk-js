@@ -1,6 +1,6 @@
 import type TypedEventEmitter from 'typed-emitter';
 import type { VideoCodec } from '../../room/track/options';
-import { CryptorCallbacks } from '../events';
+import type { CryptorCallbacks } from '../events';
 import type { KeyProviderOptions } from '../types';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 export declare const encryptionEnabledMap: Map<string, boolean>;
@@ -64,7 +64,7 @@ export declare class FrameCryptor extends BaseFrameCryptor {
      * @param map
      */
     setRtpMap(map: Map<number, VideoCodec>): void;
-    setupTransform(operation: 'encode' | 'decode', readable: ReadableStream, writable: WritableStream, trackId: string, codec?: VideoCodec): void;
+    setupTransform(operation: 'encode' | 'decode', readable: ReadableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>, writable: WritableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>, trackId: string, codec?: VideoCodec): void;
     setSifTrailer(trailer: Uint8Array): void;
     /**
      * Function that will be injected in a stream and will encrypt the given encoded frames.

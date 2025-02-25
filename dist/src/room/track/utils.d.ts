@@ -1,7 +1,8 @@
 import { TrackPublishedResponse } from '@livekit/protocol';
+import type { AudioProcessorOptions, TrackProcessor, VideoProcessorOptions } from '../..';
 import { Track } from './Track';
 import type { TrackPublication } from './TrackPublication';
-import { type AudioCaptureOptions, type CreateLocalTracksOptions, type ScreenShareCaptureOptions, type VideoCaptureOptions } from './options';
+import { type AudioCaptureOptions, type CreateLocalTracksOptions, type ScreenShareCaptureOptions, type VideoCaptureOptions, type VideoCodec } from './options';
 import type { AudioTrack } from './types';
 export declare function mergeDefaultOptions(options?: CreateLocalTracksOptions, audioDefaults?: AudioCaptureOptions, videoDefaults?: VideoCaptureOptions): CreateLocalTracksOptions;
 export declare function constraintsForOptions(options: CreateLocalTracksOptions): MediaStreamConstraints;
@@ -26,7 +27,18 @@ export declare function sourceToKind(source: Track.Source): MediaDeviceKind | un
  * @internal
  */
 export declare function screenCaptureToDisplayMediaStreamOptions(options: ScreenShareCaptureOptions): DisplayMediaStreamOptions;
-export declare function mimeTypeToVideoCodecString(mimeType: string): "vp8" | "h264" | "vp9" | "av1";
+export declare function mimeTypeToVideoCodecString(mimeType: string): VideoCodec;
 export declare function getTrackPublicationInfo<T extends TrackPublication>(tracks: T[]): TrackPublishedResponse[];
 export declare function getLogContextFromTrack(track: Track | TrackPublication): Record<string, unknown>;
+export declare function supportsSynchronizationSources(): boolean;
+export declare function diffAttributes(oldValues: Record<string, string> | undefined, newValues: Record<string, string> | undefined): Record<string, string>;
+/** @internal */
+export declare function extractProcessorsFromOptions(options: CreateLocalTracksOptions): {
+    audioProcessor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> | undefined;
+    videoProcessor: TrackProcessor<Track.Kind.Video, VideoProcessorOptions> | undefined;
+    optionsWithoutProcessor: {
+        audio?: boolean | AudioCaptureOptions;
+        video?: boolean | VideoCaptureOptions;
+    };
+};
 //# sourceMappingURL=utils.d.ts.map

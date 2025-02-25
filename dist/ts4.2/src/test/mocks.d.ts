@@ -1,4 +1,4 @@
-import { MockedClass } from 'vitest';
+import type { MockedClass } from 'vitest';
 import { SignalClient } from '../api/SignalClient';
 import RTCEngine from '../room/RTCEngine';
 declare const mocks: {

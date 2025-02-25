@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import { EventEmitter } from 'events';
 import type { LoggerOptions } from './types';
 /** @internal */
@@ -20,6 +19,7 @@ export default class PCTransport extends EventEmitter {
     private config?;
     private log;
     private loggerOptions;
+    private ddExtID;
     pendingCandidates: RTCIceCandidateInit[];
     restartingIce: boolean;
     renegotiate: boolean;
@@ -64,6 +64,7 @@ export default class PCTransport extends EventEmitter {
     getConnectedAddress(): Promise<string | undefined>;
     close: () => void;
     private setMungedSDP;
+    private ensureVideoDDExtensionForSVC;
 }
 export {};
 //# sourceMappingURL=PCTransport.d.ts.map

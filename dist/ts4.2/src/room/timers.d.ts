@@ -1,13 +1,12 @@
-/// <reference types="node" />
 /**
  * Timers that can be overridden with platform specific implementations
  * that ensure that they are fired. These should be used when it is critical
  * that the timer fires on time.
  */
 export default class CriticalTimers {
-    static setTimeout: (callback: (args: void) => void, ms?: number | undefined) => NodeJS.Timeout;
-    static setInterval: (callback: (args: void) => void, ms?: number | undefined) => NodeJS.Timeout;
-    static clearTimeout: (timeoutId: string | number | NodeJS.Timeout | undefined) => void;
-    static clearInterval: (intervalId: string | number | NodeJS.Timeout | undefined) => void;
+    static setTimeout: (...args: Parameters<typeof setTimeout>) => ReturnType<typeof setTimeout>;
+    static setInterval: (...args: Parameters<typeof setInterval>) => ReturnType<typeof setInterval>;
+    static clearTimeout: (...args: Parameters<typeof clearTimeout>) => ReturnType<typeof clearTimeout>;
+    static clearInterval: (...args: Parameters<typeof clearInterval>) => ReturnType<typeof clearInterval>;
 }
 //# sourceMappingURL=timers.d.ts.map

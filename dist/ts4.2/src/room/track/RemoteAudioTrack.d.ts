@@ -11,7 +11,7 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
     private sourceNode?;
     private webAudioPluginNodes;
     private sinkId?;
-    constructor(mediaTrack: MediaStreamTrack, sid: string, receiver?: RTCRtpReceiver, audioContext?: AudioContext, audioOutput?: AudioOutputOptions, loggerOptions?: LoggerOptions);
+    constructor(mediaTrack: MediaStreamTrack, sid: string, receiver: RTCRtpReceiver, audioContext?: AudioContext, audioOutput?: AudioOutputOptions, loggerOptions?: LoggerOptions);
     /**
      * sets the volume for all attached audio elements
      */
@@ -50,6 +50,6 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
     private connectWebAudio;
     private disconnectWebAudio;
     protected monitorReceiver: () => Promise<void>;
-    protected getReceiverStats(): Promise<AudioReceiverStats | undefined>;
+    getReceiverStats(): Promise<AudioReceiverStats | undefined>;
 }
 //# sourceMappingURL=RemoteAudioTrack.d.ts.map

@@ -1,8 +1,9 @@
+import { DisconnectReason, RequestResponse_Reason } from '@livekit/protocol';
 export declare class LivekitError extends Error {
     code: number;
     constructor(code: number, message?: string);
 }
-export declare const enum ConnectionErrorReason {
+export declare enum ConnectionErrorReason {
     NotAllowed = 0,
     ServerUnreachable = 1,
     InternalError = 2,
@@ -11,8 +12,10 @@ export declare const enum ConnectionErrorReason {
 }
 export declare class ConnectionError extends LivekitError {
     status?: number;
-    reason?: ConnectionErrorReason;
-    constructor(message?: string, reason?: ConnectionErrorReason, status?: number);
+    context?: unknown | DisconnectReason;
+    reason: ConnectionErrorReason;
+    reasonName: string;
+    constructor(message: string, reason: ConnectionErrorReason, status?: number, context?: unknown | DisconnectReason);
 }
 export declare class DeviceUnsupportedError extends LivekitError {
     constructor(message?: string);
@@ -31,6 +34,12 @@ export declare class NegotiationError extends LivekitError {
 }
 export declare class PublishDataError extends LivekitError {
     constructor(message?: string);
+}
+export type RequestErrorReason = Exclude<RequestResponse_Reason, RequestResponse_Reason.OK> | 'TimeoutError';
+export declare class SignalRequestError extends LivekitError {
+    reason: RequestErrorReason;
+    reasonName: string;
+    constructor(message: string, reason: RequestErrorReason);
 }
 export declare enum MediaDeviceFailure {
     PermissionDenied = "PermissionDenied",

@@ -6,6 +6,7 @@ export declare enum CryptorErrorReason {
 }
 export declare class CryptorError extends LivekitError {
     reason: CryptorErrorReason;
-    constructor(message?: string, reason?: CryptorErrorReason);
+    participantIdentity?: string;
+    constructor(message?: string, reason?: CryptorErrorReason, participantIdentity?: string);
 }
 //# sourceMappingURL=errors.d.ts.map

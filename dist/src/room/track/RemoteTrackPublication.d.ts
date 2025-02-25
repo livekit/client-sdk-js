@@ -27,6 +27,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     get isSubscribed(): boolean;
     get isDesired(): boolean;
     get isEnabled(): boolean;
+    get isLocal(): boolean;
     /**
      * disable server from sending down data for this track. this is useful when
      * the participant is off screen, you may disable streaming down their video

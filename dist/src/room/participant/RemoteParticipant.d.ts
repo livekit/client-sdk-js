@@ -5,7 +5,7 @@ import { Track } from '../track/Track';
 import type { AudioOutputOptions } from '../track/options';
 import type { AdaptiveStreamSettings } from '../track/types';
 import type { LoggerOptions } from '../types';
-import Participant from './Participant';
+import Participant, { ParticipantKind } from './Participant';
 import type { ParticipantEventCallbacks } from './Participant';
 export default class RemoteParticipant extends Participant {
     audioTrackPublications: Map<string, RemoteTrackPublication>;
@@ -15,13 +15,13 @@ export default class RemoteParticipant extends Participant {
     private volumeMap;
     private audioOutput?;
     /** @internal */
-    static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo): RemoteParticipant;
+    static fromParticipantInfo(signalClient: SignalClient, pi: ParticipantInfo, loggerOptions: LoggerOptions): RemoteParticipant;
     protected get logContext(): {
         rpID: string;
         remoteParticipant: string;
     };
     /** @internal */
-    constructor(signalClient: SignalClient, sid: string, identity?: string, name?: string, metadata?: string, loggerOptions?: LoggerOptions);
+    constructor(signalClient: SignalClient, sid: string, identity?: string, name?: string, metadata?: string, attributes?: Record<string, string>, loggerOptions?: LoggerOptions, kind?: ParticipantKind);
     protected addTrackPublication(publication: RemoteTrackPublication): void;
     getTrackPublication(source: Track.Source): RemoteTrackPublication | undefined;
     getTrackPublicationByName(name: string): RemoteTrackPublication | undefined;
@@ -37,7 +37,7 @@ export default class RemoteParticipant extends Participant {
      */
     getVolume(source?: Track.Source.Microphone | Track.Source.ScreenShareAudio): number | undefined;
     /** @internal */
-    addSubscribedMediaTrack(mediaTrack: MediaStreamTrack, sid: Track.SID, mediaStream: MediaStream, receiver?: RTCRtpReceiver, adaptiveStreamSettings?: AdaptiveStreamSettings, triesLeft?: number): RemoteTrackPublication | undefined;
+    addSubscribedMediaTrack(mediaTrack: MediaStreamTrack, sid: Track.SID, mediaStream: MediaStream, receiver: RTCRtpReceiver, adaptiveStreamSettings?: AdaptiveStreamSettings, triesLeft?: number): RemoteTrackPublication | undefined;
     /** @internal */
     get hasMetadata(): boolean;
     /**

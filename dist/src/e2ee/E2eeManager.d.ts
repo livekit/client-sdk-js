@@ -2,17 +2,24 @@ import type TypedEventEmitter from 'typed-emitter';
 import type RTCEngine from '../room/RTCEngine';
 import type Room from '../room/Room';
 import { type E2EEManagerCallbacks } from './events';
-import type { E2EEOptions } from './types';
+import type { E2EEManagerOptions } from './types';
+export interface BaseE2EEManager {
+    setup(room: Room): void;
+    setupEngine(engine: RTCEngine): void;
+    setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
+    setSifTrailer(trailer: Uint8Array): void;
+    on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
+}
 declare const E2EEManager_base: new () => TypedEventEmitter<E2EEManagerCallbacks>;
 /**
  * @experimental
  */
-export declare class E2EEManager extends E2EEManager_base {
+export declare class E2EEManager extends E2EEManager_base implements BaseE2EEManager {
     protected worker: Worker;
     protected room?: Room;
     private encryptionEnabled;
     private keyProvider;
-    constructor(options: E2EEOptions);
+    constructor(options: E2EEManagerOptions);
     /**
      * @internal
      */

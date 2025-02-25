@@ -18,11 +18,13 @@ export type CheckInfo = {
     logs: Array<LogMessage>;
     status: CheckStatus;
     description: string;
+    data?: any;
 };
 export interface CheckerOptions {
     errorsAsWarnings?: boolean;
     roomOptions?: RoomOptions;
     connectOptions?: RoomConnectOptions;
+    protocol?: 'udp' | 'tcp';
 }
 declare const Checker_base: new () => TypedEmitter<CheckerCallbacks>;
 export declare abstract class Checker extends Checker_base {
@@ -32,16 +34,17 @@ export declare abstract class Checker extends Checker_base {
     connectOptions?: RoomConnectOptions;
     status: CheckStatus;
     logs: Array<LogMessage>;
-    errorsAsWarnings: boolean;
     name: string;
+    options: CheckerOptions;
     constructor(url: string, token: string, options?: CheckerOptions);
     abstract get description(): string;
     protected abstract perform(): Promise<void>;
     run(onComplete?: () => void): Promise<CheckInfo>;
     protected isSuccess(): boolean;
-    protected connect(): Promise<Room>;
+    protected connect(url?: string): Promise<Room>;
     protected disconnect(): Promise<void>;
     protected skip(): void;
+    protected switchProtocol(protocol: 'udp' | 'tcp' | 'tls'): Promise<void>;
     protected appendMessage(message: string): void;
     protected appendWarning(message: string): void;
     protected appendError(message: string): void;

@@ -25,6 +25,7 @@ export declare class PCTransportManager {
     private isSubscriberConnectionRequired;
     private state;
     private connectionLock;
+    private remoteOfferLock;
     private log;
     private loggerOptions;
     constructor(rtcConfig: RTCConfiguration, subscriberPrimary: boolean, loggerOptions: LoggerOptions);

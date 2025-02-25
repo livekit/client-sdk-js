@@ -1,23 +1,26 @@
-import { DataPacket_Kind, DisconnectReason, ParticipantPermission, SubscriptionError } from '@livekit/protocol';
+import { DataPacket_Kind, DisconnectReason, MetricsBatch, ParticipantPermission, ServerInfo, SipDTMF, SubscriptionError, TranscriptionSegment as TranscriptionSegmentModel } from '@livekit/protocol';
 import type TypedEmitter from 'typed-emitter';
 import 'webrtc-adapter';
 import type { InternalRoomOptions, RoomConnectOptions, RoomOptions } from '../options';
 import RTCEngine from './RTCEngine';
+import { type ByteStreamHandler, type TextStreamHandler } from './StreamReader';
 import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import type { ConnectionQuality } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
+import { type RpcInvocationData } from './rpc';
 import LocalTrackPublication from './track/LocalTrackPublication';
 import type RemoteTrack from './track/RemoteTrack';
 import RemoteTrackPublication from './track/RemoteTrackPublication';
 import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
-import type { SimulationOptions, SimulationScenario } from './types';
+import { type ChatMessage, type SimulationOptions, type SimulationScenario, type TranscriptionSegment } from './types';
 export declare enum ConnectionState {
     Disconnected = "disconnected",
     Connecting = "connecting",
     Connected = "connected",
-    Reconnecting = "reconnecting"
+    Reconnecting = "reconnecting",
+    SignalReconnecting = "signalReconnecting"
 }
 declare const Room_base: new () => TypedEmitter<RoomEventCallbacks>;
 /**
@@ -47,6 +50,7 @@ declare class Room extends Room_base {
     options: InternalRoomOptions;
     /** reflects the sender encryption status of the local participant */
     isE2EEEnabled: boolean;
+    serverInfo?: Partial<ServerInfo>;
     private roomInfo?;
     private sidToIdentity;
     /** connect options of room */
@@ -67,10 +71,57 @@ declare class Room extends Room_base {
     private bufferedEvents;
     private isResuming;
     /**
+     * map to store first point in time when a particular transcription segment was received
+     */
+    private transcriptionReceivedTimes;
+    private byteStreamControllers;
+    private textStreamControllers;
+    private byteStreamHandlers;
+    private textStreamHandlers;
+    private rpcHandlers;
+    /**
      * Creates a new Room, the primary construct for a LiveKit session.
      * @param options
      */
     constructor(options?: RoomOptions);
+    registerTextStreamHandler(topic: string, callback: TextStreamHandler): void;
+    unregisterTextStreamHandler(topic: string): void;
+    registerByteStreamHandler(topic: string, callback: ByteStreamHandler): void;
+    unregisterByteStreamHandler(topic: string): void;
+    /**
+     * Establishes the participant as a receiver for calls of the specified RPC method.
+     *
+     * @param method - The name of the indicated RPC method
+     * @param handler - Will be invoked when an RPC request for this method is received
+     * @returns A promise that resolves when the method is successfully registered
+     * @throws {Error} If a handler for this method is already registered (must call unregisterRpcMethod first)
+     *
+     * @example
+     * ```typescript
+     * room.localParticipant?.registerRpcMethod(
+     *   'greet',
+     *   async (data: RpcInvocationData) => {
+     *     console.log(`Received greeting from ${data.callerIdentity}: ${data.payload}`);
+     *     return `Hello, ${data.callerIdentity}!`;
+     *   }
+     * );
+     * ```
+     *
+     * The handler should return a Promise that resolves to a string.
+     * If unable to respond within `responseTimeout`, the request will result in an error on the caller's side.
+     *
+     * You may throw errors of type `RpcError` with a string `message` in the handler,
+     * and they will be received on the caller's side with the message intact.
+     * Other errors thrown in your handler will not be transmitted as-is, and will instead arrive to the caller as `1500` ("Application Error").
+     */
+    registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>): void;
+    /**
+     * Unregisters a previously registered RPC method.
+     *
+     * @param method - The name of the RPC method to unregister
+     */
+    unregisterRpcMethod(method: string): void;
+    private handleIncomingRpcRequest;
     /**
      * @experimental
      */
@@ -95,13 +146,13 @@ declare class Room extends Room_base {
     private maybeCreateEngine;
     /**
      * getLocalDevices abstracts navigator.mediaDevices.enumerateDevices.
-     * In particular, it handles Chrome's unique behavior of creating `default`
-     * devices. When encountered, it'll be removed from the list of devices.
-     * The actual default device will be placed at top.
+     * In particular, it requests device permissions by default if needed
+     * and makes sure the returned device does not consist of dummy devices
      * @param kind
      * @returns a list of available local devices
      */
     static getLocalDevices(kind?: MediaDeviceKind, requestPermissions?: boolean): Promise<MediaDeviceInfo[]>;
+    static cleanupRegistry: false | FinalizationRegistry<() => void>;
     /**
      * prepareConnection should be called as soon as the page is loaded, in order
      * to speed up the connection attempt. This function will
@@ -175,6 +226,15 @@ declare class Room extends Room_base {
     private handleSubscriptionPermissionUpdate;
     private handleSubscriptionError;
     private handleDataPacket;
+    private handleStreamHeader;
+    private handleStreamChunk;
+    private handleStreamTrailer;
+    private handleUserPacket;
+    private handleSipDtmf;
+    bufferedSegments: Map<string, TranscriptionSegmentModel>;
+    private handleTranscription;
+    private handleChatMessage;
+    private handleMetrics;
     private handleAudioPlaybackStarted;
     private handleAudioPlaybackFailed;
     private handleVideoPlaybackStarted;
@@ -199,14 +259,17 @@ declare class Room extends Room_base {
     private emitWhenConnected;
     private onLocalParticipantMetadataChanged;
     private onLocalParticipantNameChanged;
+    private onLocalAttributesChanged;
     private onLocalTrackMuted;
     private onLocalTrackUnmuted;
     private onTrackProcessorUpdate;
     private onLocalTrackPublished;
     private onLocalTrackUnpublished;
+    private onLocalTrackRestarted;
     private onLocalConnectionQualityChanged;
     private onMediaDevicesError;
     private onLocalParticipantPermissionsChanged;
+    private onLocalChatMessageSent;
     /**
      * Allows to populate a room with simulated participants.
      * No actual connection to a server will be established, all state is
@@ -219,6 +282,7 @@ export default Room;
 export type RoomEventCallbacks = {
     connected: () => void;
     reconnecting: () => void;
+    signalReconnecting: () => void;
     reconnected: () => void;
     disconnected: (reason?: DisconnectReason) => void;
     connectionStateChanged: (state: ConnectionState) => void;
@@ -238,9 +302,12 @@ export type RoomEventCallbacks = {
     participantMetadataChanged: (metadata: string | undefined, participant: RemoteParticipant | LocalParticipant) => void;
     participantNameChanged: (name: string, participant: RemoteParticipant | LocalParticipant) => void;
     participantPermissionsChanged: (prevPermissions: ParticipantPermission | undefined, participant: RemoteParticipant | LocalParticipant) => void;
+    participantAttributesChanged: (changedAttributes: Record<string, string>, participant: RemoteParticipant | LocalParticipant) => void;
     activeSpeakersChanged: (speakers: Array<Participant>) => void;
     roomMetadataChanged: (metadata: string) => void;
     dataReceived: (payload: Uint8Array, participant?: RemoteParticipant, kind?: DataPacket_Kind, topic?: string) => void;
+    sipDTMFReceived: (dtmf: SipDTMF, participant?: RemoteParticipant) => void;
+    transcriptionReceived: (transcription: TranscriptionSegment[], participant?: Participant, publication?: TrackPublication) => void;
     connectionQualityChanged: (quality: ConnectionQuality, participant: Participant) => void;
     mediaDevicesError: (error: Error) => void;
     trackStreamStateChanged: (publication: RemoteTrackPublication, streamState: Track.StreamState, participant: RemoteParticipant) => void;
@@ -254,5 +321,8 @@ export type RoomEventCallbacks = {
     encryptionError: (error: Error) => void;
     dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
     activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
+    chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
+    localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
+    metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
 };
 //# sourceMappingURL=Room.d.ts.map

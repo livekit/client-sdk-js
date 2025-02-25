@@ -15,6 +15,7 @@ export default class LocalTrackPublication extends TrackPublication {
     get isMuted(): boolean;
     get audioTrack(): LocalAudioTrack | undefined;
     get videoTrack(): LocalVideoTrack | undefined;
+    get isLocal(): boolean;
     /**
      * Mute the track associated with this publication
      */

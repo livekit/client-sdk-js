@@ -1,7 +1,20 @@
-import { ClientInfo } from '@livekit/protocol';
+import { ChatMessage as ChatMessageModel, ClientInfo, DisconnectReason, Transcription as TranscriptionModel } from '@livekit/protocol';
+import type { ConnectionError } from './errors';
+import type LocalParticipant from './participant/LocalParticipant';
+import type Participant from './participant/Participant';
+import type RemoteParticipant from './participant/RemoteParticipant';
 import type LocalAudioTrack from './track/LocalAudioTrack';
+import type LocalTrack from './track/LocalTrack';
+import type LocalTrackPublication from './track/LocalTrackPublication';
+import type LocalVideoTrack from './track/LocalVideoTrack';
 import type RemoteAudioTrack from './track/RemoteAudioTrack';
-import { VideoCodec } from './track/options';
+import type RemoteTrack from './track/RemoteTrack';
+import type RemoteTrackPublication from './track/RemoteTrackPublication';
+import type RemoteVideoTrack from './track/RemoteVideoTrack';
+import { Track } from './track/Track';
+import type { TrackPublication } from './track/TrackPublication';
+import type { VideoCodec } from './track/options';
+import type { ChatMessage, TranscriptionSegment } from './types';
 export declare const ddExtensionURI = "https://aomediacodec.github.io/av1-rtp-spec/#dependency-descriptor-rtp-header-extension";
 export declare function unpackStreamId(packed: string): string[];
 export declare function sleep(duration: number): Promise<void>;
@@ -15,13 +28,13 @@ export declare function supportsAV1(): boolean;
 export declare function supportsVP9(): boolean;
 export declare function isSVCCodec(codec?: string): boolean;
 export declare function supportsSetSinkId(elm?: HTMLMediaElement): boolean;
-export declare function supportsSetCodecPreferences(transceiver: RTCRtpTransceiver): boolean;
 export declare function isBrowserSupported(): boolean;
 export declare function isFireFox(): boolean;
 export declare function isChromiumBased(): boolean;
 export declare function isSafari(): boolean;
 export declare function isSafari17(): boolean;
 export declare function isMobile(): boolean;
+export declare function isE2EESimulcastSupported(): boolean | undefined;
 export declare function isWeb(): boolean;
 export declare function isReactNative(): boolean;
 export declare function isCloud(serverUrl: URL): boolean;
@@ -79,18 +92,28 @@ export declare function createAudioAnalyser(track: LocalAudioTrack | RemoteAudio
     analyser: AnalyserNode;
     cleanup: () => Promise<void>;
 };
-/**
- * @internal
- */
-export declare class Mutex {
-    private _locking;
-    private _locks;
-    constructor();
-    isLocked(): boolean;
-    lock(): Promise<() => void>;
-}
 export declare function isVideoCodec(maybeCodec: string): maybeCodec is VideoCodec;
 export declare function unwrapConstraint(constraint: ConstrainDOMString): string;
+export declare function unwrapConstraint(constraint: ConstrainULong): number;
 export declare function toWebsocketUrl(url: string): string;
 export declare function toHttpUrl(url: string): string;
+export declare function extractTranscriptionSegments(transcription: TranscriptionModel, firstReceivedTimesMap: Map<string, number>): TranscriptionSegment[];
+export declare function extractChatMessage(msg: ChatMessageModel): ChatMessage;
+export declare function getDisconnectReasonFromConnectionError(e: ConnectionError): DisconnectReason;
+/** convert bigints to numbers preserving undefined values */
+export declare function bigIntToNumber<T extends BigInt | undefined>(value: T): T extends BigInt ? number : undefined;
+/** convert numbers to bigints preserving undefined values */
+export declare function numberToBigInt<T extends number | undefined>(value: T): T extends number ? bigint : undefined;
+export declare function isLocalTrack(track: Track | MediaStreamTrack | undefined): track is LocalTrack;
+export declare function isAudioTrack(track: Track | undefined): track is LocalAudioTrack | RemoteAudioTrack;
+export declare function isVideoTrack(track: Track | undefined): track is LocalVideoTrack | RemoteVideoTrack;
+export declare function isLocalVideoTrack(track: Track | MediaStreamTrack | undefined): track is LocalVideoTrack;
+export declare function isLocalAudioTrack(track: Track | MediaStreamTrack | undefined): track is LocalAudioTrack;
+export declare function isRemoteTrack(track: Track | undefined): track is RemoteTrack;
+export declare function isRemotePub(pub: TrackPublication | undefined): pub is RemoteTrackPublication;
+export declare function isLocalPub(pub: TrackPublication | undefined): pub is LocalTrackPublication;
+export declare function isRemoteVideoTrack(track: Track | undefined): track is RemoteVideoTrack;
+export declare function isLocalParticipant(p: Participant): p is LocalParticipant;
+export declare function isRemoteParticipant(p: Participant): p is RemoteParticipant;
+export declare function splitUtf8(s: string, n: number): Uint8Array[];
 //# sourceMappingURL=utils.d.ts.map

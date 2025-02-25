@@ -13,5 +13,6 @@ export declare class RegionUrlProvider {
     getNextBestRegionUrl(abortSignal?: AbortSignal): Promise<string | null>;
     resetAttempts(): void;
     fetchRegionSettings(signal?: AbortSignal): Promise<RegionSettings>;
+    setServerReportedRegions(regions: RegionSettings): void;
 }
 //# sourceMappingURL=RegionUrlProvider.d.ts.map

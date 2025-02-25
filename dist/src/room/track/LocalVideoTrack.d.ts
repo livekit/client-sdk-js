@@ -20,6 +20,9 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     simulcastCodecs: Map<VideoCodec, SimulcastTrackInfo>;
     private subscribedCodecs?;
     private senderLock;
+    private degradationPreference;
+    get sender(): RTCRtpSender | undefined;
+    set sender(sender: RTCRtpSender | undefined);
     /**
      *
      * @param mediaTrack
@@ -37,9 +40,9 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     protected setTrackMuted(muted: boolean): void;
     getSenderStats(): Promise<VideoSenderStats[]>;
     setPublishingQuality(maxQuality: VideoQuality): void;
-    setDeviceId(deviceId: ConstrainDOMString): Promise<boolean>;
     restartTrack(options?: VideoCaptureOptions): Promise<void>;
-    setProcessor(processor: TrackProcessor<Track.Kind>, showProcessedStreamLocally?: boolean): Promise<void>;
+    setProcessor(processor: TrackProcessor<Track.Kind.Video>, showProcessedStreamLocally?: boolean): Promise<void>;
+    setDegradationPreference(preference: RTCDegradationPreference): Promise<void>;
     addSimulcastTrack(codec: VideoCodec, encodings?: RTCRtpEncodingParameters[]): SimulcastTrackInfo | undefined;
     setSimulcastTrackSender(codec: VideoCodec, sender: RTCRtpSender): void;
     /**

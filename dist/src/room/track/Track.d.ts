@@ -1,7 +1,7 @@
 import { AudioTrackFeature, StreamState as ProtoStreamState, TrackSource, TrackType } from '@livekit/protocol';
 import type TypedEventEmitter from 'typed-emitter';
 import type { SignalClient } from '../../api/SignalClient';
-import { StructuredLogger } from '../../logger';
+import { type StructuredLogger } from '../../logger';
 import type { LoggerOptions } from '../types';
 import type { TrackProcessor } from './processor/types';
 export declare enum VideoQuality {
@@ -28,11 +28,14 @@ export declare abstract class Track<TrackKind extends Track.Kind = Track.Kind> e
      * has been paused by congestion controller
      */
     streamState: Track.StreamState;
+    /** @internal */
+    rtpTimestamp: number | undefined;
     protected _mediaStreamTrack: MediaStreamTrack;
     protected _mediaStreamID: string;
     protected isInBackground: boolean;
     private backgroundTimeout;
     private loggerContextCb;
+    protected timeSyncHandle: number | undefined;
     protected _currentBitrate: number;
     protected monitorInterval?: ReturnType<typeof setInterval>;
     protected log: StructuredLogger;
@@ -43,6 +46,7 @@ export declare abstract class Track<TrackKind extends Track.Kind = Track.Kind> e
     /** current receive bits per second */
     get currentBitrate(): number;
     get mediaStreamTrack(): MediaStreamTrack;
+    abstract get isLocal(): boolean;
     /**
      * @internal
      * used for keep mediaStream's first id, since it's id might change
@@ -137,6 +141,10 @@ export type TrackEventCallbacks = {
     upstreamResumed: (track: any) => void;
     trackProcessorUpdate: (processor?: TrackProcessor<Track.Kind, any>) => void;
     audioTrackFeatureUpdate: (track: any, feature: AudioTrackFeature, enabled: boolean) => void;
+    timeSyncUpdate: (update: {
+        timestamp: number;
+        rtpTimestamp: number;
+    }) => void;
 };
 export {};
 //# sourceMappingURL=Track.d.ts.map

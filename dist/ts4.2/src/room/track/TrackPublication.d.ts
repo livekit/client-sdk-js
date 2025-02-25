@@ -1,7 +1,7 @@
 import { Encryption_Type } from '@livekit/protocol';
 import type { SubscriptionError, TrackInfo, UpdateSubscription, UpdateTrackSettings } from '@livekit/protocol';
 import type TypedEventEmitter from 'typed-emitter';
-import type { LoggerOptions } from '../types';
+import type { LoggerOptions, TranscriptionSegment } from '../types';
 import LocalAudioTrack from './LocalAudioTrack';
 import LocalVideoTrack from './LocalVideoTrack';
 import RemoteAudioTrack from './RemoteAudioTrack';
@@ -9,7 +9,7 @@ import type RemoteTrack from './RemoteTrack';
 import RemoteVideoTrack from './RemoteVideoTrack';
 import { Track } from './Track';
 declare const TrackPublication_base: new () => TypedEventEmitter<PublicationEventCallbacks>;
-export declare class TrackPublication extends TrackPublication_base {
+export declare abstract class TrackPublication extends TrackPublication_base {
     kind: Track.Kind;
     trackName: string;
     trackSid: Track.SID;
@@ -37,6 +37,7 @@ export declare class TrackPublication extends TrackPublication_base {
     get isEnabled(): boolean;
     get isSubscribed(): boolean;
     get isEncrypted(): boolean;
+    abstract get isLocal(): boolean;
     /**
      * an [AudioTrack] if this publication holds an audio track
      */
@@ -72,6 +73,8 @@ export type PublicationEventCallbacks = {
     unsubscribed: (track: RemoteTrack) => void;
     subscriptionStatusChanged: (status: TrackPublication.SubscriptionStatus, prevStatus: TrackPublication.SubscriptionStatus) => void;
     subscriptionFailed: (error: SubscriptionError) => void;
+    transcriptionReceived: (transcription: TranscriptionSegment[]) => void;
+    timeSyncUpdate: (timestamp: number) => void;
 };
 export {};
 //# sourceMappingURL=TrackPublication.d.ts.map

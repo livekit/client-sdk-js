@@ -1,11 +1,13 @@
-import { ParticipantInfo, ParticipantPermission } from '@livekit/protocol';
+import { Codec, ParticipantInfo, ParticipantPermission } from '@livekit/protocol';
 import type { InternalRoomOptions } from '../../options';
 import type RTCEngine from '../RTCEngine';
+import { TextStreamWriter } from '../StreamWriter';
+import { type PerformRpcParams, type RpcInvocationData } from '../rpc';
 import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import { Track } from '../track/Track';
 import type { AudioCaptureOptions, BackupVideoCodec, CreateLocalTracksOptions, ScreenShareCaptureOptions, TrackPublishOptions, VideoCaptureOptions } from '../track/options';
-import type { DataPublishOptions } from '../types';
+import { type ChatMessage, type DataPublishOptions, type SendTextOptions, type StreamTextOptions, type TextStreamInfo } from '../types';
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 export default class LocalParticipant extends Participant {
@@ -19,6 +21,7 @@ export default class LocalParticipant extends Participant {
     activeDeviceMap: Map<MediaDeviceKind, string>;
     private pendingPublishing;
     private pendingPublishPromises;
+    private republishPromise;
     private cameraError;
     private microphoneError;
     private participantTrackPermissions;
@@ -26,8 +29,13 @@ export default class LocalParticipant extends Participant {
     private roomOptions;
     private encryptionType;
     private reconnectFuture?;
+    private rpcHandlers;
+    private pendingSignalRequests;
+    private enabledPublishVideoCodecs;
+    private pendingAcks;
+    private pendingResponses;
     /** @internal */
-    constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions);
+    constructor(sid: string, identity: string, engine: RTCEngine, options: InternalRoomOptions, roomRpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>);
     get lastCameraError(): Error | undefined;
     get lastMicrophoneError(): Error | undefined;
     get isE2EEEnabled(): boolean;
@@ -40,22 +48,30 @@ export default class LocalParticipant extends Participant {
     private handleReconnecting;
     private handleReconnected;
     private handleDisconnected;
+    private handleSignalRequestResponse;
+    private handleDataPacket;
     /**
      * Sets and updates the metadata of the local participant.
-     * The change does not take immediate effect.
-     * If successful, a `ParticipantEvent.MetadataChanged` event will be emitted on the local participant.
      * Note: this requires `canUpdateOwnMetadata` permission.
+     * method will throw if the user doesn't have the required permissions
      * @param metadata
      */
-    setMetadata(metadata: string): void;
+    setMetadata(metadata: string): Promise<void>;
     /**
      * Sets and updates the name of the local participant.
-     * The change does not take immediate effect.
-     * If successful, a `ParticipantEvent.ParticipantNameChanged` event will be emitted on the local participant.
      * Note: this requires `canUpdateOwnMetadata` permission.
+     * method will throw if the user doesn't have the required permissions
      * @param metadata
      */
-    setName(name: string): void;
+    setName(name: string): Promise<void>;
+    /**
+     * Set or update participant attributes. It will make updates only to keys that
+     * are present in `attributes`, and will not override others.
+     * Note: this requires `canUpdateOwnMetadata` permission.
+     * @param attributes attributes to update
+     */
+    setAttributes(attributes: Record<string, string>): Promise<void>;
+    private requestMetadataUpdate;
     /**
      * Enable or disable a participant's camera track.
      *
@@ -108,6 +124,7 @@ export default class LocalParticipant extends Participant {
      * @param options
      */
     publishTrack(track: LocalTrack | MediaStreamTrack, options?: TrackPublishOptions): Promise<LocalTrackPublication>;
+    private publishOrRepublishTrack;
     private publish;
     get isLocal(): boolean;
     /** @internal
@@ -126,6 +143,51 @@ export default class LocalParticipant extends Participant {
      */
     publishData(data: Uint8Array, options?: DataPublishOptions): Promise<void>;
     /**
+     * Publish SIP DTMF message to the room.
+     *
+     * @param code DTMF code
+     * @param digit DTMF digit
+     */
+    publishDtmf(code: number, digit: string): Promise<void>;
+    sendChatMessage(text: string, options?: SendTextOptions): Promise<ChatMessage>;
+    editChatMessage(editText: string, originalMessage: ChatMessage): Promise<{
+        readonly message: string;
+        readonly editTimestamp: number;
+        readonly id: string;
+        readonly timestamp: number;
+        readonly attachedFiles?: Array<File>;
+    }>;
+    sendText(text: string, options?: SendTextOptions): Promise<TextStreamInfo>;
+    /**
+     * @internal
+     * @experimental CAUTION, might get removed in a minor release
+     */
+    streamText(options?: StreamTextOptions): Promise<TextStreamWriter>;
+    sendFile(file: File, options?: {
+        mimeType?: string;
+        topic?: string;
+        destinationIdentities?: Array<string>;
+        onProgress?: (progress: number) => void;
+    }): Promise<{
+        id: string;
+    }>;
+    private _sendFile;
+    /**
+     * Initiate an RPC call to a remote participant
+     * @param params - Parameters for initiating the RPC call, see {@link PerformRpcParams}
+     * @returns A promise that resolves with the response payload or rejects with an error.
+     * @throws Error on failure. Details in `message`.
+     */
+    performRpc({ destinationIdentity, method, payload, responseTimeout, }: PerformRpcParams): Promise<string>;
+    /**
+     * @deprecated use `room.registerRpcMethod` instead
+     */
+    registerRpcMethod(method: string, handler: (data: RpcInvocationData) => Promise<string>): void;
+    /**
+     * @deprecated use `room.unregisterRpcMethod` instead
+     */
+    unregisterRpcMethod(method: string): void;
+    /**
      * Control who can subscribe to LocalParticipant's published tracks.
      *
      * By default, all participants can subscribe. This allows fine-grained control over
@@ -143,6 +205,14 @@ export default class LocalParticipant extends Participant {
      *  participant/track. Any omitted participants will not receive any permissions.
      */
     setTrackSubscriptionPermissions(allParticipantsAllowed: boolean, participantTrackPermissions?: ParticipantTrackPermission[]): void;
+    private handleIncomingRpcAck;
+    private handleIncomingRpcResponse;
+    /** @internal */
+    private publishRpcRequest;
+    /** @internal */
+    handleParticipantDisconnected(participantIdentity: string): void;
+    /** @internal */
+    setEnabledPublishCodecs(codecs: Codec[]): void;
     /** @internal */
     updateInfo(info: ParticipantInfo): boolean;
     private updateTrackSubscriptionPermissions;
@@ -157,5 +227,6 @@ export default class LocalParticipant extends Participant {
     private handleLocalTrackUnpublished;
     private handleTrackEnded;
     private getPublicationForTrack;
+    private waitForPendingPublicationOfSource;
 }
 //# sourceMappingURL=LocalParticipant.d.ts.map

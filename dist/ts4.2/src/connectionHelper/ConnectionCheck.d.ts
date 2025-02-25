@@ -20,6 +20,8 @@ export declare class ConnectionCheck extends ConnectionCheck_base {
     checkReconnect(): Promise<CheckInfo>;
     checkPublishAudio(): Promise<CheckInfo>;
     checkPublishVideo(): Promise<CheckInfo>;
+    checkConnectionProtocol(): Promise<CheckInfo>;
+    checkCloudRegion(): Promise<CheckInfo>;
 }
 type ConnectionCheckCallbacks = {
     checkUpdate: (id: number, info: CheckInfo) => void;

@@ -26,4 +26,5 @@ export declare class ScalabilityMode {
     constructor(scalabilityMode: string);
     toString(): string;
 }
+export declare function getDefaultDegradationPreference(track: LocalVideoTrack): RTCDegradationPreference;
 //# sourceMappingURL=publishUtils.d.ts.map

@@ -21,7 +21,6 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
      * @param userProvidedTrack Signals to the SDK whether or not the mediaTrack should be managed (i.e. released and reacquired) internally by the SDK
      */
     constructor(mediaTrack: MediaStreamTrack, constraints?: MediaTrackConstraints, userProvidedTrack?: boolean, audioContext?: AudioContext, loggerOptions?: LoggerOptions);
-    setDeviceId(deviceId: ConstrainDOMString): Promise<boolean>;
     mute(): Promise<typeof this>;
     unmute(): Promise<typeof this>;
     restartTrack(options?: AudioCaptureOptions): Promise<void>;

@@ -12,7 +12,7 @@ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
 OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 ***************************************************************************** */
-/* global Reflect, Promise, SuppressedError, Symbol */
+/* global Reflect, Promise, SuppressedError, Symbol, Iterator */
 
 
 function __awaiter(thisArg, _arguments, P, generator) {
@@ -30,9 +30,7 @@ typeof SuppressedError === "function" ? SuppressedError : function (error, suppr
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
 };
 
-var commonjsGlobal = typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : typeof global !== 'undefined' ? global : typeof self !== 'undefined' ? self : {};
-
-var loglevel = {exports: {}};
+var loglevel$1 = {exports: {}};
 
 /*
 * loglevel - https://github.com/pimterry/loglevel
@@ -40,315 +38,323 @@ var loglevel = {exports: {}};
 * Copyright (c) 2013 Tim Perry
 * Licensed under the MIT license.
 */
-(function (module) {
-  (function (root, definition) {
+var loglevel = loglevel$1.exports;
+var hasRequiredLoglevel;
+function requireLoglevel() {
+  if (hasRequiredLoglevel) return loglevel$1.exports;
+  hasRequiredLoglevel = 1;
+  (function (module) {
+    (function (root, definition) {
 
-    if (module.exports) {
-      module.exports = definition();
-    } else {
-      root.log = definition();
-    }
-  })(commonjsGlobal, function () {
-
-    // Slightly dubious tricks to cut down minimized file size
-    var noop = function () {};
-    var undefinedType = "undefined";
-    var isIE = typeof window !== undefinedType && typeof window.navigator !== undefinedType && /Trident\/|MSIE /.test(window.navigator.userAgent);
-    var logMethods = ["trace", "debug", "info", "warn", "error"];
-    var _loggersByName = {};
-    var defaultLogger = null;
-
-    // Cross-browser bind equivalent that works at least back to IE6
-    function bindMethod(obj, methodName) {
-      var method = obj[methodName];
-      if (typeof method.bind === 'function') {
-        return method.bind(obj);
+      if (module.exports) {
+        module.exports = definition();
       } else {
-        try {
-          return Function.prototype.bind.call(method, obj);
-        } catch (e) {
-          // Missing bind shim or IE8 + Modernizr, fallback to wrapping
-          return function () {
-            return Function.prototype.apply.apply(method, [obj, arguments]);
-          };
-        }
+        root.log = definition();
       }
-    }
+    })(loglevel, function () {
 
-    // Trace() doesn't print the message in IE, so for that case we need to wrap it
-    function traceForIE() {
-      if (console.log) {
-        if (console.log.apply) {
-          console.log.apply(console, arguments);
+      // Slightly dubious tricks to cut down minimized file size
+      var noop = function () {};
+      var undefinedType = "undefined";
+      var isIE = typeof window !== undefinedType && typeof window.navigator !== undefinedType && /Trident\/|MSIE /.test(window.navigator.userAgent);
+      var logMethods = ["trace", "debug", "info", "warn", "error"];
+      var _loggersByName = {};
+      var defaultLogger = null;
+
+      // Cross-browser bind equivalent that works at least back to IE6
+      function bindMethod(obj, methodName) {
+        var method = obj[methodName];
+        if (typeof method.bind === 'function') {
+          return method.bind(obj);
         } else {
-          // In old IE, native console methods themselves don't have apply().
-          Function.prototype.apply.apply(console.log, [console, arguments]);
-        }
-      }
-      if (console.trace) console.trace();
-    }
-
-    // Build the best logging method possible for this env
-    // Wherever possible we want to bind, not wrap, to preserve stack traces
-    function realMethod(methodName) {
-      if (methodName === 'debug') {
-        methodName = 'log';
-      }
-      if (typeof console === undefinedType) {
-        return false; // No method possible, for now - fixed later by enableLoggingWhenConsoleArrives
-      } else if (methodName === 'trace' && isIE) {
-        return traceForIE;
-      } else if (console[methodName] !== undefined) {
-        return bindMethod(console, methodName);
-      } else if (console.log !== undefined) {
-        return bindMethod(console, 'log');
-      } else {
-        return noop;
-      }
-    }
-
-    // These private functions always need `this` to be set properly
-
-    function replaceLoggingMethods() {
-      /*jshint validthis:true */
-      var level = this.getLevel();
-
-      // Replace the actual methods.
-      for (var i = 0; i < logMethods.length; i++) {
-        var methodName = logMethods[i];
-        this[methodName] = i < level ? noop : this.methodFactory(methodName, level, this.name);
-      }
-
-      // Define log.log as an alias for log.debug
-      this.log = this.debug;
-
-      // Return any important warnings.
-      if (typeof console === undefinedType && level < this.levels.SILENT) {
-        return "No console available for logging";
-      }
-    }
-
-    // In old IE versions, the console isn't present until you first open it.
-    // We build realMethod() replacements here that regenerate logging methods
-    function enableLoggingWhenConsoleArrives(methodName) {
-      return function () {
-        if (typeof console !== undefinedType) {
-          replaceLoggingMethods.call(this);
-          this[methodName].apply(this, arguments);
-        }
-      };
-    }
-
-    // By default, we use closely bound real methods wherever possible, and
-    // otherwise we wait for a console to appear, and then try again.
-    function defaultMethodFactory(methodName, _level, _loggerName) {
-      /*jshint validthis:true */
-      return realMethod(methodName) || enableLoggingWhenConsoleArrives.apply(this, arguments);
-    }
-    function Logger(name, factory) {
-      // Private instance variables.
-      var self = this;
-      /**
-       * The level inherited from a parent logger (or a global default). We
-       * cache this here rather than delegating to the parent so that it stays
-       * in sync with the actual logging methods that we have installed (the
-       * parent could change levels but we might not have rebuilt the loggers
-       * in this child yet).
-       * @type {number}
-       */
-      var inheritedLevel;
-      /**
-       * The default level for this logger, if any. If set, this overrides
-       * `inheritedLevel`.
-       * @type {number|null}
-       */
-      var defaultLevel;
-      /**
-       * A user-specific level for this logger. If set, this overrides
-       * `defaultLevel`.
-       * @type {number|null}
-       */
-      var userLevel;
-      var storageKey = "loglevel";
-      if (typeof name === "string") {
-        storageKey += ":" + name;
-      } else if (typeof name === "symbol") {
-        storageKey = undefined;
-      }
-      function persistLevelIfPossible(levelNum) {
-        var levelName = (logMethods[levelNum] || 'silent').toUpperCase();
-        if (typeof window === undefinedType || !storageKey) return;
-
-        // Use localStorage if available
-        try {
-          window.localStorage[storageKey] = levelName;
-          return;
-        } catch (ignore) {}
-
-        // Use session cookie as fallback
-        try {
-          window.document.cookie = encodeURIComponent(storageKey) + "=" + levelName + ";";
-        } catch (ignore) {}
-      }
-      function getPersistedLevel() {
-        var storedLevel;
-        if (typeof window === undefinedType || !storageKey) return;
-        try {
-          storedLevel = window.localStorage[storageKey];
-        } catch (ignore) {}
-
-        // Fallback to cookies if local storage gives us nothing
-        if (typeof storedLevel === undefinedType) {
           try {
-            var cookie = window.document.cookie;
-            var cookieName = encodeURIComponent(storageKey);
-            var location = cookie.indexOf(cookieName + "=");
-            if (location !== -1) {
-              storedLevel = /^([^;]+)/.exec(cookie.slice(location + cookieName.length + 1))[1];
-            }
+            return Function.prototype.bind.call(method, obj);
+          } catch (e) {
+            // Missing bind shim or IE8 + Modernizr, fallback to wrapping
+            return function () {
+              return Function.prototype.apply.apply(method, [obj, arguments]);
+            };
+          }
+        }
+      }
+
+      // Trace() doesn't print the message in IE, so for that case we need to wrap it
+      function traceForIE() {
+        if (console.log) {
+          if (console.log.apply) {
+            console.log.apply(console, arguments);
+          } else {
+            // In old IE, native console methods themselves don't have apply().
+            Function.prototype.apply.apply(console.log, [console, arguments]);
+          }
+        }
+        if (console.trace) console.trace();
+      }
+
+      // Build the best logging method possible for this env
+      // Wherever possible we want to bind, not wrap, to preserve stack traces
+      function realMethod(methodName) {
+        if (methodName === 'debug') {
+          methodName = 'log';
+        }
+        if (typeof console === undefinedType) {
+          return false; // No method possible, for now - fixed later by enableLoggingWhenConsoleArrives
+        } else if (methodName === 'trace' && isIE) {
+          return traceForIE;
+        } else if (console[methodName] !== undefined) {
+          return bindMethod(console, methodName);
+        } else if (console.log !== undefined) {
+          return bindMethod(console, 'log');
+        } else {
+          return noop;
+        }
+      }
+
+      // These private functions always need `this` to be set properly
+
+      function replaceLoggingMethods() {
+        /*jshint validthis:true */
+        var level = this.getLevel();
+
+        // Replace the actual methods.
+        for (var i = 0; i < logMethods.length; i++) {
+          var methodName = logMethods[i];
+          this[methodName] = i < level ? noop : this.methodFactory(methodName, level, this.name);
+        }
+
+        // Define log.log as an alias for log.debug
+        this.log = this.debug;
+
+        // Return any important warnings.
+        if (typeof console === undefinedType && level < this.levels.SILENT) {
+          return "No console available for logging";
+        }
+      }
+
+      // In old IE versions, the console isn't present until you first open it.
+      // We build realMethod() replacements here that regenerate logging methods
+      function enableLoggingWhenConsoleArrives(methodName) {
+        return function () {
+          if (typeof console !== undefinedType) {
+            replaceLoggingMethods.call(this);
+            this[methodName].apply(this, arguments);
+          }
+        };
+      }
+
+      // By default, we use closely bound real methods wherever possible, and
+      // otherwise we wait for a console to appear, and then try again.
+      function defaultMethodFactory(methodName, _level, _loggerName) {
+        /*jshint validthis:true */
+        return realMethod(methodName) || enableLoggingWhenConsoleArrives.apply(this, arguments);
+      }
+      function Logger(name, factory) {
+        // Private instance variables.
+        var self = this;
+        /**
+         * The level inherited from a parent logger (or a global default). We
+         * cache this here rather than delegating to the parent so that it stays
+         * in sync with the actual logging methods that we have installed (the
+         * parent could change levels but we might not have rebuilt the loggers
+         * in this child yet).
+         * @type {number}
+         */
+        var inheritedLevel;
+        /**
+         * The default level for this logger, if any. If set, this overrides
+         * `inheritedLevel`.
+         * @type {number|null}
+         */
+        var defaultLevel;
+        /**
+         * A user-specific level for this logger. If set, this overrides
+         * `defaultLevel`.
+         * @type {number|null}
+         */
+        var userLevel;
+        var storageKey = "loglevel";
+        if (typeof name === "string") {
+          storageKey += ":" + name;
+        } else if (typeof name === "symbol") {
+          storageKey = undefined;
+        }
+        function persistLevelIfPossible(levelNum) {
+          var levelName = (logMethods[levelNum] || 'silent').toUpperCase();
+          if (typeof window === undefinedType || !storageKey) return;
+
+          // Use localStorage if available
+          try {
+            window.localStorage[storageKey] = levelName;
+            return;
+          } catch (ignore) {}
+
+          // Use session cookie as fallback
+          try {
+            window.document.cookie = encodeURIComponent(storageKey) + "=" + levelName + ";";
           } catch (ignore) {}
         }
+        function getPersistedLevel() {
+          var storedLevel;
+          if (typeof window === undefinedType || !storageKey) return;
+          try {
+            storedLevel = window.localStorage[storageKey];
+          } catch (ignore) {}
 
-        // If the stored level is not valid, treat it as if nothing was stored.
-        if (self.levels[storedLevel] === undefined) {
-          storedLevel = undefined;
-        }
-        return storedLevel;
-      }
-      function clearPersistedLevel() {
-        if (typeof window === undefinedType || !storageKey) return;
+          // Fallback to cookies if local storage gives us nothing
+          if (typeof storedLevel === undefinedType) {
+            try {
+              var cookie = window.document.cookie;
+              var cookieName = encodeURIComponent(storageKey);
+              var location = cookie.indexOf(cookieName + "=");
+              if (location !== -1) {
+                storedLevel = /^([^;]+)/.exec(cookie.slice(location + cookieName.length + 1))[1];
+              }
+            } catch (ignore) {}
+          }
 
-        // Use localStorage if available
-        try {
-          window.localStorage.removeItem(storageKey);
-        } catch (ignore) {}
+          // If the stored level is not valid, treat it as if nothing was stored.
+          if (self.levels[storedLevel] === undefined) {
+            storedLevel = undefined;
+          }
+          return storedLevel;
+        }
+        function clearPersistedLevel() {
+          if (typeof window === undefinedType || !storageKey) return;
 
-        // Use session cookie as fallback
-        try {
-          window.document.cookie = encodeURIComponent(storageKey) + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC";
-        } catch (ignore) {}
-      }
-      function normalizeLevel(input) {
-        var level = input;
-        if (typeof level === "string" && self.levels[level.toUpperCase()] !== undefined) {
-          level = self.levels[level.toUpperCase()];
+          // Use localStorage if available
+          try {
+            window.localStorage.removeItem(storageKey);
+          } catch (ignore) {}
+
+          // Use session cookie as fallback
+          try {
+            window.document.cookie = encodeURIComponent(storageKey) + "=; expires=Thu, 01 Jan 1970 00:00:00 UTC";
+          } catch (ignore) {}
         }
-        if (typeof level === "number" && level >= 0 && level <= self.levels.SILENT) {
-          return level;
-        } else {
-          throw new TypeError("log.setLevel() called with invalid level: " + input);
+        function normalizeLevel(input) {
+          var level = input;
+          if (typeof level === "string" && self.levels[level.toUpperCase()] !== undefined) {
+            level = self.levels[level.toUpperCase()];
+          }
+          if (typeof level === "number" && level >= 0 && level <= self.levels.SILENT) {
+            return level;
+          } else {
+            throw new TypeError("log.setLevel() called with invalid level: " + input);
+          }
         }
+
+        /*
+         *
+         * Public logger API - see https://github.com/pimterry/loglevel for details
+         *
+         */
+
+        self.name = name;
+        self.levels = {
+          "TRACE": 0,
+          "DEBUG": 1,
+          "INFO": 2,
+          "WARN": 3,
+          "ERROR": 4,
+          "SILENT": 5
+        };
+        self.methodFactory = factory || defaultMethodFactory;
+        self.getLevel = function () {
+          if (userLevel != null) {
+            return userLevel;
+          } else if (defaultLevel != null) {
+            return defaultLevel;
+          } else {
+            return inheritedLevel;
+          }
+        };
+        self.setLevel = function (level, persist) {
+          userLevel = normalizeLevel(level);
+          if (persist !== false) {
+            // defaults to true
+            persistLevelIfPossible(userLevel);
+          }
+
+          // NOTE: in v2, this should call rebuild(), which updates children.
+          return replaceLoggingMethods.call(self);
+        };
+        self.setDefaultLevel = function (level) {
+          defaultLevel = normalizeLevel(level);
+          if (!getPersistedLevel()) {
+            self.setLevel(level, false);
+          }
+        };
+        self.resetLevel = function () {
+          userLevel = null;
+          clearPersistedLevel();
+          replaceLoggingMethods.call(self);
+        };
+        self.enableAll = function (persist) {
+          self.setLevel(self.levels.TRACE, persist);
+        };
+        self.disableAll = function (persist) {
+          self.setLevel(self.levels.SILENT, persist);
+        };
+        self.rebuild = function () {
+          if (defaultLogger !== self) {
+            inheritedLevel = normalizeLevel(defaultLogger.getLevel());
+          }
+          replaceLoggingMethods.call(self);
+          if (defaultLogger === self) {
+            for (var childName in _loggersByName) {
+              _loggersByName[childName].rebuild();
+            }
+          }
+        };
+
+        // Initialize all the internal levels.
+        inheritedLevel = normalizeLevel(defaultLogger ? defaultLogger.getLevel() : "WARN");
+        var initialLevel = getPersistedLevel();
+        if (initialLevel != null) {
+          userLevel = normalizeLevel(initialLevel);
+        }
+        replaceLoggingMethods.call(self);
       }
 
       /*
        *
-       * Public logger API - see https://github.com/pimterry/loglevel for details
+       * Top-level API
        *
        */
 
-      self.name = name;
-      self.levels = {
-        "TRACE": 0,
-        "DEBUG": 1,
-        "INFO": 2,
-        "WARN": 3,
-        "ERROR": 4,
-        "SILENT": 5
-      };
-      self.methodFactory = factory || defaultMethodFactory;
-      self.getLevel = function () {
-        if (userLevel != null) {
-          return userLevel;
-        } else if (defaultLevel != null) {
-          return defaultLevel;
-        } else {
-          return inheritedLevel;
+      defaultLogger = new Logger();
+      defaultLogger.getLogger = function getLogger(name) {
+        if (typeof name !== "symbol" && typeof name !== "string" || name === "") {
+          throw new TypeError("You must supply a name when creating a logger.");
         }
-      };
-      self.setLevel = function (level, persist) {
-        userLevel = normalizeLevel(level);
-        if (persist !== false) {
-          // defaults to true
-          persistLevelIfPossible(userLevel);
+        var logger = _loggersByName[name];
+        if (!logger) {
+          logger = _loggersByName[name] = new Logger(name, defaultLogger.methodFactory);
         }
-
-        // NOTE: in v2, this should call rebuild(), which updates children.
-        return replaceLoggingMethods.call(self);
-      };
-      self.setDefaultLevel = function (level) {
-        defaultLevel = normalizeLevel(level);
-        if (!getPersistedLevel()) {
-          self.setLevel(level, false);
-        }
-      };
-      self.resetLevel = function () {
-        userLevel = null;
-        clearPersistedLevel();
-        replaceLoggingMethods.call(self);
-      };
-      self.enableAll = function (persist) {
-        self.setLevel(self.levels.TRACE, persist);
-      };
-      self.disableAll = function (persist) {
-        self.setLevel(self.levels.SILENT, persist);
-      };
-      self.rebuild = function () {
-        if (defaultLogger !== self) {
-          inheritedLevel = normalizeLevel(defaultLogger.getLevel());
-        }
-        replaceLoggingMethods.call(self);
-        if (defaultLogger === self) {
-          for (var childName in _loggersByName) {
-            _loggersByName[childName].rebuild();
-          }
-        }
+        return logger;
       };
 
-      // Initialize all the internal levels.
-      inheritedLevel = normalizeLevel(defaultLogger ? defaultLogger.getLevel() : "WARN");
-      var initialLevel = getPersistedLevel();
-      if (initialLevel != null) {
-        userLevel = normalizeLevel(initialLevel);
-      }
-      replaceLoggingMethods.call(self);
-    }
+      // Grab the current global log variable in case of overwrite
+      var _log = typeof window !== undefinedType ? window.log : undefined;
+      defaultLogger.noConflict = function () {
+        if (typeof window !== undefinedType && window.log === defaultLogger) {
+          window.log = _log;
+        }
+        return defaultLogger;
+      };
+      defaultLogger.getLoggers = function getLoggers() {
+        return _loggersByName;
+      };
 
-    /*
-     *
-     * Top-level API
-     *
-     */
-
-    defaultLogger = new Logger();
-    defaultLogger.getLogger = function getLogger(name) {
-      if (typeof name !== "symbol" && typeof name !== "string" || name === "") {
-        throw new TypeError("You must supply a name when creating a logger.");
-      }
-      var logger = _loggersByName[name];
-      if (!logger) {
-        logger = _loggersByName[name] = new Logger(name, defaultLogger.methodFactory);
-      }
-      return logger;
-    };
-
-    // Grab the current global log variable in case of overwrite
-    var _log = typeof window !== undefinedType ? window.log : undefined;
-    defaultLogger.noConflict = function () {
-      if (typeof window !== undefinedType && window.log === defaultLogger) {
-        window.log = _log;
-      }
+      // ES6 default export, for compatibility
+      defaultLogger['default'] = defaultLogger;
       return defaultLogger;
-    };
-    defaultLogger.getLoggers = function getLoggers() {
-      return _loggersByName;
-    };
+    });
+  })(loglevel$1);
+  return loglevel$1.exports;
+}
 
-    // ES6 default export, for compatibility
-    defaultLogger['default'] = defaultLogger;
-    return defaultLogger;
-  });
-})(loglevel);
-var loglevelExports = loglevel.exports;
+var loglevelExports = requireLoglevel();
 
 var LogLevel;
 (function (LogLevel) {
@@ -376,6 +382,76 @@ let livekitLogger = loglevelExports.getLogger('livekit');
 Object.values(LoggerNames).map(name => loglevelExports.getLogger(name));
 livekitLogger.setDefaultLevel(LogLevel.info);
 const workerLogger = loglevelExports.getLogger('lk-e2ee');
+
+var e = Object.defineProperty;
+var h = (i, s, t) => s in i ? e(i, s, {
+  enumerable: !0,
+  configurable: !0,
+  writable: !0,
+  value: t
+}) : i[s] = t;
+var o = (i, s, t) => h(i, typeof s != "symbol" ? s + "" : s, t);
+class _ {
+  constructor() {
+    o(this, "_locking");
+    o(this, "_locks");
+    this._locking = Promise.resolve(), this._locks = 0;
+  }
+  isLocked() {
+    return this._locks > 0;
+  }
+  lock() {
+    this._locks += 1;
+    let s;
+    const t = new Promise(l => s = () => {
+        this._locks -= 1, l();
+      }),
+      c = this._locking.then(() => s);
+    return this._locking = this._locking.then(() => t), c;
+  }
+}
+
+var QueueTaskStatus;
+(function (QueueTaskStatus) {
+  QueueTaskStatus[QueueTaskStatus["WAITING"] = 0] = "WAITING";
+  QueueTaskStatus[QueueTaskStatus["RUNNING"] = 1] = "RUNNING";
+  QueueTaskStatus[QueueTaskStatus["COMPLETED"] = 2] = "COMPLETED";
+})(QueueTaskStatus || (QueueTaskStatus = {}));
+class AsyncQueue {
+  constructor() {
+    this.pendingTasks = new Map();
+    this.taskMutex = new _();
+    this.nextTaskIndex = 0;
+  }
+  run(task) {
+    return __awaiter(this, void 0, void 0, function* () {
+      const taskInfo = {
+        id: this.nextTaskIndex++,
+        enqueuedAt: Date.now(),
+        status: QueueTaskStatus.WAITING
+      };
+      this.pendingTasks.set(taskInfo.id, taskInfo);
+      const unlock = yield this.taskMutex.lock();
+      try {
+        taskInfo.executedAt = Date.now();
+        taskInfo.status = QueueTaskStatus.RUNNING;
+        return yield task();
+      } finally {
+        taskInfo.status = QueueTaskStatus.COMPLETED;
+        this.pendingTasks.delete(taskInfo.id);
+        unlock();
+      }
+    });
+  }
+  flush() {
+    return __awaiter(this, void 0, void 0, function* () {
+      return this.run(() => __awaiter(this, void 0, void 0, function* () {}));
+    });
+  }
+  snapshot() {
+    return Array.from(this.pendingTasks.values());
+  }
+}
 
 const ENCRYPTION_ALGORITHM = 'AES-GCM';
 // How many consecutive frames can fail decrypting before a particular key gets marked as invalid
@@ -414,9 +490,18 @@ const MAX_SIF_DURATION = 2000;
 class LivekitError extends Error {
   constructor(code, message) {
     super(message || 'an error has occured');
+    this.name = 'LiveKitError';
     this.code = code;
   }
 }
+var ConnectionErrorReason;
+(function (ConnectionErrorReason) {
+  ConnectionErrorReason[ConnectionErrorReason["NotAllowed"] = 0] = "NotAllowed";
+  ConnectionErrorReason[ConnectionErrorReason["ServerUnreachable"] = 1] = "ServerUnreachable";
+  ConnectionErrorReason[ConnectionErrorReason["InternalError"] = 2] = "InternalError";
+  ConnectionErrorReason[ConnectionErrorReason["Cancelled"] = 3] = "Cancelled";
+  ConnectionErrorReason[ConnectionErrorReason["LeaveRequest"] = 4] = "LeaveRequest";
+})(ConnectionErrorReason || (ConnectionErrorReason = {}));
 var MediaDeviceFailure;
 (function (MediaDeviceFailure) {
   // user rejected permissions
@@ -454,8 +539,10 @@ var CryptorErrorReason;
 class CryptorError extends LivekitError {
   constructor(message) {
     let reason = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : CryptorErrorReason.InternalError;
+    let participantIdentity = arguments.length > 2 ? arguments[2] : undefined;
     super(40, message);
     this.reason = reason;
+    this.participantIdentity = participantIdentity;
   }
 }
 
@@ -481,383 +568,390 @@ var CryptorEvent;
 
 var events = {exports: {}};
 
-var R = typeof Reflect === 'object' ? Reflect : null;
-var ReflectApply = R && typeof R.apply === 'function' ? R.apply : function ReflectApply(target, receiver, args) {
-  return Function.prototype.apply.call(target, receiver, args);
-};
-var ReflectOwnKeys;
-if (R && typeof R.ownKeys === 'function') {
-  ReflectOwnKeys = R.ownKeys;
-} else if (Object.getOwnPropertySymbols) {
-  ReflectOwnKeys = function ReflectOwnKeys(target) {
-    return Object.getOwnPropertyNames(target).concat(Object.getOwnPropertySymbols(target));
+var hasRequiredEvents;
+function requireEvents() {
+  if (hasRequiredEvents) return events.exports;
+  hasRequiredEvents = 1;
+  var R = typeof Reflect === 'object' ? Reflect : null;
+  var ReflectApply = R && typeof R.apply === 'function' ? R.apply : function ReflectApply(target, receiver, args) {
+    return Function.prototype.apply.call(target, receiver, args);
   };
-} else {
-  ReflectOwnKeys = function ReflectOwnKeys(target) {
-    return Object.getOwnPropertyNames(target);
+  var ReflectOwnKeys;
+  if (R && typeof R.ownKeys === 'function') {
+    ReflectOwnKeys = R.ownKeys;
+  } else if (Object.getOwnPropertySymbols) {
+    ReflectOwnKeys = function ReflectOwnKeys(target) {
+      return Object.getOwnPropertyNames(target).concat(Object.getOwnPropertySymbols(target));
+    };
+  } else {
+    ReflectOwnKeys = function ReflectOwnKeys(target) {
+      return Object.getOwnPropertyNames(target);
+    };
+  }
+  function ProcessEmitWarning(warning) {
+    if (console && console.warn) console.warn(warning);
+  }
+  var NumberIsNaN = Number.isNaN || function NumberIsNaN(value) {
+    return value !== value;
   };
-}
-function ProcessEmitWarning(warning) {
-  if (console && console.warn) console.warn(warning);
-}
-var NumberIsNaN = Number.isNaN || function NumberIsNaN(value) {
-  return value !== value;
-};
-function EventEmitter() {
-  EventEmitter.init.call(this);
-}
-events.exports = EventEmitter;
-events.exports.once = once;
+  function EventEmitter() {
+    EventEmitter.init.call(this);
+  }
+  events.exports = EventEmitter;
+  events.exports.once = once;
 
-// Backwards-compat with node 0.10.x
-EventEmitter.EventEmitter = EventEmitter;
-EventEmitter.prototype._events = undefined;
-EventEmitter.prototype._eventsCount = 0;
-EventEmitter.prototype._maxListeners = undefined;
+  // Backwards-compat with node 0.10.x
+  EventEmitter.EventEmitter = EventEmitter;
+  EventEmitter.prototype._events = undefined;
+  EventEmitter.prototype._eventsCount = 0;
+  EventEmitter.prototype._maxListeners = undefined;
 
-// By default EventEmitters will print a warning if more than 10 listeners are
-// added to it. This is a useful default which helps finding memory leaks.
-var defaultMaxListeners = 10;
-function checkListener(listener) {
-  if (typeof listener !== 'function') {
-    throw new TypeError('The "listener" argument must be of type Function. Received type ' + typeof listener);
-  }
-}
-Object.defineProperty(EventEmitter, 'defaultMaxListeners', {
-  enumerable: true,
-  get: function () {
-    return defaultMaxListeners;
-  },
-  set: function (arg) {
-    if (typeof arg !== 'number' || arg < 0 || NumberIsNaN(arg)) {
-      throw new RangeError('The value of "defaultMaxListeners" is out of range. It must be a non-negative number. Received ' + arg + '.');
-    }
-    defaultMaxListeners = arg;
-  }
-});
-EventEmitter.init = function () {
-  if (this._events === undefined || this._events === Object.getPrototypeOf(this)._events) {
-    this._events = Object.create(null);
-    this._eventsCount = 0;
-  }
-  this._maxListeners = this._maxListeners || undefined;
-};
-
-// Obviously not all Emitters should be limited to 10. This function allows
-// that to be increased. Set to zero for unlimited.
-EventEmitter.prototype.setMaxListeners = function setMaxListeners(n) {
-  if (typeof n !== 'number' || n < 0 || NumberIsNaN(n)) {
-    throw new RangeError('The value of "n" is out of range. It must be a non-negative number. Received ' + n + '.');
-  }
-  this._maxListeners = n;
-  return this;
-};
-function _getMaxListeners(that) {
-  if (that._maxListeners === undefined) return EventEmitter.defaultMaxListeners;
-  return that._maxListeners;
-}
-EventEmitter.prototype.getMaxListeners = function getMaxListeners() {
-  return _getMaxListeners(this);
-};
-EventEmitter.prototype.emit = function emit(type) {
-  var args = [];
-  for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
-  var doError = type === 'error';
-  var events = this._events;
-  if (events !== undefined) doError = doError && events.error === undefined;else if (!doError) return false;
-
-  // If there is no 'error' event listener then throw.
-  if (doError) {
-    var er;
-    if (args.length > 0) er = args[0];
-    if (er instanceof Error) {
-      // Note: The comments on the `throw` lines are intentional, they show
-      // up in Node's output if this results in an unhandled exception.
-      throw er; // Unhandled 'error' event
-    }
-    // At least give some kind of context to the user
-    var err = new Error('Unhandled error.' + (er ? ' (' + er.message + ')' : ''));
-    err.context = er;
-    throw err; // Unhandled 'error' event
-  }
-  var handler = events[type];
-  if (handler === undefined) return false;
-  if (typeof handler === 'function') {
-    ReflectApply(handler, this, args);
-  } else {
-    var len = handler.length;
-    var listeners = arrayClone(handler, len);
-    for (var i = 0; i < len; ++i) ReflectApply(listeners[i], this, args);
-  }
-  return true;
-};
-function _addListener(target, type, listener, prepend) {
-  var m;
-  var events;
-  var existing;
-  checkListener(listener);
-  events = target._events;
-  if (events === undefined) {
-    events = target._events = Object.create(null);
-    target._eventsCount = 0;
-  } else {
-    // To avoid recursion in the case that type === "newListener"! Before
-    // adding it to the listeners, first emit "newListener".
-    if (events.newListener !== undefined) {
-      target.emit('newListener', type, listener.listener ? listener.listener : listener);
-
-      // Re-assign `events` because a newListener handler could have caused the
-      // this._events to be assigned to a new object
-      events = target._events;
-    }
-    existing = events[type];
-  }
-  if (existing === undefined) {
-    // Optimize the case of one listener. Don't need the extra array object.
-    existing = events[type] = listener;
-    ++target._eventsCount;
-  } else {
-    if (typeof existing === 'function') {
-      // Adding the second element, need to change to array.
-      existing = events[type] = prepend ? [listener, existing] : [existing, listener];
-      // If we've already got an array, just append.
-    } else if (prepend) {
-      existing.unshift(listener);
-    } else {
-      existing.push(listener);
-    }
-
-    // Check for listener leak
-    m = _getMaxListeners(target);
-    if (m > 0 && existing.length > m && !existing.warned) {
-      existing.warned = true;
-      // No error code for this since it is a Warning
-      // eslint-disable-next-line no-restricted-syntax
-      var w = new Error('Possible EventEmitter memory leak detected. ' + existing.length + ' ' + String(type) + ' listeners ' + 'added. Use emitter.setMaxListeners() to ' + 'increase limit');
-      w.name = 'MaxListenersExceededWarning';
-      w.emitter = target;
-      w.type = type;
-      w.count = existing.length;
-      ProcessEmitWarning(w);
+  // By default EventEmitters will print a warning if more than 10 listeners are
+  // added to it. This is a useful default which helps finding memory leaks.
+  var defaultMaxListeners = 10;
+  function checkListener(listener) {
+    if (typeof listener !== 'function') {
+      throw new TypeError('The "listener" argument must be of type Function. Received type ' + typeof listener);
     }
   }
-  return target;
-}
-EventEmitter.prototype.addListener = function addListener(type, listener) {
-  return _addListener(this, type, listener, false);
-};
-EventEmitter.prototype.on = EventEmitter.prototype.addListener;
-EventEmitter.prototype.prependListener = function prependListener(type, listener) {
-  return _addListener(this, type, listener, true);
-};
-function onceWrapper() {
-  if (!this.fired) {
-    this.target.removeListener(this.type, this.wrapFn);
-    this.fired = true;
-    if (arguments.length === 0) return this.listener.call(this.target);
-    return this.listener.apply(this.target, arguments);
-  }
-}
-function _onceWrap(target, type, listener) {
-  var state = {
-    fired: false,
-    wrapFn: undefined,
-    target: target,
-    type: type,
-    listener: listener
-  };
-  var wrapped = onceWrapper.bind(state);
-  wrapped.listener = listener;
-  state.wrapFn = wrapped;
-  return wrapped;
-}
-EventEmitter.prototype.once = function once(type, listener) {
-  checkListener(listener);
-  this.on(type, _onceWrap(this, type, listener));
-  return this;
-};
-EventEmitter.prototype.prependOnceListener = function prependOnceListener(type, listener) {
-  checkListener(listener);
-  this.prependListener(type, _onceWrap(this, type, listener));
-  return this;
-};
-
-// Emits a 'removeListener' event if and only if the listener was removed.
-EventEmitter.prototype.removeListener = function removeListener(type, listener) {
-  var list, events, position, i, originalListener;
-  checkListener(listener);
-  events = this._events;
-  if (events === undefined) return this;
-  list = events[type];
-  if (list === undefined) return this;
-  if (list === listener || list.listener === listener) {
-    if (--this._eventsCount === 0) this._events = Object.create(null);else {
-      delete events[type];
-      if (events.removeListener) this.emit('removeListener', type, list.listener || listener);
-    }
-  } else if (typeof list !== 'function') {
-    position = -1;
-    for (i = list.length - 1; i >= 0; i--) {
-      if (list[i] === listener || list[i].listener === listener) {
-        originalListener = list[i].listener;
-        position = i;
-        break;
+  Object.defineProperty(EventEmitter, 'defaultMaxListeners', {
+    enumerable: true,
+    get: function () {
+      return defaultMaxListeners;
+    },
+    set: function (arg) {
+      if (typeof arg !== 'number' || arg < 0 || NumberIsNaN(arg)) {
+        throw new RangeError('The value of "defaultMaxListeners" is out of range. It must be a non-negative number. Received ' + arg + '.');
       }
-    }
-    if (position < 0) return this;
-    if (position === 0) list.shift();else {
-      spliceOne(list, position);
-    }
-    if (list.length === 1) events[type] = list[0];
-    if (events.removeListener !== undefined) this.emit('removeListener', type, originalListener || listener);
-  }
-  return this;
-};
-EventEmitter.prototype.off = EventEmitter.prototype.removeListener;
-EventEmitter.prototype.removeAllListeners = function removeAllListeners(type) {
-  var listeners, events, i;
-  events = this._events;
-  if (events === undefined) return this;
-
-  // not listening for removeListener, no need to emit
-  if (events.removeListener === undefined) {
-    if (arguments.length === 0) {
-      this._events = Object.create(null);
-      this._eventsCount = 0;
-    } else if (events[type] !== undefined) {
-      if (--this._eventsCount === 0) this._events = Object.create(null);else delete events[type];
-    }
-    return this;
-  }
-
-  // emit removeListener for all listeners on all events
-  if (arguments.length === 0) {
-    var keys = Object.keys(events);
-    var key;
-    for (i = 0; i < keys.length; ++i) {
-      key = keys[i];
-      if (key === 'removeListener') continue;
-      this.removeAllListeners(key);
-    }
-    this.removeAllListeners('removeListener');
-    this._events = Object.create(null);
-    this._eventsCount = 0;
-    return this;
-  }
-  listeners = events[type];
-  if (typeof listeners === 'function') {
-    this.removeListener(type, listeners);
-  } else if (listeners !== undefined) {
-    // LIFO order
-    for (i = listeners.length - 1; i >= 0; i--) {
-      this.removeListener(type, listeners[i]);
-    }
-  }
-  return this;
-};
-function _listeners(target, type, unwrap) {
-  var events = target._events;
-  if (events === undefined) return [];
-  var evlistener = events[type];
-  if (evlistener === undefined) return [];
-  if (typeof evlistener === 'function') return unwrap ? [evlistener.listener || evlistener] : [evlistener];
-  return unwrap ? unwrapListeners(evlistener) : arrayClone(evlistener, evlistener.length);
-}
-EventEmitter.prototype.listeners = function listeners(type) {
-  return _listeners(this, type, true);
-};
-EventEmitter.prototype.rawListeners = function rawListeners(type) {
-  return _listeners(this, type, false);
-};
-EventEmitter.listenerCount = function (emitter, type) {
-  if (typeof emitter.listenerCount === 'function') {
-    return emitter.listenerCount(type);
-  } else {
-    return listenerCount.call(emitter, type);
-  }
-};
-EventEmitter.prototype.listenerCount = listenerCount;
-function listenerCount(type) {
-  var events = this._events;
-  if (events !== undefined) {
-    var evlistener = events[type];
-    if (typeof evlistener === 'function') {
-      return 1;
-    } else if (evlistener !== undefined) {
-      return evlistener.length;
-    }
-  }
-  return 0;
-}
-EventEmitter.prototype.eventNames = function eventNames() {
-  return this._eventsCount > 0 ? ReflectOwnKeys(this._events) : [];
-};
-function arrayClone(arr, n) {
-  var copy = new Array(n);
-  for (var i = 0; i < n; ++i) copy[i] = arr[i];
-  return copy;
-}
-function spliceOne(list, index) {
-  for (; index + 1 < list.length; index++) list[index] = list[index + 1];
-  list.pop();
-}
-function unwrapListeners(arr) {
-  var ret = new Array(arr.length);
-  for (var i = 0; i < ret.length; ++i) {
-    ret[i] = arr[i].listener || arr[i];
-  }
-  return ret;
-}
-function once(emitter, name) {
-  return new Promise(function (resolve, reject) {
-    function errorListener(err) {
-      emitter.removeListener(name, resolver);
-      reject(err);
-    }
-    function resolver() {
-      if (typeof emitter.removeListener === 'function') {
-        emitter.removeListener('error', errorListener);
-      }
-      resolve([].slice.call(arguments));
-    }
-    eventTargetAgnosticAddListener(emitter, name, resolver, {
-      once: true
-    });
-    if (name !== 'error') {
-      addErrorHandlerIfEventEmitter(emitter, errorListener, {
-        once: true
-      });
+      defaultMaxListeners = arg;
     }
   });
-}
-function addErrorHandlerIfEventEmitter(emitter, handler, flags) {
-  if (typeof emitter.on === 'function') {
-    eventTargetAgnosticAddListener(emitter, 'error', handler, flags);
-  }
-}
-function eventTargetAgnosticAddListener(emitter, name, listener, flags) {
-  if (typeof emitter.on === 'function') {
-    if (flags.once) {
-      emitter.once(name, listener);
-    } else {
-      emitter.on(name, listener);
+  EventEmitter.init = function () {
+    if (this._events === undefined || this._events === Object.getPrototypeOf(this)._events) {
+      this._events = Object.create(null);
+      this._eventsCount = 0;
     }
-  } else if (typeof emitter.addEventListener === 'function') {
-    // EventTarget does not have `error` event semantics like Node
-    // EventEmitters, we do not listen for `error` events here.
-    emitter.addEventListener(name, function wrapListener(arg) {
-      // IE does not have builtin `{ once: true }` support so we
-      // have to do it manually.
-      if (flags.once) {
-        emitter.removeEventListener(name, wrapListener);
-      }
-      listener(arg);
-    });
-  } else {
-    throw new TypeError('The "emitter" argument must be of type EventEmitter. Received type ' + typeof emitter);
+    this._maxListeners = this._maxListeners || undefined;
+  };
+
+  // Obviously not all Emitters should be limited to 10. This function allows
+  // that to be increased. Set to zero for unlimited.
+  EventEmitter.prototype.setMaxListeners = function setMaxListeners(n) {
+    if (typeof n !== 'number' || n < 0 || NumberIsNaN(n)) {
+      throw new RangeError('The value of "n" is out of range. It must be a non-negative number. Received ' + n + '.');
+    }
+    this._maxListeners = n;
+    return this;
+  };
+  function _getMaxListeners(that) {
+    if (that._maxListeners === undefined) return EventEmitter.defaultMaxListeners;
+    return that._maxListeners;
   }
+  EventEmitter.prototype.getMaxListeners = function getMaxListeners() {
+    return _getMaxListeners(this);
+  };
+  EventEmitter.prototype.emit = function emit(type) {
+    var args = [];
+    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
+    var doError = type === 'error';
+    var events = this._events;
+    if (events !== undefined) doError = doError && events.error === undefined;else if (!doError) return false;
+
+    // If there is no 'error' event listener then throw.
+    if (doError) {
+      var er;
+      if (args.length > 0) er = args[0];
+      if (er instanceof Error) {
+        // Note: The comments on the `throw` lines are intentional, they show
+        // up in Node's output if this results in an unhandled exception.
+        throw er; // Unhandled 'error' event
+      }
+      // At least give some kind of context to the user
+      var err = new Error('Unhandled error.' + (er ? ' (' + er.message + ')' : ''));
+      err.context = er;
+      throw err; // Unhandled 'error' event
+    }
+    var handler = events[type];
+    if (handler === undefined) return false;
+    if (typeof handler === 'function') {
+      ReflectApply(handler, this, args);
+    } else {
+      var len = handler.length;
+      var listeners = arrayClone(handler, len);
+      for (var i = 0; i < len; ++i) ReflectApply(listeners[i], this, args);
+    }
+    return true;
+  };
+  function _addListener(target, type, listener, prepend) {
+    var m;
+    var events;
+    var existing;
+    checkListener(listener);
+    events = target._events;
+    if (events === undefined) {
+      events = target._events = Object.create(null);
+      target._eventsCount = 0;
+    } else {
+      // To avoid recursion in the case that type === "newListener"! Before
+      // adding it to the listeners, first emit "newListener".
+      if (events.newListener !== undefined) {
+        target.emit('newListener', type, listener.listener ? listener.listener : listener);
+
+        // Re-assign `events` because a newListener handler could have caused the
+        // this._events to be assigned to a new object
+        events = target._events;
+      }
+      existing = events[type];
+    }
+    if (existing === undefined) {
+      // Optimize the case of one listener. Don't need the extra array object.
+      existing = events[type] = listener;
+      ++target._eventsCount;
+    } else {
+      if (typeof existing === 'function') {
+        // Adding the second element, need to change to array.
+        existing = events[type] = prepend ? [listener, existing] : [existing, listener];
+        // If we've already got an array, just append.
+      } else if (prepend) {
+        existing.unshift(listener);
+      } else {
+        existing.push(listener);
+      }
+
+      // Check for listener leak
+      m = _getMaxListeners(target);
+      if (m > 0 && existing.length > m && !existing.warned) {
+        existing.warned = true;
+        // No error code for this since it is a Warning
+        // eslint-disable-next-line no-restricted-syntax
+        var w = new Error('Possible EventEmitter memory leak detected. ' + existing.length + ' ' + String(type) + ' listeners ' + 'added. Use emitter.setMaxListeners() to ' + 'increase limit');
+        w.name = 'MaxListenersExceededWarning';
+        w.emitter = target;
+        w.type = type;
+        w.count = existing.length;
+        ProcessEmitWarning(w);
+      }
+    }
+    return target;
+  }
+  EventEmitter.prototype.addListener = function addListener(type, listener) {
+    return _addListener(this, type, listener, false);
+  };
+  EventEmitter.prototype.on = EventEmitter.prototype.addListener;
+  EventEmitter.prototype.prependListener = function prependListener(type, listener) {
+    return _addListener(this, type, listener, true);
+  };
+  function onceWrapper() {
+    if (!this.fired) {
+      this.target.removeListener(this.type, this.wrapFn);
+      this.fired = true;
+      if (arguments.length === 0) return this.listener.call(this.target);
+      return this.listener.apply(this.target, arguments);
+    }
+  }
+  function _onceWrap(target, type, listener) {
+    var state = {
+      fired: false,
+      wrapFn: undefined,
+      target: target,
+      type: type,
+      listener: listener
+    };
+    var wrapped = onceWrapper.bind(state);
+    wrapped.listener = listener;
+    state.wrapFn = wrapped;
+    return wrapped;
+  }
+  EventEmitter.prototype.once = function once(type, listener) {
+    checkListener(listener);
+    this.on(type, _onceWrap(this, type, listener));
+    return this;
+  };
+  EventEmitter.prototype.prependOnceListener = function prependOnceListener(type, listener) {
+    checkListener(listener);
+    this.prependListener(type, _onceWrap(this, type, listener));
+    return this;
+  };
+
+  // Emits a 'removeListener' event if and only if the listener was removed.
+  EventEmitter.prototype.removeListener = function removeListener(type, listener) {
+    var list, events, position, i, originalListener;
+    checkListener(listener);
+    events = this._events;
+    if (events === undefined) return this;
+    list = events[type];
+    if (list === undefined) return this;
+    if (list === listener || list.listener === listener) {
+      if (--this._eventsCount === 0) this._events = Object.create(null);else {
+        delete events[type];
+        if (events.removeListener) this.emit('removeListener', type, list.listener || listener);
+      }
+    } else if (typeof list !== 'function') {
+      position = -1;
+      for (i = list.length - 1; i >= 0; i--) {
+        if (list[i] === listener || list[i].listener === listener) {
+          originalListener = list[i].listener;
+          position = i;
+          break;
+        }
+      }
+      if (position < 0) return this;
+      if (position === 0) list.shift();else {
+        spliceOne(list, position);
+      }
+      if (list.length === 1) events[type] = list[0];
+      if (events.removeListener !== undefined) this.emit('removeListener', type, originalListener || listener);
+    }
+    return this;
+  };
+  EventEmitter.prototype.off = EventEmitter.prototype.removeListener;
+  EventEmitter.prototype.removeAllListeners = function removeAllListeners(type) {
+    var listeners, events, i;
+    events = this._events;
+    if (events === undefined) return this;
+
+    // not listening for removeListener, no need to emit
+    if (events.removeListener === undefined) {
+      if (arguments.length === 0) {
+        this._events = Object.create(null);
+        this._eventsCount = 0;
+      } else if (events[type] !== undefined) {
+        if (--this._eventsCount === 0) this._events = Object.create(null);else delete events[type];
+      }
+      return this;
+    }
+
+    // emit removeListener for all listeners on all events
+    if (arguments.length === 0) {
+      var keys = Object.keys(events);
+      var key;
+      for (i = 0; i < keys.length; ++i) {
+        key = keys[i];
+        if (key === 'removeListener') continue;
+        this.removeAllListeners(key);
+      }
+      this.removeAllListeners('removeListener');
+      this._events = Object.create(null);
+      this._eventsCount = 0;
+      return this;
+    }
+    listeners = events[type];
+    if (typeof listeners === 'function') {
+      this.removeListener(type, listeners);
+    } else if (listeners !== undefined) {
+      // LIFO order
+      for (i = listeners.length - 1; i >= 0; i--) {
+        this.removeListener(type, listeners[i]);
+      }
+    }
+    return this;
+  };
+  function _listeners(target, type, unwrap) {
+    var events = target._events;
+    if (events === undefined) return [];
+    var evlistener = events[type];
+    if (evlistener === undefined) return [];
+    if (typeof evlistener === 'function') return unwrap ? [evlistener.listener || evlistener] : [evlistener];
+    return unwrap ? unwrapListeners(evlistener) : arrayClone(evlistener, evlistener.length);
+  }
+  EventEmitter.prototype.listeners = function listeners(type) {
+    return _listeners(this, type, true);
+  };
+  EventEmitter.prototype.rawListeners = function rawListeners(type) {
+    return _listeners(this, type, false);
+  };
+  EventEmitter.listenerCount = function (emitter, type) {
+    if (typeof emitter.listenerCount === 'function') {
+      return emitter.listenerCount(type);
+    } else {
+      return listenerCount.call(emitter, type);
+    }
+  };
+  EventEmitter.prototype.listenerCount = listenerCount;
+  function listenerCount(type) {
+    var events = this._events;
+    if (events !== undefined) {
+      var evlistener = events[type];
+      if (typeof evlistener === 'function') {
+        return 1;
+      } else if (evlistener !== undefined) {
+        return evlistener.length;
+      }
+    }
+    return 0;
+  }
+  EventEmitter.prototype.eventNames = function eventNames() {
+    return this._eventsCount > 0 ? ReflectOwnKeys(this._events) : [];
+  };
+  function arrayClone(arr, n) {
+    var copy = new Array(n);
+    for (var i = 0; i < n; ++i) copy[i] = arr[i];
+    return copy;
+  }
+  function spliceOne(list, index) {
+    for (; index + 1 < list.length; index++) list[index] = list[index + 1];
+    list.pop();
+  }
+  function unwrapListeners(arr) {
+    var ret = new Array(arr.length);
+    for (var i = 0; i < ret.length; ++i) {
+      ret[i] = arr[i].listener || arr[i];
+    }
+    return ret;
+  }
+  function once(emitter, name) {
+    return new Promise(function (resolve, reject) {
+      function errorListener(err) {
+        emitter.removeListener(name, resolver);
+        reject(err);
+      }
+      function resolver() {
+        if (typeof emitter.removeListener === 'function') {
+          emitter.removeListener('error', errorListener);
+        }
+        resolve([].slice.call(arguments));
+      }
+      eventTargetAgnosticAddListener(emitter, name, resolver, {
+        once: true
+      });
+      if (name !== 'error') {
+        addErrorHandlerIfEventEmitter(emitter, errorListener, {
+          once: true
+        });
+      }
+    });
+  }
+  function addErrorHandlerIfEventEmitter(emitter, handler, flags) {
+    if (typeof emitter.on === 'function') {
+      eventTargetAgnosticAddListener(emitter, 'error', handler, flags);
+    }
+  }
+  function eventTargetAgnosticAddListener(emitter, name, listener, flags) {
+    if (typeof emitter.on === 'function') {
+      if (flags.once) {
+        emitter.once(name, listener);
+      } else {
+        emitter.on(name, listener);
+      }
+    } else if (typeof emitter.addEventListener === 'function') {
+      // EventTarget does not have `error` event semantics like Node
+      // EventEmitters, we do not listen for `error` events here.
+      emitter.addEventListener(name, function wrapListener(arg) {
+        // IE does not have builtin `{ once: true }` support so we
+        // have to do it manually.
+        if (flags.once) {
+          emitter.removeEventListener(name, wrapListener);
+        }
+        listener(arg);
+      });
+    } else {
+      throw new TypeError('The "emitter" argument must be of type EventEmitter. Received type ' + typeof emitter);
+    }
+  }
+  return events.exports;
 }
-var eventsExports = events.exports;
+
+var eventsExports = requireEvents();
 
 function isVideoFrame(frame) {
   return 'type' in frame;
@@ -1111,7 +1205,7 @@ class FrameCryptor extends BaseFrameCryptor {
     });
     readable.pipeThrough(transformStream).pipeTo(writable).catch(e => {
       workerLogger.warn(e);
-      this.emit(CryptorEvent.Error, e instanceof CryptorError ? e : new CryptorError(e.message));
+      this.emit(CryptorEvent.Error, e instanceof CryptorError ? e : new CryptorError(e.message, undefined, this.participantIdentity));
     });
     this.trackId = trackId;
   }
@@ -1153,7 +1247,8 @@ class FrameCryptor extends BaseFrameCryptor {
       }
       const keySet = this.keys.getKeySet();
       if (!keySet) {
-        throw new TypeError("key set not found for ".concat(this.participantIdentity, " at index ").concat(this.keys.getCurrentKeyIndex()));
+        this.emit(CryptorEvent.Error, new CryptorError("key set not found for ".concat(this.participantIdentity, " at index ").concat(this.keys.getCurrentKeyIndex()), CryptorErrorReason.MissingKey, this.participantIdentity));
+        return;
       }
       const {
         encryptionKey
@@ -1198,8 +1293,8 @@ class FrameCryptor extends BaseFrameCryptor {
           workerLogger.error(e);
         }
       } else {
-        workerLogger.debug('failed to decrypt, emitting error', this.logContext);
-        this.emit(CryptorEvent.Error, new CryptorError("encryption key missing for encoding", CryptorErrorReason.MissingKey));
+        workerLogger.debug('failed to encrypt, emitting error', this.logContext);
+        this.emit(CryptorEvent.Error, new CryptorError("encryption key missing for encoding", CryptorErrorReason.MissingKey, this.participantIdentity));
       }
     });
   }
@@ -1233,18 +1328,23 @@ class FrameCryptor extends BaseFrameCryptor {
       }
       const data = new Uint8Array(encodedFrame.data);
       const keyIndex = data[encodedFrame.data.byteLength - 1];
-      if (this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
+      if (this.keys.hasInvalidKeyAtIndex(keyIndex)) {
+        // drop frame
+        return;
+      }
+      if (this.keys.getKeySet(keyIndex)) {
         try {
           const decodedFrame = yield this.decryptFrame(encodedFrame, keyIndex);
-          this.keys.decryptionSuccess();
+          this.keys.decryptionSuccess(keyIndex);
           if (decodedFrame) {
             return controller.enqueue(decodedFrame);
           }
         } catch (error) {
           if (error instanceof CryptorError && error.reason === CryptorErrorReason.InvalidKey) {
+            // emit an error if the key handler thinks we have a valid key
             if (this.keys.hasValidKey) {
               this.emit(CryptorEvent.Error, error);
-              this.keys.decryptionFailure();
+              this.keys.decryptionFailure(keyIndex);
             }
           } else {
             workerLogger.warn('decoding frame failed', {
@@ -1252,10 +1352,11 @@ class FrameCryptor extends BaseFrameCryptor {
             });
           }
         }
-      } else if (!this.keys.getKeySet(keyIndex) && this.keys.hasValidKey) {
-        // emit an error in case the key index is out of bounds but the key handler thinks we still have a valid key
+      } else {
+        // emit an error if the key index is out of bounds but the key handler thinks we still have a valid key
         workerLogger.warn("skipping decryption due to missing key at index ".concat(keyIndex));
-        this.emit(CryptorEvent.Error, new CryptorError("missing key at index ".concat(keyIndex, " for participant ").concat(this.participantIdentity), CryptorErrorReason.MissingKey));
+        this.emit(CryptorEvent.Error, new CryptorError("missing key at index ".concat(keyIndex, " for participant ").concat(this.participantIdentity), CryptorErrorReason.MissingKey, this.participantIdentity));
+        this.keys.decryptionFailure(keyIndex);
       }
     });
   }
@@ -1342,10 +1443,10 @@ class FrameCryptor extends BaseFrameCryptor {
                * as the key has not been updated on the keyHandler instance
                */
               workerLogger.warn('maximum ratchet attempts exceeded');
-              throw new CryptorError("valid key missing for participant ".concat(_this.participantIdentity), CryptorErrorReason.InvalidKey);
+              throw new CryptorError("valid key missing for participant ".concat(_this.participantIdentity), CryptorErrorReason.InvalidKey, _this.participantIdentity);
             }
           } else {
-            throw new CryptorError("Decryption failed: ".concat(error.message), CryptorErrorReason.InvalidKey);
+            throw new CryptorError("Decryption failed: ".concat(error.message), CryptorErrorReason.InvalidKey, _this.participantIdentity);
           }
         }
       }();
@@ -1401,11 +1502,13 @@ class FrameCryptor extends BaseFrameCryptor {
         }, this.logContext));
         this.detectedCodec = detectedCodec;
       }
-      if (detectedCodec === 'av1' || detectedCodec === 'vp9') {
+      if (detectedCodec === 'av1') {
         throw new Error("".concat(detectedCodec, " is not yet supported for end to end encryption"));
       }
       if (detectedCodec === 'vp8') {
         frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
+      } else if (detectedCodec === 'vp9') {
+        frameInfo.unencryptedBytes = 0;
         return frameInfo;
       }
       const data = new Uint8Array(frame.data);
@@ -1547,43 +1650,68 @@ function isFrameServerInjected(frameData, trailerBytes) {
  *
  */
 class ParticipantKeyHandler extends eventsExports.EventEmitter {
+  /**
+   * true if the current key has not been marked as invalid
+   */
   get hasValidKey() {
-    return this._hasValidKey;
+    return !this.hasInvalidKeyAtIndex(this.currentKeyIndex);
   }
   constructor(participantIdentity, keyProviderOptions) {
     super();
-    this.decryptionFailureCount = 0;
-    this._hasValidKey = true;
     this.currentKeyIndex = 0;
-    if (keyProviderOptions.keyringSize < 1 || keyProviderOptions.keyringSize > 255) {
+    if (keyProviderOptions.keyringSize < 1 || keyProviderOptions.keyringSize > 256) {
       throw new TypeError('Keyring size needs to be between 1 and 256');
     }
     this.cryptoKeyRing = new Array(keyProviderOptions.keyringSize).fill(undefined);
+    this.decryptionFailureCounts = new Array(keyProviderOptions.keyringSize).fill(0);
     this.keyProviderOptions = keyProviderOptions;
     this.ratchetPromiseMap = new Map();
     this.participantIdentity = participantIdentity;
-    this.resetKeyStatus();
   }
+  /**
+   * Returns true if the key at the given index is marked as invalid.
+   *
+   * @param keyIndex the index of the key
+   */
+  hasInvalidKeyAtIndex(keyIndex) {
+    return this.keyProviderOptions.failureTolerance >= 0 && this.decryptionFailureCounts[keyIndex] > this.keyProviderOptions.failureTolerance;
+  }
+  /**
+   * Informs the key handler that a decryption failure occurred for an encryption key.
+   * @internal
+   * @param keyIndex the key index for which the failure occurred. Defaults to the current key index.
+   */
   decryptionFailure() {
+    let keyIndex = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : this.currentKeyIndex;
     if (this.keyProviderOptions.failureTolerance < 0) {
       return;
     }
-    this.decryptionFailureCount += 1;
-    if (this.decryptionFailureCount > this.keyProviderOptions.failureTolerance) {
-      workerLogger.warn("key for ".concat(this.participantIdentity, " is being marked as invalid"));
-      this._hasValidKey = false;
+    this.decryptionFailureCounts[keyIndex] += 1;
+    if (this.decryptionFailureCounts[keyIndex] > this.keyProviderOptions.failureTolerance) {
+      workerLogger.warn("key for ".concat(this.participantIdentity, " at index ").concat(keyIndex, " is being marked as invalid"));
     }
   }
+  /**
+   * Informs the key handler that a frame was successfully decrypted using an encryption key.
+   * @internal
+   * @param keyIndex the key index for which the success occurred. Defaults to the current key index.
+   */
   decryptionSuccess() {
-    this.resetKeyStatus();
+    let keyIndex = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : this.currentKeyIndex;
+    this.resetKeyStatus(keyIndex);
   }
   /**
    * Call this after user initiated ratchet or a new key has been set in order to make sure to mark potentially
    * invalid keys as valid again
+   *
+   * @param keyIndex the index of the key. Defaults to the current key index.
    */
-  resetKeyStatus() {
-    this.decryptionFailureCount = 0;
-    this._hasValidKey = true;
+  resetKeyStatus(keyIndex) {
+    if (keyIndex === undefined) {
+      this.decryptionFailureCounts.fill(0);
+    } else {
+      this.decryptionFailureCounts[keyIndex] = 0;
+    }
   }
   /**
    * Ratchets the current key (or the one at keyIndex if provided) and
@@ -1608,7 +1736,7 @@ class ParticipantKeyHandler extends eventsExports.EventEmitter {
         const currentMaterial = keySet.material;
         const newMaterial = yield importKey(yield ratchet(currentMaterial, this.keyProviderOptions.ratchetSalt), currentMaterial.algorithm.name, 'derive');
         if (setKey) {
-          this.setKeyFromMaterial(newMaterial, currentKeyIndex, true);
+          yield this.setKeyFromMaterial(newMaterial, currentKeyIndex, true);
           this.emit(KeyHandlerEvent.KeyRatcheted, newMaterial, this.participantIdentity, currentKeyIndex);
         }
         resolve(newMaterial);
@@ -1633,7 +1761,7 @@ class ParticipantKeyHandler extends eventsExports.EventEmitter {
       let keyIndex = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
       return function* () {
         yield _this.setKeyFromMaterial(material, keyIndex);
-        _this.resetKeyStatus();
+        _this.resetKeyStatus(keyIndex);
       }();
     });
   }
@@ -1670,7 +1798,7 @@ class ParticipantKeyHandler extends eventsExports.EventEmitter {
   setCurrentKeyIndex(index) {
     return __awaiter(this, void 0, void 0, function* () {
       this.currentKeyIndex = index % this.cryptoKeyRing.length;
-      this.resetKeyStatus();
+      this.resetKeyStatus(index);
     });
   }
   getCurrentKeyIndex() {
@@ -1689,76 +1817,81 @@ class ParticipantKeyHandler extends eventsExports.EventEmitter {
 const participantCryptors = [];
 const participantKeys = new Map();
 let sharedKeyHandler;
+let messageQueue = new AsyncQueue();
 let isEncryptionEnabled = false;
 let useSharedKey = false;
 let sifTrailer;
 let keyProviderOptions = KEY_PROVIDER_DEFAULTS;
+let rtpMap = new Map();
 workerLogger.setDefaultLevel('info');
 onmessage = ev => {
-  const {
-    kind,
-    data
-  } = ev.data;
-  switch (kind) {
-    case 'init':
-      workerLogger.setLevel(data.loglevel);
-      workerLogger.info('worker initialized');
-      keyProviderOptions = data.keyProviderOptions;
-      useSharedKey = !!data.keyProviderOptions.sharedKey;
-      // acknowledge init successful
-      const ackMsg = {
-        kind: 'initAck',
-        data: {
-          enabled: isEncryptionEnabled
+  messageQueue.run(() => __awaiter(void 0, void 0, void 0, function* () {
+    const {
+      kind,
+      data
+    } = ev.data;
+    switch (kind) {
+      case 'init':
+        workerLogger.setLevel(data.loglevel);
+        workerLogger.info('worker initialized');
+        keyProviderOptions = data.keyProviderOptions;
+        useSharedKey = !!data.keyProviderOptions.sharedKey;
+        // acknowledge init successful
+        const ackMsg = {
+          kind: 'initAck',
+          data: {
+            enabled: isEncryptionEnabled
+          }
+        };
+        postMessage(ackMsg);
+        break;
+      case 'enable':
+        setEncryptionEnabled(data.enabled, data.participantIdentity);
+        workerLogger.info("updated e2ee enabled status for ".concat(data.participantIdentity, " to ").concat(data.enabled));
+        // acknowledge enable call successful
+        postMessage(ev.data);
+        break;
+      case 'decode':
+        let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        cryptor.setupTransform(kind, data.readableStream, data.writableStream, data.trackId, data.codec);
+        break;
+      case 'encode':
+        let pubCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
+        pubCryptor.setupTransform(kind, data.readableStream, data.writableStream, data.trackId, data.codec);
+        break;
+      case 'setKey':
+        if (useSharedKey) {
+          yield setSharedKey(data.key, data.keyIndex);
+        } else if (data.participantIdentity) {
+          workerLogger.info("set participant sender key ".concat(data.participantIdentity, " index ").concat(data.keyIndex));
+          yield getParticipantKeyHandler(data.participantIdentity).setKey(data.key, data.keyIndex);
+        } else {
+          workerLogger.error('no participant Id was provided and shared key usage is disabled');
         }
-      };
-      postMessage(ackMsg);
-      break;
-    case 'enable':
-      setEncryptionEnabled(data.enabled, data.participantIdentity);
-      workerLogger.info("updated e2ee enabled status for ".concat(data.participantIdentity, " to ").concat(data.enabled));
-      // acknowledge enable call successful
-      postMessage(ev.data);
-      break;
-    case 'decode':
-      let cryptor = getTrackCryptor(data.participantIdentity, data.trackId);
-      cryptor.setupTransform(kind, data.readableStream, data.writableStream, data.trackId, data.codec);
-      break;
-    case 'encode':
-      let pubCryptor = getTrackCryptor(data.participantIdentity, data.trackId);
-      pubCryptor.setupTransform(kind, data.readableStream, data.writableStream, data.trackId, data.codec);
-      break;
-    case 'setKey':
-      if (useSharedKey) {
-        setSharedKey(data.key, data.keyIndex);
-      } else if (data.participantIdentity) {
-        workerLogger.info("set participant sender key ".concat(data.participantIdentity, " index ").concat(data.keyIndex));
-        getParticipantKeyHandler(data.participantIdentity).setKey(data.key, data.keyIndex);
-      } else {
-        workerLogger.error('no participant Id was provided and shared key usage is disabled');
-      }
-      break;
-    case 'removeTransform':
-      unsetCryptorParticipant(data.trackId, data.participantIdentity);
-      break;
-    case 'updateCodec':
-      getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
-      break;
-    case 'setRTPMap':
-      // this is only used for the local participant
-      participantCryptors.forEach(cr => {
-        if (cr.getParticipantIdentity() === data.participantIdentity) {
-          cr.setRtpMap(data.map);
-        }
-      });
-      break;
-    case 'ratchetRequest':
-      handleRatchetRequest(data);
-      break;
-    case 'setSifTrailer':
-      handleSifTrailer(data.trailer);
-      break;
-  }
+        break;
+      case 'removeTransform':
+        unsetCryptorParticipant(data.trackId, data.participantIdentity);
+        break;
+      case 'updateCodec':
+        getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
+        break;
+      case 'setRTPMap':
+        // this is only used for the local participant
+        rtpMap = data.map;
+        participantCryptors.forEach(cr => {
+          if (cr.getParticipantIdentity() === data.participantIdentity) {
+            cr.setRtpMap(data.map);
+          }
+        });
+        break;
+      case 'ratchetRequest':
+        handleRatchetRequest(data);
+        break;
+      case 'setSifTrailer':
+        handleSifTrailer(data.trailer);
+        break;
+    }
+  }));
 };
 function handleRatchetRequest(data) {
   return __awaiter(this, void 0, void 0, function* () {
@@ -1801,6 +1934,7 @@ function getTrackCryptor(participantIdentity, trackId) {
       keyProviderOptions,
       sifTrailer
     });
+    cryptor.setRtpMap(rtpMap);
     setupCryptorErrorEvents(cryptor);
     participantCryptors.push(cryptor);
   } else if (participantIdentity !== cryptor.getParticipantIdentity()) {
@@ -1853,10 +1987,12 @@ function setEncryptionEnabled(enable, participantIdentity) {
   encryptionEnabledMap.set(participantIdentity, enable);
 }
 function setSharedKey(key, index) {
-  workerLogger.info('set shared key', {
-    index
+  return __awaiter(this, void 0, void 0, function* () {
+    workerLogger.info('set shared key', {
+      index
+    });
+    yield getSharedKeyHandler().setKey(key, index);
   });
-  getSharedKeyHandler().setKey(key, index);
 }
 function setupCryptorErrorEvents(cryptor) {
   cryptor.on(CryptorEvent.Error, error => {

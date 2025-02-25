@@ -1,12 +1,15 @@
+import { Mutex } from '@livekit/mutex';
 import type { LoggerOptions } from '../types';
-import { Mutex } from '../utils';
 import { Track } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
 import type { ReplaceTrackOptions } from './types';
 export default abstract class LocalTrack<TrackKind extends Track.Kind = Track.Kind> extends Track<TrackKind> {
+    protected _sender?: RTCRtpSender;
     /** @internal */
-    sender?: RTCRtpSender;
+    get sender(): RTCRtpSender | undefined;
+    /** @internal */
+    set sender(sender: RTCRtpSender | undefined);
     /** @internal */
     codec?: VideoCodec;
     get constraints(): MediaTrackConstraints;
@@ -19,6 +22,7 @@ export default abstract class LocalTrack<TrackKind extends Track.Kind = Track.Ki
     protected processor?: TrackProcessor<TrackKind, any>;
     protected processorLock: Mutex;
     protected audioContext?: AudioContext;
+    protected manuallyStopped: boolean;
     private restartLock;
     /**
      *
@@ -34,12 +38,20 @@ export default abstract class LocalTrack<TrackKind extends Track.Kind = Track.Ki
     get isUpstreamPaused(): boolean;
     get isUserProvided(): boolean;
     get mediaStreamTrack(): MediaStreamTrack;
+    get isLocal(): boolean;
+    /**
+     * @internal
+     * returns mediaStreamTrack settings of the capturing mediastreamtrack source - ignoring processors
+     */
+    getSourceTrackSettings(): MediaTrackSettings;
     private setMediaStreamTrack;
     waitForDimensions(timeout?: number): Promise<Track.Dimensions>;
+    setDeviceId(deviceId: ConstrainDOMString): Promise<boolean>;
+    abstract restartTrack(constraints?: unknown): Promise<void>;
     /**
      * @returns DeviceID of the device that is currently being used for this track
      */
-    getDeviceId(): Promise<string | undefined>;
+    getDeviceId(normalize?: boolean): Promise<string | undefined>;
     mute(): Promise<this>;
     unmute(): Promise<this>;
     replaceTrack(track: MediaStreamTrack, options?: ReplaceTrackOptions): Promise<typeof this>;
@@ -87,7 +99,7 @@ export default abstract class LocalTrack<TrackKind extends Track.Kind = Track.Ki
      * @experimental
      * @returns
      */
-    stopProcessor(): Promise<void>;
+    stopProcessor(keepElement?: boolean): Promise<void>;
     protected abstract monitorSender(): void;
 }
 //# sourceMappingURL=LocalTrack.d.ts.map

@@ -1,4 +1,4 @@
-import { AddTrackRequest, AudioTrackFeature, ConnectionQualityUpdate, JoinResponse, LeaveRequest, ParticipantInfo, ReconnectReason, ReconnectResponse, Room, SessionDescription, SignalRequest, SignalTarget, SimulateScenario, SpeakerInfo, StreamStateUpdate, SubscribedQualityUpdate, SubscriptionPermissionUpdate, SubscriptionResponse, SyncState, TrackPermission, TrackPublishedResponse, TrackUnpublishedResponse, UpdateSubscription, UpdateTrackSettings, VideoLayer } from '@livekit/protocol';
+import { AddTrackRequest, AudioTrackFeature, ConnectionQualityUpdate, JoinResponse, LeaveRequest, ParticipantInfo, ReconnectReason, ReconnectResponse, RequestResponse, Room, SessionDescription, SignalRequest, SignalTarget, SimulateScenario, SpeakerInfo, StreamStateUpdate, SubscribedQualityUpdate, SubscriptionPermissionUpdate, SubscriptionResponse, SyncState, TrackPermission, TrackPublishedResponse, TrackUnpublishedResponse, UpdateSubscription, UpdateTrackSettings, VideoLayer } from '@livekit/protocol';
 import type { LoggerOptions } from '../room/types';
 import { AsyncQueue } from '../utils/AsyncQueue';
 interface ConnectOpts extends SignalOptions {
@@ -51,11 +51,14 @@ export declare class SignalClient {
     onLocalTrackUnpublished?: (res: TrackUnpublishedResponse) => void;
     onTokenRefresh?: (token: string) => void;
     onLeave?: (leave: LeaveRequest) => void;
+    onRequestResponse?: (response: RequestResponse) => void;
+    onLocalTrackSubscribed?: (trackSid: string) => void;
     connectOptions?: ConnectOpts;
     ws?: WebSocket;
     get currentState(): SignalConnectionState;
     get isDisconnected(): boolean;
     private get isEstablishingConnection();
+    private getNextRequestId;
     private options?;
     private pingTimeout;
     private pingTimeoutDuration;
@@ -66,6 +69,7 @@ export declare class SignalClient {
     private connectionLock;
     private log;
     private loggerContextCb?;
+    private _requestId;
     constructor(useJSON?: boolean, loggerOptions?: LoggerOptions);
     private get logContext();
     join(url: string, token: string, opts: SignalOptions, abortSignal?: AbortSignal): Promise<JoinResponse>;
@@ -79,7 +83,7 @@ export declare class SignalClient {
     sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget): Promise<void>;
     sendMuteTrack(trackSid: string, muted: boolean): Promise<void>;
     sendAddTrack(req: AddTrackRequest): Promise<void>;
-    sendUpdateLocalMetadata(metadata: string, name: string): Promise<void>;
+    sendUpdateLocalMetadata(metadata: string, name: string, attributes?: Record<string, string>): Promise<number>;
     sendUpdateTrackSettings(settings: UpdateTrackSettings): void;
     sendUpdateSubscription(sub: UpdateSubscription): Promise<void>;
     sendSyncState(sync: SyncState): Promise<void>;
