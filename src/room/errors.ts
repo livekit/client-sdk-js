@@ -84,6 +84,16 @@ export class PublishDataError extends LivekitError {
   }
 }
 
+export class PublishTrackError extends LivekitError {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(15, message);
+    this.name = 'PublishTrackError';
+    this.status = status;
+  }
+}
+
 export type RequestErrorReason =
   | Exclude<RequestResponse_Reason, RequestResponse_Reason.OK>
   | 'TimeoutError';
