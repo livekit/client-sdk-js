@@ -883,8 +883,8 @@ export default class LocalParticipant extends Participant {
     }
     const { canPublish, canPublishSources } = this.permissions;
     if (
-      canPublish ||
-      (canPublishSources &&
+      canPublish &&
+      (canPublishSources.length === 0 ||
         canPublishSources.map((source) => getTrackSourceFromProto(source)).includes(track.source))
     ) {
       return true;
