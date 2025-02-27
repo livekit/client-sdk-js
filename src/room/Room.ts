@@ -1866,14 +1866,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleStreamTrailer(trailer: DataStream_Trailer) {
     const textBuffer = this.textStreamControllers.get(trailer.streamId);
-
     if (textBuffer) {
       textBuffer.info.attributes = {
         ...textBuffer.info.attributes,
         ...trailer.attributes,
       };
       textBuffer.controller.close();
-      this.byteStreamControllers.delete(trailer.streamId);
+      this.textStreamControllers.delete(trailer.streamId);
     }
 
     const fileBuffer = this.byteStreamControllers.get(trailer.streamId);
