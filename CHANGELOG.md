@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.9.5
+
+### Patch Changes
+
+- fix: properly remove text stream controllers on stream close - [#1422](https://github.com/livekit/client-sdk-js/pull/1422) ([@lukasIO](https://github.com/lukasIO))
+
+- Reject publishing with insufficient permissions present - [#1418](https://github.com/livekit/client-sdk-js/pull/1418) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.9.4
 
 ### Patch Changes
