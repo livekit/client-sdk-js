@@ -43,8 +43,8 @@ importers:
         specifier: 7.26.0
         version: 7.26.0(@babel/core@7.26.0)
       '@bufbuild/protoc-gen-es':
-        specifier: ^1.10.0
-        version: 1.10.0(@bufbuild/protobuf@1.10.0)
+        specifier: ^2.0.0
+        version: 2.2.3(@bufbuild/protobuf@2.2.3)
       '@changesets/cli':
         specifier: 2.27.11
         version: 2.27.11
@@ -728,18 +728,21 @@ packages:
   '@bufbuild/protobuf@1.10.0':
     resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
 
-  '@bufbuild/protoc-gen-es@1.10.0':
-    resolution: {integrity: sha512-zBYBsVT/ul4uZb6F+kD7/k4sWNHVVbEPfJwKi0FDr+9VJo8MKIofI6pkr5ksBLr4fi/74r+e/75Xi/0clL5dXg==}
+  '@bufbuild/protobuf@2.2.3':
+    resolution: {integrity: sha512-tFQoXHJdkEOSwj5tRIZSPNUuXK3RaR7T1nUrPgbYX1pUbvqqaaZAsfo+NXBPsz5rZMSKVFrgK1WL8Q/MSLvprg==}
+
+  '@bufbuild/protoc-gen-es@2.2.3':
+    resolution: {integrity: sha512-hdhIV9NmwXXy24DcbnArauv6L5Dv2PjkO9gz2DUhiZ9HPRpP+rmpT8zo5LohjJiuA7YIQGGKKWSKpRg+xcdLSQ==}
     engines: {node: '>=14'}
     hasBin: true
     peerDependencies:
-      '@bufbuild/protobuf': 1.10.0
+      '@bufbuild/protobuf': 2.2.3
     peerDependenciesMeta:
       '@bufbuild/protobuf':
         optional: true
 
-  '@bufbuild/protoplugin@1.10.0':
-    resolution: {integrity: sha512-u6NE4vL0lw1+EK4/PiE/SQB7fKO4LRJNTEScIXVOi2x88K/c8WKc/k0KyEaA0asVBMpwekJQZGnRyj04ZtN5Gg==}
+  '@bufbuild/protoplugin@2.2.3':
+    resolution: {integrity: sha512-UsV7mj6NJTZrqIYJK+jNFnnj5tOS7wgNXKyMjebFEpf+OX6pfXE+nx+QPjumOfu4GxdVPfEDnKuwISgqlXSQqw==}
 
   '@changesets/apply-release-plan@7.0.7':
     resolution: {integrity: sha512-qnPOcmmmnD0MfMg9DjU1/onORFyRpDXkMMl2IJg9mECY6RnxL3wN0TCCc92b2sXt1jt8DgjAUUsZYGUGTdYIXA==}
@@ -3229,9 +3232,9 @@ packages:
     peerDependencies:
       typescript: 5.0.x || 5.1.x || 5.2.x || 5.3.x || 5.4.x || 5.5.x || 5.6.x || 5.7.x
 
-  typescript@4.5.2:
-    resolution: {integrity: sha512-5BlMof9H1yGt0P8/WF+wPNw6GfctgGjXp5hkblpyT+8rkASSmkUKMXrxR0Xg8ThVCi/JnHQiKXeBaEwCeQwMFw==}
-    engines: {node: '>=4.2.0'}
+  typescript@5.4.5:
+    resolution: {integrity: sha512-vcI4UpRgg81oIRUFwR0WSIHKt11nJ7SAVlYNIu+QpqeyXP+gpQJy/Z4+F0aGxSE4MqwjyXvW/TzgkLAx2AGHwQ==}
+    engines: {node: '>=14.17'}
     hasBin: true
 
   typescript@5.7.2:
@@ -3239,8 +3242,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.8.0-dev.20250212:
-    resolution: {integrity: sha512-KuSQZsJS5e7rBVbj7QY72K4kievEtZgBYyYYaxp0a3YmBlG5bpbuKJO0ltyRGkFcBgOVw4McWjKeL5+6MqRWOw==}
+  typescript@5.9.0-dev.20250228:
+    resolution: {integrity: sha512-/paYJcBiXhWWyL0USAnX+/JyULz6Tc++rjhqRjfRRqrgRoJ4Epu19XTUT6XQMQDjvtXspFNe2cL2S3QCBsBFUg==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4249,19 +4252,21 @@ snapshots:
 
   '@bufbuild/protobuf@1.10.0': {}
 
-  '@bufbuild/protoc-gen-es@1.10.0(@bufbuild/protobuf@1.10.0)':
+  '@bufbuild/protobuf@2.2.3': {}
+
+  '@bufbuild/protoc-gen-es@2.2.3(@bufbuild/protobuf@2.2.3)':
     dependencies:
-      '@bufbuild/protoplugin': 1.10.0
+      '@bufbuild/protoplugin': 2.2.3
     optionalDependencies:
-      '@bufbuild/protobuf': 1.10.0
+      '@bufbuild/protobuf': 2.2.3
     transitivePeerDependencies:
       - supports-color
 
-  '@bufbuild/protoplugin@1.10.0':
+  '@bufbuild/protoplugin@2.2.3':
     dependencies:
-      '@bufbuild/protobuf': 1.10.0
+      '@bufbuild/protobuf': 2.2.3
       '@typescript/vfs': 1.5.2
-      typescript: 4.5.2
+      typescript: 5.4.5
     transitivePeerDependencies:
       - supports-color
 
@@ -4913,7 +4918,7 @@ snapshots:
 
   '@typescript/vfs@1.5.2':
     dependencies:
-      debug: 4.3.6
+      debug: 4.4.0
     transitivePeerDependencies:
       - supports-color
 
@@ -5361,7 +5366,6 @@ snapshots:
   debug@4.4.0:
     dependencies:
       ms: 2.1.3
-    optional: true
 
   decimal.js@10.5.0:
     optional: true
@@ -5422,7 +5426,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.8.0-dev.20250212
+      typescript: 5.9.0-dev.20250228
 
   electron-to-chromium@1.5.4: {}
 
@@ -6984,11 +6988,11 @@ snapshots:
       typescript: 5.7.2
       yaml: 2.7.0
 
-  typescript@4.5.2: {}
+  typescript@5.4.5: {}
 
   typescript@5.7.2: {}
 
-  typescript@5.8.0-dev.20250212: {}
+  typescript@5.9.0-dev.20250228: {}
 
   uc.micro@2.1.0: {}
 
