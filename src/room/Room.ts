@@ -50,9 +50,13 @@ import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import {
   type ByteStreamHandler,
+  type ByteStreamFilterFunc,
+  type ByteStreamHandlerFunc,
   ByteStreamReader,
   type TextStreamHandler,
+  type TextStreamFilterFunc,
   TextStreamReader,
+  type TextStreamHandlerFunc,
 } from './StreamReader';
 import {
   audioDefaults,
@@ -292,20 +296,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * 
    * @param topic - The topic of the text stream.
    * @param handler - The handler to be called when a text stream is received.
+   * @param filter - Optional function to filter streams. Return true to handle the stream, false to ignore it.
    * @returns A function to unregister the handler when no longer needed.
    * @see {@link unregisterTextStreamHandler}
    * @see {@link https://docs.livekit.io/home/client/data/text-streams/}
    */
-  registerTextStreamHandler(topic: string, handler: TextStreamHandler): () => void {
+  registerTextStreamHandler(topic: string, handler: TextStreamHandlerFunc, filter?: TextStreamFilterFunc): () => void {
     if (!this.textStreamHandlers.has(topic)) {
       this.textStreamHandlers.set(topic, new Set());
     }
     const handlers = this.textStreamHandlers.get(topic)!;
-    handlers.add(handler);
+    const handlerObj = { handler, filter };
+    handlers.add(handlerObj);
     
     // Return cleanup function
     return () => {
-      this.unregisterTextStreamHandler(topic, handler);
+      this.unregisterTextStreamHandler(topic, handlerObj);
     };
   }
 
@@ -319,7 +325,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   unregisterTextStreamHandler(topic: string, handler: TextStreamHandler | undefined = undefined) {
     if (handler) {
-      this.textStreamHandlers.get(topic)?.delete(handler);
+      const handlers = this.textStreamHandlers.get(topic);
+      if (handlers) {
+        handlers.delete(handler);
+        if (handlers.size === 0) {
+          this.textStreamHandlers.delete(topic);
+        }
+      }
     } else {
       this.textStreamHandlers.delete(topic);
     }
@@ -330,24 +342,30 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * 
    * @param topic - The topic of the byte stream.
    * @param handler - The handler to be called when a byte stream is received.
+   * @param filter - Optional function to filter streams. Return true to handle the stream, false to ignore it.
    * @returns A function to unregister the handler when no longer needed.
    * @see {@link unregisterByteStreamHandler}
    * @see {@link https://docs.livekit.io/home/client/data/byte-streams/}
    */
-  registerByteStreamHandler(topic: string, handler: ByteStreamHandler): () => void {
+  registerByteStreamHandler(
+    topic: string, 
+    handler: ByteStreamHandlerFunc, 
+    filter?: ByteStreamFilterFunc
+  ): () => void {
     if (!this.byteStreamHandlers.has(topic)) {
       this.byteStreamHandlers.set(topic, new Set());
     }
     const handlers = this.byteStreamHandlers.get(topic)!;
-    handlers.add(handler);
+    const handlerObj = { handler, filter };
+    handlers.add(handlerObj);
     
     // Return cleanup function
     return () => {
-      this.unregisterByteStreamHandler(topic, handler);
+      this.unregisterByteStreamHandler(topic, handlerObj);
     }
   }
 
-  /**
+  /** 
    * Unregisters a handler for incoming byte streams.
    * 
    * @param topic - The topic of the byte stream.
@@ -355,7 +373,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    * @see {@link registerByteStreamHandler}
    * @see {@link https://docs.livekit.io/home/client/data/byte-streams/}
    */
-  unregisterByteStreamHandler(topic: string, handler: ByteStreamHandler | undefined = undefined) {
+  unregisterByteStreamHandler(
+    topic: string, 
+    handler: ByteStreamHandler | undefined = undefined
+  ) {
     if (handler) {
       const handlers = this.byteStreamHandlers.get(topic);
       if (handlers) {
@@ -1855,6 +1876,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         attributes: streamHeader.attributes,
       };
       
+      const senderInfo = { identity: participantIdentity };
+      
+      // Convert Set to Array before filtering
+      const filteredHandlers = Array.from(handlers).filter(h => {
+        if (!h.filter) {
+          return true; // Handler without filter
+        }
+        return h.filter(info, senderInfo); // Apply filter
+      });
+      
+      if (filteredHandlers.length === 0) {
+        this.log.debug('ignoring incoming byte stream due to no matching filters', streamHeader.topic);
+        return;
+      }
+      
       const originalStream = new ReadableStream({
         start: (controller) => {
           streamController = controller;
@@ -1866,11 +1902,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       });
       
-      const handlersArray = Array.from(handlers);
       let streams: ReadableStream<DataStream_Chunk>[] = [];
       let currentStream = originalStream;
       
-      for (let i = 0; i < handlersArray.length - 1; i++) {
+      // Create tee'd streams for each handler
+      for (let i = 0; i < filteredHandlers.length - 1; i++) {
         const [stream1, stream2] = currentStream.tee();
         streams.push(stream1);
         currentStream = stream2;
@@ -1878,13 +1914,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       
       streams.push(currentStream);
       
-      for (let i = 0; i < handlersArray.length; i++) {
-        const handler = handlersArray[i];
+      // Distribute streams to handlers
+      for (let i = 0; i < filteredHandlers.length; i++) {
+        const handlerObj = filteredHandlers[i];
         const stream = streams[i];
+        const actualHandler = typeof handlerObj === 'function' ? handlerObj : handlerObj.handler;
         
-        handler(
+        actualHandler(
           new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
-          { identity: participantIdentity },
+          senderInfo,
         );
       }
     } else if (streamHeader.contentHeader.case === 'textHeader') {
@@ -1905,6 +1943,21 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         attributes: streamHeader.attributes,
       };
 
+      const senderInfo = { identity: participantIdentity };
+      
+      // Filter handlers based on the stream info
+      const filteredHandlers = Array.from(handlers).filter(h => {
+        if (!h.filter) {
+          return true; // Handler without filter
+        }
+        return h.filter(info, senderInfo); // Apply filter
+      });
+      
+      if (filteredHandlers.length === 0) {
+        this.log.debug('ignoring incoming text stream due to no matching filters', streamHeader.topic);
+        return;
+      }
+      
       const originalStream = new ReadableStream<DataStream_Chunk>({
         start: (controller) => {
           streamController = controller;
@@ -1916,11 +1969,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       });
       
-      const handlersArray = Array.from(handlers);
       let streams: ReadableStream<DataStream_Chunk>[] = [];
       let currentStream = originalStream;
       
-      for (let i = 0; i < handlersArray.length - 1; i++) {
+      // Create tee'd streams for each handler
+      for (let i = 0; i < filteredHandlers.length - 1; i++) {
         const [stream1, stream2] = currentStream.tee();
         streams.push(stream1);
         currentStream = stream2;
@@ -1928,13 +1981,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       
       streams.push(currentStream);
       
-      for (let i = 0; i < handlersArray.length; i++) {
-        const handler = handlersArray[i];
+      // Distribute streams to handlers
+      for (let i = 0; i < filteredHandlers.length; i++) {
+        const handlerObj = filteredHandlers[i];
         const stream = streams[i];
+        const actualHandler = typeof handlerObj === 'function' ? handlerObj : handlerObj.handler;
         
-        handler(
+        actualHandler(
           new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
-          { identity: participantIdentity },
+          senderInfo,
         );
       }
     }
