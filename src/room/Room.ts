@@ -203,9 +203,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
-  private byteStreamHandlers = new Map<string, ByteStreamHandler>();
+  private byteStreamHandlers = new Map<string, Set<ByteStreamHandler>>();
 
-  private textStreamHandlers = new Map<string, TextStreamHandler>();
+  private textStreamHandlers = new Map<string, Set<TextStreamHandler>>();
 
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
@@ -287,26 +287,86 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  registerTextStreamHandler(topic: string, callback: TextStreamHandler) {
-    if (this.textStreamHandlers.has(topic)) {
-      throw new TypeError(`A text stream handler for topic "${topic}" has already been set.`);
+  /**
+   * Registers a handler for incoming text streams.
+   * 
+   * @param topic - The topic of the text stream.
+   * @param handler - The handler to be called when a text stream is received.
+   * @returns A function to unregister the handler when no longer needed.
+   * @see {@link unregisterTextStreamHandler}
+   * @see {@link https://docs.livekit.io/home/client/data/text-streams/}
+   */
+  registerTextStreamHandler(topic: string, handler: TextStreamHandler): () => void {
+    if (!this.textStreamHandlers.has(topic)) {
+      this.textStreamHandlers.set(topic, new Set());
     }
-    this.textStreamHandlers.set(topic, callback);
+    const handlers = this.textStreamHandlers.get(topic)!;
+    handlers.add(handler);
+    
+    // Return cleanup function
+    return () => {
+      this.unregisterTextStreamHandler(topic, handler);
+    };
   }
 
-  unregisterTextStreamHandler(topic: string) {
-    this.textStreamHandlers.delete(topic);
-  }
-
-  registerByteStreamHandler(topic: string, callback: ByteStreamHandler) {
-    if (this.byteStreamHandlers.has(topic)) {
-      throw new TypeError(`A byte stream handler for topic "${topic}" has already been set.`);
+  /**
+   * Unregisters a handler for incoming text streams.
+   * 
+   * @param topic - The topic of the text stream.
+   * @param handler - The handler to be unregistered. If not provided, all handlers for the topic will be unregistered.
+   * @see {@link registerTextStreamHandler}
+   * @see {@link https://docs.livekit.io/home/client/data/text-streams/}
+   */
+  unregisterTextStreamHandler(topic: string, handler: TextStreamHandler | undefined = undefined) {
+    if (handler) {
+      this.textStreamHandlers.get(topic)?.delete(handler);
+    } else {
+      this.textStreamHandlers.delete(topic);
     }
-    this.byteStreamHandlers.set(topic, callback);
   }
 
-  unregisterByteStreamHandler(topic: string) {
-    this.byteStreamHandlers.delete(topic);
+  /**
+   * Registers a handler for incoming byte streams.
+   * 
+   * @param topic - The topic of the byte stream.
+   * @param handler - The handler to be called when a byte stream is received.
+   * @returns A function to unregister the handler when no longer needed.
+   * @see {@link unregisterByteStreamHandler}
+   * @see {@link https://docs.livekit.io/home/client/data/byte-streams/}
+   */
+  registerByteStreamHandler(topic: string, handler: ByteStreamHandler): () => void {
+    if (!this.byteStreamHandlers.has(topic)) {
+      this.byteStreamHandlers.set(topic, new Set());
+    }
+    const handlers = this.byteStreamHandlers.get(topic)!;
+    handlers.add(handler);
+    
+    // Return cleanup function
+    return () => {
+      this.unregisterByteStreamHandler(topic, handler);
+    }
+  }
+
+  /**
+   * Unregisters a handler for incoming byte streams.
+   * 
+   * @param topic - The topic of the byte stream.
+   * @param handler - The handler to be unregistered. If not provided, all handlers for the topic will be unregistered.
+   * @see {@link registerByteStreamHandler}
+   * @see {@link https://docs.livekit.io/home/client/data/byte-streams/}
+   */
+  unregisterByteStreamHandler(topic: string, handler: ByteStreamHandler | undefined = undefined) {
+    if (handler) {
+      const handlers = this.byteStreamHandlers.get(topic);
+      if (handlers) {
+        handlers.delete(handler);
+        if (handlers.size === 0) {
+          this.byteStreamHandlers.delete(topic);
+        }
+      }
+    } else {
+      this.byteStreamHandlers.delete(topic);
+    }
   }
 
   /**
@@ -1757,10 +1817,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
     } else if (packet.value.case === 'streamHeader') {
+      console.log('streamHeader', packet.value.value, packet.participantIdentity);
       this.handleStreamHeader(packet.value.value, packet.participantIdentity);
     } else if (packet.value.case === 'streamChunk') {
+      console.log('streamChunk', packet.value.value);
       this.handleStreamChunk(packet.value.value);
     } else if (packet.value.case === 'streamTrailer') {
+      console.log('streamTrailer', packet.value.value);
       this.handleStreamTrailer(packet.value.value);
     } else if (packet.value.case === 'rpcRequest') {
       const rpc = packet.value.value;
@@ -1776,12 +1839,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
+    console.log('handleStreamHeader', streamHeader, participantIdentity);
     if (streamHeader.contentHeader.case === 'byteHeader') {
-      const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
+      const handlers = this.byteStreamHandlers.get(streamHeader.topic);
 
-      if (!streamHandlerCallback) {
+      if (!handlers || handlers.size === 0) {
         this.log.debug(
-          'ignoring incoming byte stream due to no handler for topic',
+          'ignoring incoming byte stream due to no handlers for topic',
           streamHeader.topic,
         );
         return;
@@ -1806,18 +1870,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           });
         },
       });
-      streamHandlerCallback(
-        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
-        {
-          identity: participantIdentity,
-        },
-      );
+      handlers.forEach((handler) => {
+        handler(
+          new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+          {
+            identity: participantIdentity,
+          },
+        );
+      });
     } else if (streamHeader.contentHeader.case === 'textHeader') {
-      const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
+      const handlers = this.textStreamHandlers.get(streamHeader.topic);
 
-      if (!streamHandlerCallback) {
+      if (!handlers || handlers.size === 0) {
         this.log.debug(
-          'ignoring incoming text stream due to no handler for topic',
+          'ignoring incoming text stream due to no handlers for topic',
           streamHeader.topic,
         );
         return;
@@ -1842,10 +1908,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           });
         },
       });
-      streamHandlerCallback(
-        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
-        { identity: participantIdentity },
-      );
+      handlers.forEach((handler) => {
+        handler(
+          new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+          { identity: participantIdentity },
+        );
+      });
     }
   }
 
