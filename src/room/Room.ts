@@ -1838,7 +1838,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
+  private handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
     console.log('handleStreamHeader', streamHeader, participantIdentity);
     if (streamHeader.contentHeader.case === 'byteHeader') {
       const handlers = this.byteStreamHandlers.get(streamHeader.topic);
@@ -1850,6 +1850,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         );
         return;
       }
+      
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
       const info: ByteStreamInfo = {
         id: streamHeader.streamId,
@@ -1860,7 +1861,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         timestamp: bigIntToNumber(streamHeader.timestamp),
         attributes: streamHeader.attributes,
       };
-      const stream = new ReadableStream({
+      
+      // Create the original stream
+      const originalStream = new ReadableStream({
         start: (controller) => {
           streamController = controller;
           this.byteStreamControllers.set(streamHeader.streamId, {
@@ -1870,15 +1873,40 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           });
         },
       });
-      handlers.forEach((handler) => {
+      
+      // Convert handlers to array for easier processing
+      const handlersArray = Array.from(handlers);
+      
+      // Create streams for each handler
+      let streams: ReadableStream<DataStream_Chunk>[] = [];
+      
+      // Initial stream
+      let currentStream = originalStream;
+      
+      // For each handler except the last one, tee the stream
+      for (let i = 0; i < handlersArray.length - 1; i++) {
+        const [stream1, stream2] = currentStream.tee();
+        streams.push(stream1);
+        currentStream = stream2;
+      }
+      
+      // Add the last stream
+      streams.push(currentStream);
+      
+      // Now call each handler with its own stream
+      for (let i = 0; i < handlersArray.length; i++) {
+        const handler = handlersArray[i];
+        const stream = streams[i];
+        
         handler(
           new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
           {
             identity: participantIdentity,
           },
         );
-      });
+      }
     } else if (streamHeader.contentHeader.case === 'textHeader') {
+      // Similar changes for text streams...
       const handlers = this.textStreamHandlers.get(streamHeader.topic);
 
       if (!handlers || handlers.size === 0) {
@@ -1888,6 +1916,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         );
         return;
       }
+      
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
       const info: TextStreamInfo = {
         id: streamHeader.streamId,
@@ -1898,7 +1927,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         attributes: streamHeader.attributes,
       };
 
-      const stream = new ReadableStream<DataStream_Chunk>({
+      // Create the original stream
+      const originalStream = new ReadableStream<DataStream_Chunk>({
         start: (controller) => {
           streamController = controller;
           this.textStreamControllers.set(streamHeader.streamId, {
@@ -1908,12 +1938,36 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           });
         },
       });
-      handlers.forEach((handler) => {
+      
+      // Convert handlers to array for easier processing
+      const handlersArray = Array.from(handlers);
+      
+      // Create streams for each handler
+      let streams: ReadableStream<DataStream_Chunk>[] = [];
+      
+      // Initial stream
+      let currentStream = originalStream;
+      
+      // For each handler except the last one, tee the stream
+      for (let i = 0; i < handlersArray.length - 1; i++) {
+        const [stream1, stream2] = currentStream.tee();
+        streams.push(stream1);
+        currentStream = stream2;
+      }
+      
+      // Add the last stream
+      streams.push(currentStream);
+      
+      // Now call each handler with its own stream
+      for (let i = 0; i < handlersArray.length; i++) {
+        const handler = handlersArray[i];
+        const stream = streams[i];
+        
         handler(
           new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
           { identity: participantIdentity },
         );
-      });
+      }
     }
   }
 

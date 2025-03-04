@@ -434,7 +434,7 @@ const appActions = {
         }
       };
       
-      // Read all the data but don't create UI elements for this handler
+      // Read all the data
       const fileData = await reader.readAll();
       const fileSize = fileData.reduce((total, chunk) => total + chunk.byteLength, 0);
       
@@ -443,18 +443,52 @@ const appActions = {
       
       secondProgressContainer.remove();
       
-      // Add a simple indicator that handler #2 completed
-      const completionIndicator = document.createElement('div');
-      completionIndicator.innerText = `Handler #2 processed "${info.name}" (${fileSize} bytes)`;
-      completionIndicator.style.margin = '5px';
-      completionIndicator.style.padding = '5px';
-      completionIndicator.style.backgroundColor = '#e6ffe6'; // Light green background
-      $('chat-area').after(completionIndicator);
+      // Create a Blob from the file data and display it (similar to handler #1)
+      const result = new Blob(fileData, { type: info.mimeType });
       
-      // Auto-remove the indicator after 5 seconds
-      setTimeout(() => {
-        completionIndicator.remove();
-      }, 5000);
+      if (info.mimeType.startsWith('image/')) {
+        // Embed images directly in HTML with a different style for handler #2
+        const imgContainer = document.createElement('div');
+        imgContainer.style.margin = '10px 0';
+        imgContainer.style.padding = '10px';
+        imgContainer.style.border = '2px dashed #6495ED'; // Add a blue dashed border to distinguish
+        imgContainer.style.backgroundColor = '#f0f8ff'; // Light blue background
+        
+        const handlerLabel = document.createElement('div');
+        handlerLabel.innerText = 'Handler #2 Image:';
+        handlerLabel.style.fontWeight = 'bold';
+        handlerLabel.style.marginBottom = '5px';
+        
+        const img = document.createElement('img');
+        img.style.maxWidth = '300px';
+        img.style.maxHeight = '300px';
+        img.style.border = '1px solid #ddd';
+        img.src = URL.createObjectURL(result);
+        
+        const downloadLink = document.createElement('a');
+        downloadLink.href = img.src;
+        downloadLink.innerText = `Download ${info.name} (from handler #2)`;
+        downloadLink.setAttribute('download', info.name);
+        downloadLink.style.display = 'block';
+        downloadLink.style.marginTop = '5px';
+        
+        imgContainer.appendChild(handlerLabel);
+        imgContainer.appendChild(img);
+        imgContainer.appendChild(downloadLink);
+        $('chat-area').after(imgContainer);
+      } else {
+        // Non-images get a text download link instead
+        const downloadLink = document.createElement('a');
+        downloadLink.href = URL.createObjectURL(result);
+        downloadLink.innerText = `Download ${info.name} (from handler #2)`;
+        downloadLink.setAttribute('download', info.name);
+        downloadLink.style.margin = '10px';
+        downloadLink.style.padding = '5px';
+        downloadLink.style.display = 'block';
+        downloadLink.style.backgroundColor = '#f0f8ff';
+        downloadLink.style.border = '1px solid #6495ED';
+        $('chat-area').after(downloadLink);
+      }
     });
 
     try {
