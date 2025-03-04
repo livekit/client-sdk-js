@@ -1817,13 +1817,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
     } else if (packet.value.case === 'streamHeader') {
-      console.log('streamHeader', packet.value.value, packet.participantIdentity);
       this.handleStreamHeader(packet.value.value, packet.participantIdentity);
     } else if (packet.value.case === 'streamChunk') {
-      console.log('streamChunk', packet.value.value);
       this.handleStreamChunk(packet.value.value);
     } else if (packet.value.case === 'streamTrailer') {
-      console.log('streamTrailer', packet.value.value);
       this.handleStreamTrailer(packet.value.value);
     } else if (packet.value.case === 'rpcRequest') {
       const rpc = packet.value.value;
@@ -1839,15 +1836,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   };
 
   private handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
-    console.log('handleStreamHeader', streamHeader, participantIdentity);
     if (streamHeader.contentHeader.case === 'byteHeader') {
       const handlers = this.byteStreamHandlers.get(streamHeader.topic);
 
       if (!handlers || handlers.size === 0) {
-        this.log.debug(
-          'ignoring incoming byte stream due to no handlers for topic',
-          streamHeader.topic,
-        );
+        this.log.debug('ignoring incoming byte stream due to no handlers for topic', streamHeader.topic);
         return;
       }
       
@@ -1862,7 +1855,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         attributes: streamHeader.attributes,
       };
       
-      // Create the original stream
       const originalStream = new ReadableStream({
         start: (controller) => {
           streamController = controller;
@@ -1874,46 +1866,32 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       });
       
-      // Convert handlers to array for easier processing
       const handlersArray = Array.from(handlers);
-      
-      // Create streams for each handler
       let streams: ReadableStream<DataStream_Chunk>[] = [];
-      
-      // Initial stream
       let currentStream = originalStream;
       
-      // For each handler except the last one, tee the stream
       for (let i = 0; i < handlersArray.length - 1; i++) {
         const [stream1, stream2] = currentStream.tee();
         streams.push(stream1);
         currentStream = stream2;
       }
       
-      // Add the last stream
       streams.push(currentStream);
       
-      // Now call each handler with its own stream
       for (let i = 0; i < handlersArray.length; i++) {
         const handler = handlersArray[i];
         const stream = streams[i];
         
         handler(
           new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
-          {
-            identity: participantIdentity,
-          },
+          { identity: participantIdentity },
         );
       }
     } else if (streamHeader.contentHeader.case === 'textHeader') {
-      // Similar changes for text streams...
       const handlers = this.textStreamHandlers.get(streamHeader.topic);
 
       if (!handlers || handlers.size === 0) {
-        this.log.debug(
-          'ignoring incoming text stream due to no handlers for topic',
-          streamHeader.topic,
-        );
+        this.log.debug('ignoring incoming text stream due to no handlers for topic', streamHeader.topic);
         return;
       }
       
@@ -1927,7 +1905,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         attributes: streamHeader.attributes,
       };
 
-      // Create the original stream
       const originalStream = new ReadableStream<DataStream_Chunk>({
         start: (controller) => {
           streamController = controller;
@@ -1939,26 +1916,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         },
       });
       
-      // Convert handlers to array for easier processing
       const handlersArray = Array.from(handlers);
-      
-      // Create streams for each handler
       let streams: ReadableStream<DataStream_Chunk>[] = [];
-      
-      // Initial stream
       let currentStream = originalStream;
       
-      // For each handler except the last one, tee the stream
       for (let i = 0; i < handlersArray.length - 1; i++) {
         const [stream1, stream2] = currentStream.tee();
         streams.push(stream1);
         currentStream = stream2;
       }
       
-      // Add the last stream
       streams.push(currentStream);
       
-      // Now call each handler with its own stream
       for (let i = 0; i < handlersArray.length; i++) {
         const handler = handlersArray[i];
         const stream = streams[i];
@@ -1973,16 +1942,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private handleStreamChunk(chunk: DataStream_Chunk) {
     const fileBuffer = this.byteStreamControllers.get(chunk.streamId);
-    if (fileBuffer) {
-      if (chunk.content.length > 0) {
-        fileBuffer.controller.enqueue(chunk);
-      }
+    if (fileBuffer && chunk.content.length > 0) {
+      fileBuffer.controller.enqueue(chunk);
     }
+    
     const textBuffer = this.textStreamControllers.get(chunk.streamId);
-    if (textBuffer) {
-      if (chunk.content.length > 0) {
-        textBuffer.controller.enqueue(chunk);
-      }
+    if (textBuffer && chunk.content.length > 0) {
+      textBuffer.controller.enqueue(chunk);
     }
   }
 
@@ -1999,11 +1965,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     const fileBuffer = this.byteStreamControllers.get(trailer.streamId);
     if (fileBuffer) {
-      {
-        fileBuffer.info.attributes = { ...fileBuffer.info.attributes, ...trailer.attributes };
-        fileBuffer.controller.close();
-        this.byteStreamControllers.delete(trailer.streamId);
-      }
+      fileBuffer.info.attributes = { ...fileBuffer.info.attributes, ...trailer.attributes };
+      fileBuffer.controller.close();
+      this.byteStreamControllers.delete(trailer.streamId);
     }
   }
 
