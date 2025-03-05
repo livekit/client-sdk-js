@@ -298,7 +298,11 @@ export class SignalClient {
           abortHandler();
         }
         abortSignal?.addEventListener('abort', abortHandler);
-        this.log.debug(`connecting to ${urlObj.host}`, {
+        const redactedUrl = new URL(urlObj.toString());
+        if (redactedUrl.searchParams.has('access_token')) {
+          redactedUrl.searchParams.set('access_token', '<redacted>');
+        }
+        this.log.debug(`connecting to ${redactedUrl}`, {
           reconnect: opts.reconnect,
           reconnectReason: opts.reconnectReason,
           ...this.logContext,
@@ -318,7 +322,7 @@ export class SignalClient {
             this.state = SignalConnectionState.DISCONNECTED;
             clearTimeout(wsTimeout);
             try {
-              const validateURL = new URL(urlObj);
+              const validateURL = new URL(urlObj.toString());
               validateURL.protocol = `http${validateURL.protocol.substring(2)}`;
               validateURL.pathname += '/validate';
               const resp = await fetch(validateURL);
