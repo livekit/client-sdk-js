@@ -258,13 +258,17 @@ export class SignalClient {
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     this.connectOptions = opts;
-    url = toWebsocketUrl(url);
+    const urlObj = new URL(toWebsocketUrl(url));
     // strip trailing slash
-    url = url.replace(/\/$/, '');
-    url += '/rtc';
+    urlObj.pathname = urlObj.pathname.replace(/\/$/, '');
+    urlObj.pathname += '/rtc';
 
     const clientInfo = getClientInfo();
     const params = createConnectionParams(token, clientInfo, opts);
+
+    for (const [key, value] of params) {
+      urlObj.searchParams.set(key, value);
+    }
 
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       const unlock = await this.connectionLock.lock();
@@ -294,14 +298,19 @@ export class SignalClient {
           abortHandler();
         }
         abortSignal?.addEventListener('abort', abortHandler);
-        this.log.debug(
-          `connecting to ${url + params.replace(/access_token=([^&#$]*)/, 'access_token=<redacted>')}`,
-          this.logContext,
-        );
+        const redactedUrl = new URL(urlObj.toString());
+        if (redactedUrl.searchParams.has('access_token')) {
+          redactedUrl.searchParams.set('access_token', '<redacted>');
+        }
+        this.log.debug(`connecting to ${redactedUrl}`, {
+          reconnect: opts.reconnect,
+          reconnectReason: opts.reconnectReason,
+          ...this.logContext,
+        });
         if (this.ws) {
           await this.close(false);
         }
-        this.ws = new WebSocket(url + params);
+        this.ws = new WebSocket(urlObj);
         this.ws.binaryType = 'arraybuffer';
 
         this.ws.onopen = () => {
@@ -313,7 +322,10 @@ export class SignalClient {
             this.state = SignalConnectionState.DISCONNECTED;
             clearTimeout(wsTimeout);
             try {
-              const resp = await fetch(`http${url.substring(2)}/validate${params}`);
+              const validateURL = new URL(urlObj.toString());
+              validateURL.protocol = `http${validateURL.protocol.substring(2)}`;
+              validateURL.pathname += '/validate';
+              const resp = await fetch(validateURL);
               if (resp.status.toFixed(0).startsWith('4')) {
                 const msg = await resp.text();
                 reject(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
@@ -883,7 +895,11 @@ export function toProtoSessionDescription(
   return sd;
 }
 
-function createConnectionParams(token: string, info: ClientInfo, opts: ConnectOpts): string {
+function createConnectionParams(
+  token: string,
+  info: ClientInfo,
+  opts: ConnectOpts,
+): URLSearchParams {
   const params = new URLSearchParams();
   params.set('access_token', token);
 
@@ -931,5 +947,5 @@ function createConnectionParams(token: string, info: ClientInfo, opts: ConnectOp
     params.set('network', navigator.connection.type);
   }
 
-  return `?${params.toString()}`;
+  return params;
 }
