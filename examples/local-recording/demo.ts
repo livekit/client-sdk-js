@@ -23,8 +23,8 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const state = {
   defaultDevices: new Map<MediaDeviceKind, string>([['audioinput', 'default']]),
   microphoneTrack: undefined as LocalAudioTrack | undefined,
-  recorder: undefined as LocalAudioRecorder | undefined,
-  chunks: [] as Blob[],
+  recorder: undefined as LocalTrackRecorder<LocalAudioTrack> | undefined,
+  chunks: [] as Uint8Array[],
 };
 let currentRoom: Room | undefined;
 

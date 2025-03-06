@@ -4,11 +4,11 @@ import type LocalTrack from './LocalTrack';
 export class LocalTrackRecorder<T extends LocalTrack> {
   private mediaRecorder: MediaRecorder;
 
-  private chunks: Blob[] = [];
+  private chunks: Uint8Array[] = [];
 
   private isStopped = false;
 
-  private reader: ReadableStream<Blob>;
+  private reader: ReadableStream<Uint8Array>;
 
   constructor(track: T) {
     const mediaStream = new MediaStream([track.mediaStreamTrack]);
@@ -16,9 +16,9 @@ export class LocalTrackRecorder<T extends LocalTrack> {
 
     this.reader = new ReadableStream({
       start: async (controller) => {
-        this.mediaRecorder.addEventListener('dataavailable', (event) => {
+        this.mediaRecorder.addEventListener('dataavailable', async (event) => {
           if (event.data.size > 0) {
-            this.chunks.push(event.data);
+            this.chunks.push(await event.data.bytes());
           }
         });
 
@@ -47,9 +47,9 @@ export class LocalTrackRecorder<T extends LocalTrack> {
   /**
    * Start recording and return an iterator for the recorded chunks
    * @param timeslice Optional time slice in ms for how often to generate data events
-   * @returns An iterator that yields recorded Blob chunks
+   * @returns An iterator that yields recorded Uint8Array chunks
    */
-  start(timeslice: number = 100): AsyncIterableIterator<Blob> {
+  start(timeslice: number = 100): AsyncIterableIterator<Uint8Array> {
     this.mediaRecorder.start(timeslice);
     return this.createIterator();
   }
@@ -61,11 +61,11 @@ export class LocalTrackRecorder<T extends LocalTrack> {
   }
 
   // Private iterator implementation
-  private createIterator(): AsyncIterableIterator<Blob> {
+  private createIterator(): AsyncIterableIterator<Uint8Array> {
     const reader = this.reader.getReader();
 
     return {
-      next: async (): Promise<IteratorResult<Blob>> => {
+      next: async (): Promise<IteratorResult<Uint8Array>> => {
         const { done, value } = await reader.read();
         if (done) {
           return { done: true, value: undefined as any };
@@ -74,12 +74,12 @@ export class LocalTrackRecorder<T extends LocalTrack> {
         }
       },
 
-      async return(): Promise<IteratorResult<Blob>> {
+      async return(): Promise<IteratorResult<Uint8Array>> {
         reader.releaseLock();
-        return { done: true, value: undefined };
+        return { done: true, value: undefined as any };
       },
 
-      [Symbol.asyncIterator](): AsyncIterableIterator<Blob> {
+      [Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> {
         return this;
       },
     };
