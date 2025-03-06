@@ -258,14 +258,14 @@ function appendLog(...args: any[]) {
   const logger = $('log')!;
   for (let i = 0; i < arguments.length; i += 1) {
     if (typeof args[i] === 'object') {
-      logger.innerHTML += `${
+      logger.innerText += `${
         JSON && JSON.stringify ? JSON.stringify(args[i], undefined, 2) : args[i]
       } `;
     } else {
-      logger.innerHTML += `${args[i]} `;
+      logger.innerText += `${args[i]} `;
     }
   }
-  logger.innerHTML += '\n';
+  logger.innerText += '\n';
   (() => {
     logger.scrollTop = logger.scrollHeight;
   })();
