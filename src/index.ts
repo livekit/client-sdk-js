@@ -129,3 +129,5 @@ export type {
   ReconnectContext,
   ReconnectPolicy,
 };
+
+export { LocalAudioRecorder } from './room/track/record';
