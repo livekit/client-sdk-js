@@ -3,7 +3,7 @@ import type { LocalAudioTrack, RoomOptions } from '../../src/index';
 import {
   ConnectionState,
   DisconnectReason,
-  LocalAudioRecorder,
+  LocalTrackRecorder,
   LogLevel,
   MediaDeviceFailure,
   Participant,
@@ -127,7 +127,7 @@ const appActions = {
     if (state.microphoneTrack) {
       try {
         appendLog('Starting local recording...');
-        state.recorder = new LocalAudioRecorder(state.microphoneTrack);
+        state.recorder = new LocalTrackRecorder(state.microphoneTrack);
         appendLog('Local recording started');
         updateButtonsForPublishState();
       } catch (e) {

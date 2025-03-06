@@ -130,4 +130,4 @@ export type {
   ReconnectPolicy,
 };
 
-export { LocalAudioRecorder } from './room/track/record';
+export { LocalTrackRecorder } from './room/track/record';

@@ -1,10 +1,7 @@
 import { sleep } from '../utils';
-import type LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 
-// import type LocalVideoTrack from './LocalVideoTrack';
-
-class LocalTrackRecorder<T extends LocalTrack> {
+export class LocalTrackRecorder<T extends LocalTrack> {
   private mediaRecorder: MediaRecorder;
 
   private chunks: Blob[] = [];
@@ -88,7 +85,3 @@ class LocalTrackRecorder<T extends LocalTrack> {
     };
   }
 }
-
-export class LocalAudioRecorder extends LocalTrackRecorder<LocalAudioTrack> {}
-
-// export class LocalVideoRecorder extends LocalTrackRecorder<LocalVideoTrack> {}
