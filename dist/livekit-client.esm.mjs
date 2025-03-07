@@ -22435,6 +22435,7 @@ class Room extends eventsExports.EventEmitter {
               if (availableDevice.kind == "audioinput") {
                 console.log('emit active device changed', availableDevice.kind, availableDevice.deviceId);
                 const previousDefaultDevice = previousDevices.find(info => info.kind === availableDevice.kind && previousDevice.label.includes(info.label));
+                console.log('previousDefaultDevice', previousDefaultDevice);
                 if (previousDefaultDevice) {
                   yield this.switchActiveDevice(availableDevice.kind, previousDefaultDevice.deviceId);
                   this.emit(RoomEvent.RequestDefaultMicSwitch);

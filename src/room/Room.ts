@@ -1996,6 +1996,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
               const previousDefaultDevice = previousDevices.find(
                 (info) => info.kind === availableDevice.kind && previousDevice.label.includes(info.label)
               );
+              console.log('previousDefaultDevice', previousDefaultDevice);
               if(previousDefaultDevice){
                 await this.switchActiveDevice(availableDevice.kind, previousDefaultDevice.deviceId);
                 this.emit(
