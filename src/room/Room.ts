@@ -1972,11 +1972,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     // check for available devices, but don't request permissions in order to avoid prompts for kinds that haven't been used before
     const availableDevices = await DeviceManager.getInstance().getDevices(undefined, false);
     const browser = getBrowser();
+    console.log('previousDevices', previousDevices);
+    console.log('availableDevices', availableDevices);
     if (browser?.name === 'Chrome' && browser.os !== 'iOS') {
       for (let availableDevice of availableDevices) {
         const previousDevice = previousDevices.find(
           (info) => info.deviceId === availableDevice.deviceId,
         );
+        console.log('evaluation',previousDevice?.label, previousDevice?.kind , availableDevice.kind, previousDevice?.label, availableDevice.label);
         if (
           previousDevice &&
           previousDevice.label !== '' &&
@@ -1984,6 +1987,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           previousDevice.label !== availableDevice.label
         ) {
           // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
+          console.log('emit request default mic switch 1', availableDevice.kind, this.getActiveDevice(availableDevice.kind));
           if (this.getActiveDevice(availableDevice.kind) === 'default') {
               console.log('emit request default mic switch', availableDevice.kind, availableDevice.deviceId);
               const previousDefaultDevice = previousDevices.find(
