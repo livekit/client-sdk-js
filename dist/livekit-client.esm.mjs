@@ -22431,21 +22431,15 @@ class Room extends eventsExports.EventEmitter {
             // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
             if (this.getActiveDevice(availableDevice.kind) === 'default') {
               console.log('emit active device changed', availableDevice.kind, availableDevice.deviceId);
-              // emit an active device change event only if the selected output device is actually on `default`
-              if (availableDevice.kind == "audioinput") {
-                console.log('emit active device changed', availableDevice.kind, availableDevice.deviceId);
-                const previousDefaultDevice = previousDevices.find(info => info.kind === availableDevice.kind && previousDevice.label.includes(info.label) && info.deviceId !== previousDevice.deviceId);
-                // check if the previous default device is available
-                console.log('previousDefaultDevice', previousDefaultDevice);
-                if (previousDefaultDevice) {
-                  const previousDefaultDeviceAvailable = availableDevices.find(info => (previousDefaultDevice === null || previousDefaultDevice === void 0 ? void 0 : previousDefaultDevice.deviceId) === info.deviceId);
-                  console.log('previousDefaultDeviceAvailable', previousDefaultDeviceAvailable);
-                  if (previousDefaultDeviceAvailable) {
-                    console.log('switching to previous default device', previousDefaultDevice.deviceId);
-                    this.emit(RoomEvent.RequestDefaultMicSwitch, previousDefaultDevice.deviceId);
-                  } else {
-                    this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
-                  }
+              const previousDefaultDevice = previousDevices.find(info => info.kind === availableDevice.kind && previousDevice.label.includes(info.label) && info.deviceId !== previousDevice.deviceId);
+              // check if the previous default device is available
+              console.log('previousDefaultDevice', previousDefaultDevice);
+              if (previousDefaultDevice) {
+                const previousDefaultDeviceAvailable = availableDevices.find(info => (previousDefaultDevice === null || previousDefaultDevice === void 0 ? void 0 : previousDefaultDevice.deviceId) === info.deviceId);
+                console.log('previousDefaultDeviceAvailable', previousDefaultDeviceAvailable);
+                if (previousDefaultDeviceAvailable) {
+                  console.log('switching to previous default device', previousDefaultDevice.deviceId);
+                  this.emit(RoomEvent.RequestDefaultMicSwitch, availableDevice.kind, previousDefaultDevice.deviceId);
                 } else {
                   this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
                 }

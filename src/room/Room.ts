@@ -1990,9 +1990,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
           if (this.getActiveDevice(availableDevice.kind) === 'default') {
             console.log('emit active device changed', availableDevice.kind, availableDevice.deviceId);
-            // emit an active device change event only if the selected output device is actually on `default`
-            if(availableDevice.kind == "audioinput"){
-              console.log('emit active device changed', availableDevice.kind, availableDevice.deviceId);
               const previousDefaultDevice = previousDevices.find(
                 (info) => info.kind === availableDevice.kind && previousDevice.label.includes(info.label) && info.deviceId !== previousDevice.deviceId
               );
@@ -2007,6 +2004,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                   console.log('switching to previous default device', previousDefaultDevice.deviceId);
                   this.emit(
                     RoomEvent.RequestDefaultMicSwitch,
+                    availableDevice.kind,
                     previousDefaultDevice.deviceId
                   );
                 }else{
@@ -2023,13 +2021,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                   availableDevice.deviceId,
                 );
               }
-            }else{
-              this.emit(
-                RoomEvent.ActiveDeviceChanged,
-                availableDevice.kind,
-                availableDevice.deviceId,
-              );
-            }
           }
         }
       }
@@ -2728,7 +2719,7 @@ export type RoomEventCallbacks = {
   encryptionError: (error: Error) => void;
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
   activeDeviceChanged: (kind: MediaDeviceKind, deviceId: string) => void;
-  requestDefaultMicSwitch: (deviceId: string) => void;
+  requestDefaultMicSwitch: (kind: MediaDeviceKind,deviceId: string) => void;
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
