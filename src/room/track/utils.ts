@@ -133,7 +133,21 @@ export function getNewAudioContext(): AudioContext | void {
     // @ts-ignore
     typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
   if (AudioContext) {
-    return new AudioContext({ latencyHint: 'interactive' });
+    const audioContext = new AudioContext({ latencyHint: 'interactive' });
+    // If the audio context is suspended, we need to resume it when the user clicks on the page
+    if (
+      audioContext.state === 'suspended' &&
+      typeof window !== 'undefined' &&
+      window.document?.body
+    ) {
+      const handleResume = () => {
+        audioContext.resume().then(() => {
+          window.document.body?.removeEventListener('click', handleResume);
+        });
+      };
+      window.document.body.addEventListener('click', handleResume);
+    }
+    return audioContext;
   }
 }
 

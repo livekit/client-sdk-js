@@ -433,6 +433,7 @@ export function createAudioAnalyser(
   if (!audioContext) {
     throw new Error('Audio Context not supported on this browser');
   }
+
   const streamTrack = opts.cloneTrack ? track.mediaStreamTrack.clone() : track.mediaStreamTrack;
   const mediaStreamSource = audioContext.createMediaStreamSource(new MediaStream([streamTrack]));
   const analyser = audioContext.createAnalyser();
