@@ -2009,7 +2009,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                     RoomEvent.RequestDefaultMicSwitch,
                     previousDefaultDevice.deviceId
                   );
+                }else{
+                  this.emit(
+                    RoomEvent.ActiveDeviceChanged,
+                    availableDevice.kind,
+                    availableDevice.deviceId,
+                  );
                 }
+              }else{
+                this.emit(
+                  RoomEvent.ActiveDeviceChanged,
+                  availableDevice.kind,
+                  availableDevice.deviceId,
+                );
               }
             }else{
               this.emit(
