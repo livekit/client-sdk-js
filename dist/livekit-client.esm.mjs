@@ -22434,7 +22434,7 @@ class Room extends eventsExports.EventEmitter {
               // emit an active device change event only if the selected output device is actually on `default`
               if (availableDevice.kind == "audioinput") {
                 console.log('emit active device changed', availableDevice.kind, availableDevice.deviceId);
-                const previousDefaultDevice = previousDevices.find(info => info.kind === availableDevice.kind && previousDevice.label.includes(info.label));
+                const previousDefaultDevice = previousDevices.find(info => info.kind === availableDevice.kind && previousDevice.label.includes(info.label) && info.deviceId !== previousDevice.deviceId);
                 console.log('previousDefaultDevice', previousDefaultDevice);
                 if (previousDefaultDevice) {
                   yield this.switchActiveDevice(availableDevice.kind, previousDefaultDevice.deviceId);

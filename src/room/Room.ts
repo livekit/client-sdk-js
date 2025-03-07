@@ -1994,7 +1994,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             if(availableDevice.kind == "audioinput"){
               console.log('emit active device changed', availableDevice.kind, availableDevice.deviceId);
               const previousDefaultDevice = previousDevices.find(
-                (info) => info.kind === availableDevice.kind && previousDevice.label.includes(info.label)
+                (info) => info.kind === availableDevice.kind && previousDevice.label.includes(info.label) && info.deviceId !== previousDevice.deviceId
               );
               console.log('previousDefaultDevice', previousDefaultDevice);
               if(previousDefaultDevice){
