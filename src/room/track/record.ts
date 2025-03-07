@@ -60,6 +60,10 @@ export class LocalTrackRecorder<T extends LocalTrack> {
     }
   }
 
+  get state() {
+    return this.mediaRecorder.state;
+  }
+
   // Private iterator implementation
   private createIterator(): AsyncIterableIterator<Uint8Array> {
     const reader = this.reader.getReader();
