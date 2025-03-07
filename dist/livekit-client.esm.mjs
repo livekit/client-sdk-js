@@ -22416,29 +22416,23 @@ class Room extends eventsExports.EventEmitter {
     };
     this.handleDeviceChange = () => __awaiter(this, void 0, void 0, function* () {
       var _a, _b;
-      console.log('handleDeviceChange');
       const previousDevices = DeviceManager.getInstance().previousDevices;
-      console.log('previousDevices', previousDevices);
       // check for available devices, but don't request permissions in order to avoid prompts for kinds that haven't been used before
       const availableDevices = yield DeviceManager.getInstance().getDevices(undefined, false);
-      console.log('availableDevices', availableDevices);
       const browser = getBrowser();
-      console.log('browser', browser);
       if ((browser === null || browser === void 0 ? void 0 : browser.name) === 'Chrome' && browser.os !== 'iOS') {
         for (let availableDevice of availableDevices) {
           const previousDevice = previousDevices.find(info => info.deviceId === availableDevice.deviceId);
           if (previousDevice && previousDevice.label !== '' && previousDevice.kind === availableDevice.kind && previousDevice.label !== availableDevice.label) {
             // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
             if (this.getActiveDevice(availableDevice.kind) === 'default') {
-              console.log('emit active device changed', availableDevice.kind, availableDevice.deviceId);
+              console.log('emit request default mic switch', availableDevice.kind, availableDevice.deviceId);
               const previousDefaultDevice = previousDevices.find(info => info.kind === availableDevice.kind && previousDevice.label.includes(info.label) && info.deviceId !== previousDevice.deviceId);
               // check if the previous default device is available
-              console.log('previousDefaultDevice', previousDefaultDevice);
               if (previousDefaultDevice) {
                 const previousDefaultDeviceAvailable = availableDevices.find(info => (previousDefaultDevice === null || previousDefaultDevice === void 0 ? void 0 : previousDefaultDevice.deviceId) === info.deviceId);
-                console.log('previousDefaultDeviceAvailable', previousDefaultDeviceAvailable);
                 if (previousDefaultDeviceAvailable) {
-                  console.log('switching to previous default device', previousDefaultDevice.deviceId);
+                  console.log('emit request default mic switch>>');
                   this.emit(RoomEvent.RequestDefaultMicSwitch, availableDevice.kind, previousDefaultDevice.deviceId);
                 } else {
                   this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
@@ -22453,17 +22447,12 @@ class Room extends eventsExports.EventEmitter {
       // inputs are automatically handled via TrackEvent.Ended causing a TrackEvent.Restarted. Here we only need to worry about audiooutputs changing
       const kinds = ['audiooutput', 'audioinput', 'videoinput'];
       for (let kind of kinds) {
-        console.log("Checking device changes for kind: ".concat(kind));
         const devicesOfKind = availableDevices.filter(d => d.kind === kind);
-        console.log("devicesOfKind: ".concat(devicesOfKind));
         const activeDevice = this.getActiveDevice(kind);
-        console.log("activeDevice: ".concat(activeDevice));
         if (activeDevice === ((_a = previousDevices.filter(info => info.kind === kind)[0]) === null || _a === void 0 ? void 0 : _a.deviceId)) {
           // in  Safari the first device is always the default, so we assume a user on the default device would like to switch to the default once it changes
           // FF doesn't emit an event when the default device changes, so we perform the same best effort and switch to the new device once connected and if it's the first in the array
-          console.log("devicesOfKind.length: ".concat(devicesOfKind.length));
           if (devicesOfKind.length > 0 && ((_b = devicesOfKind[0]) === null || _b === void 0 ? void 0 : _b.deviceId) !== activeDevice) {
-            console.log("Switching to device 1: ".concat(devicesOfKind[0].deviceId));
             yield this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
             continue;
           }
@@ -22472,10 +22461,8 @@ class Room extends eventsExports.EventEmitter {
           // airpods on Safari need special handling for audioinput as the track doesn't end as soon as you take them out
           continue;
         }
-        console.log("devicesOfKind.length 2: ".concat(devicesOfKind.length));
         // switch to first available device if previously active device is not available any more
         if (devicesOfKind.length > 0 && !devicesOfKind.find(deviceInfo => deviceInfo.deviceId === this.getActiveDevice(kind))) {
-          console.log("Switching to device 2: ".concat(devicesOfKind[0].deviceId));
           yield this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
         }
       }
