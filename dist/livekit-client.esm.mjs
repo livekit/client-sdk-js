@@ -22424,7 +22424,7 @@ class Room extends eventsExports.EventEmitter {
       console.log('availableDevices', availableDevices);
       if ((browser === null || browser === void 0 ? void 0 : browser.name) === 'Chrome' && browser.os !== 'iOS') {
         for (let availableDevice of availableDevices) {
-          const previousDevice = previousDevices.find(info => info.deviceId === availableDevice.deviceId);
+          const previousDevice = previousDevices.find(info => info.deviceId === availableDevice.deviceId && info.kind === availableDevice.kind);
           console.log('evaluation', previousDevice === null || previousDevice === void 0 ? void 0 : previousDevice.label, previousDevice === null || previousDevice === void 0 ? void 0 : previousDevice.kind, availableDevice.kind, previousDevice === null || previousDevice === void 0 ? void 0 : previousDevice.label, availableDevice.label);
           if (previousDevice && previousDevice.label !== '' && previousDevice.kind === availableDevice.kind && previousDevice.label !== availableDevice.label) {
             // label has changed on device the same deviceId, indicating that the default device has changed on the OS level

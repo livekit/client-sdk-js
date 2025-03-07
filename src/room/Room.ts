@@ -1977,7 +1977,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (browser?.name === 'Chrome' && browser.os !== 'iOS') {
       for (let availableDevice of availableDevices) {
         const previousDevice = previousDevices.find(
-          (info) => info.deviceId === availableDevice.deviceId,
+          (info) => info.deviceId === availableDevice.deviceId && info.kind === availableDevice.kind
         );
         console.log('evaluation',previousDevice?.label, previousDevice?.kind , availableDevice.kind, previousDevice?.label, availableDevice.label);
         if (
