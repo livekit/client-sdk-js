@@ -284,6 +284,10 @@ export declare enum RoomEvent {
      * args: (kind: MediaDeviceKind, deviceId: string)
      */
     ActiveDeviceChanged = "activeDeviceChanged",
+    /**
+     * Triggered by a call to room.requestDefaultMicSwitch
+     */
+    RequestDefaultMicSwitch = "requestDefaultMicSwitch",
     ChatMessage = "chatMessage",
     /**
      * fired when the first remote participant has subscribed to the localParticipant's track

@@ -10793,6 +10793,10 @@ var RoomEvent;
    * args: (kind: MediaDeviceKind, deviceId: string)
    */
   RoomEvent["ActiveDeviceChanged"] = "activeDeviceChanged";
+  /**
+   * Triggered by a call to room.requestDefaultMicSwitch
+   */
+  RoomEvent["RequestDefaultMicSwitch"] = "requestDefaultMicSwitch";
   RoomEvent["ChatMessage"] = "chatMessage";
   /**
    * fired when the first remote participant has subscribed to the localParticipant's track
@@ -22428,7 +22432,16 @@ class Room extends eventsExports.EventEmitter {
             if (this.getActiveDevice(availableDevice.kind) === 'default') {
               console.log('emit active device changed', availableDevice.kind, availableDevice.deviceId);
               // emit an active device change event only if the selected output device is actually on `default`
-              this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
+              if (availableDevice.kind == "audioinput") {
+                console.log('emit active device changed', availableDevice.kind, availableDevice.deviceId);
+                const previousDefaultDevice = previousDevices.find(info => info.kind === availableDevice.kind && previousDevice.label.includes(info.label));
+                if (previousDefaultDevice) {
+                  yield this.switchActiveDevice(availableDevice.kind, previousDefaultDevice.deviceId);
+                  this.emit(RoomEvent.RequestDefaultMicSwitch);
+                }
+              } else {
+                this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
+              }
             }
           }
         }
