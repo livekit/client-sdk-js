@@ -22443,7 +22443,11 @@ class Room extends eventsExports.EventEmitter {
                   if (previousDefaultDeviceAvailable) {
                     console.log('switching to previous default device', previousDefaultDevice.deviceId);
                     this.emit(RoomEvent.RequestDefaultMicSwitch, previousDefaultDevice.deviceId);
+                  } else {
+                    this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
                   }
+                } else {
+                  this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
                 }
               } else {
                 this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
