@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.9.6
+
+### Patch Changes
+
+- Automatically attempt to resume suspended audio contexts on click - [#1431](https://github.com/livekit/client-sdk-js/pull/1431) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: handle server url with params correctly - [#1366](https://github.com/livekit/client-sdk-js/pull/1366) ([@jiyeyuran](https://github.com/jiyeyuran))
+
 ## 2.9.5
 
 ### Patch Changes
