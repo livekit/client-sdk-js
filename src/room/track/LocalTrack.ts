@@ -343,6 +343,8 @@ export default abstract class LocalTrack<
       // 'A MediaStreamTrack ended due to a capture failure`
       this._mediaStreamTrack.stop();
 
+      this._constraints = trackConstraints;
+
       // create new track and attach
       const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
       const newTrack = mediaStream.getTracks()[0];
@@ -351,7 +353,6 @@ export default abstract class LocalTrack<
       this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 
       await this.setMediaStreamTrack(newTrack);
-      this._constraints = trackConstraints;
       this.emit(TrackEvent.Restarted, this);
       if (this.manuallyStopped) {
         this.log.warn(
