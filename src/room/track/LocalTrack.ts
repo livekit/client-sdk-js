@@ -311,7 +311,7 @@ export default abstract class LocalTrack<
     this.manuallyStopped = false;
     const unlock = await this.restartLock.lock();
     try {
-      constraints = { ...this._constraints, ...constraints ?? {} };
+      constraints = { ...this._constraints, ...(constraints ?? {}) };
       const { deviceId, ...otherConstraints } = constraints;
       this.log.debug('restarting track with constraints', { ...this.logContext, constraints });
 
