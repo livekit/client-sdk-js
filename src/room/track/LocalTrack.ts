@@ -311,9 +311,15 @@ export default abstract class LocalTrack<
     this.manuallyStopped = false;
     const unlock = await this.restartLock.lock();
     try {
-      constraints = { ...this._constraints, ...(constraints ?? {}) };
-      const { deviceId, ...otherConstraints } = constraints;
-      this.log.debug('restarting track with constraints', { ...this.logContext, constraints });
+      const trackConstraints: MediaTrackConstraints = {
+        ...this._constraints,
+        ...(constraints ?? {}),
+      };
+      const { deviceId, ...otherConstraints } = trackConstraints;
+      this.log.debug('restarting track with constraints', {
+        ...this.logContext,
+        constraints: trackConstraints,
+      });
 
       const streamConstraints: MediaStreamConstraints = {
         audio: false,
@@ -345,7 +351,7 @@ export default abstract class LocalTrack<
       this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 
       await this.setMediaStreamTrack(newTrack);
-      this._constraints = constraints;
+      this._constraints = trackConstraints;
       this.emit(TrackEvent.Restarted, this);
       if (this.manuallyStopped) {
         this.log.warn(
