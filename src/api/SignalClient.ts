@@ -530,7 +530,7 @@ export class SignalClient {
   }
 
   sendIceCandidate(candidate: RTCIceCandidateInit, target: SignalTarget) {
-    this.log.trace('sending ice candidate', { ...this.logContext, candidate });
+    this.log.debug('sending ice candidate', { ...this.logContext, candidate });
     return this.sendRequest({
       case: 'trickle',
       value: new TrickleRequest({
