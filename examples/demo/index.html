@@ -17,25 +17,53 @@
     <div class="container">
       <div class="row">
         <div class="col-md-8">
-          <h2>Livekit Sample App</h2>
+          <h2>LiveKit Sample App</h2>
           <br />
           <div id="connect-area">
-            <div>
-              <b>LiveKit URL</b>
+            <div class="form-group">
+              <label for="connection-type"><b>Connection Method</b></label>
+              <select class="form-control" id="connection-type">
+                <option value="direct">LiveKit URL + Token</option>
+                <option value="sandbox">Sandbox Token Server (LiveKit Cloud only)</option>
+              </select>
             </div>
-            <div>
-              <input type="text" class="form-control" id="url" value="ws://localhost:7880" />
+
+            <!-- Direct connection fields -->
+            <div id="direct-connection">
+              <div class="form-group">
+                <label for="url"><b>LiveKit URL</b></label>
+                <input type="text" class="form-control" id="url" value="ws://localhost:7880" />
+              </div>
+              <div class="form-group">
+                <label for="token"><b>Token</b></label>
+                <input type="text" class="form-control" id="token" />
+              </div>
             </div>
-            <div>
-              <b>Token</b>
+
+            <!-- Sandbox connection fields -->
+            <div id="sandbox-connection" style="display: none;">
+              <div>
+              <a href="https://cloud.livekit.io/projects/p_/sandbox/templates/token-server" target="_blank">
+                Create Your Sandbox Here
+              </a>
             </div>
-            <div>
-              <input type="text" class="form-control" id="token" />
+              <div class="form-group">
+                <label for="sandbox-id"><b>Sandbox ID</b></label>
+                <input type="text" class="form-control" id="sandbox-id" />
+              </div>
+              <div class="form-group">
+                <label for="participant-name"><b>Participant Name</b></label>
+                <input type="text" class="form-control" id="participant-name" />
+              </div>
+              <div class="form-group">
+                <label for="room-name"><b>Room Name</b></label>
+                <input type="text" class="form-control" id="room-name" />
+              </div>
             </div>
-            <div>
-              <b>E2EE key</b>
-            </div>
-            <div>
+
+            <!-- E2EE section - separate from connection details -->
+            <div class="form-group mt-4">
+              <label for="crypto-key"><b>E2EE Key</b></label>
               <input type="text" class="form-control" id="crypto-key" />
             </div>
           </div>
