@@ -21788,7 +21788,7 @@ class Room extends eventsExports.EventEmitter {
    */
   constructor(options) {
     var _this;
-    var _a, _b, _c;
+    var _a, _b;
     super();
     _this = this;
     this.state = ConnectionState.Disconnected;
@@ -22420,23 +22420,17 @@ class Room extends eventsExports.EventEmitter {
       // check for available devices, but don't request permissions in order to avoid prompts for kinds that haven't been used before
       const availableDevices = yield DeviceManager.getInstance().getDevices(undefined, false);
       const browser = getBrowser();
-      console.log('previousDevices', previousDevices);
-      console.log('availableDevices', availableDevices);
       if ((browser === null || browser === void 0 ? void 0 : browser.name) === 'Chrome' && browser.os !== 'iOS') {
         for (let availableDevice of availableDevices) {
           const previousDevice = previousDevices.find(info => info.deviceId === availableDevice.deviceId && info.kind === availableDevice.kind);
-          console.log('evaluation', previousDevice === null || previousDevice === void 0 ? void 0 : previousDevice.label, previousDevice === null || previousDevice === void 0 ? void 0 : previousDevice.kind, availableDevice.kind, previousDevice === null || previousDevice === void 0 ? void 0 : previousDevice.label, availableDevice.label);
           if (previousDevice && previousDevice.label !== '' && previousDevice.kind === availableDevice.kind && previousDevice.label !== availableDevice.label) {
             // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
-            console.log('emit request default mic switch 1', availableDevice.kind, this.getActiveDevice(availableDevice.kind));
             if (this.getActiveDevice(availableDevice.kind) === 'default') {
-              console.log('emit request default mic switch', availableDevice.kind, availableDevice.deviceId);
               const previousDefaultDevice = previousDevices.find(info => info.kind === availableDevice.kind && previousDevice.label.includes(info.label) && info.deviceId !== previousDevice.deviceId);
               // check if the previous default device is available
               if (previousDefaultDevice) {
                 const previousDefaultDeviceAvailable = availableDevices.find(info => (previousDefaultDevice === null || previousDefaultDevice === void 0 ? void 0 : previousDefaultDevice.deviceId) === info.deviceId);
                 if (previousDefaultDeviceAvailable) {
-                  console.log('emit request default mic switch>>');
                   this.emit(RoomEvent.RequestDefaultMicSwitch, availableDevice.kind, previousDefaultDevice.deviceId);
                 } else {
                   this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
@@ -22586,9 +22580,9 @@ class Room extends eventsExports.EventEmitter {
     if (isWeb()) {
       const abortController = new AbortController();
       // in order to catch device changes prior to room connection we need to register the event in the constructor
-      (_c = navigator.mediaDevices) === null || _c === void 0 ? void 0 : _c.addEventListener('devicechange', this.handleDeviceChange, {
-        signal: abortController.signal
-      });
+      // navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange, {
+      //   signal: abortController.signal,
+      // });
       if (Room.cleanupRegistry) {
         Room.cleanupRegistry.register(this, () => {
           abortController.abort();
