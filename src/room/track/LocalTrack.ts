@@ -311,15 +311,11 @@ export default abstract class LocalTrack<
     this.manuallyStopped = false;
     const unlock = await this.restartLock.lock();
     try {
-      const trackConstraints: MediaTrackConstraints = {
-        ...this._constraints,
-        ...(constraints ?? {}),
-      };
-      const { deviceId, ...otherConstraints } = trackConstraints;
-      this.log.debug('restarting track with constraints', {
-        ...this.logContext,
-        constraints: trackConstraints,
-      });
+      if (!constraints) {
+        constraints = this._constraints;
+      }
+      const { deviceId, ...otherConstraints } = constraints;
+      this.log.debug('restarting track with constraints', { ...this.logContext, constraints });
 
       const streamConstraints: MediaStreamConstraints = {
         audio: false,
@@ -343,7 +339,7 @@ export default abstract class LocalTrack<
       // 'A MediaStreamTrack ended due to a capture failure`
       this._mediaStreamTrack.stop();
 
-      this._constraints = trackConstraints;
+      this._constraints = constraints;
 
       // create new track and attach
       const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
