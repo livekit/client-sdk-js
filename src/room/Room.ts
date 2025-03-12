@@ -1421,6 +1421,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.log.warn('skipping incoming track after Room disconnected', this.logContext);
       return;
     }
+    if (mediaTrack.readyState === 'ended') {
+      this.log.info('skipping incoming track as it already ended', this.logContext);
+      return;
+    }
     const parts = unpackStreamId(stream.id);
     const participantSid = parts[0];
     let streamId = parts[1];
@@ -1454,6 +1458,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         adaptiveStreamSettings = {};
       }
     }
+
     participant.addSubscribedMediaTrack(
       mediaTrack,
       trackId,
