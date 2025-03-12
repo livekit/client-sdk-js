@@ -22414,7 +22414,7 @@ class Room extends eventsExports.EventEmitter {
         this.emit(RoomEvent.VideoPlaybackStatusChanged, false);
       }
     };
-    this.handleDeviceChange = () => __awaiter(this, void 0, void 0, function* () {
+    this.handleDeviceChange = r(ev => __awaiter(this, void 0, void 0, function* () {
       var _a, _b;
       const previousDevices = DeviceManager.getInstance().previousDevices;
       // check for available devices, but don't request permissions in order to avoid prompts for kinds that haven't been used before
@@ -22476,7 +22476,7 @@ class Room extends eventsExports.EventEmitter {
         }
       }
       this.emit(RoomEvent.MediaDevicesChanged);
-    });
+    }), 500);
     this.handleRoomUpdate = room => {
       const oldRoom = this.roomInfo;
       this.roomInfo = room;

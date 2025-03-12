@@ -113,6 +113,8 @@ import {
   unwrapConstraint,
 } from './utils';
 
+import { debounce } from 'ts-debounce';
+
 export enum ConnectionState {
   Disconnected = 'disconnected',
   Connecting = 'connecting',
@@ -1967,7 +1969,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  private handleDeviceChange = async () => {
+  private handleDeviceChange = debounce(async (ev: Event) => {
     const previousDevices = DeviceManager.getInstance().previousDevices;
     // check for available devices, but don't request permissions in order to avoid prompts for kinds that haven't been used before
     const availableDevices = await DeviceManager.getInstance().getDevices(undefined, false);
@@ -2062,7 +2064,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.emit(RoomEvent.MediaDevicesChanged);
-  };
+  }, 500);
 
   private handleRoomUpdate = (room: RoomModel) => {
     const oldRoom = this.roomInfo;
