@@ -21788,7 +21788,7 @@ class Room extends eventsExports.EventEmitter {
    */
   constructor(options) {
     var _this;
-    var _a, _b;
+    var _a, _b, _c;
     super();
     _this = this;
     this.state = ConnectionState.Disconnected;
@@ -22438,6 +22438,11 @@ class Room extends eventsExports.EventEmitter {
               } else {
                 this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
               }
+            } else {
+              const activeDeviceId = this.getActiveDevice(availableDevice.kind);
+              if (activeDeviceId) {
+                this.emit(RoomEvent.RequestDefaultMicSwitch, availableDevice.kind, activeDeviceId);
+              }
             }
           }
         }
@@ -22580,9 +22585,9 @@ class Room extends eventsExports.EventEmitter {
     if (isWeb()) {
       const abortController = new AbortController();
       // in order to catch device changes prior to room connection we need to register the event in the constructor
-      // navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange, {
-      //   signal: abortController.signal,
-      // });
+      (_c = navigator.mediaDevices) === null || _c === void 0 ? void 0 : _c.addEventListener('devicechange', this.handleDeviceChange, {
+        signal: abortController.signal
+      });
       if (Room.cleanupRegistry) {
         Room.cleanupRegistry.register(this, () => {
           abortController.abort();

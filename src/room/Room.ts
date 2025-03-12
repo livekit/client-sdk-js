@@ -275,9 +275,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const abortController = new AbortController();
 
       // in order to catch device changes prior to room connection we need to register the event in the constructor
-      // navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange, {
-      //   signal: abortController.signal,
-      // });
+      navigator.mediaDevices?.addEventListener('devicechange', this.handleDeviceChange, {
+        signal: abortController.signal,
+      });
 
       if (Room.cleanupRegistry) {
         Room.cleanupRegistry.register(this, () => {
@@ -2013,6 +2013,15 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                   availableDevice.deviceId,
                 );
               }
+          }else{
+            const activeDeviceId = this.getActiveDevice(availableDevice.kind);
+            if(activeDeviceId){
+              this.emit(
+                RoomEvent.RequestDefaultMicSwitch,
+                availableDevice.kind,
+                activeDeviceId,
+              );
+            }
           }
         }
       }
