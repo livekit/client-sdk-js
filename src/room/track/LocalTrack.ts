@@ -314,7 +314,7 @@ export default abstract class LocalTrack<
       if (!constraints) {
         constraints = this._constraints;
       }
-      const { deviceId, ...otherConstraints } = this._constraints;
+      const { deviceId, ...otherConstraints } = constraints;
       this.log.debug('restarting track with constraints', { ...this.logContext, constraints });
 
       const streamConstraints: MediaStreamConstraints = {
