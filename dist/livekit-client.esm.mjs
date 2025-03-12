@@ -22425,7 +22425,7 @@ class Room extends eventsExports.EventEmitter {
         console.log('sdk>> previousDevices', previousDevices);
         for (let availableDevice of availableDevices) {
           const previousDevice = previousDevices.find(info => info.deviceId === availableDevice.deviceId && info.kind === availableDevice.kind);
-          if (previousDevice && previousDevice.label !== '' && previousDevice.kind === availableDevice.kind && previousDevice.label !== availableDevice.label && availableDevice.deviceId !== 'default') {
+          if (previousDevice && previousDevice.label !== '' && previousDevice.kind === availableDevice.kind && previousDevice.label !== availableDevice.label && availableDevice.deviceId == 'default') {
             // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
             if (this.getActiveDevice(availableDevice.kind) === 'default') {
               const previousDefaultDevice = previousDevices.find(info => info.kind === availableDevice.kind && previousDevice.label.includes(info.label) && info.deviceId !== previousDevice.deviceId);
