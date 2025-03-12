@@ -1975,8 +1975,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const availableDevices = await DeviceManager.getInstance().getDevices(undefined, false);
     const browser = getBrowser();
     if (browser?.name === 'Chrome' && browser.os !== 'iOS') {
-      console.log('sdk>> availableDevices', availableDevices);
-      console.log('sdk>> previousDevices', previousDevices);
       for (let availableDevice of availableDevices) {
         const previousDevice = previousDevices.find(
           (info) => info.deviceId === availableDevice.deviceId && info.kind === availableDevice.kind
@@ -1998,7 +1996,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                   (info) => previousDefaultDevice?.deviceId === info.deviceId
                 );
                 if(previousDefaultDeviceAvailable){
-                  console.log("sdk>> 1st event", availableDevice, previousDevice);
                   this.emit(
                     RoomEvent.RequestDefaultMicSwitch,
                     availableDevice.kind,
@@ -2019,7 +2016,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
                 );
               }
           }else{
-            console.log("sdk>> 2nd event", availableDevice, previousDevice);
             const activeDeviceId = this.getActiveDevice(availableDevice.kind);
             if(activeDeviceId){
               this.emit(

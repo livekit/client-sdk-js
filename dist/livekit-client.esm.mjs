@@ -22421,8 +22421,6 @@ class Room extends eventsExports.EventEmitter {
       const availableDevices = yield DeviceManager.getInstance().getDevices(undefined, false);
       const browser = getBrowser();
       if ((browser === null || browser === void 0 ? void 0 : browser.name) === 'Chrome' && browser.os !== 'iOS') {
-        console.log('sdk>> availableDevices', availableDevices);
-        console.log('sdk>> previousDevices', previousDevices);
         for (let availableDevice of availableDevices) {
           const previousDevice = previousDevices.find(info => info.deviceId === availableDevice.deviceId && info.kind === availableDevice.kind);
           if (previousDevice && previousDevice.label !== '' && previousDevice.kind === availableDevice.kind && previousDevice.label !== availableDevice.label) {
@@ -22433,7 +22431,6 @@ class Room extends eventsExports.EventEmitter {
               if (previousDefaultDevice) {
                 const previousDefaultDeviceAvailable = availableDevices.find(info => (previousDefaultDevice === null || previousDefaultDevice === void 0 ? void 0 : previousDefaultDevice.deviceId) === info.deviceId);
                 if (previousDefaultDeviceAvailable) {
-                  console.log("sdk>> 1st event", availableDevice, previousDevice);
                   this.emit(RoomEvent.RequestDefaultMicSwitch, availableDevice.kind, previousDefaultDevice.deviceId);
                 } else {
                   this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
@@ -22442,7 +22439,6 @@ class Room extends eventsExports.EventEmitter {
                 this.emit(RoomEvent.ActiveDeviceChanged, availableDevice.kind, availableDevice.deviceId);
               }
             } else {
-              console.log("sdk>> 2nd event", availableDevice, previousDevice);
               const activeDeviceId = this.getActiveDevice(availableDevice.kind);
               if (activeDeviceId) {
                 this.emit(RoomEvent.RequestDefaultMicSwitch, availableDevice.kind, activeDeviceId);
