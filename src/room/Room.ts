@@ -1985,7 +1985,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           previousDevice &&
           previousDevice.label !== '' &&
           previousDevice.kind === availableDevice.kind &&
-          previousDevice.label !== availableDevice.label
+          previousDevice.label !== availableDevice.label &&
+          availableDevice.deviceId !== 'default'
         ) {
           // label has changed on device the same deviceId, indicating that the default device has changed on the OS level
           if (this.getActiveDevice(availableDevice.kind) === 'default') {
