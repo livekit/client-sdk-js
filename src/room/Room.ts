@@ -2037,6 +2037,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         // in  Safari the first device is always the default, so we assume a user on the default device would like to switch to the default once it changes
         // FF doesn't emit an event when the default device changes, so we perform the same best effort and switch to the new device once connected and if it's the first in the array
         if (devicesOfKind.length > 0 && devicesOfKind[0]?.deviceId !== activeDevice) {
+          console.log('switching to first device', devicesOfKind[0].deviceId);
           await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
           continue;
         }
@@ -2051,6 +2052,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         devicesOfKind.length > 0 &&
         !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === this.getActiveDevice(kind))
       ) {
+        console.log('switching to second device', devicesOfKind[0].deviceId);
         await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
       }
     }
