@@ -474,7 +474,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
-      this.log.trace('got ICE candidate from peer', { ...this.logContext, candidate, target });
+      this.log.debug('got ICE candidate from peer', { ...this.logContext, candidate, target });
       this.pcManager.addIceCandidate(candidate, target);
     };
 
