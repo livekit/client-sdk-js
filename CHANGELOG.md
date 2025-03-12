@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.9.6
+
+### Patch Changes
+
+- Automatically attempt to resume suspended audio contexts on click - [#1431](https://github.com/livekit/client-sdk-js/pull/1431) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix ignored constraints in LocalTrack.restart - [#1435](https://github.com/livekit/client-sdk-js/pull/1435) ([@rktguswjd](https://github.com/rktguswjd))
+
+- log ice candidates as debug rather than trace - [#1437](https://github.com/livekit/client-sdk-js/pull/1437) ([@haydenbr](https://github.com/haydenbr))
+
+- fix: handle server url with params correctly - [#1366](https://github.com/livekit/client-sdk-js/pull/1366) ([@jiyeyuran](https://github.com/jiyeyuran))
+
 ## 2.9.5
 
 ### Patch Changes
