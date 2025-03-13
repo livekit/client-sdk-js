@@ -260,7 +260,7 @@ export class SignalClient {
     this.connectOptions = opts;
     const urlObj = new URL(toWebsocketUrl(url));
     // strip trailing slash
-    const hasTrailingSlash = urlObj.pathname.endsWith('/')
+    const hasTrailingSlash = urlObj.pathname.endsWith('/');
     urlObj.pathname += hasTrailingSlash ? 'rtc' : '/rtc';
 
     const clientInfo = getClientInfo();
