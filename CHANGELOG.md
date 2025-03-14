@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.9.7
+
+### Patch Changes
+
+- Add attributes to SendTextOptions - [#1441](https://github.com/livekit/client-sdk-js/pull/1441) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.9.6
 
 ### Patch Changes
