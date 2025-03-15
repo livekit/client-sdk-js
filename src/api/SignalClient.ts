@@ -310,7 +310,7 @@ export class SignalClient {
         if (this.ws) {
           await this.close(false);
         }
-        this.ws = new WebSocket(urlObj);
+        this.ws = new WebSocket(urlObj.toString());
         this.ws.binaryType = 'arraybuffer';
 
         this.ws.onopen = () => {
