@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.9.8
+
+### Patch Changes
+
+- Use string instead of passing url object to WebSocket constructor - [#1443](https://github.com/livekit/client-sdk-js/pull/1443) ([@davidliu](https://github.com/davidliu))
+
 ## 2.9.7
 
 ### Patch Changes
