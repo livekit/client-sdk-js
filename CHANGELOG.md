@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.9.9
+
+### Patch Changes
+
+- Fix trailing slash handling in WebSocket URL pathname - [#1440](https://github.com/livekit/client-sdk-js/pull/1440) ([@Tanney-102](https://github.com/Tanney-102))
+
+- Skip incoming track if it's ended - [#1438](https://github.com/livekit/client-sdk-js/pull/1438) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.9.8
 
 ### Patch Changes
