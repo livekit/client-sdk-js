@@ -295,20 +295,20 @@ export function determineAppropriateEncoding(
   // users should override these with ones that are optimized for their use case
   // NOTE: SVC codec bitrates are inclusive of all scalability layers. while
   // bitrate for non-SVC codecs does not include other simulcast layers.
-  if (codec) {
-    switch (codec) {
-      case 'av1':
-        encoding = { ...encoding };
-        encoding.maxBitrate = encoding.maxBitrate * 0.7;
-        break;
-      case 'vp9':
-        encoding = { ...encoding };
-        encoding.maxBitrate = encoding.maxBitrate * 0.85;
-        break;
-      default:
-        break;
-    }
-  }
+  // if (codec) {
+  //   switch (codec) {
+  //     case 'av1':
+  //       encoding = { ...encoding };
+  //       encoding.maxBitrate = encoding.maxBitrate * 0.7;
+  //       break;
+  //     case 'vp9':
+  //       encoding = { ...encoding };
+  //       encoding.maxBitrate = encoding.maxBitrate * 0.85;
+  //       break;
+  //     default:
+  //       break;
+  //   }
+  // }
 
   return encoding;
 }

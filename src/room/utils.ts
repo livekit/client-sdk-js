@@ -111,7 +111,8 @@ export function supportsVP9(): boolean {
 }
 
 export function isSVCCodec(codec?: string): boolean {
-  return codec === 'av1' || codec === 'vp9';
+  return false;
+  // return codec === 'av1' || codec === 'vp9';
 }
 
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
