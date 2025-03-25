@@ -314,7 +314,7 @@ export default abstract class LocalTrack<
       if (!constraints) {
         constraints = this._constraints;
       }
-      const { deviceId, ...otherConstraints } = constraints;
+      const { deviceId, facingMode, ...otherConstraints } = constraints;
       this.log.debug('restarting track with constraints', { ...this.logContext, constraints });
 
       const streamConstraints: MediaStreamConstraints = {
@@ -323,7 +323,7 @@ export default abstract class LocalTrack<
       };
 
       if (this.kind === Track.Kind.Video) {
-        streamConstraints.video = deviceId ? { deviceId } : true;
+        streamConstraints.video = deviceId || facingMode ? { deviceId, facingMode } : true;
       } else {
         streamConstraints.audio = deviceId ? { deviceId } : true;
       }
