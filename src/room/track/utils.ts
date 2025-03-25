@@ -141,9 +141,11 @@ export function getNewAudioContext(): AudioContext | void {
       window.document?.body
     ) {
       const handleResume = () => {
-        audioContext.resume().then(() => {
-          window.document.body?.removeEventListener('click', handleResume);
-        });
+        if (audioContext.state === 'suspended') {
+          audioContext.resume().then(() => {
+            window.document.body?.removeEventListener('click', handleResume);
+          });
+        }
       };
       window.document.body.addEventListener('click', handleResume);
     }
