@@ -2573,7 +2573,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
     // active speaker updates are too spammy
-    if (event !== RoomEvent.ActiveSpeakersChanged) {
+    if (event !== RoomEvent.ActiveSpeakersChanged && event !== RoomEvent.TranscriptionReceived) {
       // only extract logContext from arguments in order to avoid logging the whole object tree
       const minimizedArgs = mapArgs(args).filter((arg: unknown) => arg !== undefined);
       this.log.debug(`room event ${event}`, { ...this.logContext, event, args: minimizedArgs });
