@@ -11317,10 +11317,13 @@ class Track extends eventsExports.EventEmitter {
     try {
       // detach from a single element
       if (element) {
+        console.log('detach from a single element', element);
         detachTrack(this.mediaStreamTrack, element);
         const idx = this.attachedElements.indexOf(element);
         if (idx >= 0) {
+          console.log('detach from a single element', element, idx);
           this.attachedElements.splice(idx, 1);
+          console.log('attachedElements', this.attachedElements);
           this.recycleElement(element);
           this.emit(TrackEvent.ElementDetached, element);
         }
@@ -11374,6 +11377,7 @@ class Track extends eventsExports.EventEmitter {
     if (element instanceof HTMLAudioElement) {
       // we only need to re-use a single element
       let shouldCache = true;
+      console.log('recycleElement', element, recycledElements);
       element.pause();
       recycledElements.forEach(e => {
         if (!e.parentElement) {
