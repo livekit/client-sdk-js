@@ -140,10 +140,16 @@ export function getNewAudioContext(): AudioContext | void {
       typeof window !== 'undefined' &&
       window.document?.body
     ) {
-      const handleResume = () => {
-        audioContext.resume().then(() => {
-          window.document.body?.removeEventListener('click', handleResume);
-        });
+      const handleResume = async () => {
+        try {
+          if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+          }
+        } catch (e) {
+          console.warn('Error trying to auto-resume audio context', e);
+        }
+
+        window.document.body?.removeEventListener('click', handleResume);
       };
       window.document.body.addEventListener('click', handleResume);
     }
