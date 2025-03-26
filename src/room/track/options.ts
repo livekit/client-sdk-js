@@ -389,8 +389,12 @@ export function isBackupCodec(codec: string): codec is BackupVideoCodec {
 }
 
 export enum BackupCodecPolicy {
-  REGRESSION = 0,
-  SIMULCAST = 1,
+  // codec regression is preferred, the sfu will try to regress codec if possible but not guaranteed
+  PreferRegression = 0,
+  // multi-codec simulcast, publish both primary and backup codec at the same time
+  Simulcast = 1,
+  // always use backup codec only
+  Regression = 2,
 }
 
 /**
