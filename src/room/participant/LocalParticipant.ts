@@ -1,5 +1,6 @@
 import {
   AddTrackRequest,
+  BackupCodecPolicy,
   ChatMessage as ChatMessageModel,
   Codec,
   DataPacket,
@@ -963,8 +964,11 @@ export default class LocalParticipant extends Participant {
       stereo: isStereo,
       disableRed: this.isE2EEEnabled || !(opts.red ?? true),
       stream: opts?.stream,
-      backupCodecPolicy: opts?.backupCodecPolicy,
+      // backupCodecPolicy: opts?.backupCodecPolicy as BackupCodecPolicy,
     });
+    if (opts.backupCodecPolicy) {
+      req.backupCodecPolicy = opts.backupCodecPolicy as unknown as BackupCodecPolicy;
+    }
 
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
