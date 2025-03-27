@@ -964,11 +964,8 @@ export default class LocalParticipant extends Participant {
       stereo: isStereo,
       disableRed: this.isE2EEEnabled || !(opts.red ?? true),
       stream: opts?.stream,
-      // backupCodecPolicy: opts?.backupCodecPolicy as BackupCodecPolicy,
+      backupCodecPolicy: opts?.backupCodecPolicy as BackupCodecPolicy,
     });
-    if (opts.backupCodecPolicy) {
-      req.backupCodecPolicy = opts.backupCodecPolicy as unknown as BackupCodecPolicy;
-    }
 
     // compute encodings and layers for video
     let encodings: RTCRtpEncodingParameters[] | undefined;
