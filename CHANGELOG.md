@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.10.0
+
+### Minor Changes
+
+- Add prefer regression for backup codec policy - [#1456](https://github.com/livekit/client-sdk-js/pull/1456) ([@cnderrauber](https://github.com/cnderrauber))
+
+### Patch Changes
+
+- Pass facingMode to initial getUserMedia call in track restart - [#1451](https://github.com/livekit/client-sdk-js/pull/1451) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.9.9
 
 ### Patch Changes
