@@ -456,10 +456,6 @@ async function setPublishingLayersForSender(
 
     let hasChanged = false;
 
-    /* disable closable spatial layer as it has video blur / frozen issue with current server / client
-    1. chrome 113: when switching to up layer with scalability Mode change, it will generate a
-          low resolution frame and recover very quickly, but noticable
-    2. livekit sfu: additional pli request cause video frozen for a few frames, also noticable */
     /* @ts-ignore */
     if (encodings[0].scalabilityMode) {
       // svc dynacast encodings
