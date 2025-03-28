@@ -159,12 +159,32 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
   }
 }
 
-export type ByteStreamHandler = (
+export type ByteStreamHandlerFunc = (
   reader: ByteStreamReader,
   participantInfo: { identity: string },
 ) => void;
 
-export type TextStreamHandler = (
+export type ByteStreamFilterFunc = (
+  info: ByteStreamInfo,
+  senderInfo: { identity: string },
+) => boolean;
+
+export type ByteStreamHandler = {
+  handler: ByteStreamHandlerFunc;
+  filter?: ByteStreamFilterFunc;
+};
+
+export type TextStreamHandlerFunc = (
   reader: TextStreamReader,
   participantInfo: { identity: string },
 ) => void;
+
+export type TextStreamFilterFunc = (
+  info: TextStreamInfo,
+  senderInfo: { identity: string },
+) => boolean;
+
+export type TextStreamHandler = {
+  handler: TextStreamHandlerFunc;
+  filter?: TextStreamFilterFunc;
+};
