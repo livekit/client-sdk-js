@@ -7,11 +7,12 @@ import {
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import type { StructuredLogger } from '../../logger';
+import { getBrowser } from '../../utils/browserParser';
 import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
-import { isFireFox, isMobile, isWeb } from '../utils';
+import { compareVersions, isFireFox, isMobile, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track, VideoQuality } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
@@ -455,9 +456,11 @@ async function setPublishingLayersForSender(
     }
 
     let hasChanged = false;
-
+    const browser = getBrowser();
+    const closableSpatial =
+      browser?.name === 'Chrome' && compareVersions(browser?.version, '133') > 0;
     /* @ts-ignore */
-    if (encodings[0].scalabilityMode) {
+    if (closableSpatial && encodings[0].scalabilityMode) {
       // svc dynacast encodings
       const encoding = encodings[0];
       /* @ts-ignore */
