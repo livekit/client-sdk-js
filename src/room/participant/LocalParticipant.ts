@@ -2041,11 +2041,6 @@ export default class LocalParticipant extends Participant {
     return true;
   }
 
-  /**
-   * @internal
-   */
-  onSignalConnectionEstablished() {}
-
   private updateTrackSubscriptionPermissions = () => {
     this.log.debug('updating track subscription permissions', {
       ...this.logContext,
