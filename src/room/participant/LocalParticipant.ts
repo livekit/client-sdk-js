@@ -26,6 +26,7 @@ import {
   UserPacket,
   protoInt64,
 } from '@livekit/protocol';
+import { SignalConnectionState } from '../../api/SignalClient';
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
@@ -861,7 +862,34 @@ export default class LocalParticipant extends Participant {
     if (opts.source) {
       track.source = opts.source;
     }
-    const publishPromise = this.publish(track, opts, isStereo);
+    const publishPromise = new Promise<LocalTrackPublication>(async (resolve, reject) => {
+      try {
+        if (this.engine.client.currentState !== SignalConnectionState.CONNECTED) {
+          this.log.debug('deferring track publication until signal is connected', {
+            ...this.logContext,
+            track: getLogContextFromTrack(track),
+          });
+          setTimeout(() => {
+            reject(
+              new PublishTrackError(
+                'publishing rejected as engine not connected within timeout',
+                408,
+              ),
+            );
+          }, 15_000);
+          this.engine.once(EngineEvent.SignalConnected, () => {
+            this.publish(track, opts, isStereo).then(resolve).catch(reject);
+          });
+          this.engine.on(EngineEvent.Closing, () => {
+            reject(new PublishTrackError('publishing rejected as engine closed', 499));
+          });
+        } else {
+          this.publish(track, opts, isStereo).then(resolve).catch(reject);
+        }
+      } catch (e) {
+        reject(e);
+      }
+    });
     this.pendingPublishPromises.set(track, publishPromise);
     try {
       const publication = await publishPromise;
@@ -2009,6 +2037,11 @@ export default class LocalParticipant extends Participant {
     });
     return true;
   }
+
+  /**
+   * @internal
+   */
+  onSignalConnectionEstablished() {}
 
   private updateTrackSubscriptionPermissions = () => {
     this.log.debug('updating track subscription permissions', {
