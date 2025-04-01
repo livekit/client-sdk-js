@@ -332,7 +332,7 @@ export class SignalClient {
               } else {
                 reject(
                   new ConnectionError(
-                    'Internal error',
+                    `Encountered unknown websocket error during connection: ${ev.toString()}`,
                     ConnectionErrorReason.InternalError,
                     resp.status,
                   ),
