@@ -258,16 +258,15 @@ export class SignalClient {
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     this.connectOptions = opts;
-    const urlObj = new URL(toWebsocketUrl(url));
-    // strip trailing slash
-    const hasTrailingSlash = urlObj.pathname.endsWith('/');
-    urlObj.pathname += hasTrailingSlash ? 'rtc' : '/rtc';
+    // Use URL constructor for robust path handling
+    const baseUrl = new URL(toWebsocketUrl(url));
+    const rtcUrl = new URL('rtc', baseUrl); // Resolves './rtc' relative to baseUrl
 
     const clientInfo = getClientInfo();
     const params = createConnectionParams(token, clientInfo, opts);
 
     for (const [key, value] of params) {
-      urlObj.searchParams.set(key, value);
+      rtcUrl.searchParams.set(key, value); // Add params to the rtcUrl
     }
 
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
@@ -298,7 +297,7 @@ export class SignalClient {
           abortHandler();
         }
         abortSignal?.addEventListener('abort', abortHandler);
-        const redactedUrl = new URL(urlObj.toString());
+        const redactedUrl = new URL(rtcUrl.toString()); // Use rtcUrl here
         if (redactedUrl.searchParams.has('access_token')) {
           redactedUrl.searchParams.set('access_token', '<redacted>');
         }
@@ -310,7 +309,7 @@ export class SignalClient {
         if (this.ws) {
           await this.close(false);
         }
-        this.ws = new WebSocket(urlObj.toString());
+        this.ws = new WebSocket(rtcUrl.toString()); // Use rtcUrl here
         this.ws.binaryType = 'arraybuffer';
 
         this.ws.onopen = () => {
@@ -322,9 +321,13 @@ export class SignalClient {
             this.state = SignalConnectionState.DISCONNECTED;
             clearTimeout(wsTimeout);
             try {
-              const validateURL = new URL(urlObj.toString());
-              validateURL.protocol = `http${validateURL.protocol.substring(2)}`;
-              validateURL.pathname += '/validate';
+              // Build validate URL relative to the original rtcUrl base
+              const validateURL = new URL('validate', rtcUrl);
+              // Reset search params for validate request if needed, or keep rtcUrl's? Assuming reset for now.
+              validateURL.search = '';
+              // Change protocol to http/https
+              validateURL.protocol = validateURL.protocol.replace('ws', 'http');
+
               const resp = await fetch(validateURL);
               if (resp.status.toFixed(0).startsWith('4')) {
                 const msg = await resp.text();
