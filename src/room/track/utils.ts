@@ -141,23 +141,15 @@ export function getNewAudioContext(): AudioContext | void {
       window.document?.body
     ) {
       const handleResume = async () => {
-        // Remove the listener as soon as it's invoked
-        window.document.body?.removeEventListener('click', handleResume);
         try {
-          // Only attempt to resume if the context is still suspended
           if (audioContext.state === 'suspended') {
             await audioContext.resume();
           }
         } catch (e) {
-           // Catch potential errors, including InvalidStateError if closed before resume
-           if (!(e instanceof DOMException && e.name === 'InvalidStateError')) {
-             console.warn('Error trying to auto-resume audio context', e);
-           } else {
-             // Optional: Log specifically that resume was attempted on a closed context
-             console.warn('Attempted to resume an already closed audio context.');
-           }
+          console.warn('Error trying to auto-resume audio context', e);
         }
-        // Listener is now removed at the beginning of the handler
+
+        window.document.body?.removeEventListener('click', handleResume);
       };
       window.document.body.addEventListener('click', handleResume);
     }
