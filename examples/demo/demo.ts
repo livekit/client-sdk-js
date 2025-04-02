@@ -52,6 +52,7 @@ const state = {
   bitrateInterval: undefined as any,
   e2eeKeyProvider: new ExternalE2EEKeyProvider(),
   chatMessages: new Map<string, { text: string; participant?: Participant }>(),
+  connectionType: 'direct' as 'direct' | 'sandbox',
 };
 let currentRoom: Room | undefined;
 
@@ -69,10 +70,30 @@ if (!storedKey) {
   (<HTMLSelectElement>$('crypto-key')).value = storedKey;
 }
 
+// Load sandbox ID from localStorage if available
+const storedSandboxId = localStorage.getItem('sandboxId') || '';
+if (storedSandboxId) {
+  (<HTMLInputElement>$('sandbox-id')).value = storedSandboxId;
+  // Default to sandbox connection type if a sandbox ID exists
+  state.connectionType = 'sandbox';
+  (<HTMLSelectElement>$('connection-type')).value = 'sandbox';
+  // Update display of connection sections
+  document.getElementById('direct-connection')!.style.display = 'none';
+  document.getElementById('sandbox-connection')!.style.display = 'block';
+}
+
 function updateSearchParams(url: string, token: string, key: string) {
   const params = new URLSearchParams({ url, token, key });
   window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
 }
+
+document.getElementById('connection-type')?.addEventListener('change', (e) => {
+  state.connectionType = (e.target as HTMLSelectElement).value as 'direct' | 'sandbox';
+  document.getElementById('direct-connection')!.style.display = 
+    state.connectionType === 'direct' ? 'block' : 'none';
+  document.getElementById('sandbox-connection')!.style.display = 
+    state.connectionType === 'sandbox' ? 'block' : 'none';
+});
 
 // handles actions from the HTML
 const appActions = {
@@ -86,8 +107,48 @@ const appActions = {
     });
   },
   connectWithFormInput: async () => {
-    const url = (<HTMLInputElement>$('url')).value;
-    const token = (<HTMLInputElement>$('token')).value;
+    let url: string;
+    let token: string;
+
+    if (state.connectionType === 'direct') {
+      url = (<HTMLInputElement>$('url')).value;
+      token = (<HTMLInputElement>$('token')).value;
+      updateSearchParams(url, token, (<HTMLSelectElement>$('crypto-key')).value);
+    } else {
+      const sandboxId = (<HTMLInputElement>$('sandbox-id')).value;
+      // Save sandbox ID to localStorage
+      localStorage.setItem('sandboxId', sandboxId);
+      
+      const participantName = (<HTMLInputElement>$('participant-name')).value;
+      const roomName = (<HTMLInputElement>$('room-name')).value;
+      
+      try {
+        const queryParams = new URLSearchParams({
+          roomName: roomName,
+          participantName: participantName
+        });
+        
+        const response = await fetch(`https://cloud-api.livekit.io/api/sandbox/connection-details?${queryParams.toString()}`, {
+          method: 'POST',
+          headers: {
+            'X-Sandbox-ID': sandboxId
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to get token from sandbox server');
+        }
+
+        const data = await response.json();
+        url = data.serverUrl;
+        token = data.participantToken;
+        updateSearchParams(url, token, (<HTMLSelectElement>$('crypto-key')).value);
+      } catch (error) {
+        appendLog('Failed to get token:', error);
+        return;
+      }
+    }
+
     const simulcast = (<HTMLInputElement>$('simulcast')).checked;
     const dynacast = (<HTMLInputElement>$('dynacast')).checked;
     const forceTURN = (<HTMLInputElement>$('force-turn')).checked;
@@ -103,8 +164,6 @@ const appActions = {
     if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
       backupCodecPolicy = BackupCodecPolicy.Simulcast;
     }
-
-    updateSearchParams(url, token, cryptoKey);
 
     const roomOpts: RoomOptions = {
       adaptiveStream,
@@ -252,7 +311,7 @@ const appActions = {
         );
       });
 
-    room.registerTextStreamHandler('chat', async (reader, participant) => {
+    room.registerTextStreamHandler('lk.chat', async (reader, participant) => {
       const info = reader.info;
       if (info.size) {
         handleChatMessage(
@@ -281,7 +340,7 @@ const appActions = {
     room.registerByteStreamHandler('files', async (reader, participant) => {
       const info = reader.info;
 
-      appendLog(`started to receive a file called "${info.name}" from ${participant?.identity}`);
+      appendLog(`Handler #1: Started receiving a file called "${info.name}" from ${participant?.identity}`);
 
       const progressContainer = document.createElement('div');
       progressContainer.style.margin = '10px 0';
@@ -296,10 +355,8 @@ const appActions = {
       progressContainer.appendChild(progressBar);
       $('chat-area').after(progressContainer);
 
-      appendLog(`Started receiving file "${info.name}" from ${participant?.identity}`);
-
       reader.onProgress = (progress) => {
-        console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
+        console.log(`Handler #1: progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
 
         if (progress) {
           progressBar.value = progress * 100;
@@ -308,7 +365,7 @@ const appActions = {
       };
 
       const result = new Blob(await reader.readAll(), { type: info.mimeType });
-      appendLog(`Completely received file "${info.name}" from ${participant?.identity}`);
+      appendLog(`Handler #1: Completely received file "${info.name}" from ${participant?.identity}`);
 
       progressContainer.remove();
 
@@ -342,6 +399,94 @@ const appActions = {
         downloadLink.style.margin = '10px';
         downloadLink.style.padding = '5px';
         downloadLink.style.display = 'block';
+        $('chat-area').after(downloadLink);
+      }
+    });
+
+    // Add a second handler for the same topic
+    room.registerByteStreamHandler('files', async (reader, participant) => {
+      const info = reader.info;
+      
+      appendLog(`Handler #2: Started receiving a file called "${info.name}" from ${participant?.identity}`);
+      console.log('Handler #2: File info:', info);
+      
+      // Create a separate progress indicator for the second handler
+      const secondProgressContainer = document.createElement('div');
+      secondProgressContainer.style.margin = '10px 0';
+      secondProgressContainer.style.backgroundColor = '#f0f8ff'; // Light blue background to distinguish
+      const secondProgressLabel = document.createElement('div');
+      secondProgressLabel.innerText = `Handler #2 receiving "${info.name}"...`;
+      const secondProgressBar = document.createElement('progress');
+      secondProgressBar.max = 100;
+      secondProgressBar.value = 0;
+      secondProgressBar.style.width = '100%';
+      
+      secondProgressContainer.appendChild(secondProgressLabel);
+      secondProgressContainer.appendChild(secondProgressBar);
+      $('chat-area').after(secondProgressContainer);
+      
+      reader.onProgress = (progress) => {
+        console.log(`Handler #2: progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
+        
+        if (progress) {
+          secondProgressBar.value = progress * 100;
+          secondProgressLabel.innerText = `Handler #2: "${info.name}" (${(progress * 100).toFixed(0)}%)`;
+        }
+      };
+      
+      // Read all the data
+      const fileData = await reader.readAll();
+      const fileSize = fileData.reduce((total, chunk) => total + chunk.byteLength, 0);
+      
+      appendLog(`Handler #2: Completely received file "${info.name}" (${fileSize} bytes) from ${participant?.identity}`);
+      console.log(`Handler #2: File size: ${fileSize} bytes, MIME type: ${info.mimeType}`);
+      
+      secondProgressContainer.remove();
+      
+      // Create a Blob from the file data and display it (similar to handler #1)
+      const result = new Blob(fileData, { type: info.mimeType });
+      
+      if (info.mimeType.startsWith('image/')) {
+        // Embed images directly in HTML with a different style for handler #2
+        const imgContainer = document.createElement('div');
+        imgContainer.style.margin = '10px 0';
+        imgContainer.style.padding = '10px';
+        imgContainer.style.border = '2px dashed #6495ED'; // Add a blue dashed border to distinguish
+        imgContainer.style.backgroundColor = '#f0f8ff'; // Light blue background
+        
+        const handlerLabel = document.createElement('div');
+        handlerLabel.innerText = 'Handler #2 Image:';
+        handlerLabel.style.fontWeight = 'bold';
+        handlerLabel.style.marginBottom = '5px';
+        
+        const img = document.createElement('img');
+        img.style.maxWidth = '300px';
+        img.style.maxHeight = '300px';
+        img.style.border = '1px solid #ddd';
+        img.src = URL.createObjectURL(result);
+        
+        const downloadLink = document.createElement('a');
+        downloadLink.href = img.src;
+        downloadLink.innerText = `Download ${info.name} (from handler #2)`;
+        downloadLink.setAttribute('download', info.name);
+        downloadLink.style.display = 'block';
+        downloadLink.style.marginTop = '5px';
+        
+        imgContainer.appendChild(handlerLabel);
+        imgContainer.appendChild(img);
+        imgContainer.appendChild(downloadLink);
+        $('chat-area').after(imgContainer);
+      } else {
+        // Non-images get a text download link instead
+        const downloadLink = document.createElement('a');
+        downloadLink.href = URL.createObjectURL(result);
+        downloadLink.innerText = `Download ${info.name} (from handler #2)`;
+        downloadLink.setAttribute('download', info.name);
+        downloadLink.style.margin = '10px';
+        downloadLink.style.padding = '5px';
+        downloadLink.style.display = 'block';
+        downloadLink.style.backgroundColor = '#f0f8ff';
+        downloadLink.style.border = '1px solid #6495ED';
         $('chat-area').after(downloadLink);
       }
     });
