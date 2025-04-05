@@ -252,7 +252,7 @@ const appActions = {
         );
       });
 
-    room.registerTextStreamHandler('chat', async (reader, participant) => {
+    room.registerTextStreamHandler('lk.chat', async (reader, participant) => {
       const info = reader.info;
       if (info.size) {
         handleChatMessage(
