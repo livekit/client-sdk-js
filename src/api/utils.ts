@@ -1,23 +1,26 @@
-import urlJoin from 'proper-url-join';
 import { toHttpUrl } from '../room/utils';
 
-/**
- * Creates a RTC URL from a base URL and search parameters.
- *
- * @param url - The base URL to create the RTC URL from.
- * @param searchParams - The search parameters to populate the RTC URL with.
- * @returns The RTC URL.
- */
 export function createRtcUrl(url: string, searchParams: URLSearchParams) {
-  return urlJoin(url, 'rtc', { query: Object.fromEntries(searchParams.entries()) });
+  const urlObj = new URL(url);
+  searchParams.forEach((value, key) => {
+    urlObj.searchParams.set(key, value);
+  });
+  return appendUrlPath(urlObj, 'rtc');
 }
 
 export function createValidateUrl(rtcWsUrl: string) {
   const urlObj = new URL(toHttpUrl(rtcWsUrl));
-  const query = Object.fromEntries(urlObj.searchParams.entries());
+  return appendUrlPath(urlObj, 'validate');
+}
 
-  return urlJoin(`${urlObj.protocol}//${urlObj.host}`, urlObj.pathname, 'validate', {
-    query,
-    leadingSlash: false,
-  });
+function ensureTrailingSlash(url: string) {
+  return url.endsWith('/') ? url : `${url}/`;
+}
+
+function appendUrlPath(urlObj: URL, path: string) {
+  const result = `${urlObj.protocol}//${urlObj.host}${ensureTrailingSlash(urlObj.pathname)}${path}`;
+  if (urlObj.searchParams.size > 0) {
+    return `${result}?${urlObj.searchParams.toString()}`;
+  }
+  return result;
 }
