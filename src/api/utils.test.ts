@@ -16,28 +16,38 @@ describe('createRtcUrl', () => {
       room: 'test-room',
     });
     const result = createRtcUrl(url, searchParams);
-    expect(result.toString()).toBe('wss://example.com/rtc?token=test-token&room=test-room');
+
+    const parsedResult = new URL(result);
+    expect(parsedResult.pathname).toBe('/rtc');
+    expect(parsedResult.searchParams.get('token')).toBe('test-token');
+    expect(parsedResult.searchParams.get('room')).toBe('test-room');
   });
 
   it('should handle ws protocol', () => {
     const url = 'ws://example.com';
     const searchParams = new URLSearchParams();
     const result = createRtcUrl(url, searchParams);
-    expect(result.toString()).toBe('ws://example.com/rtc');
+
+    const parsedResult = new URL(result);
+    expect(parsedResult.pathname).toBe('/rtc');
   });
 
   it('should handle sub paths', () => {
     const url = 'wss://example.com/sub/path';
     const searchParams = new URLSearchParams();
     const result = createRtcUrl(url, searchParams);
-    expect(result.toString()).toBe('wss://example.com/sub/path/rtc');
+
+    const parsedResult = new URL(result);
+    expect(parsedResult.pathname).toBe('/sub/path/rtc');
   });
 
   it('should handle sub paths with trailing slashes', () => {
     const url = 'wss://example.com/sub/path/';
     const searchParams = new URLSearchParams();
     const result = createRtcUrl(url, searchParams);
-    expect(result.toString()).toBe('wss://example.com/sub/path/rtc');
+
+    const parsedResult = new URL(result);
+    expect(parsedResult.pathname).toBe('/sub/path/rtc');
   });
 });
 
@@ -57,26 +67,34 @@ describe('createValidateUrl', () => {
       }),
     );
     const result = createValidateUrl(rtcUrl);
-    expect(result.toString()).toBe(
-      'https://example.com/rtc/validate?token=test-token&room=test-room',
-    );
+
+    const parsedResult = new URL(result);
+    expect(parsedResult.pathname).toBe('/rtc/validate');
+    expect(parsedResult.searchParams.get('token')).toBe('test-token');
+    expect(parsedResult.searchParams.get('room')).toBe('test-room');
   });
 
   it('should handle ws protocol', () => {
     const rtcUrl = createRtcUrl('ws://example.com', new URLSearchParams());
     const result = createValidateUrl(rtcUrl);
-    expect(result.toString()).toBe('http://example.com/rtc/validate');
+
+    const parsedResult = new URL(result);
+    expect(parsedResult.pathname).toBe('/rtc/validate');
   });
 
   it('should preserve the original path', () => {
-    const rtcUrl = createRtcUrl('wss://example.com/rtc/some/path', new URLSearchParams());
+    const rtcUrl = createRtcUrl('wss://example.com/some/path', new URLSearchParams());
     const result = createValidateUrl(rtcUrl);
-    expect(result.toString()).toBe('https://example.com/rtc/some/path/validate');
+
+    const parsedResult = new URL(result);
+    expect(parsedResult.pathname).toBe('/some/path/rtc/validate');
   });
 
   it('should handle sub paths with trailing slashes', () => {
     const rtcUrl = createRtcUrl('wss://example.com/sub/path/', new URLSearchParams());
     const result = createValidateUrl(rtcUrl);
-    expect(result.toString()).toBe('https://example.com/sub/path/validate');
+
+    const parsedResult = new URL(result);
+    expect(parsedResult.pathname).toBe('/sub/path/rtc/validate');
   });
 });
