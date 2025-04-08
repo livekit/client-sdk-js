@@ -29,4 +29,4 @@ class BaseStreamWriter<T, InfoType extends BaseStreamInfo> {
 
 export class TextStreamWriter extends BaseStreamWriter<string, TextStreamInfo> {}
 
-export class BinaryStreamWriter extends BaseStreamWriter<Uint8Array, ByteStreamInfo> {}
+export class ByteStreamWriter extends BaseStreamWriter<Uint8Array, ByteStreamInfo> {}
