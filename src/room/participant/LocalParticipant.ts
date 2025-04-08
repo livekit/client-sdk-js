@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import {
   AddTrackRequest,
   BackupCodecPolicy,
@@ -30,7 +31,7 @@ import {
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
-import { TextStreamWriter } from '../StreamWriter';
+import { ByteStreamWriter, TextStreamWriter } from '../StreamWriter';
 import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
@@ -72,6 +73,7 @@ import {
   screenCaptureToDisplayMediaStreamOptions,
 } from '../track/utils';
 import {
+  type ByteStreamInfo,
   type ChatMessage,
   type DataPublishOptions,
   type SendTextOptions,
@@ -528,9 +530,11 @@ export default class LocalParticipant extends Participant {
               ...this.logContext,
               ...getLogContextFromTrack(localTrack),
             });
+
             publishPromises.push(this.publishTrack(localTrack, publishOptions));
           }
           const publishedTracks = await Promise.all(publishPromises);
+
           // for screen share publications including audio, this will only return the screen share publication, not the screen share audio one
           // revisit if we want to return an array of tracks instead for v2
           [track] = publishedTracks;
@@ -1561,7 +1565,6 @@ export default class LocalParticipant extends Participant {
       destinationIdentities: options?.destinationIdentities,
       topic: options?.topic,
       attachedStreamIds: fileIds,
-      attributes: options?.attributes,
     });
 
     await writer.write(text);
@@ -1599,7 +1602,6 @@ export default class LocalParticipant extends Participant {
       timestamp: Date.now(),
       topic: options?.topic ?? '',
       size: options?.totalSize,
-      attributes: options?.attributes,
     };
     const header = new DataStream_Header({
       streamId,
@@ -1607,7 +1609,6 @@ export default class LocalParticipant extends Participant {
       topic: info.topic,
       timestamp: numberToBigInt(info.timestamp),
       totalLength: numberToBigInt(options?.totalSize),
-      attributes: info.attributes,
       contentHeader: {
         case: 'textHeader',
         value: new DataStream_TextHeader({
@@ -1713,23 +1714,56 @@ export default class LocalParticipant extends Participant {
       onProgress?: (progress: number) => void;
     },
   ) {
-    const totalLength = file.size;
-    const header = new DataStream_Header({
-      totalLength: numberToBigInt(totalLength),
-      mimeType: options?.mimeType ?? file.type,
+    const writer = await this.streamBytes({
       streamId,
+      totalSize: file.size,
+      name: file.name,
+      mimeType: options?.mimeType ?? file.type,
       topic: options?.topic,
-      encryptionType: options?.encryptionType,
+      destinationIdentities: options?.destinationIdentities,
+    });
+
+    await writer.write(new Uint8Array(await file.arrayBuffer()));
+    await writer.close();
+    return writer.info;
+  }
+
+  async streamBytes(options?: {
+    name?: string;
+    topic?: string;
+    attributes?: Record<string, string>;
+    destinationIdentities?: Array<string>;
+    streamId?: string;
+    mimeType?: string;
+    totalSize?: number;
+  }) {
+    const streamId = options?.streamId ?? crypto.randomUUID();
+    const destinationIdentities = options?.destinationIdentities;
+
+    const info: ByteStreamInfo = {
+      id: streamId,
+      mimeType: options?.mimeType ?? 'application/octet-stream',
+      topic: options?.topic ?? '',
+      timestamp: Date.now(),
+      attributes: options?.attributes,
+      size: options?.totalSize,
+      name: options?.name ?? 'unknown',
+    };
+
+    const header = new DataStream_Header({
+      totalLength: numberToBigInt(info.size ?? 0),
+      mimeType: info.mimeType,
+      streamId,
+      topic: info.topic,
       timestamp: numberToBigInt(Date.now()),
       contentHeader: {
         case: 'byteHeader',
         value: new DataStream_ByteHeader({
-          name: file.name,
+          name: info.name,
         }),
       },
     });
 
-    const destinationIdentities = options?.destinationIdentities;
     const packet = new DataPacket({
       destinationIdentities,
       value: {
@@ -1739,47 +1773,61 @@ export default class LocalParticipant extends Participant {
     });
 
     await this.engine.sendDataPacket(packet, DataPacket_Kind.RELIABLE);
-    function read(b: Blob): Promise<Uint8Array> {
-      return new Promise((resolve) => {
-        const fr = new FileReader();
-        fr.onload = () => {
-          resolve(new Uint8Array(fr.result as ArrayBuffer));
-        };
-        fr.readAsArrayBuffer(b);
-      });
-    }
-    const totalChunks = Math.ceil(totalLength / STREAM_CHUNK_SIZE);
-    for (let i = 0; i < totalChunks; i++) {
-      const chunkData = await read(
-        file.slice(i * STREAM_CHUNK_SIZE, Math.min((i + 1) * STREAM_CHUNK_SIZE, totalLength)),
-      );
-      await this.engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
-      const chunk = new DataStream_Chunk({
-        content: chunkData,
-        streamId,
-        chunkIndex: numberToBigInt(i),
-      });
-      const chunkPacket = new DataPacket({
-        destinationIdentities,
-        value: {
-          case: 'streamChunk',
-          value: chunk,
-        },
-      });
-      await this.engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
-      options?.onProgress?.((i + 1) / totalChunks);
-    }
-    const trailer = new DataStream_Trailer({
-      streamId,
-    });
-    const trailerPacket = new DataPacket({
-      destinationIdentities,
-      value: {
-        case: 'streamTrailer',
-        value: trailer,
+
+    let chunkId = 0;
+    const writeMutex = new Mutex();
+    const engine = this.engine;
+    const log = this.log;
+
+    const writableStream = new WritableStream<Uint8Array>({
+      async write(chunk) {
+        const unlock = await writeMutex.lock();
+
+        let byteOffset = 0;
+        try {
+          while (byteOffset < chunk.byteLength) {
+            const subChunk = chunk.slice(byteOffset, byteOffset + STREAM_CHUNK_SIZE);
+            await engine.waitForBufferStatusLow(DataPacket_Kind.RELIABLE);
+            const chunkPacket = new DataPacket({
+              destinationIdentities,
+              value: {
+                case: 'streamChunk',
+                value: new DataStream_Chunk({
+                  content: subChunk,
+                  streamId,
+                  chunkIndex: numberToBigInt(chunkId),
+                }),
+              },
+            });
+            await engine.sendDataPacket(chunkPacket, DataPacket_Kind.RELIABLE);
+            chunkId += 1;
+            byteOffset += subChunk.byteLength;
+          }
+        } finally {
+          unlock();
+        }
+      },
+      async close() {
+        const trailer = new DataStream_Trailer({
+          streamId,
+        });
+        const trailerPacket = new DataPacket({
+          destinationIdentities,
+          value: {
+            case: 'streamTrailer',
+            value: trailer,
+          },
+        });
+        await engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
+      },
+      abort(err) {
+        log.error('Sink error:', err);
       },
     });
-    await this.engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
+
+    const byteWriter = new ByteStreamWriter(writableStream, info);
+
+    return byteWriter;
   }
 
   /**
