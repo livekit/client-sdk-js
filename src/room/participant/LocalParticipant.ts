@@ -1565,6 +1565,7 @@ export default class LocalParticipant extends Participant {
       destinationIdentities: options?.destinationIdentities,
       topic: options?.topic,
       attachedStreamIds: fileIds,
+      attributes: options?.attributes,
     });
 
     await writer.write(text);
@@ -1602,6 +1603,7 @@ export default class LocalParticipant extends Participant {
       timestamp: Date.now(),
       topic: options?.topic ?? '',
       size: options?.totalSize,
+      attributes: options?.attributes,
     };
     const header = new DataStream_Header({
       streamId,
@@ -1609,6 +1611,7 @@ export default class LocalParticipant extends Participant {
       topic: info.topic,
       timestamp: numberToBigInt(info.timestamp),
       totalLength: numberToBigInt(options?.totalSize),
+      attributes: info.attributes,
       contentHeader: {
         case: 'textHeader',
         value: new DataStream_TextHeader({
@@ -1722,8 +1725,14 @@ export default class LocalParticipant extends Participant {
       topic: options?.topic,
       destinationIdentities: options?.destinationIdentities,
     });
-
-    await writer.write(new Uint8Array(await file.arrayBuffer()));
+    const reader = file.stream().getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      await writer.write(value);
+    }
     await writer.close();
     return writer.info;
   }
