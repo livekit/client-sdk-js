@@ -10,7 +10,10 @@ export class LocalTrackRecorder<T extends LocalTrack> {
 
   private reader: ReadableStream<Uint8Array>;
 
-  constructor(track: T) {
+  private timeslice: number;
+
+  constructor(track: T, options: { timeslice?: number } = {}) {
+    this.timeslice = options.timeslice ?? 100;
     const mediaStream = new MediaStream([track.mediaStreamTrack]);
     this.mediaRecorder = new MediaRecorder(mediaStream);
 
@@ -35,7 +38,7 @@ export class LocalTrackRecorder<T extends LocalTrack> {
           if (nextChunk) {
             controller.enqueue(nextChunk);
           } else {
-            await sleep(100);
+            await sleep(this.timeslice * 0.5);
           }
         }
 
@@ -49,8 +52,8 @@ export class LocalTrackRecorder<T extends LocalTrack> {
    * @param timeslice Optional time slice in ms for how often to generate data events
    * @returns An iterator that yields recorded Uint8Array chunks
    */
-  start(timeslice: number = 100): AsyncIterableIterator<Uint8Array> {
-    this.mediaRecorder.start(timeslice);
+  start(): AsyncIterableIterator<Uint8Array> {
+    this.mediaRecorder.start(this.timeslice);
     return this.createIterator();
   }
 
