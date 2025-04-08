@@ -235,11 +235,6 @@ const appActions = {
         appendLog(`signal connection established in ${signalConnectionTime}ms`);
         // speed up publishing by starting to publish before it's fully connected
         // publishing is accepted as soon as signal connection has established
-        if (shouldPublish) {
-          await room.localParticipant.enableCameraAndMicrophone();
-          appendLog(`tracks published in ${Date.now() - startTime}ms`);
-          updateButtonsForPublishState();
-        }
       })
       .on(RoomEvent.ParticipantEncryptionStatusChanged, () => {
         updateButtonsForPublishState();
@@ -353,8 +348,19 @@ const appActions = {
       if ((<HTMLInputElement>$('e2ee')).checked) {
         await room.setE2EEEnabled(true);
       }
-
-      await room.connect(url, token, connectOptions);
+      const publishPromise = new Promise<void>(async (resolve, reject) => {
+        try {
+          if (shouldPublish) {
+            await room.localParticipant.enableCameraAndMicrophone();
+            appendLog(`tracks published in ${Date.now() - startTime}ms`);
+            updateButtonsForPublishState();
+          }
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+      await Promise.all([room.connect(url, token, connectOptions), publishPromise]);
       const elapsed = Date.now() - startTime;
       appendLog(
         `successfully connected to ${room.name} in ${Math.round(elapsed)}ms`,
