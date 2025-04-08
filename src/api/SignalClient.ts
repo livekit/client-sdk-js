@@ -43,8 +43,9 @@ import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
-import { getClientInfo, isReactNative, sleep, toWebsocketUrl } from '../room/utils';
+import { getClientInfo, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
+import { createRtcUrl, createValidateUrl } from './utils';
 
 // internal options
 interface ConnectOpts extends SignalOptions {
@@ -258,17 +259,10 @@ export class SignalClient {
     abortSignal?: AbortSignal,
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     this.connectOptions = opts;
-    const urlObj = new URL(toWebsocketUrl(url));
-    // strip trailing slash
-    const hasTrailingSlash = urlObj.pathname.endsWith('/');
-    urlObj.pathname += hasTrailingSlash ? 'rtc' : '/rtc';
-
     const clientInfo = getClientInfo();
     const params = createConnectionParams(token, clientInfo, opts);
-
-    for (const [key, value] of params) {
-      urlObj.searchParams.set(key, value);
-    }
+    const rtcUrl = createRtcUrl(url, params);
+    const validateUrl = createValidateUrl(rtcUrl);
 
     return new Promise<JoinResponse | ReconnectResponse | undefined>(async (resolve, reject) => {
       const unlock = await this.connectionLock.lock();
@@ -298,7 +292,7 @@ export class SignalClient {
           abortHandler();
         }
         abortSignal?.addEventListener('abort', abortHandler);
-        const redactedUrl = new URL(urlObj.toString());
+        const redactedUrl = new URL(rtcUrl);
         if (redactedUrl.searchParams.has('access_token')) {
           redactedUrl.searchParams.set('access_token', '<redacted>');
         }
@@ -310,7 +304,7 @@ export class SignalClient {
         if (this.ws) {
           await this.close(false);
         }
-        this.ws = new WebSocket(urlObj.toString());
+        this.ws = new WebSocket(rtcUrl);
         this.ws.binaryType = 'arraybuffer';
 
         this.ws.onopen = () => {
@@ -322,10 +316,7 @@ export class SignalClient {
             this.state = SignalConnectionState.DISCONNECTED;
             clearTimeout(wsTimeout);
             try {
-              const validateURL = new URL(urlObj.toString());
-              validateURL.protocol = `http${validateURL.protocol.substring(2)}`;
-              validateURL.pathname += '/validate';
-              const resp = await fetch(validateURL);
+              const resp = await fetch(validateUrl);
               if (resp.status.toFixed(0).startsWith('4')) {
                 const msg = await resp.text();
                 reject(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
