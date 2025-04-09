@@ -875,7 +875,12 @@ export default class LocalParticipant extends Participant {
             track: getLogContextFromTrack(track),
           });
           const onSignalConnected = async () => {
-            return this.publish(track, opts, isStereo).then(resolve).catch(reject);
+            try {
+              const publication = await this.publish(track, opts, isStereo);
+              resolve(publication);
+            } catch (e) {
+              reject(e);
+            }
           };
           setTimeout(() => {
             this.engine.off(EngineEvent.SignalConnected, onSignalConnected);
@@ -892,7 +897,12 @@ export default class LocalParticipant extends Participant {
             reject(new PublishTrackError('publishing rejected as engine closed', 499));
           });
         } else {
-          return await this.publish(track, opts, isStereo);
+          try {
+            const publication = await this.publish(track, opts, isStereo);
+            resolve(publication);
+          } catch (e) {
+            reject(e);
+          }
         }
       } catch (e) {
         reject(e);
