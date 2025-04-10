@@ -10,11 +10,7 @@ export function createRtcUrl(url: string, searchParams: URLSearchParams) {
 
 export function createValidateUrl(rtcWsUrl: string) {
   const urlObj = new URL(toHttpUrl(rtcWsUrl));
-
-  // Replace trailing slash or no slash with /validate
-  urlObj.pathname = ensureTrailingSlash(urlObj.pathname) + 'validate';
-
-  return urlObj.toString(); // preserves searchParams automatically
+  return appendUrlPath(urlObj, 'validate');
 }
 
 function ensureTrailingSlash(path: string) {
@@ -22,9 +18,6 @@ function ensureTrailingSlash(path: string) {
 }
 
 function appendUrlPath(urlObj: URL, path: string) {
-  const result = `${urlObj.protocol}//${urlObj.host}${ensureTrailingSlash(urlObj.pathname)}${path}`;
-  if (urlObj.searchParams.size > 0) {
-    return `${result}?${urlObj.searchParams.toString()}`;
-  }
-  return result;
+  urlObj.pathname = `${ensureTrailingSlash(urlObj.pathname)}${path}`;
+  return urlObj.toString();
 }
