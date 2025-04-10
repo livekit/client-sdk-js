@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.11.1
+
+### Patch Changes
+
+- fix: device handling follow up - [#1483](https://github.com/livekit/client-sdk-js/pull/1483) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.11.0
 
 ### Minor Changes
