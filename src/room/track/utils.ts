@@ -33,7 +33,7 @@ export function mergeDefaultOptions(
       clonedOptions.audio as Record<string, unknown>,
       audioDefaults as Record<string, unknown>,
     );
-    clonedOptions.audio.deviceId ??= 'default';
+    clonedOptions.audio.deviceId ??= { ideal: 'default' };
     if (audioProcessor || defaultAudioProcessor) {
       clonedOptions.audio.processor = audioProcessor ?? defaultAudioProcessor;
     }
@@ -43,7 +43,7 @@ export function mergeDefaultOptions(
       clonedOptions.video as Record<string, unknown>,
       videoDefaults as Record<string, unknown>,
     );
-    clonedOptions.video.deviceId ??= 'default';
+    clonedOptions.video.deviceId ??= { ideal: 'default' };
     if (videoProcessor || defaultVideoProcessor) {
       clonedOptions.video.processor = videoProcessor ?? defaultVideoProcessor;
     }
@@ -81,9 +81,9 @@ export function constraintsForOptions(options: CreateLocalTracksOptions): MediaS
         }
       });
       constraints.video = videoOptions;
-      constraints.video.deviceId ??= 'default';
+      constraints.video.deviceId ??= { ideal: 'default' };
     } else {
-      constraints.video = options.video ? { deviceId: 'default' } : false;
+      constraints.video = options.video ? { deviceId: { ideal: 'default' } } : false;
     }
   } else {
     constraints.video = false;
@@ -92,9 +92,9 @@ export function constraintsForOptions(options: CreateLocalTracksOptions): MediaS
   if (options.audio) {
     if (typeof options.audio === 'object') {
       constraints.audio = options.audio;
-      constraints.audio.deviceId ??= 'default';
+      constraints.audio.deviceId ??= { ideal: 'default' };
     } else {
-      constraints.audio = { deviceId: 'default' };
+      constraints.audio = { deviceId: { ideal: 'default' } };
     }
   } else {
     constraints.audio = false;
