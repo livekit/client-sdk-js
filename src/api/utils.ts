@@ -13,14 +13,11 @@ export function createValidateUrl(rtcWsUrl: string) {
   return appendUrlPath(urlObj, 'validate');
 }
 
-function ensureTrailingSlash(url: string) {
-  return url.endsWith('/') ? url : `${url}/`;
+function ensureTrailingSlash(path: string) {
+  return path.endsWith('/') ? path : `${path}/`;
 }
 
 function appendUrlPath(urlObj: URL, path: string) {
-  const result = `${urlObj.protocol}//${urlObj.host}${ensureTrailingSlash(urlObj.pathname)}${path}`;
-  if (urlObj.searchParams.size > 0) {
-    return `${result}?${urlObj.searchParams.toString()}`;
-  }
-  return result;
+  urlObj.pathname = `${ensureTrailingSlash(urlObj.pathname)}${path}`;
+  return urlObj.toString();
 }
