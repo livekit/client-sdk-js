@@ -64,9 +64,19 @@ export async function createLocalTracks(
       deviceId: { ideal: deviceId },
     };
   }
-  internalOptions.audio ??= { deviceId: 'default' };
-  internalOptions.video ??= { deviceId: 'default' };
-
+  // TODO if internal options don't have device Id specified, set it to 'default'
+  if (
+    internalOptions.audio === true ||
+    (typeof internalOptions.audio === 'object' && !internalOptions.audio.deviceId)
+  ) {
+    internalOptions.audio = { deviceId: 'default' };
+  }
+  if (
+    internalOptions.video === true ||
+    (typeof internalOptions.video === 'object' && !internalOptions.video.deviceId)
+  ) {
+    internalOptions.video = { deviceId: 'default' };
+  }
   const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(internalOptions);
   const opts = mergeDefaultOptions(internalOptions, audioDefaults, videoDefaults);
   const constraints = constraintsForOptions(opts);
