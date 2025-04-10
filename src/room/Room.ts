@@ -1280,7 +1280,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    *  `audiooutput` to set speaker for all incoming audio tracks
    * @param deviceId
    */
-  async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = false) {
+  async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = true) {
     let success = true;
     let needsUpdateWithoutTracks = false;
     const deviceConstraint = exact ? { exact: deviceId } : deviceId;
