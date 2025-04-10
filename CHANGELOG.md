@@ -1,5 +1,21 @@
 # Change Log
 
+## 2.11.0
+
+### Minor Changes
+
+- Defer publishing until signal is connected - [#1465](https://github.com/livekit/client-sdk-js/pull/1465) ([@lukasIO](https://github.com/lukasIO))
+
+- Address chrome ideal device handling change by defaulting to exact device matching - [#1478](https://github.com/livekit/client-sdk-js/pull/1478) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Add streamBytes method - [#1473](https://github.com/livekit/client-sdk-js/pull/1473) ([@lukasIO](https://github.com/lukasIO))
+
+- Default to exact matching and retry on unspecified ideal narrowing - [#1479](https://github.com/livekit/client-sdk-js/pull/1479) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: search params for older browsers - [#1480](https://github.com/livekit/client-sdk-js/pull/1480) ([@radko93](https://github.com/radko93))
+
 ## 2.10.0
 
 ### Minor Changes
