@@ -2,6 +2,7 @@ import DeviceManager from '../DeviceManager';
 import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
+import type { LoggerOptions } from '../types';
 import { isAudioTrack, isSafari17, isVideoTrack, unwrapConstraint } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
@@ -29,6 +30,7 @@ import {
  */
 export async function createLocalTracks(
   options?: CreateLocalTracksOptions,
+  loggerOptions?: LoggerOptions,
 ): Promise<Array<LocalTrack>> {
   // set default options to true
   const internalOptions = { ...(options ?? {}) };
@@ -108,7 +110,7 @@ export async function createLocalTracks(
           trackConstraints = { deviceId: newDeviceId };
         }
 
-        const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
+        const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints, loggerOptions);
         if (track.kind === Track.Kind.Video) {
           track.source = Track.Source.Camera;
         } else if (track.kind === Track.Kind.Audio) {
@@ -129,11 +131,14 @@ export async function createLocalTracks(
     if (!attemptExactMatch) {
       throw e;
     }
-    return createLocalTracks({
-      ...options,
-      audio: retryAudioOptions,
-      video: retryVideoOptions,
-    });
+    return createLocalTracks(
+      {
+        ...options,
+        audio: retryAudioOptions,
+        video: retryVideoOptions,
+      },
+      loggerOptions,
+    );
   }
 }
 
