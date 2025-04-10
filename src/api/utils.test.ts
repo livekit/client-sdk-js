@@ -49,6 +49,18 @@ describe('createRtcUrl', () => {
     const parsedResult = new URL(result);
     expect(parsedResult.pathname).toBe('/sub/path/rtc');
   });
+
+  it('should handle sub paths with url params', () => {
+    const url = 'wss://example.com/sub/path?param=value';
+    const searchParams = new URLSearchParams();
+    searchParams.set('token', 'test-token');
+    const result = createRtcUrl(url, searchParams);
+
+    const parsedResult = new URL(result);
+    expect(parsedResult.pathname).toBe('/sub/path/rtc');
+    expect(parsedResult.searchParams.get('param')).toBe('value');
+    expect(parsedResult.searchParams.get('token')).toBe('test-token');
+  });
 });
 
 describe('createValidateUrl', () => {
