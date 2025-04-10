@@ -20,3 +20,11 @@ export function createValidateUrl(rtcWsUrl: string) {
 function ensureTrailingSlash(path: string) {
   return path.endsWith('/') ? path : `${path}/`;
 }
+
+function appendUrlPath(urlObj: URL, path: string) {
+  const result = `${urlObj.protocol}//${urlObj.host}${ensureTrailingSlash(urlObj.pathname)}${path}`;
+  if (urlObj.searchParams.size > 0) {
+    return `${result}?${urlObj.searchParams.toString()}`;
+  }
+  return result;
+}
