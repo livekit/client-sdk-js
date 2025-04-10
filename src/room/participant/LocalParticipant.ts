@@ -66,7 +66,6 @@ import type {
 } from '../track/options';
 import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
 import {
-  constraintsForOptions,
   getLogContextFromTrack,
   getTrackSourceFromProto,
   mergeDefaultOptions,
@@ -616,8 +615,6 @@ export default class LocalParticipant extends Participant {
       this.roomOptions?.videoCaptureDefaults,
     );
 
-    const constraints = constraintsForOptions(mergedOptionsWithProcessors);
-
     try {
       const tracks = await createLocalTracks(mergedOptionsWithProcessors, {
         loggerName: this.roomOptions.loggerName,
@@ -639,10 +636,10 @@ export default class LocalParticipant extends Participant {
       return localTracks;
     } catch (err) {
       if (err instanceof Error) {
-        if (constraints.audio) {
+        if (options.audio) {
           this.microphoneError = err;
         }
-        if (constraints.video) {
+        if (options.video) {
           this.cameraError = err;
         }
       }
