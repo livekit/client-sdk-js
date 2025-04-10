@@ -55,6 +55,7 @@ import LocalTrack from '../track/LocalTrack';
 import LocalTrackPublication from '../track/LocalTrackPublication';
 import LocalVideoTrack, { videoLayersFromEncodings } from '../track/LocalVideoTrack';
 import { Track } from '../track/Track';
+import { createLocalTracks } from '../track/create';
 import type {
   AudioCaptureOptions,
   BackupVideoCodec,
@@ -65,8 +66,6 @@ import type {
 } from '../track/options';
 import { ScreenSharePresets, VideoPresets, isBackupCodec } from '../track/options';
 import {
-  constraintsForOptions,
-  extractProcessorsFromOptions,
   getLogContextFromTrack,
   getTrackSourceFromProto,
   mergeDefaultOptions,
@@ -107,7 +106,6 @@ import {
   computeTrackBackupEncodings,
   computeVideoEncodings,
   getDefaultDegradationPreference,
-  mediaTrackToLocalTrack,
 } from './publishUtils';
 
 const STREAM_CHUNK_SIZE = 15_000;
@@ -617,61 +615,37 @@ export default class LocalParticipant extends Participant {
       this.roomOptions?.videoCaptureDefaults,
     );
 
-    const { audioProcessor, videoProcessor, optionsWithoutProcessor } =
-      extractProcessorsFromOptions(mergedOptionsWithProcessors);
-
-    const constraints = constraintsForOptions(optionsWithoutProcessor);
-    let stream: MediaStream | undefined;
     try {
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const tracks = await createLocalTracks(mergedOptionsWithProcessors, {
+        loggerName: this.roomOptions.loggerName,
+        loggerContextCb: () => this.logContext,
+      });
+      const localTracks = tracks.map((track) => {
+        if (isAudioTrack(track)) {
+          this.microphoneError = undefined;
+          track.setAudioContext(this.audioContext);
+          track.source = Track.Source.Microphone;
+          this.emit(ParticipantEvent.AudioStreamAcquired);
+        }
+        if (isVideoTrack(track)) {
+          this.cameraError = undefined;
+          track.source = Track.Source.Camera;
+        }
+        return track;
+      });
+      return localTracks;
     } catch (err) {
       if (err instanceof Error) {
-        if (constraints.audio) {
+        if (options.audio) {
           this.microphoneError = err;
         }
-        if (constraints.video) {
+        if (options.video) {
           this.cameraError = err;
         }
       }
 
       throw err;
     }
-
-    if (constraints.audio) {
-      this.microphoneError = undefined;
-      this.emit(ParticipantEvent.AudioStreamAcquired);
-    }
-    if (constraints.video) {
-      this.cameraError = undefined;
-    }
-
-    return Promise.all(
-      stream.getTracks().map(async (mediaStreamTrack) => {
-        const isAudio = mediaStreamTrack.kind === 'audio';
-        let trackConstraints: MediaTrackConstraints | undefined;
-        const conOrBool = isAudio ? constraints.audio : constraints.video;
-        if (typeof conOrBool !== 'boolean') {
-          trackConstraints = conOrBool;
-        }
-        const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints, {
-          loggerName: this.roomOptions.loggerName,
-          loggerContextCb: () => this.logContext,
-        });
-        if (track.kind === Track.Kind.Video) {
-          track.source = Track.Source.Camera;
-        } else if (track.kind === Track.Kind.Audio) {
-          track.source = Track.Source.Microphone;
-          track.setAudioContext(this.audioContext);
-        }
-        track.mediaStream = stream;
-        if (isAudioTrack(track) && audioProcessor) {
-          await track.setProcessor(audioProcessor);
-        } else if (isVideoTrack(track) && videoProcessor) {
-          await track.setProcessor(videoProcessor);
-        }
-        return track;
-      }),
-    );
   }
 
   /**
