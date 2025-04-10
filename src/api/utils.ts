@@ -19,8 +19,8 @@ function ensureTrailingSlash(url: string) {
 
 function appendUrlPath(urlObj: URL, path: string) {
   const result = `${urlObj.protocol}//${urlObj.host}${ensureTrailingSlash(urlObj.pathname)}${path}`;
-  if (urlObj.searchParams.size > 0) {
-    return `${result}?${urlObj.searchParams.toString()}`;
+  if (urlObj.search && urlObj.search.length > 1) {
+    return `${result}${urlObj.search}`;
   }
   return result;
 }
