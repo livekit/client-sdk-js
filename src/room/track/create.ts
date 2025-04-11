@@ -161,7 +161,7 @@ export async function createLocalVideoTrack(
 ): Promise<LocalVideoTrack> {
   const tracks = await createLocalTracks({
     audio: false,
-    video: options,
+    video: options ?? true,
   });
   return <LocalVideoTrack>tracks[0];
 }
@@ -170,7 +170,7 @@ export async function createLocalAudioTrack(
   options?: AudioCaptureOptions,
 ): Promise<LocalAudioTrack> {
   const tracks = await createLocalTracks({
-    audio: options,
+    audio: options ?? true,
     video: false,
   });
   return <LocalAudioTrack>tracks[0];
