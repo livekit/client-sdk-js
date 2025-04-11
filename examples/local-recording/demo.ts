@@ -134,20 +134,19 @@ const appActions = {
         appendLog('Error starting local recording:', e);
         return;
       }
-      const stream = state.recorder.start();
-
-      for await (const chunk of stream) {
-        console.log('handle local audio chunk', chunk);
-        state.chunks.push(chunk);
-      }
-
-      const blob = new Blob(state.chunks, { type: 'audio/ogg; codecs=opus' });
-      const url = URL.createObjectURL(blob);
-      state.chunks = [];
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'recording.ogg';
-      a.click();
+      state.recorder.addEventListener('dataavailable', async (event) => {
+        state.chunks.push(await event.data.bytes());
+      });
+      state.recorder.addEventListener('stop', () => {
+        const blob = new Blob(state.chunks, { type: 'audio/ogg; codecs=opus' });
+        const url = URL.createObjectURL(blob);
+        state.chunks = [];
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'recording.ogg';
+        a.click();
+      });
+      state.recorder.start();
     } else {
       appendLog('Cannot start recording: No microphone track created');
     }
