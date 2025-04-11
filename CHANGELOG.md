@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.11.2
+
+### Patch Changes
+
+- fix: request audio/video in create local track helpers - [#1485](https://github.com/livekit/client-sdk-js/pull/1485) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.11.1
 
 ### Patch Changes
