@@ -1,5 +1,85 @@
 # Change Log
 
+## 2.11.2
+
+### Patch Changes
+
+- fix: request audio/video in create local track helpers - [#1485](https://github.com/livekit/client-sdk-js/pull/1485) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.11.1
+
+### Patch Changes
+
+- fix: device handling follow up - [#1483](https://github.com/livekit/client-sdk-js/pull/1483) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.11.0
+
+### Minor Changes
+
+- Defer publishing until signal is connected - [#1465](https://github.com/livekit/client-sdk-js/pull/1465) ([@lukasIO](https://github.com/lukasIO))
+
+- Address chrome ideal device handling change by defaulting to exact device matching - [#1478](https://github.com/livekit/client-sdk-js/pull/1478) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Add streamBytes method - [#1473](https://github.com/livekit/client-sdk-js/pull/1473) ([@lukasIO](https://github.com/lukasIO))
+
+- Default to exact matching and retry on unspecified ideal narrowing - [#1479](https://github.com/livekit/client-sdk-js/pull/1479) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: search params for older browsers - [#1480](https://github.com/livekit/client-sdk-js/pull/1480) ([@radko93](https://github.com/radko93))
+
+## 2.10.0
+
+### Minor Changes
+
+- Add prefer regression for backup codec policy - [#1456](https://github.com/livekit/client-sdk-js/pull/1456) ([@cnderrauber](https://github.com/cnderrauber))
+
+### Patch Changes
+
+- Improve error message for WS errors during connection attempt - [#1466](https://github.com/livekit/client-sdk-js/pull/1466) ([@lukasIO](https://github.com/lukasIO))
+
+- Closable spatial layers for svc encoding - [#1458](https://github.com/livekit/client-sdk-js/pull/1458) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Improve connection URL handling and add unit tests - [#1468](https://github.com/livekit/client-sdk-js/pull/1468) ([@lukasIO](https://github.com/lukasIO))
+
+- Pass facingMode to initial getUserMedia call in track restart - [#1451](https://github.com/livekit/client-sdk-js/pull/1451) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.9.9
+
+### Patch Changes
+
+- Fix trailing slash handling in WebSocket URL pathname - [#1440](https://github.com/livekit/client-sdk-js/pull/1440) ([@Tanney-102](https://github.com/Tanney-102))
+
+- Skip incoming track if it's ended - [#1438](https://github.com/livekit/client-sdk-js/pull/1438) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure only suspended audio context gets resumed - [#1452](https://github.com/livekit/client-sdk-js/pull/1452) ([@lukasIO](https://github.com/lukasIO))
+
+- Do not log transcription received events - [#1453](https://github.com/livekit/client-sdk-js/pull/1453) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.9.8
+
+### Patch Changes
+
+- Use string instead of passing url object to WebSocket constructor - [#1443](https://github.com/livekit/client-sdk-js/pull/1443) ([@davidliu](https://github.com/davidliu))
+
+## 2.9.7
+
+### Patch Changes
+
+- Add attributes to SendTextOptions - [#1441](https://github.com/livekit/client-sdk-js/pull/1441) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.9.6
+
+### Patch Changes
+
+- Automatically attempt to resume suspended audio contexts on click - [#1431](https://github.com/livekit/client-sdk-js/pull/1431) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix ignored constraints in LocalTrack.restart - [#1435](https://github.com/livekit/client-sdk-js/pull/1435) ([@rktguswjd](https://github.com/rktguswjd))
+
+- log ice candidates as debug rather than trace - [#1437](https://github.com/livekit/client-sdk-js/pull/1437) ([@haydenbr](https://github.com/haydenbr))
+
+- fix: handle server url with params correctly - [#1366](https://github.com/livekit/client-sdk-js/pull/1366) ([@jiyeyuran](https://github.com/jiyeyuran))
+
 ## 2.9.5
 
 ### Patch Changes

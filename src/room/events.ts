@@ -562,6 +562,7 @@ export enum EngineEvent {
   LocalTrackSubscribed = 'localTrackSubscribed',
   Offline = 'offline',
   SignalRequestResponse = 'signalRequestResponse',
+  SignalConnected = 'signalConnected',
 }
 
 export enum TrackEvent {

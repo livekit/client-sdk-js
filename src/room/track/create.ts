@@ -2,6 +2,7 @@ import DeviceManager from '../DeviceManager';
 import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
+import type { LoggerOptions } from '../types';
 import { isAudioTrack, isSafari17, isVideoTrack, unwrapConstraint } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
@@ -29,72 +30,126 @@ import {
  */
 export async function createLocalTracks(
   options?: CreateLocalTracksOptions,
+  loggerOptions?: LoggerOptions,
 ): Promise<Array<LocalTrack>> {
   // set default options to true
-  options ??= {};
-  options.audio ??= { deviceId: 'default' };
-  options.video ??= { deviceId: 'default' };
-
-  const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(options);
-  const opts = mergeDefaultOptions(options, audioDefaults, videoDefaults);
+  const internalOptions = { ...(options ?? {}) };
+  let attemptExactMatch = false;
+  let retryAudioOptions: AudioCaptureOptions | undefined | boolean = options?.audio;
+  let retryVideoOptions: VideoCaptureOptions | undefined | boolean = options?.video;
+  // if the user passes a device id as a string, we default to exact match
+  if (
+    internalOptions.audio &&
+    typeof internalOptions.audio === 'object' &&
+    typeof internalOptions.audio.deviceId === 'string'
+  ) {
+    const deviceId: string = internalOptions.audio.deviceId;
+    internalOptions.audio.deviceId = { exact: deviceId };
+    attemptExactMatch = true;
+    retryAudioOptions = {
+      ...internalOptions.audio,
+      deviceId: { ideal: deviceId },
+    };
+  }
+  if (
+    internalOptions.video &&
+    typeof internalOptions.video === 'object' &&
+    typeof internalOptions.video.deviceId === 'string'
+  ) {
+    const deviceId: string = internalOptions.video.deviceId;
+    internalOptions.video.deviceId = { exact: deviceId };
+    attemptExactMatch = true;
+    retryVideoOptions = {
+      ...internalOptions.video,
+      deviceId: { ideal: deviceId },
+    };
+  }
+  // TODO if internal options don't have device Id specified, set it to 'default'
+  if (
+    internalOptions.audio === true ||
+    (typeof internalOptions.audio === 'object' && !internalOptions.audio.deviceId)
+  ) {
+    internalOptions.audio = { deviceId: 'default' };
+  }
+  if (
+    internalOptions.video === true ||
+    (typeof internalOptions.video === 'object' && !internalOptions.video.deviceId)
+  ) {
+    internalOptions.video = { deviceId: 'default' };
+  }
+  const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(internalOptions);
+  const opts = mergeDefaultOptions(internalOptions, audioDefaults, videoDefaults);
   const constraints = constraintsForOptions(opts);
 
   // Keep a reference to the promise on DeviceManager and await it in getLocalDevices()
   // works around iOS Safari Bug https://bugs.webkit.org/show_bug.cgi?id=179363
   const mediaPromise = navigator.mediaDevices.getUserMedia(constraints);
 
-  if (options.audio) {
+  if (internalOptions.audio) {
     DeviceManager.userMediaPromiseMap.set('audioinput', mediaPromise);
     mediaPromise.catch(() => DeviceManager.userMediaPromiseMap.delete('audioinput'));
   }
-  if (options.video) {
+  if (internalOptions.video) {
     DeviceManager.userMediaPromiseMap.set('videoinput', mediaPromise);
     mediaPromise.catch(() => DeviceManager.userMediaPromiseMap.delete('videoinput'));
   }
+  try {
+    const stream = await mediaPromise;
+    return await Promise.all(
+      stream.getTracks().map(async (mediaStreamTrack) => {
+        const isAudio = mediaStreamTrack.kind === 'audio';
+        let trackOptions = isAudio ? opts!.audio : opts!.video;
+        if (typeof trackOptions === 'boolean' || !trackOptions) {
+          trackOptions = {};
+        }
+        let trackConstraints: MediaTrackConstraints | undefined;
+        const conOrBool = isAudio ? constraints.audio : constraints.video;
+        if (typeof conOrBool !== 'boolean') {
+          trackConstraints = conOrBool;
+        }
 
-  const stream = await mediaPromise;
-  return Promise.all(
-    stream.getTracks().map(async (mediaStreamTrack) => {
-      const isAudio = mediaStreamTrack.kind === 'audio';
-      let trackOptions = isAudio ? opts!.audio : opts!.video;
-      if (typeof trackOptions === 'boolean' || !trackOptions) {
-        trackOptions = {};
-      }
-      let trackConstraints: MediaTrackConstraints | undefined;
-      const conOrBool = isAudio ? constraints.audio : constraints.video;
-      if (typeof conOrBool !== 'boolean') {
-        trackConstraints = conOrBool;
-      }
+        // update the constraints with the device id the user gave permissions to in the permission prompt
+        // otherwise each track restart (e.g. mute - unmute) will try to initialize the device again -> causing additional permission prompts
+        const newDeviceId = mediaStreamTrack.getSettings().deviceId;
+        if (
+          trackConstraints?.deviceId &&
+          unwrapConstraint(trackConstraints.deviceId) !== newDeviceId
+        ) {
+          trackConstraints.deviceId = newDeviceId;
+        } else if (!trackConstraints) {
+          trackConstraints = { deviceId: newDeviceId };
+        }
 
-      // update the constraints with the device id the user gave permissions to in the permission prompt
-      // otherwise each track restart (e.g. mute - unmute) will try to initialize the device again -> causing additional permission prompts
-      const newDeviceId = mediaStreamTrack.getSettings().deviceId;
-      if (
-        trackConstraints?.deviceId &&
-        unwrapConstraint(trackConstraints.deviceId) !== newDeviceId
-      ) {
-        trackConstraints.deviceId = newDeviceId;
-      } else if (!trackConstraints) {
-        trackConstraints = { deviceId: newDeviceId };
-      }
+        const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints, loggerOptions);
+        if (track.kind === Track.Kind.Video) {
+          track.source = Track.Source.Camera;
+        } else if (track.kind === Track.Kind.Audio) {
+          track.source = Track.Source.Microphone;
+        }
+        track.mediaStream = stream;
 
-      const track = mediaTrackToLocalTrack(mediaStreamTrack, trackConstraints);
-      if (track.kind === Track.Kind.Video) {
-        track.source = Track.Source.Camera;
-      } else if (track.kind === Track.Kind.Audio) {
-        track.source = Track.Source.Microphone;
-      }
-      track.mediaStream = stream;
+        if (isAudioTrack(track) && audioProcessor) {
+          await track.setProcessor(audioProcessor);
+        } else if (isVideoTrack(track) && videoProcessor) {
+          await track.setProcessor(videoProcessor);
+        }
 
-      if (isAudioTrack(track) && audioProcessor) {
-        await track.setProcessor(audioProcessor);
-      } else if (isVideoTrack(track) && videoProcessor) {
-        await track.setProcessor(videoProcessor);
-      }
-
-      return track;
-    }),
-  );
+        return track;
+      }),
+    );
+  } catch (e) {
+    if (!attemptExactMatch) {
+      throw e;
+    }
+    return createLocalTracks(
+      {
+        ...options,
+        audio: retryAudioOptions,
+        video: retryVideoOptions,
+      },
+      loggerOptions,
+    );
+  }
 }
 
 /**
@@ -106,7 +161,7 @@ export async function createLocalVideoTrack(
 ): Promise<LocalVideoTrack> {
   const tracks = await createLocalTracks({
     audio: false,
-    video: options,
+    video: options ?? true,
   });
   return <LocalVideoTrack>tracks[0];
 }
@@ -115,7 +170,7 @@ export async function createLocalAudioTrack(
   options?: AudioCaptureOptions,
 ): Promise<LocalAudioTrack> {
   const tracks = await createLocalTracks({
-    audio: options,
+    audio: options ?? true,
     video: false,
   });
   return <LocalAudioTrack>tracks[0];

@@ -248,6 +248,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.clientConfiguration = joinResponse.clientConfiguration;
+      // emit signal connected event after a short delay to allow for join response to be processed on room
+      setTimeout(() => {
+        this.emit(EngineEvent.SignalConnected);
+      }, 10);
       return joinResponse;
     } catch (e) {
       if (e instanceof ConnectionError) {
@@ -474,7 +478,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
-      this.log.trace('got ICE candidate from peer', { ...this.logContext, candidate, target });
+      this.log.debug('got ICE candidate from peer', { ...this.logContext, candidate, target });
       this.pcManager.addIceCandidate(candidate, target);
     };
 
@@ -1500,6 +1504,7 @@ export type EngineEventCallbacks = {
   remoteMute: (trackSid: string, muted: boolean) => void;
   offline: () => void;
   signalRequestResponse: (response: RequestResponse) => void;
+  signalConnected: () => void;
 };
 
 function supportOptionalDatachannel(protocol: number | undefined): boolean {

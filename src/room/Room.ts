@@ -1280,7 +1280,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    *  `audiooutput` to set speaker for all incoming audio tracks
    * @param deviceId
    */
-  async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = false) {
+  async switchActiveDevice(kind: MediaDeviceKind, deviceId: string, exact: boolean = true) {
     let success = true;
     let needsUpdateWithoutTracks = false;
     const deviceConstraint = exact ? { exact: deviceId } : deviceId;
@@ -1421,6 +1421,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.log.warn('skipping incoming track after Room disconnected', this.logContext);
       return;
     }
+    if (mediaTrack.readyState === 'ended') {
+      this.log.info('skipping incoming track as it already ended', this.logContext);
+      return;
+    }
     const parts = unpackStreamId(stream.id);
     const participantSid = parts[0];
     let streamId = parts[1];
@@ -1454,6 +1458,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         adaptiveStreamSettings = {};
       }
     }
+
     participant.addSubscribedMediaTrack(
       mediaTrack,
       trackId,
@@ -2568,7 +2573,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     ...args: Parameters<RoomEventCallbacks[E]>
   ): boolean {
     // active speaker updates are too spammy
-    if (event !== RoomEvent.ActiveSpeakersChanged) {
+    if (event !== RoomEvent.ActiveSpeakersChanged && event !== RoomEvent.TranscriptionReceived) {
       // only extract logContext from arguments in order to avoid logging the whole object tree
       const minimizedArgs = mapArgs(args).filter((arg: unknown) => arg !== undefined);
       this.log.debug(`room event ${event}`, { ...this.logContext, event, args: minimizedArgs });
