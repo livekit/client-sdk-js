@@ -1,7 +1,7 @@
-import { toHttpUrl } from '../room/utils';
+import { toHttpUrl, toWebsocketUrl } from '../room/utils';
 
 export function createRtcUrl(url: string, searchParams: URLSearchParams) {
-  const urlObj = new URL(url);
+  const urlObj = new URL(toWebsocketUrl(url));
   searchParams.forEach((value, key) => {
     urlObj.searchParams.set(key, value);
   });
