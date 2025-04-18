@@ -9,6 +9,13 @@ describe('createRtcUrl', () => {
     expect(result.toString()).toBe('wss://example.com/rtc');
   });
 
+  it('should create a basic RTC URL with http protocol', () => {
+    const url = 'http://example.com';
+    const searchParams = new URLSearchParams();
+    const result = createRtcUrl(url, searchParams);
+    expect(result.toString()).toBe('ws://example.com/rtc');
+  });
+
   it('should handle search parameters', () => {
     const url = 'wss://example.com';
     const searchParams = new URLSearchParams({
