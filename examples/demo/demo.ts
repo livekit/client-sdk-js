@@ -57,6 +57,8 @@ let currentRoom: Room | undefined;
 
 let startTime: number;
 
+let egressId: any;
+
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
 const storedToken = searchParams.get('token') ?? '';
@@ -598,6 +600,38 @@ const appActions = {
       });
     }
   },
+
+  toggleRecording: async () => {
+    if (!currentRoom)
+      return;
+    if (!currentRoom.isRecording) {
+      const roomName = currentRoom.name;
+      const response = await fetch("/api/start-recording", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ roomName })
+      });
+      if (!response.ok)
+        throw new Error("Failed to start recording!");
+      const data = await response.json();
+      egressId = data.egressId;
+      updateButtonsForPublishState();
+    }
+    else {
+      await fetch("/api/stop-recording", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ egressId })
+      });
+
+      updateButtonsForPublishState();
+      setButtonDisabled("start-recording-button", true);
+    }
+  }
 };
 
 declare global {
@@ -989,6 +1023,7 @@ function setButtonsForState(connected: boolean) {
     'disconnect-room-button',
     'flip-video-button',
     'send-button',
+    'start-recording-button'
   ];
   if (currentRoom && currentRoom.options.e2ee) {
     connectedSet.push('toggle-e2ee-button', 'e2ee-ratchet-button');
@@ -1090,6 +1125,12 @@ function updateButtonsForPublishState() {
     'toggle-e2ee-button',
     `${currentRoom.isE2EEEnabled ? 'Disable' : 'Enable'} E2EE`,
     currentRoom.isE2EEEnabled,
+  );
+
+  setButtonState(
+    'start-recording-button',
+    `${currentRoom.isRecording ? 'Stop' : 'Start'} Recording`,
+    currentRoom.isRecording,
   );
 }
 
