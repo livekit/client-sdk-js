@@ -32,14 +32,28 @@ export async function createLocalTracks(
   options?: CreateLocalTracksOptions,
   loggerOptions?: LoggerOptions,
 ): Promise<Array<LocalTrack>> {
-  // set default options to true
-  const internalOptions = { ...(options ?? {}) };
+  options ??= {};
   let attemptExactMatch = false;
-  let retryAudioOptions: AudioCaptureOptions | undefined | boolean = options?.audio;
-  let retryVideoOptions: VideoCaptureOptions | undefined | boolean = options?.video;
+
+  const {
+    audioProcessor,
+    videoProcessor,
+    optionsWithoutProcessor: internalOptions,
+  } = extractProcessorsFromOptions(options);
+
+  let retryAudioOptions: AudioCaptureOptions | undefined | boolean = internalOptions.audio;
+  let retryVideoOptions: VideoCaptureOptions | undefined | boolean = internalOptions.video;
+
+  if (audioProcessor && typeof internalOptions.audio === 'object') {
+    internalOptions.audio.processor = audioProcessor;
+  }
+  if (videoProcessor && typeof internalOptions.video === 'object') {
+    internalOptions.video.processor = videoProcessor;
+  }
+
   // if the user passes a device id as a string, we default to exact match
   if (
-    internalOptions.audio &&
+    options.audio &&
     typeof internalOptions.audio === 'object' &&
     typeof internalOptions.audio.deviceId === 'string'
   ) {
@@ -77,7 +91,6 @@ export async function createLocalTracks(
   ) {
     internalOptions.video = { deviceId: 'default' };
   }
-  const { audioProcessor, videoProcessor } = extractProcessorsFromOptions(internalOptions);
   const opts = mergeDefaultOptions(internalOptions, audioDefaults, videoDefaults);
   const constraints = constraintsForOptions(opts);
 
