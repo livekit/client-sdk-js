@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.11.3
+
+### Patch Changes
+
+- Convert URL Scheme When Creating WebSocket Object - [#1492](https://github.com/livekit/client-sdk-js/pull/1492) ([@rktguswjd](https://github.com/rktguswjd))
+
+- fix: avoid mutating create track options - [#1497](https://github.com/livekit/client-sdk-js/pull/1497) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.11.2
 
 ### Patch Changes
