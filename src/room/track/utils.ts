@@ -23,7 +23,7 @@ export function mergeDefaultOptions(
   );
   const defaultAudioProcessor = audioDefaults?.processor;
   const defaultVideoProcessor = videoDefaults?.processor;
-  const clonedOptions: CreateLocalTracksOptions = cloneDeep(optionsWithoutProcessor) ?? {};
+  const clonedOptions: CreateLocalTracksOptions = optionsWithoutProcessor ?? {};
   if (clonedOptions.audio === true) clonedOptions.audio = {};
   if (clonedOptions.video === true) clonedOptions.video = {};
 
@@ -312,7 +312,7 @@ export function extractProcessorsFromOptions(options: CreateLocalTracksOptions) 
     newOptions.video = { ...newOptions.video, processor: undefined };
   }
 
-  return { audioProcessor, videoProcessor, optionsWithoutProcessor: newOptions };
+  return { audioProcessor, videoProcessor, optionsWithoutProcessor: cloneDeep(newOptions) };
 }
 
 export function getTrackSourceFromProto(source: TrackSource): Track.Source {
