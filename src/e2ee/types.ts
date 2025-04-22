@@ -74,6 +74,7 @@ export interface RatchetRequestMessage extends BaseMessage {
   data: {
     participantIdentity?: string;
     keyIndex?: number;
+    extractable?: boolean;
   };
 }
 
@@ -130,6 +131,7 @@ export type KeyProviderOptions = {
   ratchetWindowSize: number;
   failureTolerance: number;
   keyringSize: number;
+  allowKeyExtraction: boolean;
 };
 
 export type KeyInfo = {
