@@ -74,7 +74,7 @@ export interface RatchetRequestMessage extends BaseMessage {
   data: {
     participantIdentity?: string;
     keyIndex?: number;
-    extracable?: boolean;
+    extractable?: boolean;
   };
 }
 

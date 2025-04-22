@@ -233,7 +233,7 @@ export class E2EEManager
   private postRatchetRequest(
     participantIdentity?: string,
     keyIndex?: number,
-    extracable?: boolean,
+    extractable?: boolean,
   ) {
     if (!this.worker) {
       throw Error('could not ratchet key, worker is missing');
@@ -243,7 +243,7 @@ export class E2EEManager
       data: {
         participantIdentity: participantIdentity,
         keyIndex,
-        extracable,
+        extractable,
       },
     };
     this.worker.postMessage(msg);

@@ -119,11 +119,11 @@ onmessage = (ev) => {
 async function handleRatchetRequest(data: RatchetRequestMessage['data']) {
   if (useSharedKey) {
     const keyHandler = getSharedKeyHandler();
-    await keyHandler.ratchetKey(data.keyIndex, undefined, data.extracable);
+    await keyHandler.ratchetKey(data.keyIndex, true, data.extractable);
     keyHandler.resetKeyStatus();
   } else if (data.participantIdentity) {
     const keyHandler = getParticipantKeyHandler(data.participantIdentity);
-    await keyHandler.ratchetKey(data.keyIndex, undefined, data.extracable);
+    await keyHandler.ratchetKey(data.keyIndex, true, data.extractable);
     keyHandler.resetKeyStatus();
   } else {
     workerLogger.error(
