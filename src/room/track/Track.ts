@@ -220,7 +220,7 @@ export abstract class Track<
           console.log('detach from a single element', element, idx);
           this.attachedElements.splice(idx, 1);
           console.log('attachedElements', this.attachedElements);
-          this.recycleElement(element);
+          // this.recycleElement(element);
           this.emit(TrackEvent.ElementDetached, element);
         }
         return element;
