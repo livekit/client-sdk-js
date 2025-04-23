@@ -11288,28 +11288,38 @@ class Track extends eventsExports.EventEmitter {
     // we'll want to re-attach it in that case
     attachToElement(this.mediaStreamTrack, element);
     // handle auto playback failures
-    const allMediaStreamTracks = element.srcObject.getTracks();
-    const hasAudio = allMediaStreamTracks.some(tr => tr.kind === 'audio');
+    // const allMediaStreamTracks = (element.srcObject as MediaStream).getTracks();
+    // const hasAudio = allMediaStreamTracks.some((tr) => tr.kind === 'audio');
     // manually play media to detect auto playback status
-    element.play().then(() => {
-      this.emit(hasAudio ? TrackEvent.AudioPlaybackStarted : TrackEvent.VideoPlaybackStarted);
-    }).catch(e => {
-      if (e.name === 'NotAllowedError') {
-        this.emit(hasAudio ? TrackEvent.AudioPlaybackFailed : TrackEvent.VideoPlaybackFailed, e);
-      } else if (e.name === 'AbortError') {
-        // commonly triggered by another `play` request, only log for debugging purposes
-        livekitLogger.debug("".concat(hasAudio ? 'audio' : 'video', " playback aborted, likely due to new play request"));
-      } else {
-        livekitLogger.warn("could not playback ".concat(hasAudio ? 'audio' : 'video'), e);
-      }
-      // If audio playback isn't allowed make sure we still play back the video
-      if (hasAudio && element && allMediaStreamTracks.some(tr => tr.kind === 'video') && e.name === 'NotAllowedError') {
-        element.muted = true;
-        element.play().catch(() => {
-          // catch for Safari, exceeded options at this point to automatically play the media element
-        });
-      }
-    });
+    // element
+    //   .play()
+    //   .then(() => {
+    //     this.emit(hasAudio ? TrackEvent.AudioPlaybackStarted : TrackEvent.VideoPlaybackStarted);
+    //   })
+    //   .catch((e) => {
+    //     if (e.name === 'NotAllowedError') {
+    //       this.emit(hasAudio ? TrackEvent.AudioPlaybackFailed : TrackEvent.VideoPlaybackFailed, e);
+    //     } else if (e.name === 'AbortError') {
+    //       // commonly triggered by another `play` request, only log for debugging purposes
+    //       log.debug(
+    //         `${hasAudio ? 'audio' : 'video'} playback aborted, likely due to new play request`,
+    //       );
+    //     } else {
+    //       log.warn(`could not playback ${hasAudio ? 'audio' : 'video'}`, e);
+    //     }
+    //     // If audio playback isn't allowed make sure we still play back the video
+    //     if (
+    //       hasAudio &&
+    //       element &&
+    //       allMediaStreamTracks.some((tr) => tr.kind === 'video') &&
+    //       e.name === 'NotAllowedError'
+    //     ) {
+    //       element.muted = true;
+    //       element.play().catch(() => {
+    //         // catch for Safari, exceeded options at this point to automatically play the media element
+    //       });
+    //     }
+    //   });
     this.emit(TrackEvent.ElementAttached, element);
     return element;
   }
@@ -11324,7 +11334,7 @@ class Track extends eventsExports.EventEmitter {
           console.log('detach from a single element', element, idx);
           this.attachedElements.splice(idx, 1);
           console.log('attachedElements', this.attachedElements);
-          // this.recycleElement(element);
+          this.recycleElement(element);
           this.emit(TrackEvent.ElementDetached, element);
         }
         return element;
