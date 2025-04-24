@@ -222,19 +222,11 @@ export class E2EEManager
     keyProvider
       .on(KeyProviderEvent.SetKey, (keyInfo) => this.postKey(keyInfo))
       .on(KeyProviderEvent.RatchetRequest, (participantId, keyIndex) =>
-        this.postRatchetRequest(
-          participantId,
-          keyIndex,
-          keyProvider.getOptions().allowKeyExtraction,
-        ),
+        this.postRatchetRequest(participantId, keyIndex),
       );
   }
 
-  private postRatchetRequest(
-    participantIdentity?: string,
-    keyIndex?: number,
-    extractable?: boolean,
-  ) {
+  private postRatchetRequest(participantIdentity?: string, keyIndex?: number) {
     if (!this.worker) {
       throw Error('could not ratchet key, worker is missing');
     }
@@ -243,7 +235,6 @@ export class E2EEManager
       data: {
         participantIdentity: participantIdentity,
         keyIndex,
-        extractable,
       },
     };
     this.worker.postMessage(msg);

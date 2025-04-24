@@ -108,10 +108,9 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
    * returns the ratcheted material
    * if `setKey` is true (default), it will also set the ratcheted key directly on the crypto key ring
    * @param keyIndex
-   * @param setKey set the new key. Will emit KeyHandlerEvent.KeyRatcheted after key generation (default: true)
-   * @param extractable allow key extraction (get the key in plaintext) on the ratcheted new key (default: false)
+   * @param setKey
    */
-  ratchetKey(keyIndex?: number, setKey = true, extractable = false): Promise<CryptoKey> {
+  ratchetKey(keyIndex?: number, setKey = true): Promise<CryptoKey> {
     const currentKeyIndex = keyIndex ?? this.getCurrentKeyIndex();
 
     const existingPromise = this.ratchetPromiseMap.get(currentKeyIndex);
@@ -131,7 +130,6 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
           await ratchet(currentMaterial, this.keyProviderOptions.ratchetSalt),
           currentMaterial.algorithm.name,
           'derive',
-          extractable,
         );
 
         if (setKey) {

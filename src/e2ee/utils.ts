@@ -27,14 +27,13 @@ export async function importKey(
   keyBytes: Uint8Array | ArrayBuffer,
   algorithm: string | { name: string } = { name: ENCRYPTION_ALGORITHM },
   usage: 'derive' | 'encrypt' = 'encrypt',
-  extractable: boolean = false,
 ) {
   // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey
   return crypto.subtle.importKey(
     'raw',
     keyBytes,
     algorithm,
-    extractable,
+    false,
     usage === 'derive' ? ['deriveBits', 'deriveKey'] : ['encrypt', 'decrypt'],
   );
 }
