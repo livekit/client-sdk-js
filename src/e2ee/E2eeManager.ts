@@ -154,6 +154,13 @@ export class E2EEManager
       case 'ratchetKey':
         this.keyProvider.emit(KeyProviderEvent.KeyRatcheted, data.material, data.keyIndex);
         break;
+      case 'ratchetRequestCompleted':
+        this.keyProvider.emit(
+          KeyProviderEvent.RatchetRequestCompleted,
+          data.keyBuffer,
+          data.keyIndex,
+        );
+        break;
       default:
         break;
     }

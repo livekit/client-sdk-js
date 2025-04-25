@@ -126,17 +126,13 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
           );
         }
         const currentMaterial = keySet.material;
-        const newMaterial = await importKey(
-          await ratchet(currentMaterial, this.keyProviderOptions.ratchetSalt),
-          currentMaterial.algorithm.name,
-          'derive',
-        );
-
+        const chainKey = await ratchet(currentMaterial, this.keyProviderOptions.ratchetSalt);
+        const newMaterial = await importKey(chainKey, currentMaterial.algorithm.name, 'derive');
         if (setKey) {
           await this.setKeyFromMaterial(newMaterial, currentKeyIndex, true);
           this.emit(
-            KeyHandlerEvent.KeyRatcheted,
-            newMaterial,
+            KeyHandlerEvent.RatchetRequestCompleted,
+            chainKey,
             this.participantIdentity,
             currentKeyIndex,
           );

@@ -77,6 +77,15 @@ export interface RatchetRequestMessage extends BaseMessage {
   };
 }
 
+export interface RatchetRequestCompletedMessage extends BaseMessage {
+  kind: 'ratchetRequestCompleted';
+  data: {
+    participantIdentity?: string;
+    keyIndex?: number;
+    keyBuffer: ArrayBuffer;
+  };
+}
+
 export interface RatchetMessage extends BaseMessage {
   kind: 'ratchetKey';
   data: {
@@ -118,6 +127,7 @@ export type E2EEWorkerMessage =
   | RTPVideoMapMessage
   | UpdateCodecMessage
   | RatchetRequestMessage
+  | RatchetRequestCompletedMessage
   | RatchetMessage
   | SifTrailerMessage
   | InitAck;

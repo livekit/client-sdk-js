@@ -10,6 +10,7 @@ import type {
   InitAck,
   KeyProviderOptions,
   RatchetMessage,
+  RatchetRequestCompletedMessage,
   RatchetRequestMessage,
 } from '../types';
 import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
@@ -176,6 +177,7 @@ function getParticipantKeyHandler(participantIdentity: string) {
   if (!keys) {
     keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
     keys.on(KeyHandlerEvent.KeyRatcheted, emitRatchetedKeys);
+    keys.on(KeyHandlerEvent.RatchetRequestCompleted, emitRatchetRequestCompleted);
     participantKeys.set(participantIdentity, keys);
   }
   return keys;
@@ -236,6 +238,22 @@ function emitRatchetedKeys(material: CryptoKey, participantIdentity: string, key
       participantIdentity,
       keyIndex,
       material,
+    },
+  };
+  postMessage(msg);
+}
+
+function emitRatchetRequestCompleted(
+  keyBuffer: ArrayBuffer,
+  participantIdentity: string,
+  keyIndex?: number,
+) {
+  const msg: RatchetRequestCompletedMessage = {
+    kind: `ratchetRequestCompleted`,
+    data: {
+      participantIdentity,
+      keyIndex,
+      keyBuffer,
     },
   };
   postMessage(msg);
