@@ -136,6 +136,12 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
             this.participantIdentity,
             currentKeyIndex,
           );
+          this.emit(
+            KeyHandlerEvent.KeyRatcheted,
+            newMaterial,
+            this.participantIdentity,
+            currentKeyIndex,
+          );
         }
         resolve(newMaterial);
       } catch (e) {
