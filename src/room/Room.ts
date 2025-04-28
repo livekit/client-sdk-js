@@ -79,7 +79,7 @@ import { Track } from './track/Track';
 import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
-import { getNewAudioContext, sourceToKind } from './track/utils';
+import { getNewAudioContext, kindToSource, sourceToKind } from './track/utils';
 import {
   type ByteStreamInfo,
   type ChatMessage,
@@ -2000,9 +2000,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
     }
 
-    // inputs are automatically handled via TrackEvent.Ended causing a TrackEvent.Restarted. Here we only need to worry about audiooutputs changing
     const kinds: MediaDeviceKind[] = ['audiooutput', 'audioinput', 'videoinput'];
     for (let kind of kinds) {
+      const targetSource = kindToSource(kind);
+      const targetPublication = this.localParticipant.getTrackPublication(targetSource);
+      if (targetPublication && targetPublication.track?.isUserProvided) {
+        // if the track is user provided, we don't want to switch devices on behalf of the user
+        continue;
+      }
       const devicesOfKind = availableDevices.filter((d) => d.kind === kind);
       const activeDevice = this.getActiveDevice(kind);
 
