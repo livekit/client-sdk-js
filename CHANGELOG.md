@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.11.4
+
+### Patch Changes
+
+- Ensure userProvided tracks are not overriden from within the SDK - [#1500](https://github.com/livekit/client-sdk-js/pull/1500) ([@lukasIO](https://github.com/lukasIO))
+
+- Revert "Add option (`KeyProviderOptions`) to allowKeyExtraction." - [#1502](https://github.com/livekit/client-sdk-js/pull/1502) ([@toger5](https://github.com/toger5))
+
 ## 2.11.3
 
 ### Patch Changes
