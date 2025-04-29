@@ -9,6 +9,7 @@ import { compareVersions, isMobile, sleep, unwrapConstraint } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
+import { LocalTrackRecorder } from './record';
 import type { ReplaceTrackOptions } from './types';
 
 const defaultDimensionsTimeout = 1000;
@@ -54,6 +55,10 @@ export default abstract class LocalTrack<
   protected audioContext?: AudioContext;
 
   protected manuallyStopped: boolean = false;
+
+  protected preConnectBuffer: Uint8Array[] = [];
+
+  protected localTrackRecorder: LocalTrackRecorder<typeof this> | undefined;
 
   private restartLock: Mutex;
 
@@ -583,6 +588,37 @@ export default abstract class LocalTrack<
     // force re-setting of the mediaStreamTrack on the sender
     await this.setMediaStreamTrack(this._mediaStreamTrack, true);
     this.emit(TrackEvent.TrackProcessorUpdate);
+  }
+
+  startPreConnectBuffer() {
+    if (!this.localTrackRecorder) {
+      this.localTrackRecorder = new LocalTrackRecorder(this);
+    } else {
+      this.log.warn('preconnect buffer already started');
+      return;
+    }
+    this.localTrackRecorder.addEventListener('dataavailable', async (event) => {
+      this.preConnectBuffer.push(await event.data.bytes());
+    });
+    this.localTrackRecorder.start();
+  }
+
+  /** @internal */
+  flushPreConnectBuffer() {
+    if (this.localTrackRecorder) {
+      this.localTrackRecorder.stop();
+      this.emit(TrackEvent.PreConnectBufferFlushed, this.preConnectBuffer);
+    }
+    this.localTrackRecorder = undefined;
+    this.preConnectBuffer = [];
+  }
+
+  cancelPreConnectBuffer() {
+    if (this.localTrackRecorder) {
+      this.localTrackRecorder.stop();
+      this.localTrackRecorder = undefined;
+    }
+    this.preConnectBuffer = [];
   }
 
   protected abstract monitorSender(): void;
