@@ -1,6 +1,7 @@
 import { Mutex } from '@livekit/mutex';
 import {
   AddTrackRequest,
+  AudioTrackFeature,
   BackupCodecPolicy,
   ChatMessage as ChatMessageModel,
   Codec,
@@ -970,6 +971,49 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
     track.on(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
 
+    const audioFeatures: AudioTrackFeature[] = [];
+    if (isLocalAudioTrack(track) && track.hasPreConnectBuffer) {
+      audioFeatures.push(AudioTrackFeature.TF_PRECONNECT_BUFFER);
+      const buffer = track.flushPreConnectBuffer();
+      if (buffer.length > 0) {
+        this.log.debug('sending preconnect buffer', {
+          ...this.logContext,
+          ...getLogContextFromTrack(track),
+        });
+        const bufferStreamPromise = new Promise<void>(async (resolve, reject) => {
+          try {
+            const writer = await this.streamBytes({
+              name: 'preconnect-buffer',
+              mimeType: 'audio/opus',
+              topic: 'lk.preconnect-buffer',
+              totalSize: buffer.reduce((acc, curr) => acc + curr.byteLength, 0),
+            });
+            for (const chunk of buffer) {
+              await writer.write(chunk);
+            }
+            await writer.close();
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
+        bufferStreamPromise
+          .then(() => {
+            this.log.debug('preconnect buffer sent', {
+              ...this.logContext,
+              ...getLogContextFromTrack(track),
+            });
+          })
+          .catch((e) => {
+            this.log.error('error sending preconnect buffer', {
+              ...this.logContext,
+              ...getLogContextFromTrack(track),
+              error: e,
+            });
+          });
+      }
+    }
+
     // create track publication from track
     const req = new AddTrackRequest({
       // get local track id for use during publishing
@@ -984,6 +1028,7 @@ export default class LocalParticipant extends Participant {
       disableRed: this.isE2EEEnabled || !(opts.red ?? true),
       stream: opts?.stream,
       backupCodecPolicy: opts?.backupCodecPolicy as BackupCodecPolicy,
+      audioFeatures,
     });
 
     // compute encodings and layers for video

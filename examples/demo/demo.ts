@@ -265,6 +265,7 @@ const appActions = {
             timestamp: info.timestamp,
             message: await reader.readAll(),
           },
+
           room.getParticipantByIdentity(participant?.identity),
         );
 

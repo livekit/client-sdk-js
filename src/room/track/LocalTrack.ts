@@ -36,6 +36,10 @@ export default abstract class LocalTrack<
     return this._constraints;
   }
 
+  get hasPreConnectBuffer() {
+    return this.preConnectBuffer.length > 0;
+  }
+
   protected _constraints: MediaTrackConstraints;
 
   protected reacquireTrack: boolean;
@@ -607,10 +611,11 @@ export default abstract class LocalTrack<
   flushPreConnectBuffer() {
     if (this.localTrackRecorder) {
       this.localTrackRecorder.stop();
-      this.emit(TrackEvent.PreConnectBufferFlushed, this.preConnectBuffer);
     }
+    const buffer = this.preConnectBuffer;
     this.localTrackRecorder = undefined;
     this.preConnectBuffer = [];
+    return buffer;
   }
 
   cancelPreConnectBuffer() {
