@@ -10,8 +10,8 @@ import type {
   InitAck,
   KeyProviderOptions,
   RatchetMessage,
-  RatchetRequestCompletedMessage,
   RatchetRequestMessage,
+  RatchetResult,
 } from '../types';
 import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
@@ -177,7 +177,6 @@ function getParticipantKeyHandler(participantIdentity: string) {
   if (!keys) {
     keys = new ParticipantKeyHandler(participantIdentity, keyProviderOptions);
     keys.on(KeyHandlerEvent.KeyRatcheted, emitRatchetedKeys);
-    keys.on(KeyHandlerEvent.RatchetRequestCompleted, emitRatchetRequestCompleted);
     participantKeys.set(participantIdentity, keys);
   }
   return keys;
@@ -231,29 +230,17 @@ function setupCryptorErrorEvents(cryptor: FrameCryptor) {
   });
 }
 
-function emitRatchetedKeys(material: CryptoKey, participantIdentity: string, keyIndex?: number) {
+function emitRatchetedKeys(
+  ratchetResult: RatchetResult,
+  participantIdentity: string,
+  keyIndex?: number,
+) {
   const msg: RatchetMessage = {
     kind: `ratchetKey`,
     data: {
       participantIdentity,
       keyIndex,
-      material,
-    },
-  };
-  postMessage(msg);
-}
-
-function emitRatchetRequestCompleted(
-  keyBuffer: ArrayBuffer,
-  participantIdentity: string,
-  keyIndex?: number,
-) {
-  const msg: RatchetRequestCompletedMessage = {
-    kind: `ratchetRequestCompleted`,
-    data: {
-      participantIdentity,
-      keyIndex,
-      keyBuffer,
+      ratchetResult,
     },
   };
   postMessage(msg);

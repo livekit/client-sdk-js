@@ -77,21 +77,12 @@ export interface RatchetRequestMessage extends BaseMessage {
   };
 }
 
-export interface RatchetRequestCompletedMessage extends BaseMessage {
-  kind: 'ratchetRequestCompleted';
-  data: {
-    participantIdentity?: string;
-    keyIndex?: number;
-    keyBuffer: ArrayBuffer;
-  };
-}
-
 export interface RatchetMessage extends BaseMessage {
   kind: 'ratchetKey';
   data: {
     participantIdentity: string;
     keyIndex?: number;
-    material: CryptoKey;
+    ratchetResult: RatchetResult;
   };
 }
 
@@ -127,12 +118,18 @@ export type E2EEWorkerMessage =
   | RTPVideoMapMessage
   | UpdateCodecMessage
   | RatchetRequestMessage
-  | RatchetRequestCompletedMessage
   | RatchetMessage
   | SifTrailerMessage
   | InitAck;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
+
+export type RatchetResult = {
+  // The ratchet chain key, which is used to derive the next key.
+  // Can be shared/exported to other participants.
+  chainKey: ArrayBuffer;
+  cryptoKey: CryptoKey;
+};
 
 export type KeyProviderOptions = {
   sharedKey: boolean;

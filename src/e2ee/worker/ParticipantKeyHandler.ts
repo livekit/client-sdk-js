@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import type TypedEventEmitter from 'typed-emitter';
 import { workerLogger } from '../../logger';
 import { KeyHandlerEvent, type ParticipantKeyHandlerCallbacks } from '../events';
-import type { KeyProviderOptions, KeySet } from '../types';
+import type { KeyProviderOptions, KeySet, RatchetResult } from '../types';
 import { deriveKeys, importKey, ratchet } from '../utils';
 
 // TODO ParticipantKeyHandlers currently don't get destroyed on participant disconnect
@@ -25,7 +25,7 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   private keyProviderOptions: KeyProviderOptions;
 
-  private ratchetPromiseMap: Map<number, Promise<CryptoKey>>;
+  private ratchetPromiseMap: Map<number, Promise<RatchetResult>>;
 
   private participantIdentity: string;
 
@@ -110,14 +110,14 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
    * @param keyIndex
    * @param setKey
    */
-  ratchetKey(keyIndex?: number, setKey = true): Promise<CryptoKey> {
+  ratchetKey(keyIndex?: number, setKey = true): Promise<RatchetResult> {
     const currentKeyIndex = keyIndex ?? this.getCurrentKeyIndex();
 
     const existingPromise = this.ratchetPromiseMap.get(currentKeyIndex);
     if (typeof existingPromise !== 'undefined') {
       return existingPromise;
     }
-    const ratchetPromise = new Promise<CryptoKey>(async (resolve, reject) => {
+    const ratchetPromise = new Promise<RatchetResult>(async (resolve, reject) => {
       try {
         const keySet = this.getKeySet(currentKeyIndex);
         if (!keySet) {
@@ -128,22 +128,15 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
         const currentMaterial = keySet.material;
         const chainKey = await ratchet(currentMaterial, this.keyProviderOptions.ratchetSalt);
         const newMaterial = await importKey(chainKey, currentMaterial.algorithm.name, 'derive');
+        const ratchetResult: RatchetResult = {
+          chainKey,
+          cryptoKey: newMaterial,
+        };
         if (setKey) {
-          await this.setKeyFromMaterial(newMaterial, currentKeyIndex, true);
-          this.emit(
-            KeyHandlerEvent.RatchetRequestCompleted,
-            chainKey,
-            this.participantIdentity,
-            currentKeyIndex,
-          );
-          this.emit(
-            KeyHandlerEvent.KeyRatcheted,
-            newMaterial,
-            this.participantIdentity,
-            currentKeyIndex,
-          );
+          // Set the new key and emit a ratchet event with the ratcheted chain key
+          await this.setKeyFromMaterial(newMaterial, currentKeyIndex, ratchetResult);
         }
-        resolve(newMaterial);
+        resolve(ratchetResult);
       } catch (e) {
         reject(e);
       } finally {
@@ -171,7 +164,11 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
    * together with the material
    * also updates the currentKeyIndex
    */
-  async setKeyFromMaterial(material: CryptoKey, keyIndex: number, emitRatchetEvent = false) {
+  async setKeyFromMaterial(
+    material: CryptoKey,
+    keyIndex: number,
+    ratchetedResult: RatchetResult | null = null,
+  ) {
     const keySet = await deriveKeys(material, this.keyProviderOptions.ratchetSalt);
     const newIndex = keyIndex >= 0 ? keyIndex % this.cryptoKeyRing.length : this.currentKeyIndex;
     workerLogger.debug(`setting new key with index ${keyIndex}`, {
@@ -179,15 +176,15 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
       algorithm: material.algorithm,
       ratchetSalt: this.keyProviderOptions.ratchetSalt,
     });
-    this.setKeySet(keySet, newIndex, emitRatchetEvent);
+    this.setKeySet(keySet, newIndex, ratchetedResult);
     if (newIndex >= 0) this.currentKeyIndex = newIndex;
   }
 
-  setKeySet(keySet: KeySet, keyIndex: number, emitRatchetEvent = false) {
+  setKeySet(keySet: KeySet, keyIndex: number, ratchetedResult: RatchetResult | null = null) {
     this.cryptoKeyRing[keyIndex % this.cryptoKeyRing.length] = keySet;
 
-    if (emitRatchetEvent) {
-      this.emit(KeyHandlerEvent.KeyRatcheted, keySet.material, this.participantIdentity, keyIndex);
+    if (ratchetedResult) {
+      this.emit(KeyHandlerEvent.KeyRatcheted, ratchetedResult, this.participantIdentity, keyIndex);
     }
   }
 

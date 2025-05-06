@@ -239,11 +239,18 @@ describe('ParticipantKeyHandler', () => {
 
       await keyHandler.setKey(material);
 
-      await keyHandler.ratchetKey();
+      const ratchetResult = await keyHandler.ratchetKey();
 
       const newMaterial = keyHandler.getKeySet()?.material;
 
-      expect(keyRatched).toHaveBeenCalledWith(newMaterial, participantIdentity, 0);
+      expect(keyRatched).toHaveBeenCalledWith(
+        {
+          chainKey: ratchetResult.chainKey,
+          cryptoKey: newMaterial,
+        },
+        participantIdentity,
+        0,
+      );
     });
 
     it('ratchets keys predictably', async () => {
@@ -306,21 +313,18 @@ describe('ParticipantKeyHandler', () => {
         ratchetBufferResolve = resolve;
       });
 
-      senderKeyHandler.on(
-        KeyHandlerEvent.RatchetRequestCompleted,
-        (material, identity, keyIndex) => {
-          expect(identity).toEqual('test-sender');
-          expect(keyIndex).toEqual(0);
-          ratchetBufferResolve(material);
-        },
-      );
+      senderKeyHandler.on(KeyHandlerEvent.KeyRatcheted, (material, identity, keyIndex) => {
+        expect(identity).toEqual('test-sender');
+        expect(keyIndex).toEqual(0);
+        ratchetBufferResolve(material.chainKey);
+      });
 
       const currentKeyIndex = senderKeyHandler.getCurrentKeyIndex();
-      const ratchetedKeySet = await senderKeyHandler.ratchetKey(currentKeyIndex, true);
+      const ratchetResult = await senderKeyHandler.ratchetKey(currentKeyIndex, true);
 
       // Notice that ratchetedKeySet is not exportable, so we cannot share it out-of-band.
       // This is a limitation of webcrypto for KDFs keys, they cannot be exported.
-      expect(ratchetedKeySet.extractable).toBe(false);
+      expect(ratchetResult.cryptoKey.extractable).toBe(false);
 
       const ratchetedMaterial = await expectEmitted;
 
