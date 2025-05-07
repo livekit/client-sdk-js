@@ -104,8 +104,9 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
     }
 
     if (this.sinkId && supportsSetSinkId(element)) {
-      /* @ts-ignore */
-      element.setSinkId(this.sinkId);
+      element.setSinkId(this.sinkId).catch((e) => {
+        this.log.error('Failed to set sink id on remote audio track', e, this.logContext);
+      });
     }
     if (this.audioContext && needsNewWebAudioConnection) {
       this.log.debug('using audio context mapping', this.logContext);
