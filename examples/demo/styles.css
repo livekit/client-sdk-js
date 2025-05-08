@@ -1,9 +1,4 @@
 #connect-area {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: min-content min-content;
-  grid-auto-flow: column;
-  grid-gap: 10px;
   margin-bottom: 15px;
 }
 
