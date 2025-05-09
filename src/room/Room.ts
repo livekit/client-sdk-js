@@ -607,7 +607,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         } else {
           this.handleParticipantUpdates(roomMoved.otherParticipants);
         }
-      }) ;
+      });
 
     if (this.localParticipant) {
       this.localParticipant.setupEngine(this.engine);

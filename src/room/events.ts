@@ -57,7 +57,7 @@ export enum RoomEvent {
    * The behavior looks like the participant has been disconnected and reconnected to a different room
    * seamlessly without connection state transition.
    * A new token will be provided for reconnecting to the new room if needed.
-   * 
+   *
    * args: ([[room: string, token: string]])
    */
   Moved = 'moved',

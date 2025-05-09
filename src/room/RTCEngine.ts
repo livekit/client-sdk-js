@@ -533,7 +533,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.onRoomMoved = (res: RoomMovedResponse) => {
       this.participantSid = res.participant?.sid;
       this.emit(EngineEvent.RoomMoved, res);
-    }
+    };
 
     this.client.onClose = () => {
       this.handleDisconnect('signal', ReconnectReason.RR_SIGNAL_DISCONNECTED);
