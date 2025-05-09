@@ -972,6 +972,26 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
 
     const audioFeatures: AudioTrackFeature[] = [];
+    const disableDtx = !(opts.dtx ?? true);
+
+    const settings = track.getSourceTrackSettings();
+
+    if (settings.autoGainControl) {
+      audioFeatures.push(AudioTrackFeature.TF_AUTO_GAIN_CONTROL);
+    }
+    if (settings.echoCancellation) {
+      audioFeatures.push(AudioTrackFeature.TF_ECHO_CANCELLATION);
+    }
+    if (settings.noiseSuppression) {
+      audioFeatures.push(AudioTrackFeature.TF_NOISE_SUPPRESSION);
+    }
+    if (settings.channelCount && settings.channelCount > 1) {
+      audioFeatures.push(AudioTrackFeature.TF_STEREO);
+    }
+    if (disableDtx) {
+      audioFeatures.push(AudioTrackFeature.TF_NO_DTX);
+    }
+
     if (isLocalAudioTrack(track) && track.hasPreConnectBuffer) {
       audioFeatures.push(AudioTrackFeature.TF_PRECONNECT_BUFFER);
       const buffer = track.flushPreConnectBuffer();
@@ -1022,7 +1042,7 @@ export default class LocalParticipant extends Participant {
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
-      disableDtx: !(opts.dtx ?? true),
+      disableDtx,
       encryption: this.encryptionType,
       stereo: isStereo,
       disableRed: this.isE2EEEnabled || !(opts.red ?? true),
