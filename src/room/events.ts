@@ -53,6 +53,16 @@ export enum RoomEvent {
   ConnectionStateChanged = 'connectionStateChanged',
 
   /**
+   * When participant has been moved to a different room by the service request.
+   * The behavior looks like the participant has been disconnected and reconnected to a different room
+   * seamlessly without connection state transition.
+   * A new token will be provided for reconnecting to the new room if needed.
+   * 
+   * args: ([[room: string, token: string]])
+   */
+  Moved = 'moved',
+
+  /**
    * When input or output devices on the machine have changed.
    */
   MediaDevicesChanged = 'mediaDevicesChanged',
@@ -563,6 +573,7 @@ export enum EngineEvent {
   Offline = 'offline',
   SignalRequestResponse = 'signalRequestResponse',
   SignalConnected = 'signalConnected',
+  RoomMoved = 'roomMoved',
 }
 
 export enum TrackEvent {
