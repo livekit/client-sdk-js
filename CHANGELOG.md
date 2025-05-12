@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.12.0
+
+### Minor Changes
+
+- Support moving participant to another room - [#1511](https://github.com/livekit/client-sdk-js/pull/1511) ([@cnderrauber](https://github.com/cnderrauber))
+
+- feature: E2E Allow sharing ratcheted material out-of-band - [#1503](https://github.com/livekit/client-sdk-js/pull/1503) ([@BillCarsonFr](https://github.com/BillCarsonFr))
+
+### Patch Changes
+
+- Catch failing set sink id promise - [#1508](https://github.com/livekit/client-sdk-js/pull/1508) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.11.4
 
 ### Patch Changes
