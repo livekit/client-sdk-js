@@ -589,6 +589,25 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           trackPublication,
           this.localParticipant,
         );
+      })
+      .on(EngineEvent.RoomMoved, (roomMoved) => {
+        this.log.debug('room moved', roomMoved);
+
+        if (roomMoved.room) {
+          this.handleRoomUpdate(roomMoved.room);
+        }
+
+        this.remoteParticipants.forEach((participant, identity) => {
+          this.handleParticipantDisconnected(identity, participant);
+        });
+
+        this.emit(RoomEvent.Moved, roomMoved.room!.name, roomMoved.token);
+
+        if (roomMoved.participant) {
+          this.handleParticipantUpdates([roomMoved.participant, ...roomMoved.otherParticipants]);
+        } else {
+          this.handleParticipantUpdates(roomMoved.otherParticipants);
+        }
       });
 
     if (this.localParticipant) {
@@ -2611,6 +2630,7 @@ export type RoomEventCallbacks = {
   reconnected: () => void;
   disconnected: (reason?: DisconnectReason) => void;
   connectionStateChanged: (state: ConnectionState) => void;
+  moved: (name: string, token: string) => void;
   mediaDevicesChanged: () => void;
   participantConnected: (participant: RemoteParticipant) => void;
   participantDisconnected: (participant: RemoteParticipant) => void;

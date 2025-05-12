@@ -12,8 +12,8 @@ importers:
         specifier: 1.1.1
         version: 1.1.1
       '@livekit/protocol':
-        specifier: 1.36.1
-        version: 1.36.1
+        specifier: 1.38.0
+        version: 1.38.0
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -975,8 +975,8 @@ packages:
   '@livekit/mutex@1.1.1':
     resolution: {integrity: sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==}
 
-  '@livekit/protocol@1.36.1':
-    resolution: {integrity: sha512-nN3QnITAQ5yXk7UKfotH7CRWIlEozNWeKVyFJ0/+dtSzvWP/ib+10l1DDnRYi3A1yICJOGAKFgJ5d6kmi1HCUA==}
+  '@livekit/protocol@1.38.0':
+    resolution: {integrity: sha512-XX6ulvsE1XCN18LVf3ydHN7Ri1Z1M1P5dQdjnm5nVDsSqUL12Vbo/4RKcRlCEXAg2qB62mKjcaVLXVwkfXggkg==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -3197,8 +3197,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.9.0-dev.20250407:
-    resolution: {integrity: sha512-JW8/Our6MR+QYS3M134UaLWtEYdVXWzwlbg6rj3fmF9TppADEdaSNiJK90M2wmfSuu5j8Nefk93oSrZF03JkGw==}
+  typescript@5.9.0-dev.20250508:
+    resolution: {integrity: sha512-vTtyza+uNzjJO/NgvQxsZkopsalnGdtipQo/lz2rdJ4i+wOdWQuOZxGgaUa2Fi8vj/4Xp6chlfpisgOI3mxvOQ==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4476,7 +4476,7 @@ snapshots:
 
   '@livekit/mutex@1.1.1': {}
 
-  '@livekit/protocol@1.36.1':
+  '@livekit/protocol@1.38.0':
     dependencies:
       '@bufbuild/protobuf': 1.10.0
 
@@ -5318,7 +5318,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.9.0-dev.20250407
+      typescript: 5.9.0-dev.20250508
 
   dunder-proto@1.0.1:
     dependencies:
@@ -6899,7 +6899,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@5.9.0-dev.20250407: {}
+  typescript@5.9.0-dev.20250508: {}
 
   uc.micro@2.1.0: {}
 
