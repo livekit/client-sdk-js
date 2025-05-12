@@ -601,7 +601,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.handleParticipantDisconnected(identity, participant);
         });
 
-        this.emit(RoomEvent.Moved, roomMoved.room?.name ?? '', roomMoved.token);
+        this.emit(RoomEvent.Moved, roomMoved.room!.name, roomMoved.token);
 
         if (roomMoved.participant) {
           this.handleParticipantUpdates([roomMoved.participant, ...roomMoved.otherParticipants]);
