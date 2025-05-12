@@ -596,11 +596,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         if (roomMoved.room) {
           this.handleRoomUpdate(roomMoved.room);
         }
-        this.emit(RoomEvent.Moved, roomMoved.room?.name ?? '', roomMoved.token);
 
         this.remoteParticipants.forEach((participant, identity) => {
           this.handleParticipantDisconnected(identity, participant);
         });
+
+        this.emit(RoomEvent.Moved, roomMoved.room?.name ?? '', roomMoved.token);
 
         if (roomMoved.participant) {
           this.handleParticipantUpdates([roomMoved.participant, ...roomMoved.otherParticipants]);
