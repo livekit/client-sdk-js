@@ -84,13 +84,10 @@ export async function createLocalTracks(
   ) {
     internalOptions.audio = { deviceId: 'default' };
   }
-  if (
-    internalOptions.video === true ||
-    (typeof internalOptions.video === 'object' &&
-      !internalOptions.video.deviceId &&
-      !internalOptions.video.facingMode)
-  ) {
+  if (internalOptions.video === true) {
     internalOptions.video = { deviceId: 'default' };
+  } else if (typeof internalOptions.video === 'object' && !internalOptions.video.deviceId) {
+    internalOptions.video.deviceId = 'default';
   }
   const opts = mergeDefaultOptions(internalOptions, audioDefaults, videoDefaults);
   const constraints = constraintsForOptions(opts);
