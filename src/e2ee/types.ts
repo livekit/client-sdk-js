@@ -82,7 +82,7 @@ export interface RatchetMessage extends BaseMessage {
   data: {
     participantIdentity: string;
     keyIndex?: number;
-    material: CryptoKey;
+    ratchetResult: RatchetResult;
   };
 }
 
@@ -123,6 +123,13 @@ export type E2EEWorkerMessage =
   | InitAck;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
+
+export type RatchetResult = {
+  // The ratchet chain key, which is used to derive the next key.
+  // Can be shared/exported to other participants.
+  chainKey: ArrayBuffer;
+  cryptoKey: CryptoKey;
+};
 
 export type KeyProviderOptions = {
   sharedKey: boolean;

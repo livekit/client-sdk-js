@@ -7,7 +7,7 @@ import type { VideoCodec } from '../../room/track/options';
 import { ENCRYPTION_ALGORITHM, IV_LENGTH, UNENCRYPTED_BYTES } from '../constants';
 import { CryptorError, CryptorErrorReason } from '../errors';
 import { type CryptorCallbacks, CryptorEvent } from '../events';
-import type { DecodeRatchetOptions, KeyProviderOptions, KeySet } from '../types';
+import type { DecodeRatchetOptions, KeyProviderOptions, KeySet, RatchetResult } from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { SifGuard } from './SifGuard';
@@ -477,12 +477,16 @@ export class FrameCryptor extends BaseFrameCryptor {
           );
 
           let ratchetedKeySet: KeySet | undefined;
+          let ratchetResult: RatchetResult | undefined;
           if ((initialMaterial ?? keySet) === this.keys.getKeySet(keyIndex)) {
             // only ratchet if the currently set key is still the same as the one used to decrypt this frame
             // if not, it might be that a different frame has already ratcheted and we try with that one first
-            const newMaterial = await this.keys.ratchetKey(keyIndex, false);
+            ratchetResult = await this.keys.ratchetKey(keyIndex, false);
 
-            ratchetedKeySet = await deriveKeys(newMaterial, this.keyProviderOptions.ratchetSalt);
+            ratchetedKeySet = await deriveKeys(
+              ratchetResult.cryptoKey,
+              this.keyProviderOptions.ratchetSalt,
+            );
           }
 
           const frame = await this.decryptFrame(encodedFrame, keyIndex, initialMaterial || keySet, {
@@ -493,7 +497,7 @@ export class FrameCryptor extends BaseFrameCryptor {
             // before updating the keys, make sure that the keySet used for this frame is still the same as the currently set key
             // if it's not, a new key might have been set already, which we don't want to override
             if ((initialMaterial ?? keySet) === this.keys.getKeySet(keyIndex)) {
-              this.keys.setKeySet(ratchetedKeySet, keyIndex, true);
+              this.keys.setKeySet(ratchetedKeySet, keyIndex, ratchetResult);
               // decryption was successful, set the new key index to reflect the ratcheted key set
               this.keys.setCurrentKeyIndex(keyIndex);
             }

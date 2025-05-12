@@ -152,7 +152,12 @@ export class E2EEManager
         }
         break;
       case 'ratchetKey':
-        this.keyProvider.emit(KeyProviderEvent.KeyRatcheted, data.material, data.keyIndex);
+        this.keyProvider.emit(
+          KeyProviderEvent.KeyRatcheted,
+          data.ratchetResult,
+          data.participantIdentity,
+          data.keyIndex,
+        );
         break;
       default:
         break;
