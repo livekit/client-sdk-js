@@ -78,7 +78,6 @@ export async function createLocalTracks(
       deviceId: { ideal: deviceId },
     };
   }
-  // TODO if internal options don't have device Id specified, set it to 'default'
   if (
     internalOptions.audio === true ||
     (typeof internalOptions.audio === 'object' && !internalOptions.audio.deviceId)
@@ -87,7 +86,9 @@ export async function createLocalTracks(
   }
   if (
     internalOptions.video === true ||
-    (typeof internalOptions.video === 'object' && !internalOptions.video.deviceId)
+    (typeof internalOptions.video === 'object' &&
+      !internalOptions.video.deviceId &&
+      !internalOptions.video.facingMode)
   ) {
     internalOptions.video = { deviceId: 'default' };
   }
