@@ -622,8 +622,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     // create data channels
     this.lossyDC = this.pcManager.createPublisherDataChannel(lossyDataChannel, {
-      // will drop older packets that arrive
-      ordered: true,
+      ordered: false,
       maxRetransmits: 0,
     });
     this.reliableDC = this.pcManager.createPublisherDataChannel(reliableDataChannel, {
