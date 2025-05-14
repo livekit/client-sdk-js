@@ -229,7 +229,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this._setName(info.name);
     this._setMetadata(info.metadata);
     this._setAttributes(info.attributes);
-    if (info.state === ParticipantInfo_State.ACTIVE) {
+    if (
+      info.state === ParticipantInfo_State.ACTIVE &&
+      this.participantInfo?.state !== ParticipantInfo_State.ACTIVE
+    ) {
       this.emit(ParticipantEvent.Active);
     }
     if (info.permission) {

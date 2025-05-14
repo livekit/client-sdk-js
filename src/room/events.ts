@@ -204,7 +204,7 @@ export enum RoomEvent {
   ParticipantAttributesChanged = 'participantAttributesChanged',
 
   /**
-   * Emitted when the participant's state changes to active and is ready to send/receive data messages
+   * Emitted when the participant's state changes to ACTIVE and is ready to send/receive data messages
    *
    * args: (participant: [[Participant]])
    */
@@ -549,7 +549,7 @@ export enum ParticipantEvent {
   ChatMessage = 'chatMessage',
 
   /**
-   * Emitted when the participant's state changes to active and is ready to send/receive data messages
+   * Emitted when the participant's state changes to ACTIVE and is ready to send/receive data messages
    */
   Active = 'active',
 }
