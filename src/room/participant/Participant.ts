@@ -179,7 +179,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   }
 
   /**
-   * Waits until the participant is active and ready to send/receive data messages
+   * Waits until the participant is active and ready to receive data messages
    * @returns a promise that resolves when the participant is active
    */
   waitUntilActive(): Promise<boolean> {
