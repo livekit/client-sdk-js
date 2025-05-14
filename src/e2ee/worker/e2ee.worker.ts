@@ -11,6 +11,7 @@ import type {
   KeyProviderOptions,
   RatchetMessage,
   RatchetRequestMessage,
+  RatchetResult,
 } from '../types';
 import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
@@ -229,13 +230,17 @@ function setupCryptorErrorEvents(cryptor: FrameCryptor) {
   });
 }
 
-function emitRatchetedKeys(material: CryptoKey, participantIdentity: string, keyIndex?: number) {
+function emitRatchetedKeys(
+  ratchetResult: RatchetResult,
+  participantIdentity: string,
+  keyIndex?: number,
+) {
   const msg: RatchetMessage = {
     kind: `ratchetKey`,
     data: {
       participantIdentity,
       keyIndex,
-      material,
+      ratchetResult,
     },
   };
   postMessage(msg);

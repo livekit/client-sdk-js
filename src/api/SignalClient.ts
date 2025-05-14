@@ -15,6 +15,7 @@ import {
   ReconnectResponse,
   RequestResponse,
   Room,
+  RoomMovedResponse,
   SessionDescription,
   SignalRequest,
   SignalResponse,
@@ -147,6 +148,8 @@ export class SignalClient {
   onRequestResponse?: (response: RequestResponse) => void;
 
   onLocalTrackSubscribed?: (trackSid: string) => void;
+
+  onRoomMoved?: (res: RoomMovedResponse) => void;
 
   connectOptions?: ConnectOpts;
 
@@ -773,6 +776,13 @@ export class SignalClient {
     } else if (msg.case === 'trackSubscribed') {
       if (this.onLocalTrackSubscribed) {
         this.onLocalTrackSubscribed(msg.value.trackSid);
+      }
+    } else if (msg.case === 'roomMoved') {
+      if (this.onTokenRefresh) {
+        this.onTokenRefresh(msg.value.token);
+      }
+      if (this.onRoomMoved) {
+        this.onRoomMoved(msg.value);
       }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });

@@ -2118,11 +2118,6 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   updateInfo(info: ParticipantInfo): boolean {
-    if (info.sid !== this.sid) {
-      // drop updates that specify a wrong sid.
-      // the sid for local participant is only explicitly set on join and full reconnect
-      return false;
-    }
     if (!super.updateInfo(info)) {
       return false;
     }

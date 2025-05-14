@@ -16,6 +16,7 @@ import {
   type ReconnectResponse,
   RequestResponse,
   Room as RoomModel,
+  RoomMovedResponse,
   RpcAck,
   RpcResponse,
   SignalTarget,
@@ -529,6 +530,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.emit(EngineEvent.SubscribedQualityUpdate, update);
     };
 
+    this.client.onRoomMoved = (res: RoomMovedResponse) => {
+      this.participantSid = res.participant?.sid;
+      this.emit(EngineEvent.RoomMoved, res);
+    };
+
     this.client.onClose = () => {
       this.handleDisconnect('signal', ReconnectReason.RR_SIGNAL_DISCONNECTED);
     };
@@ -616,8 +622,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     // create data channels
     this.lossyDC = this.pcManager.createPublisherDataChannel(lossyDataChannel, {
-      // will drop older packets that arrive
-      ordered: true,
+      ordered: false,
       maxRetransmits: 0,
     });
     this.reliableDC = this.pcManager.createPublisherDataChannel(reliableDataChannel, {
@@ -1493,6 +1498,7 @@ export type EngineEventCallbacks = {
   dcBufferStatusChanged: (isLow: boolean, kind: DataPacket_Kind) => void;
   participantUpdate: (infos: ParticipantInfo[]) => void;
   roomUpdate: (room: RoomModel) => void;
+  roomMoved: (room: RoomMovedResponse) => void;
   connectionQualityUpdate: (update: ConnectionQualityUpdate) => void;
   speakersChanged: (speakerUpdates: SpeakerInfo[]) => void;
   streamStateChanged: (update: StreamStateUpdate) => void;
