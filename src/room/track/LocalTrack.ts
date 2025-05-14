@@ -37,7 +37,7 @@ export default abstract class LocalTrack<
   }
 
   get hasPreConnectBuffer() {
-    return this.preConnectBuffer.length > 0;
+    return !!this.localTrackRecorder;
   }
 
   protected _constraints: MediaTrackConstraints;
@@ -59,8 +59,6 @@ export default abstract class LocalTrack<
   protected audioContext?: AudioContext;
 
   protected manuallyStopped: boolean = false;
-
-  protected preConnectBuffer: Uint8Array[] = [];
 
   protected localTrackRecorder: LocalTrackRecorder<typeof this> | undefined;
 
@@ -601,29 +599,20 @@ export default abstract class LocalTrack<
       this.log.warn('preconnect buffer already started');
       return;
     }
-    this.localTrackRecorder.addEventListener('dataavailable', async (event) => {
-      this.preConnectBuffer.push(await event.data.bytes());
-    });
-    this.localTrackRecorder.start();
+
+    this.localTrackRecorder.start(100);
   }
 
-  /** @internal */
-  flushPreConnectBuffer() {
-    if (this.localTrackRecorder) {
-      this.localTrackRecorder.stop();
-    }
-    const buffer = this.preConnectBuffer;
-    this.localTrackRecorder = undefined;
-    this.preConnectBuffer = [];
-    return buffer;
-  }
-
-  cancelPreConnectBuffer() {
+  stopPreConnectBuffer() {
     if (this.localTrackRecorder) {
       this.localTrackRecorder.stop();
       this.localTrackRecorder = undefined;
     }
-    this.preConnectBuffer = [];
+  }
+
+  /** @internal */
+  getPreConnectBuffer() {
+    return this.localTrackRecorder?.byteStream;
   }
 
   protected abstract monitorSender(): void;

@@ -994,8 +994,18 @@ export default class LocalParticipant extends Participant {
 
     if (isLocalAudioTrack(track) && track.hasPreConnectBuffer) {
       audioFeatures.push(AudioTrackFeature.TF_PRECONNECT_BUFFER);
-      const buffer = track.flushPreConnectBuffer();
-      if (buffer.length > 0) {
+      const stream = track.getPreConnectBuffer();
+      this.on(ParticipantEvent.LocalTrackSubscribed, (publication) => {
+        if (publication.track!.mediaStreamTrack.id === track.mediaStreamTrack.id) {
+          this.log.debug('sending preconnect buffer', {
+            ...this.logContext,
+            ...getLogContextFromTrack(track),
+          });
+          track.stopPreConnectBuffer();
+        }
+      });
+
+      if (stream) {
         this.log.debug('sending preconnect buffer', {
           ...this.logContext,
           ...getLogContextFromTrack(track),
@@ -1006,9 +1016,8 @@ export default class LocalParticipant extends Participant {
               name: 'preconnect-buffer',
               mimeType: 'audio/opus',
               topic: 'lk.preconnect-buffer',
-              totalSize: buffer.reduce((acc, curr) => acc + curr.byteLength, 0),
             });
-            for (const chunk of buffer) {
+            for await (const chunk of stream) {
               await writer.write(chunk);
             }
             await writer.close();
