@@ -1644,6 +1644,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       participant.unpublishTrack(publication.trackSid, true);
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
+    participant.setDisconnected();
     this.localParticipant?.handleParticipantDisconnected(participant.identity);
   }
 

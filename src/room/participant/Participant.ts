@@ -19,7 +19,7 @@ import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
 import { diffAttributes } from '../track/utils';
 import type { ChatMessage, LoggerOptions, TranscriptionSegment } from '../types';
-import { isAudioTrack } from '../utils';
+import { Future, isAudioTrack } from '../utils';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -93,6 +93,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   protected log: StructuredLogger = log;
 
   protected loggerOptions?: LoggerOptions;
+
+  protected activeFuture?: Future<boolean>;
 
   protected get logContext() {
     return {
@@ -182,15 +184,17 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
    * Waits until the participant is active and ready to receive data messages
    * @returns a promise that resolves when the participant is active
    */
-  waitUntilActive(): Promise<boolean> {
+  waitUntilActive(): Promise<void> {
     if (this.isActive) {
-      return Promise.resolve(true);
+      return Promise.resolve();
     }
-    return new Promise((resolve) => {
-      this.once(ParticipantEvent.Active, () => {
-        resolve(true);
-      });
+
+    const future = new Future<void>();
+
+    this.once(ParticipantEvent.Active, () => {
+      future.resolve?.();
     });
+    return future.promise;
   }
 
   get connectionQuality(): ConnectionQuality {
@@ -332,6 +336,16 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this._connectionQuality = qualityFromProto(q);
     if (prevQuality !== this._connectionQuality) {
       this.emit(ParticipantEvent.ConnectionQualityChanged, this._connectionQuality);
+    }
+  }
+
+  /**
+   * @internal
+   */
+  setDisconnected() {
+    if (this.activeFuture) {
+      this.activeFuture.reject?.(new Error('Participant disconnected'));
+      this.activeFuture = undefined;
     }
   }
 
