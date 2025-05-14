@@ -178,6 +178,21 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
   }
 
+  /**
+   * Waits until the participant is active and ready to send/receive data messages
+   * @returns a promise that resolves when the participant is active
+   */
+  waitUntilActive(): Promise<boolean> {
+    if (this.isActive) {
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+      this.once(ParticipantEvent.Active, () => {
+        resolve(true);
+      });
+    });
+  }
+
   get connectionQuality(): ConnectionQuality {
     return this._connectionQuality;
   }
