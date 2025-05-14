@@ -168,7 +168,6 @@ const appActions = {
     appendLog(`prewarmed connection in ${prewarmTime}ms`);
 
     room
-
       .on(RoomEvent.ParticipantConnected, participantConnected)
       .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
       .on(RoomEvent.ChatMessage, handleChatMessage)
