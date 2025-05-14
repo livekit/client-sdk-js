@@ -1644,6 +1644,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       participant.unpublishTrack(publication.trackSid, true);
     });
     this.emit(RoomEvent.ParticipantDisconnected, participant);
+    participant.setDisconnected();
     this.localParticipant?.handleParticipantDisconnected(participant.identity);
   }
 
@@ -2240,6 +2241,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           status,
           participant,
         );
+      })
+      .on(ParticipantEvent.Active, () => {
+        this.emitWhenConnected(RoomEvent.ParticipantActive, participant);
       });
 
     // update info at the end after callbacks have been set up
@@ -2714,4 +2718,5 @@ export type RoomEventCallbacks = {
   chatMessage: (message: ChatMessage, participant?: RemoteParticipant | LocalParticipant) => void;
   localTrackSubscribed: (publication: LocalTrackPublication, participant: LocalParticipant) => void;
   metricsReceived: (metrics: MetricsBatch, participant?: Participant) => void;
+  participantActive: (participant: Participant) => void;
 };

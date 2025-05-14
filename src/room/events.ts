@@ -204,6 +204,13 @@ export enum RoomEvent {
   ParticipantAttributesChanged = 'participantAttributesChanged',
 
   /**
+   * Emitted when the participant's state changes to ACTIVE and is ready to send/receive data messages
+   *
+   * args: (participant: [[Participant]])
+   */
+  ParticipantActive = 'participantActive',
+
+  /**
    * Room metadata is a simple way for app-specific state to be pushed to
    * all users.
    * When RoomService.UpdateRoomMetadata is called to change a room's state,
@@ -540,6 +547,11 @@ export enum ParticipantEvent {
 
   /** only emitted on local participant */
   ChatMessage = 'chatMessage',
+
+  /**
+   * Emitted when the participant's state changes to ACTIVE and is ready to send/receive data messages
+   */
+  Active = 'active',
 }
 
 /** @internal */

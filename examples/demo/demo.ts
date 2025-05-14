@@ -179,6 +179,10 @@ const appActions = {
           await room.engine.getConnectedServerAddress(),
         );
       })
+      .on(RoomEvent.ParticipantActive, async (participant) => {
+        appendLog(`participant ${participant.identity} is active and ready to receive messages`);
+        await sendGreetingTo(participant);
+      })
       .on(RoomEvent.ActiveDeviceChanged, handleActiveDeviceChanged)
       .on(RoomEvent.LocalTrackPublished, (pub) => {
         const track = pub.track;
@@ -653,8 +657,6 @@ async function participantConnected(participant: Participant) {
     .on(ParticipantEvent.ConnectionQualityChanged, () => {
       renderParticipant(participant);
     });
-
-  await sendGreetingTo(participant);
 }
 
 function participantDisconnected(participant: RemoteParticipant) {
