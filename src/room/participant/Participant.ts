@@ -94,7 +94,7 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   protected loggerOptions?: LoggerOptions;
 
-  protected activeFuture?: Future<boolean>;
+  protected activeFuture?: Future<void>;
 
   protected get logContext() {
     return {
@@ -189,12 +189,17 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
       return Promise.resolve();
     }
 
-    const future = new Future<void>();
+    if (this.activeFuture) {
+      return this.activeFuture.promise;
+    }
+
+    this.activeFuture = new Future<void>();
 
     this.once(ParticipantEvent.Active, () => {
-      future.resolve?.();
+      this.activeFuture?.resolve?.();
+      this.activeFuture = undefined;
     });
-    return future.promise;
+    return this.activeFuture.promise;
   }
 
   get connectionQuality(): ConnectionQuality {
