@@ -1,6 +1,7 @@
 import {
   DataPacket_Kind,
   ParticipantInfo,
+  ParticipantInfo_State,
   ParticipantInfo_Kind as ParticipantKind,
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
@@ -108,6 +109,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   get isAgent() {
     return this.permissions?.agent || this.kind === ParticipantKind.AGENT;
+  }
+
+  get isActive() {
+    return this.participantInfo?.state === ParticipantInfo_State.ACTIVE;
   }
 
   get kind() {
@@ -224,12 +229,14 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this._setName(info.name);
     this._setMetadata(info.metadata);
     this._setAttributes(info.attributes);
+    if (info.state === ParticipantInfo_State.ACTIVE) {
+      this.emit(ParticipantEvent.Active);
+    }
     if (info.permission) {
       this.setPermissions(info.permission);
     }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
-    this.log.trace('update participant info', { ...this.logContext, info });
     return true;
   }
 
@@ -387,4 +394,5 @@ export type ParticipantEventCallbacks = {
   attributesChanged: (changedAttributes: Record<string, string>) => void;
   localTrackSubscribed: (trackPublication: LocalTrackPublication) => void;
   chatMessage: (msg: ChatMessage) => void;
+  active: () => void;
 };
