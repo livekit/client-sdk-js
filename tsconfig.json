@@ -6,10 +6,10 @@
     "lib": [
       "DOM",
       "DOM.Iterable",
+      "DOM.AsyncIterable",
       "ES2017",
       "ES2018.Promise",
-      "ES2021.WeakRef",
-      "DOM.AsyncIterable"
+      "ES2021.WeakRef"
     ],
     "rootDir": "./",
     "outDir": "dist",
