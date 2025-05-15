@@ -1,6 +1,7 @@
 import {
   DataPacket_Kind,
   ParticipantInfo,
+  ParticipantInfo_State,
   ParticipantInfo_Kind as ParticipantKind,
   ParticipantPermission,
   ConnectionQuality as ProtoQuality,
@@ -18,7 +19,7 @@ import { Track } from '../track/Track';
 import type { TrackPublication } from '../track/TrackPublication';
 import { diffAttributes } from '../track/utils';
 import type { ChatMessage, LoggerOptions, TranscriptionSegment } from '../types';
-import { isAudioTrack } from '../utils';
+import { Future, isAudioTrack } from '../utils';
 
 export enum ConnectionQuality {
   Excellent = 'excellent',
@@ -93,6 +94,8 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   protected loggerOptions?: LoggerOptions;
 
+  protected activeFuture?: Future<void>;
+
   protected get logContext() {
     return {
       ...this.loggerOptions?.loggerContextCb?.(),
@@ -108,6 +111,10 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
 
   get isAgent() {
     return this.permissions?.agent || this.kind === ParticipantKind.AGENT;
+  }
+
+  get isActive() {
+    return this.participantInfo?.state === ParticipantInfo_State.ACTIVE;
   }
 
   get kind() {
@@ -173,6 +180,28 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     }
   }
 
+  /**
+   * Waits until the participant is active and ready to receive data messages
+   * @returns a promise that resolves when the participant is active
+   */
+  waitUntilActive(): Promise<void> {
+    if (this.isActive) {
+      return Promise.resolve();
+    }
+
+    if (this.activeFuture) {
+      return this.activeFuture.promise;
+    }
+
+    this.activeFuture = new Future<void>();
+
+    this.once(ParticipantEvent.Active, () => {
+      this.activeFuture?.resolve?.();
+      this.activeFuture = undefined;
+    });
+    return this.activeFuture.promise;
+  }
+
   get connectionQuality(): ConnectionQuality {
     return this._connectionQuality;
   }
@@ -224,12 +253,17 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
     this._setName(info.name);
     this._setMetadata(info.metadata);
     this._setAttributes(info.attributes);
+    if (
+      info.state === ParticipantInfo_State.ACTIVE &&
+      this.participantInfo?.state !== ParticipantInfo_State.ACTIVE
+    ) {
+      this.emit(ParticipantEvent.Active);
+    }
     if (info.permission) {
       this.setPermissions(info.permission);
     }
     // set this last so setMetadata can detect changes
     this.participantInfo = info;
-    this.log.trace('update participant info', { ...this.logContext, info });
     return true;
   }
 
@@ -313,6 +347,16 @@ export default class Participant extends (EventEmitter as new () => TypedEmitter
   /**
    * @internal
    */
+  setDisconnected() {
+    if (this.activeFuture) {
+      this.activeFuture.reject?.(new Error('Participant disconnected'));
+      this.activeFuture = undefined;
+    }
+  }
+
+  /**
+   * @internal
+   */
   setAudioContext(ctx: AudioContext | undefined) {
     this.audioContext = ctx;
     this.audioTrackPublications.forEach(
@@ -387,4 +431,5 @@ export type ParticipantEventCallbacks = {
   attributesChanged: (changedAttributes: Record<string, string>) => void;
   localTrackSubscribed: (trackPublication: LocalTrackPublication) => void;
   chatMessage: (msg: ChatMessage) => void;
+  active: () => void;
 };
