@@ -1277,7 +1277,11 @@ export default class LocalParticipant extends Participant {
               ...this.logContext,
               ...getLogContextFromTrack(track),
             });
+            const agentActiveTimeout = setTimeout(() => {
+              reject(new Error('agent not active within 10 seconds'));
+            }, 10_000);
             const agent = await this.waitUntilActiveAgentPresent();
+            clearTimeout(agentActiveTimeout);
             this.log.debug('sending preconnect buffer', {
               ...this.logContext,
               ...getLogContextFromTrack(track),
