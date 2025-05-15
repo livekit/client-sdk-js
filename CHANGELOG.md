@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.13.0
+
+### Minor Changes
+
+- Unorder the lossy data channel - [#1512](https://github.com/livekit/client-sdk-js/pull/1512) ([@bcherry](https://github.com/bcherry))
+
+- Add ParticipantActive event to signal data message readiness - [#1517](https://github.com/livekit/client-sdk-js/pull/1517) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Respect facingMode in createLocalTracks - [#1514](https://github.com/livekit/client-sdk-js/pull/1514) ([@lukasIO](https://github.com/lukasIO))
+
+- fix(datastreams): forward attributes on streamBytes API - [#1518](https://github.com/livekit/client-sdk-js/pull/1518) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.12.0
 
 ### Minor Changes
