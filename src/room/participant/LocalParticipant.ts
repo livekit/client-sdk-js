@@ -1278,7 +1278,6 @@ export default class LocalParticipant extends Participant {
               ...this.logContext,
               ...getLogContextFromTrack(track),
             });
-            const trackSettings = track.mediaStreamTrack.getSettings();
             const writer = await this.streamBytes({
               name: 'preconnect-buffer',
               mimeType: 'audio/opus',
@@ -1286,8 +1285,8 @@ export default class LocalParticipant extends Participant {
               destinationIdentities: [agent.identity],
               attributes: {
                 trackId: publication.trackSid,
-                sampleRate: String(trackSettings.sampleRate ?? '48000'),
-                channels: String(trackSettings.channelCount ?? '1'),
+                sampleRate: String(settings.sampleRate ?? '48000'),
+                channels: String(settings.channelCount ?? '1'),
               },
             });
             for await (const chunk of stream) {
