@@ -10,6 +10,8 @@ export class LocalTrackRecorder<T extends LocalTrack> extends MediaRecorder {
 
     let streamController: ReadableStreamDefaultController<Uint8Array> | undefined;
 
+    const isClosed = () => streamController === undefined;
+
     const onStop = () => {
       this.removeEventListener('dataavailable', dataListener);
       this.removeEventListener('stop', onStop);
@@ -29,8 +31,12 @@ export class LocalTrackRecorder<T extends LocalTrack> extends MediaRecorder {
     this.byteStream = new ReadableStream({
       start: (controller) => {
         streamController = controller;
-        dataListener = async (event) => {
-          controller.enqueue(await event.data.bytes());
+        dataListener = async (event: BlobEvent) => {
+          const arrayBuffer = await event.data.arrayBuffer();
+          if (isClosed()) {
+            return;
+          }
+          controller.enqueue(new Uint8Array(arrayBuffer));
         };
         this.addEventListener('dataavailable', dataListener);
       },

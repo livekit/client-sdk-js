@@ -12,12 +12,15 @@ import type { TrackProcessor } from './processor/types';
 import { LocalTrackRecorder } from './record';
 import type { ReplaceTrackOptions } from './types';
 
-const defaultDimensionsTimeout = 1000;
+const DEFAULT_DIMENSIONS_TIMEOUT = 1000;
+const PRE_CONNECT_BUFFER_TIMEOUT = 5000;
 
 export default abstract class LocalTrack<
   TrackKind extends Track.Kind = Track.Kind,
 > extends Track<TrackKind> {
   protected _sender?: RTCRtpSender;
+
+  private autoStopPreConnectBuffer: ReturnType<typeof setTimeout> | undefined;
 
   /** @internal */
   get sender(): RTCRtpSender | undefined {
@@ -210,7 +213,7 @@ export default abstract class LocalTrack<
     }
   }
 
-  async waitForDimensions(timeout = defaultDimensionsTimeout): Promise<Track.Dimensions> {
+  async waitForDimensions(timeout = DEFAULT_DIMENSIONS_TIMEOUT): Promise<Track.Dimensions> {
     if (this.kind === Track.Kind.Audio) {
       throw new Error('cannot get dimensions for audio tracks');
     }
@@ -592,7 +595,7 @@ export default abstract class LocalTrack<
     this.emit(TrackEvent.TrackProcessorUpdate);
   }
 
-  startPreConnectBuffer() {
+  startPreConnectBuffer(timeslice: number = 100) {
     if (!this.localTrackRecorder) {
       this.localTrackRecorder = new LocalTrackRecorder(this);
     } else {
@@ -600,10 +603,18 @@ export default abstract class LocalTrack<
       return;
     }
 
-    this.localTrackRecorder.start(100);
+    this.localTrackRecorder.start(timeslice);
+    this.autoStopPreConnectBuffer = setTimeout(() => {
+      this.log.warn(
+        'preconnect buffer timed out, stopping recording automatically',
+        this.logContext,
+      );
+      this.stopPreConnectBuffer();
+    }, PRE_CONNECT_BUFFER_TIMEOUT);
   }
 
   stopPreConnectBuffer() {
+    clearTimeout(this.autoStopPreConnectBuffer);
     if (this.localTrackRecorder) {
       this.localTrackRecorder.stop();
       this.localTrackRecorder = undefined;

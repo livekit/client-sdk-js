@@ -19,6 +19,7 @@ export const publishDefaults: TrackPublishDefaults = {
   stopMicTrackOnMute: false,
   videoCodec: defaultVideoCodec,
   backupCodec: true,
+  preConnectBuffer: false,
 } as const;
 
 export const audioDefaults: AudioCaptureOptions = {
