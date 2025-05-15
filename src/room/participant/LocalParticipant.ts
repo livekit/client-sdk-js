@@ -1780,6 +1780,7 @@ export default class LocalParticipant extends Participant {
       streamId,
       topic: info.topic,
       timestamp: numberToBigInt(Date.now()),
+      attributes: info.attributes,
       contentHeader: {
         case: 'byteHeader',
         value: new DataStream_ByteHeader({
