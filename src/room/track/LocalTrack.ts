@@ -13,7 +13,7 @@ import { LocalTrackRecorder } from './record';
 import type { ReplaceTrackOptions } from './types';
 
 const DEFAULT_DIMENSIONS_TIMEOUT = 1000;
-const PRE_CONNECT_BUFFER_TIMEOUT = 5000;
+const PRE_CONNECT_BUFFER_TIMEOUT = 10_000;
 
 export default abstract class LocalTrack<
   TrackKind extends Track.Kind = Track.Kind,
@@ -595,6 +595,7 @@ export default abstract class LocalTrack<
     this.emit(TrackEvent.TrackProcessorUpdate);
   }
 
+  /** @internal */
   startPreConnectBuffer(timeslice: number = 100) {
     if (!this.localTrackRecorder) {
       this.localTrackRecorder = new LocalTrackRecorder(this);
@@ -613,6 +614,7 @@ export default abstract class LocalTrack<
     }, PRE_CONNECT_BUFFER_TIMEOUT);
   }
 
+  /** @internal */
   stopPreConnectBuffer() {
     clearTimeout(this.autoStopPreConnectBuffer);
     if (this.localTrackRecorder) {

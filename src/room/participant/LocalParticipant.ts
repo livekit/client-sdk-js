@@ -1258,6 +1258,10 @@ export default class LocalParticipant extends Participant {
       // TODO: we're registering the listener after negotiation, so there might be a race
       this.on(ParticipantEvent.LocalTrackSubscribed, (pub) => {
         if (pub.trackSid === ti.sid) {
+          if (!track.hasPreConnectBuffer) {
+            this.log.warn('subscribe event came to late, buffer already closed', this.logContext);
+            return;
+          }
           this.log.debug('finished recording preconnect buffer', {
             ...this.logContext,
             ...getLogContextFromTrack(track),
