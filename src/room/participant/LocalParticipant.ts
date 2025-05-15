@@ -889,6 +889,7 @@ export default class LocalParticipant extends Participant {
               ),
             );
           }, 15_000);
+          // TODO: all events need to be moved into `setupEngine` to ensure they are not lost when engine is recreated
           this.engine.once(EngineEvent.SignalConnected, onSignalConnected);
           this.engine.on(EngineEvent.Closing, () => {
             this.engine.off(EngineEvent.SignalConnected, onSignalConnected);
