@@ -1315,18 +1315,9 @@ export default class LocalParticipant extends Participant {
                 channels: String(settings.channelCount ?? '1'),
               },
             });
-            // additionally create a audio element to play the buffer from object url
-            const chunks: Uint8Array[] = [];
             for await (const chunk of stream) {
               await writer.write(chunk);
-              chunks.push(chunk);
             }
-            const audio = new Audio();
-            audio.controls = true;
-            audio.src = URL.createObjectURL(new Blob(chunks));
-            console.log('chunks', chunks);
-            document.body.appendChild(audio);
-
             await writer.close();
             resolve();
           } catch (e) {
