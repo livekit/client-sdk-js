@@ -17,7 +17,6 @@ import {
   JoinResponse,
   ParticipantInfo,
   ParticipantPermission,
-  ReconnectResponse,
   RequestResponse,
   RequestResponse_Reason,
   RpcAck,
