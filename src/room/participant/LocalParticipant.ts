@@ -901,7 +901,6 @@ export default class LocalParticipant extends Participant {
               ),
             );
           }, 15_000);
-          // TODO: all events need to be moved into `setupEngine` to ensure they are not lost when engine is recreated
           await this.waitUntilEngineConnected();
           clearTimeout(timeout);
           const publication = await this.publish(track, opts, isStereo);
