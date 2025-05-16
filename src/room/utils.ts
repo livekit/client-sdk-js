@@ -5,7 +5,7 @@ import {
   DisconnectReason,
   Transcription as TranscriptionModel,
 } from '@livekit/protocol';
-import { getBrowser, type BrowserDetails } from '../utils/browserParser';
+import { type BrowserDetails, getBrowser } from '../utils/browserParser';
 import { protocolVersion, version } from '../version';
 import { type ConnectionError, ConnectionErrorReason } from './errors';
 import type LocalParticipant from './participant/LocalParticipant';
@@ -152,8 +152,8 @@ export function isSafariSvcApi(browser?: BrowserDetails): boolean {
   if (!browser) {
     browser = getBrowser();
   }
-  // Safari 18.4 requires legacy svc api and scaleResolutionDown to be set 
-  return (browser?.name === 'Safari' && compareVersions(browser.version, '18.3') > 0);
+  // Safari 18.4 requires legacy svc api and scaleResolutionDown to be set
+  return browser?.name === 'Safari' && compareVersions(browser.version, '18.3') > 0;
 }
 
 export function isMobile(): boolean {

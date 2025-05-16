@@ -378,7 +378,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
    * @internal
    * Sets layers that should be publishing
    */
-  async setPublishingLayers(isSvc: boolean,qualities: SubscribedQuality[]) {
+  async setPublishingLayers(isSvc: boolean, qualities: SubscribedQuality[]) {
     this.log.debug('setting publishing layers', { ...this.logContext, qualities });
     if (!this.sender || !this.encodings) {
       return;
@@ -504,7 +504,7 @@ async function setPublishingLayersForSender(
       if (isSVC) {
         const hasEnabledEncoding = qualities.some((q) => q.enabled);
         if (hasEnabledEncoding) {
-          qualities.forEach((q) => q.enabled = true);
+          qualities.forEach((q) => (q.enabled = true));
         }
       }
       // simulcast dynacast encodings
