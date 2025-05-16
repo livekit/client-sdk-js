@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.13.1
+
+### Patch Changes
+
+- Fix svc encoding for safari 18.4 - [#1519](https://github.com/livekit/client-sdk-js/pull/1519) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 2.13.0
 
 ### Minor Changes
