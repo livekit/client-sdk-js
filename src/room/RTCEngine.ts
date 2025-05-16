@@ -249,10 +249,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
 
       this.clientConfiguration = joinResponse.clientConfiguration;
-      // emit signal connected event after a short delay to allow for join response to be processed on room
-      setTimeout(() => {
-        this.emit(EngineEvent.SignalConnected);
-      }, 10);
+      this.emit(EngineEvent.SignalConnected, joinResponse);
       return joinResponse;
     } catch (e) {
       if (e instanceof ConnectionError) {
@@ -1513,7 +1510,7 @@ export type EngineEventCallbacks = {
   remoteMute: (trackSid: string, muted: boolean) => void;
   offline: () => void;
   signalRequestResponse: (response: RequestResponse) => void;
-  signalConnected: () => void;
+  signalConnected: (joinResp: JoinResponse) => void;
 };
 
 function supportOptionalDatachannel(protocol: number | undefined): boolean {

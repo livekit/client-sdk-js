@@ -1,6 +1,7 @@
 import { Mutex } from '@livekit/mutex';
 import {
   AddTrackRequest,
+  AudioTrackFeature,
   BackupCodecPolicy,
   ChatMessage as ChatMessageModel,
   Codec,
@@ -13,6 +14,7 @@ import {
   DataStream_TextHeader,
   DataStream_Trailer,
   Encryption_Type,
+  JoinResponse,
   ParticipantInfo,
   ParticipantPermission,
   RequestResponse,
@@ -102,6 +104,7 @@ import {
 import Participant from './Participant';
 import type { ParticipantTrackPermission } from './ParticipantTrackPermission';
 import { trackPermissionToProto } from './ParticipantTrackPermission';
+import type RemoteParticipant from './RemoteParticipant';
 import {
   computeTrackBackupEncodings,
   computeVideoEncodings,
@@ -144,6 +147,12 @@ export default class LocalParticipant extends Participant {
   private encryptionType: Encryption_Type = Encryption_Type.NONE;
 
   private reconnectFuture?: Future<void>;
+
+  private signalConnectedFuture?: Future<void>;
+
+  private activeAgentFuture?: Future<RemoteParticipant>;
+
+  private firstActiveAgent?: RemoteParticipant;
 
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>;
 
@@ -240,6 +249,7 @@ export default class LocalParticipant extends Participant {
 
     this.engine
       .on(EngineEvent.Connected, this.handleReconnected)
+      .on(EngineEvent.SignalConnected, this.handleSignalConnected)
       .on(EngineEvent.SignalRestarted, this.handleReconnected)
       .on(EngineEvent.SignalResumed, this.handleReconnected)
       .on(EngineEvent.Restarting, this.handleReconnecting)
@@ -269,6 +279,25 @@ export default class LocalParticipant extends Participant {
       this.reconnectFuture?.reject?.('Got disconnected during reconnection attempt');
       this.reconnectFuture = undefined;
     }
+    if (this.signalConnectedFuture) {
+      this.signalConnectedFuture.reject?.('Got disconnected without signal connected');
+      this.signalConnectedFuture = undefined;
+    }
+
+    this.activeAgentFuture?.reject?.('Got disconnected without active agent present');
+    this.activeAgentFuture = undefined;
+    this.firstActiveAgent = undefined;
+  };
+
+  private handleSignalConnected = (joinResponse: JoinResponse) => {
+    if (joinResponse.participant) {
+      this.updateInfo(joinResponse.participant);
+    }
+    if (!this.signalConnectedFuture) {
+      this.signalConnectedFuture = new Future<void>();
+    }
+
+    this.signalConnectedFuture.resolve?.();
   };
 
   private handleSignalRequestResponse = (response: RequestResponse) => {
@@ -522,6 +551,20 @@ export default class LocalParticipant extends Participant {
           this.pendingPublishing.delete(source);
           throw e;
         }
+
+        for (const localTrack of localTracks) {
+          if (
+            source === Track.Source.Microphone &&
+            isAudioTrack(localTrack) &&
+            publishOptions?.preConnectBuffer
+          ) {
+            this.log.info('starting preconnect buffer for microphone', {
+              ...this.logContext,
+            });
+            localTrack.startPreConnectBuffer();
+          }
+        }
+
         try {
           const publishPromises: Array<Promise<LocalTrackPublication>> = [];
           for (const localTrack of localTracks) {
@@ -848,16 +891,8 @@ export default class LocalParticipant extends Participant {
             ...this.logContext,
             track: getLogContextFromTrack(track),
           });
-          const onSignalConnected = async () => {
-            try {
-              const publication = await this.publish(track, opts, isStereo);
-              resolve(publication);
-            } catch (e) {
-              reject(e);
-            }
-          };
-          setTimeout(() => {
-            this.engine.off(EngineEvent.SignalConnected, onSignalConnected);
+
+          const timeout = setTimeout(() => {
             reject(
               new PublishTrackError(
                 'publishing rejected as engine not connected within timeout',
@@ -865,11 +900,10 @@ export default class LocalParticipant extends Participant {
               ),
             );
           }, 15_000);
-          this.engine.once(EngineEvent.SignalConnected, onSignalConnected);
-          this.engine.on(EngineEvent.Closing, () => {
-            this.engine.off(EngineEvent.SignalConnected, onSignalConnected);
-            reject(new PublishTrackError('publishing rejected as engine closed', 499));
-          });
+          await this.waitUntilEngineConnected();
+          clearTimeout(timeout);
+          const publication = await this.publish(track, opts, isStereo);
+          resolve(publication);
         } else {
           try {
             const publication = await this.publish(track, opts, isStereo);
@@ -891,6 +925,13 @@ export default class LocalParticipant extends Participant {
     } finally {
       this.pendingPublishPromises.delete(track);
     }
+  }
+
+  private waitUntilEngineConnected() {
+    if (!this.signalConnectedFuture) {
+      this.signalConnectedFuture = new Future<void>();
+    }
+    return this.signalConnectedFuture.promise;
   }
 
   private hasPermissionsToPublish(track: LocalTrack): boolean {
@@ -970,6 +1011,30 @@ export default class LocalParticipant extends Participant {
     track.on(TrackEvent.UpstreamResumed, this.onTrackUpstreamResumed);
     track.on(TrackEvent.AudioTrackFeatureUpdate, this.onTrackFeatureUpdate);
 
+    const audioFeatures: AudioTrackFeature[] = [];
+    const disableDtx = !(opts.dtx ?? true);
+
+    const settings = track.getSourceTrackSettings();
+
+    if (settings.autoGainControl) {
+      audioFeatures.push(AudioTrackFeature.TF_AUTO_GAIN_CONTROL);
+    }
+    if (settings.echoCancellation) {
+      audioFeatures.push(AudioTrackFeature.TF_ECHO_CANCELLATION);
+    }
+    if (settings.noiseSuppression) {
+      audioFeatures.push(AudioTrackFeature.TF_NOISE_SUPPRESSION);
+    }
+    if (settings.channelCount && settings.channelCount > 1) {
+      audioFeatures.push(AudioTrackFeature.TF_STEREO);
+    }
+    if (disableDtx) {
+      audioFeatures.push(AudioTrackFeature.TF_NO_DTX);
+    }
+    if (isLocalAudioTrack(track) && track.hasPreConnectBuffer) {
+      audioFeatures.push(AudioTrackFeature.TF_PRECONNECT_BUFFER);
+    }
+
     // create track publication from track
     const req = new AddTrackRequest({
       // get local track id for use during publishing
@@ -978,12 +1043,13 @@ export default class LocalParticipant extends Participant {
       type: Track.kindToProto(track.kind),
       muted: track.isMuted,
       source: Track.sourceToProto(track.source),
-      disableDtx: !(opts.dtx ?? true),
+      disableDtx,
       encryption: this.encryptionType,
       stereo: isStereo,
       disableRed: this.isE2EEEnabled || !(opts.red ?? true),
       stream: opts?.stream,
       backupCodecPolicy: opts?.backupCodecPolicy as BackupCodecPolicy,
+      audioFeatures,
     });
 
     // compute encodings and layers for video
@@ -1200,6 +1266,79 @@ export default class LocalParticipant extends Participant {
     this.addTrackPublication(publication);
     // send event for publication
     this.emit(ParticipantEvent.LocalTrackPublished, publication);
+
+    if (
+      isLocalAudioTrack(track) &&
+      ti.audioFeatures.includes(AudioTrackFeature.TF_PRECONNECT_BUFFER)
+    ) {
+      const stream = track.getPreConnectBuffer();
+      // TODO: we're registering the listener after negotiation, so there might be a race
+      this.on(ParticipantEvent.LocalTrackSubscribed, (pub) => {
+        if (pub.trackSid === ti.sid) {
+          if (!track.hasPreConnectBuffer) {
+            this.log.warn('subscribe event came to late, buffer already closed', this.logContext);
+            return;
+          }
+          this.log.debug('finished recording preconnect buffer', {
+            ...this.logContext,
+            ...getLogContextFromTrack(track),
+          });
+          track.stopPreConnectBuffer();
+        }
+      });
+
+      if (stream) {
+        const bufferStreamPromise = new Promise<void>(async (resolve, reject) => {
+          try {
+            this.log.debug('waiting for agent', {
+              ...this.logContext,
+              ...getLogContextFromTrack(track),
+            });
+            const agentActiveTimeout = setTimeout(() => {
+              reject(new Error('agent not active within 10 seconds'));
+            }, 10_000);
+            const agent = await this.waitUntilActiveAgentPresent();
+            clearTimeout(agentActiveTimeout);
+            this.log.debug('sending preconnect buffer', {
+              ...this.logContext,
+              ...getLogContextFromTrack(track),
+            });
+            const writer = await this.streamBytes({
+              name: 'preconnect-buffer',
+              mimeType: 'audio/opus',
+              topic: 'lk.agent.pre-connect-audio-buffer',
+              destinationIdentities: [agent.identity],
+              attributes: {
+                trackId: publication.trackSid,
+                sampleRate: String(settings.sampleRate ?? '48000'),
+                channels: String(settings.channelCount ?? '1'),
+              },
+            });
+            for await (const chunk of stream) {
+              await writer.write(chunk);
+            }
+            await writer.close();
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        });
+        bufferStreamPromise
+          .then(() => {
+            this.log.debug('preconnect buffer sent successfully', {
+              ...this.logContext,
+              ...getLogContextFromTrack(track),
+            });
+          })
+          .catch((e) => {
+            this.log.error('error sending preconnect buffer', {
+              ...this.logContext,
+              ...getLogContextFromTrack(track),
+              error: e,
+            });
+          });
+      }
+    }
     return publication;
   }
 
@@ -2090,6 +2229,30 @@ export default class LocalParticipant extends Participant {
       this.participantTrackPermissions.map((p) => trackPermissionToProto(p)),
     );
   };
+
+  /** @internal */
+  setActiveAgent(agent: RemoteParticipant | undefined) {
+    this.firstActiveAgent = agent;
+    if (agent && !this.firstActiveAgent) {
+      this.firstActiveAgent = agent;
+    }
+    if (agent) {
+      this.activeAgentFuture?.resolve?.(agent);
+    } else {
+      this.activeAgentFuture?.reject?.('Agent disconnected');
+    }
+    this.activeAgentFuture = undefined;
+  }
+
+  private waitUntilActiveAgentPresent() {
+    if (this.firstActiveAgent) {
+      return Promise.resolve(this.firstActiveAgent);
+    }
+    if (!this.activeAgentFuture) {
+      this.activeAgentFuture = new Future<RemoteParticipant>();
+    }
+    return this.activeAgentFuture.promise;
+  }
 
   /** @internal */
   private onTrackUnmuted = (track: LocalTrack) => {

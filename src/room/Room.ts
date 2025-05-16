@@ -65,7 +65,7 @@ import { ConnectionError, ConnectionErrorReason, UnsupportedServer } from './err
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
-import type { ConnectionQuality } from './participant/Participant';
+import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
 import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
 import CriticalTimers from './timers';
@@ -2244,6 +2244,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       })
       .on(ParticipantEvent.Active, () => {
         this.emitWhenConnected(RoomEvent.ParticipantActive, participant);
+        if (participant.kind === ParticipantKind.AGENT) {
+          this.localParticipant.setActiveAgent(participant);
+        }
       });
 
     // update info at the end after callbacks have been set up

@@ -119,6 +119,15 @@ export interface TrackPublishDefaults {
    * defaults to false
    */
   stopMicTrackOnMute?: boolean;
+
+  /**
+   * Enables preconnect buffer for a user's microphone track.
+   * This is useful for reducing perceived latency when the user starts to speak before the connection is established.
+   * Only works for agent use cases.
+   *
+   * Defaults to false.
+   */
+  preConnectBuffer?: boolean;
 }
 
 /**
