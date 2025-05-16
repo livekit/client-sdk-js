@@ -598,7 +598,9 @@ export default abstract class LocalTrack<
   /** @internal */
   startPreConnectBuffer(timeslice: number = 100) {
     if (!this.localTrackRecorder) {
-      this.localTrackRecorder = new LocalTrackRecorder(this);
+      this.localTrackRecorder = new LocalTrackRecorder(this, {
+        mimeType: 'audio/webm;codecs=opus',
+      });
     } else {
       this.log.warn('preconnect buffer already started');
       return;

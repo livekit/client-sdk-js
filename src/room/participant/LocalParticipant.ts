@@ -14,8 +14,10 @@ import {
   DataStream_TextHeader,
   DataStream_Trailer,
   Encryption_Type,
+  JoinResponse,
   ParticipantInfo,
   ParticipantPermission,
+  ReconnectResponse,
   RequestResponse,
   RequestResponse_Reason,
   RpcAck,
@@ -147,6 +149,8 @@ export default class LocalParticipant extends Participant {
 
   private reconnectFuture?: Future<void>;
 
+  private signalConnectedFuture?: Future<void>;
+
   private activeAgentFuture?: Future<RemoteParticipant>;
 
   private firstActiveAgent?: RemoteParticipant;
@@ -246,6 +250,7 @@ export default class LocalParticipant extends Participant {
 
     this.engine
       .on(EngineEvent.Connected, this.handleReconnected)
+      .on(EngineEvent.SignalConnected, this.handleSignalConnected)
       .on(EngineEvent.SignalRestarted, this.handleReconnected)
       .on(EngineEvent.SignalResumed, this.handleReconnected)
       .on(EngineEvent.Restarting, this.handleReconnecting)
@@ -275,10 +280,25 @@ export default class LocalParticipant extends Participant {
       this.reconnectFuture?.reject?.('Got disconnected during reconnection attempt');
       this.reconnectFuture = undefined;
     }
+    if (this.signalConnectedFuture) {
+      this.signalConnectedFuture.reject?.('Got disconnected without signal connected');
+      this.signalConnectedFuture = undefined;
+    }
 
     this.activeAgentFuture?.reject?.('Got disconnected without active agent present');
     this.activeAgentFuture = undefined;
     this.firstActiveAgent = undefined;
+  };
+
+  private handleSignalConnected = (joinResponse: JoinResponse) => {
+    if (joinResponse.participant) {
+      this.updateInfo(joinResponse.participant);
+    }
+    if (!this.signalConnectedFuture) {
+      this.signalConnectedFuture = new Future<void>();
+    }
+
+    this.signalConnectedFuture.resolve?.();
   };
 
   private handleSignalRequestResponse = (response: RequestResponse) => {
@@ -872,16 +892,8 @@ export default class LocalParticipant extends Participant {
             ...this.logContext,
             track: getLogContextFromTrack(track),
           });
-          const onSignalConnected = async () => {
-            try {
-              const publication = await this.publish(track, opts, isStereo);
-              resolve(publication);
-            } catch (e) {
-              reject(e);
-            }
-          };
-          setTimeout(() => {
-            this.engine.off(EngineEvent.SignalConnected, onSignalConnected);
+
+          const timeout = setTimeout(() => {
             reject(
               new PublishTrackError(
                 'publishing rejected as engine not connected within timeout',
@@ -890,11 +902,10 @@ export default class LocalParticipant extends Participant {
             );
           }, 15_000);
           // TODO: all events need to be moved into `setupEngine` to ensure they are not lost when engine is recreated
-          this.engine.once(EngineEvent.SignalConnected, onSignalConnected);
-          this.engine.on(EngineEvent.Closing, () => {
-            this.engine.off(EngineEvent.SignalConnected, onSignalConnected);
-            reject(new PublishTrackError('publishing rejected as engine closed', 499));
-          });
+          await this.waitUntilEngineConnected();
+          clearTimeout(timeout);
+          const publication = await this.publish(track, opts, isStereo);
+          resolve(publication);
         } else {
           try {
             const publication = await this.publish(track, opts, isStereo);
@@ -916,6 +927,13 @@ export default class LocalParticipant extends Participant {
     } finally {
       this.pendingPublishPromises.delete(track);
     }
+  }
+
+  private waitUntilEngineConnected() {
+    if (!this.signalConnectedFuture) {
+      this.signalConnectedFuture = new Future<void>();
+    }
+    return this.signalConnectedFuture.promise;
   }
 
   private hasPermissionsToPublish(track: LocalTrack): boolean {
@@ -1298,9 +1316,18 @@ export default class LocalParticipant extends Participant {
                 channels: String(settings.channelCount ?? '1'),
               },
             });
+            // additionally create a audio element to play the buffer from object url
+            const chunks: Uint8Array[] = [];
             for await (const chunk of stream) {
               await writer.write(chunk);
+              chunks.push(chunk);
             }
+            const audio = new Audio();
+            audio.controls = true;
+            audio.src = URL.createObjectURL(new Blob(chunks));
+            console.log('chunks', chunks);
+            document.body.appendChild(audio);
+
             await writer.close();
             resolve();
           } catch (e) {
