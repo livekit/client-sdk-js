@@ -19,6 +19,7 @@ import {
   isReactNative,
   isSVCCodec,
   isSafari,
+  isSafariSvcApi,
   unwrapConstraint,
 } from '../utils';
 
@@ -158,12 +159,15 @@ export function computeVideoEncodings(
       (browser?.name === 'Chrome' && compareVersions(browser?.version, '113') < 0)
     ) {
       const bitratesRatio = sm.suffix == 'h' ? 2 : 3;
+      // safari 18.4 uses a different svc API that requires scaleResolutionDownBy to be set.
+      const requireScale = isSafariSvcApi(browser);
       for (let i = 0; i < sm.spatial; i += 1) {
         // in legacy SVC, scaleResolutionDownBy cannot be set
         encodings.push({
           rid: videoRids[2 - i],
           maxBitrate: videoEncoding.maxBitrate / bitratesRatio ** i,
           maxFramerate: original.encoding.maxFramerate,
+          scaleResolutionDownBy: requireScale ? 2 ** i : undefined,
         });
       }
       // legacy SVC, scalabilityMode is set only on the first encoding

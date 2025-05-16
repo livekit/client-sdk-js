@@ -2154,22 +2154,18 @@ export default class LocalParticipant extends Participant {
       });
       return;
     }
-    if (update.subscribedCodecs.length > 0) {
-      if (!pub.videoTrack) {
-        return;
+    if (!pub.videoTrack) {
+      return;
+    }
+    const newCodecs = await pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
+    for await (const codec of newCodecs) {
+      if (isBackupCodec(codec)) {
+        this.log.debug(`publish ${codec} for ${pub.videoTrack.sid}`, {
+          ...this.logContext,
+          ...getLogContextFromTrack(pub),
+        });
+        await this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
       }
-      const newCodecs = await pub.videoTrack.setPublishingCodecs(update.subscribedCodecs);
-      for await (const codec of newCodecs) {
-        if (isBackupCodec(codec)) {
-          this.log.debug(`publish ${codec} for ${pub.videoTrack.sid}`, {
-            ...this.logContext,
-            ...getLogContextFromTrack(pub),
-          });
-          await this.publishAdditionalCodecForTrack(pub.videoTrack, codec, pub.options);
-        }
-      }
-    } else if (update.subscribedQualities.length > 0) {
-      await pub.videoTrack?.setPublishingLayers(update.subscribedQualities);
     }
   };
 
