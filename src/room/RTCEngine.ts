@@ -216,7 +216,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       room: this.latestJoinResponse?.room?.name,
       roomID: this.latestJoinResponse?.room?.sid,
       participant: this.latestJoinResponse?.participant?.identity,
-      pID: this.latestJoinResponse?.participant?.sid,
+      pID: this.participantSid,
     };
   }
 
@@ -529,6 +529,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.onRoomMoved = (res: RoomMovedResponse) => {
       this.participantSid = res.participant?.sid;
+      if (this.latestJoinResponse) {
+        this.latestJoinResponse.room = res.room;
+      }
       this.emit(EngineEvent.RoomMoved, res);
     };
 
