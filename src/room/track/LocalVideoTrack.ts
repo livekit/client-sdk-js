@@ -12,7 +12,7 @@ import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
-import { compareVersions, isFireFox, isMobile, isWeb } from '../utils';
+import { compareVersions, isFireFox, isMobile, isSVCCodec, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track, VideoQuality } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
@@ -239,7 +239,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       );
     }
     this.log.debug(`setting publishing quality. max quality ${maxQuality}`, this.logContext);
-    this.setPublishingLayers(qualities);
+    this.setPublishingLayers(isSVCCodec(this.codec), qualities);
   }
 
   async restartTrack(options?: VideoCaptureOptions) {
@@ -334,7 +334,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     });
     // only enable simulcast codec for preference codec setted
     if (!this.codec && codecs.length > 0) {
-      await this.setPublishingLayers(codecs[0].qualities);
+      await this.setPublishingLayers(isSVCCodec(codecs[0].codec), codecs[0].qualities);
       return [];
     }
 
@@ -343,7 +343,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     const newCodecs: VideoCodec[] = [];
     for await (const codec of codecs) {
       if (!this.codec || this.codec === codec.codec) {
-        await this.setPublishingLayers(codec.qualities);
+        await this.setPublishingLayers(isSVCCodec(codec.codec), codec.qualities);
       } else {
         const simulcastCodecInfo = this.simulcastCodecs.get(codec.codec as VideoCodec);
         this.log.debug(`try setPublishingCodec for ${codec.codec}`, {
@@ -364,6 +364,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
             simulcastCodecInfo.encodings!,
             codec.qualities,
             this.senderLock,
+            isSVCCodec(codec.codec),
             this.log,
             this.logContext,
           );
@@ -377,7 +378,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
    * @internal
    * Sets layers that should be publishing
    */
-  async setPublishingLayers(qualities: SubscribedQuality[]) {
+  async setPublishingLayers(isSvc: boolean,qualities: SubscribedQuality[]) {
     this.log.debug('setting publishing layers', { ...this.logContext, qualities });
     if (!this.sender || !this.encodings) {
       return;
@@ -388,6 +389,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       this.encodings,
       qualities,
       this.senderLock,
+      isSvc,
       this.log,
       this.logContext,
     );
@@ -434,6 +436,7 @@ async function setPublishingLayersForSender(
   senderEncodings: RTCRtpEncodingParameters[],
   qualities: SubscribedQuality[],
   senderLock: Mutex,
+  isSVC: boolean,
   log: StructuredLogger,
   logContext: Record<string, unknown>,
 ) {
@@ -498,6 +501,12 @@ async function setPublishingLayersForSender(
         }
       }
     } else {
+      if (isSVC) {
+        const hasEnabledEncoding = qualities.some((q) => q.enabled);
+        if (hasEnabledEncoding) {
+          qualities.forEach((q) => q.enabled = true);
+        }
+      }
       // simulcast dynacast encodings
       encodings.forEach((encoding, idx) => {
         let rid = encoding.rid ?? '';
