@@ -36,7 +36,7 @@ export default class DeviceManager {
           await Promise.all(DeviceManager.userMediaPromiseMap.values());
         }
       } catch (e: any) {
-        log.warn('error waiting for media permissons');
+        log.warn('error waiting for media permissions');
       }
     }
     let devices = await navigator.mediaDevices.enumerateDevices();
@@ -71,7 +71,18 @@ export default class DeviceManager {
     if (kind) {
       devices = devices.filter((device) => device.kind === kind);
     }
-    return devices;
+    const uniqueDevices: MediaDeviceInfo[] = [];
+    const deviceMap = new Map<string, MediaDeviceInfo>();
+
+    devices.forEach((device) => {
+      const compositeKey = `${device.kind}|${device.groupId}`;
+      if (!deviceMap.has(compositeKey)) {
+        uniqueDevices.push(device);
+        deviceMap.set(compositeKey, device);
+      }
+    });
+
+    return uniqueDevices;
   }
 
   async normalizeDeviceId(
