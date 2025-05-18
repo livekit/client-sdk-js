@@ -34,7 +34,7 @@ importers:
         version: 2.1.0
       webrtc-adapter:
         specifier: ^9.0.1
-        version: 9.0.1
+        version: 9.0.3
     devDependencies:
       '@babel/core':
         specifier: 7.27.1
@@ -3230,8 +3230,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.9.0-dev.20250517:
-    resolution: {integrity: sha512-wFpZkUJzeYxuYGUywAkCkMpraEToMKOsAi+Y/WIH4b0DLTKA+0pXYmW17bmAd/Cxe6xrfudm22keeQxOdCi9Kw==}
+  typescript@5.9.0-dev.20250518:
+    resolution: {integrity: sha512-P5dLYqx/0cg+0rSY73eeefpJupEHrlmn57OSKVpYgaewd59MAlq7JWuP3719I9CgM3VIyRN6kSX2w8DEry2V8A==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -3386,8 +3386,8 @@ packages:
       webpack-cli:
         optional: true
 
-  webrtc-adapter@9.0.1:
-    resolution: {integrity: sha512-1AQO+d4ElfVSXyzNVTOewgGT/tAomwwztX/6e3totvyyzXPvXIIuUUjAmyZGbKBKbZOXauuJooZm3g6IuFuiNQ==}
+  webrtc-adapter@9.0.3:
+    resolution: {integrity: sha512-5fALBcroIl31OeXAdd1YUntxiZl1eHlZZWzNg3U4Fn+J9/cGL3eT80YlrsWGvj2ojuz1rZr2OXkgCzIxAZ7vRQ==}
     engines: {node: '>=6.0.0', npm: '>=3.10.0'}
 
   whatwg-encoding@3.1.1:
@@ -5373,7 +5373,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.9.0-dev.20250517
+      typescript: 5.9.0-dev.20250518
 
   dunder-proto@1.0.1:
     dependencies:
@@ -6951,7 +6951,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@5.9.0-dev.20250517: {}
+  typescript@5.9.0-dev.20250518: {}
 
   uc.micro@2.1.0: {}
 
@@ -7120,7 +7120,7 @@ snapshots:
       - esbuild
       - uglify-js
 
-  webrtc-adapter@9.0.1:
+  webrtc-adapter@9.0.3:
     dependencies:
       sdp: 3.2.0
 
