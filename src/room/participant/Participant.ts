@@ -421,7 +421,7 @@ export type ParticipantEventCallbacks = {
     publication: RemoteTrackPublication,
     status: TrackPublication.PermissionStatus,
   ) => void;
-  mediaDevicesError: (error: Error) => void;
+  mediaDevicesError: (error: Error, kind: MediaDeviceKind) => void;
   audioStreamAcquired: () => void;
   participantPermissionsChanged: (prevPermissions?: ParticipantPermission) => void;
   trackSubscriptionStatusChanged: (
