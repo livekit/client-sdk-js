@@ -2436,7 +2436,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.ConnectionQualityChanged, quality, this.localParticipant);
   };
 
-  private onMediaDevicesError = (e: Error, kind: MediaDeviceKind) => {
+  private onMediaDevicesError = (e: Error, kind?: MediaDeviceKind) => {
     this.emit(RoomEvent.MediaDevicesError, e, kind);
   };
 
@@ -2691,7 +2691,7 @@ export type RoomEventCallbacks = {
     publication?: TrackPublication,
   ) => void;
   connectionQualityChanged: (quality: ConnectionQuality, participant: Participant) => void;
-  mediaDevicesError: (error: Error, kind: MediaDeviceKind) => void;
+  mediaDevicesError: (error: Error, kind?: MediaDeviceKind) => void;
   trackStreamStateChanged: (
     publication: RemoteTrackPublication,
     streamState: Track.StreamState,
