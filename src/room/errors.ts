@@ -16,6 +16,7 @@ export enum ConnectionErrorReason {
   InternalError,
   Cancelled,
   LeaveRequest,
+  Timeout,
 }
 
 export class ConnectionError extends LivekitError {

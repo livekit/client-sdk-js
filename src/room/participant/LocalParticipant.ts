@@ -1208,11 +1208,32 @@ export default class LocalParticipant extends Participant {
     };
 
     let ti: TrackInfo;
+    const addTrackPromise = new Promise<TrackInfo>(async (resolve, reject) => {
+      try {
+        ti = await this.engine.addTrack(req);
+        resolve(ti);
+      } catch (err) {
+        if (track.sender && this.engine.pcManager?.publisher) {
+          this.engine.pcManager.publisher.removeTrack(track.sender);
+          await this.engine.negotiate().catch((negotiateErr) => {
+            this.log.error(
+              'failed to negotiate after removing track due to failed add track request',
+              {
+                ...this.logContext,
+                ...getLogContextFromTrack(track),
+                error: negotiateErr,
+              },
+            );
+          });
+        }
+        reject(err);
+      }
+    });
     if (this.enabledPublishVideoCodecs.length > 0) {
-      const rets = await Promise.all([this.engine.addTrack(req), negotiate()]);
+      const rets = await Promise.all([addTrackPromise, negotiate()]);
       ti = rets[0];
     } else {
-      ti = await this.engine.addTrack(req);
+      ti = await addTrackPromise;
       // server might not support the codec the client has requested, in that case, fallback
       // to a supported codec
       let primaryCodecMime: string | undefined;
