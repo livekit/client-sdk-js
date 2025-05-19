@@ -330,7 +330,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         reject(
           new ConnectionError(
             'publication of local track timed out, no response from server',
-            ConnectionErrorReason.InternalError,
+            ConnectionErrorReason.Timeout,
           ),
         );
       }, 10_000);
