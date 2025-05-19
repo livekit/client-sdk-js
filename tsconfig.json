@@ -26,7 +26,7 @@
     "verbatimModuleSyntax": true,
     "ignoreDeprecations": "5.0"
   },
-  "exclude": ["dist", "**/*.test.ts"],
+  "exclude": ["dist", "**/*.test.ts", "test/**"],
   "include": ["src/**/*.ts"],
   "typedocOptions": {
     "entryPoints": ["src/index.ts"],
