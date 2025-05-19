@@ -1142,21 +1142,26 @@ export default class LocalParticipant extends Participant {
     };
 
     let ti: TrackInfo;
-    const addTrackPromise = this.engine.addTrack(req).catch(async (err) => {
-      if (track.sender && this.engine.pcManager?.publisher) {
-        this.engine.pcManager.publisher.removeTrack(track.sender);
-        await this.engine.negotiate().catch((negotiateErr) => {
-          this.log.error(
-            'failed to negotiate after removing track due to failed add track request',
-            {
-              ...this.logContext,
-              ...getLogContextFromTrack(track),
-              error: negotiateErr,
-            },
-          );
-        });
+    const addTrackPromise = new Promise<TrackInfo>(async (resolve, reject) => {
+      try {
+        ti = await this.engine.addTrack(req);
+        resolve(ti);
+      } catch (err) {
+        if (track.sender && this.engine.pcManager?.publisher) {
+          this.engine.pcManager.publisher.removeTrack(track.sender);
+          await this.engine.negotiate().catch((negotiateErr) => {
+            this.log.error(
+              'failed to negotiate after removing track due to failed add track request',
+              {
+                ...this.logContext,
+                ...getLogContextFromTrack(track),
+                error: negotiateErr,
+              },
+            );
+          });
+        }
+        reject(err);
       }
-      throw err;
     });
     if (this.enabledPublishVideoCodecs.length > 0) {
       const rets = await Promise.all([addTrackPromise, negotiate()]);
