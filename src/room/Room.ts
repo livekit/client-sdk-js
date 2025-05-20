@@ -104,6 +104,7 @@ import {
   isReactNative,
   isRemotePub,
   isSafari,
+  isSafariBased,
   isWeb,
   numberToBigInt,
   sleep,
@@ -2041,7 +2042,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       }
 
-      if ((kind === 'audioinput' && !isSafari()) || kind === 'videoinput') {
+      if ((kind === 'audioinput' && !isSafariBased()) || kind === 'videoinput') {
         // airpods on Safari need special handling for audioinput as the track doesn't end as soon as you take them out
         continue;
       }
@@ -2050,7 +2051,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         devicesOfKind.length > 0 &&
         !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === this.getActiveDevice(kind)) &&
         // avoid switching audio output on safari without explicit user action as it leads to slowed down audio playback
-        (kind !== 'audiooutput' || !isSafari())
+        (kind !== 'audiooutput' || !isSafariBased())
       ) {
         await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
       }
