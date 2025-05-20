@@ -71,6 +71,7 @@ import {
   mergeDefaultOptions,
   mimeTypeToVideoCodecString,
   screenCaptureToDisplayMediaStreamOptions,
+  sourceToKind,
 } from '../track/utils';
 import {
   type ByteStreamInfo,
@@ -517,7 +518,7 @@ export default class LocalParticipant extends Participant {
             tr.stop();
           });
           if (e instanceof Error) {
-            this.emit(ParticipantEvent.MediaDevicesError, e);
+            this.emit(ParticipantEvent.MediaDevicesError, e, sourceToKind(source));
           }
           this.pendingPublishing.delete(source);
           throw e;
