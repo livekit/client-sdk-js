@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.13.1
+
+### Patch Changes
+
+- fix: don't try to set audio output on Safari without explicit user interaction - [#1527](https://github.com/livekit/client-sdk-js/pull/1527) ([@lukasIO](https://github.com/lukasIO))
+
+- Fix svc encoding for safari 18.4 - [#1519](https://github.com/livekit/client-sdk-js/pull/1519) ([@cnderrauber](https://github.com/cnderrauber))
+
+- feat: add MediaDeviceKind to media device error event - [#1525](https://github.com/livekit/client-sdk-js/pull/1525) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: remove track from transceiver if add request failed - [#1524](https://github.com/livekit/client-sdk-js/pull/1524) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.13.0
 
 ### Minor Changes
