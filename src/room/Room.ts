@@ -1356,6 +1356,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           // @ts-expect-error setSinkId is not yet in the typescript type of AudioContext
           this.audioContext?.setSinkId(deviceId);
         }
+
         // also set audio output on all audio elements, even if webAudioMix is enabled in order to workaround echo cancellation not working on chrome with non-default output devices
         // see https://issues.chromium.org/issues/40252911#comment7
         await Promise.all(
@@ -2047,7 +2048,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       // switch to first available device if previously active device is not available any more
       if (
         devicesOfKind.length > 0 &&
-        !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === this.getActiveDevice(kind))
+        !devicesOfKind.find((deviceInfo) => deviceInfo.deviceId === this.getActiveDevice(kind)) &&
+        // avoid switching audio output on safari without explicit user action as it leads to slowed down audio playback
+        (kind !== 'audiooutput' || !isSafari())
       ) {
         await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
       }
