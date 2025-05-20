@@ -143,6 +143,11 @@ export function isSafari(): boolean {
   return getBrowser()?.name === 'Safari';
 }
 
+export function isSafariBased(): boolean {
+  const b = getBrowser();
+  return b?.name === 'Safari' || b?.os === 'iOS';
+}
+
 export function isSafari17(): boolean {
   const b = getBrowser();
   return b?.name === 'Safari' && b.version.startsWith('17.');
