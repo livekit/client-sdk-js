@@ -1992,7 +1992,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   };
 
-  private handleDeviceChange = async () => {
+  /**
+   * attempt to select the default devices if the previously selected devices are no longer available after a device change event
+   */
+  private async selectDefaultDevices() {
     const previousDevices = DeviceManager.getInstance().previousDevices;
     // check for available devices, but don't request permissions in order to avoid prompts for kinds that haven't been used before
     const availableDevices = await DeviceManager.getInstance().getDevices(undefined, false);
@@ -2055,7 +2058,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         await this.switchActiveDevice(kind, devicesOfKind[0].deviceId);
       }
     }
+  }
 
+  private handleDeviceChange = async () => {
+    if (getBrowser()?.os !== 'iOS') {
+      // default devices are non deterministic on iOS, so we don't attempt to select them here
+      await this.selectDefaultDevices();
+    }
     this.emit(RoomEvent.MediaDevicesChanged);
   };
 
