@@ -64,6 +64,9 @@
     "typed-emitter": "^2.1.0",
     "webrtc-adapter": "^9.0.1"
   },
+  "peerDependencies": {
+    "@types/dom-mediacapture-record": "^1"
+  },
   "devDependencies": {
     "@babel/core": "7.27.1",
     "@babel/preset-env": "7.27.2",

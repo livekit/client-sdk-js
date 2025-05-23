@@ -41,6 +41,5 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
-    setupFiles: './test/setupMocks.ts',
   },
 });

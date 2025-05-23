@@ -9,7 +9,7 @@ import { compareVersions, isMobile, sleep, unwrapConstraint } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
-import { LocalTrackRecorder } from './record';
+import { LocalTrackRecorder, isRecordingSupported } from './record';
 import type { ReplaceTrackOptions } from './types';
 
 const DEFAULT_DIMENSIONS_TIMEOUT = 1000;
@@ -597,6 +597,14 @@ export default abstract class LocalTrack<
 
   /** @internal */
   startPreConnectBuffer(timeslice: number = 100) {
+    if (!isRecordingSupported()) {
+      this.log.warn(
+        'MediaRecorder is not available, cannot start preconnect buffer',
+        this.logContext,
+      );
+      return;
+    }
+
     if (!this.localTrackRecorder) {
       this.localTrackRecorder = new LocalTrackRecorder(this, {
         mimeType: 'audio/webm;codecs=opus',
