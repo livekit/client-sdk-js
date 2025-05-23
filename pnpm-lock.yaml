@@ -14,6 +14,9 @@ importers:
       '@livekit/protocol':
         specifier: 1.38.0
         version: 1.38.0
+      '@types/dom-mediacapture-record':
+        specifier: ^1
+        version: 1.0.22
       events:
         specifier: ^3.3.0
         version: 3.3.0
@@ -1241,6 +1244,9 @@ packages:
         optional: true
       svelte:
         optional: true
+
+  '@types/dom-mediacapture-record@1.0.22':
+    resolution: {integrity: sha512-mUMZLK3NvwRLcAAT9qmcK+9p7tpU2FHdDsntR3YI4+GY88XrgG4XiE7u1Q2LAN2/FZOz/tdMDC3GQCR4T8nFuw==}
 
   '@types/eslint-scope@3.7.7':
     resolution: {integrity: sha512-MzMFlSLBqNF2gcHWO0G1vP/YQyfvrxZ0bF+u7mzUdZ1/xK4A4sru+nraZz5i3iEIk1l1uyicaDVTB4QbbEkAYg==}
@@ -3182,8 +3188,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.9.0-dev.20250519:
-    resolution: {integrity: sha512-cD9QL1mE9TWmUaC8hHGQUXS0oRsZI45Sovemi6S8ATHu2yKIxUtrlpXkMPQFD5g92QT7SSbNWuR8k6iMIHC/6A==}
+  typescript@5.9.0-dev.20250523:
+    resolution: {integrity: sha512-igDelnnCrlPHezUmn1QseV7BBn7bITue651a+X+JSKkBDwrvyy5vqd1G6dvM3vrc4PlInB5F6jQDp/23kg9ZEA==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4673,6 +4679,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@types/dom-mediacapture-record@1.0.22': {}
+
   '@types/eslint-scope@3.7.7':
     dependencies:
       '@types/eslint': 8.44.7
@@ -5271,7 +5279,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.9.0-dev.20250519
+      typescript: 5.9.0-dev.20250523
 
   electron-to-chromium@1.5.4: {}
 
@@ -6775,7 +6783,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@5.9.0-dev.20250519: {}
+  typescript@5.9.0-dev.20250523: {}
 
   uc.micro@2.1.0: {}
 
