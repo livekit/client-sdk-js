@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.13.2
+
+### Patch Changes
+
+- Add LocalTrackRecorder helper - [#1430](https://github.com/livekit/client-sdk-js/pull/1430) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: skip default device selection on iOS - [#1528](https://github.com/livekit/client-sdk-js/pull/1528) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.13.1
 
 ### Patch Changes
