@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.13.3
+
+### Patch Changes
+
+- Add media recorder types - [#1530](https://github.com/livekit/client-sdk-js/pull/1530) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.13.2
 
 ### Patch Changes
