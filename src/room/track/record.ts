@@ -1,9 +1,26 @@
 import type LocalTrack from './LocalTrack';
 
-export class LocalTrackRecorder<T extends LocalTrack> extends MediaRecorder {
+// Check if MediaRecorder is available
+const isMediaRecorderAvailable = typeof MediaRecorder !== 'undefined';
+
+// Fallback class for environments without MediaRecorder
+class FallbackRecorder {
+  constructor() {
+    throw new Error('MediaRecorder is not available in this environment');
+  }
+}
+
+// Use conditional inheritance to avoid parse-time errors
+const RecorderBase = isMediaRecorderAvailable ? MediaRecorder : (FallbackRecorder as any);
+
+export class LocalTrackRecorder<T extends LocalTrack> extends RecorderBase {
   byteStream: ReadableStream<Uint8Array>;
 
   constructor(track: T, options?: MediaRecorderOptions) {
+    if (!isMediaRecorderAvailable) {
+      throw new Error('MediaRecorder is not available in this environment');
+    }
+
     super(new MediaStream([track.mediaStreamTrack]), options);
 
     let dataListener: (event: BlobEvent) => void;
@@ -48,4 +65,21 @@ export class LocalTrackRecorder<T extends LocalTrack> extends MediaRecorder {
     this.addEventListener('stop', onStop);
     this.addEventListener('error', onError);
   }
+
+  start(timeslice?: number): void {
+    super.start(timeslice);
+  }
+
+  stop(): void {
+    super.stop();
+  }
+
+  get state(): RecordingState {
+    return super.state;
+  }
+}
+
+// Helper function to check if recording is supported
+export function isRecordingSupported(): boolean {
+  return isMediaRecorderAvailable;
 }
