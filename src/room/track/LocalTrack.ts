@@ -9,14 +9,18 @@ import { compareVersions, isMobile, sleep, unwrapConstraint } from '../utils';
 import { Track, attachToElement, detachTrack } from './Track';
 import type { VideoCodec } from './options';
 import type { TrackProcessor } from './processor/types';
+import { LocalTrackRecorder } from './record';
 import type { ReplaceTrackOptions } from './types';
 
-const defaultDimensionsTimeout = 1000;
+const DEFAULT_DIMENSIONS_TIMEOUT = 1000;
+const PRE_CONNECT_BUFFER_TIMEOUT = 10_000;
 
 export default abstract class LocalTrack<
   TrackKind extends Track.Kind = Track.Kind,
 > extends Track<TrackKind> {
   protected _sender?: RTCRtpSender;
+
+  private autoStopPreConnectBuffer: ReturnType<typeof setTimeout> | undefined;
 
   /** @internal */
   get sender(): RTCRtpSender | undefined {
@@ -33,6 +37,10 @@ export default abstract class LocalTrack<
 
   get constraints() {
     return this._constraints;
+  }
+
+  get hasPreConnectBuffer() {
+    return !!this.localTrackRecorder;
   }
 
   protected _constraints: MediaTrackConstraints;
@@ -54,6 +62,8 @@ export default abstract class LocalTrack<
   protected audioContext?: AudioContext;
 
   protected manuallyStopped: boolean = false;
+
+  protected localTrackRecorder: LocalTrackRecorder<typeof this> | undefined;
 
   private restartLock: Mutex;
 
@@ -203,7 +213,7 @@ export default abstract class LocalTrack<
     }
   }
 
-  async waitForDimensions(timeout = defaultDimensionsTimeout): Promise<Track.Dimensions> {
+  async waitForDimensions(timeout = DEFAULT_DIMENSIONS_TIMEOUT): Promise<Track.Dimensions> {
     if (this.kind === Track.Kind.Audio) {
       throw new Error('cannot get dimensions for audio tracks');
     }
@@ -583,6 +593,41 @@ export default abstract class LocalTrack<
     // force re-setting of the mediaStreamTrack on the sender
     await this.setMediaStreamTrack(this._mediaStreamTrack, true);
     this.emit(TrackEvent.TrackProcessorUpdate);
+  }
+
+  /** @internal */
+  startPreConnectBuffer(timeslice: number = 100) {
+    if (!this.localTrackRecorder) {
+      this.localTrackRecorder = new LocalTrackRecorder(this, {
+        mimeType: 'audio/webm;codecs=opus',
+      });
+    } else {
+      this.log.warn('preconnect buffer already started');
+      return;
+    }
+
+    this.localTrackRecorder.start(timeslice);
+    this.autoStopPreConnectBuffer = setTimeout(() => {
+      this.log.warn(
+        'preconnect buffer timed out, stopping recording automatically',
+        this.logContext,
+      );
+      this.stopPreConnectBuffer();
+    }, PRE_CONNECT_BUFFER_TIMEOUT);
+  }
+
+  /** @internal */
+  stopPreConnectBuffer() {
+    clearTimeout(this.autoStopPreConnectBuffer);
+    if (this.localTrackRecorder) {
+      this.localTrackRecorder.stop();
+      this.localTrackRecorder = undefined;
+    }
+  }
+
+  /** @internal */
+  getPreConnectBuffer() {
+    return this.localTrackRecorder?.byteStream;
   }
 
   protected abstract monitorSender(): void;

@@ -666,4 +666,9 @@ export enum TrackEvent {
    * @experimental
    */
   TimeSyncUpdate = 'timeSyncUpdate',
+
+  /**
+   * @internal
+   */
+  PreConnectBufferFlushed = 'preConnectBufferFlushed',
 }

@@ -3,7 +3,14 @@
     "types": ["sdp-transform", "ua-parser-js", "events"],
     "target": "ES2015" /* Specify ECMAScript target version: 'ES3' (default), 'ES5', 'ES2015', 'ES2016', 'ES2017', 'ES2018', 'ES2019', 'ES2020', or 'ESNEXT'. */,
     "module": "ES2020" /* Specify module code generation: 'none', 'commonjs', 'amd', 'system', 'umd', 'es2015', 'es2020', or 'ESNext'. */,
-    "lib": ["DOM", "DOM.Iterable", "ES2017", "ES2018.Promise", "ES2021.WeakRef"],
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "DOM.AsyncIterable",
+      "ES2017",
+      "ES2018.Promise",
+      "ES2021.WeakRef"
+    ],
     "rootDir": "./",
     "outDir": "dist",
     "declaration": true,
@@ -19,7 +26,7 @@
     "verbatimModuleSyntax": true,
     "ignoreDeprecations": "5.0"
   },
-  "exclude": ["dist", "**/*.test.ts"],
+  "exclude": ["dist", "**/*.test.ts", "test/**"],
   "include": ["src/**/*.ts"],
   "typedocOptions": {
     "entryPoints": ["src/index.ts"],
