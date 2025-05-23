@@ -11,7 +11,9 @@ class FallbackRecorder {
 }
 
 // Use conditional inheritance to avoid parse-time errors
-const RecorderBase = isMediaRecorderAvailable ? MediaRecorder : (FallbackRecorder as any);
+const RecorderBase = isMediaRecorderAvailable
+  ? MediaRecorder
+  : (FallbackRecorder as unknown as typeof MediaRecorder);
 
 export class LocalTrackRecorder<T extends LocalTrack> extends RecorderBase {
   byteStream: ReadableStream<Uint8Array>;
@@ -64,18 +66,6 @@ export class LocalTrackRecorder<T extends LocalTrack> extends RecorderBase {
 
     this.addEventListener('stop', onStop);
     this.addEventListener('error', onError);
-  }
-
-  start(timeslice?: number): void {
-    super.start(timeslice);
-  }
-
-  stop(): void {
-    super.stop();
-  }
-
-  get state(): RecordingState {
-    return super.state;
   }
 }
 
