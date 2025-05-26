@@ -57,6 +57,7 @@
     "@livekit/mutex": "1.1.1",
     "@livekit/protocol": "1.38.0",
     "events": "^3.3.0",
+    "livekit-client": "^2.13.1",
     "loglevel": "^1.9.2",
     "sdp-transform": "^2.15.0",
     "ts-debounce": "^4.0.0",

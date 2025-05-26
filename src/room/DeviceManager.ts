@@ -8,6 +8,14 @@ export default class DeviceManager {
 
   static mediaDeviceKinds: MediaDeviceKind[] = ['audioinput', 'audiooutput', 'videoinput'];
 
+  static getUserMedia:(constrains: MediaStreamConstraints) => Promise<MediaStream> = (constrains: MediaStreamConstraints) =>{
+    return navigator.mediaDevices.getUserMedia(constrains)
+  }
+
+  static enumerateDevices:()=>Promise<MediaDeviceInfo[]> = ()=>{
+    return navigator.mediaDevices.enumerateDevices()
+  }
+
   static getInstance(): DeviceManager {
     if (this.instance === undefined) {
       this.instance = new DeviceManager();
@@ -39,7 +47,7 @@ export default class DeviceManager {
         log.warn('error waiting for media permissons');
       }
     }
-    let devices = await navigator.mediaDevices.enumerateDevices();
+    let devices = await DeviceManager.enumerateDevices();
 
     if (
       requestPermissions &&
@@ -59,8 +67,9 @@ export default class DeviceManager {
           video: kind !== 'audioinput' && kind !== 'audiooutput',
           audio: kind !== 'videoinput' && { deviceId: { ideal: 'default' } },
         };
-        const stream = await navigator.mediaDevices.getUserMedia(permissionsToAcquire);
-        devices = await navigator.mediaDevices.enumerateDevices();
+        const stream = await DeviceManager.getUserMedia(permissionsToAcquire);
+        devices = await DeviceManager.enumerateDevices();
+
         stream.getTracks().forEach((track) => {
           track.stop();
         });

@@ -265,6 +265,25 @@
           </div>
         </div>
         <div class="col-md-4">
+          <div id="virtual-camera-area">
+            <div>
+              <b>Virtual Camera URL</b>
+            </div>
+            <div>
+              <input type="text" class="form-control" id="vcam-url" value="default" />
+            </div>
+            <div>
+              <button
+                id="connect-button"
+                class="btn btn-primary mt-1"
+                type="button"
+                onclick="appActions.setVirtualCamera()"
+                >
+                Set
+              </button>
+            </div>
+            <iframe id="vcam-ui" ></iframe>
+          </div>
           <h3>Chat</h3>
           <div id="chat-area">
             <textarea class="form-control" id="chat" rows="9"></textarea>
