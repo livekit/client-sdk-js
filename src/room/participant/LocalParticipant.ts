@@ -262,8 +262,6 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket);
 
     this.signalConnectedFuture = undefined;
-    this.activeAgentFuture = undefined;
-    this.firstActiveAgent = undefined;
   }
 
   private handleReconnecting = () => {
