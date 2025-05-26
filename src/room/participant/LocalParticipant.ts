@@ -618,8 +618,8 @@ export default class LocalParticipant extends Participant {
 
     try {
       const tracks = await createLocalTracks(mergedOptionsWithProcessors, {
-          loggerName: this.roomOptions.loggerName,
-          loggerContextCb: () => this.logContext,
+        loggerName: this.roomOptions.loggerName,
+        loggerContextCb: () => this.logContext,
       });
       const localTracks = tracks.map((track) => {
         if (isAudioTrack(track)) {

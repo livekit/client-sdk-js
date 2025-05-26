@@ -164,7 +164,6 @@ const appActions = {
   ): Promise<Room | undefined> => {
     const room = new Room(roomOptions);
 
-
     startTime = Date.now();
     await room.prepareConnection(url, token);
     const prewarmTime = Date.now() - startTime;
@@ -197,11 +196,7 @@ const appActions = {
             $('local-volume')?.setAttribute('value', calculateVolume().toFixed(4));
           }, 200);
         }
-        
-
-        // const mirrorLocalVideo = !(isLocalTrack(track) && !isAudioTrack(track) && (track.getSourceTrackSettings().facingMode === "environment"))
-       
-        renderParticipant(room.localParticipant,false);
+        renderParticipant(room.localParticipant);
         updateButtonsForPublishState();
         renderScreenShare(room);
       })

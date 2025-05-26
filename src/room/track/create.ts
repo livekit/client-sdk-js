@@ -94,8 +94,6 @@ export async function createLocalTracks(
 
   // Keep a reference to the promise on DeviceManager and await it in getLocalDevices()
   // works around iOS Safari Bug https://bugs.webkit.org/show_bug.cgi?id=179363
-
-  
   const mediaPromise = DeviceManager.getUserMedia(constraints);
 
   if (internalOptions.audio) {

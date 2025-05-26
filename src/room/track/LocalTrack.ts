@@ -342,7 +342,7 @@ export default abstract class LocalTrack<
       // create new track and attach
       const mediaStream = await DeviceManager.getUserMedia(streamConstraints);
       const newTrack = mediaStream.getTracks()[0];
-            await newTrack.applyConstraints(otherConstraints);
+      await newTrack.applyConstraints(otherConstraints);
       newTrack.addEventListener('ended', this.handleEnded);
       this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 

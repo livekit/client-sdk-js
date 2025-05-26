@@ -2508,7 +2508,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           publishOptions.useRealTracks
             ? (
                 await DeviceManager.getUserMedia({ video: true })
-                // await window.navigator.mediaDevices.getUserMedia({ video: true })
               ).getVideoTracks()[0]
             : createDummyVideoStreamTrack(
                 160 * (participantOptions.aspectRatios[0] ?? 1),
