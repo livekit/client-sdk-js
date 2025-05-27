@@ -73,6 +73,8 @@ export type {
 } from './room/types';
 export * from './version';
 export {
+  /** @internal */
+  attributesHelper,
   ConnectionQuality,
   ConnectionState,
   CriticalTimers,
@@ -132,6 +134,3 @@ export type {
 };
 
 export { LocalTrackRecorder } from './room/track/record';
-
-/** @internal */
-export { attributesHelper };
