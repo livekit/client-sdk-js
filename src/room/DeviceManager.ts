@@ -12,7 +12,7 @@ export default class DeviceManager {
     return navigator.mediaDevices.getUserMedia(constrains)
   }
 
-  static enumerateDevices:()=>Promise<MediaDeviceInfo[]> = ()=>{
+  static enumerateDevices:()=>Promise<MediaDeviceInfo[]> = () => {
     return navigator.mediaDevices.enumerateDevices()
   }
 

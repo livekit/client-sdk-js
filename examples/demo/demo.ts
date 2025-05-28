@@ -619,7 +619,7 @@ const appActions = {
   },
   setVirtualCamera:()=>{
     /*
-      Get link for virtual camera with talking avatar made by photo for free on https://vgen.flexatar-sdk.com
+      Get link for virtual camera with talking avatar made by photo on https://vgen.flexatar-sdk.com to test.
     */
     const textField = <HTMLInputElement>$('vcam-url');
     if (textField.value) {
@@ -647,7 +647,9 @@ const appActions = {
 };
 let virtualCameraOptions = {
   delay:0.0,
-  name:"Default Virtual Camera"
+  name:"Default Virtual Camera",
+  width:640,
+  height:480
 };
 
 (<HTMLInputElement>$('vcam-url')).addEventListener("keydown", function(event) {
@@ -1068,7 +1070,6 @@ const elementMapping: { [k: string]: MediaDeviceKind } = {
   'audio-output': 'audiooutput',
 } as const;
 
-
 async function handleDevicesChanged() {
   Promise.all(
     Object.keys(elementMapping).map(async (id) => {
@@ -1090,7 +1091,6 @@ async function handleActiveDeviceChanged(kind: MediaDeviceKind, deviceId: string
   const element = <HTMLSelectElement>$(
     Object.entries(elementMapping)
       .map(([key, value]) => {
-        
         if (value === kind) {
           return key;
         }
@@ -1108,7 +1108,6 @@ function populateSelect(
 ) {
   // clear all elements
   element.innerHTML = '';
-  
   for (const device of devices) {
     const option = document.createElement('option');
     option.text = device.label;
@@ -1237,99 +1236,32 @@ acquireDeviceList();
 populateSupportedCodecs();
 populateScalabilityModes();
 
-// ==========VIRTUAL CAMERA PART===========
-// let vCamIframe:HTMLIFrameElement
+
+// ---------------- vurtual camera ---------------------- //
 const vCamIframe = <HTMLIFrameElement>$('vcam-ui');
 
 function installVirtualCamera(){
-
- 
-
-  // vCamIframe = document.createElement('iframe');
-  // vCamIframe.src = 'https://vgen.flexatar-sdk.com/';
-  // vCamIframe.src = 'http://localhost:8081/vcam-page/';
-  // vCamIframe.src = 'http://localhost:5173';
-  vCamIframe.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(vCamPageCode);
+  vCamIframe.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(vCamPageDefaultCode);
   const virtualCameraArea = <HTMLSelectElement>$('virtual-camera-area');
   virtualCameraArea.appendChild(vCamIframe)
 }
 
 
 
-
+// Keep reference to the original audio track incoming from user.
+// Will use it inside the virtual camera iframe to generate the lip-synced animation.
 let currentAudioTrackBeforeDelay:MediaStreamTrack
-// Each audio track goes through delay node.
-// Virtual camera needs audio delay for lipsync.
-// Delay time is set to 0 when virtual camera is unused.
+// Each audio track goes through the delay node.
+// The virtual camera needs an audio delay for lipsync.
+// The delay time is set to 0 when virtual camera is unused.
 // When virtual camera, delay time must be set as specified in camera-options.json.
 let delayManager = new AudioDelayManager(getNewAudioContext)
-const VCAM_DEVICE_ID = "VCAM"
+let VCAM_DEVICE_ID = "VCAM"
 
-DeviceManager.getUserMedia = async (constrains:MediaStreamConstraints) =>{
-  if (constrains.video ){
-    const videoConstrains = constrains.video as MediaTrackConstraints
-    if (videoConstrains ){
-      const stringDeviceId = videoConstrains.deviceId as String
-      const deviceId = videoConstrains.deviceId as {exact:String}
-      if (stringDeviceId === VCAM_DEVICE_ID || (deviceId&&deviceId.exact  === VCAM_DEVICE_ID)){
-
-        const tracks:MediaStreamTrack[] = []
-        if (constrains.audio){
-          constrains.video = false
-          let currentAudioTrack = (await navigator.mediaDevices.getUserMedia(constrains)).getAudioTracks()[0]
-          currentAudioTrackBeforeDelay = currentAudioTrack
-          currentAudioTrack = delayManager.addAudioTrack(currentAudioTrack)
-          tracks.push(currentAudioTrack)
-        }
-        const currentConnection =  new VCamConnection()
-
-        const videoTrack = await currentConnection.getVCamMedia([currentAudioTrackBeforeDelay],vCamIframe)
-        videoTrack.applyConstraints = (constraints?: MediaTrackConstraints | undefined)=>{
-          return Promise.resolve()
-        }
-        const stopFn = videoTrack.stop.bind(videoTrack);
-        
-        videoTrack.stop = ()=>{
-          delayManager.setDelay(0)
-          currentConnection.close()
-          stopFn()
-
-        }
-        videoTrack.getSettings = ()=>{
-          const settings: MediaTrackSettings = {
-            deviceId:VCAM_DEVICE_ID,
-            facingMode:"environment"
-          }
-          return settings
-        }
-
-        tracks.push(videoTrack)
-        const stream = new MediaStream(tracks)
-        delayManager.setDelay(virtualCameraOptions.delay)
-
-        return stream
-      }
-      
-    }
-  }
-
-  let stream = await navigator.mediaDevices.getUserMedia(constrains)
-  if (constrains.audio){
-    let currentAudioTrack = stream.getAudioTracks()[0]
-    currentAudioTrackBeforeDelay = currentAudioTrack
-
-    stream.removeTrack(currentAudioTrack)
-    currentAudioTrack = delayManager.addAudioTrack(currentAudioTrack)
-    stream.addTrack(currentAudioTrack)
-
-  }
-  return stream
-}
-
-
+// Add virtual camera to device list.
 DeviceManager.enumerateDevices = async ()=>{
   const devices = await navigator.mediaDevices.enumerateDevices()
-  const mockDevice: MediaDeviceInfo = {
+  let mockDevice: MediaDeviceInfo = {
     deviceId: VCAM_DEVICE_ID,
     kind: "videoinput", 
     label: "Virtual Camera",
@@ -1344,6 +1276,27 @@ DeviceManager.enumerateDevices = async ()=>{
       };
     }
   };
+
+  const videoInputs = devices.filter(device => device.kind === "videoinput");
+
+  if (videoInputs.length === 0){
+    VCAM_DEVICE_ID = "default"
+    mockDevice = {
+      deviceId: "default",
+      kind: "videoinput", 
+      label: "Virtual Camera",
+      groupId: "group123",
+    
+      toJSON() {
+        return {
+          deviceId: this.deviceId,
+          kind: this.kind,
+          label: this.label,
+          groupId: this.groupId,
+        };
+      }
+    };
+  }
   devices.push(mockDevice)
   
   return devices
@@ -1351,9 +1304,95 @@ DeviceManager.enumerateDevices = async ()=>{
 }
 
 
+// Provide media stream from virtual camera when requested.
+// Audio track -> Virtual Camera IFrame -> Realtime Processing -> Video track -> Host window
+// The Iframe with virtual camera must conforms standard.
+// Get link for virtual camera with talking avatar made by photo on https://vgen.flexatar-sdk.com to test.
+DeviceManager.getUserMedia = async (constrains:MediaStreamConstraints) =>{
+ 
+  if (constrains.video ){
+    const videoConstrainsBool = typeof constrains.video === "boolean" && constrains.video as boolean
+    if (videoConstrainsBool){
+      await DeviceManager.enumerateDevices()
+    }
+    const videoConstrains = constrains.video as MediaTrackConstraints
+    if (videoConstrains || videoConstrainsBool){
+      const stringDeviceId = videoConstrains.deviceId as String
+      const deviceId = videoConstrains.deviceId as {exact:String,ideal:String}
+      if ((stringDeviceId === VCAM_DEVICE_ID || (deviceId&&(deviceId.exact  === VCAM_DEVICE_ID || deviceId.ideal  === VCAM_DEVICE_ID))) || (videoConstrainsBool && VCAM_DEVICE_ID === "default")){
+        
+        const currentConnection =  new VCamConnection()
+        const videoTrack = await currentConnection.getVCamMedia(vCamIframe)
+        const tracks:MediaStreamTrack[] = []
+        if (constrains.audio){
+          constrains.video = false
+          let currentAudioTrack = (await navigator.mediaDevices.getUserMedia(constrains)).getAudioTracks()[0]
+          currentAudioTrackBeforeDelay = currentAudioTrack
+          currentConnection.addAudioTrack(currentAudioTrackBeforeDelay)
+          currentAudioTrack = delayManager.addAudioTrack(currentAudioTrack)
+          tracks.push(currentAudioTrack)
+        }else{
+          if (currentAudioTrackBeforeDelay){
+            currentConnection.addAudioTrack(currentAudioTrackBeforeDelay)
+          }
+        }
+
+        videoTrack.applyConstraints = (constraints?: MediaTrackConstraints | undefined)=>{
+          return Promise.resolve()
+        }
+        const stopFn = videoTrack.stop.bind(videoTrack);
+        const connection = currentConnection
+        videoTrack.stop = ()=>{
+          delayManager.setDelay(0)
+          connection?.close()
+
+          stopFn()
+
+        }
+        videoTrack.getSettings = ()=>{
+          const settings: MediaTrackSettings = {
+            deviceId:VCAM_DEVICE_ID,
+            facingMode:"environment",
+            width:virtualCameraOptions.width,
+            height:virtualCameraOptions.height
+          }
+          return settings
+        }
+
+        tracks.push(videoTrack)
+        const stream = new MediaStream(tracks)
+        delayManager.setDelay(virtualCameraOptions.delay)
+
+        return stream
+      }
+      
+    }
+  }
+
+  
+
+    let stream: MediaStream
+    stream = await navigator.mediaDevices.getUserMedia(constrains)
+    if (constrains.audio){
+      let currentAudioTrack = stream.getAudioTracks()[0]
+      currentAudioTrackBeforeDelay = currentAudioTrack
+
+      stream.removeTrack(currentAudioTrack)
+      currentAudioTrack = delayManager.addAudioTrack(currentAudioTrack)
+      stream.addTrack(currentAudioTrack)
+      
+    }
+  return stream
+ 
+}
+
+
+
+
 
 // ---------------- default virtual camera page code ---------------------- //
-const vCamPageCode = `
+
+const vCamPageDefaultCode = `
 <!doctype html>
 <html lang="en">
   <head>
@@ -1468,8 +1507,6 @@ class WHIPServer{
         };
         this.localTracks = []
         this.pc.ontrack = e =>{
-            console.log("track received")
-
             self.localTracks.push(e.track)
             if (onTrack) onTrack(e.track)
         }
@@ -1490,7 +1527,6 @@ class WHIPServer{
     }
 
     async makeAnswer(){
-        console.log("[WHIPServer][WebRTC] makeAnswer",arguments)
         const {offer,ice} = arguments[0]
         const remoteDesc = new RTCSessionDescription({type:"offer",sdp:offer});
         const self = this
@@ -1577,9 +1613,9 @@ function createFakeStream(){
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = 'red';
     ctx.fillRect(50, 50, 100, 100); // Draw red square
-    document.body.append(canvas)
+    document.body.append(canvas);
     // Step 2: Capture MediaStream from canvas
-    const stream = canvas.captureStream(30); // 30 FPS
+    // const stream = canvas.captureStream(30); // 30 FPS
     (async ()=>{
         function drawLoop() {
             ctx.fillStyle = "blue";
@@ -1599,11 +1635,13 @@ function createFakeStream(){
           drawLoop();  
     })()
     
-    return stream
+    return ()=>{
+      return canvas.captureStream(30).getVideoTracks();
+    }
 }
-const videoTracks = createFakeStream().getVideoTracks()
+const videoTracksProvider = createFakeStream()
 makeWHIPServer(audio =>{
-  return videoTracks
+  return videoTracksProvider();
 })
     
     </script>

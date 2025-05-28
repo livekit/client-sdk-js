@@ -2,7 +2,8 @@ class WHIPClient {
   private pc: RTCPeerConnection;
   private candidateListPromise: Promise<RTCIceCandidateInit[]>;
   private log :(...data: any[])=>void
-  constructor(tracks: MediaStreamTrack[],verbose?:boolean | undefined) {
+  audioTransceiver?: RTCRtpTransceiver
+  constructor(track?: MediaStreamTrack ,verbose?:boolean | undefined) {
     this.log = (...data: any[])=>{}
     if (verbose){
       this.log = console.log
@@ -21,7 +22,7 @@ class WHIPClient {
 
       this.pc.onicecandidate = (event) => {
         if (event.candidate) {
-          console.log("[WHIPClient][WebRTC] New ICE candidate:", event.candidate);
+          this.log("[WHIPClient][WebRTC] New ICE candidate:", event.candidate);
           candidateList.push({
             candidate: event.candidate.candidate,
             sdpMid: event.candidate.sdpMid!,
@@ -34,11 +35,14 @@ class WHIPClient {
       };
     });
 
-    for (const t of tracks) {
-      this.pc.addTransceiver(t, { direction: "sendonly" });
-    }
+    // for (const t of tracks) {
+    // if (track)
+    this.audioTransceiver = this.pc.addTransceiver("audio", { direction: "sendonly" });
+    // }
   }
-
+  updateAudio(track:MediaStreamTrack){
+    this.audioTransceiver?.sender.replaceTrack(track)
+  }
   async makeOffer(): Promise<{ offer: string; ice: RTCIceCandidateInit[]}> {
     const offerPromise = new Promise<string>((resolve) => {
       this.pc.createOffer().then((offer) => {
@@ -68,6 +72,8 @@ class WHIPClient {
     }
   }
   close(){
+    this.log("[WHIPClient][WebRTC] connection closed.");
+
     this.pc.close()
   }
   
@@ -127,7 +133,6 @@ class WHIPServer {
   }
 
   async makeAnswer({ offer, ice }: OfferData): Promise<{ answer: string; ice: IceCandidate[] }> {
-    // console.log("[WHIPServer][WebRTC] makeAnswer", { offer, ice });
 
     const remoteDesc = new RTCSessionDescription({ type: "offer", sdp: offer });
     await this.pc.setRemoteDescription(remoteDesc);
@@ -164,15 +169,17 @@ export class VCamConnection{
   private whipClient?:WHIPClient
   private messageListener: (e: MessageEvent) => void = ()=>{};
   private log :(...data: any[])=>void
-
-  constructor(verbose?:boolean | undefined) {
+  private audioContext :AudioContext | void
+  
+  constructor(audioContext:AudioContext | void,verbose?:boolean | undefined) {
     this.log = (...data: any[])=>{}
     if (verbose){
       this.log = console.log
     }
+    this.audioContext = audioContext
   }
 
-  getVCamMedia(audioTracks:MediaStreamTrack[],iframe:HTMLIFrameElement){
+  getVCamMedia(iframe:HTMLIFrameElement){
     return new Promise((resolve: (value: MediaStreamTrack | PromiseLike<MediaStreamTrack>) => void, reject: (reason?: any) => void)=>{
       const uniqueId = Math.random().toString(36).substring(2, 9);
       const whipServer = new WHIPServer(track=>{
@@ -180,7 +187,9 @@ export class VCamConnection{
         resolve(track)
       })
       this.whipServer = whipServer
-      const whipClient = new WHIPClient(audioTracks)
+      this.audioContext
+
+      const whipClient = new WHIPClient()
       this.whipClient = whipClient
 
       const messageListener = (e: MessageEvent) => {
@@ -192,25 +201,26 @@ export class VCamConnection{
           whipClient.acceptAnswer(msg);
         } else if (msg.offer && msg.type === "VCAM_MEDIA") {
           whipServer.makeAnswer(msg).then(answer => {
-            // answer.type = msg.type;
             iframe?.contentWindow?.postMessage({type:msg.type,id:uniqueId,...answer}, "*");
           });
         }
       };
+      
       this.messageListener = messageListener
-      // Add listener
       window.addEventListener("message", messageListener);
-
-
       whipClient.makeOffer().then(offer=>{
-        // offer.id = "SRC_MEDIA"
         iframe?.contentWindow?.postMessage({type:"SRC_MEDIA",id:uniqueId,...offer},"*")
       })
     })
   }
+  addAudioTrack(track:MediaStreamTrack){
+    this.whipClient?.updateAudio(track)
+  }
   close(){
     this.whipClient?.close()
     this.whipServer?.close()
+    this.whipClient = undefined
+    this.whipServer = undefined
     window.removeEventListener("message", this.messageListener);
   }
 }
