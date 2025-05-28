@@ -14,7 +14,7 @@
 Use this SDK to add realtime video, audio and data features to your JavaScript/TypeScript app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multi-modal AI, live streaming, or video calls with just a few lines of code.
 <!--END_DESCRIPTION-->
 
-> **New feature**: Custom virtual camera.
+> **New feature**: Custom virtual camera. [Video](https://youtu.be/tMcEuGcQ95o).
 ## Docs
 
 Docs and guides at [https://docs.livekit.io](https://docs.livekit.io)
