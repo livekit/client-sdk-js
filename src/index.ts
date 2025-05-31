@@ -4,7 +4,7 @@ import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from '
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
 import Room, { ConnectionState } from './room/Room';
-import * as attributesHelper from './room/attributes';
+import * as attributes from './room/attribute-typings';
 import LocalParticipant from './room/participant/LocalParticipant';
 import Participant, { ConnectionQuality, ParticipantKind } from './room/participant/Participant';
 import type { ParticipantTrackPermission } from './room/participant/ParticipantTrackPermission';
@@ -74,7 +74,7 @@ export type {
 export * from './version';
 export {
   /** @internal */
-  attributesHelper,
+  attributes,
   ConnectionQuality,
   ConnectionState,
   CriticalTimers,
