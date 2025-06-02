@@ -1,3 +1,6 @@
+// This file was generated from JSON Schema using quicktype, do not modify it directly.
+// The code generation lives at https://github.com/livekit/attribute-definitions
+//
 // To parse this data:
 //
 //   import { Convert, AgentAttributes, TranscriptionAttributes } from "./file";
