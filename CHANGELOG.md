@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.13.4
+
+### Patch Changes
+
+- fix: ensure signal connect future is reset after disconnecting from room - [#1533](https://github.com/livekit/client-sdk-js/pull/1533) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.13.3
 
 ### Patch Changes
