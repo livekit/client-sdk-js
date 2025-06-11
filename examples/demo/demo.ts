@@ -38,8 +38,10 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
+import DeviceManager from '../../src/room/DeviceManager';
+import { getNewAudioContext } from '../../src/room/track/utils';
 import { isSVCCodec, sleep } from '../../src/room/utils';
-
+import {VCamConnection, AudioDelayManager} from "./vcam"
 setLogLevel(LogLevel.debug);
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -484,7 +486,7 @@ const appActions = {
     updateButtonsForPublishState();
   },
 
-  flipVideo: () => {
+  flipVideo: async () => {
     const videoPub = currentRoom?.localParticipant.getTrackPublication(Track.Source.Camera);
     if (!videoPub) {
       return;
@@ -495,7 +497,11 @@ const appActions = {
       setButtonState('flip-video-button', 'Back Camera', false);
     }
     state.isFrontFacing = !state.isFrontFacing;
+
+    const videoTrack = videoPub?.videoTrack;
+    const deviceId = await videoTrack?.getDeviceId();
     const options: VideoCaptureOptions = {
+      deviceId:deviceId,
       resolution: VideoPresets.h720.resolution,
       facingMode: state.isFrontFacing ? 'user' : 'environment',
     };
@@ -562,9 +568,18 @@ const appActions = {
     if (!kind) {
       return;
     }
-
     if (currentRoom) {
       await currentRoom.switchActiveDevice(kind, deviceId);
+      const tracks = Array.from(currentRoom.localParticipant.videoTrackPublications.values()).filter(
+        (track) => track.source === Track.Source.Camera,
+      );
+      const isMirrorLocalVideo = !(tracks[0].videoTrack?.getSourceTrackSettings().facingMode === "environment")
+      const { identity } = currentRoom.localParticipant;
+      const container = getParticipantsAreaElement();
+      const videoElm = <HTMLVideoElement>container.querySelector(`#video-${identity}`);
+     
+      videoElm.style.transform = `scale(${isMirrorLocalVideo ? "-1":"1"}, 1)`;
+     
     }
   },
 
@@ -603,7 +618,46 @@ const appActions = {
       });
     }
   },
+  setVirtualCamera:()=>{
+    /*
+      Get link for virtual camera with talking avatar made by photo on https://vgen.flexatar-sdk.com to test.
+    */
+    const textField = <HTMLInputElement>$('vcam-url');
+    if (textField.value) {
+      if (textField.value.startsWith("http://") || textField.value.startsWith("https://")){
+        
+        const url = new URL(textField.value);
+        let urlNoQuery = url.origin + url.pathname;
+        urlNoQuery = urlNoQuery.replace("/index.html","")
+        fetch(urlNoQuery+"/camera-options.json").then(response=>{
+          if (response.ok){
+            response.json().then(cameraOptions=>{
+              virtualCameraOptions = cameraOptions
+              vCamIframe.src = textField.value;
+            })
+            
+          }
+        }).catch(()=>{
+          appendLog(`[VCAM] invalid url`)
+        })
+      }else{
+        appendLog(`[VCAM] invalid url`)
+      }
+    }
+  }
 };
+let virtualCameraOptions = {
+  delay:0.0,
+  name:"Default Virtual Camera",
+  width:640,
+  height:480
+};
+
+(<HTMLInputElement>$('vcam-url')).addEventListener("keydown", function(event) {
+  if (event.key === "Enter") {
+    appActions.setVirtualCamera()
+  }
+});
 
 declare global {
   interface Window {
@@ -795,7 +849,13 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
   if (cameraEnabled) {
     if (isLocalParticipant(participant)) {
       // flip
-      videoElm.style.transform = 'scale(-1, 1)';
+       const tracks = Array.from(participant.videoTrackPublications.values()).filter(
+        (track) => track.source === Track.Source.Camera,
+      );
+      const isMirrorLocalVideo = !(tracks[0].videoTrack?.getSourceTrackSettings().facingMode === "environment")
+
+      videoElm.style.transform = `scale(${isMirrorLocalVideo ? "-1":"1"}, 1)`;
+     
     } else if (!cameraPub?.videoTrack?.attachedElements.includes(videoElm)) {
       const renderStartTime = Date.now();
       // measure time to render
@@ -1049,7 +1109,6 @@ function populateSelect(
 ) {
   // clear all elements
   element.innerHTML = '';
-
   for (const device of devices) {
     const option = document.createElement('option');
     option.text = device.label;
@@ -1177,3 +1236,417 @@ function populateScalabilityModes() {
 acquireDeviceList();
 populateSupportedCodecs();
 populateScalabilityModes();
+
+
+// ---------------- vurtual camera ---------------------- //
+const vCamIframe = <HTMLIFrameElement>$('vcam-ui');
+
+function installVirtualCamera(){
+  vCamIframe.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(vCamPageDefaultCode);
+  const virtualCameraArea = <HTMLSelectElement>$('virtual-camera-area');
+  virtualCameraArea.appendChild(vCamIframe)
+}
+
+
+
+// Keep reference to the original audio track incoming from user.
+// Will use it inside the virtual camera iframe to generate the lip-synced animation.
+let currentAudioTrackBeforeDelay:MediaStreamTrack
+// Each audio track goes through the delay node.
+// The virtual camera needs an audio delay for lipsync.
+// The delay time is set to 0 when virtual camera is unused.
+// When virtual camera, delay time must be set as specified in camera-options.json.
+let delayManager = new AudioDelayManager(getNewAudioContext)
+let VCAM_DEVICE_ID = "VCAM"
+
+// Add virtual camera to device list.
+DeviceManager.enumerateDevices = async ()=>{
+  const devices = await navigator.mediaDevices.enumerateDevices()
+  let mockDevice: MediaDeviceInfo = {
+    deviceId: VCAM_DEVICE_ID,
+    kind: "videoinput", 
+    label: "Virtual Camera",
+    groupId: "group123",
+   
+    toJSON() {
+      return {
+        deviceId: this.deviceId,
+        kind: this.kind,
+        label: this.label,
+        groupId: this.groupId,
+      };
+    }
+  };
+
+  const videoInputs = devices.filter(device => device.kind === "videoinput");
+
+  if (videoInputs.length === 0){
+    VCAM_DEVICE_ID = "default"
+    mockDevice = {
+      deviceId: "default",
+      kind: "videoinput", 
+      label: "Virtual Camera",
+      groupId: "group123",
+    
+      toJSON() {
+        return {
+          deviceId: this.deviceId,
+          kind: this.kind,
+          label: this.label,
+          groupId: this.groupId,
+        };
+      }
+    };
+  }
+  devices.push(mockDevice)
+  
+  return devices
+
+}
+
+
+// Provide media stream from virtual camera when requested.
+// Audio track -> Virtual Camera IFrame -> Realtime Processing -> Video track -> Host window
+// The Iframe with virtual camera must conforms standard.
+// Get link for virtual camera with talking avatar made by photo on https://vgen.flexatar-sdk.com to test.
+DeviceManager.getUserMedia = async (constrains:MediaStreamConstraints) =>{
+ 
+  if (constrains.video ){
+    const videoConstrainsBool = typeof constrains.video === "boolean" && constrains.video as boolean
+    if (videoConstrainsBool){
+      await DeviceManager.enumerateDevices()
+    }
+    const videoConstrains = constrains.video as MediaTrackConstraints
+    if (videoConstrains || videoConstrainsBool){
+      const stringDeviceId = videoConstrains.deviceId as String
+      const deviceId = videoConstrains.deviceId as {exact:String,ideal:String}
+      if ((stringDeviceId === VCAM_DEVICE_ID || (deviceId&&(deviceId.exact  === VCAM_DEVICE_ID || deviceId.ideal  === VCAM_DEVICE_ID))) || (videoConstrainsBool && VCAM_DEVICE_ID === "default")){
+        
+        const currentConnection =  new VCamConnection()
+        const videoTrack = await currentConnection.getVCamMedia(vCamIframe)
+        const tracks:MediaStreamTrack[] = []
+        if (constrains.audio){
+          constrains.video = false
+          let currentAudioTrack = (await navigator.mediaDevices.getUserMedia(constrains)).getAudioTracks()[0]
+          currentAudioTrackBeforeDelay = currentAudioTrack
+          currentConnection.addAudioTrack(currentAudioTrackBeforeDelay)
+          currentAudioTrack = delayManager.addAudioTrack(currentAudioTrack)
+          tracks.push(currentAudioTrack)
+        }else{
+          if (currentAudioTrackBeforeDelay){
+            currentConnection.addAudioTrack(currentAudioTrackBeforeDelay)
+          }
+        }
+
+        videoTrack.applyConstraints = (constraints?: MediaTrackConstraints | undefined)=>{
+          return Promise.resolve()
+        }
+        const stopFn = videoTrack.stop.bind(videoTrack);
+        const connection = currentConnection
+        videoTrack.stop = ()=>{
+          delayManager.setDelay(0)
+          connection?.close()
+
+          stopFn()
+
+        }
+        videoTrack.getSettings = ()=>{
+          const settings: MediaTrackSettings = {
+            deviceId:VCAM_DEVICE_ID,
+            facingMode:"environment",
+            width:virtualCameraOptions.width,
+            height:virtualCameraOptions.height
+          }
+          return settings
+        }
+
+        tracks.push(videoTrack)
+        const stream = new MediaStream(tracks)
+        delayManager.setDelay(virtualCameraOptions.delay)
+
+        return stream
+      }
+      
+    }
+  }
+
+  
+
+    let stream: MediaStream
+    stream = await navigator.mediaDevices.getUserMedia(constrains)
+    if (constrains.audio){
+      let currentAudioTrack = stream.getAudioTracks()[0]
+      currentAudioTrackBeforeDelay = currentAudioTrack
+
+      stream.removeTrack(currentAudioTrack)
+      currentAudioTrack = delayManager.addAudioTrack(currentAudioTrack)
+      stream.addTrack(currentAudioTrack)
+      
+    }
+  return stream
+ 
+}
+
+
+
+
+
+// ---------------- default virtual camera page code ---------------------- //
+
+const vCamPageDefaultCode = `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+   
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite App</title>
+    <style>
+    body {
+      margin: 0px;
+      width:100vw;
+      height:100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    canvas {
+      width: 100vw;
+      height: auto;
+      aspect-ratio: 4 / 3; /* Change to desired ratio */
+      display: flex;
+    }
+    </style>
+  </head>
+  <body>
+   
+    <script type="module" >
+    class WHIPClient{
+    constructor(tracks,onDisconnected){
+        const self = this
+        this.localTracks = tracks
+        this.onDisconnected = onDisconnected
+        this.pc = new RTCPeerConnection({ iceTransportPolicy: "all",sdpSemantics: 'unified-plan'});
+        
+        this.pc.onconnectionstatechange = () => {
+            if (self.pc.connectionState === "disconnected"){
+                self.close()
+                
+             
+            }
+        };
+        this.candidateListPromise = new Promise(resolve=>{
+            const candidateList = []
+            self.pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    candidateList.push({candidate:event.candidate.candidate,sdpMid:event.candidate.sdpMid,sdpMLineIndex:event.candidate.sdpMLineIndex})
+                } else {
+                    resolve(candidateList)
+                }
+
+
+            };
+        })
+        for (const t of tracks){
+            self.pc.addTransceiver(t, { direction: 'sendonly' })
+        }
+    }
+    async makeOffer(){
+        const self = this
+        const offerPromise = new Promise(resolve =>{
+            self.pc.createOffer().then(offer =>{
+                self.pc.setLocalDescription(offer).then(()=>{
+                    resolve(offer.sdp)
+                })
+            })
+        })
+        const result = await Promise.all([offerPromise,this.candidateListPromise])
+        return {offer:result[0],ice:result[1]}
+    }
+
+    async acceptAnswer(){
+        const {answer,ice} = arguments[0]
+        const remoteDesc = new RTCSessionDescription({type:"answer",sdp:answer});
+        const self = this
+        this.pc.setRemoteDescription(remoteDesc).then(()=>{
+                        
+            for (const c of ice){
+                const candidate = new RTCIceCandidate({
+                    candidate: c.candidate,
+                    sdpMid: c.sdpMid,
+                    sdpMLineIndex: c.sdpMLineIndex
+                });
+            
+                self.pc.addIceCandidate(candidate);
+            }
+        })
+    }
+    close(){
+        this.pc.close()
+        this.localTracks.forEach(track => track.stop());
+        this.pc.onicecandidate = null
+        this.pc.ontrack = null
+        if (this.onDisconnected) this.onDisconnected()
+        this.localTracks=null
+        this.onDisconnected = null
+    }
+
+}
+
+class WHIPServer{
+    constructor(onTrack,onDisconnected){
+        const self = this
+        this.onDisconnected = onDisconnected
+        this.pc = new RTCPeerConnection({ iceTransportPolicy: "all",sdpSemantics: 'unified-plan'});
+        this.pc.onconnectionstatechange = () => {
+            
+            if (self.pc.connectionState === "disconnected"){
+                 self.close()
+            }
+        
+        };
+        this.localTracks = []
+        this.pc.ontrack = e =>{
+            self.localTracks.push(e.track)
+            if (onTrack) onTrack(e.track)
+        }
+        
+        this.candidateListPromise = new Promise(resolve=>{
+            const candidateList = []
+            self.pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    candidateList.push({candidate:event.candidate.candidate,sdpMid:event.candidate.sdpMid,sdpMLineIndex:event.candidate.sdpMLineIndex})
+                } else {
+                    resolve(candidateList)
+                }
+            };
+        })
+        this.answerPromise = new Promise(resolve =>{
+            self.answerPromiseResolve = resolve
+        })
+    }
+
+    async makeAnswer(){
+        const {offer,ice} = arguments[0]
+        const remoteDesc = new RTCSessionDescription({type:"offer",sdp:offer});
+        const self = this
+        this.pc.setRemoteDescription(remoteDesc).then(()=>{
+            self.pc.createAnswer().then(answer =>{
+                self.pc.setLocalDescription(answer).then(()=>{
+                    self.answerPromiseResolve(answer.sdp)
+                })
+            })
+            
+            for (const c of ice){
+                const candidate = new RTCIceCandidate({
+                    candidate: c.candidate,
+                    sdpMid: c.sdpMid,
+                    sdpMLineIndex: c.sdpMLineIndex
+                });
+            
+                self.pc.addIceCandidate(candidate);
+            }
+        })
+        const result = await Promise.all([this.answerPromise,this.candidateListPromise])
+        return {answer:result[0],ice:result[1]}
+    }
+    close(){
+        this.pc.close()
+        this.localTracks.forEach(track => track.stop());
+        this.pc.onicecandidate = null
+        this.pc.ontrack = null
+        if (this.onDisconnected) this.onDisconnected()
+        this.localTracks=null
+        this.onDisconnected = null
+    }
+}
+function getMessageProvider(){
+  let msgProvider = window
+  if (msgProvider.parent) msgProvider = msgProvider.parent
+  return msgProvider
+}
+
+
+function makeWHIPServer(onAudioProvided){
+  const servers = {};
+  const clients = {};
+  window.addEventListener("message", async e=>{
+    const msg = e.data
+    if (!msg) return;
+    const connectionId = msg.id
+    
+    if (msg.offer && msg.type === "SRC_MEDIA"){
+
+      const whipServer = new WHIPServer(async track=>{
+        
+
+        const whipClient = new WHIPClient(await onAudioProvided(),()=>{
+          delete clients[connectionId]
+        })
+        clients[connectionId]=whipClient
+        whipClient.makeOffer().then(offer=>{
+          offer.type = "VCAM_MEDIA"
+          offer.id = connectionId
+          getMessageProvider().postMessage(offer,"*")
+        })
+      },()=>{
+        
+        delete servers[connectionId]
+      })
+      servers[connectionId] = whipServer
+
+      whipServer.makeAnswer(msg).then(answer=>{
+        answer.type = msg.type
+        answer.id = connectionId
+        getMessageProvider().postMessage(answer,"*")
+      })
+
+    } if (msg.answer && msg.type === "VCAM_MEDIA"){
+       clients[connectionId].acceptAnswer(msg)
+    }
+  })
+}
+function createFakeStream(){
+    const canvas = document.createElement("canvas")
+    canvas.width = 640
+    canvas.height = 480
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'red';
+    ctx.fillRect(50, 50, 100, 100); // Draw red square
+    document.body.append(canvas);
+    // Step 2: Capture MediaStream from canvas
+    // const stream = canvas.captureStream(30); // 30 FPS
+    (async ()=>{
+        function drawLoop() {
+            ctx.fillStyle = "blue";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+          
+            ctx.fillStyle = "red";
+            ctx.font = "30px sans-serif";
+            ctx.fillText("Time: " + new Date().toLocaleTimeString(), 190, 260);
+            
+            ctx.fillStyle = "green";
+            ctx.font = "bold 40px sans-serif ";
+            ctx.f
+            ctx.fillText("VIRTUAL CAMERA", 130, 200);
+          
+            requestAnimationFrame(drawLoop);
+          }
+          drawLoop();  
+    })()
+    
+    return ()=>{
+      return canvas.captureStream(30).getVideoTracks();
+    }
+}
+const videoTracksProvider = createFakeStream()
+makeWHIPServer(audio =>{
+  return videoTracksProvider();
+})
+    
+    </script>
+  </body>
+</html>
+`;
+installVirtualCamera()
