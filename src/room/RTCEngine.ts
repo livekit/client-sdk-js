@@ -45,6 +45,8 @@ import {
 } from '../api/SignalClient';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
+import { DataPacketBuffer } from '../utils/dataPacketBuffer';
+import { TTLMap } from '../utils/ttlmap';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
@@ -77,14 +79,12 @@ import {
   supportsAddTrack,
   supportsTransceiver,
 } from './utils';
-import { DataPacketBuffer } from '../utils/dataPacketBuffer';
-import { TTLMap } from '../utils/ttlmap';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
-const reliabeReceiveStateTTL = 30_000; 
+const reliabeReceiveStateTTL = 30_000;
 
 enum PCState {
   New,
@@ -184,7 +184,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private reliableDataSequence: number = 1;
 
-  private reliableMessageBuffer = new DataPacketBuffer(); 
+  private reliableMessageBuffer = new DataPacketBuffer();
 
   private reliableReceivedState: TTLMap<string, number> = new TTLMap(reliabeReceiveStateTTL);
 
@@ -690,10 +690,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       const dp = DataPacket.fromBinary(new Uint8Array(buffer));
 
-      if (dp.sequence > 0 && dp.participantSid !== "") {
+      if (dp.sequence > 0 && dp.participantSid !== '') {
         const lastSeq = this.reliableReceivedState.get(dp.participantSid);
         if (lastSeq && dp.sequence <= lastSeq) {
-          // ignore duplicate or out-of-order packets in reliable channel 
+          // ignore duplicate or out-of-order packets in reliable channel
           return;
         }
         this.reliableReceivedState.set(dp.participantSid, dp.sequence);
@@ -1209,9 +1209,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     const dc = this.dataChannelForKind(DataPacket_Kind.RELIABLE);
     if (dc) {
       this.reliableMessageBuffer.popToSequence(lastMessageSeq);
-      this.reliableMessageBuffer.getAll().forEach(msg => {
+      this.reliableMessageBuffer.getAll().forEach((msg) => {
         dc.send(msg.data);
-    });
+      });
     }
     this.updateAndEmitDCBufferStatus(DataPacket_Kind.RELIABLE);
   }
