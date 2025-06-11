@@ -252,7 +252,10 @@ export class SignalClient {
       sid,
       reconnectReason: reason,
     });
-    return res;
+    if (res instanceof ReconnectResponse) {
+      return res;
+    }
+    return;
   }
 
   private connect(

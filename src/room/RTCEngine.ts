@@ -5,6 +5,7 @@ import {
   ClientConfiguration,
   type ConnectionQualityUpdate,
   DataChannelInfo,
+  DataChannelReceiveState,
   DataPacket,
   DataPacket_Kind,
   DisconnectReason,
@@ -76,11 +77,14 @@ import {
   supportsAddTrack,
   supportsTransceiver,
 } from './utils';
+import { DataPacketBuffer } from '../utils/dataPacketBuffer';
+import { TTLMap } from '../utils/ttlmap';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
 const minReconnectWait = 2 * 1000;
 const leaveReconnect = 'leave-reconnect';
+const reliabeReceiveStateTTL = 30_000; 
 
 enum PCState {
   New,
@@ -177,6 +181,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private loggerOptions: LoggerOptions;
 
   private publisherConnectionPromise: Promise<void> | undefined;
+
+  private reliableDataSequence: number = 1;
+
+  private reliableMessageBuffer = new DataPacketBuffer(); 
+
+  private reliableReceivedState: TTLMap<string, number> = new TTLMap(reliabeReceiveStateTTL);
 
   constructor(private options: InternalRoomOptions) {
     super();
@@ -310,6 +320,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.lossyDCSub = undefined;
     this.reliableDC = undefined;
     this.reliableDCSub = undefined;
+    this.reliableMessageBuffer = new DataPacketBuffer();
+    this.reliableDataSequence = 1;
+    this.reliableReceivedState.clear();
   }
 
   async cleanupClient() {
@@ -677,6 +690,15 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
       const dp = DataPacket.fromBinary(new Uint8Array(buffer));
 
+      if (dp.sequence > 0 && dp.participantSid !== "") {
+        const lastSeq = this.reliableReceivedState.get(dp.participantSid);
+        if (lastSeq && dp.sequence <= lastSeq) {
+          // ignore duplicate or out-of-order packets in reliable channel 
+          return;
+        }
+        this.reliableReceivedState.set(dp.participantSid, dp.sequence);
+      }
+
       if (dp.value?.case === 'speaker') {
         // dispatch speaker updates
         this.emit(EngineEvent.ActiveSpeakersUpdate, dp.value.value.speakers);
@@ -1033,6 +1055,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (res) {
       const rtcConfig = this.makeRTCConfiguration(res);
       this.pcManager.updateConfiguration(rtcConfig);
+      if (this.latestJoinResponse) {
+        this.latestJoinResponse.serverInfo = res.serverInfo;
+      }
     } else {
       this.log.warn('Did not receive reconnect response', this.logContext);
     }
@@ -1057,6 +1082,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // (for safari https://bugs.webkit.org/show_bug.cgi?id=184688)
     if (this.reliableDC?.readyState === 'open' && this.reliableDC.id === null) {
       this.createDataChannels();
+    }
+
+    if (res?.lastMessageSeq) {
+      this.resendReliableMessagesForResume(res.lastMessageSeq);
     }
 
     // resume success
@@ -1151,17 +1180,40 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /* @internal */
   async sendDataPacket(packet: DataPacket, kind: DataPacket_Kind) {
-    const msg = packet.toBinary();
-
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
+    if (kind === DataPacket_Kind.RELIABLE) {
+      packet.sequence = this.reliableDataSequence;
+      this.reliableDataSequence += 1;
+    }
+    const msg = packet.toBinary();
     const dc = this.dataChannelForKind(kind);
     if (dc) {
+      if (kind === DataPacket_Kind.RELIABLE) {
+        this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
+      }
+
+      if (this.attemptingReconnect) {
+        return;
+      }
+
       dc.send(msg);
     }
 
     this.updateAndEmitDCBufferStatus(kind);
+  }
+
+  private async resendReliableMessagesForResume(lastMessageSeq: number) {
+    await this.ensurePublisherConnected(DataPacket_Kind.RELIABLE);
+    const dc = this.dataChannelForKind(DataPacket_Kind.RELIABLE);
+    if (dc) {
+      this.reliableMessageBuffer.popToSequence(lastMessageSeq);
+      this.reliableMessageBuffer.getAll().forEach(msg => {
+        dc.send(msg.data);
+    });
+    }
+    this.updateAndEmitDCBufferStatus(DataPacket_Kind.RELIABLE);
   }
 
   private updateAndEmitDCBufferStatus = (kind: DataPacket_Kind) => {
@@ -1175,6 +1227,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   private isBufferStatusLow = (kind: DataPacket_Kind): boolean | undefined => {
     const dc = this.dataChannelForKind(kind);
     if (dc) {
+      if (kind === DataPacket_Kind.RELIABLE) {
+        this.reliableMessageBuffer.alignBufferedAmount(dc.bufferedAmount);
+      }
       return dc.bufferedAmount <= dc.bufferedAmountLowThreshold;
     }
   };
@@ -1409,6 +1464,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         publishTracks: getTrackPublicationInfo(localTracks),
         dataChannels: this.dataChannelsInfo(),
         trackSidsDisabled,
+        datachannelReceiveStates: this.reliableReceivedState.map((seq, sid) => {
+          return new DataChannelReceiveState({
+            publisherSid: sid,
+            lastSeq: seq,
+          });
+        }),
       }),
     );
   }
