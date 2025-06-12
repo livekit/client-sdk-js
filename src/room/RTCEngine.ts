@@ -491,8 +491,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       if (!this.pcManager) {
         return;
       }
-      const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd);
-      this.client.sendAnswer(answer, offerId);
+      const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd, offerId);
+      if (answer) {
+        this.client.sendAnswer(answer, offerId);
+      }
     };
 
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {

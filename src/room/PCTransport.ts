@@ -247,7 +247,8 @@ export default class PCTransport extends EventEmitter {
 
   async createAndSendOffer(options?: RTCOfferOptions) {
     // increase the offer id at the start to ensure the offer is always > 0 so that we can use 0 as a default value for legacy behavior
-    this.latestOfferId += 1;
+    const offerId = this.latestOfferId + 1;
+    this.latestOfferId = offerId;
     if (this.onOffer === undefined) {
       return;
     }
@@ -330,7 +331,14 @@ export default class PCTransport extends EventEmitter {
         });
       }
     });
-
+    if (this.latestOfferId > offerId) {
+      this.log.warn('latestOfferId mismatch', {
+        ...this.logContext,
+        latestOfferId: this.latestOfferId,
+        offerId,
+      });
+      return;
+    }
     await this.setMungedSDP(offer, write(sdpParsed));
     this.onOffer(offer, this.latestOfferId);
   }
