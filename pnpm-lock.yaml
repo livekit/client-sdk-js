@@ -13,7 +13,7 @@ importers:
         version: 1.1.1
       '@livekit/protocol':
         specifier: 1.38.0
-        version: 1.38.0
+        version: link:../protocol/packages/javascript
       '@types/dom-mediacapture-record':
         specifier: ^1
         version: 1.0.22
@@ -696,9 +696,6 @@ packages:
     resolution: {integrity: sha512-+EzkxvLNfiUeKMgy/3luqfsCWFRXLb7U6wNQTk60tovuckwB15B191tJWvpp4HjiQWdJkCxO3Wbvc6jlk3Xb2Q==}
     engines: {node: '>=6.9.0'}
 
-  '@bufbuild/protobuf@1.10.0':
-    resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
-
   '@bufbuild/protobuf@1.10.1':
     resolution: {integrity: sha512-wJ8ReQbHxsAfXhrf9ixl0aYbZorRuOWpBNzm8pL8ftmSxQx/wnJD5Eg861NwJU/czy2VXFIebCeZnZrI9rktIQ==}
 
@@ -1009,9 +1006,6 @@ packages:
 
   '@livekit/mutex@1.1.1':
     resolution: {integrity: sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==}
-
-  '@livekit/protocol@1.38.0':
-    resolution: {integrity: sha512-XX6ulvsE1XCN18LVf3ydHN7Ri1Z1M1P5dQdjnm5nVDsSqUL12Vbo/4RKcRlCEXAg2qB62mKjcaVLXVwkfXggkg==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -4134,8 +4128,6 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.27.1
 
-  '@bufbuild/protobuf@1.10.0': {}
-
   '@bufbuild/protobuf@1.10.1': {}
 
   '@bufbuild/protoc-gen-es@1.10.1(@bufbuild/protobuf@1.10.1)':
@@ -4474,10 +4466,6 @@ snapshots:
       - encoding
 
   '@livekit/mutex@1.1.1': {}
-
-  '@livekit/protocol@1.38.0':
-    dependencies:
-      '@bufbuild/protobuf': 1.10.0
 
   '@manypkg/find-root@1.1.0':
     dependencies:

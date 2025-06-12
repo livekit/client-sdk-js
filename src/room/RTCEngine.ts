@@ -407,8 +407,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.client.sendIceCandidate(candidate, target);
     };
 
-    this.pcManager.onPublisherOffer = (offer) => {
-      this.client.sendOffer(offer);
+    this.pcManager.onPublisherOffer = (offer, offerId) => {
+      this.client.sendOffer(offer, offerId);
     };
 
     this.pcManager.onDataChannel = this.handleDataChannel;
@@ -463,12 +463,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   private setupSignalClientCallbacks() {
     // configure signaling client
-    this.client.onAnswer = async (sd) => {
+    this.client.onAnswer = async (sd, offerId) => {
       if (!this.pcManager) {
         return;
       }
       this.log.debug('received server answer', { ...this.logContext, RTCSdpType: sd.type });
-      await this.pcManager.setPublisherAnswer(sd);
+      await this.pcManager.setPublisherAnswer(sd, offerId);
     };
 
     // add candidate on trickle
@@ -481,12 +481,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     // when server creates an offer for the client
-    this.client.onOffer = async (sd) => {
+    this.client.onOffer = async (sd, offerId) => {
       if (!this.pcManager) {
         return;
       }
       const answer = await this.pcManager.createSubscriberAnswerFromOffer(sd);
-      this.client.sendAnswer(answer);
+      this.client.sendAnswer(answer, offerId);
     };
 
     this.client.onLocalTrackPublished = (res: TrackPublishedResponse) => {

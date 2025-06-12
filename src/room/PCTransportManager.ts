@@ -48,7 +48,7 @@ export class PCTransportManager {
 
   public onTrack?: (ev: RTCTrackEvent) => void;
 
-  public onPublisherOffer?: (offer: RTCSessionDescriptionInit) => void;
+  public onPublisherOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => void;
 
   private isPublisherConnectionRequired: boolean;
 
@@ -63,6 +63,8 @@ export class PCTransportManager {
   private log = log;
 
   private loggerOptions: LoggerOptions;
+
+  private latestPublisherOfferId: number = 0;
 
   constructor(
     rtcConfig: RTCConfiguration,
@@ -96,8 +98,8 @@ export class PCTransportManager {
     this.subscriber.onTrack = (ev) => {
       this.onTrack?.(ev);
     };
-    this.publisher.onOffer = (offer) => {
-      this.onPublisherOffer?.(offer);
+    this.publisher.onOffer = (offer, offerId) => {
+      this.onPublisherOffer?.(offer, offerId);
     };
 
     this.state = PCTransportState.NEW;
@@ -123,10 +125,18 @@ export class PCTransportManager {
   }
 
   createAndSendPublisherOffer(options?: RTCOfferOptions) {
+    this.latestPublisherOfferId += 1;
     return this.publisher.createAndSendOffer(options);
   }
 
-  setPublisherAnswer(sd: RTCSessionDescriptionInit) {
+  setPublisherAnswer(sd: RTCSessionDescriptionInit, offerId: number) {
+    if (offerId !== this.latestPublisherOfferId) {
+      this.log.warn('received answer for old offer', {
+        ...this.logContext,
+        offerId,
+        latestOfferId: this.latestPublisherOfferId,
+      });
+    }
     return this.publisher.setRemoteDescription(sd);
   }
 

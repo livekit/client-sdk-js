@@ -50,6 +50,8 @@ export default class PCTransport extends EventEmitter {
 
   private ddExtID = 0;
 
+  private latestOfferId: number = 0;
+
   pendingCandidates: RTCIceCandidateInit[] = [];
 
   restartingIce: boolean = false;
@@ -62,7 +64,7 @@ export default class PCTransport extends EventEmitter {
 
   remoteNackMids: string[] = [];
 
-  onOffer?: (offer: RTCSessionDescriptionInit) => void;
+  onOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => void;
 
   onIceCandidate?: (candidate: RTCIceCandidate) => void;
 
@@ -235,6 +237,8 @@ export default class PCTransport extends EventEmitter {
   }, debounceInterval);
 
   async createAndSendOffer(options?: RTCOfferOptions) {
+    // increase the offer id at the start to ensure the offer is always > 0 so that we can use 0 as a default value for legacy behavior
+    this.latestOfferId += 1;
     if (this.onOffer === undefined) {
       return;
     }
@@ -319,7 +323,7 @@ export default class PCTransport extends EventEmitter {
     });
 
     await this.setMungedSDP(offer, write(sdpParsed));
-    this.onOffer(offer);
+    this.onOffer(offer, this.latestOfferId);
   }
 
   async createAndSetAnswer(): Promise<RTCSessionDescriptionInit> {

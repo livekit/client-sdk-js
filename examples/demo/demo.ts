@@ -106,6 +106,12 @@ const appActions = {
 
     updateSearchParams(url, token, cryptoKey);
 
+    const agentAttributes = attributes.agent.parseAgentAttributes({
+      agentState: 'active',
+      publishOnBehalf: 'user123',
+    });
+    console.log('agentAttributes', agentAttributes);
+
     const roomOpts: RoomOptions = {
       adaptiveStream,
       dynacast,
