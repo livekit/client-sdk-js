@@ -101,16 +101,10 @@ const appActions = {
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
     let backupCodecPolicy: BackupCodecPolicy | undefined;
     if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
-      backupCodecPolicy = BackupCodecPolicy.Simulcast;
+      backupCodecPolicy = BackupCodecPolicy.SIMULCAST;
     }
 
     updateSearchParams(url, token, cryptoKey);
-
-    const agentAttributes = attributes.agent.parseAgentAttributes({
-      agentState: 'active',
-      publishOnBehalf: 'user123',
-    });
-    console.log('agentAttributes', agentAttributes);
 
     const roomOpts: RoomOptions = {
       adaptiveStream,

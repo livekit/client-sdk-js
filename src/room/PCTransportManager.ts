@@ -64,8 +64,6 @@ export class PCTransportManager {
 
   private loggerOptions: LoggerOptions;
 
-  private latestPublisherOfferId: number = 0;
-
   constructor(
     rtcConfig: RTCConfiguration,
     subscriberPrimary: boolean,
@@ -125,20 +123,11 @@ export class PCTransportManager {
   }
 
   createAndSendPublisherOffer(options?: RTCOfferOptions) {
-    this.latestPublisherOfferId += 1;
     return this.publisher.createAndSendOffer(options);
   }
 
   setPublisherAnswer(sd: RTCSessionDescriptionInit, offerId: number) {
-    if (offerId > 0 && offerId !== this.latestPublisherOfferId) {
-      this.log.warn('ignoring answer for old offer', {
-        ...this.logContext,
-        offerId,
-        latestOfferId: this.latestPublisherOfferId,
-      });
-      return;
-    }
-    return this.publisher.setRemoteDescription(sd);
+    return this.publisher.setRemoteDescription(sd, offerId);
   }
 
   removeTrack(sender: RTCRtpSender) {
@@ -179,7 +168,7 @@ export class PCTransportManager {
     }
   }
 
-  async createSubscriberAnswerFromOffer(sd: RTCSessionDescriptionInit) {
+  async createSubscriberAnswerFromOffer(sd: RTCSessionDescriptionInit, offerId: number) {
     this.log.debug('received server offer', {
       ...this.logContext,
       RTCSdpType: sd.type,
@@ -188,7 +177,10 @@ export class PCTransportManager {
     });
     const unlock = await this.remoteOfferLock.lock();
     try {
-      await this.subscriber.setRemoteDescription(sd);
+      const success = await this.subscriber.setRemoteDescription(sd, offerId);
+      if (!success) {
+        return undefined;
+      }
 
       // answer the offer
       const answer = await this.subscriber.createAndSetAnswer();

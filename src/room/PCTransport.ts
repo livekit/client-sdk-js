@@ -139,7 +139,15 @@ export default class PCTransport extends EventEmitter {
     this.pendingCandidates.push(candidate);
   }
 
-  async setRemoteDescription(sd: RTCSessionDescriptionInit): Promise<void> {
+  async setRemoteDescription(sd: RTCSessionDescriptionInit, offerId: number): Promise<boolean> {
+    if (sd.type === 'answer' && this.latestOfferId > 0 && offerId !== this.latestOfferId) {
+      this.log.warn('ignoring answer for old offer', {
+        ...this.logContext,
+        offerId,
+        latestOfferId: this.latestOfferId,
+      });
+      return false;
+    }
     let mungedSDP: string | undefined = undefined;
     if (sd.type === 'offer') {
       let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
@@ -220,6 +228,7 @@ export default class PCTransport extends EventEmitter {
         });
       }
     }
+    return true;
   }
 
   // debounced negotiate interface
