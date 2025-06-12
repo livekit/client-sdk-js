@@ -107,6 +107,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
    */
   latestJoinResponse?: JoinResponse;
 
+  /**
+   * @internal
+   */
+  latestRemoteOfferId: number = 0;
+
   get isClosed() {
     return this._isClosed;
   }
@@ -482,6 +487,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     // when server creates an offer for the client
     this.client.onOffer = async (sd, offerId) => {
+      this.latestRemoteOfferId = offerId;
       if (!this.pcManager) {
         return;
       }
@@ -1390,16 +1396,22 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.sendSyncState(
       new SyncState({
         answer: previousAnswer
-          ? toProtoSessionDescription({
-              sdp: previousAnswer.sdp,
-              type: previousAnswer.type,
-            })
+          ? toProtoSessionDescription(
+              {
+                sdp: previousAnswer.sdp,
+                type: previousAnswer.type,
+              },
+              this.latestRemoteOfferId,
+            )
           : undefined,
         offer: previousOffer
-          ? toProtoSessionDescription({
-              sdp: previousOffer.sdp,
-              type: previousOffer.type,
-            })
+          ? toProtoSessionDescription(
+              {
+                sdp: previousOffer.sdp,
+                type: previousOffer.type,
+              },
+              this.latestRemoteOfferId,
+            )
           : undefined,
         subscription: new UpdateSubscription({
           trackSids,
