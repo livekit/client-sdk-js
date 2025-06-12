@@ -131,11 +131,12 @@ export class PCTransportManager {
 
   setPublisherAnswer(sd: RTCSessionDescriptionInit, offerId: number) {
     if (offerId !== this.latestPublisherOfferId) {
-      this.log.warn('received answer for old offer', {
+      this.log.warn('ignoring answer for old offer', {
         ...this.logContext,
         offerId,
         latestOfferId: this.latestPublisherOfferId,
       });
+      return;
     }
     return this.publisher.setRemoteDescription(sd);
   }
