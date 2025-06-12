@@ -130,7 +130,7 @@ export class PCTransportManager {
   }
 
   setPublisherAnswer(sd: RTCSessionDescriptionInit, offerId: number) {
-    if (offerId !== this.latestPublisherOfferId) {
+    if (offerId > 0 && offerId !== this.latestPublisherOfferId) {
       this.log.warn('ignoring answer for old offer', {
         ...this.logContext,
         offerId,
