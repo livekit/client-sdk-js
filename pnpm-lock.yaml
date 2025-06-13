@@ -103,8 +103,8 @@ importers:
         specifier: 18.0.0
         version: 18.0.0(@typescript-eslint/eslint-plugin@7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.8.3))(eslint@8.57.1)(typescript@5.8.3))(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.8.3))(eslint-plugin-import@2.31.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.8.3))(eslint@8.57.1))(eslint@8.57.1)
       eslint-config-prettier:
-        specifier: 9.1.0
-        version: 9.1.0(eslint@8.57.1)
+        specifier: 10.1.5
+        version: 10.1.5(eslint@8.57.1)
       eslint-plugin-ecmascript-compat:
         specifier: ^3.2.1
         version: 3.2.1(eslint@8.57.1)
@@ -1870,8 +1870,8 @@ packages:
       '@typescript-eslint/parser': ^7.0.0
       eslint: ^8.56.0
 
-  eslint-config-prettier@9.1.0:
-    resolution: {integrity: sha512-NSWl5BFQWEPi1j4TjVNItzYV7dZXZ+wP6I6ZhrBGpChQhZRUaElihE9uRRkcbRnNb76UMKDF3r+WTmNcGPKsqw==}
+  eslint-config-prettier@10.1.5:
+    resolution: {integrity: sha512-zc1UmCpNltmVY34vuLRV61r1K27sWuX39E+uyUnY8xS2Bex88VV9cugG+UZbRSRGtGyFboj+D8JODyme1plMpw==}
     hasBin: true
     peerDependencies:
       eslint: '>=7.0.0'
@@ -3185,8 +3185,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.9.0-dev.20250610:
-    resolution: {integrity: sha512-jvHWZeBl3xNkveo2FMtA6ZHFb8D5CjNVU5qbI/yzpkvUzEFcqwDhKK9FaprSxupsb/V2cdMXsV0u2DMnrsfD9A==}
+  typescript@5.9.0-dev.20250613:
+    resolution: {integrity: sha512-5bzU//x0svUVjUCMlHRG7IassWFQ7/dofYXqSSbQpQ8a1Kh/GqIsvfc2CQIS+EpYrdoHaNLroxmlsLNsqLXaww==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5274,7 +5274,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.9.0-dev.20250610
+      typescript: 5.9.0-dev.20250613
 
   electron-to-chromium@1.5.4: {}
 
@@ -5430,7 +5430,7 @@ snapshots:
     transitivePeerDependencies:
       - eslint-plugin-import
 
-  eslint-config-prettier@9.1.0(eslint@8.57.1):
+  eslint-config-prettier@10.1.5(eslint@8.57.1):
     dependencies:
       eslint: 8.57.1
 
@@ -6778,7 +6778,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@5.9.0-dev.20250610: {}
+  typescript@5.9.0-dev.20250613: {}
 
   uc.micro@2.1.0: {}
 
