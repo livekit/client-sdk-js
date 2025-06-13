@@ -246,12 +246,12 @@ export class SignalClient {
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    const res = await this.connect(url, token, {
+    const res = (await this.connect(url, token, {
       ...this.options,
       reconnect: true,
       sid,
       reconnectReason: reason,
-    });
+    })) as ReconnectResponse;
     return res;
   }
 
