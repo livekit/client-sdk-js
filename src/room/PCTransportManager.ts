@@ -48,7 +48,7 @@ export class PCTransportManager {
 
   public onTrack?: (ev: RTCTrackEvent) => void;
 
-  public onPublisherOffer?: (offer: RTCSessionDescriptionInit) => void;
+  public onPublisherOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => void;
 
   private isPublisherConnectionRequired: boolean;
 
@@ -96,8 +96,8 @@ export class PCTransportManager {
     this.subscriber.onTrack = (ev) => {
       this.onTrack?.(ev);
     };
-    this.publisher.onOffer = (offer) => {
-      this.onPublisherOffer?.(offer);
+    this.publisher.onOffer = (offer, offerId) => {
+      this.onPublisherOffer?.(offer, offerId);
     };
 
     this.state = PCTransportState.NEW;
@@ -126,8 +126,8 @@ export class PCTransportManager {
     return this.publisher.createAndSendOffer(options);
   }
 
-  setPublisherAnswer(sd: RTCSessionDescriptionInit) {
-    return this.publisher.setRemoteDescription(sd);
+  setPublisherAnswer(sd: RTCSessionDescriptionInit, offerId: number) {
+    return this.publisher.setRemoteDescription(sd, offerId);
   }
 
   removeTrack(sender: RTCRtpSender) {
@@ -168,7 +168,7 @@ export class PCTransportManager {
     }
   }
 
-  async createSubscriberAnswerFromOffer(sd: RTCSessionDescriptionInit) {
+  async createSubscriberAnswerFromOffer(sd: RTCSessionDescriptionInit, offerId: number) {
     this.log.debug('received server offer', {
       ...this.logContext,
       RTCSdpType: sd.type,
@@ -177,7 +177,10 @@ export class PCTransportManager {
     });
     const unlock = await this.remoteOfferLock.lock();
     try {
-      await this.subscriber.setRemoteDescription(sd);
+      const success = await this.subscriber.setRemoteDescription(sd, offerId);
+      if (!success) {
+        return undefined;
+      }
 
       // answer the offer
       const answer = await this.subscriber.createAndSetAnswer();

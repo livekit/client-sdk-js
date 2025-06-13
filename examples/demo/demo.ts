@@ -101,7 +101,7 @@ const appActions = {
     const audioOutputId = (<HTMLSelectElement>$('audio-output')).value;
     let backupCodecPolicy: BackupCodecPolicy | undefined;
     if ((<HTMLInputElement>$('multicodec-simulcast')).checked) {
-      backupCodecPolicy = BackupCodecPolicy.Simulcast;
+      backupCodecPolicy = BackupCodecPolicy.SIMULCAST;
     }
 
     updateSearchParams(url, token, cryptoKey);

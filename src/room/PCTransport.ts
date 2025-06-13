@@ -50,6 +50,8 @@ export default class PCTransport extends EventEmitter {
 
   private ddExtID = 0;
 
+  private latestOfferId: number = 0;
+
   pendingCandidates: RTCIceCandidateInit[] = [];
 
   restartingIce: boolean = false;
@@ -62,7 +64,7 @@ export default class PCTransport extends EventEmitter {
 
   remoteNackMids: string[] = [];
 
-  onOffer?: (offer: RTCSessionDescriptionInit) => void;
+  onOffer?: (offer: RTCSessionDescriptionInit, offerId: number) => void;
 
   onIceCandidate?: (candidate: RTCIceCandidate) => void;
 
@@ -137,7 +139,15 @@ export default class PCTransport extends EventEmitter {
     this.pendingCandidates.push(candidate);
   }
 
-  async setRemoteDescription(sd: RTCSessionDescriptionInit): Promise<void> {
+  async setRemoteDescription(sd: RTCSessionDescriptionInit, offerId: number): Promise<boolean> {
+    if (sd.type === 'answer' && this.latestOfferId > 0 && offerId !== this.latestOfferId) {
+      this.log.warn('ignoring answer for old offer', {
+        ...this.logContext,
+        offerId,
+        latestOfferId: this.latestOfferId,
+      });
+      return false;
+    }
     let mungedSDP: string | undefined = undefined;
     if (sd.type === 'offer') {
       let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
@@ -218,6 +228,7 @@ export default class PCTransport extends EventEmitter {
         });
       }
     }
+    return true;
   }
 
   // debounced negotiate interface
@@ -235,6 +246,9 @@ export default class PCTransport extends EventEmitter {
   }, debounceInterval);
 
   async createAndSendOffer(options?: RTCOfferOptions) {
+    // increase the offer id at the start to ensure the offer is always > 0 so that we can use 0 as a default value for legacy behavior
+    const offerId = this.latestOfferId + 1;
+    this.latestOfferId = offerId;
     if (this.onOffer === undefined) {
       return;
     }
@@ -317,9 +331,16 @@ export default class PCTransport extends EventEmitter {
         });
       }
     });
-
+    if (this.latestOfferId > offerId) {
+      this.log.warn('latestOfferId mismatch', {
+        ...this.logContext,
+        latestOfferId: this.latestOfferId,
+        offerId,
+      });
+      return;
+    }
     await this.setMungedSDP(offer, write(sdpParsed));
-    this.onOffer(offer);
+    this.onOffer(offer, this.latestOfferId);
   }
 
   async createAndSetAnswer(): Promise<RTCSessionDescriptionInit> {
