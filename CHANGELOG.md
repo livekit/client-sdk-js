@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.13.5
+
+### Patch Changes
+
+- Improve e2e reliablility of data channel - [#1546](https://github.com/livekit/client-sdk-js/pull/1546) ([@cnderrauber](https://github.com/cnderrauber))
+
 ## 2.13.4
 
 ### Patch Changes
