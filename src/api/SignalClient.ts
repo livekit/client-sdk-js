@@ -888,12 +888,12 @@ function fromProtoSessionDescription(sd: SessionDescription): RTCSessionDescript
 
 export function toProtoSessionDescription(
   rsd: RTCSessionDescription | RTCSessionDescriptionInit,
-  id: number,
+  id?: number,
 ): SessionDescription {
   const sd = new SessionDescription({
     sdp: rsd.sdp!,
     type: rsd.type!,
-    id: id,
+    id,
   });
   return sd;
 }

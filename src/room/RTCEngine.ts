@@ -1398,22 +1398,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.sendSyncState(
       new SyncState({
         answer: previousAnswer
-          ? toProtoSessionDescription(
-              {
-                sdp: previousAnswer.sdp,
-                type: previousAnswer.type,
-              },
-              this.latestRemoteOfferId,
-            )
+          ? toProtoSessionDescription({
+              sdp: previousAnswer.sdp,
+              type: previousAnswer.type,
+            })
           : undefined,
         offer: previousOffer
-          ? toProtoSessionDescription(
-              {
-                sdp: previousOffer.sdp,
-                type: previousOffer.type,
-              },
-              this.latestRemoteOfferId,
-            )
+          ? toProtoSessionDescription({
+              sdp: previousOffer.sdp,
+              type: previousOffer.type,
+            })
           : undefined,
         subscription: new UpdateSubscription({
           trackSids,
