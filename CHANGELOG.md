@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.13.5
+
+### Patch Changes
+
+- Improve e2e reliablility of data channel - [#1546](https://github.com/livekit/client-sdk-js/pull/1546) ([@cnderrauber](https://github.com/cnderrauber))
+
+- do not expose token with Moved events - [#1549](https://github.com/livekit/client-sdk-js/pull/1549) ([@davidzhao](https://github.com/davidzhao))
+
 ## 2.13.4
 
 ### Patch Changes
