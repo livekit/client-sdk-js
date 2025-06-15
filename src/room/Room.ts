@@ -601,7 +601,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           this.handleParticipantDisconnected(identity, participant);
         });
 
-        this.emit(RoomEvent.Moved, roomMoved.room!.name, roomMoved.token);
+        this.emit(RoomEvent.Moved, roomMoved.room!.name);
 
         if (roomMoved.participant) {
           this.handleParticipantUpdates([roomMoved.participant, ...roomMoved.otherParticipants]);
@@ -2649,7 +2649,7 @@ export type RoomEventCallbacks = {
   reconnected: () => void;
   disconnected: (reason?: DisconnectReason) => void;
   connectionStateChanged: (state: ConnectionState) => void;
-  moved: (name: string, token: string) => void;
+  moved: (name: string) => void;
   mediaDevicesChanged: () => void;
   participantConnected: (participant: RemoteParticipant) => void;
   participantDisconnected: (participant: RemoteParticipant) => void;
