@@ -140,7 +140,12 @@ export default class PCTransport extends EventEmitter {
   }
 
   async setRemoteDescription(sd: RTCSessionDescriptionInit, offerId: number): Promise<boolean> {
-    if (sd.type === 'answer' && this.latestOfferId > 0 && offerId !== this.latestOfferId) {
+    if (
+      sd.type === 'answer' &&
+      this.latestOfferId > 0 &&
+      offerId > 0 &&
+      offerId !== this.latestOfferId
+    ) {
       this.log.warn('ignoring answer for old offer', {
         ...this.logContext,
         offerId,
