@@ -110,9 +110,9 @@ export class SignalClient {
 
   onClose?: (reason: string) => void;
 
-  onAnswer?: (sd: RTCSessionDescriptionInit) => void;
+  onAnswer?: (sd: RTCSessionDescriptionInit, offerId: number) => void;
 
-  onOffer?: (sd: RTCSessionDescriptionInit) => void;
+  onOffer?: (sd: RTCSessionDescriptionInit, offerId: number) => void;
 
   // when a new ICE candidate is made available
   onTrickle?: (sd: RTCIceCandidateInit, target: SignalTarget) => void;
@@ -246,16 +246,13 @@ export class SignalClient {
     // clear ping interval and restart it once reconnected
     this.clearPingInterval();
 
-    const res = await this.connect(url, token, {
+    const res = (await this.connect(url, token, {
       ...this.options,
       reconnect: true,
       sid,
       reconnectReason: reason,
-    });
-    if (res instanceof ReconnectResponse) {
-      return res;
-    }
-    return;
+    })) as ReconnectResponse;
+    return res;
   }
 
   private connect(
@@ -509,20 +506,20 @@ export class SignalClient {
   }
 
   // initial offer after joining
-  sendOffer(offer: RTCSessionDescriptionInit) {
+  sendOffer(offer: RTCSessionDescriptionInit, offerId: number) {
     this.log.debug('sending offer', { ...this.logContext, offerSdp: offer.sdp });
     this.sendRequest({
       case: 'offer',
-      value: toProtoSessionDescription(offer),
+      value: toProtoSessionDescription(offer, offerId),
     });
   }
 
   // answer a server-initiated offer
-  sendAnswer(answer: RTCSessionDescriptionInit) {
+  sendAnswer(answer: RTCSessionDescriptionInit, offerId: number) {
     this.log.debug('sending answer', { ...this.logContext, answerSdp: answer.sdp });
     return this.sendRequest({
       case: 'answer',
-      value: toProtoSessionDescription(answer),
+      value: toProtoSessionDescription(answer, offerId),
     });
   }
 
@@ -703,12 +700,12 @@ export class SignalClient {
     if (msg.case === 'answer') {
       const sd = fromProtoSessionDescription(msg.value);
       if (this.onAnswer) {
-        this.onAnswer(sd);
+        this.onAnswer(sd, msg.value.id);
       }
     } else if (msg.case === 'offer') {
       const sd = fromProtoSessionDescription(msg.value);
       if (this.onOffer) {
-        this.onOffer(sd);
+        this.onOffer(sd, msg.value.id);
       }
     } else if (msg.case === 'trickle') {
       const candidate: RTCIceCandidateInit = JSON.parse(msg.value.candidateInit!);
@@ -891,10 +888,12 @@ function fromProtoSessionDescription(sd: SessionDescription): RTCSessionDescript
 
 export function toProtoSessionDescription(
   rsd: RTCSessionDescription | RTCSessionDescriptionInit,
+  id?: number,
 ): SessionDescription {
   const sd = new SessionDescription({
     sdp: rsd.sdp!,
     type: rsd.type!,
+    id,
   });
   return sd;
 }
