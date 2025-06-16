@@ -50,7 +50,7 @@
     "format:check": "prettier --check src examples/**/*.ts",
     "ci:publish": "pnpm build && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2",
-    "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js",
+    "compat": "eslint --no-eslintrc --config ./eslint.config.dist.cjs ./dist/livekit-client.umd.js",
     "size-limit": "size-limit"
   },
   "dependencies": {
