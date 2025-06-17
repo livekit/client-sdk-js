@@ -40,26 +40,48 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
 
   onProgress?: (progress: number | undefined) => void;
 
-  async *[Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> {
+  [Symbol.asyncIterator]() {
     const reader = this.reader.getReader();
+
+    return {
+      next: async (): Promise<IteratorResult<Uint8Array>> => {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            return { done: true, value: undefined as any };
+          } else {
+            this.handleChunkReceived(value);
+            return { done: false, value: value.content };
+          }
+        } catch (error) {
+          // TODO handle errors
+          return { done: true, value: undefined };
+        }
+      },
+
+      async return(): Promise<IteratorResult<Uint8Array>> {
+        reader.releaseLock();
+        return { done: true, value: undefined };
+      },
+    };
+  }
+
+  async readAll(): Promise<Array<Uint8Array>> {
+    const reader = this.reader.getReader();
+    let chunks: Uint8Array[] = [];
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
         this.handleChunkReceived(value);
-        yield value.content;
+        chunks.push(value.content);
       }
     } finally {
       reader.releaseLock();
     }
-  }
-
-  async readAll(): Promise<Array<Uint8Array>> {
-    let chunks: Set<Uint8Array> = new Set();
-    for await (const chunk of this) {
-      chunks.add(chunk);
-    }
-    return Array.from(chunks);
+    return chunks;
   }
 }
 
