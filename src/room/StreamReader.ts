@@ -40,30 +40,18 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
 
   onProgress?: (progress: number | undefined) => void;
 
-  [Symbol.asyncIterator]() {
+  async *[Symbol.asyncIterator](): AsyncIterableIterator<Uint8Array> {
     const reader = this.reader.getReader();
-
-    return {
-      next: async (): Promise<IteratorResult<Uint8Array>> => {
-        try {
-          const { done, value } = await reader.read();
-          if (done) {
-            return { done: true, value: undefined as any };
-          } else {
-            this.handleChunkReceived(value);
-            return { done: false, value: value.content };
-          }
-        } catch (error) {
-          // TODO handle errors
-          return { done: true, value: undefined };
-        }
-      },
-
-      async return(): Promise<IteratorResult<Uint8Array>> {
-        reader.releaseLock();
-        return { done: true, value: undefined };
-      },
-    };
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        this.handleChunkReceived(value);
+        yield value.content;
+      }
+    } finally {
+      reader.releaseLock();
+    }
   }
 
   async readAll(): Promise<Array<Uint8Array>> {
