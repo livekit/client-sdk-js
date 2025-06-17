@@ -83,6 +83,7 @@ export class PublishVideoCheck extends Checker {
       video.play();
     });
 
+    stream.getTracks().forEach((t) => t.stop());
     video.remove();
   }
 }
