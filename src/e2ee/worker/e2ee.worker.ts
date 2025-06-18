@@ -65,6 +65,7 @@ onmessage = (ev) => {
           data.readableStream,
           data.writableStream,
           data.trackId,
+          data.isReuse,
           data.codec,
         );
         break;
@@ -75,6 +76,7 @@ onmessage = (ev) => {
           data.readableStream,
           data.writableStream,
           data.trackId,
+          data.isReuse,
           data.codec,
         );
         break;

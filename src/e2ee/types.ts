@@ -49,6 +49,7 @@ export interface EncodeMessage extends BaseMessage {
     writableStream: WritableStream;
     trackId: string;
     codec?: VideoCodec;
+    isReuse: boolean;
   };
 }
 
