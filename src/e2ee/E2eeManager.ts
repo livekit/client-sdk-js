@@ -372,13 +372,6 @@ export class E2EEManager
       // @ts-ignore
       let readable: ReadableStream = receiver.readableStream;
 
-      console.log('reuse debug', {
-        trackId,
-        writable,
-        readable,
-        flag: E2EE_FLAG in receiver,
-      });
-
       if (!writable || !readable) {
         // @ts-ignore
         const receiverStreams = receiver.createEncodedStreams();
