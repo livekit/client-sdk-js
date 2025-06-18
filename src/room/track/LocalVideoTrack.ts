@@ -8,6 +8,7 @@ import {
 import type { SignalClient } from '../../api/SignalClient';
 import type { StructuredLogger } from '../../logger';
 import { getBrowser } from '../../utils/browserParser';
+import { TrackEvent } from '../events';
 import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
@@ -56,6 +57,8 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   private senderLock: Mutex;
 
   private degradationPreference: RTCDegradationPreference = 'balanced';
+
+  private isCpuConstrained: boolean = false;
 
   get sender(): RTCRtpSender | undefined {
     return this._sender;
@@ -409,6 +412,14 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       return;
     }
     const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));
+
+    const isCpuConstrained = stats.some((s) => s.qualityLimitationReason === 'cpu');
+    if (isCpuConstrained !== this.isCpuConstrained) {
+      this.isCpuConstrained = isCpuConstrained;
+      if (this.isCpuConstrained) {
+        this.emit(TrackEvent.CpuConstrained);
+      }
+    }
 
     if (this.prevStats) {
       let totalBitrate = 0;

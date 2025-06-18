@@ -174,6 +174,11 @@ export interface VideoCaptureOptions {
   deviceId?: ConstrainDOMString;
 
   /**
+   * A ConstrainDouble specifying the frame rate or range of frame rates which are acceptable and/or required.
+   */
+  frameRate?: ConstrainDouble;
+
+  /**
    * a facing or an array of facings which are acceptable and/or required.
    */
   facingMode?: 'user' | 'environment' | 'left' | 'right';
