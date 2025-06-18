@@ -255,6 +255,9 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     }
     await this.restart(constraints);
 
+    // reset cpu constrained state after track is restarted
+    this.isCpuConstrained = false;
+
     for await (const sc of this.simulcastCodecs.values()) {
       if (sc.sender && sc.sender.transport?.state !== 'closed') {
         sc.mediaStreamTrack = this.mediaStreamTrack.clone();
