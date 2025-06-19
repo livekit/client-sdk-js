@@ -164,7 +164,7 @@ export type DecodeRatchetOptions = {
   encryptionKey?: CryptoKey;
 };
 
-export type ScriptTransfromOptions = {
+export type ScriptTransformOptions = {
   kind: 'decode' | 'encode';
   participantIdentity: string;
   trackId: string;

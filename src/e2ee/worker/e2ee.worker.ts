@@ -12,7 +12,7 @@ import type {
   RatchetMessage,
   RatchetRequestMessage,
   RatchetResult,
-  ScriptTransfromOptions,
+  ScriptTransformOptions,
 } from '../types';
 import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
@@ -267,7 +267,7 @@ if (self.RTCTransformEvent) {
     workerLogger.debug('transformer', transformer);
 
     const { kind, participantIdentity, trackId, codec } =
-      transformer.options as ScriptTransfromOptions;
+      transformer.options as ScriptTransformOptions;
     const cryptor = getTrackCryptor(participantIdentity, trackId);
     workerLogger.debug('transform', { codec });
     cryptor.setupTransform(kind, transformer.readable, transformer.writable, trackId, false, codec);
