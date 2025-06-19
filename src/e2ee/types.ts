@@ -163,3 +163,10 @@ export type DecodeRatchetOptions = {
   /** ratcheted key to try */
   encryptionKey?: CryptoKey;
 };
+
+export type ScriptTransfromOptions = {
+  kind: 'decode' | 'encode';
+  participantIdentity: string;
+  trackId: string;
+  codec?: VideoCodec;
+};

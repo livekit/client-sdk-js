@@ -25,6 +25,7 @@ import type {
   RTPVideoMapMessage,
   RatchetRequestMessage,
   RemoveTransformMessage,
+  ScriptTransfromOptions,
   SetKeyMessage,
   SifTrailerMessage,
   UpdateCodecMessage,
@@ -345,7 +346,7 @@ export class E2EEManager
     }
 
     if (isScriptTransformSupported()) {
-      const options = {
+      const options: ScriptTransfromOptions = {
         kind: 'decode',
         participantIdentity,
         trackId,

@@ -12,6 +12,7 @@ import type {
   RatchetMessage,
   RatchetRequestMessage,
   RatchetResult,
+  ScriptTransfromOptions,
 } from '../types';
 import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
@@ -256,19 +257,17 @@ function handleSifTrailer(trailer: Uint8Array) {
 }
 
 // Operations using RTCRtpScriptTransform.
-// @ts-ignore
 if (self.RTCTransformEvent) {
   workerLogger.debug('setup transform event');
   // @ts-ignore
   self.onrtctransform = (event: RTCTransformEvent) => {
-    // @ts-ignore .transformer property is part of RTCTransformEvent
     const transformer = event.transformer;
     workerLogger.debug('transformer', transformer);
-    // @ts-ignore monkey patching non standard flag
-    transformer.handled = true;
-    const { kind, participantIdentity, trackId, codec } = transformer.options;
+
+    const { kind, participantIdentity, trackId, codec } =
+      transformer.options as ScriptTransfromOptions;
     const cryptor = getTrackCryptor(participantIdentity, trackId);
     workerLogger.debug('transform', { codec });
-    cryptor.setupTransform(kind, transformer.readable, transformer.writable, trackId, codec);
+    cryptor.setupTransform(kind, transformer.readable, transformer.writable, trackId, false, codec);
   };
 }
