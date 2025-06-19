@@ -411,7 +411,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     try {
       stats = await this.getSenderStats();
     } catch (e) {
-      this.log.error('could not get audio sender stats', { ...this.logContext, error: e });
+      this.log.error('could not get video sender stats', { ...this.logContext, error: e });
       return;
     }
     const statsMap = new Map<string, VideoSenderStats>(stats.map((s) => [s.rid, s]));
