@@ -371,6 +371,7 @@ export class E2EEManager
       let writable: WritableStream = receiver.writableStream;
       // @ts-ignore
       let readable: ReadableStream = receiver.readableStream;
+
       if (!writable || !readable) {
         // @ts-ignore
         const receiverStreams = receiver.createEncodedStreams();
@@ -390,6 +391,7 @@ export class E2EEManager
           trackId: trackId,
           codec,
           participantIdentity: participantIdentity,
+          isReuse: E2EE_FLAG in receiver,
         },
       };
       this.worker.postMessage(msg, [readable, writable]);
@@ -435,6 +437,7 @@ export class E2EEManager
           codec,
           trackId,
           participantIdentity: this.room.localParticipant.identity,
+          isReuse: false,
         },
       };
       this.worker.postMessage(msg, [senderStreams.readable, senderStreams.writable]);
