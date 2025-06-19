@@ -51,7 +51,8 @@
     "ci:publish": "pnpm build && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2",
     "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js",
-    "size-limit": "size-limit"
+    "size-limit": "size-limit",
+    "postinstall": "pnpm build"
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
