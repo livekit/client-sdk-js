@@ -257,10 +257,12 @@ function handleSifTrailer(trailer: Uint8Array) {
 }
 
 // Operations using RTCRtpScriptTransform.
+// @ts-ignore
 if (self.RTCTransformEvent) {
   workerLogger.debug('setup transform event');
   // @ts-ignore
   self.onrtctransform = (event: RTCTransformEvent) => {
+    // @ts-ignore
     const transformer = event.transformer;
     workerLogger.debug('transformer', transformer);
 
