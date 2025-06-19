@@ -69,8 +69,6 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private detectedCodec?: VideoCodec;
 
-  private isTransformActive: boolean = false;
-
   constructor(opts: {
     keys: ParticipantKeyHandler;
     participantIdentity: string;
@@ -161,7 +159,6 @@ export class FrameCryptor extends BaseFrameCryptor {
     readable: ReadableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
     writable: WritableStream<RTCEncodedVideoFrame | RTCEncodedAudioFrame>,
     trackId: string,
-    isReuse: boolean,
     codec?: VideoCodec,
   ) {
     if (codec) {
@@ -176,19 +173,10 @@ export class FrameCryptor extends BaseFrameCryptor {
       ...this.logContext,
     });
 
-    if (isReuse && this.isTransformActive) {
-      workerLogger.debug('reuse transform', {
-        ...this.logContext,
-      });
-      return;
-    }
-
     const transformFn = operation === 'encode' ? this.encodeFunction : this.decodeFunction;
     const transformStream = new TransformStream({
       transform: transformFn.bind(this),
     });
-
-    this.isTransformActive = true;
 
     readable
       .pipeThrough(transformStream)
@@ -201,9 +189,6 @@ export class FrameCryptor extends BaseFrameCryptor {
             ? e
             : new CryptorError(e.message, undefined, this.participantIdentity),
         );
-      })
-      .finally(() => {
-        this.isTransformActive = false;
       });
     this.trackId = trackId;
   }
