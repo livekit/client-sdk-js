@@ -7,13 +7,12 @@ import {
 } from '@livekit/protocol';
 import type { SignalClient } from '../../api/SignalClient';
 import type { StructuredLogger } from '../../logger';
-import { getBrowser } from '../../utils/browserParser';
 import { TrackEvent } from '../events';
 import { ScalabilityMode } from '../participant/publishUtils';
 import type { VideoSenderStats } from '../stats';
 import { computeBitrate, monitorFrequency } from '../stats';
 import type { LoggerOptions } from '../types';
-import { compareVersions, isFireFox, isMobile, isSVCCodec, isWeb } from '../utils';
+import { isFireFox, isMobile, isSVCCodec, isWeb } from '../utils';
 import LocalTrack from './LocalTrack';
 import { Track, VideoQuality } from './Track';
 import type { VideoCaptureOptions, VideoCodec } from './options';
@@ -473,15 +472,18 @@ async function setPublishingLayersForSender(
     }
 
     let hasChanged = false;
-    const browser = getBrowser();
-    const closableSpatial =
-      browser?.name === 'Chrome' && compareVersions(browser?.version, '133') > 0;
+
+    /* disable closable spatial layer as it has video blur / frozen issue with current server / client
+    1. chrome 113: when switching to up layer with scalability Mode change, it will generate a
+          low resolution frame and recover very quickly, but noticable
+    2. livekit sfu: additional pli request cause video frozen for a few frames, also noticable */
+    const closableSpatial = false;
     /* @ts-ignore */
     if (closableSpatial && encodings[0].scalabilityMode) {
       // svc dynacast encodings
       const encoding = encodings[0];
       /* @ts-ignore */
-      const mode = new ScalabilityMode(encoding.scalabilityMode);
+      // const mode = new ScalabilityMode(encoding.scalabilityMode);
       let maxQuality = ProtoVideoQuality.OFF;
       qualities.forEach((q) => {
         if (q.enabled && (maxQuality === ProtoVideoQuality.OFF || q.quality > maxQuality)) {
@@ -494,25 +496,22 @@ async function setPublishingLayersForSender(
           encoding.active = false;
           hasChanged = true;
         }
-      } else if (!encoding.active || mode.spatial !== maxQuality + 1) {
+      } else if (!encoding.active /* || mode.spatial !== maxQuality + 1*/) {
         hasChanged = true;
         encoding.active = true;
-        /* @ts-ignore */
-        const originalMode = new ScalabilityMode(senderEncodings[0].scalabilityMode);
+        /*
+        @ts-ignore
+        const originalMode = new ScalabilityMode(senderEncodings[0].scalabilityMode)
         mode.spatial = maxQuality + 1;
         mode.suffix = originalMode.suffix;
         if (mode.spatial === 1) {
           // no suffix for L1Tx
           mode.suffix = undefined;
         }
-        /* @ts-ignore */
+        @ts-ignore
         encoding.scalabilityMode = mode.toString();
         encoding.scaleResolutionDownBy = 2 ** (2 - maxQuality);
-        if (senderEncodings[0].maxBitrate) {
-          encoding.maxBitrate =
-            senderEncodings[0].maxBitrate /
-            (encoding.scaleResolutionDownBy * encoding.scaleResolutionDownBy);
-        }
+      */
       }
     } else {
       if (isSVC) {
