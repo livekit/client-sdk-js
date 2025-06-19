@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.13.6
+
+### Patch Changes
+
+- Fix transceiver reuse causing destination stream closed errors - [#1554](https://github.com/livekit/client-sdk-js/pull/1554) ([@lukasIO](https://github.com/lukasIO))
+
+- Stop MediaStream tracks at the end of the video check - [#1552](https://github.com/livekit/client-sdk-js/pull/1552) ([@svajunas-budrys](https://github.com/svajunas-budrys))
+
+- disable dyncast for svc encoding - [#1556](https://github.com/livekit/client-sdk-js/pull/1556) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Update active device immediately for muted audio tracks - [#1526](https://github.com/livekit/client-sdk-js/pull/1526) ([@yashjain-99](https://github.com/yashjain-99))
+
+- Drop outdated sdp answers and forward offer ids - [#1547](https://github.com/livekit/client-sdk-js/pull/1547) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.13.5
 
 ### Patch Changes
