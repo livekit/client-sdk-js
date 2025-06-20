@@ -49,6 +49,7 @@ export interface EncodeMessage extends BaseMessage {
     writableStream: WritableStream;
     trackId: string;
     codec?: VideoCodec;
+    isReuse: boolean;
   };
 }
 
@@ -161,4 +162,11 @@ export type DecodeRatchetOptions = {
   ratchetCount: number;
   /** ratcheted key to try */
   encryptionKey?: CryptoKey;
+};
+
+export type ScriptTransformOptions = {
+  kind: 'decode' | 'encode';
+  participantIdentity: string;
+  trackId: string;
+  codec?: VideoCodec;
 };
