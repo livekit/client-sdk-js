@@ -13,6 +13,7 @@ import type TypedEmitter from 'typed-emitter';
 import log, { LoggerNames, type StructuredLogger, getLogger } from '../../logger';
 import { ParticipantEvent, TrackEvent } from '../events';
 import type LocalTrackPublication from '../track/LocalTrackPublication';
+import type LocalVideoTrack from '../track/LocalVideoTrack';
 import type RemoteTrack from '../track/RemoteTrack';
 import type RemoteTrackPublication from '../track/RemoteTrackPublication';
 import { Track } from '../track/Track';
@@ -403,6 +404,7 @@ export type ParticipantEventCallbacks = {
   trackUnmuted: (publication: TrackPublication) => void;
   localTrackPublished: (publication: LocalTrackPublication) => void;
   localTrackUnpublished: (publication: LocalTrackPublication) => void;
+  localTrackCpuConstrained: (track: LocalVideoTrack, publication: LocalTrackPublication) => void;
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   participantNameChanged: (name: string) => void;
   dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
