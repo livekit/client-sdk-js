@@ -93,7 +93,7 @@ import {
   isLocalTrack,
   isLocalVideoTrack,
   isSVCCodec,
-  isSafari17,
+  isSafari17Based,
   isVideoTrack,
   isWeb,
   numberToBigInt,
@@ -708,7 +708,7 @@ export default class LocalParticipant extends Participant {
       throw new DeviceUnsupportedError('getDisplayMedia not supported');
     }
 
-    if (options.resolution === undefined && !isSafari17()) {
+    if (options.resolution === undefined && !isSafari17Based()) {
       // we need to constrain the dimensions, otherwise it could lead to low bitrate
       // due to encoding a huge video. Encoding such large surfaces is really expensive
       // unfortunately Safari 17 has a but and cannot be constrained by default
