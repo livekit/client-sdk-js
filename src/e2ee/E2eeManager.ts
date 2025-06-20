@@ -221,8 +221,9 @@ export class E2EEManager
           this.room.localParticipant.identity,
         );
       });
-    room.localParticipant.on(ParticipantEvent.LocalTrackPublished, async (publication) => {
-      this.setupE2EESender(publication.track!, publication.track!.sender!);
+
+    room.localParticipant.on(ParticipantEvent.LocalSenderCreated, async (sender, track) => {
+      this.setupE2EESender(track, sender);
     });
 
     keyProvider

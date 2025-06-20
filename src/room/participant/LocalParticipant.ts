@@ -1169,6 +1169,7 @@ export default class LocalParticipant extends Participant {
       }
 
       track.sender = await this.engine.createSender(track, opts, encodings);
+      this.emit(ParticipantEvent.LocalSenderCreated, track.sender, track);
 
       if (isLocalVideoTrack(track)) {
         opts.degradationPreference ??= getDefaultDegradationPreference(track);
