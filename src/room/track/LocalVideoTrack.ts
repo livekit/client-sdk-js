@@ -410,6 +410,9 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     );
   }
 
+  /**
+   * @experimental
+   */
   async prioritizePerformance() {
     if (!this.sender) {
       throw new Error('sender not found');
