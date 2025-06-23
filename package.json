@@ -19,7 +19,8 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "*"
   ],
   "types": "dist/src/index.d.ts",
   "typesVersions": {
