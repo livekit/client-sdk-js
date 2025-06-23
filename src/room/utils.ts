@@ -96,6 +96,14 @@ export function supportsVP9(): boolean {
       // Safari 16 and below does not support VP9
       return false;
     }
+    if (
+      browser?.os === 'iOS' &&
+      browser?.osVersion &&
+      compareVersions(browser.osVersion, '16') < 0
+    ) {
+      // Safari 16 and below on iOS does not support VP9 we need the iOS check to account for other browsers running webkit under the hood
+      return false;
+    }
   }
   const capabilities = RTCRtpSender.getCapabilities('video');
   let hasVP9 = false;
@@ -148,9 +156,12 @@ export function isSafariBased(): boolean {
   return b?.name === 'Safari' || b?.os === 'iOS';
 }
 
-export function isSafari17(): boolean {
+export function isSafari17Based(): boolean {
   const b = getBrowser();
-  return b?.name === 'Safari' && b.version.startsWith('17.');
+  return (
+    (b?.name === 'Safari' && b.version.startsWith('17.')) ||
+    (b?.os === 'iOS' && !!b?.osVersion && compareVersions(b.osVersion, '17') >= 0)
+  );
 }
 
 export function isSafariSvcApi(browser?: BrowserDetails): boolean {
@@ -158,7 +169,12 @@ export function isSafariSvcApi(browser?: BrowserDetails): boolean {
     browser = getBrowser();
   }
   // Safari 18.4 requires legacy svc api and scaleResolutionDown to be set
-  return browser?.name === 'Safari' && compareVersions(browser.version, '18.3') > 0;
+  return (
+    (browser?.name === 'Safari' && compareVersions(browser.version, '18.3') > 0) ||
+    (browser?.os === 'iOS' &&
+      !!browser?.osVersion &&
+      compareVersions(browser.osVersion, '18.3') > 0)
+  );
 }
 
 export function isMobile(): boolean {

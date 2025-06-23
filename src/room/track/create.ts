@@ -3,7 +3,7 @@ import { audioDefaults, videoDefaults } from '../defaults';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
 import { mediaTrackToLocalTrack } from '../participant/publishUtils';
 import type { LoggerOptions } from '../types';
-import { isAudioTrack, isSafari17, isVideoTrack, unwrapConstraint } from '../utils';
+import { isAudioTrack, isSafari17Based, isVideoTrack, unwrapConstraint } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import LocalVideoTrack from './LocalVideoTrack';
@@ -198,7 +198,7 @@ export async function createLocalScreenTracks(
   if (options === undefined) {
     options = {};
   }
-  if (options.resolution === undefined && !isSafari17()) {
+  if (options.resolution === undefined && !isSafari17Based()) {
     options.resolution = ScreenSharePresets.h1080fps30.resolution;
   }
 

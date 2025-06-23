@@ -18,7 +18,7 @@ import {
   isFireFox,
   isReactNative,
   isSVCCodec,
-  isSafari,
+  isSafariBased,
   isSafariSvcApi,
   unwrapConstraint,
 } from '../utils';
@@ -151,7 +151,7 @@ export function computeVideoEncodings(
     // Announced here: https://groups.google.com/g/discuss-webrtc/c/-QQ3pxrl-fw?pli=1
     const browser = getBrowser();
     if (
-      isSafari() ||
+      isSafariBased() ||
       // Even tho RN runs M114, it does not produce SVC layers when a single encoding
       // is provided. So we'll use the legacy SVC specification for now.
       // TODO: when we upstream libwebrtc, this will need additional verification

@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.13.8
+
+### Patch Changes
+
+- Fix transceiver reuse causing destination stream closed errors - [#1559](https://github.com/livekit/client-sdk-js/pull/1559) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.13.7
+
+### Patch Changes
+
+- Revert "Fix transceiver reuse causing destination stream closed error… - [#1557](https://github.com/livekit/client-sdk-js/pull/1557) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.13.6
 
 ### Patch Changes

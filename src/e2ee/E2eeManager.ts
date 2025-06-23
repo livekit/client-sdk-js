@@ -25,6 +25,7 @@ import type {
   RTPVideoMapMessage,
   RatchetRequestMessage,
   RemoveTransformMessage,
+  ScriptTransformOptions,
   SetKeyMessage,
   SifTrailerMessage,
   UpdateCodecMessage,
@@ -220,8 +221,9 @@ export class E2EEManager
           this.room.localParticipant.identity,
         );
       });
-    room.localParticipant.on(ParticipantEvent.LocalTrackPublished, async (publication) => {
-      this.setupE2EESender(publication.track!, publication.track!.sender!);
+
+    room.localParticipant.on(ParticipantEvent.LocalSenderCreated, async (sender, track) => {
+      this.setupE2EESender(track, sender);
     });
 
     keyProvider
@@ -345,7 +347,7 @@ export class E2EEManager
     }
 
     if (isScriptTransformSupported()) {
-      const options = {
+      const options: ScriptTransformOptions = {
         kind: 'decode',
         participantIdentity,
         trackId,

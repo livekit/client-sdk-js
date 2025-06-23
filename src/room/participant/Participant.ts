@@ -405,6 +405,7 @@ export type ParticipantEventCallbacks = {
   localTrackPublished: (publication: LocalTrackPublication) => void;
   localTrackUnpublished: (publication: LocalTrackPublication) => void;
   localTrackCpuConstrained: (track: LocalVideoTrack, publication: LocalTrackPublication) => void;
+  localSenderCreated: (sender: RTCRtpSender, track: Track) => void;
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   participantNameChanged: (name: string) => void;
   dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
