@@ -59,6 +59,8 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
 
   private isCpuConstrained: boolean = false;
 
+  private optimizeForPerformance: boolean = false;
+
   get sender(): RTCRtpSender | undefined {
     return this._sender;
   }
@@ -340,6 +342,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
     // only enable simulcast codec for preference codec setted
     if (!this.codec && codecs.length > 0) {
       await this.setPublishingLayers(isSVCCodec(codecs[0].codec), codecs[0].qualities);
+
       return [];
     }
 
@@ -384,6 +387,13 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
    * Sets layers that should be publishing
    */
   async setPublishingLayers(isSvc: boolean, qualities: SubscribedQuality[]) {
+    if (this.optimizeForPerformance) {
+      this.log.info('skipping setPublishingLayers due to optimized publishing performance', {
+        ...this.logContext,
+        qualities,
+      });
+      return;
+    }
     this.log.debug('setting publishing layers', { ...this.logContext, qualities });
     if (!this.sender || !this.encodings) {
       return;
@@ -398,6 +408,45 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
       this.log,
       this.logContext,
     );
+  }
+
+  async prioritizePerformance() {
+    if (!this.sender) {
+      throw new Error('sender not found');
+    }
+
+    const unlock = await this.senderLock.lock();
+
+    try {
+      this.optimizeForPerformance = true;
+      const params = this.sender.getParameters();
+
+      params.encodings = params.encodings.map((e, idx) => ({
+        ...e,
+        active: idx === 0,
+        scaleResolutionDownBy: Math.max(
+          1,
+          Math.ceil((this.mediaStreamTrack.getSettings().height ?? 360) / 360),
+        ),
+        scalabilityMode: idx === 0 && isSVCCodec(this.codec) ? 'L1T3' : undefined,
+        maxFramerate: idx === 0 ? 15 : 0,
+        maxBitrate: idx === 0 ? e.maxBitrate : 0,
+      }));
+      this.log.debug('setting performance optimised encodings', {
+        ...this.logContext,
+        encodings: params.encodings,
+      });
+      this.encodings = params.encodings;
+      await this.sender.setParameters(params);
+    } catch (e) {
+      this.log.error('failed to set performance optimised encodings', {
+        ...this.logContext,
+        error: e,
+      });
+      this.optimizeForPerformance = false;
+    } finally {
+      unlock();
+    }
   }
 
   protected monitorSender = async () => {

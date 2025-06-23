@@ -168,10 +168,11 @@ const appActions = {
     appendLog(`prewarmed connection in ${prewarmTime}ms`);
     room.localParticipant.on(ParticipantEvent.LocalTrackCpuConstrained, (track, publication) => {
       console.log('track is cpu constrained, lowering capture resolution', track, publication);
-      track.restartTrack({
-        resolution: VideoPresets.h360.resolution,
-        frameRate: 15,
-      });
+      // track.restartTrack({
+      //   resolution: VideoPresets.h360.resolution,
+      //   frameRate: 15,
+      // });
+      track.prioritizePerformance();
     });
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
