@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.14.0
+
+### Minor Changes
+
+- Add ParticipantEvent.LocalTrackCpuConstrained - [#1553](https://github.com/livekit/client-sdk-js/pull/1553) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Ensure feature support checks include iOS checks - [#1563](https://github.com/livekit/client-sdk-js/pull/1563) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure encryption transforms are set up as soon as sender is created - [#1561](https://github.com/livekit/client-sdk-js/pull/1561) ([@lukasIO](https://github.com/lukasIO))
+
+- Wrap createAndSendOffer with mutex - [#1567](https://github.com/livekit/client-sdk-js/pull/1567) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.13.8
 
 ### Patch Changes
