@@ -166,7 +166,14 @@ const appActions = {
     await room.prepareConnection(url, token);
     const prewarmTime = Date.now() - startTime;
     appendLog(`prewarmed connection in ${prewarmTime}ms`);
-
+    room.localParticipant.on(ParticipantEvent.LocalTrackCpuConstrained, (track, publication) => {
+      console.log('track is cpu constrained, lowering capture resolution', track, publication);
+      // track.restartTrack({
+      //   resolution: VideoPresets.h360.resolution,
+      //   frameRate: 15,
+      // });
+      track.prioritizePerformance();
+    });
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
       .on(RoomEvent.ParticipantDisconnected, participantDisconnected)

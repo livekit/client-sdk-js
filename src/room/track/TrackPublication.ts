@@ -179,4 +179,5 @@ export type PublicationEventCallbacks = {
   subscriptionFailed: (error: SubscriptionError) => void;
   transcriptionReceived: (transcription: TranscriptionSegment[]) => void;
   timeSyncUpdate: (timestamp: number) => void;
+  cpuConstrained: (track: LocalVideoTrack) => void;
 };
