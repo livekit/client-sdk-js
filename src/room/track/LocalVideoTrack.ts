@@ -411,6 +411,7 @@ export default class LocalVideoTrack extends LocalTrack<Track.Kind.Video> {
   }
 
   /**
+   * Designed for lower powered devices, reduces video publishing quality and disables simulcast.
    * @experimental
    */
   async prioritizePerformance() {

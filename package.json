@@ -19,8 +19,7 @@
   },
   "files": [
     "dist",
-    "src",
-    "*"
+    "src"
   ],
   "types": "dist/src/index.d.ts",
   "typesVersions": {
@@ -52,8 +51,7 @@
     "ci:publish": "pnpm build && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2",
     "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js",
-    "size-limit": "size-limit",
-    "postinstall": "pnpm i && pnpm build"
+    "size-limit": "size-limit"
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
