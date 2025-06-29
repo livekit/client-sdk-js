@@ -114,7 +114,7 @@ const appActions = {
       },
       publishDefaults: {
         simulcast,
-        videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
+        videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
         videoCodec: preferredCodec || 'vp8',
         dtx: true,
         red: true,

@@ -86,6 +86,7 @@ export default class RemoteParticipant extends Participant {
       this.log.debug('send update settings', {
         ...this.logContext,
         ...getLogContextFromTrack(publication),
+        settings,
       });
       this.signalClient.sendUpdateTrackSettings(settings);
     });

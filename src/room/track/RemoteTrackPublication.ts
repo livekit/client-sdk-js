@@ -23,9 +23,11 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected disabled: boolean = false;
 
-  protected currentVideoQuality?: VideoQuality = VideoQuality.HIGH;
+  protected videoDimensionsAdaptiveStream?: Track.Dimensions;
 
-  protected videoDimensions?: Track.Dimensions;
+  protected requestedVideoDimensions?: Track.Dimensions;
+
+  protected requestedVideoQuality?: VideoQuality;
 
   protected fps?: number;
 
@@ -135,29 +137,36 @@ export default class RemoteTrackPublication extends TrackPublication {
    * optimize for uninterrupted video
    */
   setVideoQuality(quality: VideoQuality) {
-    if (!this.isManualOperationAllowed() || this.currentVideoQuality === quality) {
+    if (!this.isManualOperationAllowed() || this.requestedVideoQuality === quality) {
       return;
     }
-    this.currentVideoQuality = quality;
-    this.videoDimensions = undefined;
+    this.requestedVideoQuality = quality;
+    this.requestedVideoDimensions = undefined;
 
     this.emitTrackUpdate();
   }
 
+  /**
+   * Explicitly set the video dimensions for this track.
+   *
+   * This will take precedence over adaptive stream dimensions.
+   *
+   * @param dimensions The video dimensions to set.
+   */
   setVideoDimensions(dimensions: Track.Dimensions) {
     if (!this.isManualOperationAllowed()) {
       return;
     }
     if (
-      this.videoDimensions?.width === dimensions.width &&
-      this.videoDimensions?.height === dimensions.height
+      this.requestedVideoDimensions?.width === dimensions.width &&
+      this.requestedVideoDimensions?.height === dimensions.height
     ) {
       return;
     }
     if (isRemoteVideoTrack(this.track)) {
-      this.videoDimensions = dimensions;
+      this.requestedVideoDimensions = dimensions;
     }
-    this.currentVideoQuality = undefined;
+    this.requestedVideoQuality = undefined;
 
     this.emitTrackUpdate();
   }
@@ -180,7 +189,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   get videoQuality(): VideoQuality | undefined {
-    return this.currentVideoQuality;
+    return this.requestedVideoQuality ?? VideoQuality.HIGH;
   }
 
   /** @internal */
@@ -260,13 +269,6 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   private isManualOperationAllowed(): boolean {
-    if (this.kind === Track.Kind.Video && this.isAdaptiveStream) {
-      this.log.warn(
-        'adaptive stream is enabled, cannot change video track settings',
-        this.logContext,
-      );
-      return false;
-    }
     if (!this.isDesired) {
       this.log.warn('cannot update track settings when not subscribed', this.logContext);
       return false;
@@ -297,7 +299,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       `adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`,
       this.logContext,
     );
-    this.videoDimensions = dimensions;
+    this.videoDimensionsAdaptiveStream = dimensions;
     this.emitTrackUpdate();
   };
 
@@ -308,11 +310,16 @@ export default class RemoteTrackPublication extends TrackPublication {
       disabled: this.disabled,
       fps: this.fps,
     });
-    if (this.videoDimensions) {
-      settings.width = Math.ceil(this.videoDimensions.width);
-      settings.height = Math.ceil(this.videoDimensions.height);
-    } else if (this.currentVideoQuality !== undefined) {
-      settings.quality = this.currentVideoQuality;
+
+    // prefer explicit control if set
+    if (this.requestedVideoDimensions) {
+      settings.width = Math.ceil(this.requestedVideoDimensions.width);
+      settings.height = Math.ceil(this.requestedVideoDimensions.height);
+    } else if (this.requestedVideoQuality !== undefined) {
+      settings.quality = this.requestedVideoQuality;
+    } else if (this.videoDimensionsAdaptiveStream) {
+      settings.width = Math.ceil(this.videoDimensionsAdaptiveStream.width);
+      settings.height = Math.ceil(this.videoDimensionsAdaptiveStream.height);
     } else {
       // defaults to high quality
       settings.quality = VideoQuality.HIGH;
