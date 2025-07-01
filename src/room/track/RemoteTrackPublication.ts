@@ -21,7 +21,9 @@ export default class RemoteTrackPublication extends TrackPublication {
   // keeps track of client's desire to subscribe to a track, also true if autoSubscribe is active
   protected subscribed?: boolean;
 
-  protected disabled: boolean = false;
+  protected requestedDisabled: boolean | undefined = undefined;
+
+  protected visible: boolean = true;
 
   protected videoDimensionsAdaptiveStream?: Track.Dimensions;
 
@@ -107,7 +109,9 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   get isEnabled(): boolean {
-    return !this.disabled;
+    return this.requestedDisabled !== undefined
+      ? !this.requestedDisabled
+      : this.isAdaptiveStream && this.visible;
   }
 
   get isLocal() {
@@ -121,10 +125,10 @@ export default class RemoteTrackPublication extends TrackPublication {
    * @param enabled
    */
   setEnabled(enabled: boolean) {
-    if (!this.isManualOperationAllowed() || this.disabled === !enabled) {
+    if (!this.isManualOperationAllowed() || this.requestedDisabled === !enabled) {
       return;
     }
-    this.disabled = !enabled;
+    this.requestedDisabled = !enabled;
 
     this.emitTrackUpdate();
   }
@@ -290,7 +294,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       `adaptivestream video visibility ${this.trackSid}, visible=${visible}`,
       this.logContext,
     );
-    this.disabled = !visible;
+    this.visible = visible;
     this.emitTrackUpdate();
   };
 
@@ -307,7 +311,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   emitTrackUpdate() {
     const settings: UpdateTrackSettings = new UpdateTrackSettings({
       trackSids: [this.trackSid],
-      disabled: this.disabled,
+      disabled: !this.isEnabled,
       fps: this.fps,
     });
 
