@@ -315,45 +315,67 @@ export default class RemoteTrackPublication extends TrackPublication {
       fps: this.fps,
     });
 
-    let minDimensions = { ...this.requestedVideoDimensions };
+    if (this.kind === Track.Kind.Video) {
+      let minDimensions = { ...this.requestedVideoDimensions };
 
-    if (this.videoDimensionsAdaptiveStream) {
-      if (minDimensions.width && minDimensions.height) {
-        // check whether the adaptive stream dimensions are smaller than the requested dimensions and use smaller one
-        const smallerAdaptive =
-          this.videoDimensionsAdaptiveStream.width * this.videoDimensionsAdaptiveStream.height <
-          minDimensions.width * minDimensions.height;
-        if (smallerAdaptive) {
-          minDimensions = this.videoDimensionsAdaptiveStream;
-        }
-      } else if (this.requestedMaxQuality) {
-        // check whether adaptive stream dimensions are smaller than the max quality layer and use smaller one
-        if (this.trackInfo?.layers) {
-          for (const layer of this.trackInfo.layers) {
-            if (layer.quality === this.requestedMaxQuality) {
-              const smallerAdaptive =
-                this.videoDimensionsAdaptiveStream.width *
-                  this.videoDimensionsAdaptiveStream.height <
-                layer.width * layer.height;
-              if (smallerAdaptive) {
-                minDimensions = this.videoDimensionsAdaptiveStream;
+      if (this.videoDimensionsAdaptiveStream) {
+        if (minDimensions.width && minDimensions.height) {
+          // check whether the adaptive stream dimensions are smaller than the requested dimensions and use smaller one
+          const smallerAdaptive =
+            this.videoDimensionsAdaptiveStream.width * this.videoDimensionsAdaptiveStream.height <
+            minDimensions.width * minDimensions.height;
+          if (smallerAdaptive) {
+            this.log.debug('using adaptive stream dimensions instead of requested', {
+              ...this.logContext,
+              ...this.videoDimensionsAdaptiveStream,
+            });
+            minDimensions = this.videoDimensionsAdaptiveStream;
+          }
+        } else if (this.requestedMaxQuality !== undefined) {
+          // check whether adaptive stream dimensions are smaller than the max quality layer and use smaller one
+          if (this.trackInfo?.layers) {
+            for (const layer of this.trackInfo.layers) {
+              if (layer.quality === this.requestedMaxQuality) {
+                const smallerAdaptive =
+                  this.videoDimensionsAdaptiveStream.width *
+                    this.videoDimensionsAdaptiveStream.height <
+                  layer.width * layer.height;
+                if (smallerAdaptive) {
+                  this.log.debug('using adaptive stream dimensions instead of max quality layer', {
+                    ...this.logContext,
+                    ...this.videoDimensionsAdaptiveStream,
+                  });
+                  minDimensions = this.videoDimensionsAdaptiveStream;
+                }
               }
             }
           }
+        } else {
+          this.log.debug('using adaptive stream dimensions', {
+            ...this.logContext,
+            ...this.videoDimensionsAdaptiveStream,
+          });
+          minDimensions = this.videoDimensionsAdaptiveStream;
         }
-      } else {
-        minDimensions = this.videoDimensionsAdaptiveStream;
       }
-    }
 
-    if (minDimensions.width && minDimensions.height) {
-      settings.width = Math.ceil(minDimensions.width);
-      settings.height = Math.ceil(minDimensions.height);
-    } else if (this.requestedMaxQuality !== undefined) {
-      settings.quality = this.requestedMaxQuality;
-    } else {
-      // defaults to high quality
-      settings.quality = VideoQuality.HIGH;
+      if (minDimensions.width && minDimensions.height) {
+        settings.width = Math.ceil(minDimensions.width);
+        settings.height = Math.ceil(minDimensions.height);
+      } else if (this.requestedMaxQuality !== undefined) {
+        this.log.debug('using requested max quality', {
+          ...this.logContext,
+          quality: this.requestedMaxQuality,
+        });
+        settings.quality = this.requestedMaxQuality;
+      } else {
+        this.log.debug('using default quality', {
+          ...this.logContext,
+          quality: VideoQuality.HIGH,
+        });
+        // defaults to high quality
+        settings.quality = VideoQuality.HIGH;
+      }
     }
 
     this.emit(TrackEvent.UpdateSettings, settings);
