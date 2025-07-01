@@ -315,29 +315,32 @@ export default class RemoteTrackPublication extends TrackPublication {
 
     if (this.videoDimensionsAdaptiveStream) {
       if (minDimensions.width && minDimensions.height) {
+        // check whether the adaptive stream dimensions are smaller than the requested dimensions and use smaller one
         const smallerAdaptive =
           this.videoDimensionsAdaptiveStream.width * this.videoDimensionsAdaptiveStream.height <
           minDimensions.width * minDimensions.height;
         if (smallerAdaptive) {
           minDimensions = this.videoDimensionsAdaptiveStream;
         }
+      } else if (this.requestedMaxQuality) {
+        // check whether adaptive stream dimensions are smaller than the max quality layer and use smaller one
+        if (this.trackInfo?.layers) {
+          for (const layer of this.trackInfo.layers) {
+            if (layer.quality === this.requestedMaxQuality) {
+              const smallerAdaptive =
+                this.videoDimensionsAdaptiveStream.width *
+                  this.videoDimensionsAdaptiveStream.height <
+                layer.width * layer.height;
+              if (smallerAdaptive) {
+                minDimensions = this.videoDimensionsAdaptiveStream;
+              }
+            }
+          }
+        }
       } else {
         minDimensions = this.videoDimensionsAdaptiveStream;
       }
     }
-
-    this.trackInfo?.layers?.forEach((layer) => {
-      if (layer.quality === this.requestedMaxQuality) {
-        if (this.videoDimensionsAdaptiveStream) {
-          const smallerAdaptive =
-            this.videoDimensionsAdaptiveStream.width * this.videoDimensionsAdaptiveStream.height <
-            layer.width * layer.height;
-          if (smallerAdaptive) {
-            minDimensions = this.videoDimensionsAdaptiveStream;
-          }
-        }
-      }
-    });
 
     if (minDimensions.width && minDimensions.height) {
       settings.width = Math.ceil(minDimensions.width);
