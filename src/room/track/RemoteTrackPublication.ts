@@ -27,7 +27,7 @@ export default class RemoteTrackPublication extends TrackPublication {
 
   protected requestedVideoDimensions?: Track.Dimensions;
 
-  protected requestedVideoQuality?: VideoQuality;
+  protected requestedMaxQuality?: VideoQuality;
 
   protected fps?: number;
 
@@ -137,10 +137,10 @@ export default class RemoteTrackPublication extends TrackPublication {
    * optimize for uninterrupted video
    */
   setVideoQuality(quality: VideoQuality) {
-    if (!this.isManualOperationAllowed() || this.requestedVideoQuality === quality) {
+    if (!this.isManualOperationAllowed() || this.requestedMaxQuality === quality) {
       return;
     }
-    this.requestedVideoQuality = quality;
+    this.requestedMaxQuality = quality;
     this.requestedVideoDimensions = undefined;
 
     this.emitTrackUpdate();
@@ -166,7 +166,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     if (isRemoteVideoTrack(this.track)) {
       this.requestedVideoDimensions = dimensions;
     }
-    this.requestedVideoQuality = undefined;
+    this.requestedMaxQuality = undefined;
 
     this.emitTrackUpdate();
   }
@@ -189,7 +189,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   get videoQuality(): VideoQuality | undefined {
-    return this.requestedVideoQuality ?? VideoQuality.HIGH;
+    return this.requestedMaxQuality ?? VideoQuality.HIGH;
   }
 
   /** @internal */
@@ -311,15 +311,39 @@ export default class RemoteTrackPublication extends TrackPublication {
       fps: this.fps,
     });
 
-    // prefer explicit control if set
-    if (this.requestedVideoDimensions) {
-      settings.width = Math.ceil(this.requestedVideoDimensions.width);
-      settings.height = Math.ceil(this.requestedVideoDimensions.height);
-    } else if (this.requestedVideoQuality !== undefined) {
-      settings.quality = this.requestedVideoQuality;
-    } else if (this.videoDimensionsAdaptiveStream) {
-      settings.width = Math.ceil(this.videoDimensionsAdaptiveStream.width);
-      settings.height = Math.ceil(this.videoDimensionsAdaptiveStream.height);
+    let minDimensions = { ...this.requestedVideoDimensions };
+
+    if (this.videoDimensionsAdaptiveStream) {
+      if (minDimensions.width && minDimensions.height) {
+        const smallerAdaptive =
+          this.videoDimensionsAdaptiveStream.width * this.videoDimensionsAdaptiveStream.height <
+          minDimensions.width * minDimensions.height;
+        if (smallerAdaptive) {
+          minDimensions = this.videoDimensionsAdaptiveStream;
+        }
+      } else {
+        minDimensions = this.videoDimensionsAdaptiveStream;
+      }
+    }
+
+    this.trackInfo?.layers?.forEach((layer) => {
+      if (layer.quality === this.requestedMaxQuality) {
+        if (this.videoDimensionsAdaptiveStream) {
+          const smallerAdaptive =
+            this.videoDimensionsAdaptiveStream.width * this.videoDimensionsAdaptiveStream.height <
+            layer.width * layer.height;
+          if (smallerAdaptive) {
+            minDimensions = this.videoDimensionsAdaptiveStream;
+          }
+        }
+      }
+    });
+
+    if (minDimensions.width && minDimensions.height) {
+      settings.width = Math.ceil(minDimensions.width);
+      settings.height = Math.ceil(minDimensions.height);
+    } else if (this.requestedMaxQuality !== undefined) {
+      settings.quality = this.requestedMaxQuality;
     } else {
       // defaults to high quality
       settings.quality = VideoQuality.HIGH;
