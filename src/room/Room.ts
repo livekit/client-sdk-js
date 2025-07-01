@@ -1337,6 +1337,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.options.videoCaptureDefaults!.deviceId = prevDeviceId;
         throw e;
       }
+      const isMuted = tracks.some((t) => t.track?.isMuted ?? false);
+      if (success && isMuted) shouldTriggerImmediateDeviceChange = true;
     } else if (kind === 'audiooutput') {
       shouldTriggerImmediateDeviceChange = true;
       if (
