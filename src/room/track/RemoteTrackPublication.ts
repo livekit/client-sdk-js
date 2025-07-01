@@ -318,7 +318,7 @@ export default class RemoteTrackPublication extends TrackPublication {
     if (this.kind === Track.Kind.Video) {
       let minDimensions = { ...this.requestedVideoDimensions };
 
-      if (this.videoDimensionsAdaptiveStream) {
+      if (this.videoDimensionsAdaptiveStream !== undefined) {
         if (minDimensions.width && minDimensions.height) {
           // check whether the adaptive stream dimensions are smaller than the requested dimensions and use smaller one
           const smallerAdaptive =
@@ -359,7 +359,7 @@ export default class RemoteTrackPublication extends TrackPublication {
         }
       }
 
-      if (minDimensions.width && minDimensions.height) {
+      if (minDimensions.width !== undefined && minDimensions.height !== undefined) {
         settings.width = Math.ceil(minDimensions.width);
         settings.height = Math.ceil(minDimensions.height);
       } else if (this.requestedMaxQuality !== undefined) {
