@@ -112,7 +112,9 @@ export default class RemoteTrackPublication extends TrackPublication {
   get isEnabled(): boolean {
     return this.requestedDisabled !== undefined
       ? !this.requestedDisabled
-      : this.isAdaptiveStream && this.visible;
+      : this.isAdaptiveStream
+        ? this.visible
+        : true;
   }
 
   get isLocal() {
