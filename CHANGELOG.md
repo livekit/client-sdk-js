@@ -1,5 +1,17 @@
 # Change Log
 
+## 2.15.0
+
+### Minor Changes
+
+- allow manual controls even when adaptiveStream is enabled - [#1569](https://github.com/livekit/client-sdk-js/pull/1569) ([@davidzhao](https://github.com/davidzhao))
+
+- Add support for H265 - [#1576](https://github.com/livekit/client-sdk-js/pull/1576) ([@cnderrauber](https://github.com/cnderrauber))
+
+### Patch Changes
+
+- Update active device immediately for muted video tracks - [#1573](https://github.com/livekit/client-sdk-js/pull/1573) ([@yashjain-99](https://github.com/yashjain-99))
+
 ## 2.14.0
 
 ### Minor Changes
