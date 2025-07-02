@@ -38,7 +38,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
-import { isSVCCodec, sleep } from '../../src/room/utils';
+import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
 
@@ -1126,6 +1126,9 @@ function populateSupportedCodecs() {
   }
   if (supportsAV1()) {
     options.push(['av1', 'AV1']);
+  }
+  if (supportsH265()) {
+    options.push(['h265', 'H.265']);
   }
   for (const o of options) {
     const n = document.createElement('option');

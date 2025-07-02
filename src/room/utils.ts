@@ -118,6 +118,24 @@ export function supportsVP9(): boolean {
   return hasVP9;
 }
 
+export function supportsH265(): boolean {
+  if (!('getCapabilities' in RTCRtpSender)) {
+    return false;
+  }
+
+  const capabilities = RTCRtpSender.getCapabilities('video');
+  let hasH265 = false;
+  if (capabilities) {
+    for (const codec of capabilities.codecs) {
+      if (codec.mimeType === 'video/H265') {
+        hasH265 = true;
+        break;
+      }
+    }
+  }
+  return hasH265;
+}
+
 export function isSVCCodec(codec?: string): boolean {
   return codec === 'av1' || codec === 'vp9';
 }
