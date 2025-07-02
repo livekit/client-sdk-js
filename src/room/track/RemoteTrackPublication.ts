@@ -11,6 +11,7 @@ import { isRemoteVideoTrack } from '../utils';
 import type RemoteTrack from './RemoteTrack';
 import { Track, VideoQuality } from './Track';
 import { TrackPublication } from './TrackPublication';
+import { areDimensionsSmaller, layerDimensionsFor } from './utils';
 
 export default class RemoteTrackPublication extends TrackPublication {
   track?: RemoteTrack = undefined;
@@ -316,14 +317,15 @@ export default class RemoteTrackPublication extends TrackPublication {
     });
 
     if (this.kind === Track.Kind.Video) {
-      let minDimensions = { ...this.requestedVideoDimensions };
+      let minDimensions = this.requestedVideoDimensions;
 
       if (this.videoDimensionsAdaptiveStream !== undefined) {
-        if (minDimensions.width && minDimensions.height) {
+        if (minDimensions) {
           // check whether the adaptive stream dimensions are smaller than the requested dimensions and use smaller one
-          const smallerAdaptive =
-            this.videoDimensionsAdaptiveStream.width * this.videoDimensionsAdaptiveStream.height <
-            minDimensions.width * minDimensions.height;
+          const smallerAdaptive = areDimensionsSmaller(
+            this.videoDimensionsAdaptiveStream,
+            minDimensions,
+          );
           if (smallerAdaptive) {
             this.log.debug('using adaptive stream dimensions instead of requested', {
               ...this.logContext,
@@ -331,24 +333,19 @@ export default class RemoteTrackPublication extends TrackPublication {
             });
             minDimensions = this.videoDimensionsAdaptiveStream;
           }
-        } else if (this.requestedMaxQuality !== undefined) {
+        } else if (this.requestedMaxQuality !== undefined && this.trackInfo) {
           // check whether adaptive stream dimensions are smaller than the max quality layer and use smaller one
-          if (this.trackInfo?.layers) {
-            for (const layer of this.trackInfo.layers) {
-              if (layer.quality === this.requestedMaxQuality) {
-                const smallerAdaptive =
-                  this.videoDimensionsAdaptiveStream.width *
-                    this.videoDimensionsAdaptiveStream.height <
-                  layer.width * layer.height;
-                if (smallerAdaptive) {
-                  this.log.debug('using adaptive stream dimensions instead of max quality layer', {
-                    ...this.logContext,
-                    ...this.videoDimensionsAdaptiveStream,
-                  });
-                  minDimensions = this.videoDimensionsAdaptiveStream;
-                }
-              }
-            }
+          const maxQualityLayer = layerDimensionsFor(this.trackInfo, this.requestedMaxQuality);
+
+          if (
+            maxQualityLayer &&
+            areDimensionsSmaller(this.videoDimensionsAdaptiveStream, maxQualityLayer)
+          ) {
+            this.log.debug('using adaptive stream dimensions instead of max quality layer', {
+              ...this.logContext,
+              ...this.videoDimensionsAdaptiveStream,
+            });
+            minDimensions = this.videoDimensionsAdaptiveStream;
           }
         } else {
           this.log.debug('using adaptive stream dimensions', {
@@ -359,7 +356,7 @@ export default class RemoteTrackPublication extends TrackPublication {
         }
       }
 
-      if (minDimensions.width !== undefined && minDimensions.height !== undefined) {
+      if (minDimensions) {
         settings.width = Math.ceil(minDimensions.width);
         settings.height = Math.ceil(minDimensions.height);
       } else if (this.requestedMaxQuality !== undefined) {
