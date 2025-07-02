@@ -93,7 +93,7 @@
     "eslint-plugin-ecmascript-compat": "^3.2.1",
     "eslint-plugin-import": "2.32.0",
     "gh-pages": "6.3.0",
-    "happy-dom": "^17.2.0",
+    "happy-dom": "^18.0.0",
     "jsdom": "^26.1.0",
     "prettier": "^3.4.2",
     "rollup": "4.44.1",
