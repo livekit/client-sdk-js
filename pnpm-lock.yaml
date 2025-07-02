@@ -12,8 +12,8 @@ importers:
         specifier: 1.1.1
         version: 1.1.1
       '@livekit/protocol':
-        specifier: 1.39.2
-        version: 1.39.2
+        specifier: 1.39.3
+        version: 1.39.3
       '@types/dom-mediacapture-record':
         specifier: ^1
         version: 1.0.22
@@ -1019,8 +1019,8 @@ packages:
   '@livekit/mutex@1.1.1':
     resolution: {integrity: sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==}
 
-  '@livekit/protocol@1.39.2':
-    resolution: {integrity: sha512-kYbIO/JlC6cylSxd4WJrBps9+zoZ9gifL7t3iW9whT8rbo5jHx03I4dwBLhzOonVyX+memSEO90m/ymNoT+aAw==}
+  '@livekit/protocol@1.39.3':
+    resolution: {integrity: sha512-hfOnbwPCeZBEvMRdRhU2sr46mjGXavQcrb3BFRfG+Gm0Z7WUSeFdy5WLstXJzEepz17Iwp/lkGwJ4ZgOOYfPuA==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -3180,8 +3180,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.9.0-dev.20250616:
-    resolution: {integrity: sha512-TdYn1diKBbeAZIOI2A23QYCVrMdwj4AhDPE9kdenLxqVFVfFB+CADDXUi+4f91RQie1QEw6RcmmL32FXu7jE+Q==}
+  typescript@5.9.0-dev.20250630:
+    resolution: {integrity: sha512-Bjy0Jf/Zzzo+ho6+uRZt3CbhgOCpcvQLJehfDt4jQyaFnTETWeqNefGCy6q/YKyo0u4elifDhfK6xm+cbHCQwA==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4489,7 +4489,7 @@ snapshots:
 
   '@livekit/mutex@1.1.1': {}
 
-  '@livekit/protocol@1.39.2':
+  '@livekit/protocol@1.39.3':
     dependencies:
       '@bufbuild/protobuf': 1.10.1
 
@@ -5289,7 +5289,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.9.0-dev.20250616
+      typescript: 5.9.0-dev.20250630
 
   electron-to-chromium@1.5.4: {}
 
@@ -6785,7 +6785,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@5.9.0-dev.20250616: {}
+  typescript@5.9.0-dev.20250630: {}
 
   uc.micro@2.1.0: {}
 
