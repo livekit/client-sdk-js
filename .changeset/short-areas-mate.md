@@ -1,5 +1,5 @@
 ---
-'livekit-client': patch
+'livekit-client': minor
 ---
 
-Support H265
+Add support for H265
