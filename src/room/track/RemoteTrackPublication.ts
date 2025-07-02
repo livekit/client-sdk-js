@@ -11,6 +11,7 @@ import { isRemoteVideoTrack } from '../utils';
 import type RemoteTrack from './RemoteTrack';
 import { Track, VideoQuality } from './Track';
 import { TrackPublication } from './TrackPublication';
+import { areDimensionsSmaller, layerDimensionsFor } from './utils';
 
 export default class RemoteTrackPublication extends TrackPublication {
   track?: RemoteTrack = undefined;
@@ -21,11 +22,15 @@ export default class RemoteTrackPublication extends TrackPublication {
   // keeps track of client's desire to subscribe to a track, also true if autoSubscribe is active
   protected subscribed?: boolean;
 
-  protected disabled: boolean = false;
+  protected requestedDisabled: boolean | undefined = undefined;
 
-  protected currentVideoQuality?: VideoQuality = VideoQuality.HIGH;
+  protected visible: boolean = true;
 
-  protected videoDimensions?: Track.Dimensions;
+  protected videoDimensionsAdaptiveStream?: Track.Dimensions;
+
+  protected requestedVideoDimensions?: Track.Dimensions;
+
+  protected requestedMaxQuality?: VideoQuality;
 
   protected fps?: number;
 
@@ -105,7 +110,9 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   get isEnabled(): boolean {
-    return !this.disabled;
+    return this.requestedDisabled !== undefined
+      ? !this.requestedDisabled
+      : this.isAdaptiveStream && this.visible;
   }
 
   get isLocal() {
@@ -119,10 +126,10 @@ export default class RemoteTrackPublication extends TrackPublication {
    * @param enabled
    */
   setEnabled(enabled: boolean) {
-    if (!this.isManualOperationAllowed() || this.disabled === !enabled) {
+    if (!this.isManualOperationAllowed() || this.requestedDisabled === !enabled) {
       return;
     }
-    this.disabled = !enabled;
+    this.requestedDisabled = !enabled;
 
     this.emitTrackUpdate();
   }
@@ -135,29 +142,36 @@ export default class RemoteTrackPublication extends TrackPublication {
    * optimize for uninterrupted video
    */
   setVideoQuality(quality: VideoQuality) {
-    if (!this.isManualOperationAllowed() || this.currentVideoQuality === quality) {
+    if (!this.isManualOperationAllowed() || this.requestedMaxQuality === quality) {
       return;
     }
-    this.currentVideoQuality = quality;
-    this.videoDimensions = undefined;
+    this.requestedMaxQuality = quality;
+    this.requestedVideoDimensions = undefined;
 
     this.emitTrackUpdate();
   }
 
+  /**
+   * Explicitly set the video dimensions for this track.
+   *
+   * This will take precedence over adaptive stream dimensions.
+   *
+   * @param dimensions The video dimensions to set.
+   */
   setVideoDimensions(dimensions: Track.Dimensions) {
     if (!this.isManualOperationAllowed()) {
       return;
     }
     if (
-      this.videoDimensions?.width === dimensions.width &&
-      this.videoDimensions?.height === dimensions.height
+      this.requestedVideoDimensions?.width === dimensions.width &&
+      this.requestedVideoDimensions?.height === dimensions.height
     ) {
       return;
     }
     if (isRemoteVideoTrack(this.track)) {
-      this.videoDimensions = dimensions;
+      this.requestedVideoDimensions = dimensions;
     }
-    this.currentVideoQuality = undefined;
+    this.requestedMaxQuality = undefined;
 
     this.emitTrackUpdate();
   }
@@ -180,7 +194,7 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   get videoQuality(): VideoQuality | undefined {
-    return this.currentVideoQuality;
+    return this.requestedMaxQuality ?? VideoQuality.HIGH;
   }
 
   /** @internal */
@@ -260,13 +274,6 @@ export default class RemoteTrackPublication extends TrackPublication {
   }
 
   private isManualOperationAllowed(): boolean {
-    if (this.kind === Track.Kind.Video && this.isAdaptiveStream) {
-      this.log.warn(
-        'adaptive stream is enabled, cannot change video track settings',
-        this.logContext,
-      );
-      return false;
-    }
     if (!this.isDesired) {
       this.log.warn('cannot update track settings when not subscribed', this.logContext);
       return false;
@@ -288,7 +295,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       `adaptivestream video visibility ${this.trackSid}, visible=${visible}`,
       this.logContext,
     );
-    this.disabled = !visible;
+    this.visible = visible;
     this.emitTrackUpdate();
   };
 
@@ -297,7 +304,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       `adaptivestream video dimensions ${dimensions.width}x${dimensions.height}`,
       this.logContext,
     );
-    this.videoDimensions = dimensions;
+    this.videoDimensionsAdaptiveStream = dimensions;
     this.emitTrackUpdate();
   };
 
@@ -305,17 +312,67 @@ export default class RemoteTrackPublication extends TrackPublication {
   emitTrackUpdate() {
     const settings: UpdateTrackSettings = new UpdateTrackSettings({
       trackSids: [this.trackSid],
-      disabled: this.disabled,
+      disabled: !this.isEnabled,
       fps: this.fps,
     });
-    if (this.videoDimensions) {
-      settings.width = Math.ceil(this.videoDimensions.width);
-      settings.height = Math.ceil(this.videoDimensions.height);
-    } else if (this.currentVideoQuality !== undefined) {
-      settings.quality = this.currentVideoQuality;
-    } else {
-      // defaults to high quality
-      settings.quality = VideoQuality.HIGH;
+
+    if (this.kind === Track.Kind.Video) {
+      let minDimensions = this.requestedVideoDimensions;
+
+      if (this.videoDimensionsAdaptiveStream !== undefined) {
+        if (minDimensions) {
+          // check whether the adaptive stream dimensions are smaller than the requested dimensions and use smaller one
+          const smallerAdaptive = areDimensionsSmaller(
+            this.videoDimensionsAdaptiveStream,
+            minDimensions,
+          );
+          if (smallerAdaptive) {
+            this.log.debug('using adaptive stream dimensions instead of requested', {
+              ...this.logContext,
+              ...this.videoDimensionsAdaptiveStream,
+            });
+            minDimensions = this.videoDimensionsAdaptiveStream;
+          }
+        } else if (this.requestedMaxQuality !== undefined && this.trackInfo) {
+          // check whether adaptive stream dimensions are smaller than the max quality layer and use smaller one
+          const maxQualityLayer = layerDimensionsFor(this.trackInfo, this.requestedMaxQuality);
+
+          if (
+            maxQualityLayer &&
+            areDimensionsSmaller(this.videoDimensionsAdaptiveStream, maxQualityLayer)
+          ) {
+            this.log.debug('using adaptive stream dimensions instead of max quality layer', {
+              ...this.logContext,
+              ...this.videoDimensionsAdaptiveStream,
+            });
+            minDimensions = this.videoDimensionsAdaptiveStream;
+          }
+        } else {
+          this.log.debug('using adaptive stream dimensions', {
+            ...this.logContext,
+            ...this.videoDimensionsAdaptiveStream,
+          });
+          minDimensions = this.videoDimensionsAdaptiveStream;
+        }
+      }
+
+      if (minDimensions) {
+        settings.width = Math.ceil(minDimensions.width);
+        settings.height = Math.ceil(minDimensions.height);
+      } else if (this.requestedMaxQuality !== undefined) {
+        this.log.debug('using requested max quality', {
+          ...this.logContext,
+          quality: this.requestedMaxQuality,
+        });
+        settings.quality = this.requestedMaxQuality;
+      } else {
+        this.log.debug('using default quality', {
+          ...this.logContext,
+          quality: VideoQuality.HIGH,
+        });
+        // defaults to high quality
+        settings.quality = VideoQuality.HIGH;
+      }
     }
 
     this.emit(TrackEvent.UpdateSettings, settings);
