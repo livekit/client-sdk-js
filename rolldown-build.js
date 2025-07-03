@@ -11,12 +11,7 @@ export function kebabCaseToPascalCase(string = '') {
   );
 }
 
-const inputPlugins = [
-  del({ targets: 'dist/*' }),
-  dts({
-    tsconfig: 'tsconfig.json',
-  }),
-];
+const inputPlugins = [del({ targets: 'dist/*' })];
 
 const clientBundle = await rolldown({
   input: 'src/index.ts',
@@ -28,41 +23,73 @@ const workerBundle = await rolldown({
   plugins: inputPlugins,
 });
 
+const clientDts = await rolldown({
+  input: 'src/index.ts',
+  plugins: [
+    dts({
+      tsconfig: 'tsconfig.json',
+      emitDtsOnly: true,
+    }),
+  ],
+});
+
+const workerDts = await rolldown({
+  input: 'src/e2ee/worker/e2ee.worker.ts',
+  plugins: [
+    dts({
+      tsconfig: 'tsconfig.json',
+      emitDtsOnly: true,
+    }),
+  ],
+});
+
 await Promise.all([
   clientBundle.write({
-    dir: 'dist',
-    entryFileNames: (chunkInfo) => {
-      if (chunkInfo.name === 'index') {
-        return `${packageJson.name}.esm.mjs`;
-      }
-      return `${packageJson.name}.${chunkInfo.name}.mjs`;
-    },
-    format: 'esm',
+    file: `dist/${packageJson.name}.esm.mjs`,
+    format: 'es',
     sourcemap: true,
   }),
-  // clientBundle.write({
-  //   dir: 'dist',
-  //   format: 'umd',
-  //   sourcemap: true,
-  //   name: kebabCaseToPascalCase(packageJson.name),
-  //   plugins: [minify()],
-  // }),
+  clientDts.write({
+    dir: 'dist',
+    entryFileNames: (chunkInfo) => {
+      return `${chunkInfo.name}.mjs`;
+    },
+  }),
+  clientBundle.write({
+    file: `dist/${packageJson.name}.umd.js`,
+    format: 'umd',
+    sourcemap: true,
+    name: kebabCaseToPascalCase(packageJson.name),
+    plugins: [minify()],
+  }),
+  clientDts.write({
+    dir: 'dist',
+    entryFileNames: (chunkInfo) => {
+      return `${chunkInfo.name}.js`;
+    },
+  }),
   workerBundle.write({
-    dir: 'dist',
-    entryFileNames: (chunkInfo) => {
-      if (chunkInfo.name === 'e2ee.worker') {
-        return `${packageJson.name}.e2ee.worker.mjs`;
-      }
-      return chunkInfo.name;
-    },
+    file: `dist/${packageJson.name}.e2ee.worker.esm.mjs`,
     format: 'esm',
     sourcemap: true,
   }),
-  // workerBundle.write({
-  //   dir: 'dist',
-  //   format: 'umd',
-  //   sourcemap: true,
-  //   name: kebabCaseToPascalCase(packageJson.name) + '.e2ee.worker',
-  //   plugins: [minify()],
-  // }),
+  workerDts.write({
+    dir: 'dist',
+    entryFileNames: (chunkInfo) => {
+      return `${chunkInfo.name}.mjs`;
+    },
+  }),
+  workerBundle.write({
+    file: `dist/${packageJson.name}.e2ee.worker.umd.js`,
+    format: 'umd',
+    sourcemap: true,
+    name: kebabCaseToPascalCase(packageJson.name) + '.e2ee.worker',
+    plugins: [minify()],
+  }),
+  workerDts.write({
+    dir: 'dist',
+    entryFileNames: (chunkInfo) => {
+      return `${chunkInfo.name}.js`;
+    },
+  }),
 ]);
