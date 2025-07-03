@@ -260,8 +260,6 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.Disconnected, this.handleDisconnected)
       .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket);
-
-    this.signalConnectedFuture = undefined;
   }
 
   private handleReconnecting = () => {
