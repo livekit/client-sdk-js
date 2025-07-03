@@ -28,7 +28,9 @@ const clientDts = await rolldown({
   plugins: [
     dts({
       tsconfig: 'tsconfig.json',
+      parallel: true,
       emitDtsOnly: true,
+      // tsgo: true,
     }),
   ],
 });
@@ -39,6 +41,7 @@ const workerDts = await rolldown({
     dts({
       tsconfig: 'tsconfig.json',
       emitDtsOnly: true,
+      tsgo: true,
     }),
   ],
 });
