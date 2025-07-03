@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.15.2
+
+### Patch Changes
+
+- fix: don't reset signal connect future on setup - [#1587](https://github.com/livekit/client-sdk-js/pull/1587) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.1
 
 ### Patch Changes
