@@ -6,7 +6,7 @@ import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isSVCCodec } from './utils';
+import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -316,7 +316,7 @@ export default class PCTransport extends EventEmitter {
               return true;
             }
 
-            if (isSVCCodec(trackbr.codec)) {
+            if (isSVCCodec(trackbr.codec) && !isSafari()) {
               this.ensureVideoDDExtensionForSVC(media, sdpParsed);
             }
 
