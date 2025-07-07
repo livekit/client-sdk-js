@@ -324,13 +324,11 @@ export class SignalClient {
                 const msg = await resp.text();
                 reject(new ConnectionError(msg, ConnectionErrorReason.NotAllowed, resp.status));
               } else {
-                reject(
-                  new ConnectionError(
-                    `Encountered unknown websocket error during connection: ${ev.toString()}`,
-                    ConnectionErrorReason.InternalError,
-                    resp.status,
-                  ),
-                );
+                // we don't want to reject here as the `close` event will be triggered and might have a more specific error
+                this.log.error(`Encountered unknown websocket error during connection`, {
+                  ...this.logContext,
+                  error: ev,
+                });
               }
             } catch (e) {
               reject(
@@ -431,7 +429,7 @@ export class SignalClient {
           if (this.isEstablishingConnection) {
             reject(
               new ConnectionError(
-                'Websocket got closed during a (re)connection attempt',
+                `Websocket got closed during a (re)connection attempt. Reason: ${ev.reason}, Code: ${ev.code}, Was clean: ${ev.wasClean}`,
                 ConnectionErrorReason.InternalError,
               ),
             );
