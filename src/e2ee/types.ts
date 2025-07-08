@@ -109,6 +109,42 @@ export interface InitAck extends BaseMessage {
   };
 }
 
+export interface DecryptDataRequestMessage extends BaseMessage {
+  kind: 'decryptDataRequest';
+  data: {
+    uuid: string;
+    payload: Uint8Array;
+    iv: Uint8Array;
+    participantIdentity: string;
+  };
+}
+
+export interface DecryptDataResponseMessage extends BaseMessage {
+  kind: 'decryptDataResponse';
+  data: {
+    uuid: string;
+    payload: Uint8Array;
+  };
+}
+
+export interface EncryptDataRequestMessage extends BaseMessage {
+  kind: 'encryptDataRequest';
+  data: {
+    uuid: string;
+    payload: Uint8Array;
+    participantIdentity: string;
+  };
+}
+
+export interface EncryptDataResponseMessage extends BaseMessage {
+  kind: 'encryptDataResponse';
+  data: {
+    uuid: string;
+    payload: Uint8Array;
+    iv: Uint8Array;
+  };
+}
+
 export type E2EEWorkerMessage =
   | InitMessage
   | SetKeyMessage
@@ -121,7 +157,11 @@ export type E2EEWorkerMessage =
   | RatchetRequestMessage
   | RatchetMessage
   | SifTrailerMessage
-  | InitAck;
+  | InitAck
+  | DecryptDataRequestMessage
+  | DecryptDataResponseMessage
+  | EncryptDataRequestMessage
+  | EncryptDataResponseMessage;
 
 export type KeySet = { material: CryptoKey; encryptionKey: CryptoKey };
 

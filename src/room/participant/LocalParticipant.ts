@@ -31,6 +31,7 @@ import {
   protoInt64,
 } from '@livekit/protocol';
 import { SignalConnectionState } from '../../api/SignalClient';
+import { type BaseE2EEManager } from '../../e2ee/E2eeManager';
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
@@ -124,6 +125,9 @@ export default class LocalParticipant extends Participant {
 
   /** @internal */
   engine: RTCEngine;
+
+  /** @internal */
+  e2eeManager: BaseE2EEManager | undefined;
 
   /** @internal */
   activeDeviceMap: Map<MediaDeviceKind, string>;
@@ -1644,16 +1648,25 @@ export default class LocalParticipant extends Participant {
     const destinationIdentities = options.destinationIdentities;
     const topic = options.topic;
 
+    let userPacket = new UserPacket({
+      participantIdentity: this.identity,
+      payload: data,
+      destinationIdentities,
+      topic,
+    });
+
+    if (this.e2eeManager && this.e2eeManager.isEnabled) {
+      const encryptedData = await this.e2eeManager.encryptData(data);
+      userPacket.payload = encryptedData.payload;
+      userPacket.iv = encryptedData.iv;
+      userPacket.encryptionType = Encryption_Type.GCM;
+    }
+
     const packet = new DataPacket({
       kind: kind,
       value: {
         case: 'user',
-        value: new UserPacket({
-          participantIdentity: this.identity,
-          payload: data,
-          destinationIdentities,
-          topic,
-        }),
+        value: userPacket,
       },
     });
 

@@ -14,6 +14,7 @@ import type {
   RatchetResult,
   ScriptTransformOptions,
 } from '../types';
+import { DataCryptor } from './DataCryptor';
 import { FrameCryptor, encryptionEnabledMap } from './FrameCryptor';
 import { ParticipantKeyHandler } from './ParticipantKeyHandler';
 
@@ -81,6 +82,44 @@ onmessage = (ev) => {
           data.codec,
         );
         break;
+
+      case 'encryptDataRequest':
+        const { payload: encryptedPayload, iv } = await DataCryptor.encrypt(
+          data.payload,
+          getParticipantKeyHandler(data.participantIdentity),
+        );
+        console.log('encrypted payload', {
+          original: data.payload,
+          encrypted: encryptedPayload,
+          iv,
+        });
+        postMessage({
+          kind: 'encryptDataResponse',
+          data: {
+            payload: encryptedPayload,
+            iv,
+            uuid: data.uuid,
+          },
+        });
+        break;
+
+      case 'decryptDataRequest':
+        const { payload: decryptedPayload } = await DataCryptor.decrypt(
+          data.payload,
+          data.iv,
+          getParticipantKeyHandler(data.participantIdentity),
+        );
+        console.log('decrypted payload', {
+          original: data.payload,
+          decrypted: decryptedPayload,
+          iv: data.iv,
+        });
+        postMessage({
+          kind: 'decryptDataResponse',
+          data: { payload: decryptedPayload, uuid: data.uuid },
+        });
+        break;
+
       case 'setKey':
         if (useSharedKey) {
           await setSharedKey(data.key, data.keyIndex);
