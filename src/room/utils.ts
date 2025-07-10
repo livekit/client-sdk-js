@@ -529,13 +529,13 @@ export function unwrapConstraint(constraint: ConstrainDOMString | ConstrainULong
   if (Array.isArray(constraint)) {
     return constraint[0];
   }
-  if (constraint.exact) {
+  if (constraint.exact !== undefined) {
     if (Array.isArray(constraint.exact)) {
       return constraint.exact[0];
     }
     return constraint.exact;
   }
-  if (constraint.ideal) {
+  if (constraint.ideal !== undefined) {
     if (Array.isArray(constraint.ideal)) {
       return constraint.ideal[0];
     }
