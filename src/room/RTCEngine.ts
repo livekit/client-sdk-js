@@ -1218,11 +1218,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
-    if (kind === DataPacket_Kind.RELIABLE) {
-      packet.sequence = this.reliableDataSequence;
-      this.reliableDataSequence += 1;
-    }
-
     if (this.e2eeManager && this.e2eeManager.isEnabled) {
       const encryptablePacket = asEncryptablePacket(packet);
       if (encryptablePacket) {
@@ -1236,6 +1231,11 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           }),
         };
       }
+    }
+
+    if (kind === DataPacket_Kind.RELIABLE) {
+      packet.sequence = this.reliableDataSequence;
+      this.reliableDataSequence += 1;
     }
 
     const msg = packet.toBinary();
