@@ -116,6 +116,7 @@ export interface DecryptDataRequestMessage extends BaseMessage {
     payload: Uint8Array;
     iv: Uint8Array;
     participantIdentity: string;
+    keyIndex: number;
   };
 }
 
@@ -142,6 +143,7 @@ export interface EncryptDataResponseMessage extends BaseMessage {
     uuid: string;
     payload: Uint8Array;
     iv: Uint8Array;
+    keyIndex: number;
   };
 }
 

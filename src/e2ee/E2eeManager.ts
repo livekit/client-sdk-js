@@ -47,6 +47,7 @@ export interface BaseE2EEManager {
     payload: Uint8Array,
     iv: Uint8Array,
     participantIdentity: string,
+    keyIndex: number,
   ): Promise<DecryptDataResponseMessage['data'] | EncryptDataResponseMessage['data']>;
   on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
 }
@@ -287,7 +288,12 @@ export class E2EEManager
     return future!.promise!;
   }
 
-  handleEncryptedData(payload: Uint8Array, iv: Uint8Array, participantIdentity: string) {
+  handleEncryptedData(
+    payload: Uint8Array,
+    iv: Uint8Array,
+    participantIdentity: string,
+    keyIndex: number,
+  ) {
     if (!this.worker) {
       throw Error('could not handle encrypted data, worker is missing');
     }
@@ -299,6 +305,7 @@ export class E2EEManager
         payload,
         iv,
         participantIdentity,
+        keyIndex,
       },
     };
     const future = new Future<DecryptDataResponseMessage['data']>();

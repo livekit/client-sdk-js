@@ -5,7 +5,9 @@ import { KEY_PROVIDER_DEFAULTS } from '../constants';
 import { CryptorErrorReason } from '../errors';
 import { CryptorEvent, KeyHandlerEvent } from '../events';
 import type {
+  DecryptDataResponseMessage,
   E2EEWorkerMessage,
+  EncryptDataResponseMessage,
   ErrorMessage,
   InitAck,
   KeyProviderOptions,
@@ -84,7 +86,11 @@ onmessage = (ev) => {
         break;
 
       case 'encryptDataRequest':
-        const { payload: encryptedPayload, iv } = await DataCryptor.encrypt(
+        const {
+          payload: encryptedPayload,
+          iv,
+          keyIndex,
+        } = await DataCryptor.encrypt(
           data.payload,
           getParticipantKeyHandler(data.participantIdentity),
         );
@@ -98,9 +104,10 @@ onmessage = (ev) => {
           data: {
             payload: encryptedPayload,
             iv,
+            keyIndex,
             uuid: data.uuid,
           },
-        });
+        } satisfies EncryptDataResponseMessage);
         break;
 
       case 'decryptDataRequest':
@@ -108,6 +115,7 @@ onmessage = (ev) => {
           data.payload,
           data.iv,
           getParticipantKeyHandler(data.participantIdentity),
+          data.keyIndex,
         );
         console.log('decrypted payload', {
           original: data.payload,
@@ -117,7 +125,7 @@ onmessage = (ev) => {
         postMessage({
           kind: 'decryptDataResponse',
           data: { payload: decryptedPayload, uuid: data.uuid },
-        });
+        } satisfies DecryptDataResponseMessage);
         break;
 
       case 'setKey':

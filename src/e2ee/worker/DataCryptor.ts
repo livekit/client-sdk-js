@@ -22,6 +22,7 @@ export class DataCryptor {
   ): Promise<{
     payload: Uint8Array;
     iv: Uint8Array;
+    keyIndex: number;
   }> {
     const iv = DataCryptor.makeIV(performance.now());
     const keySet = await keys.getKeySet();
@@ -41,6 +42,7 @@ export class DataCryptor {
     return {
       payload: new Uint8Array(cipherText),
       iv: new Uint8Array(iv),
+      keyIndex: keys.getCurrentKeyIndex(),
     };
   }
 
@@ -48,10 +50,11 @@ export class DataCryptor {
     data: Uint8Array,
     iv: Uint8Array,
     keys: ParticipantKeyHandler,
+    keyIndex?: number,
   ): Promise<{
     payload: Uint8Array;
   }> {
-    const keySet = await keys.getKeySet();
+    const keySet = await keys.getKeySet(keyIndex);
     if (!keySet) {
       throw new Error('No key set found');
     }

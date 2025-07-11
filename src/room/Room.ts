@@ -8,7 +8,6 @@ import {
   DataStream_Header,
   DataStream_Trailer,
   DisconnectReason,
-  Encryption_Type,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
@@ -253,7 +252,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.setupE2EE();
     }
 
-    this.localParticipant.e2eeManager = this.e2eeManager;
+    this.engine.e2eeManager = this.e2eeManager;
 
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
@@ -521,6 +520,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.engine = new RTCEngine(this.options);
+    this.engine.e2eeManager = this.e2eeManager;
 
     this.engine
       .on(EngineEvent.ParticipantUpdate, this.handleParticipantUpdates)
@@ -1921,25 +1921,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     userPacket: UserPacket,
     kind: DataPacket_Kind,
   ) => {
-    let payload = userPacket.payload;
-    try {
-      if (userPacket.encryptionType !== Encryption_Type.NONE && participant && this.e2eeManager) {
-        this.log.warn('received encrypted user packet', {
-          ...this.logContext,
-          participantIdentity: participant?.identity,
-          kind,
-        });
-        const decryptedData = await this.e2eeManager.handleEncryptedData(
-          userPacket.payload,
-          userPacket.iv,
-          participant?.identity,
-        );
-        payload = decryptedData.payload;
-      }
-    } catch (e) {
-      this.log.error('error decrypting user packet', { ...this.logContext, error: e });
-    }
-    this.emit(RoomEvent.DataReceived, payload, participant, kind, userPacket.topic);
+    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
 
     // also emit on the participant
     participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
