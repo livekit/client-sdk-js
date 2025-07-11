@@ -248,6 +248,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.rpcHandlers,
     );
 
+    if (this.options.e2ee) {
+      this.setupE2EE();
+    }
+
+    this.engine.e2eeManager = this.e2eeManager;
+
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
         'videoinput',
@@ -265,10 +271,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         'audiooutput',
         unwrapConstraint(this.options.audioOutput.deviceId),
       ).catch((e) => this.log.warn(`Could not set audio output: ${e.message}`, this.logContext));
-    }
-
-    if (this.options.e2ee) {
-      this.setupE2EE();
     }
 
     if (isWeb()) {
@@ -518,6 +520,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.engine = new RTCEngine(this.options);
+    this.engine.e2eeManager = this.e2eeManager;
 
     this.engine
       .on(EngineEvent.ParticipantUpdate, this.handleParticipantUpdates)
@@ -1913,7 +1916,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private handleUserPacket = (
+  private handleUserPacket = async (
     participant: RemoteParticipant | undefined,
     userPacket: UserPacket,
     kind: DataPacket_Kind,
