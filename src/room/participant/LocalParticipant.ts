@@ -1330,8 +1330,7 @@ export default class LocalParticipant extends Participant {
             }, 10_000);
             const agent = await this.waitUntilActiveAgentPresent();
             clearTimeout(agentActiveTimeout);
-            this.log.debug('sending preconnect buffer', mimeType,
-              {
+            this.log.debug('sending preconnect buffer', {
               ...this.logContext,
               ...getLogContextFromTrack(track),
             });
