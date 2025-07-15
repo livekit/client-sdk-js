@@ -554,10 +554,14 @@ export default class LocalParticipant extends Participant {
         }
 
         for (const localTrack of localTracks) {
+          const opts: TrackPublishOptions = {
+            ...this.roomOptions.publishDefaults,
+            ...options,
+          };
           if (
             source === Track.Source.Microphone &&
             isAudioTrack(localTrack) &&
-            publishOptions?.preConnectBuffer
+            opts.preConnectBuffer
           ) {
             this.log.info('starting preconnect buffer for microphone', {
               ...this.logContext,
@@ -1298,6 +1302,7 @@ export default class LocalParticipant extends Participant {
       ti.audioFeatures.includes(AudioTrackFeature.TF_PRECONNECT_BUFFER)
     ) {
       const stream = track.getPreConnectBuffer();
+      const mimeType = track.getPreConnectBufferMimeType();
       // TODO: we're registering the listener after negotiation, so there might be a race
       this.on(ParticipantEvent.LocalTrackSubscribed, (pub) => {
         if (pub.trackSid === ti.sid) {
@@ -1325,13 +1330,14 @@ export default class LocalParticipant extends Participant {
             }, 10_000);
             const agent = await this.waitUntilActiveAgentPresent();
             clearTimeout(agentActiveTimeout);
-            this.log.debug('sending preconnect buffer', {
+            this.log.debug('sending preconnect buffer', mimeType,
+              {
               ...this.logContext,
               ...getLogContextFromTrack(track),
             });
             const writer = await this.streamBytes({
               name: 'preconnect-buffer',
-              mimeType: 'audio/opus',
+              mimeType,
               topic: 'lk.agent.pre-connect-audio-buffer',
               destinationIdentities: [agent.identity],
               attributes: {
