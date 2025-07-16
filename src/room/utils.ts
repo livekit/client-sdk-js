@@ -418,6 +418,12 @@ export class Future<T> {
 
   onFinally?: () => void;
 
+  get isResolved(): boolean {
+    return this._isResolved;
+  }
+
+  private _isResolved: boolean = false;
+
   constructor(
     futureBase?: (resolve: (arg: T) => void, reject: (e: any) => void) => void,
     onFinally?: () => void,
@@ -429,7 +435,10 @@ export class Future<T> {
       if (futureBase) {
         await futureBase(resolve, reject);
       }
-    }).finally(() => this.onFinally?.());
+    }).finally(() => {
+      this._isResolved = true;
+      this.onFinally?.();
+    });
   }
 }
 
