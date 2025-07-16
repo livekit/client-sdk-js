@@ -248,6 +248,10 @@ export default class LocalParticipant extends Participant {
       }
     });
 
+    if (this.signalConnectedFuture?.isResolved) {
+      this.signalConnectedFuture = undefined;
+    }
+
     this.engine
       .on(EngineEvent.Connected, this.handleReconnected)
       .on(EngineEvent.SignalConnected, this.handleSignalConnected)
