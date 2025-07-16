@@ -1,5 +1,13 @@
 # Change Log
 
+## 2.15.3
+
+### Patch Changes
+
+- fix: retry processor playback on abort error - [#1592](https://github.com/livekit/client-sdk-js/pull/1592) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: correct handling of signal connect future - [#1600](https://github.com/livekit/client-sdk-js/pull/1600) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.2
 
 ### Patch Changes
