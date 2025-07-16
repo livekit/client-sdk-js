@@ -669,6 +669,11 @@ export class SignalClient {
     if (this.signalLatency) {
       await sleep(this.signalLatency);
     }
+    if (this.isDisconnected) {
+      // Skip requests if the signal layer is disconnected
+      // This can happen if an event is sent in the mist of room.connect() initializing
+      return;
+    }
     if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
       this.log.error(
         `cannot send signal request before connected, type: ${message?.case}`,
