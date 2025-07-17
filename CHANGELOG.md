@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.15.4
+
+### Patch Changes
+
+- skip errant signal layer leave message when already disconnected - [#1601](https://github.com/livekit/client-sdk-js/pull/1601) ([@1egoman](https://github.com/1egoman))
+
 ## 2.15.3
 
 ### Patch Changes
