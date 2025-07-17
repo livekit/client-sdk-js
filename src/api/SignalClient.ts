@@ -672,6 +672,7 @@ export class SignalClient {
     if (this.isDisconnected) {
       // Skip requests if the signal layer is disconnected
       // This can happen if an event is sent in the mist of room.connect() initializing
+      this.log.debug(`skipping signal request (type: ${message.case}) - SignalClient disconnected`);
       return;
     }
     if (!this.ws || this.ws.readyState !== this.ws.OPEN) {
