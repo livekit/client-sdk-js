@@ -1,7 +1,7 @@
 import { AudioTrackFeature, TrackInfo } from '@livekit/protocol';
 import { TrackEvent } from '../events';
 import type { LoggerOptions } from '../types';
-import { isAudioTrack } from '../utils';
+import { isAudioTrack, isVideoTrack } from '../utils';
 import LocalAudioTrack from './LocalAudioTrack';
 import type LocalTrack from './LocalTrack';
 import type LocalVideoTrack from './LocalVideoTrack';
@@ -28,12 +28,14 @@ export default class LocalTrackPublication extends TrackPublication {
   setTrack(track?: Track) {
     if (this.track) {
       this.track.off(TrackEvent.Ended, this.handleTrackEnded);
+      this.track.off(TrackEvent.CpuConstrained, this.handleCpuConstrained);
     }
 
     super.setTrack(track);
 
     if (track) {
       track.on(TrackEvent.Ended, this.handleTrackEnded);
+      track.on(TrackEvent.CpuConstrained, this.handleCpuConstrained);
     }
   }
 
@@ -115,5 +117,11 @@ export default class LocalTrackPublication extends TrackPublication {
 
   handleTrackEnded = () => {
     this.emit(TrackEvent.Ended);
+  };
+
+  private handleCpuConstrained = () => {
+    if (this.track && isVideoTrack(this.track)) {
+      this.emit(TrackEvent.CpuConstrained, this.track);
+    }
   };
 }

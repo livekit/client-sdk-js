@@ -1,4 +1,4 @@
-import { TrackPublishedResponse, TrackSource } from '@livekit/protocol';
+import { TrackInfo, TrackPublishedResponse, TrackSource, VideoQuality } from '@livekit/protocol';
 import type { AudioProcessorOptions, TrackProcessor, VideoProcessorOptions } from '../..';
 import { cloneDeep } from '../../utils/cloneDeep';
 import { isSafari, sleep } from '../utils';
@@ -328,4 +328,15 @@ export function getTrackSourceFromProto(source: TrackSource): Track.Source {
     default:
       return Track.Source.Unknown;
   }
+}
+
+export function areDimensionsSmaller(a: Track.Dimensions, b: Track.Dimensions): boolean {
+  return a.width * a.height < b.width * b.height;
+}
+
+export function layerDimensionsFor(
+  trackInfo: TrackInfo,
+  quality: VideoQuality,
+): Track.Dimensions | undefined {
+  return trackInfo.layers?.find((l) => l.quality === quality);
 }

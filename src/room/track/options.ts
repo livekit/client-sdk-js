@@ -174,6 +174,11 @@ export interface VideoCaptureOptions {
   deviceId?: ConstrainDOMString;
 
   /**
+   * A ConstrainDouble specifying the frame rate or range of frame rates which are acceptable and/or required.
+   */
+  frameRate?: ConstrainDouble;
+
+  /**
    * a facing or an array of facings which are acceptable and/or required.
    */
   facingMode?: 'user' | 'environment' | 'left' | 'right';
@@ -387,7 +392,7 @@ export interface AudioPreset {
 
 const backupCodecs = ['vp8', 'h264'] as const;
 
-export const videoCodecs = ['vp8', 'h264', 'vp9', 'av1'] as const;
+export const videoCodecs = ['vp8', 'h264', 'vp9', 'av1', 'h265'] as const;
 
 export type VideoCodec = (typeof videoCodecs)[number];
 

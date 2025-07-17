@@ -248,6 +248,10 @@ export default class LocalParticipant extends Participant {
       }
     });
 
+    if (this.signalConnectedFuture?.isResolved) {
+      this.signalConnectedFuture = undefined;
+    }
+
     this.engine
       .on(EngineEvent.Connected, this.handleReconnected)
       .on(EngineEvent.SignalConnected, this.handleSignalConnected)
@@ -260,8 +264,6 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.Disconnected, this.handleDisconnected)
       .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket);
-
-    this.signalConnectedFuture = undefined;
   }
 
   private handleReconnecting = () => {
@@ -1272,6 +1274,9 @@ export default class LocalParticipant extends Participant {
       loggerName: this.roomOptions.loggerName,
       loggerContextCb: () => this.logContext,
     });
+    publication.on(TrackEvent.CpuConstrained, (constrainedTrack) =>
+      this.onTrackCpuConstrained(constrainedTrack, publication),
+    );
     // save options for when it needs to be republished again
     publication.options = opts;
     track.sid = ti.sid;
@@ -2328,6 +2333,14 @@ export default class LocalParticipant extends Participant {
       return;
     }
     this.engine.client.sendUpdateLocalAudioTrack(pub.trackSid, pub.getTrackFeatures());
+  };
+
+  private onTrackCpuConstrained = (track: LocalVideoTrack, publication: LocalTrackPublication) => {
+    this.log.debug('track cpu constrained', {
+      ...this.logContext,
+      ...getLogContextFromTrack(publication),
+    });
+    this.emit(ParticipantEvent.LocalTrackCpuConstrained, track, publication);
   };
 
   private handleSubscribedQualityUpdate = async (update: SubscribedQualityUpdate) => {

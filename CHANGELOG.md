@@ -1,5 +1,51 @@
 # Change Log
 
+## 2.15.3
+
+### Patch Changes
+
+- fix: retry processor playback on abort error - [#1592](https://github.com/livekit/client-sdk-js/pull/1592) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: correct handling of signal connect future - [#1600](https://github.com/livekit/client-sdk-js/pull/1600) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.15.2
+
+### Patch Changes
+
+- fix: don't reset signal connect future on setup - [#1587](https://github.com/livekit/client-sdk-js/pull/1587) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.15.1
+
+### Patch Changes
+
+- fix: ensure offerId is only increased when offers are actually generated - [#1585](https://github.com/livekit/client-sdk-js/pull/1585) ([@lukasIO](https://github.com/lukasIO))
+
+## 2.15.0
+
+### Minor Changes
+
+- allow manual controls even when adaptiveStream is enabled - [#1569](https://github.com/livekit/client-sdk-js/pull/1569) ([@davidzhao](https://github.com/davidzhao))
+
+- Add support for H265 - [#1576](https://github.com/livekit/client-sdk-js/pull/1576) ([@cnderrauber](https://github.com/cnderrauber))
+
+### Patch Changes
+
+- Update active device immediately for muted video tracks - [#1573](https://github.com/livekit/client-sdk-js/pull/1573) ([@yashjain-99](https://github.com/yashjain-99))
+
+## 2.14.0
+
+### Minor Changes
+
+- Add ParticipantEvent.LocalTrackCpuConstrained - [#1553](https://github.com/livekit/client-sdk-js/pull/1553) ([@lukasIO](https://github.com/lukasIO))
+
+### Patch Changes
+
+- Ensure feature support checks include iOS checks - [#1563](https://github.com/livekit/client-sdk-js/pull/1563) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure encryption transforms are set up as soon as sender is created - [#1561](https://github.com/livekit/client-sdk-js/pull/1561) ([@lukasIO](https://github.com/lukasIO))
+
+- Wrap createAndSendOffer with mutex - [#1567](https://github.com/livekit/client-sdk-js/pull/1567) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.13.8
 
 ### Patch Changes

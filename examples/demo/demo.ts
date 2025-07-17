@@ -38,7 +38,7 @@ import {
   supportsAV1,
   supportsVP9,
 } from '../../src/index';
-import { isSVCCodec, sleep } from '../../src/room/utils';
+import { isSVCCodec, sleep, supportsH265 } from '../../src/room/utils';
 
 setLogLevel(LogLevel.debug);
 
@@ -114,7 +114,7 @@ const appActions = {
       },
       publishDefaults: {
         simulcast,
-        videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h216],
+        videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
         videoCodec: preferredCodec || 'vp8',
         dtx: true,
         red: true,
@@ -166,7 +166,14 @@ const appActions = {
     await room.prepareConnection(url, token);
     const prewarmTime = Date.now() - startTime;
     appendLog(`prewarmed connection in ${prewarmTime}ms`);
-
+    room.localParticipant.on(ParticipantEvent.LocalTrackCpuConstrained, (track, publication) => {
+      console.log('track is cpu constrained, lowering capture resolution', track, publication);
+      // track.restartTrack({
+      //   resolution: VideoPresets.h360.resolution,
+      //   frameRate: 15,
+      // });
+      track.prioritizePerformance();
+    });
     room
       .on(RoomEvent.ParticipantConnected, participantConnected)
       .on(RoomEvent.ParticipantDisconnected, participantDisconnected)
@@ -1119,6 +1126,9 @@ function populateSupportedCodecs() {
   }
   if (supportsAV1()) {
     options.push(['av1', 'AV1']);
+  }
+  if (supportsH265()) {
+    options.push(['h265', 'H.265']);
   }
   for (const o of options) {
     const n = document.createElement('option');

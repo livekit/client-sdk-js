@@ -1,6 +1,6 @@
 {
   "name": "livekit-client",
-  "version": "2.13.8",
+  "version": "2.15.3",
   "description": "JavaScript/TypeScript client SDK for LiveKit",
   "main": "./dist/livekit-client.umd.js",
   "unpkg": "./dist/livekit-client.umd.js",
@@ -55,7 +55,7 @@
   },
   "dependencies": {
     "@livekit/mutex": "1.1.1",
-    "@livekit/protocol": "1.39.2",
+    "@livekit/protocol": "1.39.3",
     "events": "^3.3.0",
     "loglevel": "^1.9.2",
     "sdp-transform": "^2.15.0",
@@ -68,13 +68,13 @@
     "@types/dom-mediacapture-record": "^1"
   },
   "devDependencies": {
-    "@babel/core": "7.27.4",
-    "@babel/preset-env": "7.27.2",
+    "@babel/core": "7.28.0",
+    "@babel/preset-env": "7.28.0",
     "@bufbuild/protoc-gen-es": "^1.10.0",
-    "@changesets/cli": "2.29.4",
+    "@changesets/cli": "2.29.5",
     "@livekit/changesets-changelog-github": "^0.0.4",
     "@rollup/plugin-babel": "6.0.4",
-    "@rollup/plugin-commonjs": "28.0.5",
+    "@rollup/plugin-commonjs": "28.0.6",
     "@rollup/plugin-json": "6.1.0",
     "@rollup/plugin-node-resolve": "16.0.1",
     "@rollup/plugin-terser": "^0.4.4",
@@ -91,20 +91,20 @@
     "eslint-config-airbnb-typescript": "18.0.0",
     "eslint-config-prettier": "10.1.5",
     "eslint-plugin-ecmascript-compat": "^3.2.1",
-    "eslint-plugin-import": "2.31.0",
+    "eslint-plugin-import": "2.32.0",
     "gh-pages": "6.3.0",
     "happy-dom": "^17.2.0",
     "jsdom": "^26.1.0",
     "prettier": "^3.4.2",
-    "rollup": "4.43.0",
+    "rollup": "4.44.1",
     "rollup-plugin-delete": "^2.1.0",
     "rollup-plugin-typescript2": "0.36.0",
     "size-limit": "^11.2.0",
-    "typedoc": "0.28.5",
+    "typedoc": "0.28.7",
     "typedoc-plugin-no-inherit": "1.6.1",
     "typescript": "5.8.3",
-    "vite": "6.3.5",
-    "vitest": "^3.2.4"
+    "vite": "7.0.0",
+    "vitest": "^3.0.0"
   },
-  "packageManager": "pnpm@9.15.9"
+  "packageManager": "pnpm@10.12.4"
 }

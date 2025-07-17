@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import { EventEmitter } from 'events';
 import type { MediaDescription, SessionDescription } from 'sdp-transform';
 import { parse, write } from 'sdp-transform';
@@ -5,7 +6,7 @@ import { debounce } from 'ts-debounce';
 import log, { LoggerNames, getLogger } from '../logger';
 import { NegotiationError, UnexpectedConnectionState } from './errors';
 import type { LoggerOptions } from './types';
-import { ddExtensionURI, isSVCCodec } from './utils';
+import { ddExtensionURI, isSVCCodec, isSafari } from './utils';
 
 /** @internal */
 interface TrackBitrateInfo {
@@ -52,6 +53,8 @@ export default class PCTransport extends EventEmitter {
 
   private latestOfferId: number = 0;
 
+  private offerLock: Mutex;
+
   pendingCandidates: RTCIceCandidateInit[] = [];
 
   restartingIce: boolean = false;
@@ -86,6 +89,7 @@ export default class PCTransport extends EventEmitter {
     this.loggerOptions = loggerOptions;
     this.config = config;
     this._pc = this.createPC();
+    this.offerLock = new Mutex();
   }
 
   private createPC() {
@@ -251,101 +255,107 @@ export default class PCTransport extends EventEmitter {
   }, debounceInterval);
 
   async createAndSendOffer(options?: RTCOfferOptions) {
-    // increase the offer id at the start to ensure the offer is always > 0 so that we can use 0 as a default value for legacy behavior
-    const offerId = this.latestOfferId + 1;
-    this.latestOfferId = offerId;
-    if (this.onOffer === undefined) {
-      return;
-    }
+    const unlock = await this.offerLock.lock();
 
-    if (options?.iceRestart) {
-      this.log.debug('restarting ICE', this.logContext);
-      this.restartingIce = true;
-    }
-
-    if (this._pc && this._pc.signalingState === 'have-local-offer') {
-      // we're waiting for the peer to accept our offer, so we'll just wait
-      // the only exception to this is when ICE restart is needed
-      const currentSD = this._pc.remoteDescription;
-      if (options?.iceRestart && currentSD) {
-        // TODO: handle when ICE restart is needed but we don't have a remote description
-        // the best thing to do is to recreate the peerconnection
-        await this._pc.setRemoteDescription(currentSD);
-      } else {
-        this.renegotiate = true;
+    try {
+      if (this.onOffer === undefined) {
         return;
       }
-    } else if (!this._pc || this._pc.signalingState === 'closed') {
-      this.log.warn('could not createOffer with closed peer connection', this.logContext);
-      return;
-    }
 
-    // actually negotiate
-    this.log.debug('starting to negotiate', this.logContext);
-    const offer = await this.pc.createOffer(options);
-    this.log.debug('original offer', { sdp: offer.sdp, ...this.logContext });
+      if (options?.iceRestart) {
+        this.log.debug('restarting ICE', this.logContext);
+        this.restartingIce = true;
+      }
 
-    const sdpParsed = parse(offer.sdp ?? '');
-    sdpParsed.media.forEach((media) => {
-      ensureIPAddrMatchVersion(media);
-      if (media.type === 'audio') {
-        ensureAudioNackAndStereo(media, [], []);
-      } else if (media.type === 'video') {
-        this.trackBitrates.some((trackbr): boolean => {
-          if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
-            return false;
-          }
+      if (this._pc && this._pc.signalingState === 'have-local-offer') {
+        // we're waiting for the peer to accept our offer, so we'll just wait
+        // the only exception to this is when ICE restart is needed
+        const currentSD = this._pc.remoteDescription;
+        if (options?.iceRestart && currentSD) {
+          // TODO: handle when ICE restart is needed but we don't have a remote description
+          // the best thing to do is to recreate the peerconnection
+          await this._pc.setRemoteDescription(currentSD);
+        } else {
+          this.renegotiate = true;
+          return;
+        }
+      } else if (!this._pc || this._pc.signalingState === 'closed') {
+        this.log.warn('could not createOffer with closed peer connection', this.logContext);
+        return;
+      }
 
-          let codecPayload = 0;
-          media.rtp.some((rtp): boolean => {
-            if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
-              codecPayload = rtp.payload;
+      // actually negotiate
+      this.log.debug('starting to negotiate', this.logContext);
+      // increase the offer id at the start to ensure the offer is always > 0 so that we can use 0 as a default value for legacy behavior
+      const offerId = this.latestOfferId + 1;
+      this.latestOfferId = offerId;
+      const offer = await this.pc.createOffer(options);
+      this.log.debug('original offer', { sdp: offer.sdp, ...this.logContext });
+
+      const sdpParsed = parse(offer.sdp ?? '');
+      sdpParsed.media.forEach((media) => {
+        ensureIPAddrMatchVersion(media);
+        if (media.type === 'audio') {
+          ensureAudioNackAndStereo(media, [], []);
+        } else if (media.type === 'video') {
+          this.trackBitrates.some((trackbr): boolean => {
+            if (!media.msid || !trackbr.cid || !media.msid.includes(trackbr.cid)) {
+              return false;
+            }
+
+            let codecPayload = 0;
+            media.rtp.some((rtp): boolean => {
+              if (rtp.codec.toUpperCase() === trackbr.codec.toUpperCase()) {
+                codecPayload = rtp.payload;
+                return true;
+              }
+              return false;
+            });
+
+            if (codecPayload === 0) {
               return true;
             }
-            return false;
-          });
 
-          if (codecPayload === 0) {
-            return true;
-          }
-
-          if (isSVCCodec(trackbr.codec)) {
-            this.ensureVideoDDExtensionForSVC(media, sdpParsed);
-          }
-
-          // TODO: av1 slow starting issue already fixed in chrome 124, clean this after some versions
-          // mung sdp for av1 bitrate setting that can't apply by sendEncoding
-          if (trackbr.codec !== 'av1') {
-            return true;
-          }
-
-          const startBitrate = Math.round(trackbr.maxbr * startBitrateForSVC);
-
-          for (const fmtp of media.fmtp) {
-            if (fmtp.payload === codecPayload) {
-              // if another track's fmtp already is set, we cannot override the bitrate
-              // this has the unfortunate consequence of being forced to use the
-              // initial track's bitrate for all tracks
-              if (!fmtp.config.includes('x-google-start-bitrate')) {
-                fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
-              }
-              break;
+            if (isSVCCodec(trackbr.codec) && !isSafari()) {
+              this.ensureVideoDDExtensionForSVC(media, sdpParsed);
             }
-          }
-          return true;
-        });
-      }
-    });
-    if (this.latestOfferId > offerId) {
-      this.log.warn('latestOfferId mismatch', {
-        ...this.logContext,
-        latestOfferId: this.latestOfferId,
-        offerId,
+
+            // TODO: av1 slow starting issue already fixed in chrome 124, clean this after some versions
+            // mung sdp for av1 bitrate setting that can't apply by sendEncoding
+            if (trackbr.codec !== 'av1') {
+              return true;
+            }
+
+            const startBitrate = Math.round(trackbr.maxbr * startBitrateForSVC);
+
+            for (const fmtp of media.fmtp) {
+              if (fmtp.payload === codecPayload) {
+                // if another track's fmtp already is set, we cannot override the bitrate
+                // this has the unfortunate consequence of being forced to use the
+                // initial track's bitrate for all tracks
+                if (!fmtp.config.includes('x-google-start-bitrate')) {
+                  fmtp.config += `;x-google-start-bitrate=${startBitrate}`;
+                }
+                break;
+              }
+            }
+            return true;
+          });
+        }
       });
-      return;
+      if (this.latestOfferId > offerId) {
+        this.log.warn('latestOfferId mismatch', {
+          ...this.logContext,
+          latestOfferId: this.latestOfferId,
+          offerId,
+        });
+        return;
+      }
+      await this.setMungedSDP(offer, write(sdpParsed));
+      this.onOffer(offer, this.latestOfferId);
+    } finally {
+      unlock();
     }
-    await this.setMungedSDP(offer, write(sdpParsed));
-    this.onOffer(offer, this.latestOfferId);
   }
 
   async createAndSetAnswer(): Promise<RTCSessionDescriptionInit> {

@@ -430,6 +430,16 @@ export enum ParticipantEvent {
   LocalTrackUnpublished = 'localTrackUnpublished',
 
   /**
+   * A local track has been constrained by cpu.
+   * This event is useful to know when to reduce the capture resolution of the track.
+   *
+   * This event is emitted on the local participant.
+   *
+   * args: ([[LocalVideoTrack]], [[LocalTrackPublication]])
+   */
+  LocalTrackCpuConstrained = 'localTrackCpuConstrained',
+
+  /**
    * @internal
    */
   LocalSenderCreated = 'localSenderCreated',
@@ -520,6 +530,11 @@ export enum ParticipantEvent {
    */
   TrackSubscriptionStatusChanged = 'trackSubscriptionStatusChanged',
 
+  /**
+   * a local track has been constrained by cpu
+   */
+  TrackCpuConstrained = 'trackCpuConstrained',
+
   // fired only on LocalParticipant
   /** @internal */
   MediaDevicesError = 'mediaDevicesError',
@@ -604,6 +619,7 @@ export enum TrackEvent {
   Ended = 'ended',
   Subscribed = 'subscribed',
   Unsubscribed = 'unsubscribed',
+  CpuConstrained = 'cpuConstrained',
   /** @internal */
   UpdateSettings = 'updateSettings',
   /** @internal */
