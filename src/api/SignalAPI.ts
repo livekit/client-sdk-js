@@ -1,7 +1,7 @@
 import { Mutex } from '@livekit/mutex';
-import { JoinResponse, SessionDescription, SignalRequest, SignalResponse } from '@livekit/protocol';
+import { ConnectionSettings, ConnectRequest, ConnectResponse, SessionDescription, SignalRequest, SignalResponse } from '@livekit/protocol';
 import type { ITransport } from './SignalTransport';
-import { Future } from '../room/utils';
+import { Future, getClientInfo } from '../room/utils';
 
 
 export class SignalAPI {
@@ -19,18 +19,24 @@ export class SignalAPI {
   }
 
   @atomic
-  async join(url: string, token: string): Promise<JoinResponse> {
-    const { readableStream, writableStream, joinResponse } = await this.transport.connect({ url, token });
+  async join(url: string, token: string): Promise<ConnectResponse> {
+   const connectRequest =  new ConnectRequest({
+      clientInfo: getClientInfo(),
+      connectionSettings: new ConnectionSettings({
+        adaptiveStream: true,
+        autoSubscribe: true,
+      })
+    });
+    const { readableStream, writableStream, connectResponse } = await this.transport.connect({ url, token, connectRequest });
     this.readLoop(readableStream);
     this.writer = writableStream.getWriter();
-    return joinResponse;
+    return connectResponse;
   }
 
   async readLoop(readableStream: ReadableStream<SignalResponse>) {
     const reader = readableStream.getReader();
     while (true) {
       try { 
-         
       
         const { done, value } = await reader.read();
         if(!value) {

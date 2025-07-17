@@ -1,20 +1,30 @@
-import type { JoinResponse, ReconnectResponse } from '@livekit/protocol';
-import { SignalRequest, SignalResponse } from '@livekit/protocol';
+import {
+  ConnectRequest,
+  ConnectResponse,
+  Signalv2ClientEnvelope,
+  Signalv2ClientMessage,
+  Signalv2ServerMessage,
+} from '@livekit/protocol';
 
 export interface ITransportOptions {
   url: string;
   token: string;
+  connectRequest: ConnectRequest;
 }
 
+type ValidServerMessage = Exclude<
+  NonNullable<Signalv2ServerMessage['message']>,
+  { case: 'fragment' } | { case: 'envelope' } | { case: undefined }
+>;
+
 export interface ITransportConnection {
-  joinResponse: JoinResponse;
-  readableStream: ReadableStream<SignalResponse>;
-  writableStream: WritableStream<SignalRequest>;
+  connectResponse: ConnectResponse;
+  readableStream: ReadableStream<Signalv2ServerMessage>;
+  writableStream: WritableStream<Signalv2ClientMessage>;
 }
 
 export interface ITransport {
   connect(options: ITransportOptions): Promise<ITransportConnection>;
-  reconnect(options: ITransportOptions): Promise<ReconnectResponse>;
   close(): Promise<void>;
 }
 
@@ -34,29 +44,43 @@ export class HybridSignalTransport implements ITransport {
     this.abortController = new AbortController();
   }
 
-  async connect({ url, token }: ITransportOptions): Promise<ITransportConnection> {
+  async connect({ url, token, connectRequest }: ITransportOptions): Promise<ITransportConnection> {
     const dc = this.pc.createDataChannel('signal', {
       ordered: true,
       maxRetransmits: 0,
     });
     this.dc = dc;
 
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
-
     const joinRequest = await fetch(`${url}/join`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      body: connectRequest.toBinary(),
+      signal: this.abortController.signal,
     });
 
-    const joinResponse = await joinRequest.json();
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
 
-    const readableStream = new ReadableStream({
+    const connectResponse = ConnectResponse.fromBinary(
+      new Uint8Array(await joinRequest.arrayBuffer()),
+    );
+
+    const readableStream = new ReadableStream<Signalv2ServerMessage>({
       start: (controller) => {
         dc.addEventListener('message', (event: MessageEvent<Uint8Array>) => {
-          controller.enqueue(SignalResponse.fromBinary(new Uint8Array(event.data)));
+          const serverMessage = Signalv2ServerMessage.fromBinary(new Uint8Array(event.data));
+          switch (serverMessage.message.case) {
+            case 'envelope':
+              controller.enqueue(serverMessage.message.value);
+              break;
+            case 'connectResponse':
+              controller.enqueue(serverMessage.message.value);
+              break;
+            default:
+              throw new Error(`Unknown server message type: ${serverMessage.message.case}`);
+          }
         });
 
         dc.addEventListener('error', (event: Event) => {
@@ -70,7 +94,7 @@ export class HybridSignalTransport implements ITransport {
     });
 
     const writableStream = new WritableStream({
-      async write(request: SignalRequest) {
+      async write(request: Signalv2ClientMessage) {
         if (dc.readyState === 'closing' || dc.readyState === 'closed') {
           throw new Error('Signalling channel is closed');
         }
@@ -81,8 +105,11 @@ export class HybridSignalTransport implements ITransport {
             dc.addEventListener('error', reject);
           });
         }
+        const envelope = new Signalv2ClientEnvelope({
+          clientMessages: [request],
+        });
         // TODO chunking
-        dc.send(request.toBinary());
+        dc.send(envelope.toBinary());
       },
       close: () => {
         dc.close();
@@ -94,25 +121,10 @@ export class HybridSignalTransport implements ITransport {
     });
 
     return {
-      joinResponse,
+      connectResponse,
       readableStream,
       writableStream,
     };
-  }
-
-  async reconnect(options: ITransportOptions): Promise<ReconnectResponse> {
-    const reconnectRequest = await fetch(`${options.url}/reconnect`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${options.token}`,
-      },
-    });
-
-    const reconnectResponse = await reconnectRequest.json();
-    // TODO is this enough? ideally we could just continue to use the existing streams from the connect method
-    this.pc.restartIce();
-
-    return reconnectResponse;
   }
 
   async close(): Promise<void> {
