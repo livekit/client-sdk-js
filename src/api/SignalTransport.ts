@@ -8,6 +8,8 @@ import {
   Signalv2WireMessage,
 } from '@livekit/protocol';
 
+const MAX_WIRE_MESSAGE_SIZE = 16_000;
+
 export interface ITransportOptions {
   url: string;
   token: string;
@@ -17,7 +19,7 @@ export interface ITransportOptions {
 export interface ITransportConnection {
   connectResponse: ConnectResponse;
   readableStream: ReadableStream<Signalv2ServerMessage>;
-  writableStream: WritableStream<Signalv2ClientMessage>;
+  writableStream: WritableStream<Array<Signalv2ClientMessage>>;
 }
 
 export interface ITransport {
@@ -111,7 +113,7 @@ export class HybridSignalTransport implements ITransport {
     });
 
     const writableStream = new WritableStream({
-      async write(request: Signalv2ClientMessage) {
+      async write(requests: Array<Signalv2ClientMessage>) {
         if (dc.readyState === 'closing' || dc.readyState === 'closed') {
           throw new Error('Signalling channel is closed');
         }
@@ -122,11 +124,48 @@ export class HybridSignalTransport implements ITransport {
             dc.addEventListener('error', reject);
           });
         }
-        const envelope = new Signalv2ClientEnvelope({
-          clientMessages: [request],
+        const envelope = new Envelope({
+          clientMessages: requests,
         });
-        // TODO chunking
-        dc.send(envelope.toBinary());
+        const binaryEnvelope = envelope.toBinary();
+        const envelopeSize = binaryEnvelope.byteLength;
+        if (envelopeSize > MAX_WIRE_MESSAGE_SIZE) {
+          console.info(`Sending fragmented envelope of ${envelopeSize} bytes`);
+          const numFragments = Math.ceil(envelopeSize / MAX_WIRE_MESSAGE_SIZE);
+          const fragments = [];
+
+          for (let i = 0; i < numFragments; i++) {
+            fragments.push(
+              new Fragment({
+                packetId: 0,
+                fragmentNumber: i,
+                data: binaryEnvelope.slice(
+                  i * MAX_WIRE_MESSAGE_SIZE,
+                  (i + 1) * MAX_WIRE_MESSAGE_SIZE,
+                ),
+                totalSize: envelopeSize,
+                numFragments,
+              }),
+            );
+          }
+          for (const fragment of fragments) {
+            const wireMessage = new Signalv2WireMessage({
+              message: {
+                case: 'fragment',
+                value: fragment,
+              },
+            });
+            dc.send(wireMessage.toBinary());
+          }
+        } else {
+          const wireMessage = new Signalv2WireMessage({
+            message: {
+              case: 'envelope',
+              value: envelope,
+            },
+          });
+          dc.send(wireMessage.toBinary());
+        }
       },
       close: () => {
         dc.close();
