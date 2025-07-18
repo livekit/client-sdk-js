@@ -1,9 +1,11 @@
 import {
   ConnectRequest,
   ConnectResponse,
-  Signalv2ClientEnvelope,
+  Envelope,
+  Fragment,
   Signalv2ClientMessage,
   Signalv2ServerMessage,
+  Signalv2WireMessage,
 } from '@livekit/protocol';
 
 export interface ITransportOptions {
@@ -11,11 +13,6 @@ export interface ITransportOptions {
   token: string;
   connectRequest: ConnectRequest;
 }
-
-type ValidServerMessage = Exclude<
-  NonNullable<Signalv2ServerMessage['message']>,
-  { case: 'fragment' } | { case: 'envelope' } | { case: undefined }
->;
 
 export interface ITransportConnection {
   connectResponse: ConnectResponse;
@@ -38,6 +35,8 @@ export class HybridSignalTransport implements ITransport {
   private dc?: RTCDataChannel;
 
   abortController: AbortController;
+
+  private fragmentBuffer: Map<number, Array<Fragment | null>> = new Map();
 
   constructor(peerConnection: RTCPeerConnection) {
     this.pc = peerConnection;
@@ -70,16 +69,34 @@ export class HybridSignalTransport implements ITransport {
     const readableStream = new ReadableStream<Signalv2ServerMessage>({
       start: (controller) => {
         dc.addEventListener('message', (event: MessageEvent<Uint8Array>) => {
-          const serverMessage = Signalv2ServerMessage.fromBinary(new Uint8Array(event.data));
-          switch (serverMessage.message.case) {
-            case 'envelope':
-              controller.enqueue(serverMessage.message.value);
-              break;
-            case 'connectResponse':
-              controller.enqueue(serverMessage.message.value);
-              break;
-            default:
-              throw new Error(`Unknown server message type: ${serverMessage.message.case}`);
+          const serverMessage = Signalv2WireMessage.fromBinary(new Uint8Array(event.data));
+          if (serverMessage.message.case === 'envelope') {
+            for (const message of serverMessage.message.value.serverMessages) {
+              controller.enqueue(message);
+            }
+          } else if (serverMessage.message.case === 'fragment') {
+            const fragment = serverMessage.message.value;
+            const buffer =
+              this.fragmentBuffer.get(fragment.packetId) ||
+              new Array<Fragment | null>(fragment.numFragments).fill(null);
+            buffer[fragment.fragmentNumber] = fragment;
+            this.fragmentBuffer.set(fragment.packetId, buffer);
+            if (buffer.every((f) => f !== null)) {
+              const rawEnvelope = Uint8Array.from(buffer.map((f) => f.data));
+              if (rawEnvelope.byteLength !== fragment.totalSize) {
+                console.warn(
+                  `Fragments of packet ${fragment.packetId} have incorrect size: ${rawEnvelope.byteLength} !== ${fragment.totalSize}`,
+                );
+                return;
+              }
+              const envelope = Envelope.fromBinary(rawEnvelope);
+              this.fragmentBuffer.delete(fragment.packetId);
+              for (const message of envelope.serverMessages) {
+                controller.enqueue(message);
+              }
+            }
+          } else {
+            // TODO log warning
           }
         });
 
