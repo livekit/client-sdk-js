@@ -893,7 +893,7 @@ export default class LocalParticipant extends Participant {
       try {
         switch (this.engine.client.currentState) {
           case SignalConnectionState.CONNECTING:
-          case SignalConnectionState.RECONNECTING:
+          case SignalConnectionState.RECONNECTING: {
             this.log.debug('deferring track publication until signal is connected', {
               ...this.logContext,
               track: getLogContextFromTrack(track),
@@ -912,8 +912,9 @@ export default class LocalParticipant extends Participant {
             const publication = await this.publish(track, opts, isStereo);
             resolve(publication);
             break;
+          }
 
-          case SignalConnectionState.CONNECTED:
+          case SignalConnectionState.CONNECTED: {
             try {
               const publication = await this.publish(track, opts, isStereo);
               resolve(publication);
@@ -921,13 +922,15 @@ export default class LocalParticipant extends Participant {
               reject(e);
             }
             break;
+          }
 
           case SignalConnectionState.DISCONNECTING:
-          case SignalConnectionState.DISCONNECTED:
+          case SignalConnectionState.DISCONNECTED: {
             this.log.debug(
               `Skipping track publish, engine.client.currentState = ${this.engine.client.currentState}`,
             );
             break;
+          }
         }
       } catch (e) {
         reject(e);
