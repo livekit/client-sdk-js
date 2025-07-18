@@ -1,18 +1,20 @@
 import { Mutex } from '@livekit/mutex';
-import { ConnectionSettings, ConnectRequest, ConnectResponse, SessionDescription, SignalRequest, SignalResponse } from '@livekit/protocol';
+import { ConnectionSettings, ConnectRequest, ConnectResponse, Sequencer, SessionDescription, SignalResponse, Signalv2ClientMessage, Signalv2ServerMessage } from '@livekit/protocol';
 import type { ITransport } from './SignalTransport';
 import { Future, getClientInfo } from '../room/utils';
 
 
 export class SignalAPI {
 
-  private writer?: WritableStreamDefaultWriter<SignalRequest>;
+  private writer?: WritableStreamDefaultWriter<Array<Signalv2ClientMessage>>;
 
-  private promiseMap = new Map<string, Future<SignalResponse>>();
+  private promiseMap = new Map<string, Future<Signalv2ServerMessage>>();
 
   private offerId = 0;
 
   private transport: ITransport;
+
+  private sequenceNumber = 0;
 
   constructor(transport: ITransport) {
     this.transport = transport;
@@ -33,7 +35,7 @@ export class SignalAPI {
     return connectResponse;
   }
 
-  async readLoop(readableStream: ReadableStream<SignalResponse>) {
+  async readLoop(readableStream: ReadableStream<Signalv2ServerMessage>) {
     const reader = readableStream.getReader();
     while (true) {
       try { 
@@ -60,32 +62,44 @@ export class SignalAPI {
 
   @atomic
   async sendOfferAndAwaitAnswer(offer: RTCSessionDescriptionInit): Promise<SessionDescription> {
-    const offerId = this.offerId++;
-    if(!this.writer) {
-      throw new Error('Writable stream not initialized');
-    }
+    // const offerId = this.offerId++;
+    // if(!this.writer) {
+    //   throw new Error('Writable stream not initialized');
+    // }
 
-    const request = new SessionDescription({
-      type: 'offer',
-      sdp: offer.sdp,
-      // id: offer.id,
-    });
+    // const request = new SessionDescription({
+    //   type: 'offer',
+    //   sdp: offer.sdp,
+    //   // id: offer.id,
+    // });
 
-    await this.writer.write(new SignalRequest({
-      message: { case: 'offer', value: request },
-    }));
+    // await this.writer.write([this.createClientRequest({ case: 'offer', value: request })]);
 
-    const future = new Future<SignalResponse>();
-    // we want an answer for this offer so we queue up a future for it
-    this.promiseMap.set(getResponseKey('answer', offerId), future);
-    const answerResponse = await future.promise;
+    // const future = new Future<Signalv2ServerMessage>();
+    // // we want an answer for this offer so we queue up a future for it
+    // this.promiseMap.set(getResponseKey('answer', offerId), future);
+    // const answerResponse = await future.promise;
 
-    if(answerResponse.message.case === 'answer') {
-      return answerResponse.message.value;
-    }
+    // if(answerResponse.message.case === 'answer') {
+    //   return answerResponse.message.value;
+    // }
 
     throw new Error('Answer not found');
   }
+
+  private getNextSequencer(): Sequencer {
+    return new Sequencer({
+      messageId: this.sequenceNumber++,
+    });
+  }
+
+
+ createClientRequest(request: Signalv2ClientMessage['message']): Signalv2ClientMessage {
+  return new Signalv2ClientMessage({
+   sequencer: this.getNextSequencer(),
+   message: request,
+  });
+ }
 
   // @loggedMethod
   async reconnect(): Promise<void> {

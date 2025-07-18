@@ -11,6 +11,7 @@ import {
 import { sleep } from '../room/utils';
 
 const MAX_WIRE_MESSAGE_SIZE = 16_000;
+const BUFFER_LOW_THRESHOLD = 65535;
 
 export interface ITransportOptions {
   url: string;
@@ -33,10 +34,10 @@ export interface ITransportFactory {
   create(): Promise<ITransport>;
 }
 
-export class HybridSignalTransport implements ITransport {
+export class DCSignalTransport implements ITransport {
   private readonly pc: RTCPeerConnection;
 
-  private dc?: RTCDataChannel;
+  private dc: RTCDataChannel;
 
   abortController: AbortController;
 
@@ -46,18 +47,21 @@ export class HybridSignalTransport implements ITransport {
 
   constructor(peerConnection: RTCPeerConnection) {
     this.pc = peerConnection;
+    this.dc = this.pc.createDataChannel('signal', {
+      ordered: true,
+      maxRetransmits: 0,
+    });
+    this.dc.bufferedAmountLowThreshold = BUFFER_LOW_THRESHOLD;
     this.abortController = new AbortController();
     this.bufferLowMutex = new Mutex();
   }
 
   private get isBufferedAmountLow(): boolean {
-    if (!this.dc) {
-      return false;
-    }
     return this.dc.bufferedAmount <= this.dc.bufferedAmountLowThreshold;
   }
 
   async waitForBufferedAmountLow(): Promise<void> {
+    // mutex is used to prevent race condition when multiple writes are happening at the same time
     const unlock = await this.bufferLowMutex.lock();
     while (!this.isBufferedAmountLow) {
       sleep(10);
@@ -70,8 +74,6 @@ export class HybridSignalTransport implements ITransport {
       ordered: true,
       maxRetransmits: 0,
     });
-    this.dc = dc;
-    dc.bufferedAmountLowThreshold = 65535;
 
     const joinRequest = await fetch(`${url}/join`, {
       method: 'POST',
@@ -129,6 +131,10 @@ export class HybridSignalTransport implements ITransport {
 
         dc.addEventListener('closed', () => {
           controller.close();
+        });
+
+        dc.addEventListener('open', () => {
+          console.info('Signal channel opened');
         });
       },
     });
