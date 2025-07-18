@@ -1345,7 +1345,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         (!supportsSetSinkId() && !this.options.webAudioMix) ||
         (this.options.webAudioMix && this.audioContext && !('setSinkId' in this.audioContext))
       ) {
-        throw new Error('cannot switch audio output, setSinkId not supported');
+        throw new Error('cannot switch audio output, the current browser does not support it');
       }
       if (this.options.webAudioMix) {
         // setting `default` for web audio output doesn't work, so we need to normalize the id before
