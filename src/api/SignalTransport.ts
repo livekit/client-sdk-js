@@ -1,3 +1,4 @@
+import { Mutex } from '@livekit/mutex';
 import {
   ConnectRequest,
   ConnectResponse,
@@ -7,6 +8,7 @@ import {
   Signalv2ServerMessage,
   Signalv2WireMessage,
 } from '@livekit/protocol';
+import { sleep } from '../room/utils';
 
 const MAX_WIRE_MESSAGE_SIZE = 16_000;
 
@@ -40,9 +42,27 @@ export class HybridSignalTransport implements ITransport {
 
   private fragmentBuffer: Map<number, Array<Fragment | null>> = new Map();
 
+  private bufferLowMutex: Mutex;
+
   constructor(peerConnection: RTCPeerConnection) {
     this.pc = peerConnection;
     this.abortController = new AbortController();
+    this.bufferLowMutex = new Mutex();
+  }
+
+  private get isBufferedAmountLow(): boolean {
+    if (!this.dc) {
+      return false;
+    }
+    return this.dc.bufferedAmount <= this.dc.bufferedAmountLowThreshold;
+  }
+
+  async waitForBufferedAmountLow(): Promise<void> {
+    const unlock = await this.bufferLowMutex.lock();
+    while (!this.isBufferedAmountLow) {
+      sleep(10);
+    }
+    unlock();
   }
 
   async connect({ url, token, connectRequest }: ITransportOptions): Promise<ITransportConnection> {
@@ -51,6 +71,7 @@ export class HybridSignalTransport implements ITransport {
       maxRetransmits: 0,
     });
     this.dc = dc;
+    dc.bufferedAmountLowThreshold = 65535;
 
     const joinRequest = await fetch(`${url}/join`, {
       method: 'POST',
@@ -113,7 +134,7 @@ export class HybridSignalTransport implements ITransport {
     });
 
     const writableStream = new WritableStream({
-      async write(requests: Array<Signalv2ClientMessage>) {
+      write: async (requests: Array<Signalv2ClientMessage>) => {
         if (dc.readyState === 'closing' || dc.readyState === 'closed') {
           throw new Error('Signalling channel is closed');
         }
@@ -155,6 +176,7 @@ export class HybridSignalTransport implements ITransport {
                 value: fragment,
               },
             });
+            await this.waitForBufferedAmountLow();
             dc.send(wireMessage.toBinary());
           }
         } else {
@@ -164,6 +186,7 @@ export class HybridSignalTransport implements ITransport {
               value: envelope,
             },
           });
+          await this.waitForBufferedAmountLow();
           dc.send(wireMessage.toBinary());
         }
       },
