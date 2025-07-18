@@ -1,7 +1,7 @@
-import { Mutex } from '@livekit/mutex';
 import { ConnectionSettings, ConnectRequest, ConnectResponse, Sequencer, SessionDescription, SignalResponse, Signalv2ClientMessage, Signalv2ServerMessage } from '@livekit/protocol';
 import type { ITransport } from './SignalTransport';
 import { Future, getClientInfo } from '../room/utils';
+import { atomic } from './decorators';
 
 
 export class SignalAPI {
@@ -29,7 +29,10 @@ export class SignalAPI {
         autoSubscribe: true,
       })
     });
-    const { readableStream, writableStream, connectResponse } = await this.transport.connect({ url, token, connectRequest });
+
+    const clientRequest = this.createClientRequest({ case: 'connectRequest', value: connectRequest });
+
+    const { readableStream, writableStream, connectResponse } = await this.transport.connect({ url, token, clientRequest });
     this.readLoop(readableStream);
     this.writer = writableStream.getWriter();
     return connectResponse;
@@ -112,38 +115,6 @@ export class SignalAPI {
   }
 }
 
-
-// function loggedMethod<This, Args extends any[], Return>(
-//     target: (this: This, ...args: Args) => Return,
-//     context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Return>
-// ) {
-//     const methodName = String(context.name);
-
-//     function replacementMethod(this: This, ...args: Args): Return {
-//         console.debug(`LOG: Entering method '${methodName}'.`)
-//         const result = target.call(this, ...args);
-//         console.debug(`LOG: Exiting method '${methodName}'.`)
-//         return result;
-//     }
-
-//     return replacementMethod;
-// }
-
-function atomic(originalMethod: any) {
-    const mutex = new Mutex();
-
-    async function replacementMethod(this: any, ...args: any[]) {
-        const unlock = await mutex.lock();
-        try {
-          const result = await originalMethod.call(this, ...args);
-          return result;
-        } finally {
-          unlock();
-        }
-    }
-
-    return replacementMethod;
-}
 
 function getResponseKey(requestType: SignalResponse['message']['case'], requestId: number) {
   return `${requestType}-${requestId}`;

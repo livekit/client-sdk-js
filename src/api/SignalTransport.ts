@@ -13,10 +13,17 @@ import { sleep } from '../room/utils';
 const MAX_WIRE_MESSAGE_SIZE = 16_000;
 const BUFFER_LOW_THRESHOLD = 65535;
 
+export enum SignalConnectionState {
+  Connecting,
+  Connected,
+  Reconnecting,
+  Disconnected,
+}
+
 export interface ITransportOptions {
   url: string;
   token: string;
-  connectRequest: ConnectRequest;
+  clientRequest: Signalv2ClientMessage;
 }
 
 export interface ITransportConnection {
@@ -28,6 +35,7 @@ export interface ITransportConnection {
 export interface ITransport {
   connect(options: ITransportOptions): Promise<ITransportConnection>;
   close(): Promise<void>;
+  currentState: SignalConnectionState;
 }
 
 export interface ITransportFactory {
@@ -45,8 +53,15 @@ export class DCSignalTransport implements ITransport {
 
   private bufferLowMutex: Mutex;
 
+  private state: SignalConnectionState = SignalConnectionState.Connecting;
+
+  get currentState(): SignalConnectionState {
+    return this.state;
+  }
+
   constructor(peerConnection: RTCPeerConnection) {
     this.pc = peerConnection;
+    this.pc.addEventListener('iceconnectionstatechange', this.handleICEConnectionStateChange);
     this.dc = this.pc.createDataChannel('signal', {
       ordered: true,
       maxRetransmits: 0,
@@ -54,6 +69,27 @@ export class DCSignalTransport implements ITransport {
     this.dc.bufferedAmountLowThreshold = BUFFER_LOW_THRESHOLD;
     this.abortController = new AbortController();
     this.bufferLowMutex = new Mutex();
+  }
+
+  private handleICEConnectionStateChange(event: Event) {
+    const pc = event.target as RTCPeerConnection;
+    switch (pc.iceConnectionState) {
+      case 'new':
+      case 'checking':
+        this.state = SignalConnectionState.Connecting;
+        break;
+      case 'connected':
+      case 'completed':
+        this.state = SignalConnectionState.Connected;
+        break;
+      case 'disconnected':
+        this.state = SignalConnectionState.Reconnecting;
+        break;
+      case 'failed':
+      case 'closed':
+        this.state = SignalConnectionState.Disconnected;
+        break;
+    }
   }
 
   private get isBufferedAmountLow(): boolean {
@@ -69,27 +105,55 @@ export class DCSignalTransport implements ITransport {
     unlock();
   }
 
-  async connect({ url, token, connectRequest }: ITransportOptions): Promise<ITransportConnection> {
+  async connect({ url, token, clientRequest }: ITransportOptions): Promise<ITransportConnection> {
     const dc = this.pc.createDataChannel('signal', {
       ordered: true,
       maxRetransmits: 0,
     });
 
-    const joinRequest = await fetch(`${url}/join`, {
+    const connectRequest = new Signalv2WireMessage({
+      message: {
+        case: 'envelope',
+        value: new Envelope({
+          clientMessages: [clientRequest],
+        }),
+      },
+    });
+
+    const joinRequest = await fetch(`${url}/rtc/v2`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/x-protobuf',
       },
       body: connectRequest.toBinary(),
       signal: this.abortController.signal,
     });
 
+    if (!joinRequest.ok) {
+      console.warn(`Failed to join room: ${joinRequest.statusText}`);
+    }
+
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
 
-    const connectResponse = ConnectResponse.fromBinary(
+    const signalResponse = Signalv2WireMessage.fromBinary(
       new Uint8Array(await joinRequest.arrayBuffer()),
     );
+
+    if (signalResponse.message.case !== 'envelope') {
+      throw new Error('Invalid response from server');
+    }
+    const envelope = signalResponse.message.value;
+
+    if (
+      envelope.serverMessages.length !== 1 ||
+      envelope.serverMessages[0].message.case !== 'connectResponse'
+    ) {
+      throw new Error('Invalid response from server');
+    }
+
+    const connectResponse = envelope.serverMessages[0].message.value;
 
     const readableStream = new ReadableStream<Signalv2ServerMessage>({
       start: (controller) => {
