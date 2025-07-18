@@ -649,5 +649,9 @@ export default abstract class LocalTrack<
     return this.localTrackRecorder?.byteStream;
   }
 
+  getPreConnectBufferMimeType() {
+    return this.localTrackRecorder?.mimeType;
+  }
+
   protected abstract monitorSender(): void;
 }

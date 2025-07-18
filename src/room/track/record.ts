@@ -51,11 +51,24 @@ export class LocalTrackRecorder<T extends LocalTrack> extends RecorderBase {
       start: (controller) => {
         streamController = controller;
         dataListener = async (event: BlobEvent) => {
-          const arrayBuffer = await event.data.arrayBuffer();
+          let data: Uint8Array;
+
+          if (event.data.arrayBuffer) {
+            const arrayBuffer = await event.data.arrayBuffer();
+            data = new Uint8Array(arrayBuffer);
+
+            // @ts-expect-error react-native passes over Uint8Arrays directly
+          } else if (event.data.byteArray) {
+            // @ts-expect-error
+            data = event.data.byteArray as Uint8Array;
+          } else {
+            throw new Error('no data available!');
+          }
+
           if (isClosed()) {
             return;
           }
-          controller.enqueue(new Uint8Array(arrayBuffer));
+          controller.enqueue(data);
         };
         this.addEventListener('dataavailable', dataListener);
       },
