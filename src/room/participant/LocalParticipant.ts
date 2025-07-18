@@ -891,30 +891,45 @@ export default class LocalParticipant extends Participant {
     }
     const publishPromise = new Promise<LocalTrackPublication>(async (resolve, reject) => {
       try {
-        if (this.engine.client.currentState !== SignalConnectionState.CONNECTED) {
-          this.log.debug('deferring track publication until signal is connected', {
-            ...this.logContext,
-            track: getLogContextFromTrack(track),
-          });
+        switch (this.engine.client.currentState) {
+          case SignalConnectionState.CONNECTING:
+          case SignalConnectionState.RECONNECTING: {
+            this.log.debug('deferring track publication until signal is connected', {
+              ...this.logContext,
+              track: getLogContextFromTrack(track),
+            });
 
-          const timeout = setTimeout(() => {
-            reject(
-              new PublishTrackError(
-                'publishing rejected as engine not connected within timeout',
-                408,
-              ),
-            );
-          }, 15_000);
-          await this.waitUntilEngineConnected();
-          clearTimeout(timeout);
-          const publication = await this.publish(track, opts, isStereo);
-          resolve(publication);
-        } else {
-          try {
+            const timeout = setTimeout(() => {
+              reject(
+                new PublishTrackError(
+                  'publishing rejected as engine not connected within timeout',
+                  408,
+                ),
+              );
+            }, 15_000);
+            await this.waitUntilEngineConnected();
+            clearTimeout(timeout);
             const publication = await this.publish(track, opts, isStereo);
             resolve(publication);
-          } catch (e) {
-            reject(e);
+            break;
+          }
+
+          case SignalConnectionState.CONNECTED: {
+            try {
+              const publication = await this.publish(track, opts, isStereo);
+              resolve(publication);
+            } catch (e) {
+              reject(e);
+            }
+            break;
+          }
+
+          case SignalConnectionState.DISCONNECTING:
+          case SignalConnectionState.DISCONNECTED: {
+            this.log.debug(
+              `Skipping track publish, engine.client.currentState = ${this.engine.client.currentState}`,
+            );
+            break;
           }
         }
       } catch (e) {
