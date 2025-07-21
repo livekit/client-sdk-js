@@ -261,7 +261,7 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.Resuming, this.handleReconnecting)
       .on(EngineEvent.LocalTrackUnpublished, this.handleLocalTrackUnpublished)
       .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
-      .on(EngineEvent.Disconnected, this.handleDisconnected)
+      .on(EngineEvent.Closing, this.handleClosing)
       .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse)
       .on(EngineEvent.DataPacketReceived, this.handleDataPacket);
   }
@@ -278,7 +278,7 @@ export default class LocalParticipant extends Participant {
     this.updateTrackSubscriptionPermissions();
   };
 
-  private handleDisconnected = () => {
+  private handleClosing = () => {
     if (this.reconnectFuture) {
       this.reconnectFuture.promise.catch((e) => this.log.warn(e.message, this.logContext));
       this.reconnectFuture?.reject?.('Got disconnected during reconnection attempt');

@@ -2,4 +2,4 @@
 'livekit-client': patch
 ---
 
-Skip track publish if the room is signalling client is disconnected
+Clear LocalParticipant futures at start of disconnect, not at end
