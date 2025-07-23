@@ -1302,13 +1302,7 @@ export default class LocalParticipant extends Participant {
       ti.audioFeatures.includes(AudioTrackFeature.TF_PRECONNECT_BUFFER)
     ) {
       const stream = track.getPreConnectBuffer();
-      let mimeType = track.getPreConnectBufferMimeType();
-      
-      // agent expects 'audio/opus' instead of full mimetype
-      if (mimeType?.includes('opus')) {
-        mimeType = 'audio/opus';
-      }
-
+      const mimeType = track.getPreConnectBufferMimeType();
       // TODO: we're registering the listener after negotiation, so there might be a race
       this.on(ParticipantEvent.LocalTrackSubscribed, (pub) => {
         if (pub.trackSid === ti.sid) {
