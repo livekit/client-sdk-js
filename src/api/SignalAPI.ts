@@ -16,6 +16,8 @@ export class SignalAPI {
 
   private sequenceNumber = 0;
 
+  private latestRemoteSequenceNumber = 0;
+
   constructor(transport: ITransport) {
     this.transport = transport;
   }
@@ -47,8 +49,8 @@ export class SignalAPI {
         if(!value) {
           continue;
         }
-        // @ts-ignore
-        const responseKey = getResponseKey(value.message.case, value.message.value!.id as number);
+        this.latestRemoteSequenceNumber = value.sequencer!.messageId;
+        const responseKey = getResponseKey(value.message!.case, value.sequencer!.messageId);
         const future = this.promiseMap.get(responseKey);
         if (future) {
           future.resolve?.(value);
@@ -93,6 +95,7 @@ export class SignalAPI {
   private getNextSequencer(): Sequencer {
     return new Sequencer({
       messageId: this.sequenceNumber++,
+      lastProcessedRemoteMessageId: this.latestRemoteSequenceNumber,
     });
   }
 
@@ -116,6 +119,6 @@ export class SignalAPI {
 }
 
 
-function getResponseKey(requestType: SignalResponse['message']['case'], requestId: number) {
-  return `${requestType}-${requestId}`;
+function getResponseKey(requestType: Signalv2ServerMessage['message']['case'], messageId: number) {
+  return `${requestType}-${messageId}`;
 }

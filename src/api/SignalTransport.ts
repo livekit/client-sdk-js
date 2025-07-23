@@ -1,6 +1,5 @@
 import { Mutex } from '@livekit/mutex';
 import {
-  ConnectRequest,
   ConnectResponse,
   Envelope,
   Fragment,
@@ -144,16 +143,13 @@ export class DCSignalTransport implements ITransport {
     if (signalResponse.message.case !== 'envelope') {
       throw new Error('Invalid response from server');
     }
-    const envelope = signalResponse.message.value;
+    const connectEnvelope = signalResponse.message.value;
 
-    if (
-      envelope.serverMessages.length !== 1 ||
-      envelope.serverMessages[0].message.case !== 'connectResponse'
-    ) {
+    if (connectEnvelope.serverMessages[0].message.case !== 'connectResponse') {
       throw new Error('Invalid response from server');
     }
 
-    const connectResponse = envelope.serverMessages[0].message.value;
+    const connectResponse = connectEnvelope.serverMessages[0].message.value;
 
     const readableStream = new ReadableStream<Signalv2ServerMessage>({
       start: (controller) => {
