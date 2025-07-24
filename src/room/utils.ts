@@ -141,7 +141,7 @@ export function isSVCCodec(codec?: string): boolean {
 }
 
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
-  if (!document) {
+  if (!document || isSafariBased()) {
     return false;
   }
   if (!elm) {
