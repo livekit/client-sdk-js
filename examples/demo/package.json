@@ -1,0 +1,21 @@
+{
+  "name": "livekit-demo",
+  "version": "1.0.0",
+  "description": "Example of Livekit Demo",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc & vite build"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "livekit-server-sdk": "^2.12.0",
+    "vite": "^3.2.7",
+    "vite-plugin-mix": "^0.4.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "typescript": "^5.8.3"
+  }
+}
