@@ -617,8 +617,13 @@ export default abstract class LocalTrack<
     }
 
     if (!this.localTrackRecorder) {
+      let mimeType = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        // iOS currently only supports video/mp4 as a mime type - even for audio.
+        mimeType = 'video/mp4';
+      }
       this.localTrackRecorder = new LocalTrackRecorder(this, {
-        mimeType: 'audio/webm;codecs=opus',
+        mimeType,
       });
     } else {
       this.log.warn('preconnect buffer already started');
