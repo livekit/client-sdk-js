@@ -9,7 +9,7 @@ import {
   DataPacket,
   DataPacket_Kind,
   DisconnectReason,
-  type JoinResponse,
+  JoinResponse,
   type LeaveRequest,
   LeaveRequest_Action,
   ParticipantInfo,
@@ -37,12 +37,14 @@ import {
 import { EventEmitter } from 'events';
 import type { MediaAttributes } from 'sdp-transform';
 import type TypedEventEmitter from 'typed-emitter';
+import { SignalAPI } from '../api/SignalAPI';
 import type { SignalOptions } from '../api/SignalClient';
 import {
   SignalClient,
   SignalConnectionState,
   toProtoSessionDescription,
 } from '../api/SignalClient';
+import { DCSignalTransport } from '../api/SignalTransport';
 import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
@@ -97,6 +99,8 @@ enum PCState {
 /** @internal */
 export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
   client: SignalClient;
+
+  signalAPI: SignalAPI;
 
   rtcConfig: RTCConfiguration = {};
 
@@ -201,6 +205,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       loggerContextCb: () => this.logContext,
     };
     this.client = new SignalClient(undefined, this.loggerOptions);
+    this.signalAPI = new SignalAPI(new DCSignalTransport(new RTCPeerConnection()));
     this.client.signalLatency = this.options.expSignalLatency;
     this.reconnectPolicy = this.options.reconnectPolicy;
     this.registerOnLineListener();
@@ -249,10 +254,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.joinAttempts += 1;
 
       this.setupSignalClientCallbacks();
-      const joinResponse = await this.client.join(url, token, opts, abortSignal);
+      const connectResponse = await this.signalAPI.join(url, token);
+      const joinResponse = new JoinResponse({
+        ...connectResponse,
+      });
       this._isClosed = false;
       this.latestJoinResponse = joinResponse;
-
       this.subscriberPrimary = joinResponse.subscriberPrimary;
       if (!this.pcManager) {
         await this.configure(joinResponse);

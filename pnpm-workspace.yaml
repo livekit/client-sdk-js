@@ -1,0 +1,2 @@
+overrides:
+  '@livekit/protocol': link:../protocol/packages/javascript
