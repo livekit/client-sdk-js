@@ -1,7 +1,7 @@
-import { ConnectionSettings, ConnectRequest, ConnectResponse, Sequencer, SessionDescription, SignalResponse, Signalv2ClientMessage, Signalv2ServerMessage } from '@livekit/protocol';
+import { ConnectionSettings, ConnectRequest, ConnectResponse, Sequencer, SessionDescription, Signalv2ClientMessage, Signalv2ServerMessage } from '@livekit/protocol';
 import type { ITransport } from './SignalTransport';
 import { Future, getClientInfo } from '../room/utils';
-import { atomic } from './decorators';
+import { atomic } from '../decorators';
 
 
 export class SignalAPI {

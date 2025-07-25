@@ -8,8 +8,8 @@ import {
   Signalv2WireMessage,
 } from '@livekit/protocol';
 import { sleep } from '../room/utils';
+import { WireMessageConverter } from './WireMessageConverter';
 
-const MAX_WIRE_MESSAGE_SIZE = 16_000;
 const BUFFER_LOW_THRESHOLD = 65535;
 
 export enum SignalConnectionState {
@@ -48,7 +48,7 @@ export class DCSignalTransport implements ITransport {
 
   abortController: AbortController;
 
-  private fragmentBuffer: Map<number, Array<Fragment | null>> = new Map();
+  private wireMessageConverter: WireMessageConverter;
 
   private bufferLowMutex: Mutex;
 
@@ -68,6 +68,7 @@ export class DCSignalTransport implements ITransport {
     this.dc.bufferedAmountLowThreshold = BUFFER_LOW_THRESHOLD;
     this.abortController = new AbortController();
     this.bufferLowMutex = new Mutex();
+    this.wireMessageConverter = new WireMessageConverter();
   }
 
   private handleICEConnectionStateChange(event: Event) {
@@ -133,9 +134,6 @@ export class DCSignalTransport implements ITransport {
       console.warn(`Failed to join room: ${joinRequest.statusText}`);
     }
 
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
-
     const signalResponse = Signalv2WireMessage.fromBinary(
       new Uint8Array(await joinRequest.arrayBuffer()),
     );
@@ -145,43 +143,25 @@ export class DCSignalTransport implements ITransport {
     }
     const connectEnvelope = signalResponse.message.value;
 
-    if (connectEnvelope.serverMessages[0].message.case !== 'connectResponse') {
+    const [connectResponseMessage, ...initialServerMessages] = connectEnvelope.serverMessages;
+    if (!connectResponseMessage || connectResponseMessage.message.case !== 'connectResponse') {
       throw new Error('Invalid response from server');
     }
-
-    const connectResponse = connectEnvelope.serverMessages[0].message.value;
+    const connectResponse = connectResponseMessage.message.value;
 
     const readableStream = new ReadableStream<Signalv2ServerMessage>({
       start: (controller) => {
+        for (const message of initialServerMessages) {
+          controller.enqueue(message);
+        }
+
         dc.addEventListener('message', (event: MessageEvent<Uint8Array>) => {
           const serverMessage = Signalv2WireMessage.fromBinary(new Uint8Array(event.data));
-          if (serverMessage.message.case === 'envelope') {
-            for (const message of serverMessage.message.value.serverMessages) {
+          const envelope = this.wireMessageConverter.wireMessageToEnvelope(serverMessage);
+          if (envelope) {
+            for (const message of envelope.serverMessages) {
               controller.enqueue(message);
             }
-          } else if (serverMessage.message.case === 'fragment') {
-            const fragment = serverMessage.message.value;
-            const buffer =
-              this.fragmentBuffer.get(fragment.packetId) ||
-              new Array<Fragment | null>(fragment.numFragments).fill(null);
-            buffer[fragment.fragmentNumber] = fragment;
-            this.fragmentBuffer.set(fragment.packetId, buffer);
-            if (buffer.every((f) => f !== null)) {
-              const rawEnvelope = Uint8Array.from(buffer.map((f) => f.data));
-              if (rawEnvelope.byteLength !== fragment.totalSize) {
-                console.warn(
-                  `Fragments of packet ${fragment.packetId} have incorrect size: ${rawEnvelope.byteLength} !== ${fragment.totalSize}`,
-                );
-                return;
-              }
-              const envelope = Envelope.fromBinary(rawEnvelope);
-              this.fragmentBuffer.delete(fragment.packetId);
-              for (const message of envelope.serverMessages) {
-                controller.enqueue(message);
-              }
-            }
-          } else {
-            // TODO log warning
           }
         });
 
@@ -214,44 +194,8 @@ export class DCSignalTransport implements ITransport {
         const envelope = new Envelope({
           clientMessages: requests,
         });
-        const binaryEnvelope = envelope.toBinary();
-        const envelopeSize = binaryEnvelope.byteLength;
-        if (envelopeSize > MAX_WIRE_MESSAGE_SIZE) {
-          console.info(`Sending fragmented envelope of ${envelopeSize} bytes`);
-          const numFragments = Math.ceil(envelopeSize / MAX_WIRE_MESSAGE_SIZE);
-          const fragments = [];
-
-          for (let i = 0; i < numFragments; i++) {
-            fragments.push(
-              new Fragment({
-                packetId: 0,
-                fragmentNumber: i,
-                data: binaryEnvelope.slice(
-                  i * MAX_WIRE_MESSAGE_SIZE,
-                  (i + 1) * MAX_WIRE_MESSAGE_SIZE,
-                ),
-                totalSize: envelopeSize,
-                numFragments,
-              }),
-            );
-          }
-          for (const fragment of fragments) {
-            const wireMessage = new Signalv2WireMessage({
-              message: {
-                case: 'fragment',
-                value: fragment,
-              },
-            });
-            await this.waitForBufferedAmountLow();
-            dc.send(wireMessage.toBinary());
-          }
-        } else {
-          const wireMessage = new Signalv2WireMessage({
-            message: {
-              case: 'envelope',
-              value: envelope,
-            },
-          });
+        const wireMessages = this.wireMessageConverter.envelopeToWireMessages(envelope);
+        for (const wireMessage of wireMessages) {
           await this.waitForBufferedAmountLow();
           dc.send(wireMessage.toBinary());
         }
@@ -275,5 +219,6 @@ export class DCSignalTransport implements ITransport {
   async close(): Promise<void> {
     this.abortController.abort();
     this.dc?.close();
+    this.wireMessageConverter.clearFragmentBuffer();
   }
 }
