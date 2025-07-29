@@ -3,6 +3,7 @@ import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from './types';
 import { Future, bigIntToNumber } from './utils';
 
 export type BaseStreamReaderReadAllOpts = {
+  /** An AbortSignal can be used to terminate reads early. */
   signal?: AbortSignal;
 };
 
