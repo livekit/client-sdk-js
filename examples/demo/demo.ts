@@ -57,7 +57,7 @@ let currentRoom: Room | undefined;
 
 let startTime: number;
 
-let chatDataStreamReaderAbortController: AbortController | undefined;
+let streamReaderAbortController: AbortController | undefined;
 
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
@@ -261,16 +261,14 @@ const appActions = {
       });
 
     room.registerTextStreamHandler('lk.chat', async (reader, participant) => {
-      chatDataStreamReaderAbortController = new AbortController();
+      streamReaderAbortController = new AbortController();
       (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'block';
 
       const info = reader.info;
 
       let message = '';
       try {
-        for await (const chunk of reader.withAbortSignal(
-          chatDataStreamReaderAbortController.signal,
-        )) {
+        for await (const chunk of reader.withAbortSignal(streamReaderAbortController.signal)) {
           message += chunk;
           handleChatMessage(
             {
@@ -299,7 +297,7 @@ const appActions = {
       }
       console.log('final info including close extensions', reader.info);
 
-      chatDataStreamReaderAbortController = undefined;
+      streamReaderAbortController = undefined;
       (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'none';
     });
 
@@ -323,6 +321,9 @@ const appActions = {
 
       appendLog(`Started receiving file "${info.name}" from ${participant?.identity}`);
 
+      streamReaderAbortController = new AbortController();
+      (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'block';
+
       reader.onProgress = (progress) => {
         console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
 
@@ -332,8 +333,20 @@ const appActions = {
         }
       };
 
-      const result = new Blob(await reader.readAll(), { type: info.mimeType });
+      let byteContents;
+      try {
+        byteContents = await reader.readAll({
+          signal: streamReaderAbortController.signal,
+        });
+      } catch (err) {
+        progressLabel.innerText = `Receiving "${info.name}" - readAll aborted!`;
+        throw err;
+      }
+      const result = new Blob(byteContents, { type: info.mimeType });
       appendLog(`Completely received file "${info.name}" from ${participant?.identity}`);
+
+      streamReaderAbortController = undefined;
+      (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'none';
 
       progressContainer.remove();
 
@@ -556,10 +569,10 @@ const appActions = {
   },
 
   cancelChatReceive: () => {
-    if (!chatDataStreamReaderAbortController) {
+    if (!streamReaderAbortController) {
       return;
     }
-    chatDataStreamReaderAbortController.abort();
+    streamReaderAbortController.abort();
 
     (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'none';
   },
