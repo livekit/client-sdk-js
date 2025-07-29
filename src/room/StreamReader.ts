@@ -107,7 +107,7 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
    * Note that when using AbortSignal.timeout(...), the timeout applies across
    * the whole iteration operation, not just one individual chunk read.
    */
-  withAbortSignal(signal?: AbortSignal) {
+  withAbortSignal(signal: AbortSignal) {
     this.signal = signal;
     return this;
   }
