@@ -57,6 +57,8 @@ let currentRoom: Room | undefined;
 
 let startTime: number;
 
+let chatDataStreamReaderAbortController: AbortController | undefined;
+
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
 const storedToken = searchParams.get('token') ?? '';
@@ -259,32 +261,17 @@ const appActions = {
       });
 
     room.registerTextStreamHandler('lk.chat', async (reader, participant) => {
+      chatDataStreamReaderAbortController = new AbortController();
+      (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'block';
+
       const info = reader.info;
-      if (info.size) {
-        handleChatMessage(
-          {
-            id: info.id,
-            timestamp: info.timestamp,
-            message: await reader.readAll({ signal: AbortSignal.timeout(1000) }),
-          },
-          room.getParticipantByIdentity(participant?.identity),
-        );
-      } else {
-        let message = '';
-        try {
-          for await (const chunk of reader.withAbortSignal(AbortSignal.timeout(5000))) {
-            message += chunk;
-            handleChatMessage(
-              {
-                id: info.id,
-                timestamp: info.timestamp,
-                message,
-              },
-              room.getParticipantByIdentity(participant?.identity),
-            );
-          }
-        } catch (err) {
-          message += "ERROR";
+
+      let message = '';
+      try {
+        for await (const chunk of reader.withAbortSignal(
+          chatDataStreamReaderAbortController.signal,
+        )) {
+          message += chunk;
           handleChatMessage(
             {
               id: info.id,
@@ -293,12 +280,27 @@ const appActions = {
             },
             room.getParticipantByIdentity(participant?.identity),
           );
-          throw err;
         }
+      } catch (err) {
+        message += 'ERROR';
+        handleChatMessage(
+          {
+            id: info.id,
+            timestamp: info.timestamp,
+            message,
+          },
+          room.getParticipantByIdentity(participant?.identity),
+        );
+        throw err;
+      }
 
+      if (!info.size) {
         appendLog('text stream finished');
       }
       console.log('final info including close extensions', reader.info);
+
+      chatDataStreamReaderAbortController = undefined;
+      (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'none';
     });
 
     room.registerByteStreamHandler('files', async (reader, participant) => {
@@ -551,6 +553,15 @@ const appActions = {
       currentRoom.localParticipant.sendText(textField.value, { topic: 'lk.chat' });
       textField.value = '';
     }
+  },
+
+  cancelChatReceive: () => {
+    if (!chatDataStreamReaderAbortController) {
+      return;
+    }
+    chatDataStreamReaderAbortController.abort();
+
+    (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'none';
   },
 
   disconnectRoom: () => {

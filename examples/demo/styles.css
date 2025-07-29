@@ -33,6 +33,7 @@
 
 #chat-input-area {
   margin-top: 1.2rem;
+  margin-bottom: 0.5rem;
   display: grid;
   grid-template-columns: auto min-content;
   gap: 1.25rem;
