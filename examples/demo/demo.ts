@@ -265,20 +265,36 @@ const appActions = {
           {
             id: info.id,
             timestamp: info.timestamp,
-            message: await reader.readAll(),
+            message: await reader.readAll({ signal: AbortSignal.timeout(1000) }),
           },
           room.getParticipantByIdentity(participant?.identity),
         );
       } else {
-        handleChatMessage(
-          {
-            id: info.id,
-            timestamp: info.timestamp,
-            message: await reader.readAll(),
-          },
-
-          room.getParticipantByIdentity(participant?.identity),
-        );
+        let message = '';
+        try {
+          for await (const chunk of reader.withAbortSignal(AbortSignal.timeout(5000))) {
+            message += chunk;
+            handleChatMessage(
+              {
+                id: info.id,
+                timestamp: info.timestamp,
+                message,
+              },
+              room.getParticipantByIdentity(participant?.identity),
+            );
+          }
+        } catch (err) {
+          message += "ERROR";
+          handleChatMessage(
+            {
+              id: info.id,
+              timestamp: info.timestamp,
+              message,
+            },
+            room.getParticipantByIdentity(participant?.identity),
+          );
+          throw err;
+        }
 
         appendLog('text stream finished');
       }
@@ -642,7 +658,7 @@ async function sendGreetingTo(participant: Participant) {
 
   for (const char of greeting) {
     await streamWriter.write(char);
-    await sleep(20);
+    await sleep(50);
   }
   await streamWriter.close();
 }
