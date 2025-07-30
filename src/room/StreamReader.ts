@@ -1,6 +1,11 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
 import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from './types';
-import { bigIntToNumber } from './utils';
+import { Future, bigIntToNumber } from './utils';
+
+export type BaseStreamReaderReadAllOpts = {
+  /** An AbortSignal can be used to terminate reads early. */
+  signal?: AbortSignal;
+};
 
 abstract class BaseStreamReader<T extends BaseStreamInfo> {
   protected reader: ReadableStream<DataStream_Chunk>;
@@ -26,7 +31,7 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
 
   onProgress?: (progress: number | undefined) => void;
 
-  abstract readAll(): Promise<string | Array<Uint8Array>>;
+  abstract readAll(opts?: BaseStreamReaderReadAllOpts): Promise<string | Array<Uint8Array>>;
 }
 
 export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
@@ -40,35 +45,77 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
 
   onProgress?: (progress: number | undefined) => void;
 
+  signal?: AbortSignal;
+
   [Symbol.asyncIterator]() {
     const reader = this.reader.getReader();
+
+    let rejectingSignalFuture = new Future<never>();
+    let activeSignal: AbortSignal | null = null;
+    let onAbort: (() => void) | null = null;
+    if (this.signal) {
+      const signal = this.signal;
+      onAbort = () => {
+        rejectingSignalFuture.reject?.(signal.reason);
+      };
+      signal.addEventListener('abort', onAbort);
+      activeSignal = signal;
+    }
+
+    const cleanup = () => {
+      reader.releaseLock();
+
+      if (activeSignal && onAbort) {
+        activeSignal.removeEventListener('abort', onAbort);
+      }
+
+      this.signal = undefined;
+    };
 
     return {
       next: async (): Promise<IteratorResult<Uint8Array>> => {
         try {
-          const { done, value } = await reader.read();
+          const { done, value } = await Promise.race([
+            reader.read(),
+            rejectingSignalFuture.promise,
+          ]);
           if (done) {
             return { done: true, value: undefined as any };
           } else {
             this.handleChunkReceived(value);
             return { done: false, value: value.content };
           }
-        } catch (error) {
-          // TODO handle errors
-          return { done: true, value: undefined };
+        } catch (err) {
+          cleanup();
+          throw err;
         }
       },
 
+      // note: `return` runs only for premature exits, see:
+      // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#errors_during_iteration
       async return(): Promise<IteratorResult<Uint8Array>> {
-        reader.releaseLock();
+        cleanup();
         return { done: true, value: undefined };
       },
     };
   }
 
-  async readAll(): Promise<Array<Uint8Array>> {
+  /**
+   * Injects an AbortSignal, which if aborted, will terminate the currently active
+   * stream iteration operation.
+   *
+   * Note that when using AbortSignal.timeout(...), the timeout applies across
+   * the whole iteration operation, not just one individual chunk read.
+   */
+  withAbortSignal(signal: AbortSignal) {
+    this.signal = signal;
+    return this;
+  }
+
+  async readAll(opts: BaseStreamReaderReadAllOpts = {}): Promise<Array<Uint8Array>> {
     let chunks: Set<Uint8Array> = new Set();
-    for await (const chunk of this) {
+    const iterator = opts.signal ? this.withAbortSignal(opts.signal) : this;
+    for await (const chunk of iterator) {
       chunks.add(chunk);
     }
     return Array.from(chunks);
@@ -80,6 +127,8 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
  */
 export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
   private receivedChunks: Map<number, DataStream_Chunk>;
+
+  signal?: AbortSignal;
 
   /**
    * A TextStreamReader instance can be used as an AsyncIterator that returns the entire string
@@ -123,10 +172,35 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     const reader = this.reader.getReader();
     const decoder = new TextDecoder();
 
+    let rejectingSignalFuture = new Future<never>();
+    let activeSignal: AbortSignal | null = null;
+    let onAbort: (() => void) | null = null;
+    if (this.signal) {
+      const signal = this.signal;
+      onAbort = () => {
+        rejectingSignalFuture.reject?.(signal.reason);
+      };
+      signal.addEventListener('abort', onAbort);
+      activeSignal = signal;
+    }
+
+    const cleanup = () => {
+      reader.releaseLock();
+
+      if (activeSignal && onAbort) {
+        activeSignal.removeEventListener('abort', onAbort);
+      }
+
+      this.signal = undefined;
+    };
+
     return {
       next: async (): Promise<IteratorResult<string>> => {
         try {
-          const { done, value } = await reader.read();
+          const { done, value } = await Promise.race([
+            reader.read(),
+            rejectingSignalFuture.promise,
+          ]);
           if (done) {
             return { done: true, value: undefined };
           } else {
@@ -137,22 +211,37 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
               value: decoder.decode(value.content),
             };
           }
-        } catch (error) {
-          // TODO handle errors
-          return { done: true, value: undefined };
+        } catch (err) {
+          cleanup();
+          throw err;
         }
       },
 
+      // note: `return` runs only for premature exits, see:
+      // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#errors_during_iteration
       async return(): Promise<IteratorResult<string>> {
-        reader.releaseLock();
+        cleanup();
         return { done: true, value: undefined };
       },
     };
   }
 
-  async readAll(): Promise<string> {
+  /**
+   * Injects an AbortSignal, which if aborted, will terminate the currently active
+   * stream iteration operation.
+   *
+   * Note that when using AbortSignal.timeout(...), the timeout applies across
+   * the whole iteration operation, not just one individual chunk read.
+   */
+  withAbortSignal(signal: AbortSignal) {
+    this.signal = signal;
+    return this;
+  }
+
+  async readAll(opts: BaseStreamReaderReadAllOpts = {}): Promise<string> {
     let finalString: string = '';
-    for await (const chunk of this) {
+    const iterator = opts.signal ? this.withAbortSignal(opts.signal) : this;
+    for await (const chunk of iterator) {
       finalString += chunk;
     }
     return finalString;

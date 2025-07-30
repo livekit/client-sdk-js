@@ -57,6 +57,8 @@ let currentRoom: Room | undefined;
 
 let startTime: number;
 
+let streamReaderAbortController: AbortController | undefined;
+
 const searchParams = new URLSearchParams(window.location.search);
 const storedUrl = searchParams.get('url') ?? 'ws://localhost:7880';
 const storedToken = searchParams.get('token') ?? '';
@@ -259,30 +261,44 @@ const appActions = {
       });
 
     room.registerTextStreamHandler('lk.chat', async (reader, participant) => {
+      streamReaderAbortController = new AbortController();
+      (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'block';
+
       const info = reader.info;
-      if (info.size) {
+
+      let message = '';
+      try {
+        for await (const chunk of reader.withAbortSignal(streamReaderAbortController.signal)) {
+          message += chunk;
+          handleChatMessage(
+            {
+              id: info.id,
+              timestamp: info.timestamp,
+              message,
+            },
+            room.getParticipantByIdentity(participant?.identity),
+          );
+        }
+      } catch (err) {
+        message += 'ERROR';
         handleChatMessage(
           {
             id: info.id,
             timestamp: info.timestamp,
-            message: await reader.readAll(),
+            message,
           },
           room.getParticipantByIdentity(participant?.identity),
         );
-      } else {
-        handleChatMessage(
-          {
-            id: info.id,
-            timestamp: info.timestamp,
-            message: await reader.readAll(),
-          },
+        throw err;
+      }
 
-          room.getParticipantByIdentity(participant?.identity),
-        );
-
+      if (!info.size) {
         appendLog('text stream finished');
       }
       console.log('final info including close extensions', reader.info);
+
+      streamReaderAbortController = undefined;
+      (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'none';
     });
 
     room.registerByteStreamHandler('files', async (reader, participant) => {
@@ -305,6 +321,9 @@ const appActions = {
 
       appendLog(`Started receiving file "${info.name}" from ${participant?.identity}`);
 
+      streamReaderAbortController = new AbortController();
+      (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'block';
+
       reader.onProgress = (progress) => {
         console.log(`"progress ${progress ? (progress * 100).toFixed(0) : 'undefined'}%`);
 
@@ -314,8 +333,20 @@ const appActions = {
         }
       };
 
-      const result = new Blob(await reader.readAll(), { type: info.mimeType });
+      let byteContents;
+      try {
+        byteContents = await reader.readAll({
+          signal: streamReaderAbortController.signal,
+        });
+      } catch (err) {
+        progressLabel.innerText = `Receiving "${info.name}" - readAll aborted!`;
+        throw err;
+      }
+      const result = new Blob(byteContents, { type: info.mimeType });
       appendLog(`Completely received file "${info.name}" from ${participant?.identity}`);
+
+      streamReaderAbortController = undefined;
+      (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'none';
 
       progressContainer.remove();
 
@@ -537,6 +568,15 @@ const appActions = {
     }
   },
 
+  cancelChatReceive: () => {
+    if (!streamReaderAbortController) {
+      return;
+    }
+    streamReaderAbortController.abort();
+
+    (<HTMLButtonElement>$('cancel-chat-receive-button')).style.display = 'none';
+  },
+
   disconnectRoom: () => {
     if (currentRoom) {
       currentRoom.disconnect();
@@ -642,7 +682,7 @@ async function sendGreetingTo(participant: Participant) {
 
   for (const char of greeting) {
     await streamWriter.write(char);
-    await sleep(20);
+    await sleep(50);
   }
   await streamWriter.close();
 }
