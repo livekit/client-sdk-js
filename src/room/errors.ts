@@ -119,7 +119,7 @@ export enum DataStreamErrorReason {
   AbnormalEnd,
 
   // Incoming chunk data could not be decoded.
-  DecodeFailed, // DONE
+  DecodeFailed,
 
   // Read length exceeded total length specified in stream header.
   LengthExceeded,
@@ -134,7 +134,7 @@ export enum DataStreamErrorReason {
   UnknownStream,
 
   // Unable to register a stream handler more than once.
-  HandlerAlreadyRegistered, // DONE
+  HandlerAlreadyRegistered,
 
   // // Given destination URL is not a directory.
   // NotDirectory,
