@@ -79,6 +79,7 @@ import {
   supportsAddTrack,
   supportsTransceiver,
 } from './utils';
+import OutgoingDataStreamManager from './data-stream/OutgoingDataStreamManager';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';
@@ -105,6 +106,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   fullReconnectOnNext: boolean = false;
 
   pcManager?: PCTransportManager;
+
+  outgoingDataStreamManager: OutgoingDataStreamManager;
 
   /**
    * @internal
@@ -210,6 +213,8 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       [DataPacket_Kind.LOSSY, true],
       [DataPacket_Kind.RELIABLE, true],
     ]);
+
+    this.outgoingDataStreamManager = new OutgoingDataStreamManager(this);
 
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);
