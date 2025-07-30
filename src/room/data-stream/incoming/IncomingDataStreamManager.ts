@@ -61,6 +61,23 @@ export default class IncomingDataStreamManager {
     this.textStreamHandlers.clear();
   }
 
+  validateParticipantNotActivelySending(participantIdentity: string) {
+    const streamsBeingSentByDisconnectingParticipant = [
+      ...Array.from(this.textStreamControllers.values()),
+      ...Array.from(this.byteStreamControllers.values()),
+    ].filter(controller => controller.sendingParticipantIdentity === participantIdentity)
+
+    if (streamsBeingSentByDisconnectingParticipant.length > 0) {
+      const topics = streamsBeingSentByDisconnectingParticipant.map(
+        controller => controller.info.topic
+      );
+      throw new DataStreamError(
+        `Participant ${participantIdentity} disconnected in the middle of sending data on these topics: ${topics.join(', ')}`,
+        DataStreamErrorReason.AbnormalEnd,
+      );
+    }
+  }
+
   async handleDataStreamPacket(packet: DataPacket) {
     switch (packet.value.case) {
       case 'streamHeader':
@@ -102,6 +119,7 @@ export default class IncomingDataStreamManager {
             info,
             controller: streamController,
             startTime: Date.now(),
+            sendingParticipantIdentity: participantIdentity,
           });
         },
       });
@@ -138,6 +156,7 @@ export default class IncomingDataStreamManager {
             info,
             controller: streamController,
             startTime: Date.now(),
+            sendingParticipantIdentity: participantIdentity,
           });
         },
       });
