@@ -1,12 +1,7 @@
 import { Mutex } from '@livekit/mutex';
 import {
-  ChatMessage as ChatMessageModel,
   ConnectionQualityUpdate,
-  type DataPacket,
   DataPacket_Kind,
-  DataStream_Chunk,
-  DataStream_Header,
-  DataStream_Trailer,
   DisconnectReason,
   JoinResponse,
   LeaveRequest,
@@ -27,9 +22,7 @@ import {
   TrackInfo,
   TrackSource,
   TrackType,
-  Transcription as TranscriptionModel,
   TranscriptionSegment as TranscriptionSegmentModel,
-  UserPacket,
   protoInt64,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
@@ -50,9 +43,7 @@ import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
 import {
   type ByteStreamHandler,
-  ByteStreamReader,
   type TextStreamHandler,
-  TextStreamReader,
 } from './StreamReader';
 import {
   audioDefaults,
@@ -67,7 +58,7 @@ import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
+import { type RpcInvocationData } from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
@@ -80,21 +71,16 @@ import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, kindToSource, sourceToKind } from './track/utils';
+import IncomingDataStreamManager from './data-stream/IncomingDataStreamManager';
 import {
-  type ByteStreamInfo,
   type ChatMessage,
   type SimulationOptions,
   type SimulationScenario,
-  type StreamController,
-  type TextStreamInfo,
   type TranscriptionSegment,
 } from './types';
 import {
   Future,
-  bigIntToNumber,
   createDummyVideoStreamTrack,
-  extractChatMessage,
-  extractTranscriptionSegments,
   getDisconnectReasonFromConnectionError,
   getEmptyAudioStreamTrack,
   isBrowserSupported,
@@ -199,13 +185,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   private transcriptionReceivedTimes: Map<string, number>;
 
-  private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
-
-  private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
-
-  private byteStreamHandlers = new Map<string, ByteStreamHandler>();
-
-  private textStreamHandlers = new Map<string, TextStreamHandler>();
+  private incomingDataStreamManager: IncomingDataStreamManager;
 
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
@@ -222,6 +202,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room);
     this.transcriptionReceivedTimes = new Map();
+
+    this.incomingDataStreamManager = new IncomingDataStreamManager(this, this.rpcHandlers);
 
     this.options.audioCaptureDefaults = {
       ...audioDefaults,
@@ -288,25 +270,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   registerTextStreamHandler(topic: string, callback: TextStreamHandler) {
-    if (this.textStreamHandlers.has(topic)) {
-      throw new TypeError(`A text stream handler for topic "${topic}" has already been set.`);
-    }
-    this.textStreamHandlers.set(topic, callback);
+    return this.incomingDataStreamManager.registerTextStreamHandler(topic, callback);
   }
 
   unregisterTextStreamHandler(topic: string) {
-    this.textStreamHandlers.delete(topic);
+    return this.incomingDataStreamManager.unregisterTextStreamHandler(topic);
   }
 
   registerByteStreamHandler(topic: string, callback: ByteStreamHandler) {
-    if (this.byteStreamHandlers.has(topic)) {
-      throw new TypeError(`A byte stream handler for topic "${topic}" has already been set.`);
-    }
-    this.byteStreamHandlers.set(topic, callback);
+    return this.incomingDataStreamManager.registerByteStreamHandler(topic, callback);
   }
 
   unregisterByteStreamHandler(topic: string) {
-    this.byteStreamHandlers.delete(topic);
+    return this.incomingDataStreamManager.unregisterByteStreamHandler(topic);
   }
 
   /**
@@ -351,68 +327,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   unregisterRpcMethod(method: string) {
     this.rpcHandlers.delete(method);
-  }
-
-  private async handleIncomingRpcRequest(
-    callerIdentity: string,
-    requestId: string,
-    method: string,
-    payload: string,
-    responseTimeout: number,
-    version: number,
-  ) {
-    await this.engine.publishRpcAck(callerIdentity, requestId);
-
-    if (version !== 1) {
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_VERSION'),
-      );
-      return;
-    }
-
-    const handler = this.rpcHandlers.get(method);
-
-    if (!handler) {
-      await this.engine.publishRpcResponse(
-        callerIdentity,
-        requestId,
-        null,
-        RpcError.builtIn('UNSUPPORTED_METHOD'),
-      );
-      return;
-    }
-
-    let responseError: RpcError | null = null;
-    let responsePayload: string | null = null;
-
-    try {
-      const response = await handler({
-        requestId,
-        callerIdentity,
-        payload,
-        responseTimeout,
-      });
-      if (byteLength(response) > MAX_PAYLOAD_BYTES) {
-        responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
-        console.warn(`RPC Response payload too large for ${method}`);
-      } else {
-        responsePayload = response;
-      }
-    } catch (error) {
-      if (error instanceof RpcError) {
-        responseError = error;
-      } else {
-        console.warn(
-          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
-          error,
-        );
-        responseError = RpcError.builtIn('APPLICATION_ERROR');
-      }
-    }
-    await this.engine.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
   }
 
   /**
@@ -537,7 +451,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, reason);
       })
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
-      .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
+      .on(EngineEvent.DataPacketReceived, this.incomingDataStreamManager.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
         this.clearConnectionReconcile();
         this.isResuming = true;
@@ -1771,197 +1685,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     pub.setSubscriptionError(update.err);
   };
 
-  private handleDataPacket = (packet: DataPacket) => {
-    // find the participant
-    const participant = this.remoteParticipants.get(packet.participantIdentity);
-    if (packet.value.case === 'user') {
-      this.handleUserPacket(participant, packet.value.value, packet.kind);
-    } else if (packet.value.case === 'transcription') {
-      this.handleTranscription(participant, packet.value.value);
-    } else if (packet.value.case === 'sipDtmf') {
-      this.handleSipDtmf(participant, packet.value.value);
-    } else if (packet.value.case === 'chatMessage') {
-      this.handleChatMessage(participant, packet.value.value);
-    } else if (packet.value.case === 'metrics') {
-      this.handleMetrics(packet.value.value, participant);
-    } else if (packet.value.case === 'streamHeader') {
-      this.handleStreamHeader(packet.value.value, packet.participantIdentity);
-    } else if (packet.value.case === 'streamChunk') {
-      this.handleStreamChunk(packet.value.value);
-    } else if (packet.value.case === 'streamTrailer') {
-      this.handleStreamTrailer(packet.value.value);
-    } else if (packet.value.case === 'rpcRequest') {
-      const rpc = packet.value.value;
-      this.handleIncomingRpcRequest(
-        packet.participantIdentity,
-        rpc.id,
-        rpc.method,
-        rpc.payload,
-        rpc.responseTimeoutMs,
-        rpc.version,
-      );
-    }
-  };
-
-  private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
-    if (streamHeader.contentHeader.case === 'byteHeader') {
-      const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
-
-      if (!streamHandlerCallback) {
-        this.log.debug(
-          'ignoring incoming byte stream due to no handler for topic',
-          streamHeader.topic,
-        );
-        return;
-      }
-      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const info: ByteStreamInfo = {
-        id: streamHeader.streamId,
-        name: streamHeader.contentHeader.value.name ?? 'unknown',
-        mimeType: streamHeader.mimeType,
-        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
-        topic: streamHeader.topic,
-        timestamp: bigIntToNumber(streamHeader.timestamp),
-        attributes: streamHeader.attributes,
-      };
-      const stream = new ReadableStream({
-        start: (controller) => {
-          streamController = controller;
-          this.byteStreamControllers.set(streamHeader.streamId, {
-            info,
-            controller: streamController,
-            startTime: Date.now(),
-          });
-        },
-      });
-      streamHandlerCallback(
-        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
-        {
-          identity: participantIdentity,
-        },
-      );
-    } else if (streamHeader.contentHeader.case === 'textHeader') {
-      const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
-
-      if (!streamHandlerCallback) {
-        this.log.debug(
-          'ignoring incoming text stream due to no handler for topic',
-          streamHeader.topic,
-        );
-        return;
-      }
-      let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
-      const info: TextStreamInfo = {
-        id: streamHeader.streamId,
-        mimeType: streamHeader.mimeType,
-        size: streamHeader.totalLength ? Number(streamHeader.totalLength) : undefined,
-        topic: streamHeader.topic,
-        timestamp: Number(streamHeader.timestamp),
-        attributes: streamHeader.attributes,
-      };
-
-      const stream = new ReadableStream<DataStream_Chunk>({
-        start: (controller) => {
-          streamController = controller;
-          this.textStreamControllers.set(streamHeader.streamId, {
-            info,
-            controller: streamController,
-            startTime: Date.now(),
-          });
-        },
-      });
-      streamHandlerCallback(
-        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
-        { identity: participantIdentity },
-      );
-    }
-  }
-
-  private handleStreamChunk(chunk: DataStream_Chunk) {
-    const fileBuffer = this.byteStreamControllers.get(chunk.streamId);
-    if (fileBuffer) {
-      if (chunk.content.length > 0) {
-        fileBuffer.controller.enqueue(chunk);
-      }
-    }
-    const textBuffer = this.textStreamControllers.get(chunk.streamId);
-    if (textBuffer) {
-      if (chunk.content.length > 0) {
-        textBuffer.controller.enqueue(chunk);
-      }
-    }
-  }
-
-  private handleStreamTrailer(trailer: DataStream_Trailer) {
-    const textBuffer = this.textStreamControllers.get(trailer.streamId);
-    if (textBuffer) {
-      textBuffer.info.attributes = {
-        ...textBuffer.info.attributes,
-        ...trailer.attributes,
-      };
-      textBuffer.controller.close();
-      this.textStreamControllers.delete(trailer.streamId);
-    }
-
-    const fileBuffer = this.byteStreamControllers.get(trailer.streamId);
-    if (fileBuffer) {
-      {
-        fileBuffer.info.attributes = { ...fileBuffer.info.attributes, ...trailer.attributes };
-        fileBuffer.controller.close();
-        this.byteStreamControllers.delete(trailer.streamId);
-      }
-    }
-  }
-
-  private handleUserPacket = (
-    participant: RemoteParticipant | undefined,
-    userPacket: UserPacket,
-    kind: DataPacket_Kind,
-  ) => {
-    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
-
-    // also emit on the participant
-    participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
-  };
-
-  private handleSipDtmf = (participant: RemoteParticipant | undefined, dtmf: SipDTMF) => {
-    this.emit(RoomEvent.SipDTMFReceived, dtmf, participant);
-
-    // also emit on the participant
-    participant?.emit(ParticipantEvent.SipDTMFReceived, dtmf);
-  };
-
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
-
-  private handleTranscription = (
-    _remoteParticipant: RemoteParticipant | undefined,
-    transcription: TranscriptionModel,
-  ) => {
-    // find the participant
-    const participant =
-      transcription.transcribedParticipantIdentity === this.localParticipant.identity
-        ? this.localParticipant
-        : this.getParticipantByIdentity(transcription.transcribedParticipantIdentity);
-    const publication = participant?.trackPublications.get(transcription.trackId);
-
-    const segments = extractTranscriptionSegments(transcription, this.transcriptionReceivedTimes);
-
-    publication?.emit(TrackEvent.TranscriptionReceived, segments);
-    participant?.emit(ParticipantEvent.TranscriptionReceived, segments, publication);
-    this.emit(RoomEvent.TranscriptionReceived, segments, participant, publication);
-  };
-
-  private handleChatMessage = (
-    participant: RemoteParticipant | undefined,
-    chatMessage: ChatMessageModel,
-  ) => {
-    const msg = extractChatMessage(chatMessage);
-    this.emit(RoomEvent.ChatMessage, msg, participant);
-  };
-
-  private handleMetrics = (metrics: MetricsBatch, participant?: Participant) => {
-    this.emit(RoomEvent.MetricsReceived, metrics, participant);
-  };
 
   private handleAudioPlaybackStarted = () => {
     if (this.canPlaybackAudio) {
