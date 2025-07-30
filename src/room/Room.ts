@@ -61,7 +61,7 @@ import {
   roomOptionDefaults,
   videoDefaults,
 } from './defaults';
-import { ConnectionError, ConnectionErrorReason, UnsupportedServer } from './errors';
+import { ConnectionError, ConnectionErrorReason, DataStreamError, DataStreamErrorReason, UnsupportedServer } from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
@@ -289,7 +289,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   registerTextStreamHandler(topic: string, callback: TextStreamHandler) {
     if (this.textStreamHandlers.has(topic)) {
-      throw new TypeError(`A text stream handler for topic "${topic}" has already been set.`);
+      throw new DataStreamError(
+        `A text stream handler for topic "${topic}" has already been set.`,
+        DataStreamErrorReason.HandlerAlreadyRegistered,
+      );
     }
     this.textStreamHandlers.set(topic, callback);
   }
@@ -300,7 +303,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   registerByteStreamHandler(topic: string, callback: ByteStreamHandler) {
     if (this.byteStreamHandlers.has(topic)) {
-      throw new TypeError(`A byte stream handler for topic "${topic}" has already been set.`);
+      throw new DataStreamError(
+        `A byte stream handler for topic "${topic}" has already been set.`,
+        DataStreamErrorReason.HandlerAlreadyRegistered,
+      );
     }
     this.byteStreamHandlers.set(topic, callback);
   }
