@@ -105,6 +105,7 @@ export interface StreamController<T extends DataStream_Chunk> {
   controller: ReadableStreamDefaultController<T>;
   startTime: number;
   endTime?: number;
+  sendingParticipantIdentity?: string;
 }
 
 export interface BaseStreamInfo {

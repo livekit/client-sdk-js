@@ -1649,6 +1649,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
+    const streamsBeingSentByDisconnectingParticipant = [
+      ...Array.from(this.textStreamControllers.values()),
+      ...Array.from(this.byteStreamControllers.values()),
+    ].filter(controller => controller.sendingParticipantIdentity === identity)
+    if (streamsBeingSentByDisconnectingParticipant.length > 0) {
+      const topics = streamsBeingSentByDisconnectingParticipant.map(
+        controller => controller.info.topic
+      );
+      throw new DataStreamError(
+        `Participant ${identity} disconnected in the middle of sending data on these topics: ${topics.join(', ')}`,
+        DataStreamErrorReason.AbnormalEnd,
+      );
+    }
+
     participant.trackPublications.forEach((publication) => {
       participant.unpublishTrack(publication.trackSid, true);
     });
@@ -1837,6 +1851,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             info,
             controller: streamController,
             startTime: Date.now(),
+            sendingParticipantIdentity: participantIdentity,
           });
         },
       });
@@ -1873,6 +1888,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             info,
             controller: streamController,
             startTime: Date.now(),
+            sendingParticipantIdentity: participantIdentity,
           });
         },
       });
