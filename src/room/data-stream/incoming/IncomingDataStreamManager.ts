@@ -6,6 +6,7 @@ import {
 } from '@livekit/protocol';
 import log from '../../../logger';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
+import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { bigIntToNumber } from '../../utils';
 import {
   type ByteStreamHandler,
@@ -27,7 +28,10 @@ export default class IncomingDataStreamManager {
 
   registerTextStreamHandler(topic: string, callback: TextStreamHandler) {
     if (this.textStreamHandlers.has(topic)) {
-      throw new TypeError(`A text stream handler for topic "${topic}" has already been set.`);
+      throw new DataStreamError(
+        `A text stream handler for topic "${topic}" has already been set.`,
+        DataStreamErrorReason.HandlerAlreadyRegistered,
+      );
     }
     this.textStreamHandlers.set(topic, callback);
   }
@@ -38,7 +42,10 @@ export default class IncomingDataStreamManager {
 
   registerByteStreamHandler(topic: string, callback: ByteStreamHandler) {
     if (this.byteStreamHandlers.has(topic)) {
-      throw new TypeError(`A byte stream handler for topic "${topic}" has already been set.`);
+      throw new DataStreamError(
+        `A byte stream handler for topic "${topic}" has already been set.`,
+        DataStreamErrorReason.HandlerAlreadyRegistered,
+      );
     }
     this.byteStreamHandlers.set(topic, callback);
   }
