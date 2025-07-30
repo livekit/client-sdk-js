@@ -88,6 +88,12 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
             rejectingSignalFuture.promise,
           ]);
           if (done) {
+            if (typeof this.totalByteSize === 'number' && this.bytesReceived < this.totalByteSize) {
+              throw new DataStreamError(
+                `Not enough chunk(s) received - expected ${this.totalByteSize} bytes of data total, only received ${this.bytesReceived} bytes`,
+                DataStreamErrorReason.LengthIncomplete,
+              );
+            }
             return { done: true, value: undefined as any };
           } else {
             this.handleChunkReceived(value);
@@ -218,6 +224,12 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
             rejectingSignalFuture.promise,
           ]);
           if (done) {
+            if (typeof this.totalByteSize === 'number' && this.bytesReceived < this.totalByteSize) {
+              throw new DataStreamError(
+                `Not enough chunk(s) received - expected ${this.totalByteSize} bytes of data total, only received ${this.bytesReceived} bytes`,
+                DataStreamErrorReason.LengthIncomplete,
+              );
+            }
             return { done: true, value: undefined };
           } else {
             this.handleChunkReceived(value);

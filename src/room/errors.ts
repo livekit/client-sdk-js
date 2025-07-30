@@ -125,7 +125,7 @@ export enum DataStreamErrorReason {
   LengthExceeded,
 
   // Read length less than total length specified in stream header.
-  Incomplete,
+  LengthIncomplete,
 
   // Stream terminated before completion.
   Terminated,
