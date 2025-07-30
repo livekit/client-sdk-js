@@ -112,8 +112,8 @@ export class SignalRequestError extends LivekitError {
 }
 
 export enum DataStreamErrorReason {
-  // // Unable to open a stream with the same ID more than once.
-  // AlreadyOpened,
+  // Unable to open a stream with the same ID more than once.
+  AlreadyOpened,
 
   // Stream closed abnormally by remote participant.
   AbnormalEnd,
