@@ -1,7 +1,7 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
+import { DataStreamError, DataStreamErrorReason } from './errors';
 import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from './types';
 import { Future, bigIntToNumber } from './utils';
-import { DataStreamError, DataStreamErrorReason } from './errors';
 
 export type BaseStreamReaderReadAllOpts = {
   /** An AbortSignal can be used to terminate reads early. */
@@ -16,6 +16,8 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
   protected _info: T;
 
   protected bytesReceived: number;
+
+  protected outOfBandFailureRejectingFuture?: Future<never>;
 
   get info() {
     return this._info;
@@ -40,11 +42,17 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
     }
   }
 
-  constructor(info: T, stream: ReadableStream<DataStream_Chunk>, totalByteSize?: number) {
+  constructor(
+    info: T,
+    stream: ReadableStream<DataStream_Chunk>,
+    totalByteSize?: number,
+    outOfBandFailureRejectingFuture?: Future<never>,
+  ) {
     this.reader = stream;
     this.totalByteSize = totalByteSize;
     this._info = info;
     this.bytesReceived = 0;
+    this.outOfBandFailureRejectingFuture = outOfBandFailureRejectingFuture;
   }
 
   protected abstract handleChunkReceived(chunk: DataStream_Chunk): void;
@@ -99,7 +107,13 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
         try {
           const { done, value } = await Promise.race([
             reader.read(),
+            // Rejects if this.signal is aborted
             rejectingSignalFuture.promise,
+            // Rejects if something external says it should, like a participant disconnecting, etc
+            this.outOfBandFailureRejectingFuture?.promise ??
+              new Promise<never>(() => {
+                /* never resolves */
+              }),
           ]);
           if (done) {
             this.validateBytesReceived(true);
@@ -161,8 +175,9 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     info: TextStreamInfo,
     stream: ReadableStream<DataStream_Chunk>,
     totalChunkCount?: number,
+    outOfBandFailureRejectingFuture?: Future<never>,
   ) {
-    super(info, stream, totalChunkCount);
+    super(info, stream, totalChunkCount, outOfBandFailureRejectingFuture);
     this.receivedChunks = new Map();
   }
 
@@ -225,7 +240,13 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
         try {
           const { done, value } = await Promise.race([
             reader.read(),
+            // Rejects if this.signal is aborted
             rejectingSignalFuture.promise,
+            // Rejects if something external says it should, like a participant disconnecting, etc
+            this.outOfBandFailureRejectingFuture?.promise ??
+              new Promise<never>(() => {
+                /* never resolves */
+              }),
           ]);
           if (done) {
             this.validateBytesReceived(true);

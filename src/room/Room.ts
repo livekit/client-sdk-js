@@ -61,7 +61,13 @@ import {
   roomOptionDefaults,
   videoDefaults,
 } from './defaults';
-import { ConnectionError, ConnectionErrorReason, DataStreamError, DataStreamErrorReason, UnsupportedServer } from './errors';
+import {
+  ConnectionError,
+  ConnectionErrorReason,
+  DataStreamError,
+  DataStreamErrorReason,
+  UnsupportedServer,
+} from './errors';
 import { EngineEvent, ParticipantEvent, RoomEvent, TrackEvent } from './events';
 import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
@@ -1649,18 +1655,20 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
+    // Terminate any in flight data stream receives from the given participant
     const streamsBeingSentByDisconnectingParticipant = [
       ...Array.from(this.textStreamControllers.values()),
       ...Array.from(this.byteStreamControllers.values()),
-    ].filter(controller => controller.sendingParticipantIdentity === identity)
+    ].filter((controller) => controller.sendingParticipantIdentity === identity);
     if (streamsBeingSentByDisconnectingParticipant.length > 0) {
-      const topics = streamsBeingSentByDisconnectingParticipant.map(
-        controller => controller.info.topic
-      );
-      throw new DataStreamError(
-        `Participant ${identity} disconnected in the middle of sending data on these topics: ${topics.join(', ')}`,
-        DataStreamErrorReason.AbnormalEnd,
-      );
+      for (const controller of streamsBeingSentByDisconnectingParticipant) {
+        controller.outOfBandFailureRejectingFuture.reject?.(
+          new DataStreamError(
+            `Participant ${identity} unexpectedly disconnected in the middle of sending data`,
+            DataStreamErrorReason.AbnormalEnd,
+          ),
+        );
+      }
     }
 
     participant.trackPublications.forEach((publication) => {
@@ -1826,7 +1834,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
     if (streamHeader.contentHeader.case === 'byteHeader') {
       const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
-
       if (!streamHandlerCallback) {
         this.log.debug(
           'ignoring incoming byte stream due to no handler for topic',
@@ -1834,7 +1841,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         );
         return;
       }
+
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const outOfBandFailureRejectingFuture = new Future<never>();
+
       const info: ByteStreamInfo = {
         id: streamHeader.streamId,
         name: streamHeader.contentHeader.value.name ?? 'unknown',
@@ -1860,18 +1870,23 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             controller: streamController,
             startTime: Date.now(),
             sendingParticipantIdentity: participantIdentity,
+            outOfBandFailureRejectingFuture,
           });
         },
       });
       streamHandlerCallback(
-        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        new ByteStreamReader(
+          info,
+          stream,
+          bigIntToNumber(streamHeader.totalLength),
+          outOfBandFailureRejectingFuture,
+        ),
         {
           identity: participantIdentity,
         },
       );
     } else if (streamHeader.contentHeader.case === 'textHeader') {
       const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
-
       if (!streamHandlerCallback) {
         this.log.debug(
           'ignoring incoming text stream due to no handler for topic',
@@ -1879,7 +1894,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         );
         return;
       }
+
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const outOfBandFailureRejectingFuture = new Future<never>();
       const info: TextStreamInfo = {
         id: streamHeader.streamId,
         mimeType: streamHeader.mimeType,
@@ -1905,11 +1922,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
             controller: streamController,
             startTime: Date.now(),
             sendingParticipantIdentity: participantIdentity,
+            outOfBandFailureRejectingFuture,
           });
         },
       });
       streamHandlerCallback(
-        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        new TextStreamReader(
+          info,
+          stream,
+          bigIntToNumber(streamHeader.totalLength),
+          outOfBandFailureRejectingFuture,
+        ),
         { identity: participantIdentity },
       );
     }
