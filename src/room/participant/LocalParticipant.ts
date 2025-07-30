@@ -27,6 +27,7 @@ import { SignalConnectionState } from '../../api/SignalClient';
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
+import type { TextStreamWriter } from '../StreamWriter';
 import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
@@ -102,8 +103,6 @@ import {
   computeVideoEncodings,
   getDefaultDegradationPreference,
 } from './publishUtils';
-import type { TextStreamWriter } from '../StreamWriter';
-
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
@@ -1727,12 +1726,12 @@ export default class LocalParticipant extends Participant {
   }
 
   /**
-    * Sends the given string to participants in the room via the data channel.
-    * For longer messages, consider using {@link streamText} instead.
-    *
-    * @param text The text payload
-    * @param options.topic Topic identifier used to route the stream to appropriate handlers.
-    */
+   * Sends the given string to participants in the room via the data channel.
+   * For longer messages, consider using {@link streamText} instead.
+   *
+   * @param text The text payload
+   * @param options.topic Topic identifier used to route the stream to appropriate handlers.
+   */
   async sendText(text: string, options?: SendTextOptions): Promise<TextStreamInfo> {
     return this.engine?.outgoingDataStreamManager.sendText(text, options);
   }
@@ -1751,20 +1750,20 @@ export default class LocalParticipant extends Participant {
   }
 
   /** Send a File to all participants in the room via the data channel.
-    * @param file The File object payload
-    * @param options.topic Topic identifier used to route the stream to appropriate handlers.
-    * @param options.onProgress A callback function used to monitor the upload progress percentage.
-    */
+   * @param file The File object payload
+   * @param options.topic Topic identifier used to route the stream to appropriate handlers.
+   * @param options.onProgress A callback function used to monitor the upload progress percentage.
+   */
   async sendFile(file: File, options?: SendFileOptions): Promise<{ id: string }> {
     return this.engine.outgoingDataStreamManager.sendFile(file, options);
   }
 
   /**
-    * Stream bytes incrementally to participants in the room via the data channel.
-    * For sending files, consider using {@link sendFile} instead.
-    *
-    * @param options.topic Topic identifier used to route the stream to appropriate handlers.
-    */
+   * Stream bytes incrementally to participants in the room via the data channel.
+   * For sending files, consider using {@link sendFile} instead.
+   *
+   * @param options.topic Topic identifier used to route the stream to appropriate handlers.
+   */
   async streamBytes(options?: StreamBytesOptions) {
     return this.engine.outgoingDataStreamManager.streamBytes(options);
   }

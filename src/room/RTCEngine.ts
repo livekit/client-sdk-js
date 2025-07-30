@@ -51,6 +51,7 @@ import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import type { RegionUrlProvider } from './RegionUrlProvider';
+import OutgoingDataStreamManager from './data-stream/OutgoingDataStreamManager';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -79,7 +80,6 @@ import {
   supportsAddTrack,
   supportsTransceiver,
 } from './utils';
-import OutgoingDataStreamManager from './data-stream/OutgoingDataStreamManager';
 
 const lossyDataChannel = '_lossy';
 const reliableDataChannel = '_reliable';

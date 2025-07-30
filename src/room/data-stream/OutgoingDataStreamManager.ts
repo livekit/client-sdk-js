@@ -1,18 +1,34 @@
-import { DataPacket, DataPacket_Kind, DataStream_ByteHeader, DataStream_Chunk, DataStream_Header, DataStream_OperationType, DataStream_TextHeader, DataStream_Trailer } from "@livekit/protocol";
-import type RTCEngine from "../RTCEngine";
-import { ByteStreamWriter, TextStreamWriter } from "../StreamWriter";
-import type { ByteStreamInfo, SendFileOptions, SendTextOptions, StreamBytesOptions, StreamTextOptions, TextStreamInfo } from "../types";
-import { numberToBigInt, splitUtf8 } from "../utils";
-import { EngineEvent } from "../events";
-import { Mutex } from "@livekit/mutex";
-import log, { type StructuredLogger } from "../../logger";
+import { Mutex } from '@livekit/mutex';
+import {
+  DataPacket,
+  DataPacket_Kind,
+  DataStream_ByteHeader,
+  DataStream_Chunk,
+  DataStream_Header,
+  DataStream_OperationType,
+  DataStream_TextHeader,
+  DataStream_Trailer,
+} from '@livekit/protocol';
+import log, { type StructuredLogger } from '../../logger';
+import type RTCEngine from '../RTCEngine';
+import { ByteStreamWriter, TextStreamWriter } from '../StreamWriter';
+import { EngineEvent } from '../events';
+import type {
+  ByteStreamInfo,
+  SendFileOptions,
+  SendTextOptions,
+  StreamBytesOptions,
+  StreamTextOptions,
+  TextStreamInfo,
+} from '../types';
+import { numberToBigInt, splitUtf8 } from '../utils';
 
 const STREAM_CHUNK_SIZE = 15_000;
 
 /**
-  * Manages sending custom user data via data channels.
-  * @internal
-  */
+ * Manages sending custom user data via data channels.
+ * @internal
+ */
 export default class OutgoingDataStreamManager {
   protected engine: RTCEngine;
   protected log: StructuredLogger = log;

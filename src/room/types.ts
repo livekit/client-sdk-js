@@ -43,12 +43,15 @@ export type StreamBytesOptions = {
   streamId?: string;
   mimeType?: string;
   totalSize?: number;
-}
+};
 
-export type SendFileOptions = Pick<StreamBytesOptions, 'topic' | 'mimeType' | 'destinationIdentities'> & {
+export type SendFileOptions = Pick<
+  StreamBytesOptions,
+  'topic' | 'mimeType' | 'destinationIdentities'
+> & {
   onProgress?: (progress: number) => void;
   encryptionType?: Encryption_Type.NONE;
-}
+};
 
 export type DataPublishOptions = {
   /**
