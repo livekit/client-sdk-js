@@ -111,6 +111,51 @@ export class SignalRequestError extends LivekitError {
   }
 }
 
+export enum DataStreamErrorReason {
+  // // Unable to open a stream with the same ID more than once.
+  // AlreadyOpened,
+
+  // Stream closed abnormally by remote participant.
+  AbnormalEnd,
+
+  // Incoming chunk data could not be decoded.
+  DecodeFailed, // DONE
+
+  // Read length exceeded total length specified in stream header.
+  LengthExceeded,
+
+  // Read length less than total length specified in stream header.
+  Incomplete,
+
+  // Stream terminated before completion.
+  Terminated,
+
+  // Cannot perform operations on an unknown stream.
+  UnknownStream,
+
+  // Unable to register a stream handler more than once.
+  HandlerAlreadyRegistered, // DONE
+
+  // // Given destination URL is not a directory.
+  // NotDirectory,
+
+  // // Unable to read information about the file to send.
+  // FileInfoUnavailable,
+}
+
+export class DataStreamError extends LivekitError {
+  reason: DataStreamErrorReason;
+
+  reasonName: string;
+
+  constructor(message: string, reason: DataStreamErrorReason) {
+    super(16, message);
+    this.name = 'DataStreamError';
+    this.reason = reason;
+    this.reasonName = DataStreamErrorReason[reason];
+  }
+}
+
 export enum MediaDeviceFailure {
   // user rejected permissions
   PermissionDenied = 'PermissionDenied',
