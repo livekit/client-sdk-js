@@ -101,7 +101,7 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
   }
 
   /**
-   * Injects an AborrSignal, which if aborted, will terminate the currently active
+   * Injects an AbortSignal, which if aborted, will terminate the currently active
    * stream iteration operation.
    *
    * Note that when using AbortSignal.timeout(...), the timeout applies across
