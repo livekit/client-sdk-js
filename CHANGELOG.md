@@ -1,5 +1,11 @@
 # Change Log
 
+## 2.15.5
+
+### Patch Changes
+
+- feat: add ability to include an AbortSignal when reading from a datastream - [#1611](https://github.com/livekit/client-sdk-js/pull/1611) ([@1egoman](https://github.com/1egoman))
+
 ## 2.15.4
 
 ### Patch Changes
