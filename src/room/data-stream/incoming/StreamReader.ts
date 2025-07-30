@@ -38,6 +38,13 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
 export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
   protected handleChunkReceived(chunk: DataStream_Chunk) {
     this.bytesReceived += chunk.content.byteLength;
+    if (typeof this.totalByteSize === 'number' && this.bytesReceived > this.totalByteSize) {
+      throw new DataStreamError(
+        `Extra chunk(s) received - expected ${this.totalByteSize} bytes of data total, received ${this.bytesReceived} bytes`,
+        DataStreamErrorReason.LengthExceeded,
+      );
+    }
+
     const currentProgress = this.totalByteSize
       ? this.bytesReceived / this.totalByteSize
       : undefined;
@@ -152,7 +159,15 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
       return;
     }
     this.receivedChunks.set(index, chunk);
+
     this.bytesReceived += chunk.content.byteLength;
+    if (typeof this.totalByteSize === 'number' && this.bytesReceived > this.totalByteSize) {
+      throw new DataStreamError(
+        `Extra chunk(s) received - expected ${this.totalByteSize} bytes of data total, received ${this.bytesReceived} bytes`,
+        DataStreamErrorReason.LengthExceeded,
+      );
+    }
+
     const currentProgress = this.totalByteSize
       ? this.bytesReceived / this.totalByteSize
       : undefined;
