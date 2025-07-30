@@ -7,7 +7,7 @@ import {
 import log from '../../../logger';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
-import { bigIntToNumber } from '../../utils';
+import { bigIntToNumber, Future } from '../../utils';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -62,19 +62,21 @@ export default class IncomingDataStreamManager {
   }
 
   validateParticipantNotActivelySending(participantIdentity: string) {
+    // Terminate any in flight data stream receives from the given participant
     const streamsBeingSentByDisconnectingParticipant = [
       ...Array.from(this.textStreamControllers.values()),
       ...Array.from(this.byteStreamControllers.values()),
     ].filter(controller => controller.sendingParticipantIdentity === participantIdentity)
 
     if (streamsBeingSentByDisconnectingParticipant.length > 0) {
-      const topics = streamsBeingSentByDisconnectingParticipant.map(
-        controller => controller.info.topic
-      );
-      throw new DataStreamError(
-        `Participant ${participantIdentity} disconnected in the middle of sending data on these topics: ${topics.join(', ')}`,
-        DataStreamErrorReason.AbnormalEnd,
-      );
+      for (const controller of streamsBeingSentByDisconnectingParticipant) {
+        controller.outOfBandFailureRejectingFuture.reject?.(
+          new DataStreamError(
+            `Participant ${participantIdentity} unexpectedly disconnected in the middle of sending data`,
+            DataStreamErrorReason.AbnormalEnd,
+          ),
+        );
+      }
     }
   }
 
@@ -94,7 +96,6 @@ export default class IncomingDataStreamManager {
   private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
     if (streamHeader.contentHeader.case === 'byteHeader') {
       const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
-
       if (!streamHandlerCallback) {
         this.log.debug(
           'ignoring incoming byte stream due to no handler for topic',
@@ -102,7 +103,10 @@ export default class IncomingDataStreamManager {
         );
         return;
       }
+
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const outOfBandFailureRejectingFuture = new Future<never>();
+
       const info: ByteStreamInfo = {
         id: streamHeader.streamId,
         name: streamHeader.contentHeader.value.name ?? 'unknown',
@@ -128,18 +132,23 @@ export default class IncomingDataStreamManager {
             controller: streamController,
             startTime: Date.now(),
             sendingParticipantIdentity: participantIdentity,
+            outOfBandFailureRejectingFuture,
           });
         },
       });
       streamHandlerCallback(
-        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        new ByteStreamReader(
+          info,
+          stream,
+          bigIntToNumber(streamHeader.totalLength),
+          outOfBandFailureRejectingFuture,
+        ),
         {
           identity: participantIdentity,
         },
       );
     } else if (streamHeader.contentHeader.case === 'textHeader') {
       const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
-
       if (!streamHandlerCallback) {
         this.log.debug(
           'ignoring incoming text stream due to no handler for topic',
@@ -147,7 +156,9 @@ export default class IncomingDataStreamManager {
         );
         return;
       }
+
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const outOfBandFailureRejectingFuture = new Future<never>();
       const info: TextStreamInfo = {
         id: streamHeader.streamId,
         mimeType: streamHeader.mimeType,
@@ -173,11 +184,17 @@ export default class IncomingDataStreamManager {
             controller: streamController,
             startTime: Date.now(),
             sendingParticipantIdentity: participantIdentity,
+            outOfBandFailureRejectingFuture,
           });
         },
       });
       streamHandlerCallback(
-        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        new TextStreamReader(
+          info,
+          stream,
+          bigIntToNumber(streamHeader.totalLength),
+          outOfBandFailureRejectingFuture,
+        ),
         { identity: participantIdentity },
       );
     }
