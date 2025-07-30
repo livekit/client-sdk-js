@@ -1,5 +1,6 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
 import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from '../../types';
+import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { Future, bigIntToNumber } from '../../utils';
 
 export type BaseStreamReaderReadAllOpts = {
@@ -206,9 +207,19 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
           } else {
             this.handleChunkReceived(value);
 
+            let decodedResult;
+            try {
+              decodedResult = decoder.decode(value.content);
+            } catch (err) {
+              throw new DataStreamError(
+                `Cannot decode datastream chunk ${value.chunkIndex} as text: ${err}`,
+                DataStreamErrorReason.DecodeFailed,
+              );
+            }
+
             return {
               done: false,
-              value: decoder.decode(value.content),
+              value: decodedResult,
             };
           }
         } catch (err) {
