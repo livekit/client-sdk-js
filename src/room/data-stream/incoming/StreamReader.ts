@@ -21,6 +21,25 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
     return this._info;
   }
 
+  /** @internal */
+  protected validateBytesReceived(doneReceiving: boolean = false) {
+    if (typeof this.totalByteSize !== 'number') {
+      return;
+    }
+
+    if (doneReceiving && this.bytesReceived < this.totalByteSize) {
+      throw new DataStreamError(
+        `Not enough chunk(s) received - expected ${this.totalByteSize} bytes of data total, only received ${this.bytesReceived} bytes`,
+        DataStreamErrorReason.LengthIncomplete,
+      );
+    } else if (this.bytesReceived > this.totalByteSize) {
+      throw new DataStreamError(
+        `Extra chunk(s) received - expected ${this.totalByteSize} bytes of data total, received ${this.bytesReceived} bytes`,
+        DataStreamErrorReason.LengthExceeded,
+      );
+    }
+  }
+
   constructor(info: T, stream: ReadableStream<DataStream_Chunk>, totalByteSize?: number) {
     this.reader = stream;
     this.totalByteSize = totalByteSize;
@@ -38,12 +57,7 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
 export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
   protected handleChunkReceived(chunk: DataStream_Chunk) {
     this.bytesReceived += chunk.content.byteLength;
-    if (typeof this.totalByteSize === 'number' && this.bytesReceived > this.totalByteSize) {
-      throw new DataStreamError(
-        `Extra chunk(s) received - expected ${this.totalByteSize} bytes of data total, received ${this.bytesReceived} bytes`,
-        DataStreamErrorReason.LengthExceeded,
-      );
-    }
+    this.validateBytesReceived();
 
     const currentProgress = this.totalByteSize
       ? this.bytesReceived / this.totalByteSize
@@ -88,12 +102,7 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
             rejectingSignalFuture.promise,
           ]);
           if (done) {
-            if (typeof this.totalByteSize === 'number' && this.bytesReceived < this.totalByteSize) {
-              throw new DataStreamError(
-                `Not enough chunk(s) received - expected ${this.totalByteSize} bytes of data total, only received ${this.bytesReceived} bytes`,
-                DataStreamErrorReason.LengthIncomplete,
-              );
-            }
+            this.validateBytesReceived(true);
             return { done: true, value: undefined as any };
           } else {
             this.handleChunkReceived(value);
@@ -167,12 +176,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     this.receivedChunks.set(index, chunk);
 
     this.bytesReceived += chunk.content.byteLength;
-    if (typeof this.totalByteSize === 'number' && this.bytesReceived > this.totalByteSize) {
-      throw new DataStreamError(
-        `Extra chunk(s) received - expected ${this.totalByteSize} bytes of data total, received ${this.bytesReceived} bytes`,
-        DataStreamErrorReason.LengthExceeded,
-      );
-    }
+    this.validateBytesReceived();
 
     const currentProgress = this.totalByteSize
       ? this.bytesReceived / this.totalByteSize
@@ -224,12 +228,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
             rejectingSignalFuture.promise,
           ]);
           if (done) {
-            if (typeof this.totalByteSize === 'number' && this.bytesReceived < this.totalByteSize) {
-              throw new DataStreamError(
-                `Not enough chunk(s) received - expected ${this.totalByteSize} bytes of data total, only received ${this.bytesReceived} bytes`,
-                DataStreamErrorReason.LengthIncomplete,
-              );
-            }
+            this.validateBytesReceived(true);
             return { done: true, value: undefined };
           } else {
             this.handleChunkReceived(value);
