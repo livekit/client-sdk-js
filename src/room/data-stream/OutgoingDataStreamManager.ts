@@ -9,6 +9,10 @@ import log, { type StructuredLogger } from "../../logger";
 
 const STREAM_CHUNK_SIZE = 15_000;
 
+/**
+  * Manages sending custom user data via data channels.
+  * @internal
+  */
 export default class OutgoingDataStreamManager {
   protected engine: RTCEngine;
   protected log: StructuredLogger = log;
