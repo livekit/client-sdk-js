@@ -127,11 +127,11 @@ export enum DataStreamErrorReason {
   // Read length less than total length specified in stream header.
   LengthIncomplete,
 
-  // Stream terminated before completion.
-  Terminated,
+  // // Stream terminated before completion.
+  // Terminated,
 
-  // Cannot perform operations on an unknown stream.
-  UnknownStream,
+  // // Cannot perform operations on an unknown stream.
+  // UnknownStream,
 
   // Unable to register a stream handler more than once.
   HandlerAlreadyRegistered,
