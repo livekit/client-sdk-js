@@ -1847,6 +1847,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const stream = new ReadableStream({
         start: (controller) => {
           streamController = controller;
+
+          if (this.textStreamControllers.has(streamHeader.streamId)) {
+            throw new DataStreamError(
+              `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+              DataStreamErrorReason.AlreadyOpened,
+            );
+          }
+
           this.byteStreamControllers.set(streamHeader.streamId, {
             info,
             controller: streamController,
@@ -1884,6 +1892,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       const stream = new ReadableStream<DataStream_Chunk>({
         start: (controller) => {
           streamController = controller;
+
+          if (this.textStreamControllers.has(streamHeader.streamId)) {
+            throw new DataStreamError(
+              `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+              DataStreamErrorReason.AlreadyOpened,
+            );
+          }
+
           this.textStreamControllers.set(streamHeader.streamId, {
             info,
             controller: streamController,
