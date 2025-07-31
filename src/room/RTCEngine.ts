@@ -51,7 +51,6 @@ import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
 import type { RegionUrlProvider } from './RegionUrlProvider';
-import OutgoingDataStreamManager from './data-stream/OutgoingDataStreamManager';
 import { roomConnectOptionDefaults } from './defaults';
 import {
   ConnectionError,
@@ -106,8 +105,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
   fullReconnectOnNext: boolean = false;
 
   pcManager?: PCTransportManager;
-
-  outgoingDataStreamManager: OutgoingDataStreamManager;
 
   /**
    * @internal
@@ -213,8 +210,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       [DataPacket_Kind.LOSSY, true],
       [DataPacket_Kind.RELIABLE, true],
     ]);
-
-    this.outgoingDataStreamManager = new OutgoingDataStreamManager(this);
 
     this.client.onParticipantUpdate = (updates) =>
       this.emit(EngineEvent.ParticipantUpdate, updates);

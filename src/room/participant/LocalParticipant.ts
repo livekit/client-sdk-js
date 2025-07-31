@@ -103,6 +103,7 @@ import {
   computeVideoEncodings,
   getDefaultDegradationPreference,
 } from './publishUtils';
+import type OutgoingDataStreamManager from '../data-stream/OutgoingDataStreamManager';
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;
@@ -147,6 +148,8 @@ export default class LocalParticipant extends Participant {
 
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>;
 
+  private roomOutgoingDataStreamManager: OutgoingDataStreamManager;
+
   private pendingSignalRequests: Map<
     number,
     {
@@ -175,6 +178,7 @@ export default class LocalParticipant extends Participant {
     engine: RTCEngine,
     options: InternalRoomOptions,
     roomRpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>>,
+    roomOutgoingDataStreamManager: OutgoingDataStreamManager,
   ) {
     super(sid, identity, undefined, undefined, undefined, {
       loggerName: options.loggerName,
@@ -193,6 +197,7 @@ export default class LocalParticipant extends Participant {
     ]);
     this.pendingSignalRequests = new Map();
     this.rpcHandlers = roomRpcHandlers;
+    this.roomOutgoingDataStreamManager = roomOutgoingDataStreamManager;
   }
 
   get lastCameraError(): Error | undefined {
@@ -1733,7 +1738,7 @@ export default class LocalParticipant extends Participant {
    * @param options.topic Topic identifier used to route the stream to appropriate handlers.
    */
   async sendText(text: string, options?: SendTextOptions): Promise<TextStreamInfo> {
-    return this.engine?.outgoingDataStreamManager.sendText(text, options);
+    return this.roomOutgoingDataStreamManager.sendText(text, options);
   }
 
   /**
@@ -1746,7 +1751,7 @@ export default class LocalParticipant extends Participant {
    * @experimental CAUTION, might get removed in a minor release
    */
   async streamText(options?: StreamTextOptions): Promise<TextStreamWriter> {
-    return this.engine?.outgoingDataStreamManager.streamText(options);
+    return this.roomOutgoingDataStreamManager.streamText(options);
   }
 
   /** Send a File to all participants in the room via the data channel.
@@ -1755,7 +1760,7 @@ export default class LocalParticipant extends Participant {
    * @param options.onProgress A callback function used to monitor the upload progress percentage.
    */
   async sendFile(file: File, options?: SendFileOptions): Promise<{ id: string }> {
-    return this.engine.outgoingDataStreamManager.sendFile(file, options);
+    return this.roomOutgoingDataStreamManager.sendFile(file, options);
   }
 
   /**
@@ -1765,7 +1770,7 @@ export default class LocalParticipant extends Participant {
    * @param options.topic Topic identifier used to route the stream to appropriate handlers.
    */
   async streamBytes(options?: StreamBytesOptions) {
-    return this.engine.outgoingDataStreamManager.streamBytes(options);
+    return this.roomOutgoingDataStreamManager.streamBytes(options);
   }
 
   /**

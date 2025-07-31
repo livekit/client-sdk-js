@@ -72,6 +72,7 @@ import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, kindToSource, sourceToKind } from './track/utils';
 import IncomingDataStreamManager from './data-stream/IncomingDataStreamManager';
+import OutgoingDataStreamManager from './data-stream/OutgoingDataStreamManager';
 import {
   type ChatMessage,
   type SimulationOptions,
@@ -186,6 +187,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private transcriptionReceivedTimes: Map<string, number>;
 
   private incomingDataStreamManager: IncomingDataStreamManager;
+  private outgoingDataStreamManager: OutgoingDataStreamManager;
 
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
@@ -204,6 +206,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.transcriptionReceivedTimes = new Map();
 
     this.incomingDataStreamManager = new IncomingDataStreamManager(this, this.rpcHandlers);
+    this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine);
 
     this.options.audioCaptureDefaults = {
       ...audioDefaults,
@@ -228,6 +231,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.engine,
       this.options,
       this.rpcHandlers,
+      this.outgoingDataStreamManager,
     );
 
     if (this.options.videoCaptureDefaults.deviceId) {
