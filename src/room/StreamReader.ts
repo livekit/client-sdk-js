@@ -211,7 +211,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
    */
   [Symbol.asyncIterator]() {
     const reader = this.reader.getReader();
-    const decoder = new TextDecoder();
+    const decoder = new TextDecoder('utf-8', { fatal: true });
 
     let rejectingSignalFuture = new Future<never>();
     let activeSignal: AbortSignal | null = null;
