@@ -1698,7 +1698,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     pub.setSubscriptionError(update.err);
   };
 
-  handleDataPacket(packet: DataPacket) {
+  private handleDataPacket = (packet: DataPacket) => {
     // find the participant
     const participant = this.remoteParticipants.get(packet.participantIdentity);
     if (packet.value.case === 'user') {
@@ -1728,7 +1728,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         rpc.version,
       );
     }
-  }
+  };
 
   private handleUserPacket = (
     participant: RemoteParticipant | undefined,
