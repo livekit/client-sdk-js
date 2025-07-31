@@ -127,20 +127,8 @@ export enum DataStreamErrorReason {
   // Read length less than total length specified in stream header.
   LengthIncomplete,
 
-  // // Stream terminated before completion.
-  // Terminated,
-
-  // // Cannot perform operations on an unknown stream.
-  // UnknownStream,
-
   // Unable to register a stream handler more than once.
   HandlerAlreadyRegistered,
-
-  // // Given destination URL is not a directory.
-  // NotDirectory,
-
-  // // Unable to read information about the file to send.
-  // FileInfoUnavailable,
 }
 
 export class DataStreamError extends LivekitError {
