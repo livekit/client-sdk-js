@@ -35,10 +35,15 @@ export default class OutgoingDataStreamManager {
 
   constructor(engine: RTCEngine) {
     this.engine = engine;
+    this.setupEngine(this.engine);
   }
 
-  setupEngine(engine: RTCEngine) {
+  private setupEngine(engine: RTCEngine) {
     this.engine = engine;
+
+    this.engine.on(EngineEvent.SupersededBy, (newEngine) => {
+      this.setupEngine(newEngine);
+    });
   }
 
   /** {@inheritDoc LocalParticipant.sendText} */

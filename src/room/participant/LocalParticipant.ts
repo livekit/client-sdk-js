@@ -229,7 +229,7 @@ export default class LocalParticipant extends Participant {
   /**
    * @internal
    */
-  setupEngine(engine: RTCEngine) {
+  private setupEngine(engine: RTCEngine) {
     this.engine = engine;
     this.engine.on(EngineEvent.RemoteMute, (trackSid: string, muted: boolean) => {
       const pub = this.trackPublications.get(trackSid);
@@ -258,7 +258,8 @@ export default class LocalParticipant extends Participant {
       .on(EngineEvent.SubscribedQualityUpdate, this.handleSubscribedQualityUpdate)
       .on(EngineEvent.Closing, this.handleClosing)
       .on(EngineEvent.SignalRequestResponse, this.handleSignalRequestResponse)
-      .on(EngineEvent.DataPacketReceived, this.handleDataPacket);
+      .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
+      .on(EngineEvent.SupersededBy, this.handleNewEngine);
   }
 
   private handleReconnecting = () => {
@@ -330,6 +331,10 @@ export default class LocalParticipant extends Participant {
         this.handleIncomingRpcAck(rpcAck.requestId);
         break;
     }
+  };
+
+  private handleNewEngine = (newEngine: RTCEngine) => {
+    this.setupEngine(newEngine);
   };
 
   /**

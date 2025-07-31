@@ -606,6 +606,7 @@ export enum EngineEvent {
   SignalRequestResponse = 'signalRequestResponse',
   SignalConnected = 'signalConnected',
   RoomMoved = 'roomMoved',
+  SupersededBy = 'supersededBy',
 }
 
 export enum TrackEvent {
