@@ -139,7 +139,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   activeSpeakers: Participant[] = [];
 
   /** @internal */
-  engine!: RTCEngine;
+  engine?: RTCEngine;
 
   /** the current participant */
   localParticipant: LocalParticipant;
@@ -227,14 +227,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.maybeCreateEngine();
 
     this.incomingDataStreamManager = new IncomingDataStreamManager();
-    this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine);
+    this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine!);
 
     this.disconnectLock = new Mutex();
 
     this.localParticipant = new LocalParticipant(
       '',
       '',
-      this.engine,
+      this.engine!,
       this.options,
       this.rpcHandlers,
       this.outgoingDataStreamManager,
@@ -406,13 +406,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     return new Promise((resolve, reject) => {
       const handleRoomUpdate = (roomInfo: RoomModel) => {
         if (roomInfo.sid !== '') {
-          this.engine.off(EngineEvent.RoomUpdate, handleRoomUpdate);
+          this.engine!.off(EngineEvent.RoomUpdate, handleRoomUpdate);
           resolve(roomInfo.sid);
         }
       };
-      this.engine.on(EngineEvent.RoomUpdate, handleRoomUpdate);
+      this.engine!.on(EngineEvent.RoomUpdate, handleRoomUpdate);
       this.once(RoomEvent.Disconnected, () => {
-        this.engine.off(EngineEvent.RoomUpdate, handleRoomUpdate);
+        this.engine!.off(EngineEvent.RoomUpdate, handleRoomUpdate);
         reject('Room disconnected before room server id was available');
       });
     });
@@ -819,7 +819,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.maybeCreateEngine();
     }
     if (this.regionUrlProvider?.isCloud()) {
-      this.engine.setRegionUrlProvider(this.regionUrlProvider);
+      this.engine!.setRegionUrlProvider(this.regionUrlProvider);
     }
 
     this.acquireAudioContext();
@@ -827,17 +827,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.connOptions = { ...roomConnectOptionDefaults, ...opts } as InternalRoomConnectOptions;
 
     if (this.connOptions.rtcConfig) {
-      this.engine.rtcConfig = this.connOptions.rtcConfig;
+      this.engine!.rtcConfig = this.connOptions.rtcConfig;
     }
     if (this.connOptions.peerConnectionTimeout) {
-      this.engine.peerConnectionTimeout = this.connOptions.peerConnectionTimeout;
+      this.engine!.peerConnectionTimeout = this.connOptions.peerConnectionTimeout;
     }
 
     try {
       const joinResponse = await this.connectSignal(
         url,
         token,
-        this.engine,
+        this.engine!,
         this.connOptions,
         this.options,
         abortController,
@@ -848,7 +848,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.setupLocalParticipantEvents();
       this.emit(RoomEvent.SignalConnected);
     } catch (err) {
-      await this.engine.close();
+      await this.engine!.close();
       this.recreateEngine();
       const resultingError = new ConnectionError(
         `could not establish signal connection`,
@@ -869,18 +869,18 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     if (abortController.signal.aborted) {
-      await this.engine.close();
+      await this.engine!.close();
       this.recreateEngine();
       throw new ConnectionError(`Connection attempt aborted`, ConnectionErrorReason.Cancelled);
     }
 
     try {
-      await this.engine.waitForPCInitialConnection(
+      await this.engine!.waitForPCInitialConnection(
         this.connOptions.peerConnectionTimeout,
         abortController,
       );
     } catch (e) {
-      await this.engine.close();
+      await this.engine!.close();
       this.recreateEngine();
       throw e;
     }
@@ -928,14 +928,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
       // send leave
       if (!this.engine?.client.isDisconnected) {
-        await this.engine.client.sendLeave();
+        await this.engine!.client.sendLeave();
       }
       // close engine (also closes client)
       if (this.engine) {
-        await this.engine.close();
+        await this.engine!.close();
       }
       this.handleDisconnect(stopTracks, DisconnectReason.CLIENT_INITIATED);
-      /* @ts-ignore */
       this.engine = undefined;
     } finally {
       unlock();
@@ -967,7 +966,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     switch (scenario) {
       case 'signal-reconnect':
         // @ts-expect-error function is private
-        await this.engine.client.handleOnClose('simulate disconnect');
+        await this.engine!.client.handleOnClose('simulate disconnect');
         break;
       case 'speaker':
         req = new SimulateScenario({
@@ -1002,14 +1001,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         });
         break;
       case 'resume-reconnect':
-        this.engine.failNext();
+        this.engine!.failNext();
         // @ts-expect-error function is private
-        await this.engine.client.handleOnClose('simulate resume-disconnect');
+        await this.engine!.client.handleOnClose('simulate resume-disconnect');
         break;
       case 'disconnect-signal-on-resume':
         postAction = async () => {
           // @ts-expect-error function is private
-          await this.engine.client.handleOnClose('simulate resume-disconnect');
+          await this.engine!.client.handleOnClose('simulate resume-disconnect');
         };
         req = new SimulateScenario({
           scenario: {
@@ -1021,7 +1020,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       case 'disconnect-signal-on-resume-no-messages':
         postAction = async () => {
           // @ts-expect-error function is private
-          await this.engine.client.handleOnClose('simulate resume-disconnect');
+          await this.engine!.client.handleOnClose('simulate resume-disconnect');
         };
         req = new SimulateScenario({
           scenario: {
@@ -1031,9 +1030,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         });
         break;
       case 'full-reconnect':
-        this.engine.fullReconnectOnNext = true;
+        this.engine!.fullReconnectOnNext = true;
         // @ts-expect-error function is private
-        await this.engine.client.handleOnClose('simulate full-reconnect');
+        await this.engine!.client.handleOnClose('simulate full-reconnect');
         break;
       case 'force-tcp':
       case 'force-tls':
@@ -1044,7 +1043,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
           },
         });
         postAction = async () => {
-          const onLeave = this.engine.client.onLeave;
+          const onLeave = this.engine!.client.onLeave;
           if (onLeave) {
             onLeave(
               new LeaveRequest({
@@ -1076,7 +1075,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       default:
     }
     if (req) {
-      await this.engine.client.sendSimulateScenario(req);
+      await this.engine!.client.sendSimulateScenario(req);
       await postAction();
     }
   }
@@ -1445,7 +1444,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     try {
-      await this.engine.waitForRestarted();
+      await this.engine!.waitForRestarted();
       this.log.debug(`fully reconnected to server`, {
         ...this.logContext,
         region: joinResponse.serverRegion,
@@ -1783,10 +1782,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     responseTimeout: number,
     version: number,
   ) {
-    await this.engine.publishRpcAck(callerIdentity, requestId);
+    await this.engine!.publishRpcAck(callerIdentity, requestId);
 
     if (version !== 1) {
-      await this.engine.publishRpcResponse(
+      await this.engine!.publishRpcResponse(
         callerIdentity,
         requestId,
         null,
@@ -1798,7 +1797,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const handler = this.rpcHandlers.get(method);
 
     if (!handler) {
-      await this.engine.publishRpcResponse(
+      await this.engine!.publishRpcResponse(
         callerIdentity,
         requestId,
         null,
@@ -1834,7 +1833,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }
     }
-    await this.engine.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
+    await this.engine!.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
   }
 
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
@@ -2008,13 +2007,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private createParticipant(identity: string, info?: ParticipantInfo): RemoteParticipant {
     let participant: RemoteParticipant;
     if (info) {
-      participant = RemoteParticipant.fromParticipantInfo(this.engine.client, info, {
+      participant = RemoteParticipant.fromParticipantInfo(this.engine!.client, info, {
         loggerContextCb: () => this.logContext,
         loggerName: this.options.loggerName,
       });
     } else {
       participant = new RemoteParticipant(
-        this.engine.client,
+        this.engine!.client,
         '',
         identity,
         undefined,
@@ -2152,7 +2151,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return acc;
     }, [] as RemoteTrackPublication[]);
     const localTracks = this.localParticipant.getTrackPublications() as LocalTrackPublication[]; // FIXME would be nice to have this return LocalTrackPublications directly instead of the type cast
-    this.engine.sendSyncState(remoteTracks, localTracks);
+    this.engine!.sendSyncState(remoteTracks, localTracks);
   }
 
   /**
