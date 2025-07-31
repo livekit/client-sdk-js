@@ -1,4 +1,5 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
+import type { Future } from './utils';
 
 export type SimulationOptions = {
   publish?: {
@@ -105,6 +106,8 @@ export interface StreamController<T extends DataStream_Chunk> {
   controller: ReadableStreamDefaultController<T>;
   startTime: number;
   endTime?: number;
+  sendingParticipantIdentity?: string;
+  outOfBandFailureRejectingFuture: Future<never>;
 }
 
 export interface BaseStreamInfo {
