@@ -1833,7 +1833,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         responseError = RpcError.builtIn('APPLICATION_ERROR');
       }
     }
-    await this.engine!.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
+    await this.engine!.publishRpcResponse(
+      callerIdentity,
+      requestId,
+      responsePayload,
+      responseError,
+    );
   }
 
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
