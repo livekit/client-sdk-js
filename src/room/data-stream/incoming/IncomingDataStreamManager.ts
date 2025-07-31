@@ -18,9 +18,11 @@ export default class IncomingDataStreamManager {
   private log = log;
 
   private byteStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
+
   private textStreamControllers = new Map<string, StreamController<DataStream_Chunk>>();
 
   private byteStreamHandlers = new Map<string, ByteStreamHandler>();
+
   private textStreamHandlers = new Map<string, TextStreamHandler>();
 
   registerTextStreamHandler(topic: string, callback: TextStreamHandler) {

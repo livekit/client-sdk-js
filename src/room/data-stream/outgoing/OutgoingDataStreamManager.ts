@@ -31,6 +31,7 @@ const STREAM_CHUNK_SIZE = 15_000;
  */
 export default class OutgoingDataStreamManager {
   protected engine: RTCEngine;
+
   protected log: StructuredLogger = log;
 
   constructor(engine: RTCEngine) {
@@ -259,7 +260,7 @@ export default class OutgoingDataStreamManager {
     let chunkId = 0;
     const writeMutex = new Mutex();
     const engine = this.engine;
-    const log = this.log;
+    const logLocal = this.log;
 
     const writableStream = new WritableStream<Uint8Array>({
       async write(chunk) {
@@ -303,7 +304,7 @@ export default class OutgoingDataStreamManager {
         await engine.sendDataPacket(trailerPacket, DataPacket_Kind.RELIABLE);
       },
       abort(err) {
-        log.error('Sink error:', err);
+        logLocal.error('Sink error:', err);
       },
     });
 

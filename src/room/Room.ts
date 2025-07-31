@@ -193,6 +193,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   private transcriptionReceivedTimes: Map<string, number>;
 
   private incomingDataStreamManager: IncomingDataStreamManager;
+
   private outgoingDataStreamManager: OutgoingDataStreamManager;
 
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
