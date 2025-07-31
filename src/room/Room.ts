@@ -211,9 +211,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room);
     this.transcriptionReceivedTimes = new Map();
 
-    this.incomingDataStreamManager = new IncomingDataStreamManager();
-    this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine);
-
     this.options.audioCaptureDefaults = {
       ...audioDefaults,
       ...options?.audioCaptureDefaults,
@@ -228,6 +225,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     };
 
     this.maybeCreateEngine();
+
+    this.incomingDataStreamManager = new IncomingDataStreamManager();
+    this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine);
 
     this.disconnectLock = new Mutex();
 
@@ -539,6 +539,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
     if (this.e2eeManager) {
       this.e2eeManager.setupEngine(this.engine);
+    }
+    if (this.outgoingDataStreamManager) {
+      this.outgoingDataStreamManager.setupEngine(this.engine);
     }
   }
 

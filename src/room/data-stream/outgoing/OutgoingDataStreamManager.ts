@@ -37,6 +37,10 @@ export default class OutgoingDataStreamManager {
     this.engine = engine;
   }
 
+  setupEngine(engine: RTCEngine) {
+    this.engine = engine;
+  }
+
   /** {@inheritDoc LocalParticipant.sendText} */
   async sendText(text: string, options?: SendTextOptions): Promise<TextStreamInfo> {
     const streamId = crypto.randomUUID();
