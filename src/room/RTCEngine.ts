@@ -1580,6 +1580,7 @@ export type EngineEventCallbacks = {
   offline: () => void;
   signalRequestResponse: (response: RequestResponse) => void;
   signalConnected: (joinResp: JoinResponse) => void;
+  supersededBy: (newEngine: RTCEngine) => void;
 };
 
 function supportOptionalDatachannel(protocol: number | undefined): boolean {

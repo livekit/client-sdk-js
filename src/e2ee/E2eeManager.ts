@@ -34,7 +34,6 @@ import { isE2EESupported, isScriptTransformSupported } from './utils';
 
 export interface BaseE2EEManager {
   setup(room: Room): void;
-  setupEngine(engine: RTCEngine): void;
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
   setSifTrailer(trailer: Uint8Array): void;
   on<E extends keyof E2EEManagerCallbacks>(event: E, listener: E2EEManagerCallbacks[E]): this;
@@ -173,6 +172,9 @@ export class E2EEManager
   public setupEngine(engine: RTCEngine) {
     engine.on(EngineEvent.RTPVideoMapUpdate, (rtpMap) => {
       this.postRTPMap(rtpMap);
+    });
+    engine.on(EngineEvent.SupersededBy, (newEngine) => {
+      this.setupEngine(newEngine);
     });
   }
 
