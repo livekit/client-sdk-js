@@ -1,6 +1,6 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
-import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from './types';
-import { Future, bigIntToNumber } from './utils';
+import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from '../../types';
+import { Future, bigIntToNumber } from '../../utils';
 
 export type BaseStreamReaderReadAllOpts = {
   /** An AbortSignal can be used to terminate reads early. */

@@ -62,8 +62,8 @@ export { facingModeFromDeviceLabel, facingModeFromLocalTrack } from './room/trac
 export * from './room/track/options';
 export * from './room/track/processor/types';
 export * from './room/track/types';
-export type * from './room/StreamReader';
-export type * from './room/StreamWriter';
+export type * from './room/data-stream/incoming/StreamReader';
+export type * from './room/data-stream/outgoing/StreamWriter';
 export type {
   DataPublishOptions,
   SimulationScenario,
