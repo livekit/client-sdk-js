@@ -1,6 +1,8 @@
 import { Mutex } from '@livekit/mutex';
 import {
+  ChatMessage as ChatMessageModel,
   ConnectionQualityUpdate,
+  type DataPacket,
   DataPacket_Kind,
   DisconnectReason,
   JoinResponse,
@@ -22,7 +24,9 @@ import {
   TrackInfo,
   TrackSource,
   TrackType,
+  Transcription as TranscriptionModel,
   TranscriptionSegment as TranscriptionSegmentModel,
+  UserPacket,
   protoInt64,
 } from '@livekit/protocol';
 import { EventEmitter } from 'events';
@@ -41,10 +45,7 @@ import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
-import {
-  type ByteStreamHandler,
-  type TextStreamHandler,
-} from './StreamReader';
+import { type ByteStreamHandler, type TextStreamHandler } from './StreamReader';
 import {
   audioDefaults,
   publishDefaults,
@@ -58,7 +59,7 @@ import LocalParticipant from './participant/LocalParticipant';
 import type Participant from './participant/Participant';
 import { type ConnectionQuality, ParticipantKind } from './participant/Participant';
 import RemoteParticipant from './participant/RemoteParticipant';
-import { type RpcInvocationData } from './rpc';
+import { MAX_PAYLOAD_BYTES, RpcError, type RpcInvocationData, byteLength } from './rpc';
 import CriticalTimers from './timers';
 import LocalAudioTrack from './track/LocalAudioTrack';
 import type LocalTrack from './track/LocalTrack';
@@ -71,8 +72,6 @@ import type { TrackPublication } from './track/TrackPublication';
 import type { TrackProcessor } from './track/processor/types';
 import type { AdaptiveStreamSettings } from './track/types';
 import { getNewAudioContext, kindToSource, sourceToKind } from './track/utils';
-import IncomingDataStreamManager from './data-stream/IncomingDataStreamManager';
-import OutgoingDataStreamManager from './data-stream/OutgoingDataStreamManager';
 import {
   type ChatMessage,
   type SimulationOptions,
@@ -82,6 +81,8 @@ import {
 import {
   Future,
   createDummyVideoStreamTrack,
+  extractChatMessage,
+  extractTranscriptionSegments,
   getDisconnectReasonFromConnectionError,
   getEmptyAudioStreamTrack,
   isBrowserSupported,
@@ -99,6 +100,8 @@ import {
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
+import IncomingDataStreamManager from './data-stream/IncomingDataStreamManager';
+import OutgoingDataStreamManager from './data-stream/OutgoingDataStreamManager';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -205,7 +208,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.log = getLogger(this.options.loggerName ?? LoggerNames.Room);
     this.transcriptionReceivedTimes = new Map();
 
-    this.incomingDataStreamManager = new IncomingDataStreamManager(this, this.rpcHandlers);
+    this.incomingDataStreamManager = new IncomingDataStreamManager();
     this.outgoingDataStreamManager = new OutgoingDataStreamManager(this.engine);
 
     this.options.audioCaptureDefaults = {
@@ -455,7 +458,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         this.handleDisconnect(this.options.stopLocalTrackOnUnpublish, reason);
       })
       .on(EngineEvent.ActiveSpeakersUpdate, this.handleActiveSpeakersUpdate)
-      .on(EngineEvent.DataPacketReceived, this.incomingDataStreamManager.handleDataPacket)
+      .on(EngineEvent.DataPacketReceived, this.handleDataPacket)
       .on(EngineEvent.Resuming, () => {
         this.clearConnectionReconcile();
         this.isResuming = true;
@@ -1688,6 +1691,148 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
     pub.setSubscriptionError(update.err);
   };
+
+  handleDataPacket(packet: DataPacket) {
+    // find the participant
+    const participant = this.remoteParticipants.get(packet.participantIdentity);
+    if (packet.value.case === 'user') {
+      this.handleUserPacket(participant, packet.value.value, packet.kind);
+    } else if (packet.value.case === 'transcription') {
+      this.handleTranscription(participant, packet.value.value);
+    } else if (packet.value.case === 'sipDtmf') {
+      this.handleSipDtmf(participant, packet.value.value);
+    } else if (packet.value.case === 'chatMessage') {
+      this.handleChatMessage(participant, packet.value.value);
+    } else if (packet.value.case === 'metrics') {
+      this.handleMetrics(packet.value.value, participant);
+    } else if (packet.value.case === 'streamHeader' || packet.value.case === 'streamChunk' || packet.value.case === 'streamTrailer') {
+      this.handleDataStream(packet);
+    } else if (packet.value.case === 'rpcRequest') {
+      const rpc = packet.value.value;
+      this.handleIncomingRpcRequest(
+        packet.participantIdentity,
+        rpc.id,
+        rpc.method,
+        rpc.payload,
+        rpc.responseTimeoutMs,
+        rpc.version,
+      );
+    }
+  }
+
+  private handleUserPacket = (
+    participant: RemoteParticipant | undefined,
+    userPacket: UserPacket,
+    kind: DataPacket_Kind,
+  ) => {
+    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
+
+    // also emit on the participant
+    participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
+  };
+
+  private handleSipDtmf = (participant: RemoteParticipant | undefined, dtmf: SipDTMF) => {
+    this.emit(RoomEvent.SipDTMFReceived, dtmf, participant);
+
+    // also emit on the participant
+    participant?.emit(ParticipantEvent.SipDTMFReceived, dtmf);
+  };
+
+  private handleTranscription = (
+    _remoteParticipant: RemoteParticipant | undefined,
+    transcription: TranscriptionModel,
+  ) => {
+    // find the participant
+    const participant =
+      transcription.transcribedParticipantIdentity === this.localParticipant.identity
+        ? this.localParticipant
+        : this.getParticipantByIdentity(transcription.transcribedParticipantIdentity);
+    const publication = participant?.trackPublications.get(transcription.trackId);
+
+    const segments = extractTranscriptionSegments(transcription, this.transcriptionReceivedTimes);
+
+    publication?.emit(TrackEvent.TranscriptionReceived, segments);
+    participant?.emit(ParticipantEvent.TranscriptionReceived, segments, publication);
+    this.emit(RoomEvent.TranscriptionReceived, segments, participant, publication);
+  };
+
+  private handleChatMessage = (
+    participant: RemoteParticipant | undefined,
+    chatMessage: ChatMessageModel,
+  ) => {
+    const msg = extractChatMessage(chatMessage);
+    this.emit(RoomEvent.ChatMessage, msg, participant);
+  };
+
+  private handleMetrics = (metrics: MetricsBatch, participant?: Participant) => {
+    this.emit(RoomEvent.MetricsReceived, metrics, participant);
+  };
+
+  private handleDataStream = (packet: DataPacket) => {
+    this.incomingDataStreamManager.handleDataStreamPacket(packet);
+  };
+
+  private async handleIncomingRpcRequest(
+    callerIdentity: string,
+    requestId: string,
+    method: string,
+    payload: string,
+    responseTimeout: number,
+    version: number,
+  ) {
+    await this.engine.publishRpcAck(callerIdentity, requestId);
+
+    if (version !== 1) {
+      await this.engine.publishRpcResponse(
+        callerIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('UNSUPPORTED_VERSION'),
+      );
+      return;
+    }
+
+    const handler = this.rpcHandlers.get(method);
+
+    if (!handler) {
+      await this.engine.publishRpcResponse(
+        callerIdentity,
+        requestId,
+        null,
+        RpcError.builtIn('UNSUPPORTED_METHOD'),
+      );
+      return;
+    }
+
+    let responseError: RpcError | null = null;
+    let responsePayload: string | null = null;
+
+    try {
+      const response = await handler({
+        requestId,
+        callerIdentity,
+        payload,
+        responseTimeout,
+      });
+      if (byteLength(response) > MAX_PAYLOAD_BYTES) {
+        responseError = RpcError.builtIn('RESPONSE_PAYLOAD_TOO_LARGE');
+        console.warn(`RPC Response payload too large for ${method}`);
+      } else {
+        responsePayload = response;
+      }
+    } catch (error) {
+      if (error instanceof RpcError) {
+        responseError = error;
+      } else {
+        console.warn(
+          `Uncaught error returned by RPC handler for ${method}. Returning APPLICATION_ERROR instead.`,
+          error,
+        );
+        responseError = RpcError.builtIn('APPLICATION_ERROR');
+      }
+    }
+    await this.engine.publishRpcResponse(callerIdentity, requestId, responsePayload, responseError);
+  }
 
   bufferedSegments: Map<string, TranscriptionSegmentModel> = new Map();
 
