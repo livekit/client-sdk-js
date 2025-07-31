@@ -27,7 +27,8 @@ import { SignalConnectionState } from '../../api/SignalClient';
 import type { InternalRoomOptions } from '../../options';
 import { PCTransportState } from '../PCTransportManager';
 import type RTCEngine from '../RTCEngine';
-import type { TextStreamWriter } from '../StreamWriter';
+import type OutgoingDataStreamManager from '../data-stream/outgoing/OutgoingDataStreamManager';
+import type { TextStreamWriter } from '../data-stream/outgoing/StreamWriter';
 import { defaultVideoCodec } from '../defaults';
 import {
   DeviceUnsupportedError,
@@ -103,7 +104,6 @@ import {
   computeVideoEncodings,
   getDefaultDegradationPreference,
 } from './publishUtils';
-import type OutgoingDataStreamManager from '../data-stream/OutgoingDataStreamManager';
 
 export default class LocalParticipant extends Participant {
   audioTrackPublications: Map<string, LocalTrackPublication>;

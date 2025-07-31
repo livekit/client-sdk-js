@@ -9,10 +9,9 @@ import {
   DataStream_TextHeader,
   DataStream_Trailer,
 } from '@livekit/protocol';
-import log, { type StructuredLogger } from '../../logger';
-import type RTCEngine from '../RTCEngine';
-import { ByteStreamWriter, TextStreamWriter } from '../StreamWriter';
-import { EngineEvent } from '../events';
+import log, { type StructuredLogger } from '../../../logger';
+import type RTCEngine from '../../RTCEngine';
+import { EngineEvent } from '../../events';
 import type {
   ByteStreamInfo,
   SendFileOptions,
@@ -20,8 +19,9 @@ import type {
   StreamBytesOptions,
   StreamTextOptions,
   TextStreamInfo,
-} from '../types';
-import { numberToBigInt, splitUtf8 } from '../utils';
+} from '../../types';
+import { numberToBigInt, splitUtf8 } from '../../utils';
+import { ByteStreamWriter, TextStreamWriter } from './StreamWriter';
 
 const STREAM_CHUNK_SIZE = 15_000;
 

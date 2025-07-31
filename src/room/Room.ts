@@ -45,7 +45,12 @@ import { getBrowser } from '../utils/browserParser';
 import DeviceManager from './DeviceManager';
 import RTCEngine from './RTCEngine';
 import { RegionUrlProvider } from './RegionUrlProvider';
-import { type ByteStreamHandler, type TextStreamHandler } from './StreamReader';
+import IncomingDataStreamManager from './data-stream/incoming/IncomingDataStreamManager';
+import {
+  type ByteStreamHandler,
+  type TextStreamHandler,
+} from './data-stream/incoming/StreamReader';
+import OutgoingDataStreamManager from './data-stream/outgoing/OutgoingDataStreamManager';
 import {
   audioDefaults,
   publishDefaults,
@@ -100,8 +105,6 @@ import {
   unpackStreamId,
   unwrapConstraint,
 } from './utils';
-import IncomingDataStreamManager from './data-stream/IncomingDataStreamManager';
-import OutgoingDataStreamManager from './data-stream/OutgoingDataStreamManager';
 
 export enum ConnectionState {
   Disconnected = 'disconnected',
@@ -1705,7 +1708,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.handleChatMessage(participant, packet.value.value);
     } else if (packet.value.case === 'metrics') {
       this.handleMetrics(packet.value.value, participant);
-    } else if (packet.value.case === 'streamHeader' || packet.value.case === 'streamChunk' || packet.value.case === 'streamTrailer') {
+    } else if (
+      packet.value.case === 'streamHeader' ||
+      packet.value.case === 'streamChunk' ||
+      packet.value.case === 'streamTrailer'
+    ) {
       this.handleDataStream(packet);
     } else if (packet.value.case === 'rpcRequest') {
       const rpc = packet.value.value;

@@ -4,19 +4,15 @@ import {
   DataStream_Header,
   DataStream_Trailer,
 } from '@livekit/protocol';
-import log, { /* LoggerNames, getLogger */ } from '../../logger';
+import log from '../../../logger';
+import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
+import { bigIntToNumber } from '../../utils';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
   type TextStreamHandler,
   TextStreamReader,
-} from '../StreamReader';
-import {
-  type ByteStreamInfo,
-  type StreamController,
-  type TextStreamInfo,
-} from '../types';
-import { bigIntToNumber } from '../utils';
+} from './StreamReader';
 
 export default class IncomingDataStreamManager {
   private log = log;
