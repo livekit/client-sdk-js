@@ -517,6 +517,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       return;
     }
 
+    const oldEngine = this.engine;
     this.engine = new RTCEngine(this.options);
 
     this.engine
@@ -610,12 +611,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         }
       });
 
-    if (this.localParticipant) {
-      this.localParticipant.setupEngine(this.engine);
-    }
-    if (this.e2eeManager) {
-      this.e2eeManager.setupEngine(this.engine);
-    }
+    oldEngine?.emit(EngineEvent.SupersededBy, this.engine);
   }
 
   /**

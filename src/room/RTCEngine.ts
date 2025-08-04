@@ -94,8 +94,10 @@ enum PCState {
   Closed,
 }
 
+const EngineEventEmitter = EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>;
+
 /** @internal */
-export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
+export default class RTCEngine extends EngineEventEmitter {
   client: SignalClient;
 
   rtcConfig: RTCConfiguration = {};
@@ -1580,6 +1582,7 @@ export type EngineEventCallbacks = {
   offline: () => void;
   signalRequestResponse: (response: RequestResponse) => void;
   signalConnected: (joinResp: JoinResponse) => void;
+  supersededBy: (newEngine: RTCEngine) => void;
 };
 
 function supportOptionalDatachannel(protocol: number | undefined): boolean {
