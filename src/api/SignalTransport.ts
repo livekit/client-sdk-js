@@ -2,7 +2,6 @@ import { Mutex } from '@livekit/mutex';
 import {
   ConnectResponse,
   Envelope,
-  Fragment,
   Signalv2ClientMessage,
   Signalv2ServerMessage,
   Signalv2WireMessage,
