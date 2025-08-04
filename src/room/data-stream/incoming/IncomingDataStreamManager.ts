@@ -65,31 +65,26 @@ export default class IncomingDataStreamManager {
     // Terminate any in flight data stream receives from the given participant
     const textStreamsBeingSentByDisconnectingParticipant = Array.from(
       this.textStreamControllers.entries(),
-    ).filter(([_id, controller]) => controller.sendingParticipantIdentity === participantIdentity);
+    ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
     const byteStreamsBeingSentByDisconnectingParticipant = Array.from(
       this.byteStreamControllers.entries(),
-    ).filter(([_id, controller]) => controller.sendingParticipantIdentity === participantIdentity);
+    ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
 
     if (
       textStreamsBeingSentByDisconnectingParticipant.length > 0 ||
       byteStreamsBeingSentByDisconnectingParticipant.length > 0
     ) {
-      for (const [_id, controller] of [
-        ...textStreamsBeingSentByDisconnectingParticipant,
-        ...byteStreamsBeingSentByDisconnectingParticipant,
-      ]) {
-        controller.outOfBandFailureRejectingFuture.reject?.(
-          new DataStreamError(
-            `Participant ${participantIdentity} unexpectedly disconnected in the middle of sending data`,
-            DataStreamErrorReason.AbnormalEnd,
-          ),
-        );
-      }
-      for (const [id, _controller] of textStreamsBeingSentByDisconnectingParticipant) {
-        this.textStreamControllers.delete(id);
-      }
-      for (const [id, _controller] of byteStreamsBeingSentByDisconnectingParticipant) {
+      const abnormalEndError = new DataStreamError(
+        `Participant ${participantIdentity} unexpectedly disconnected in the middle of sending data`,
+        DataStreamErrorReason.AbnormalEnd,
+      );
+      for (const [id, controller] of byteStreamsBeingSentByDisconnectingParticipant) {
+        controller.outOfBandFailureRejectingFuture.reject?.(abnormalEndError);
         this.byteStreamControllers.delete(id);
+      }
+      for (const [id, controller] of textStreamsBeingSentByDisconnectingParticipant) {
+        controller.outOfBandFailureRejectingFuture.reject?.(abnormalEndError);
+        this.textStreamControllers.delete(id);
       }
     }
   }
