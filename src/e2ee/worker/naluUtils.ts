@@ -202,17 +202,8 @@ export interface NALUProcessingResult {
  */
 function detectCodecFromNALUs(data: Uint8Array, naluIndices: number[]): DetectedCodec {
   for (const naluIndex of naluIndices) {
-    // Try H.264 parsing first
-    const h264Type = parseNALUType(data[naluIndex]);
-    if (isH264SliceNALU(h264Type)) {
-      return 'h264';
-    }
-
-    // Try H.265 parsing
-    const h265Type = parseH265NALUType(data[naluIndex]);
-    if (isH265SliceNALU(h265Type)) {
-      return 'h265';
-    }
+    if (isH264SliceNALU(parseNALUType(data[naluIndex]))) return 'h264';
+    if (isH265SliceNALU(parseH265NALUType(data[naluIndex]))) return 'h265';
   }
   return 'unknown';
 }
@@ -322,33 +313,16 @@ export function processNALUsForEncryption(
   knownCodec?: 'h264' | 'h265',
 ): NALUProcessingResult {
   const naluIndices = findNALUIndices(data);
-
-  // Determine codec - use known codec if provided, otherwise detect from NALUs
-  let detectedCodec: DetectedCodec;
-  if (knownCodec) {
-    detectedCodec = knownCodec;
-  } else {
-    detectedCodec = detectCodecFromNALUs(data, naluIndices);
-  }
+  const detectedCodec = knownCodec ?? detectCodecFromNALUs(data, naluIndices);
 
   if (detectedCodec === 'unknown') {
-    return {
-      unencryptedBytes: 0,
-      detectedCodec,
-      requiresNALUProcessing: false,
-    };
+    return { unencryptedBytes: 0, detectedCodec, requiresNALUProcessing: false };
   }
 
-  // Find slice NALU and get unencrypted bytes
   const unencryptedBytes = findSliceNALUUnencryptedBytes(data, naluIndices, detectedCodec);
-
   if (unencryptedBytes === null) {
     throw new TypeError('Could not find NALU');
   }
 
-  return {
-    unencryptedBytes,
-    detectedCodec,
-    requiresNALUProcessing: true,
-  };
+  return { unencryptedBytes, detectedCodec, requiresNALUProcessing: true };
 }

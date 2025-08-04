@@ -587,62 +587,56 @@ export class FrameCryptor extends BaseFrameCryptor {
     unencryptedBytes: number;
     requiresNALUProcessing: boolean;
   } {
-    var frameInfo = { unencryptedBytes: 0, requiresNALUProcessing: false };
-
-    if (isVideoFrame(frame)) {
-      let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
-      if (detectedCodec !== this.detectedCodec) {
-        workerLogger.debug('detected different codec', {
-          detectedCodec,
-          oldCodec: this.detectedCodec,
-          ...this.logContext,
-        });
-        this.detectedCodec = detectedCodec;
-      }
-
-      if (detectedCodec === 'av1') {
-        throw new Error(`${detectedCodec} is not yet supported for end to end encryption`);
-      }
-
-      // Handle VP8 and VP9 codecs
-      if (detectedCodec === 'vp8') {
-        frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
-        return frameInfo;
-      } else if (detectedCodec === 'vp9') {
-        frameInfo.unencryptedBytes = 0;
-        return frameInfo;
-      }
-
-      // Handle H.264/H.265 codecs with NALU processing
-      const data = new Uint8Array(frame.data);
-      try {
-        const knownCodec =
-          detectedCodec === 'h264' || detectedCodec === 'h265' ? detectedCodec : undefined;
-
-        const naluResult = processNALUsForEncryption(data, knownCodec);
-
-        if (naluResult.requiresNALUProcessing) {
-          frameInfo.unencryptedBytes = naluResult.unencryptedBytes;
-          frameInfo.requiresNALUProcessing = true;
-
-          return frameInfo;
-        }
-      } catch (e) {
-        // NALU processing failed, fallback to VP8 handling
-        workerLogger.debug('NALU processing failed, falling back to VP8 handling', {
-          error: e,
-          ...this.logContext,
-        });
-      }
-
-      // Fallback to VP8 handling for unknown or failed NALU processing
-      frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
-      return frameInfo;
-    } else {
-      // Audio frame
-      frameInfo.unencryptedBytes = UNENCRYPTED_BYTES.audio;
-      return frameInfo;
+    // Handle audio frames
+    if (!isVideoFrame(frame)) {
+      return { unencryptedBytes: UNENCRYPTED_BYTES.audio, requiresNALUProcessing: false };
     }
+
+    // Detect and track codec changes
+    const detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
+    if (detectedCodec !== this.detectedCodec) {
+      workerLogger.debug('detected different codec', {
+        detectedCodec,
+        oldCodec: this.detectedCodec,
+        ...this.logContext,
+      });
+      this.detectedCodec = detectedCodec;
+    }
+
+    // Check for unsupported codecs
+    if (detectedCodec === 'av1') {
+      throw new Error(`${detectedCodec} is not yet supported for end to end encryption`);
+    }
+
+    // Handle VP8/VP9 codecs (no NALU processing needed)
+    if (detectedCodec === 'vp8') {
+      return { unencryptedBytes: UNENCRYPTED_BYTES[frame.type], requiresNALUProcessing: false };
+    }
+    if (detectedCodec === 'vp9') {
+      return { unencryptedBytes: 0, requiresNALUProcessing: false };
+    }
+
+    // Try NALU processing for H.264/H.265 codecs
+    try {
+      const knownCodec =
+        detectedCodec === 'h264' || detectedCodec === 'h265' ? detectedCodec : undefined;
+      const naluResult = processNALUsForEncryption(new Uint8Array(frame.data), knownCodec);
+
+      if (naluResult.requiresNALUProcessing) {
+        return {
+          unencryptedBytes: naluResult.unencryptedBytes,
+          requiresNALUProcessing: true,
+        };
+      }
+    } catch (e) {
+      workerLogger.debug('NALU processing failed, falling back to VP8 handling', {
+        error: e,
+        ...this.logContext,
+      });
+    }
+
+    // Fallback to VP8 handling
+    return { unencryptedBytes: UNENCRYPTED_BYTES[frame.type], requiresNALUProcessing: false };
   }
 
   /**
