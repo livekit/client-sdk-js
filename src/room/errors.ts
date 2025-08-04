@@ -111,24 +111,25 @@ export class SignalRequestError extends LivekitError {
   }
 }
 
+// NOTE: matches with https://github.com/livekit/client-sdk-swift/blob/f37bbd260d61e165084962db822c79f995f1a113/Sources/LiveKit/DataStream/StreamError.swift#L17
 export enum DataStreamErrorReason {
   // Unable to open a stream with the same ID more than once.
-  AlreadyOpened,
+  AlreadyOpened = 0,
 
   // Stream closed abnormally by remote participant.
-  AbnormalEnd,
+  AbnormalEnd = 1,
 
   // Incoming chunk data could not be decoded.
-  DecodeFailed,
+  DecodeFailed = 2,
 
   // Read length exceeded total length specified in stream header.
-  LengthExceeded,
+  LengthExceeded = 3,
 
   // Read length less than total length specified in stream header.
-  LengthIncomplete,
+  Incomplete = 4,
 
   // Unable to register a stream handler more than once.
-  HandlerAlreadyRegistered,
+  HandlerAlreadyRegistered = 7,
 }
 
 export class DataStreamError extends LivekitError {

@@ -32,7 +32,7 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
     if (doneReceiving && this.bytesReceived < this.totalByteSize) {
       throw new DataStreamError(
         `Not enough chunk(s) received - expected ${this.totalByteSize} bytes of data total, only received ${this.bytesReceived} bytes`,
-        DataStreamErrorReason.LengthIncomplete,
+        DataStreamErrorReason.Incomplete,
       );
     } else if (this.bytesReceived > this.totalByteSize) {
       throw new DataStreamError(
