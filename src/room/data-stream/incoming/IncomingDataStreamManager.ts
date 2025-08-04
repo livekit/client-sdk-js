@@ -61,21 +61,35 @@ export default class IncomingDataStreamManager {
     this.textStreamHandlers.clear();
   }
 
-  validateParticipantNotActivelySending(participantIdentity: string) {
+  validateParticipantHasNoActiveDataStreams(participantIdentity: string) {
     // Terminate any in flight data stream receives from the given participant
-    const streamsBeingSentByDisconnectingParticipant = [
-      ...Array.from(this.textStreamControllers.values()),
-      ...Array.from(this.byteStreamControllers.values()),
-    ].filter(controller => controller.sendingParticipantIdentity === participantIdentity)
+    const textStreamsBeingSentByDisconnectingParticipant = Array.from(
+      this.textStreamControllers.entries(),
+    ).filter(([_id, controller]) => controller.sendingParticipantIdentity === participantIdentity);
+    const byteStreamsBeingSentByDisconnectingParticipant = Array.from(
+      this.byteStreamControllers.entries(),
+    ).filter(([_id, controller]) => controller.sendingParticipantIdentity === participantIdentity);
 
-    if (streamsBeingSentByDisconnectingParticipant.length > 0) {
-      for (const controller of streamsBeingSentByDisconnectingParticipant) {
+    if (
+      textStreamsBeingSentByDisconnectingParticipant.length > 0 ||
+      byteStreamsBeingSentByDisconnectingParticipant.length > 0
+    ) {
+      for (const [_id, controller] of [
+        ...textStreamsBeingSentByDisconnectingParticipant,
+        ...byteStreamsBeingSentByDisconnectingParticipant,
+      ]) {
         controller.outOfBandFailureRejectingFuture.reject?.(
           new DataStreamError(
             `Participant ${participantIdentity} unexpectedly disconnected in the middle of sending data`,
             DataStreamErrorReason.AbnormalEnd,
           ),
         );
+      }
+      for (const [id, _controller] of textStreamsBeingSentByDisconnectingParticipant) {
+        this.textStreamControllers.delete(id);
+      }
+      for (const [id, _controller] of byteStreamsBeingSentByDisconnectingParticipant) {
+        this.byteStreamControllers.delete(id);
       }
     }
   }
