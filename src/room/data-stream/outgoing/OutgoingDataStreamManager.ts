@@ -9,7 +9,7 @@ import {
   DataStream_TextHeader,
   DataStream_Trailer,
 } from '@livekit/protocol';
-import log, { type StructuredLogger } from '../../../logger';
+import { type StructuredLogger } from '../../../logger';
 import type RTCEngine from '../../RTCEngine';
 import { EngineEvent } from '../../events';
 import type {
@@ -32,10 +32,11 @@ const STREAM_CHUNK_SIZE = 15_000;
 export default class OutgoingDataStreamManager {
   protected engine: RTCEngine;
 
-  protected log: StructuredLogger = log;
+  protected log: StructuredLogger;
 
-  constructor(engine: RTCEngine) {
+  constructor(engine: RTCEngine, log: StructuredLogger) {
     this.engine = engine;
+    this.log = log;
   }
 
   setupEngine(engine: RTCEngine) {
