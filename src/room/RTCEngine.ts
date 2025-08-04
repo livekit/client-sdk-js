@@ -94,8 +94,10 @@ enum PCState {
   Closed,
 }
 
+const EngineEventEmitter = EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>;
+
 /** @internal */
-export default class RTCEngine extends (EventEmitter as new () => TypedEventEmitter<EngineEventCallbacks>) {
+export default class RTCEngine extends EngineEventEmitter {
   client: SignalClient;
 
   rtcConfig: RTCConfiguration = {};
