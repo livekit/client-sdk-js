@@ -442,6 +442,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         encodedFrame.data.byteLength - frameHeader.length,
       );
       if (frameInfo.isH264 && needsRbspUnescaping(encryptedData)) {
+        workerLogger.debug('unescaping rbsp');
         encryptedData = parseRbsp(encryptedData);
         const newUint8 = new Uint8Array(frameHeader.byteLength + encryptedData.byteLength);
         newUint8.set(frameHeader);
@@ -612,24 +613,51 @@ export class FrameCryptor extends BaseFrameCryptor {
       const data = new Uint8Array(frame.data);
       try {
         const naluIndices = findNALUIndices(data);
+        const isH265 = detectedCodec === 'h265';
+        const isH264 = detectedCodec === 'h264';
 
-        // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
-        frameInfo.isH264 =
-          detectedCodec === 'h264' ||
-          naluIndices.some((naluIndex) =>
-            [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
-          );
+        // if the detected codec is undefined we test whether it _looks_ like a h264/h265 frame as a best guess
+        if (isH264 || isH265) {
+          frameInfo.isH264 = true; // Keep the existing field name for compatibility
+        } else {
+          // Try to detect by examining NALU types
+          frameInfo.isH264 = naluIndices.some((naluIndex) => {
+            // Try H.264 parsing first
+            const h264Type = parseNALUType(data[naluIndex]);
+            if (isH264SliceNALU(h264Type)) return true;
+
+            // Try H.265 parsing
+            const h265Type = parseH265NALUType(data[naluIndex]);
+            if (isH265SliceNALU(h265Type)) return true;
+
+            return false;
+          });
+        }
+
+        // Determine the actual codec for processing
+        const actualCodec = isH265 ? 'h265' : 'h264';
+
+        workerLogger.debug('naluIndices', {
+          codec: actualCodec,
+          naulTypes: naluIndices.map((index) =>
+            actualCodec === 'h265' ? parseH265NALUType(data[index]) : parseNALUType(data[index]),
+          ),
+        });
 
         if (frameInfo.isH264) {
           for (const index of naluIndices) {
-            let type = parseNALUType(data[index]);
-            switch (type) {
-              case NALUType.SLICE_IDR:
-              case NALUType.SLICE_NON_IDR:
+            if (actualCodec === 'h265') {
+              const type = parseH265NALUType(data[index]);
+              if (isH265SliceNALU(type)) {
                 frameInfo.unencryptedBytes = index + 2;
                 return frameInfo;
-              default:
-                break;
+              }
+            } else {
+              const type = parseNALUType(data[index]);
+              if (isH264SliceNALU(type)) {
+                frameInfo.unencryptedBytes = index + 2;
+                return frameInfo;
+              }
             }
           }
           throw new TypeError('Could not find NALU');
@@ -661,38 +689,84 @@ export class FrameCryptor extends BaseFrameCryptor {
 
 /**
  * Slice the NALUs present in the supplied buffer, assuming it is already byte-aligned
+ * Supports both H.264 and H.265 with 3-byte and 4-byte start codes
  * code adapted from https://github.com/medooze/h264-frame-parser/blob/main/lib/NalUnits.ts to return indices only
  */
 export function findNALUIndices(stream: Uint8Array): number[] {
   const result: number[] = [];
   let start = 0,
     pos = 0,
-    searchLength = stream.length - 2;
+    searchLength = stream.length - 3; // Changed to -3 to handle 4-byte start codes
+
   while (pos < searchLength) {
-    // skip until end of current NALU
-    while (
-      pos < searchLength &&
-      !(stream[pos] === 0 && stream[pos + 1] === 0 && stream[pos + 2] === 1)
-    )
+    // skip until end of current NALU - check for both 3-byte and 4-byte start codes
+    while (pos < searchLength) {
+      // Check for 4-byte start code: 0x00 0x00 0x00 0x01
+      if (
+        pos < searchLength - 1 &&
+        stream[pos] === 0 &&
+        stream[pos + 1] === 0 &&
+        stream[pos + 2] === 0 &&
+        stream[pos + 3] === 1
+      ) {
+        break;
+      }
+      // Check for 3-byte start code: 0x00 0x00 0x01
+      if (stream[pos] === 0 && stream[pos + 1] === 0 && stream[pos + 2] === 1) {
+        break;
+      }
       pos++;
+    }
+
     if (pos >= searchLength) pos = stream.length;
+
     // remove trailing zeros from current NALU
     let end = pos;
     while (end > start && stream[end - 1] === 0) end--;
+
     // save current NALU
     if (start === 0) {
       if (end !== start) throw TypeError('byte stream contains leading data');
     } else {
       result.push(start);
     }
-    // begin new NALU
-    start = pos = pos + 3;
+
+    // begin new NALU - determine start code length
+    let startCodeLength = 3;
+    if (
+      pos < stream.length - 3 &&
+      stream[pos] === 0 &&
+      stream[pos + 1] === 0 &&
+      stream[pos + 2] === 0 &&
+      stream[pos + 3] === 1
+    ) {
+      startCodeLength = 4;
+    }
+
+    start = pos = pos + startCodeLength;
   }
   return result;
 }
 
 export function parseNALUType(startByte: number): NALUType {
   return startByte & kNaluTypeMask;
+}
+
+export function parseH265NALUType(firstByte: number): H265NALUType {
+  // In H.265, NALU type is in bits 1-6 (shifted right by 1)
+  return (firstByte >> 1) & 0x3f;
+}
+
+export function parseNALUTypeByCodec(
+  data: Uint8Array,
+  index: number,
+  codec: 'h264' | 'h265',
+): NALUType | H265NALUType {
+  if (codec === 'h265') {
+    return parseH265NALUType(data[index]);
+  } else {
+    return parseNALUType(data[index]);
+  }
 }
 
 const kNaluTypeMask = 0x1f;
@@ -741,6 +815,107 @@ export enum NALUType {
   SLICE_LAYER_EXT = 21,
 
   // 22, 23 reserved
+}
+
+export enum H265NALUType {
+  /** Coded slice segment of a non-TSA, non-STSA trailing picture */
+  TRAIL_N = 0,
+  /** Coded slice segment of a non-TSA, non-STSA trailing picture */
+  TRAIL_R = 1,
+  /** Coded slice segment of a TSA picture */
+  TSA_N = 2,
+  /** Coded slice segment of a TSA picture */
+  TSA_R = 3,
+  /** Coded slice segment of an STSA picture */
+  STSA_N = 4,
+  /** Coded slice segment of an STSA picture */
+  STSA_R = 5,
+  /** Coded slice segment of a RADL picture */
+  RADL_N = 6,
+  /** Coded slice segment of a RADL picture */
+  RADL_R = 7,
+  /** Coded slice segment of a RASL picture */
+  RASL_N = 8,
+  /** Coded slice segment of a RASL picture */
+  RASL_R = 9,
+
+  // 10-15 reserved
+
+  /** Coded slice segment of a BLA picture */
+  BLA_W_LP = 16,
+  /** Coded slice segment of a BLA picture */
+  BLA_W_RADL = 17,
+  /** Coded slice segment of a BLA picture */
+  BLA_N_LP = 18,
+  /** Coded slice segment of an IDR picture */
+  IDR_W_RADL = 19,
+  /** Coded slice segment of an IDR picture */
+  IDR_N_LP = 20,
+  /** Coded slice segment of a CRA picture */
+  CRA_NUT = 21,
+
+  // 22-31 reserved
+
+  /** Video parameter set */
+  VPS_NUT = 32,
+  /** Sequence parameter set */
+  SPS_NUT = 33,
+  /** Picture parameter set */
+  PPS_NUT = 34,
+  /** Access unit delimiter */
+  AUD_NUT = 35,
+  /** End of sequence */
+  EOS_NUT = 36,
+  /** End of bitstream */
+  EOB_NUT = 37,
+  /** Filler data */
+  FD_NUT = 38,
+  /** Supplemental enhancement information */
+  PREFIX_SEI_NUT = 39,
+  /** Supplemental enhancement information */
+  SUFFIX_SEI_NUT = 40,
+
+  // 41-47 reserved
+  // 48-63 unspecified
+}
+
+/**
+ * Check if H.264 NALU type is a slice (IDR or non-IDR)
+ */
+export function isH264SliceNALU(naluType: NALUType): boolean {
+  return naluType === NALUType.SLICE_IDR || naluType === NALUType.SLICE_NON_IDR;
+}
+
+/**
+ * Check if H.265 NALU type is a slice
+ */
+export function isH265SliceNALU(naluType: H265NALUType): boolean {
+  return (
+    // VCL NALUs (Video Coding Layer) - slice segments
+    naluType === H265NALUType.TRAIL_N ||
+    naluType === H265NALUType.TRAIL_R ||
+    naluType === H265NALUType.TSA_N ||
+    naluType === H265NALUType.TSA_R ||
+    naluType === H265NALUType.STSA_N ||
+    naluType === H265NALUType.STSA_R ||
+    naluType === H265NALUType.RADL_N ||
+    naluType === H265NALUType.RADL_R ||
+    naluType === H265NALUType.RASL_N ||
+    naluType === H265NALUType.RASL_R ||
+    naluType === H265NALUType.BLA_W_LP ||
+    naluType === H265NALUType.BLA_W_RADL ||
+    naluType === H265NALUType.BLA_N_LP ||
+    naluType === H265NALUType.IDR_W_RADL ||
+    naluType === H265NALUType.IDR_N_LP ||
+    naluType === H265NALUType.CRA_NUT
+  );
+}
+
+/**
+ * Check if H.265 NALU type is an IDR slice
+ */
+export function isH265IDRSliceNALU(naluType: H265NALUType): boolean {
+  return naluType === H265NALUType.IDR_W_RADL || naluType === H265NALUType.IDR_N_LP;
 }
 
 /**
