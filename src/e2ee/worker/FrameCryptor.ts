@@ -11,6 +11,7 @@ import type { DecodeRatchetOptions, KeyProviderOptions, KeySet, RatchetResult } 
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
 import { SifGuard } from './SifGuard';
+import { processNALUsForEncryption } from './naluUtils';
 
 export const encryptionEnabledMap: Map<string, boolean> = new Map();
 
@@ -304,7 +305,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         newDataWithoutHeader.set(new Uint8Array(iv), cipherText.byteLength); // append IV.
         newDataWithoutHeader.set(frameTrailer, cipherText.byteLength + iv.byteLength); // append frame trailer.
 
-        if (frameInfo.isH264) {
+        if (frameInfo.requiresNALUProcessing) {
           newDataWithoutHeader = writeRbsp(newDataWithoutHeader);
         }
 
@@ -441,7 +442,7 @@ export class FrameCryptor extends BaseFrameCryptor {
         frameHeader.length,
         encodedFrame.data.byteLength - frameHeader.length,
       );
-      if (frameInfo.isH264 && needsRbspUnescaping(encryptedData)) {
+      if (frameInfo.requiresNALUProcessing && needsRbspUnescaping(encryptedData)) {
         encryptedData = parseRbsp(encryptedData);
         const newUint8 = new Uint8Array(frameHeader.byteLength + encryptedData.byteLength);
         newUint8.set(frameHeader);
@@ -584,66 +585,58 @@ export class FrameCryptor extends BaseFrameCryptor {
 
   private getUnencryptedBytes(frame: RTCEncodedVideoFrame | RTCEncodedAudioFrame): {
     unencryptedBytes: number;
-    isH264: boolean;
+    requiresNALUProcessing: boolean;
   } {
-    var frameInfo = { unencryptedBytes: 0, isH264: false };
-    if (isVideoFrame(frame)) {
-      let detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
-      if (detectedCodec !== this.detectedCodec) {
-        workerLogger.debug('detected different codec', {
-          detectedCodec,
-          oldCodec: this.detectedCodec,
-          ...this.logContext,
-        });
-        this.detectedCodec = detectedCodec;
-      }
-
-      if (detectedCodec === 'av1') {
-        throw new Error(`${detectedCodec} is not yet supported for end to end encryption`);
-      }
-
-      if (detectedCodec === 'vp8') {
-        frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
-      } else if (detectedCodec === 'vp9') {
-        frameInfo.unencryptedBytes = 0;
-        return frameInfo;
-      }
-
-      const data = new Uint8Array(frame.data);
-      try {
-        const naluIndices = findNALUIndices(data);
-
-        // if the detected codec is undefined we test whether it _looks_ like a h264 frame as a best guess
-        frameInfo.isH264 =
-          detectedCodec === 'h264' ||
-          naluIndices.some((naluIndex) =>
-            [NALUType.SLICE_IDR, NALUType.SLICE_NON_IDR].includes(parseNALUType(data[naluIndex])),
-          );
-
-        if (frameInfo.isH264) {
-          for (const index of naluIndices) {
-            let type = parseNALUType(data[index]);
-            switch (type) {
-              case NALUType.SLICE_IDR:
-              case NALUType.SLICE_NON_IDR:
-                frameInfo.unencryptedBytes = index + 2;
-                return frameInfo;
-              default:
-                break;
-            }
-          }
-          throw new TypeError('Could not find NALU');
-        }
-      } catch (e) {
-        // no op, we just continue and fallback to vp8
-      }
-
-      frameInfo.unencryptedBytes = UNENCRYPTED_BYTES[frame.type];
-      return frameInfo;
-    } else {
-      frameInfo.unencryptedBytes = UNENCRYPTED_BYTES.audio;
-      return frameInfo;
+    // Handle audio frames
+    if (!isVideoFrame(frame)) {
+      return { unencryptedBytes: UNENCRYPTED_BYTES.audio, requiresNALUProcessing: false };
     }
+
+    // Detect and track codec changes
+    const detectedCodec = this.getVideoCodec(frame) ?? this.videoCodec;
+    if (detectedCodec !== this.detectedCodec) {
+      workerLogger.debug('detected different codec', {
+        detectedCodec,
+        oldCodec: this.detectedCodec,
+        ...this.logContext,
+      });
+      this.detectedCodec = detectedCodec;
+    }
+
+    // Check for unsupported codecs
+    if (detectedCodec === 'av1') {
+      throw new Error(`${detectedCodec} is not yet supported for end to end encryption`);
+    }
+
+    // Handle VP8/VP9 codecs (no NALU processing needed)
+    if (detectedCodec === 'vp8') {
+      return { unencryptedBytes: UNENCRYPTED_BYTES[frame.type], requiresNALUProcessing: false };
+    }
+    if (detectedCodec === 'vp9') {
+      return { unencryptedBytes: 0, requiresNALUProcessing: false };
+    }
+
+    // Try NALU processing for H.264/H.265 codecs
+    try {
+      const knownCodec =
+        detectedCodec === 'h264' || detectedCodec === 'h265' ? detectedCodec : undefined;
+      const naluResult = processNALUsForEncryption(new Uint8Array(frame.data), knownCodec);
+
+      if (naluResult.requiresNALUProcessing) {
+        return {
+          unencryptedBytes: naluResult.unencryptedBytes,
+          requiresNALUProcessing: true,
+        };
+      }
+    } catch (e) {
+      workerLogger.debug('NALU processing failed, falling back to VP8 handling', {
+        error: e,
+        ...this.logContext,
+      });
+    }
+
+    // Fallback to VP8 handling
+    return { unencryptedBytes: UNENCRYPTED_BYTES[frame.type], requiresNALUProcessing: false };
   }
 
   /**
@@ -657,90 +650,6 @@ export class FrameCryptor extends BaseFrameCryptor {
     const codec = payloadType ? this.rtpMap.get(payloadType) : undefined;
     return codec;
   }
-}
-
-/**
- * Slice the NALUs present in the supplied buffer, assuming it is already byte-aligned
- * code adapted from https://github.com/medooze/h264-frame-parser/blob/main/lib/NalUnits.ts to return indices only
- */
-export function findNALUIndices(stream: Uint8Array): number[] {
-  const result: number[] = [];
-  let start = 0,
-    pos = 0,
-    searchLength = stream.length - 2;
-  while (pos < searchLength) {
-    // skip until end of current NALU
-    while (
-      pos < searchLength &&
-      !(stream[pos] === 0 && stream[pos + 1] === 0 && stream[pos + 2] === 1)
-    )
-      pos++;
-    if (pos >= searchLength) pos = stream.length;
-    // remove trailing zeros from current NALU
-    let end = pos;
-    while (end > start && stream[end - 1] === 0) end--;
-    // save current NALU
-    if (start === 0) {
-      if (end !== start) throw TypeError('byte stream contains leading data');
-    } else {
-      result.push(start);
-    }
-    // begin new NALU
-    start = pos = pos + 3;
-  }
-  return result;
-}
-
-export function parseNALUType(startByte: number): NALUType {
-  return startByte & kNaluTypeMask;
-}
-
-const kNaluTypeMask = 0x1f;
-
-export enum NALUType {
-  /** Coded slice of a non-IDR picture */
-  SLICE_NON_IDR = 1,
-  /** Coded slice data partition A */
-  SLICE_PARTITION_A = 2,
-  /** Coded slice data partition B */
-  SLICE_PARTITION_B = 3,
-  /** Coded slice data partition C */
-  SLICE_PARTITION_C = 4,
-  /** Coded slice of an IDR picture */
-  SLICE_IDR = 5,
-  /** Supplemental enhancement information */
-  SEI = 6,
-  /** Sequence parameter set */
-  SPS = 7,
-  /** Picture parameter set */
-  PPS = 8,
-  /** Access unit delimiter */
-  AUD = 9,
-  /** End of sequence */
-  END_SEQ = 10,
-  /** End of stream */
-  END_STREAM = 11,
-  /** Filler data */
-  FILLER_DATA = 12,
-  /** Sequence parameter set extension */
-  SPS_EXT = 13,
-  /** Prefix NAL unit */
-  PREFIX_NALU = 14,
-  /** Subset sequence parameter set */
-  SUBSET_SPS = 15,
-  /** Depth parameter set */
-  DPS = 16,
-
-  // 17, 18 reserved
-
-  /** Coded slice of an auxiliary coded picture without partitioning */
-  SLICE_AUX = 19,
-  /** Coded slice extension */
-  SLICE_EXT = 20,
-  /** Coded slice extension for a depth view component or a 3D-AVC texture view component */
-  SLICE_LAYER_EXT = 21,
-
-  // 22, 23 reserved
 }
 
 /**
