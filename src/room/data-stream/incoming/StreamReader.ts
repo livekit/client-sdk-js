@@ -25,7 +25,7 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
 
   /** @internal */
   protected validateBytesReceived(doneReceiving: boolean = false) {
-    if (typeof this.totalByteSize !== 'number') {
+    if (typeof this.totalByteSize !== 'number' || this.totalByteSize === 0) {
       return;
     }
 
