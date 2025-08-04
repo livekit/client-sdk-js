@@ -6,12 +6,12 @@
 /**
  * Mask for extracting NALU type from H.264 header byte
  */
-const kNaluTypeMask = 0x1f;
+const kH264NaluTypeMask = 0x1f;
 
 /**
  * H.264 NALU types according to RFC 6184
  */
-enum NALUType {
+enum H264NALUType {
   /** Coded slice of a non-IDR picture */
   SLICE_NON_IDR = 1,
   /** Coded slice data partition A */
@@ -127,8 +127,8 @@ enum H265NALUType {
  * @param startByte First byte of the NALU
  * @returns H.264 NALU type
  */
-function parseNALUType(startByte: number): NALUType {
-  return startByte & kNaluTypeMask;
+function parseH264NALUType(startByte: number): H264NALUType {
+  return startByte & kH264NaluTypeMask;
 }
 
 /**
@@ -146,8 +146,8 @@ function parseH265NALUType(firstByte: number): H265NALUType {
  * @param naluType H.264 NALU type
  * @returns True if the NALU is a slice
  */
-function isH264SliceNALU(naluType: NALUType): boolean {
-  return naluType === NALUType.SLICE_IDR || naluType === NALUType.SLICE_NON_IDR;
+function isH264SliceNALU(naluType: H264NALUType): boolean {
+  return naluType === H264NALUType.SLICE_IDR || naluType === H264NALUType.SLICE_NON_IDR;
 }
 
 /**
@@ -202,7 +202,7 @@ export interface NALUProcessingResult {
  */
 function detectCodecFromNALUs(data: Uint8Array, naluIndices: number[]): DetectedCodec {
   for (const naluIndex of naluIndices) {
-    if (isH264SliceNALU(parseNALUType(data[naluIndex]))) return 'h264';
+    if (isH264SliceNALU(parseH264NALUType(data[naluIndex]))) return 'h264';
     if (isH265SliceNALU(parseH265NALUType(data[naluIndex]))) return 'h265';
   }
   return 'unknown';
@@ -227,7 +227,7 @@ function findSliceNALUUnencryptedBytes(
         return index + 2;
       }
     } else {
-      const type = parseNALUType(data[index]);
+      const type = parseH264NALUType(data[index]);
       if (isH264SliceNALU(type)) {
         return index + 2;
       }
