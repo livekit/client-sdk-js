@@ -1,4 +1,4 @@
-import type { DataStream_Chunk } from '@livekit/protocol';
+import type { DataStream_Chunk, Encryption_Type } from '@livekit/protocol';
 
 export type SimulationOptions = {
   publish?: {
@@ -34,6 +34,24 @@ export interface StreamTextOptions {
   totalSize?: number;
   attributes?: Record<string, string>;
 }
+
+export type StreamBytesOptions = {
+  name?: string;
+  topic?: string;
+  attributes?: Record<string, string>;
+  destinationIdentities?: Array<string>;
+  streamId?: string;
+  mimeType?: string;
+  totalSize?: number;
+};
+
+export type SendFileOptions = Pick<
+  StreamBytesOptions,
+  'topic' | 'mimeType' | 'destinationIdentities'
+> & {
+  onProgress?: (progress: number) => void;
+  encryptionType?: Encryption_Type.NONE;
+};
 
 export type DataPublishOptions = {
   /**
