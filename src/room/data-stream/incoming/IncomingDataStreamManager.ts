@@ -5,9 +5,9 @@ import {
   DataStream_Trailer,
 } from '@livekit/protocol';
 import log from '../../../logger';
-import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
-import { bigIntToNumber, Future } from '../../utils';
+import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
+import { Future, bigIntToNumber } from '../../utils';
 import {
   type ByteStreamHandler,
   ByteStreamReader,

@@ -1,6 +1,6 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
-import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from '../../types';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
+import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from '../../types';
 import { Future, bigIntToNumber } from '../../utils';
 
 export type BaseStreamReaderReadAllOpts = {
