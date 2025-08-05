@@ -1,4 +1,5 @@
 import type { DataStream_Chunk } from '@livekit/protocol';
+import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from '../../types';
 import { Future, bigIntToNumber } from '../../utils';
 
@@ -16,15 +17,42 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
 
   protected bytesReceived: number;
 
+  protected outOfBandFailureRejectingFuture?: Future<never>;
+
   get info() {
     return this._info;
   }
 
-  constructor(info: T, stream: ReadableStream<DataStream_Chunk>, totalByteSize?: number) {
+  /** @internal */
+  protected validateBytesReceived(doneReceiving: boolean = false) {
+    if (typeof this.totalByteSize !== 'number' || this.totalByteSize === 0) {
+      return;
+    }
+
+    if (doneReceiving && this.bytesReceived < this.totalByteSize) {
+      throw new DataStreamError(
+        `Not enough chunk(s) received - expected ${this.totalByteSize} bytes of data total, only received ${this.bytesReceived} bytes`,
+        DataStreamErrorReason.Incomplete,
+      );
+    } else if (this.bytesReceived > this.totalByteSize) {
+      throw new DataStreamError(
+        `Extra chunk(s) received - expected ${this.totalByteSize} bytes of data total, received ${this.bytesReceived} bytes`,
+        DataStreamErrorReason.LengthExceeded,
+      );
+    }
+  }
+
+  constructor(
+    info: T,
+    stream: ReadableStream<DataStream_Chunk>,
+    totalByteSize?: number,
+    outOfBandFailureRejectingFuture?: Future<never>,
+  ) {
     this.reader = stream;
     this.totalByteSize = totalByteSize;
     this._info = info;
     this.bytesReceived = 0;
+    this.outOfBandFailureRejectingFuture = outOfBandFailureRejectingFuture;
   }
 
   protected abstract handleChunkReceived(chunk: DataStream_Chunk): void;
@@ -37,6 +65,8 @@ abstract class BaseStreamReader<T extends BaseStreamInfo> {
 export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
   protected handleChunkReceived(chunk: DataStream_Chunk) {
     this.bytesReceived += chunk.content.byteLength;
+    this.validateBytesReceived();
+
     const currentProgress = this.totalByteSize
       ? this.bytesReceived / this.totalByteSize
       : undefined;
@@ -77,9 +107,16 @@ export class ByteStreamReader extends BaseStreamReader<ByteStreamInfo> {
         try {
           const { done, value } = await Promise.race([
             reader.read(),
+            // Rejects if this.signal is aborted
             rejectingSignalFuture.promise,
+            // Rejects if something external says it should, like a participant disconnecting, etc
+            this.outOfBandFailureRejectingFuture?.promise ??
+              new Promise<never>(() => {
+                /* never resolves */
+              }),
           ]);
           if (done) {
+            this.validateBytesReceived(true);
             return { done: true, value: undefined as any };
           } else {
             this.handleChunkReceived(value);
@@ -138,8 +175,9 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
     info: TextStreamInfo,
     stream: ReadableStream<DataStream_Chunk>,
     totalChunkCount?: number,
+    outOfBandFailureRejectingFuture?: Future<never>,
   ) {
-    super(info, stream, totalChunkCount);
+    super(info, stream, totalChunkCount, outOfBandFailureRejectingFuture);
     this.receivedChunks = new Map();
   }
 
@@ -151,7 +189,10 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
       return;
     }
     this.receivedChunks.set(index, chunk);
+
     this.bytesReceived += chunk.content.byteLength;
+    this.validateBytesReceived();
+
     const currentProgress = this.totalByteSize
       ? this.bytesReceived / this.totalByteSize
       : undefined;
@@ -170,7 +211,7 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
    */
   [Symbol.asyncIterator]() {
     const reader = this.reader.getReader();
-    const decoder = new TextDecoder();
+    const decoder = new TextDecoder('utf-8', { fatal: true });
 
     let rejectingSignalFuture = new Future<never>();
     let activeSignal: AbortSignal | null = null;
@@ -199,16 +240,33 @@ export class TextStreamReader extends BaseStreamReader<TextStreamInfo> {
         try {
           const { done, value } = await Promise.race([
             reader.read(),
+            // Rejects if this.signal is aborted
             rejectingSignalFuture.promise,
+            // Rejects if something external says it should, like a participant disconnecting, etc
+            this.outOfBandFailureRejectingFuture?.promise ??
+              new Promise<never>(() => {
+                /* never resolves */
+              }),
           ]);
           if (done) {
+            this.validateBytesReceived(true);
             return { done: true, value: undefined };
           } else {
             this.handleChunkReceived(value);
 
+            let decodedResult;
+            try {
+              decodedResult = decoder.decode(value.content);
+            } catch (err) {
+              throw new DataStreamError(
+                `Cannot decode datastream chunk ${value.chunkIndex} as text: ${err}`,
+                DataStreamErrorReason.DecodeFailed,
+              );
+            }
+
             return {
               done: false,
-              value: decoder.decode(value.content),
+              value: decodedResult,
             };
           }
         } catch (err) {

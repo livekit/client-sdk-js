@@ -5,8 +5,9 @@ import {
   DataStream_Trailer,
 } from '@livekit/protocol';
 import log from '../../../logger';
+import { DataStreamError, DataStreamErrorReason } from '../../errors';
 import { type ByteStreamInfo, type StreamController, type TextStreamInfo } from '../../types';
-import { bigIntToNumber } from '../../utils';
+import { Future, bigIntToNumber } from '../../utils';
 import {
   type ByteStreamHandler,
   ByteStreamReader,
@@ -27,7 +28,10 @@ export default class IncomingDataStreamManager {
 
   registerTextStreamHandler(topic: string, callback: TextStreamHandler) {
     if (this.textStreamHandlers.has(topic)) {
-      throw new TypeError(`A text stream handler for topic "${topic}" has already been set.`);
+      throw new DataStreamError(
+        `A text stream handler for topic "${topic}" has already been set.`,
+        DataStreamErrorReason.HandlerAlreadyRegistered,
+      );
     }
     this.textStreamHandlers.set(topic, callback);
   }
@@ -38,7 +42,10 @@ export default class IncomingDataStreamManager {
 
   registerByteStreamHandler(topic: string, callback: ByteStreamHandler) {
     if (this.byteStreamHandlers.has(topic)) {
-      throw new TypeError(`A byte stream handler for topic "${topic}" has already been set.`);
+      throw new DataStreamError(
+        `A byte stream handler for topic "${topic}" has already been set.`,
+        DataStreamErrorReason.HandlerAlreadyRegistered,
+      );
     }
     this.byteStreamHandlers.set(topic, callback);
   }
@@ -52,6 +59,34 @@ export default class IncomingDataStreamManager {
     this.textStreamControllers.clear();
     this.byteStreamHandlers.clear();
     this.textStreamHandlers.clear();
+  }
+
+  validateParticipantHasNoActiveDataStreams(participantIdentity: string) {
+    // Terminate any in flight data stream receives from the given participant
+    const textStreamsBeingSentByDisconnectingParticipant = Array.from(
+      this.textStreamControllers.entries(),
+    ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
+    const byteStreamsBeingSentByDisconnectingParticipant = Array.from(
+      this.byteStreamControllers.entries(),
+    ).filter((entry) => entry[1].sendingParticipantIdentity === participantIdentity);
+
+    if (
+      textStreamsBeingSentByDisconnectingParticipant.length > 0 ||
+      byteStreamsBeingSentByDisconnectingParticipant.length > 0
+    ) {
+      const abnormalEndError = new DataStreamError(
+        `Participant ${participantIdentity} unexpectedly disconnected in the middle of sending data`,
+        DataStreamErrorReason.AbnormalEnd,
+      );
+      for (const [id, controller] of byteStreamsBeingSentByDisconnectingParticipant) {
+        controller.outOfBandFailureRejectingFuture.reject?.(abnormalEndError);
+        this.byteStreamControllers.delete(id);
+      }
+      for (const [id, controller] of textStreamsBeingSentByDisconnectingParticipant) {
+        controller.outOfBandFailureRejectingFuture.reject?.(abnormalEndError);
+        this.textStreamControllers.delete(id);
+      }
+    }
   }
 
   async handleDataStreamPacket(packet: DataPacket) {
@@ -70,7 +105,6 @@ export default class IncomingDataStreamManager {
   private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
     if (streamHeader.contentHeader.case === 'byteHeader') {
       const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
-
       if (!streamHandlerCallback) {
         this.log.debug(
           'ignoring incoming byte stream due to no handler for topic',
@@ -78,7 +112,10 @@ export default class IncomingDataStreamManager {
         );
         return;
       }
+
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const outOfBandFailureRejectingFuture = new Future<never>();
+
       const info: ByteStreamInfo = {
         id: streamHeader.streamId,
         name: streamHeader.contentHeader.value.name ?? 'unknown',
@@ -91,22 +128,36 @@ export default class IncomingDataStreamManager {
       const stream = new ReadableStream({
         start: (controller) => {
           streamController = controller;
+
+          if (this.textStreamControllers.has(streamHeader.streamId)) {
+            throw new DataStreamError(
+              `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+              DataStreamErrorReason.AlreadyOpened,
+            );
+          }
+
           this.byteStreamControllers.set(streamHeader.streamId, {
             info,
             controller: streamController,
             startTime: Date.now(),
+            sendingParticipantIdentity: participantIdentity,
+            outOfBandFailureRejectingFuture,
           });
         },
       });
       streamHandlerCallback(
-        new ByteStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        new ByteStreamReader(
+          info,
+          stream,
+          bigIntToNumber(streamHeader.totalLength),
+          outOfBandFailureRejectingFuture,
+        ),
         {
           identity: participantIdentity,
         },
       );
     } else if (streamHeader.contentHeader.case === 'textHeader') {
       const streamHandlerCallback = this.textStreamHandlers.get(streamHeader.topic);
-
       if (!streamHandlerCallback) {
         this.log.debug(
           'ignoring incoming text stream due to no handler for topic',
@@ -114,7 +165,9 @@ export default class IncomingDataStreamManager {
         );
         return;
       }
+
       let streamController: ReadableStreamDefaultController<DataStream_Chunk>;
+      const outOfBandFailureRejectingFuture = new Future<never>();
       const info: TextStreamInfo = {
         id: streamHeader.streamId,
         mimeType: streamHeader.mimeType,
@@ -127,15 +180,30 @@ export default class IncomingDataStreamManager {
       const stream = new ReadableStream<DataStream_Chunk>({
         start: (controller) => {
           streamController = controller;
+
+          if (this.textStreamControllers.has(streamHeader.streamId)) {
+            throw new DataStreamError(
+              `A data stream read is already in progress for a stream with id ${streamHeader.streamId}.`,
+              DataStreamErrorReason.AlreadyOpened,
+            );
+          }
+
           this.textStreamControllers.set(streamHeader.streamId, {
             info,
             controller: streamController,
             startTime: Date.now(),
+            sendingParticipantIdentity: participantIdentity,
+            outOfBandFailureRejectingFuture,
           });
         },
       });
       streamHandlerCallback(
-        new TextStreamReader(info, stream, bigIntToNumber(streamHeader.totalLength)),
+        new TextStreamReader(
+          info,
+          stream,
+          bigIntToNumber(streamHeader.totalLength),
+          outOfBandFailureRejectingFuture,
+        ),
         { identity: participantIdentity },
       );
     }
