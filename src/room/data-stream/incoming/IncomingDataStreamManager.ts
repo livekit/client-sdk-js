@@ -47,6 +47,13 @@ export default class IncomingDataStreamManager {
     this.byteStreamHandlers.delete(topic);
   }
 
+  clearHandlersAndControllers() {
+    this.byteStreamControllers.clear();
+    this.textStreamControllers.clear();
+    this.byteStreamHandlers.clear();
+    this.textStreamHandlers.clear();
+  }
+
   async handleDataStreamPacket(packet: DataPacket) {
     switch (packet.value.case) {
       case 'streamHeader':
