@@ -204,6 +204,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
    */
   constructor(options?: RoomOptions) {
     super();
+    console.warn('Room constructor again');
     this.setMaxListeners(100);
     this.remoteParticipants = new Map();
     this.sidToIdentity = new Map();
