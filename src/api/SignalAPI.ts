@@ -1,4 +1,4 @@
-import { ConnectionSettings, ConnectRequest, ConnectResponse, Sequencer, SessionDescription, Signalv2ClientMessage, Signalv2ServerMessage } from '@livekit/protocol';
+import { SignalRequest, SignalResponse, JoinResponse } from '@livekit/protocol';
 import type { ITransport } from './SignalTransport';
 import { Future, getClientInfo } from '../room/utils';
 import { atomic } from '../decorators';
@@ -6,9 +6,9 @@ import { atomic } from '../decorators';
 
 export class SignalAPI {
 
-  private writer?: WritableStreamDefaultWriter<Array<Signalv2ClientMessage>>;
+  private writer?: WritableStreamDefaultWriter<SignalRequest>;
 
-  private promiseMap = new Map<string, Future<Signalv2ServerMessage>>();
+  private promiseMap = new Map<string, Future<SignalResponse>>();
 
   private offerId = 0;
 
@@ -23,40 +23,58 @@ export class SignalAPI {
   }
 
   @atomic
-  async join(url: string, token: string): Promise<ConnectResponse> {
-   const connectRequest =  new ConnectRequest({
-      clientInfo: getClientInfo(),
-      connectionSettings: new ConnectionSettings({
-        adaptiveStream: true,
-        autoSubscribe: true,
-      })
-    });
-
-    const clientRequest = this.createClientRequest({ case: 'connectRequest', value: connectRequest });
-
-    const { readableStream, writableStream, connectResponse } = await this.transport.connect({ url, token, clientRequest });
+  async join(url: string, token: string, connectOpts: ConnectOpts): Promise<JoinResponse> {
+    const clientInfo = getClientInfo();
+    const { readableStream, writableStream } = await this.transport.connect({ url, token, clientInfo, connectOpts });
+    const reader = readableStream.getReader();
+    const { done, value } = await reader.read();
+    reader.releaseLock();
+    if(value?.message?.case !== 'join') {
+      throw new Error('Expected join response');
+    }
+    if(done || !value) {
+      throw new Error('Connection closed without join response');
+    }
     this.readLoop(readableStream);
     this.writer = writableStream.getWriter();
-    return connectResponse;
+
+    return value.message.value;
   }
 
-  async readLoop(readableStream: ReadableStream<Signalv2ServerMessage>) {
+  async readLoop(readableStream: ReadableStream<SignalResponse>) {
     const reader = readableStream.getReader();
     while (true) {
       try { 
       
         const { done, value } = await reader.read();
-        if(!value) {
-          continue;
-        }
-        this.latestRemoteSequenceNumber = value.sequencer!.messageId;
-        const responseKey = getResponseKey(value.message!.case, value.sequencer!.messageId);
-        const future = this.promiseMap.get(responseKey);
-        if (future) {
-          future.resolve?.(value);
+        if (done || !value) break;
+
+
+        const resolverId = getResolverId(value.message);
+        if(resolverId) {
+          const responseKey = getResponseKey(value.message.case, resolverId);
+          const future = this.promiseMap.get(responseKey);
+          if (future) {
+            future.resolve?.(value);
+            continue;
+          }
         }
 
-        if (done) break;
+        switch(value.message.case) {
+          case 'join':
+          case 'answer':
+          case 'requestResponse':
+            console.warn(`received ${value.message.case} these should all be handled by the promise map`);
+            break;
+          case 'leave':
+            value.message.value.
+            this.close();
+            break;
+          default:
+            console.debug(`received unsupported message ${value.message.case} `);
+            break;
+        }
+
       } catch(e) {
         Array.from(this.promiseMap.values()).forEach(future => future.reject?.(e));
         this.promiseMap.clear();
@@ -100,13 +118,6 @@ export class SignalAPI {
   }
 
 
- createClientRequest(request: Signalv2ClientMessage['message']): Signalv2ClientMessage {
-  return new Signalv2ClientMessage({
-   sequencer: this.getNextSequencer(),
-   message: request,
-  });
- }
-
   // @loggedMethod
   async reconnect(): Promise<void> {
     //return this.transport.reconnect();
@@ -114,11 +125,24 @@ export class SignalAPI {
 
   // @loggedMethod
   close() {
-    this.transport.close();
+    return this.transport.disconnect();
   }
 }
 
 
-function getResponseKey(requestType: Signalv2ServerMessage['message']['case'], messageId: number) {
+function getResponseKey(requestType: SignalResponse['message']['case'], messageId: number) {
   return `${requestType}-${messageId}`;
+}
+
+
+function getResolverId(message: SignalResponse['message']) {
+  if(typeof message.value !== 'object') {
+    return null;
+  }
+  if('requestId' in message.value) {
+    return message.value.requestId;
+  } else if('id' in message.value) {
+    return message.value.id;
+  }
+  return null;
 }
