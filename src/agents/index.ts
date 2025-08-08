@@ -1,40 +1,47 @@
-import { Signal } from 'signal-polyfill';
-import type { RemoteTrackPublication } from '..';
+import type { LocalTrackPublication, RemoteTrackPublication, TextStreamReader } from '..';
 import Room from '../room/Room';
+import type { AgentState } from '../room/attribute-typings';
+import type RemoteParticipant from '../room/participant/RemoteParticipant';
 import type { RpcInvocationData } from '../room/rpc';
-import type LocalAudioTrack from '../room/track/LocalAudioTrack';
-import type RemoteAudioTrack from '../room/track/RemoteAudioTrack';
+import type { TextStreamInfo } from '../room/types';
 
 export interface IAgentClientSession {
+  // Connection
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
+  onConnectionStateChange?: (callback: (state: AgentConnectionState) => void) => void;
 
-  sendMessage: (message: string) => Promise<void>;
+  // Agent <-> Client Communication
+  sendMessage: (message: string) => Promise<TextStreamInfo>;
+  onMessage?: (callback: (reader: TextStreamReader) => void) => void | undefined;
   registerRpcHandler: (
     method: string,
     handler: (data: RpcInvocationData) => Promise<string>,
   ) => void;
-  performRpc: (method: string, params: Record<string, unknown>) => Promise<void>;
+  performRpc: (method: string, payload: string) => Promise<string>;
 
-  setCameraEnabled: (enabled: boolean) => Promise<void>;
-  setMicrophoneEnabled: (enabled: boolean) => Promise<void>;
-  setScreenShareEnabled: (enabled: boolean) => Promise<void>;
+  // Client Media Control
+  setCameraEnabled: (enabled: boolean) => Promise<LocalTrackPublication | undefined>;
+  setMicrophoneEnabled: (enabled: boolean) => Promise<LocalTrackPublication | undefined>;
+  setScreenShareEnabled: (enabled: boolean) => Promise<LocalTrackPublication | undefined>;
 
-  setCameraInput: (deviceId: string) => Promise<void>;
-  setMicrophoneInput: (deviceId: string) => Promise<void>;
+  setCameraInput: (deviceId: string) => Promise<boolean>;
+  setMicrophoneInput: (deviceId: string) => Promise<boolean>;
 
-  onConnectionStateChange: (callback: (state: AgentConnectionState) => void) => void;
-  onMessage: (callback: (message: string) => void) => void;
-
+  // Media Playback
   startAudioPlayback: () => Promise<void>;
 
-  subtle: { readonly room: Room };
+  // Agent Participant
+  agent: IAgent;
+
+  subtle: { readonly room: Room }; // underlying constructs are available on the `subtle` property to indicate advanced usage
 }
 
 export interface IAgent {
-  state: Signal.Computed<'idle' | 'listening' | 'speaking' | 'reasoning'>;
-  audio: Signal.Computed;
-  video: Signal.Computed;
+  state: AgentState;
+  audio: RemoteTrackPublication | undefined;
+  video: RemoteTrackPublication | undefined;
+  subtle: { readonly participant: RemoteParticipant };
 }
 
 export enum AgentConnectionState {
@@ -62,6 +69,14 @@ export class AgentClientSession implements IAgentClientSession {
   async connect() {
     await this.room.connect(this.url, this.token);
     await this.waitForAgentReady();
+
+    this.room.registerTextStreamHandler('lk.chat', (message) => {
+      this.onMessage?.(message);
+    });
+  }
+
+  onConnectionStateChange(callback: (state: AgentConnectionState) => void) {
+    throw new Error('Not implemented');
   }
 
   async disconnect() {
@@ -69,29 +84,29 @@ export class AgentClientSession implements IAgentClientSession {
   }
 
   async sendMessage(message: string) {
-    await this.room.localParticipant.sendText(message, { topic: 'lk.chat' });
+    return this.room.localParticipant.sendText(message, { topic: 'lk.chat' });
   }
 
   async setCameraEnabled(enabled: boolean) {
-    await this.room.localParticipant.setCameraEnabled(enabled);
+    return this.room.localParticipant.setCameraEnabled(enabled);
   }
 
   async setMicrophoneEnabled(enabled: boolean) {
-    await this.room.localParticipant.setMicrophoneEnabled(enabled, undefined, {
+    return this.room.localParticipant.setMicrophoneEnabled(enabled, undefined, {
       preConnectBuffer: true,
     });
   }
 
   async setScreenShareEnabled(enabled: boolean) {
-    await this.room.localParticipant.setScreenShareEnabled(enabled);
+    return this.room.localParticipant.setScreenShareEnabled(enabled);
   }
 
   async setCameraInput(deviceId: string) {
-    await this.room.switchActiveDevice('videoinput', deviceId);
+    return this.room.switchActiveDevice('videoinput', deviceId);
   }
 
   async setMicrophoneInput(deviceId: string) {
-    await this.room.switchActiveDevice('audioinput', deviceId);
+    return this.room.switchActiveDevice('audioinput', deviceId);
   }
 
   registerRpcHandler(method: string, handler: (data: RpcInvocationData) => Promise<string>) {
@@ -104,6 +119,11 @@ export class AgentClientSession implements IAgentClientSession {
       payload,
       destinationIdentity: this.room.localParticipant.identity,
     });
+  }
+
+  async startAudioPlayback() {
+    await this.room.startAudio();
+    // TODO attach remote audio track to audio element
   }
 
   get subtle() {
