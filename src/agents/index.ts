@@ -33,8 +33,8 @@ export interface IAgentClientSession {
 
 export interface IAgent {
   state: Signal.Computed<'idle' | 'listening' | 'speaking' | 'reasoning'>;
-  audio: Signal.Computed<RemoteTrackPublication<Track.Kind.Audio> | undefined>;
-  video: Signal.Computed<RemoteTrackPublication<Track.Kind.Video> | undefined>;
+  audio: Signal.Computed;
+  video: Signal.Computed;
 }
 
 export enum AgentConnectionState {
