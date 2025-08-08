@@ -1,5 +1,6 @@
 import { Mutex } from '@livekit/mutex';
 import { debounce } from 'ts-debounce';
+import { atomic } from '../../decorators';
 import { getBrowser } from '../../utils/browserParser';
 import DeviceManager from '../DeviceManager';
 import { DeviceUnsupportedError, TrackInvalidError } from '../errors';
@@ -14,6 +15,8 @@ import type { ReplaceTrackOptions } from './types';
 
 const DEFAULT_DIMENSIONS_TIMEOUT = 1000;
 const PRE_CONNECT_BUFFER_TIMEOUT = 10_000;
+
+const RestartLock = Symbol('RestartLock');
 
 export default abstract class LocalTrack<
   TrackKind extends Track.Kind = Track.Kind,
