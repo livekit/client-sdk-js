@@ -177,7 +177,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
         );
       }
       if (this.processor) {
-        await this.stopProcessor();
+        await this.internalStopProcessor();
       }
 
       const processorOptions = {

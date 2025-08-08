@@ -314,7 +314,7 @@ export default abstract class LocalTrack<
       // on the previous state in order to cleanup
 
       if (stopProcessor && this.processor) {
-        await this.stopProcessor();
+        await this.internalStopProcessor();
       }
       return this;
     } finally {
@@ -540,7 +540,7 @@ export default abstract class LocalTrack<
       this.log.debug('processor initialized', this.logContext);
 
       if (this.processor) {
-        await this.stopProcessor();
+        await this.internalStopProcessor();
       }
       if (this.kind === 'unknown') {
         throw TypeError('cannot set processor on track of unknown kind');
@@ -595,25 +595,34 @@ export default abstract class LocalTrack<
    * @returns
    */
   async stopProcessor(keepElement = true) {
-    if (!this.processor) return;
     const unlock = await this.restartLock.lock();
     try {
-      this.log.debug('stopping processor', this.logContext);
-      this.processor.processedTrack?.stop();
-      await this.processor.destroy();
-      this.processor = undefined;
-      if (!keepElement) {
-        this.processorElement?.remove();
-        this.processorElement = undefined;
-      }
-      // apply original track constraints in case the processor changed them
-      await this._mediaStreamTrack.applyConstraints(this._constraints);
-      // force re-setting of the mediaStreamTrack on the sender
-      await this.setMediaStreamTrack(this._mediaStreamTrack, true);
-      this.emit(TrackEvent.TrackProcessorUpdate);
+      await this.internalStopProcessor(keepElement);
     } finally {
       unlock();
     }
+  }
+
+  /**
+   * @internal
+   * This method assumes the caller has acquired a trackChangeLock already.
+   * The public facing method for stopping the processor is `stopProcessor` and it wraps this method in the trackChangeLock.
+   */
+  protected async internalStopProcessor(keepElement = true) {
+    if (!this.processor) return;
+    this.log.debug('stopping processor', this.logContext);
+    this.processor.processedTrack?.stop();
+    await this.processor.destroy();
+    this.processor = undefined;
+    if (!keepElement) {
+      this.processorElement?.remove();
+      this.processorElement = undefined;
+    }
+    // apply original track constraints in case the processor changed them
+    await this._mediaStreamTrack.applyConstraints(this._constraints);
+    // force re-setting of the mediaStreamTrack on the sender
+    await this.setMediaStreamTrack(this._mediaStreamTrack, true);
+    this.emit(TrackEvent.TrackProcessorUpdate);
   }
 
   /** @internal */
