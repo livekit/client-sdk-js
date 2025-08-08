@@ -169,7 +169,7 @@ export default class LocalAudioTrack extends LocalTrack<Track.Kind.Audio> {
   };
 
   async setProcessor(processor: TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>) {
-    const unlock = await this.restartLock.lock();
+    const unlock = await this.trackChangeLock.lock();
     try {
       if (!isReactNative() && !this.audioContext) {
         throw Error(

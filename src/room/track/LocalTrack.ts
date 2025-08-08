@@ -57,15 +57,13 @@ export default abstract class LocalTrack<
 
   protected processor?: TrackProcessor<TrackKind, any>;
 
-  // protected processorLock: Mutex;
-
   protected audioContext?: AudioContext;
 
   protected manuallyStopped: boolean = false;
 
   protected localTrackRecorder: LocalTrackRecorder<typeof this> | undefined;
 
-  protected restartLock: Mutex;
+  protected trackChangeLock: Mutex;
 
   /**
    *
@@ -86,8 +84,8 @@ export default abstract class LocalTrack<
     this.providedByUser = userProvidedTrack;
     this.muteLock = new Mutex();
     this.pauseUpstreamLock = new Mutex();
-    this.restartLock = new Mutex();
-    this.restartLock.lock().then(async (unlock) => {
+    this.trackChangeLock = new Mutex();
+    this.trackChangeLock.lock().then(async (unlock) => {
       try {
         await this.setMediaStreamTrack(mediaTrack, true);
       } finally {
@@ -290,7 +288,7 @@ export default abstract class LocalTrack<
     track: MediaStreamTrack,
     userProvidedOrOptions: boolean | ReplaceTrackOptions | undefined,
   ) {
-    const unlock = await this.restartLock.lock();
+    const unlock = await this.trackChangeLock.lock();
     try {
       if (!this.sender) {
         throw new TrackInvalidError('unable to replace an unpublished track');
@@ -324,7 +322,7 @@ export default abstract class LocalTrack<
 
   protected async restart(constraints?: MediaTrackConstraints) {
     this.manuallyStopped = false;
-    const unlock = await this.restartLock.lock();
+    const unlock = await this.trackChangeLock.lock();
 
     try {
       if (!constraints) {
@@ -524,7 +522,7 @@ export default abstract class LocalTrack<
    * @returns
    */
   async setProcessor(processor: TrackProcessor<TrackKind>, showProcessedStreamLocally = true) {
-    const unlock = await this.restartLock.lock();
+    const unlock = await this.trackChangeLock.lock();
     try {
       this.log.debug('setting up processor', this.logContext);
 
@@ -595,7 +593,7 @@ export default abstract class LocalTrack<
    * @returns
    */
   async stopProcessor(keepElement = true) {
-    const unlock = await this.restartLock.lock();
+    const unlock = await this.trackChangeLock.lock();
     try {
       await this.internalStopProcessor(keepElement);
     } finally {
