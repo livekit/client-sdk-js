@@ -59,6 +59,7 @@
     "events": "^3.3.0",
     "loglevel": "^1.9.2",
     "sdp-transform": "^2.15.0",
+    "signal-polyfill": "^0.2.2",
     "ts-debounce": "^4.0.0",
     "tslib": "2.8.1",
     "typed-emitter": "^2.1.0",

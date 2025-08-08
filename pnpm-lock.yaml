@@ -26,6 +26,9 @@ importers:
       sdp-transform:
         specifier: ^2.15.0
         version: 2.15.0
+      signal-polyfill:
+        specifier: ^0.2.2
+        version: 0.2.2
       ts-debounce:
         specifier: ^4.0.0
         version: 4.0.0
@@ -3177,6 +3180,9 @@ packages:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
 
+  signal-polyfill@0.2.2:
+    resolution: {integrity: sha512-p63Y4Er5/eMQ9RHg0M0Y64NlsQKpiu6MDdhBXpyywRuWiPywhJTpKJ1iB5K2hJEbFZ0BnDS7ZkJ+0AfTuL37Rg==}
+
   size-limit@11.2.0:
     resolution: {integrity: sha512-2kpQq2DD/pRpx3Tal/qRW1SYwcIeQ0iq8li5CJHQgOC+FtPn2BVmuDtzUCgNnpCrbgtfEHqh+iWzxK+Tq6C+RQ==}
     engines: {node: ^18.0.0 || >=20.0.0}
@@ -3439,8 +3445,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.9.0-dev.20250716:
-    resolution: {integrity: sha512-wBOPAX99Y5n6c4JF9ZIPy4xrnUDfFmrzOaFoVWGeDAu8cfV3773xfvNMColH3EnaWf8JytB3rgbcLYDE2nhCQw==}
+  typescript@6.0.0-dev.20250808:
+    resolution: {integrity: sha512-11pFT5CGoCQHAACPhRZj9cfa5sb5gNGbH4D45z1ZIrTE8jsYEHpsP34qPXO+DRo/ImkexI5LXdUry9EjwQZEJw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5657,7 +5663,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.9.0-dev.20250716
+      typescript: 6.0.0-dev.20250808
 
   dunder-proto@1.0.1:
     dependencies:
@@ -7215,6 +7221,8 @@ snapshots:
 
   signal-exit@4.1.0: {}
 
+  signal-polyfill@0.2.2: {}
+
   size-limit@11.2.0:
     dependencies:
       bytes-iec: 3.1.1
@@ -7496,7 +7504,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@5.9.0-dev.20250716: {}
+  typescript@6.0.0-dev.20250808: {}
 
   uc.micro@2.1.0: {}
 

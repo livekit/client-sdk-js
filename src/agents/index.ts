@@ -1,5 +1,9 @@
+import { Signal } from 'signal-polyfill';
+import type { RemoteTrackPublication } from '..';
 import Room from '../room/Room';
 import type { RpcInvocationData } from '../room/rpc';
+import type LocalAudioTrack from '../room/track/LocalAudioTrack';
+import type RemoteAudioTrack from '../room/track/RemoteAudioTrack';
 
 export interface IAgentClientSession {
   connect: () => Promise<void>;
@@ -22,7 +26,15 @@ export interface IAgentClientSession {
   onConnectionStateChange: (callback: (state: AgentConnectionState) => void) => void;
   onMessage: (callback: (message: string) => void) => void;
 
+  startAudioPlayback: () => Promise<void>;
+
   subtle: { readonly room: Room };
+}
+
+export interface IAgent {
+  state: Signal.Computed<'idle' | 'listening' | 'speaking' | 'reasoning'>;
+  audio: Signal.Computed<RemoteTrackPublication<Track.Kind.Audio> | undefined>;
+  video: Signal.Computed<RemoteTrackPublication<Track.Kind.Video> | undefined>;
 }
 
 export enum AgentConnectionState {
@@ -49,6 +61,7 @@ export class AgentClientSession implements IAgentClientSession {
 
   async connect() {
     await this.room.connect(this.url, this.token);
+    await this.waitForAgentReady();
   }
 
   async disconnect() {
@@ -86,7 +99,7 @@ export class AgentClientSession implements IAgentClientSession {
   }
 
   async performRpc(method: string, payload: string) {
-    await this.room.localParticipant.performRpc({
+    return this.room.localParticipant.performRpc({
       method,
       payload,
       destinationIdentity: this.room.localParticipant.identity,
