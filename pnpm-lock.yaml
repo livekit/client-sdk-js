@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@livekit/protocol': link:../protocol/packages/javascript
+
 importers:
 
   .:
@@ -12,8 +15,8 @@ importers:
         specifier: 1.1.1
         version: 1.1.1
       '@livekit/protocol':
-        specifier: 1.39.3
-        version: 1.39.3
+        specifier: link:../protocol/packages/javascript
+        version: link:../protocol/packages/javascript
       '@types/dom-mediacapture-record':
         specifier: ^1
         version: 1.0.22
@@ -1034,9 +1037,6 @@ packages:
 
   '@livekit/mutex@1.1.1':
     resolution: {integrity: sha512-EsshAucklmpuUAfkABPxJNhzj9v2sG7JuzFDL4ML1oJQSV14sqrpTYnsaOudMAw9yOaW53NU3QQTlUQoRs4czw==}
-
-  '@livekit/protocol@1.39.3':
-    resolution: {integrity: sha512-hfOnbwPCeZBEvMRdRhU2sr46mjGXavQcrb3BFRfG+Gm0Z7WUSeFdy5WLstXJzEepz17Iwp/lkGwJ4ZgOOYfPuA==}
 
   '@manypkg/find-root@1.1.0':
     resolution: {integrity: sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA==}
@@ -3439,8 +3439,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@5.9.0-dev.20250716:
-    resolution: {integrity: sha512-wBOPAX99Y5n6c4JF9ZIPy4xrnUDfFmrzOaFoVWGeDAu8cfV3773xfvNMColH3EnaWf8JytB3rgbcLYDE2nhCQw==}
+  typescript@5.9.0-dev.20250717:
+    resolution: {integrity: sha512-txdoKMuQg9HgT4dRcGBUrpIXIBMabbBOjVWrS915z/yskIIq7FwGgriVoIlVIVNZP04INeuJw3NEFDnWb1Vzbw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -4794,10 +4794,6 @@ snapshots:
 
   '@livekit/mutex@1.1.1': {}
 
-  '@livekit/protocol@1.39.3':
-    dependencies:
-      '@bufbuild/protobuf': 1.10.1
-
   '@manypkg/find-root@1.1.0':
     dependencies:
       '@babel/runtime': 7.23.2
@@ -5657,7 +5653,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 5.9.0-dev.20250716
+      typescript: 5.9.0-dev.20250717
 
   dunder-proto@1.0.1:
     dependencies:
@@ -7496,7 +7492,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@5.9.0-dev.20250716: {}
+  typescript@5.9.0-dev.20250717: {}
 
   uc.micro@2.1.0: {}
 
