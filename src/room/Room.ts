@@ -1916,7 +1916,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
   }
 
-  private handleUserPacket = async (
+  private handleUserPacket = (
     participant: RemoteParticipant | undefined,
     userPacket: UserPacket,
     kind: DataPacket_Kind,
