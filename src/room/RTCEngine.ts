@@ -1218,7 +1218,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     // make sure we do have a data connection
     await this.ensurePublisherConnected(kind);
 
-    if (this.e2eeManager && this.e2eeManager.isEnabled) {
+    if (this.e2eeManager && this.e2eeManager.isDataChannelEncryptionEnabled) {
       const encryptablePacket = asEncryptablePacket(packet);
       if (encryptablePacket) {
         const encryptedData = await this.e2eeManager.encryptData(encryptablePacket.toBinary());

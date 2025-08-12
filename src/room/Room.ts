@@ -357,11 +357,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private setupE2EE() {
-    if (this.options.e2ee) {
-      if ('e2eeManager' in this.options.e2ee) {
-        this.e2eeManager = this.options.e2ee.e2eeManager;
+    // when encryption is enabled via `options.encryption`, we enable data channel encryption
+    const dcEncryptionEnabled = !!this.options.encryption;
+    const e2eeOptions = this.options.encryption || this.options.e2ee;
+    if (e2eeOptions) {
+      if ('e2eeManager' in e2eeOptions) {
+        this.e2eeManager = e2eeOptions.e2eeManager;
       } else {
-        this.e2eeManager = new E2EEManager(this.options.e2ee);
+        this.e2eeManager = new E2EEManager(e2eeOptions, dcEncryptionEnabled);
       }
       this.e2eeManager.on(
         EncryptionEvent.ParticipantEncryptionStatusChanged,

@@ -192,6 +192,7 @@ export type E2EEManagerOptions = {
   keyProvider: BaseKeyProvider;
   worker: Worker;
 };
+
 export type E2EEOptions =
   | E2EEManagerOptions
   | {

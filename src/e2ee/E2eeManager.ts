@@ -40,6 +40,7 @@ export interface BaseE2EEManager {
   setup(room: Room): void;
   setupEngine(engine: RTCEngine): void;
   isEnabled: boolean;
+  isDataChannelEncryptionEnabled: boolean;
   setParticipantCryptorEnabled(enabled: boolean, participantIdentity: string): void;
   setSifTrailer(trailer: Uint8Array): void;
   encryptData(data: Uint8Array): Promise<EncryptDataResponseMessage['data']>;
@@ -71,15 +72,22 @@ export class E2EEManager
 
   private encryptDataRequests: Map<string, Future<EncryptDataResponseMessage['data']>> = new Map();
 
-  constructor(options: E2EEManagerOptions) {
+  private dataChannelEncryptionEnabled: boolean;
+
+  constructor(options: E2EEManagerOptions, dcEncryptionEnabled: boolean) {
     super();
     this.keyProvider = options.keyProvider;
     this.worker = options.worker;
     this.encryptionEnabled = false;
+    this.dataChannelEncryptionEnabled = dcEncryptionEnabled;
   }
 
   get isEnabled(): boolean {
     return this.encryptionEnabled;
+  }
+
+  get isDataChannelEncryptionEnabled(): boolean {
+    return this.isEnabled && this.dataChannelEncryptionEnabled;
   }
 
   /**
