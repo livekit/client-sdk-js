@@ -1,4 +1,4 @@
-import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from './types';
+import type { BaseStreamInfo, ByteStreamInfo, TextStreamInfo } from '../../types';
 
 class BaseStreamWriter<T, InfoType extends BaseStreamInfo> {
   protected writableStream: WritableStream<T>;

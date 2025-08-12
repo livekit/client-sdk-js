@@ -141,7 +141,7 @@ export function isSVCCodec(codec?: string): boolean {
 }
 
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
-  if (!document) {
+  if (!document || isSafariBased()) {
     return false;
   }
   if (!elm) {
@@ -418,6 +418,12 @@ export class Future<T> {
 
   onFinally?: () => void;
 
+  get isResolved(): boolean {
+    return this._isResolved;
+  }
+
+  private _isResolved: boolean = false;
+
   constructor(
     futureBase?: (resolve: (arg: T) => void, reject: (e: any) => void) => void,
     onFinally?: () => void,
@@ -429,7 +435,10 @@ export class Future<T> {
       if (futureBase) {
         await futureBase(resolve, reject);
       }
-    }).finally(() => this.onFinally?.());
+    }).finally(() => {
+      this._isResolved = true;
+      this.onFinally?.();
+    });
   }
 }
 
@@ -529,13 +538,13 @@ export function unwrapConstraint(constraint: ConstrainDOMString | ConstrainULong
   if (Array.isArray(constraint)) {
     return constraint[0];
   }
-  if (constraint.exact) {
+  if (constraint.exact !== undefined) {
     if (Array.isArray(constraint.exact)) {
       return constraint.exact[0];
     }
     return constraint.exact;
   }
-  if (constraint.ideal) {
+  if (constraint.ideal !== undefined) {
     if (Array.isArray(constraint.ideal)) {
       return constraint.ideal[0];
     }

@@ -1,5 +1,27 @@
 # Change Log
 
+## 2.15.4
+
+### Patch Changes
+
+- Fix iOS local track recorder mimetype for preconnect buffer - [#1609](https://github.com/livekit/client-sdk-js/pull/1609) ([@lukasIO](https://github.com/lukasIO))
+
+- Add support for react-native preconnect audio - [#1598](https://github.com/livekit/client-sdk-js/pull/1598) ([@davidliu](https://github.com/davidliu))
+
+- Clear LocalParticipant futures at start of disconnect, not at end - [#1604](https://github.com/livekit/client-sdk-js/pull/1604) ([@1egoman](https://github.com/1egoman))
+
+- fix: ensure audio output switching is disabled for safari based browsers - [#1602](https://github.com/livekit/client-sdk-js/pull/1602) ([@lukasIO](https://github.com/lukasIO))
+
+- skip errant signal layer leave message when already disconnected - [#1601](https://github.com/livekit/client-sdk-js/pull/1601) ([@1egoman](https://github.com/1egoman))
+
+## 2.15.3
+
+### Patch Changes
+
+- fix: retry processor playback on abort error - [#1592](https://github.com/livekit/client-sdk-js/pull/1592) ([@lukasIO](https://github.com/lukasIO))
+
+- fix: correct handling of signal connect future - [#1600](https://github.com/livekit/client-sdk-js/pull/1600) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.2
 
 ### Patch Changes

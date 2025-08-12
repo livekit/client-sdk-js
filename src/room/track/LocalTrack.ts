@@ -543,11 +543,22 @@ export default abstract class LocalTrack<
       attachToElement(this._mediaStreamTrack, processorElement);
       processorElement.muted = true;
 
-      processorElement
-        .play()
-        .catch((error) =>
-          this.log.error('failed to play processor element', { ...this.logContext, error }),
-        );
+      processorElement.play().catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          // This happens on Safari when the processor is restarted, try again after a delay
+          this.log.warn('failed to play processor element, retrying', {
+            ...this.logContext,
+            error,
+          });
+          setTimeout(() => {
+            processorElement.play().catch((err) => {
+              this.log.error('failed to play processor element', { ...this.logContext, err });
+            });
+          }, 100);
+        } else {
+          this.log.error('failed to play processor element', { ...this.logContext, error });
+        }
+      });
 
       this.processor = processor;
       this.processorElement = processorElement;
@@ -606,8 +617,13 @@ export default abstract class LocalTrack<
     }
 
     if (!this.localTrackRecorder) {
+      let mimeType = 'audio/webm;codecs=opus';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        // iOS currently only supports video/mp4 as a mime type - even for audio.
+        mimeType = 'video/mp4';
+      }
       this.localTrackRecorder = new LocalTrackRecorder(this, {
-        mimeType: 'audio/webm;codecs=opus',
+        mimeType,
       });
     } else {
       this.log.warn('preconnect buffer already started');
@@ -636,6 +652,10 @@ export default abstract class LocalTrack<
   /** @internal */
   getPreConnectBuffer() {
     return this.localTrackRecorder?.byteStream;
+  }
+
+  getPreConnectBufferMimeType() {
+    return this.localTrackRecorder?.mimeType;
   }
 
   protected abstract monitorSender(): void;
