@@ -1409,13 +1409,17 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
     }
 
-    participant.addSubscribedMediaTrack(
+    const publication = participant.addSubscribedMediaTrack(
       mediaTrack,
       trackId,
       stream,
       receiver,
       adaptiveStreamSettings,
     );
+
+    if (this.isE2EEEnabled && !publication?.isEncrypted) {
+      throw new Error('Encrypted track received, but room does not have encryption enabled!');
+    }
   }
 
   private handleRestarting = () => {
