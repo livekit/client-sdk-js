@@ -1,5 +1,19 @@
 # Change Log
 
+## 2.15.5
+
+### Patch Changes
+
+- feat: add ability to include an AbortSignal when reading from a datastream - [#1611](https://github.com/livekit/client-sdk-js/pull/1611) ([@1egoman](https://github.com/1egoman))
+
+- Fix error when `unwrapConstraint` receives an empty deviceId when creating local tracks - [#1594](https://github.com/livekit/client-sdk-js/pull/1594) ([@mpnri](https://github.com/mpnri))
+
+- feat(e2ee): add h265 as supported codec for encryption - [#1618](https://github.com/livekit/client-sdk-js/pull/1618) ([@lukasIO](https://github.com/lukasIO))
+
+- Handle numerous small data stream errors / state inconsistiencies with throwing explicit errors - [#1613](https://github.com/livekit/client-sdk-js/pull/1613) ([@1egoman](https://github.com/1egoman))
+
+- lock all APIs that change underlying track with the same lock - [#1620](https://github.com/livekit/client-sdk-js/pull/1620) ([@lukasIO](https://github.com/lukasIO))
+
 ## 2.15.4
 
 ### Patch Changes
