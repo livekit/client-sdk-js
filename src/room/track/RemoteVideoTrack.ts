@@ -220,7 +220,8 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     this.updateDimensions();
   }, REACTION_DELAY);
 
-  private updateVisibility() {
+  /** @internal */
+  updateVisibility() {
     const lastVisibilityChange = this.elementInfos.reduce(
       (prev, info) => Math.max(prev, info.visibilityChangedAt || 0),
       0,

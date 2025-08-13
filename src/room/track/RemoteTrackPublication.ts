@@ -222,6 +222,11 @@ export default class RemoteTrackPublication extends TrackPublication {
       track.on(TrackEvent.VideoDimensionsChanged, this.handleVideoDimensionsChange);
       track.on(TrackEvent.VisibilityChanged, this.handleVisibilityChange);
       track.on(TrackEvent.Ended, this.handleEnded);
+      if (isRemoteVideoTrack(track) && track.isAdaptiveStream) {
+        // update visibility for adaptive stream tracks when subscribed
+        // this is needed to ensure the track is stopped when there's no element attached to it at all
+        track.updateVisibility();
+      }
       this.emit(TrackEvent.Subscribed, track);
     }
     this.emitPermissionUpdateIfChanged(prevPermission);
