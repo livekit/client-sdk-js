@@ -89,7 +89,9 @@ export async function createLocalTracks(
   } else if (typeof internalOptions.video === 'object' && !internalOptions.video.deviceId) {
     internalOptions.video.deviceId = 'default';
   }
+  console.log('options: before merge', { internalOptions, audioDefaults, videoDefaults });
   const opts = mergeDefaultOptions(internalOptions, audioDefaults, videoDefaults);
+  console.log('options: after merge', opts);
   const constraints = constraintsForOptions(opts);
 
   // Keep a reference to the promise on DeviceManager and await it in getLocalDevices()
