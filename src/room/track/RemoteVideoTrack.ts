@@ -221,7 +221,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
   }, REACTION_DELAY);
 
   /** @internal */
-  updateVisibility() {
+  updateVisibility(forceEmit?: boolean) {
     const lastVisibilityChange = this.elementInfos.reduce(
       (prev, info) => Math.max(prev, info.visibilityChangedAt || 0),
       0,
@@ -235,7 +235,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     const isVisible =
       (this.elementInfos.some((info) => info.visible) && !backgroundPause) || isPiPMode;
 
-    if (this.lastVisible === isVisible) {
+    if (this.lastVisible === isVisible && !forceEmit) {
       return;
     }
 

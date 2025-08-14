@@ -225,7 +225,7 @@ export default class RemoteTrackPublication extends TrackPublication {
       if (isRemoteVideoTrack(track) && track.isAdaptiveStream) {
         // update visibility for adaptive stream tracks when subscribed
         // this is needed to ensure the track is stopped when there's no element attached to it at all
-        track.updateVisibility();
+        track.updateVisibility(true);
       }
       this.emit(TrackEvent.Subscribed, track);
     }
