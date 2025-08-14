@@ -339,7 +339,7 @@ export default abstract class LocalTrack<
       if (this.kind === Track.Kind.Video) {
         streamConstraints.video = deviceId || facingMode ? { deviceId, facingMode } : true;
       } else {
-        streamConstraints.audio = deviceId ? { deviceId } : true;
+        streamConstraints.audio = deviceId ? { deviceId, ...otherConstraints } : true;
       }
 
       // these steps are duplicated from setMediaStreamTrack because we must stop
@@ -356,7 +356,10 @@ export default abstract class LocalTrack<
       // create new track and attach
       const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
       const newTrack = mediaStream.getTracks()[0];
-      await newTrack.applyConstraints(otherConstraints);
+      if (this.kind === Track.Kind.Video) {
+        // we already captured the audio track with the constraints, so we only need to apply the video constraints
+        await newTrack.applyConstraints(otherConstraints);
+      }
       newTrack.addEventListener('ended', this.handleEnded);
       this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 
