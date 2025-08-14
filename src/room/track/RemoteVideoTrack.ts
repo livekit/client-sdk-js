@@ -38,6 +38,15 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     return this.adaptiveStreamSettings !== undefined;
   }
 
+  override setStreamState(value: Track.StreamState) {
+    super.setStreamState(value);
+    if (value === Track.StreamState.Active) {
+      // update visibility for adaptive stream tracks when stream state received from server is active
+      // this is needed to ensure the track is stopped when there's no element attached to it at all
+      this.updateVisibility();
+    }
+  }
+
   /**
    * Note: When using adaptiveStream, you need to use remoteVideoTrack.attach() to add the track to a HTMLVideoElement, otherwise your video tracks might never start
    */
@@ -220,8 +229,7 @@ export default class RemoteVideoTrack extends RemoteTrack<Track.Kind.Video> {
     this.updateDimensions();
   }, REACTION_DELAY);
 
-  /** @internal */
-  updateVisibility(forceEmit?: boolean) {
+  private updateVisibility(forceEmit?: boolean) {
     const lastVisibilityChange = this.elementInfos.reduce(
       (prev, info) => Math.max(prev, info.visibilityChangedAt || 0),
       0,
