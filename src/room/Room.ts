@@ -1417,8 +1417,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       adaptiveStreamSettings,
     );
 
-    if (this.isE2EEEnabled && !publication?.isEncrypted) {
-      throw new Error('Encrypted track received, but room does not have encryption enabled!');
+    if (publication?.isEncrypted && !this.isE2EEEnabled) {
+      this.emit(
+        RoomEvent.EncryptionError,
+        new Error('Encrypted track received, but room does not have encryption enabled!'),
+      );
     }
   }
 
