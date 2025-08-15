@@ -10,8 +10,8 @@ import { type CryptorCallbacks, CryptorEvent } from '../events';
 import type { DecodeRatchetOptions, KeyProviderOptions, KeySet, RatchetResult } from '../types';
 import { deriveKeys, isVideoFrame, needsRbspUnescaping, parseRbsp, writeRbsp } from '../utils';
 import type { ParticipantKeyHandler } from './ParticipantKeyHandler';
-import { SifGuard } from './SifGuard';
 import { processNALUsForEncryption } from './naluUtils';
+import { identifySifPayload } from './sifPayload';
 
 export const encryptionEnabledMap: Map<string, boolean> = new Map();
 
@@ -66,8 +66,6 @@ export class FrameCryptor extends BaseFrameCryptor {
    */
   private sifTrailer: Uint8Array;
 
-  private sifGuard: SifGuard;
-
   private detectedCodec?: VideoCodec;
 
   private isTransformActive: boolean = false;
@@ -85,7 +83,6 @@ export class FrameCryptor extends BaseFrameCryptor {
     this.rtpMap = new Map();
     this.keyProviderOptions = opts.keyProviderOptions;
     this.sifTrailer = opts.sifTrailer ?? Uint8Array.from([]);
-    this.sifGuard = new SifGuard();
   }
 
   private get logContext() {
@@ -117,7 +114,6 @@ export class FrameCryptor extends BaseFrameCryptor {
     }
     this.participantIdentity = id;
     this.keys = keys;
-    this.sifGuard.reset();
   }
 
   unsetParticipant() {
@@ -348,27 +344,21 @@ export class FrameCryptor extends BaseFrameCryptor {
       // skip for decryption for empty dtx frames
       encodedFrame.data.byteLength === 0
     ) {
-      workerLogger.debug('skipping empty frame', this.logContext);
-      this.sifGuard.recordUserFrame();
       return controller.enqueue(encodedFrame);
     }
 
     if (isFrameServerInjected(encodedFrame.data, this.sifTrailer)) {
-      workerLogger.debug('enqueue SIF', this.logContext);
-      this.sifGuard.recordSif();
-
-      if (this.sifGuard.isSifAllowed()) {
-        encodedFrame.data = encodedFrame.data.slice(
-          0,
-          encodedFrame.data.byteLength - this.sifTrailer.byteLength,
-        );
+      encodedFrame.data = encodedFrame.data.slice(
+        0,
+        encodedFrame.data.byteLength - this.sifTrailer.byteLength,
+      );
+      if (await identifySifPayload(encodedFrame.data)) {
+        workerLogger.debug('enqueue SIF', this.logContext);
         return controller.enqueue(encodedFrame);
       } else {
-        workerLogger.warn('SIF limit reached, dropping frame');
+        workerLogger.warn('Unexpected SIF frame payload, dropping frame', this.logContext);
         return;
       }
-    } else {
-      this.sifGuard.recordUserFrame();
     }
     const data = new Uint8Array(encodedFrame.data);
     const keyIndex = data[encodedFrame.data.byteLength - 1];
