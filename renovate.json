@@ -13,6 +13,11 @@
       "rangeStrategy": "replace",
       "groupName": "LiveKit dependencies",
       "automerge": true
+    },
+    {
+      "matchPackageNames": ["typescript"],
+      "matchUpdateTypes": ["minor", "major"],
+      "groupName": "typescript (breaking)"
     }
   ]
 }
