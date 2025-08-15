@@ -1661,8 +1661,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return;
       }
       const newStreamState = Track.streamStateFromProto(streamState.state);
+      pub.track.setStreamState(newStreamState);
       if (newStreamState !== pub.track.streamState) {
-        pub.track.streamState = newStreamState;
         participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
         this.emitWhenConnected(
           RoomEvent.TrackStreamStateChanged,
