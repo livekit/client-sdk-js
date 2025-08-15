@@ -241,6 +241,12 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.outgoingDataStreamManager,
     );
 
+    if (this.options.e2ee) {
+      this.setupE2EE();
+    }
+
+    this.engine.e2eeManager = this.e2eeManager;
+
     if (this.options.videoCaptureDefaults.deviceId) {
       this.localParticipant.activeDeviceMap.set(
         'videoinput',
@@ -258,10 +264,6 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         'audiooutput',
         unwrapConstraint(this.options.audioOutput.deviceId),
       ).catch((e) => this.log.warn(`Could not set audio output: ${e.message}`, this.logContext));
-    }
-
-    if (this.options.e2ee) {
-      this.setupE2EE();
     }
 
     if (isWeb()) {
@@ -355,11 +357,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
   }
 
   private setupE2EE() {
-    if (this.options.e2ee) {
-      if ('e2eeManager' in this.options.e2ee) {
-        this.e2eeManager = this.options.e2ee.e2eeManager;
+    // when encryption is enabled via `options.encryption`, we enable data channel encryption
+    const dcEncryptionEnabled = !!this.options.encryption;
+    const e2eeOptions = this.options.encryption || this.options.e2ee;
+    if (e2eeOptions) {
+      if ('e2eeManager' in e2eeOptions) {
+        this.e2eeManager = e2eeOptions.e2eeManager;
       } else {
-        this.e2eeManager = new E2EEManager(this.options.e2ee);
+        this.e2eeManager = new E2EEManager(e2eeOptions, dcEncryptionEnabled);
       }
       this.e2eeManager.on(
         EncryptionEvent.ParticipantEncryptionStatusChanged,
@@ -443,6 +448,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     }
 
     this.engine = new RTCEngine(this.options);
+    this.engine.e2eeManager = this.e2eeManager;
 
     this.engine
       .on(EngineEvent.ParticipantUpdate, this.handleParticipantUpdates)

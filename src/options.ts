@@ -88,9 +88,16 @@ export interface InternalRoomOptions {
   webAudioMix: boolean | WebAudioSettings;
 
   /**
-   * @experimental
+   * @deprecated
+   * use `options.encryption` instead. Note that the `options.encryption` will additionally encrypt data related packets like `publishData` and `sendText`.
    */
   e2ee?: E2EEOptions;
+
+  /**
+   * @experimental
+   * Options for enabling end-to-end encryption.
+   */
+  encryption?: E2EEOptions;
 
   loggerName?: string;
 }
