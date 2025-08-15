@@ -1420,7 +1420,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     if (publication?.isEncrypted && !this.isE2EEEnabled) {
       this.emit(
         RoomEvent.EncryptionError,
-        new Error('Encrypted track received, but room does not have encryption enabled!'),
+        new Error(
+          `Encrypted ${publication.source} track received from participant ${participant.sid}, but room does not have encryption enabled!`,
+        ),
       );
     }
   }
