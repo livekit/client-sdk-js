@@ -1,5 +1,15 @@
 # Change Log
 
+## 2.15.6
+
+### Patch Changes
+
+- Query audio track with all constraints present - [#1624](https://github.com/livekit/client-sdk-js/pull/1624) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure RemoteVideoTracks without any attached elements are stopped by adaptiveStream - [#1625](https://github.com/livekit/client-sdk-js/pull/1625) ([@lukasIO](https://github.com/lukasIO))
+
+- Check for encrypted track if room unencrypted, and if so, emit an event - [#1627](https://github.com/livekit/client-sdk-js/pull/1627) ([@1egoman](https://github.com/1egoman))
+
 ## 2.15.5
 
 ### Patch Changes
