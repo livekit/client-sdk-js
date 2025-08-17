@@ -1,6 +1,7 @@
 import { Mutex } from '@livekit/mutex';
 import { SignalTarget } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
+import { protocolVersion } from '../version';
 import PCTransport, { PCEvents } from './PCTransport';
 import { roomConnectOptionDefaults } from './defaults';
 import { ConnectionError, ConnectionErrorReason } from './errors';
@@ -202,6 +203,7 @@ export class PCTransportManager {
     const unlock = await this.connectionLock.lock();
     try {
       if (
+        protocolVersion <= 16 &&
         this.isPublisherConnectionRequired &&
         this.publisher.getConnectionState() !== 'connected' &&
         this.publisher.getConnectionState() !== 'connecting'
@@ -249,11 +251,19 @@ export class PCTransportManager {
   }
 
   addPublisherTransceiver(track: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
-    return this.publisher.addTransceiver(track, transceiverInit);
+    if (protocolVersion > 16) {
+      return this.subscriber.addTransceiver(track, transceiverInit);
+    } else {
+      return this.publisher.addTransceiver(track, transceiverInit);
+    }
   }
 
   addPublisherTrack(track: MediaStreamTrack) {
-    return this.publisher.addTrack(track);
+    if (protocolVersion > 16) {
+      return this.subscriber.addTrack(track);
+    } else {
+      return this.publisher.addTrack(track);
+    }
   }
 
   createPublisherDataChannel(label: string, dataChannelDict: RTCDataChannelInit) {

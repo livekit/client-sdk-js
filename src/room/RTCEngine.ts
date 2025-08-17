@@ -47,6 +47,7 @@ import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
+import { protocolVersion } from '../version';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
@@ -1345,6 +1346,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /** @internal */
   async negotiate(): Promise<void> {
+    if (protocolVersion > 16) {
+      return Promise.resolve();
+    }
+
     // observe signal state
     return new Promise<void>(async (resolve, reject) => {
       if (!this.pcManager) {
