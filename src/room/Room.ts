@@ -1417,7 +1417,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       adaptiveStreamSettings,
     );
 
-    if (publication?.isEncrypted && !this.isE2EEEnabled) {
+    if (publication?.isEncrypted && !this.e2eeManager) {
       this.emit(
         RoomEvent.EncryptionError,
         new Error(
