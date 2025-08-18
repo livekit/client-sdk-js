@@ -57,15 +57,13 @@ export default abstract class LocalTrack<
 
   protected processor?: TrackProcessor<TrackKind, any>;
 
-  protected processorLock: Mutex;
-
   protected audioContext?: AudioContext;
 
   protected manuallyStopped: boolean = false;
 
   protected localTrackRecorder: LocalTrackRecorder<typeof this> | undefined;
 
-  private restartLock: Mutex;
+  protected trackChangeLock: Mutex;
 
   /**
    *
@@ -86,9 +84,14 @@ export default abstract class LocalTrack<
     this.providedByUser = userProvidedTrack;
     this.muteLock = new Mutex();
     this.pauseUpstreamLock = new Mutex();
-    this.processorLock = new Mutex();
-    this.restartLock = new Mutex();
-    this.setMediaStreamTrack(mediaTrack, true);
+    this.trackChangeLock = new Mutex();
+    this.trackChangeLock.lock().then(async (unlock) => {
+      try {
+        await this.setMediaStreamTrack(mediaTrack, true);
+      } finally {
+        unlock();
+      }
+    });
 
     // added to satisfy TS compiler, constraints are synced with MediaStreamTrack
     this._constraints = mediaTrack.getConstraints();
@@ -171,27 +174,22 @@ export default abstract class LocalTrack<
     }
     let processedTrack: MediaStreamTrack | undefined;
     if (this.processor && newTrack) {
-      const unlock = await this.processorLock.lock();
-      try {
-        this.log.debug('restarting processor', this.logContext);
-        if (this.kind === 'unknown') {
-          throw TypeError('cannot set processor on track of unknown kind');
-        }
-
-        if (this.processorElement) {
-          attachToElement(newTrack, this.processorElement);
-          // ensure the processorElement itself stays muted
-          this.processorElement.muted = true;
-        }
-        await this.processor.restart({
-          track: newTrack,
-          kind: this.kind,
-          element: this.processorElement,
-        });
-        processedTrack = this.processor.processedTrack;
-      } finally {
-        unlock();
+      this.log.debug('restarting processor', this.logContext);
+      if (this.kind === 'unknown') {
+        throw TypeError('cannot set processor on track of unknown kind');
       }
+
+      if (this.processorElement) {
+        attachToElement(newTrack, this.processorElement);
+        // ensure the processorElement itself stays muted
+        this.processorElement.muted = true;
+      }
+      await this.processor.restart({
+        track: newTrack,
+        kind: this.kind,
+        element: this.processorElement,
+      });
+      processedTrack = this.processor.processedTrack;
     }
     if (this.sender && this.sender.transport?.state !== 'closed') {
       await this.sender.replaceTrack(processedTrack ?? newTrack);
@@ -290,36 +288,42 @@ export default abstract class LocalTrack<
     track: MediaStreamTrack,
     userProvidedOrOptions: boolean | ReplaceTrackOptions | undefined,
   ) {
-    if (!this.sender) {
-      throw new TrackInvalidError('unable to replace an unpublished track');
+    const unlock = await this.trackChangeLock.lock();
+    try {
+      if (!this.sender) {
+        throw new TrackInvalidError('unable to replace an unpublished track');
+      }
+
+      let userProvidedTrack: boolean | undefined;
+      let stopProcessor: boolean | undefined;
+
+      if (typeof userProvidedOrOptions === 'boolean') {
+        userProvidedTrack = userProvidedOrOptions;
+      } else if (userProvidedOrOptions !== undefined) {
+        userProvidedTrack = userProvidedOrOptions.userProvidedTrack;
+        stopProcessor = userProvidedOrOptions.stopProcessor;
+      }
+
+      this.providedByUser = userProvidedTrack ?? true;
+
+      this.log.debug('replace MediaStreamTrack', this.logContext);
+      await this.setMediaStreamTrack(track);
+      // this must be synced *after* setting mediaStreamTrack above, since it relies
+      // on the previous state in order to cleanup
+
+      if (stopProcessor && this.processor) {
+        await this.internalStopProcessor();
+      }
+      return this;
+    } finally {
+      unlock();
     }
-
-    let userProvidedTrack: boolean | undefined;
-    let stopProcessor: boolean | undefined;
-
-    if (typeof userProvidedOrOptions === 'boolean') {
-      userProvidedTrack = userProvidedOrOptions;
-    } else if (userProvidedOrOptions !== undefined) {
-      userProvidedTrack = userProvidedOrOptions.userProvidedTrack;
-      stopProcessor = userProvidedOrOptions.stopProcessor;
-    }
-
-    this.providedByUser = userProvidedTrack ?? true;
-
-    this.log.debug('replace MediaStreamTrack', this.logContext);
-    await this.setMediaStreamTrack(track);
-    // this must be synced *after* setting mediaStreamTrack above, since it relies
-    // on the previous state in order to cleanup
-
-    if (stopProcessor && this.processor) {
-      await this.stopProcessor();
-    }
-    return this;
   }
 
   protected async restart(constraints?: MediaTrackConstraints) {
     this.manuallyStopped = false;
-    const unlock = await this.restartLock.lock();
+    const unlock = await this.trackChangeLock.lock();
+
     try {
       if (!constraints) {
         constraints = this._constraints;
@@ -335,7 +339,7 @@ export default abstract class LocalTrack<
       if (this.kind === Track.Kind.Video) {
         streamConstraints.video = deviceId || facingMode ? { deviceId, facingMode } : true;
       } else {
-        streamConstraints.audio = deviceId ? { deviceId } : true;
+        streamConstraints.audio = deviceId ? { deviceId, ...otherConstraints } : true;
       }
 
       // these steps are duplicated from setMediaStreamTrack because we must stop
@@ -352,7 +356,10 @@ export default abstract class LocalTrack<
       // create new track and attach
       const mediaStream = await navigator.mediaDevices.getUserMedia(streamConstraints);
       const newTrack = mediaStream.getTracks()[0];
-      await newTrack.applyConstraints(otherConstraints);
+      if (this.kind === Track.Kind.Video) {
+        // we already captured the audio track with the constraints, so we only need to apply the video constraints
+        await newTrack.applyConstraints(otherConstraints);
+      }
       newTrack.addEventListener('ended', this.handleEnded);
       this.log.debug('re-acquired MediaStreamTrack', this.logContext);
 
@@ -518,7 +525,7 @@ export default abstract class LocalTrack<
    * @returns
    */
   async setProcessor(processor: TrackProcessor<TrackKind>, showProcessedStreamLocally = true) {
-    const unlock = await this.processorLock.lock();
+    const unlock = await this.trackChangeLock.lock();
     try {
       this.log.debug('setting up processor', this.logContext);
 
@@ -534,7 +541,7 @@ export default abstract class LocalTrack<
       this.log.debug('processor initialized', this.logContext);
 
       if (this.processor) {
-        await this.stopProcessor();
+        await this.internalStopProcessor();
       }
       if (this.kind === 'unknown') {
         throw TypeError('cannot set processor on track of unknown kind');
@@ -589,8 +596,21 @@ export default abstract class LocalTrack<
    * @returns
    */
   async stopProcessor(keepElement = true) {
-    if (!this.processor) return;
+    const unlock = await this.trackChangeLock.lock();
+    try {
+      await this.internalStopProcessor(keepElement);
+    } finally {
+      unlock();
+    }
+  }
 
+  /**
+   * @internal
+   * This method assumes the caller has acquired a trackChangeLock already.
+   * The public facing method for stopping the processor is `stopProcessor` and it wraps this method in the trackChangeLock.
+   */
+  protected async internalStopProcessor(keepElement = true) {
+    if (!this.processor) return;
     this.log.debug('stopping processor', this.logContext);
     this.processor.processedTrack?.stop();
     await this.processor.destroy();

@@ -37,6 +37,8 @@ export abstract class Track<
 
   source: Track.Source;
 
+  private _streamState: Track.StreamState = Track.StreamState.Active;
+
   /**
    * sid is set after track is published to server, or if it's a remote track
    */
@@ -51,7 +53,14 @@ export abstract class Track<
    * indicates current state of stream, it'll indicate `paused` if the track
    * has been paused by congestion controller
    */
-  streamState: Track.StreamState = Track.StreamState.Active;
+  get streamState(): Track.StreamState {
+    return this._streamState;
+  }
+
+  /** @internal */
+  setStreamState(value: Track.StreamState) {
+    this._streamState = value;
+  }
 
   /** @internal */
   rtpTimestamp: number | undefined;

@@ -258,6 +258,9 @@ const appActions = {
             participant.identity
           }) to ${streamState.toString()}`,
         );
+      })
+      .on(RoomEvent.EncryptionError, (error) => {
+        appendLog(`Error encrypting track data: ${error.message}`);
       });
 
     room.registerTextStreamHandler('lk.chat', async (reader, participant) => {

@@ -1415,13 +1415,22 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       }
     }
 
-    participant.addSubscribedMediaTrack(
+    const publication = participant.addSubscribedMediaTrack(
       mediaTrack,
       trackId,
       stream,
       receiver,
       adaptiveStreamSettings,
     );
+
+    if (publication?.isEncrypted && !this.e2eeManager) {
+      this.emit(
+        RoomEvent.EncryptionError,
+        new Error(
+          `Encrypted ${publication.source} track received from participant ${participant.sid}, but room does not have encryption enabled!`,
+        ),
+      );
+    }
   }
 
   private handleRestarting = () => {
@@ -1667,8 +1676,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
         return;
       }
       const newStreamState = Track.streamStateFromProto(streamState.state);
+      pub.track.setStreamState(newStreamState);
       if (newStreamState !== pub.track.streamState) {
-        pub.track.streamState = newStreamState;
         participant.emit(ParticipantEvent.TrackStreamStateChanged, pub, pub.track.streamState);
         this.emitWhenConnected(
           RoomEvent.TrackStreamStateChanged,
