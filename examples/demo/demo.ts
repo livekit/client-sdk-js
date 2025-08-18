@@ -44,6 +44,48 @@ setLogLevel(LogLevel.debug);
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+function setupDcTest(room: Room, isSender: boolean) {
+
+    const topic = "dc-test";
+    const testWords = ["foo", "bar", "baz", "raz"];
+    function testOutput(message: string) {
+        appendLog("[DC-TEST] " + message);
+    }
+
+    testOutput(`Acting as ${isSender ? 'sender' : 'receiver'}`);
+
+    if (isSender) {
+        room.on('participantActive', async (participant) => {
+            for (let word of testWords) {
+                testOutput(`Sending '${word}' to '${participant.identity}'`);
+                await room.localParticipant.sendText(word, {
+                    topic,
+                    destinationIdentities: [participant.identity]
+                });
+            }
+        });
+        return;
+    }
+
+    let recvIndex = 0;
+    let timeout = setTimeout(() =>  testOutput('FAIL: timeout'), 5000);
+
+    room.registerTextStreamHandler(topic, async (reader, participant) => {
+        const word = await reader.readAll();
+        testOutput(`Received '${word}' from '${participant.identity}'`);
+
+        if (recvIndex >= testWords.length) {
+            testOutput(`FAIL: no more words expected`);
+        } else if (testWords[recvIndex] !== word) {
+            testOutput(`FAIL: expected '${testWords[recvIndex]}', got '${word}'`);
+        } else if (recvIndex === testWords.length - 1) {
+            testOutput(`PASS`);
+            clearTimeout(timeout);
+        }
+        recvIndex++;
+    });
+}
+
 const state = {
   isFrontFacing: false,
   encoder: new TextEncoder(),
@@ -258,9 +300,6 @@ const appActions = {
             participant.identity
           }) to ${streamState.toString()}`,
         );
-      })
-      .on(RoomEvent.EncryptionError, (error) => {
-        appendLog(`Error encrypting track data: ${error.message}`);
       });
 
     room.registerTextStreamHandler('lk.chat', async (reader, participant) => {
@@ -406,6 +445,10 @@ const appActions = {
           reject(error);
         }
       });
+
+      const isSender = (<HTMLInputElement>$('dc-sender')).checked;
+      setupDcTest(room, isSender);
+
       await Promise.all([room.connect(url, token, connectOptions), publishPromise]);
       const elapsed = Date.now() - startTime;
       appendLog(
