@@ -198,6 +198,10 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private rpcHandlers: Map<string, (data: RpcInvocationData) => Promise<string>> = new Map();
 
+  get hasE2EESetup(): boolean {
+    return this.e2eeManager !== undefined;
+  }
+
   /**
    * Creates a new Room, the primary construct for a LiveKit session.
    * @param options
@@ -241,7 +245,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.outgoingDataStreamManager,
     );
 
-    if (this.options.e2ee) {
+    if (this.options.e2ee || this.options.encryption) {
       this.setupE2EE();
     }
 
@@ -795,7 +799,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.localParticipant.identity = pi.identity;
     this.localParticipant.setEnabledPublishCodecs(joinResponse.enabledPublishCodecs);
 
-    if (this.options.e2ee && this.e2eeManager) {
+    if (this.e2eeManager) {
       try {
         this.e2eeManager.setSifTrailer(joinResponse.sifTrailer);
       } catch (e: any) {
