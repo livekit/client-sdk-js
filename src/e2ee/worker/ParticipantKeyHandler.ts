@@ -23,11 +23,12 @@ export class ParticipantKeyHandler extends (EventEmitter as new () => TypedEvent
 
   private decryptionFailureCounts: Array<number>;
 
-  private keyProviderOptions: KeyProviderOptions;
-
   private ratchetPromiseMap: Map<number, Promise<RatchetResult>>;
 
-  private participantIdentity: string;
+  readonly participantIdentity: string;
+
+  /** @internal */
+  readonly keyProviderOptions: KeyProviderOptions;
 
   /**
    * true if the current key has not been marked as invalid

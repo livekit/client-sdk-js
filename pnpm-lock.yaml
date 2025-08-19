@@ -3447,8 +3447,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  typescript@6.0.0-dev.20250815:
-    resolution: {integrity: sha512-pUWzMiOyuu14oNnD+6FYpdZzMBzUyucgmKtCCXR6lE5H+ndo59vxUx8MZaB+QDEfSSobIzAtaLwW/kRzfhV2CA==}
+  typescript@6.0.0-dev.20250818:
+    resolution: {integrity: sha512-rCP/+hjgKQ54DuxzSrcd34SVw+L6m1tTvN/2fbDfoJu+UWND0K25G4XxElQICbSqh5dC4nXUgWm4SqPTZy2GXg==}
     engines: {node: '>=14.17'}
     hasBin: true
 
@@ -5681,7 +5681,7 @@ snapshots:
     dependencies:
       semver: 7.6.0
       shelljs: 0.8.5
-      typescript: 6.0.0-dev.20250815
+      typescript: 6.0.0-dev.20250818
 
   dunder-proto@1.0.1:
     dependencies:
@@ -7522,7 +7522,7 @@ snapshots:
 
   typescript@5.8.3: {}
 
-  typescript@6.0.0-dev.20250815: {}
+  typescript@6.0.0-dev.20250818: {}
 
   uc.micro@2.1.0: {}
 
