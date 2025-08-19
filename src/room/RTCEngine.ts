@@ -699,6 +699,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       const dp = DataPacket.fromBinary(new Uint8Array(buffer));
 
       if (dp.sequence > 0 && dp.participantSid !== '') {
+        this.log.info('received data packet', {
+          ...this.logContext,
+          sequence: dp.sequence,
+          participantSid: dp.participantSid,
+          kind: dp.kind,
+        });
         const lastSeq = this.reliableReceivedState.get(dp.participantSid);
         if (lastSeq && dp.sequence <= lastSeq) {
           // ignore duplicate or out-of-order packets in reliable channel
@@ -1200,6 +1206,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     if (dc) {
       if (kind === DataPacket_Kind.RELIABLE) {
         this.reliableMessageBuffer.push({ data: msg, sequence: packet.sequence });
+        this.log.debug(`reliable message sent, seq: ${packet.sequence}`, this.logContext);
       }
 
       if (this.attemptingReconnect) {

@@ -55,7 +55,7 @@ function setupDcTest(room: Room, isSender: boolean) {
     testOutput(`Acting as ${isSender ? 'sender' : 'receiver'}`);
 
     if (isSender) {
-        room.on('participantActive', async (participant) => {
+      room.on('participantConnected', async (participant) => {
             for (let word of testWords) {
                 testOutput(`Sending '${word}' to '${participant.identity}'`);
                 await room.localParticipant.sendText(word, {
@@ -232,7 +232,7 @@ const appActions = {
       })
       .on(RoomEvent.ParticipantActive, async (participant) => {
         appendLog(`participant ${participant.identity} is active and ready to receive messages`);
-        await sendGreetingTo(participant);
+        // await sendGreetingTo(participant);
       })
       .on(RoomEvent.ActiveDeviceChanged, handleActiveDeviceChanged)
       .on(RoomEvent.LocalTrackPublished, (pub) => {
