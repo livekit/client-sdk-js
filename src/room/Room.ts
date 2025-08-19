@@ -245,7 +245,9 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       this.outgoingDataStreamManager,
     );
 
-    if (this.options.e2ee || this.options.encryption) {
+    if (this.options.e2ee) {
+      // TODO(dc-e2ee): add this back in
+      //  || this.options.encryption) {
       this.setupE2EE();
     }
 
@@ -362,8 +364,14 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
 
   private setupE2EE() {
     // when encryption is enabled via `options.encryption`, we enable data channel encryption
-    const dcEncryptionEnabled = !!this.options.encryption;
-    const e2eeOptions = this.options.encryption || this.options.e2ee;
+
+    const dcEncryptionEnabled = false;
+    const e2eeOptions = this.options.e2ee;
+
+    // TODO(dc-e2ee): add this back in
+    // const dcEncryptionEnabled = !!this.options.encryption;
+    // const e2eeOptions = this.options.encryption || this.options.e2ee;
+
     if (e2eeOptions) {
       if ('e2eeManager' in e2eeOptions) {
         this.e2eeManager = e2eeOptions.e2eeManager;

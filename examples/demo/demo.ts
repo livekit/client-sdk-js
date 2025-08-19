@@ -128,7 +128,7 @@ const appActions = {
       videoCaptureDefaults: {
         resolution: VideoPresets.h720.resolution,
       },
-      encryption: e2eeEnabled
+      e2ee: e2eeEnabled
         ? { keyProvider: state.e2eeKeyProvider, worker: new E2EEWorker() }
         : undefined,
     };
@@ -1044,7 +1044,7 @@ function setButtonsForState(connected: boolean) {
     'flip-video-button',
     'send-button',
   ];
-  if (currentRoom && currentRoom.options.encryption) {
+  if (currentRoom && currentRoom.hasE2EESetup) {
     connectedSet.push('toggle-e2ee-button', 'e2ee-ratchet-button');
   }
   const disconnectedSet = ['connect-button'];
