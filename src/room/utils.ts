@@ -64,8 +64,9 @@ export function supportsAV1(): boolean {
   if (!('getCapabilities' in RTCRtpSender)) {
     return false;
   }
-  if (isSafari()) {
+  if (isSafari() || isFireFox()) {
     // Safari 17 on iPhone14 reports AV1 capability, but does not actually support it
+    // Firefox does support AV1, but SVC publishing is not supported
     return false;
   }
   const capabilities = RTCRtpSender.getCapabilities('video');
