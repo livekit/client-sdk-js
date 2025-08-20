@@ -11,7 +11,7 @@ import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
-import { isLocalTrack, isVideoTrack } from '../room/utils';
+import { isLocalTrack, isSafariBased, isVideoTrack } from '../room/utils';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
@@ -227,7 +227,8 @@ export class E2EEManager
     });
 
     room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
-      if (!isVideoTrack(publication.track)) {
+      // Safari doesn't support retrieving payload information on RTCEncodedVideoFrame, so we need to update the codec manually once we have the trackInfo from the server
+      if (!isVideoTrack(publication.track) || !isSafariBased()) {
         return;
       }
       const msg: UpdateCodecMessage = {
@@ -238,7 +239,6 @@ export class E2EEManager
           participantIdentity: this.room!.localParticipant.identity,
         },
       };
-      console.info('updating local track codec', msg);
 
       this.worker.postMessage(msg);
     });

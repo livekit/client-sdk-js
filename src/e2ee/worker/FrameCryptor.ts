@@ -142,7 +142,6 @@ export class FrameCryptor extends BaseFrameCryptor {
    * @param codec
    */
   setVideoCodec(codec: VideoCodec) {
-    workerLogger.info('updating codec on cryptor to', { codec, ...this.logContext });
     this.videoCodec = codec;
   }
 
@@ -267,16 +266,6 @@ export class FrameCryptor extends BaseFrameCryptor {
         encodedFrame.timestamp,
       );
       let frameInfo = this.getUnencryptedBytes(encodedFrame);
-
-      if (encodedFrame instanceof RTCEncodedVideoFrame) {
-        workerLogger.debug('encodedFrame', {
-          manuallySetCodec: this.videoCodec,
-          detectedCodec: this.detectedCodec,
-          encodedFrame,
-          frameInfo,
-          obj: this,
-        });
-      }
 
       // Thіs is not encrypted and contains the VP8 payload descriptor or the Opus TOC byte.
       const frameHeader = new Uint8Array(encodedFrame.data, 0, frameInfo.unencryptedBytes);
