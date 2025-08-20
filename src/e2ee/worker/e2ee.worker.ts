@@ -98,6 +98,11 @@ onmessage = (ev) => {
         break;
       case 'updateCodec':
         getTrackCryptor(data.participantIdentity, data.trackId).setVideoCodec(data.codec);
+        workerLogger.info('updated codec', {
+          participantIdentity: data.participantIdentity,
+          trackId: data.trackId,
+          codec: data.codec,
+        });
         break;
       case 'setRTPMap':
         // this is only used for the local participant
@@ -151,7 +156,7 @@ function getTrackCryptor(participantIdentity: string, trackId: string) {
   }
   let cryptor = cryptors[0];
   if (!cryptor) {
-    workerLogger.info('creating new cryptor for', { participantIdentity });
+    workerLogger.info('creating new cryptor for', { participantIdentity, trackId });
     if (!keyProviderOptions) {
       throw Error('Missing keyProvider options');
     }

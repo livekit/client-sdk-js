@@ -215,12 +215,12 @@ export function isE2EESimulcastSupported() {
     } else if (
       browser.os === 'iOS' &&
       browser.osVersion &&
-      compareVersions(supportedSafariVersion, browser.osVersion) >= 0
+      compareVersions(browser.osVersion, supportedSafariVersion) >= 0
     ) {
       return true;
     } else if (
       browser.name === 'Safari' &&
-      compareVersions(supportedSafariVersion, browser.version) >= 0
+      compareVersions(browser.version, supportedSafariVersion) >= 0
     ) {
       return true;
     } else {
@@ -283,6 +283,14 @@ export function getDevicePixelRatio(): number {
   return 1;
 }
 
+/**
+ * @param v1 - The first version string to compare.
+ * @param v2 - The second version string to compare.
+ * @returns A number indicating the order of the versions:
+ *   - 1 if v1 is greater than v2
+ *   - -1 if v1 is less than v2
+ *   - 0 if v1 and v2 are equal
+ */
 export function compareVersions(v1: string, v2: string): number {
   const parts1 = v1.split('.');
   const parts2 = v2.split('.');
