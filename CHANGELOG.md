@@ -1,5 +1,21 @@
 # Change Log
 
+## 2.15.6
+
+### Patch Changes
+
+- Query audio track with all constraints present - [#1624](https://github.com/livekit/client-sdk-js/pull/1624) ([@lukasIO](https://github.com/lukasIO))
+
+- Ensure RemoteVideoTracks without any attached elements are stopped by adaptiveStream - [#1625](https://github.com/livekit/client-sdk-js/pull/1625) ([@lukasIO](https://github.com/lukasIO))
+
+- Disable av1 for firefox - [#1631](https://github.com/livekit/client-sdk-js/pull/1631) ([@cnderrauber](https://github.com/cnderrauber))
+
+- Use SIF payload hashes to ensure integrity - [#1629](https://github.com/livekit/client-sdk-js/pull/1629) ([@lukasIO](https://github.com/lukasIO))
+
+- fix(e2ee): h264 publishing with e2ee enabled - [#1632](https://github.com/livekit/client-sdk-js/pull/1632) ([@lukasIO](https://github.com/lukasIO))
+
+- Check for encrypted track if room unencrypted, and if so, emit an event - [#1627](https://github.com/livekit/client-sdk-js/pull/1627) ([@1egoman](https://github.com/1egoman))
+
 ## 2.15.5
 
 ### Patch Changes
