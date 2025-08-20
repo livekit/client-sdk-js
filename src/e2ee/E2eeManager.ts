@@ -11,7 +11,7 @@ import type RemoteTrack from '../room/track/RemoteTrack';
 import type { Track } from '../room/track/Track';
 import type { VideoCodec } from '../room/track/options';
 import { mimeTypeToVideoCodecString } from '../room/track/utils';
-import { isLocalTrack } from '../room/utils';
+import { isLocalTrack, isVideoTrack } from '../room/utils';
 import type { BaseKeyProvider } from './KeyProvider';
 import { E2EE_FLAG } from './constants';
 import { type E2EEManagerCallbacks, EncryptionEvent, KeyProviderEvent } from './events';
@@ -224,6 +224,23 @@ export class E2EEManager
 
     room.localParticipant.on(ParticipantEvent.LocalSenderCreated, async (sender, track) => {
       this.setupE2EESender(track, sender);
+    });
+
+    room.localParticipant.on(ParticipantEvent.LocalTrackPublished, (publication) => {
+      if (!isVideoTrack(publication.track)) {
+        return;
+      }
+      const msg: UpdateCodecMessage = {
+        kind: 'updateCodec',
+        data: {
+          trackId: publication.track!.mediaStreamID,
+          codec: mimeTypeToVideoCodecString(publication.trackInfo!.codecs[0].mimeType),
+          participantIdentity: this.room!.localParticipant.identity,
+        },
+      };
+      console.info('updating local track codec', msg);
+
+      this.worker.postMessage(msg);
     });
 
     keyProvider
