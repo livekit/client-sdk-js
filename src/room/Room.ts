@@ -1347,6 +1347,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     stream: MediaStream,
     receiver: RTCRtpReceiver,
   ) {
+    this.log.info('RAJAAAAAAAAAAAAAAAAAAAAAA got media track'); // REMOVE
     // don't fire onSubscribed when connecting
     // WebRTC fires onTrack as soon as setRemoteDescription is called on the offer
     // at that time, ICE connectivity has not been established so the track is not
@@ -1379,6 +1380,13 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     const participantSid = parts[0];
     let streamId = parts[1];
     let trackId = mediaTrack.id;
+    this.log.info(
+      'RAJAAAAAAAAAAAAAAAAAAAAAA got media track',
+      parts,
+      participantSid,
+      streamId,
+      trackId,
+    ); // REMOVE
     // firefox will get streamId (pID|trackId) instead of (pID|streamId) as it doesn't support sync tracks by stream
     // and generates its own track id instead of infer from sdp track id.
     if (streamId && streamId.startsWith('TR')) trackId = streamId;

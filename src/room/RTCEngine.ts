@@ -12,6 +12,7 @@ import {
   type JoinResponse,
   type LeaveRequest,
   LeaveRequest_Action,
+  MediaSectionsRequirement,
   ParticipantInfo,
   ReconnectReason,
   type ReconnectResponse,
@@ -47,7 +48,6 @@ import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
-import { protocolVersion } from '../version';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
@@ -555,6 +555,19 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
         this.latestJoinResponse.room = res.room;
       }
       this.emit(EngineEvent.RoomMoved, res);
+    };
+
+    this.client.onMediaSectionsRequirement = (requirement: MediaSectionsRequirement) => {
+      this.log.info('RAJA got msr', requirement.numAudios, requirement.numVideos, this.pcManager); // REMOVE
+      const transceiverInit: RTCRtpTransceiverInit = { direction: 'recvonly' };
+      for (let i: number = 0; i < requirement.numAudios; i++) {
+        this.pcManager?.addPublisherTransceiverOfKind('audio', transceiverInit);
+      }
+      for (let i: number = 0; i < requirement.numVideos; i++) {
+        this.pcManager?.addPublisherTransceiverOfKind('video', transceiverInit);
+      }
+
+      this.negotiate();
     };
 
     this.client.onClose = () => {
@@ -1346,10 +1359,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
   /** @internal */
   async negotiate(): Promise<void> {
-    if (protocolVersion > 16) {
-      return Promise.resolve();
-    }
-
     // observe signal state
     return new Promise<void>(async (resolve, reject) => {
       if (!this.pcManager) {
@@ -1434,8 +1443,14 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.log.warn('sync state cannot be sent without peer connection setup', this.logContext);
       return;
     }
-    const previousAnswer = this.pcManager.subscriber.getLocalDescription();
-    const previousOffer = this.pcManager.subscriber.getRemoteDescription();
+    const previousPublisherOffer = this.pcManager.publisher.getLocalDescription();
+    const previousPublisherAnswer = this.pcManager.publisher.getRemoteDescription();
+    const previousSubscriberOffer = this.pcManager.subscriber.getRemoteDescription();
+    const previousSubscriberAnswer = this.pcManager.subscriber.getLocalDescription();
+    this.log.info('pubOffer: ', previousPublisherOffer);    // REMOVE
+    this.log.info('pubAnswer: ', previousPublisherAnswer);
+    this.log.info('subOffer: ', previousSubscriberOffer);
+    this.log.info('subAnswer: ', previousSubscriberAnswer);
 
     /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
           in this case, we send unsub tracks, so server add all tracks to this
@@ -1457,16 +1472,16 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
 
     this.client.sendSyncState(
       new SyncState({
-        answer: previousAnswer
+        subscriberAnswer: previousSubscriberAnswer
           ? toProtoSessionDescription({
-              sdp: previousAnswer.sdp,
-              type: previousAnswer.type,
+              sdp: previousSubscriberAnswer.sdp,
+              type: previousSubscriberAnswer.type,
             })
           : undefined,
-        offer: previousOffer
+        subscriberOffer: previousSubscriberOffer
           ? toProtoSessionDescription({
-              sdp: previousOffer.sdp,
-              type: previousOffer.type,
+              sdp: previousSubscriberOffer.sdp,
+              type: previousSubscriberOffer.type,
             })
           : undefined,
         subscription: new UpdateSubscription({
@@ -1483,6 +1498,18 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             lastSeq: seq,
           });
         }),
+        publisherOffer: previousPublisherOffer
+          ? toProtoSessionDescription({
+              sdp: previousPublisherOffer.sdp,
+              type: previousPublisherOffer.type,
+            })
+          : undefined,
+        publisherAnswer: previousPublisherAnswer
+          ? toProtoSessionDescription({
+              sdp: previousPublisherAnswer.sdp,
+              type: previousPublisherAnswer.type,
+            })
+          : undefined,
       }),
     );
   }

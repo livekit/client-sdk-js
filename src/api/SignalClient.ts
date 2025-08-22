@@ -8,6 +8,7 @@ import {
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
+  MediaSectionsRequirement,
   MuteTrackRequest,
   ParticipantInfo,
   Ping,
@@ -150,6 +151,8 @@ export class SignalClient {
   onLocalTrackSubscribed?: (trackSid: string) => void;
 
   onRoomMoved?: (res: RoomMovedResponse) => void;
+
+  onMediaSectionsRequirement?: (requirement: MediaSectionsRequirement) => void;
 
   connectOptions?: ConnectOpts;
 
@@ -465,6 +468,7 @@ export class SignalClient {
     this.onTokenRefresh = undefined;
     this.onTrickle = undefined;
     this.onClose = undefined;
+    this.onMediaSectionsRequirement = undefined;
   };
 
   async close(updateState: boolean = true) {
@@ -789,6 +793,11 @@ export class SignalClient {
       }
       if (this.onRoomMoved) {
         this.onRoomMoved(msg.value);
+      }
+    } else if (msg.case === 'mediaSectionsRequirement') {
+      this.log.info('RAJA got msr'); // REMOVE
+      if (this.onMediaSectionsRequirement) {
+        this.onMediaSectionsRequirement(msg.value);
       }
     } else {
       this.log.debug('unsupported message', { ...this.logContext, msgCase: msg.case });

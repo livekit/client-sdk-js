@@ -805,16 +805,16 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
     };
   }
   const videoElm = <HTMLVideoElement>container.querySelector(`#video-${identity}`);
-  const audioELm = <HTMLAudioElement>container.querySelector(`#audio-${identity}`);
+  const audioElm = <HTMLAudioElement>container.querySelector(`#audio-${identity}`);
   if (remove) {
     div?.remove();
     if (videoElm) {
       videoElm.srcObject = null;
       videoElm.src = '';
     }
-    if (audioELm) {
-      audioELm.srcObject = null;
-      audioELm.src = '';
+    if (audioElm) {
+      audioElm.srcObject = null;
+      audioElm.src = '';
     }
     return;
   }
@@ -878,13 +878,13 @@ function renderParticipant(participant: Participant, remove: boolean = false) {
   if (micEnabled) {
     if (!isLocalParticipant(participant)) {
       // don't attach local audio
-      audioELm.onloadeddata = () => {
+      audioElm.onloadeddata = () => {
         if (participant.joinedAt && participant.joinedAt.getTime() < startTime) {
           const fromJoin = Date.now() - startTime;
           appendLog(`RemoteAudioTrack ${micPub?.trackSid} played ${fromJoin}ms from start`);
         }
       };
-      micPub?.audioTrack?.attach(audioELm);
+      micPub?.audioTrack?.attach(audioElm);
     }
     micElm.className = 'mic-on';
     micElm.innerHTML = '<i class="fas fa-microphone"></i>';

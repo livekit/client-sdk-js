@@ -159,6 +159,7 @@ export default class PCTransport extends EventEmitter {
     }
     let mungedSDP: string | undefined = undefined;
     if (sd.type === 'offer') {
+      // SINGLE-PEER-CONNECTION-TODO: have to do this from `answer`.
       let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
       this.remoteStereoMids = stereoMids;
       this.remoteNackMids = nackMids;
@@ -377,6 +378,10 @@ export default class PCTransport extends EventEmitter {
 
   addTransceiver(mediaStreamTrack: MediaStreamTrack, transceiverInit: RTCRtpTransceiverInit) {
     return this.pc.addTransceiver(mediaStreamTrack, transceiverInit);
+  }
+
+  addTransceiverOfKind(kind: 'audio' | 'video', transceiverInit: RTCRtpTransceiverInit) {
+    return this.pc.addTransceiver(kind, transceiverInit);
   }
 
   addTrack(track: MediaStreamTrack) {
