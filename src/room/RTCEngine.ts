@@ -1442,14 +1442,10 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.log.warn('sync state cannot be sent without peer connection setup', this.logContext);
       return;
     }
-    //const previousPublisherOffer = this.pcManager.publisher.getLocalDescription();
-    //const previousPublisherAnswer = this.pcManager.publisher.getRemoteDescription();
+    const previousPublisherOffer = this.pcManager.publisher.getLocalDescription();
+    const previousPublisherAnswer = this.pcManager.publisher.getRemoteDescription();
     const previousSubscriberOffer = this.pcManager.subscriber.getRemoteDescription();
     const previousSubscriberAnswer = this.pcManager.subscriber.getLocalDescription();
-    //this.log.info('pubOffer: ', previousPublisherOffer);    // REMOVE
-    //this.log.info('pubAnswer: ', previousPublisherAnswer);
-    this.log.info('subOffer: ', previousSubscriberOffer);
-    this.log.info('subAnswer: ', previousSubscriberAnswer);
 
     /* 1. autosubscribe on, so subscribed tracks = all tracks - unsub tracks,
           in this case, we send unsub tracks, so server add all tracks to this
@@ -1469,7 +1465,59 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     });
 
+    const subscriberAnswer = previousSubscriberAnswer
+      ? toProtoSessionDescription({
+          sdp: previousSubscriberAnswer.sdp,
+          type: previousSubscriberAnswer.type,
+        })
+      : undefined;
+    const subscriberOffer = previousSubscriberOffer
+      ? toProtoSessionDescription({
+          sdp: previousSubscriberOffer.sdp,
+          type: previousSubscriberOffer.type,
+        })
+      : undefined;
+    this.log.info(
+      `RAJA prevOffer: ${JSON.stringify(previousSubscriberOffer)}, subOffer: ${JSON.stringify(subscriberOffer)}, prevAnswer: ${JSON.stringify(previousSubscriberAnswer)}, subAnswer: ${JSON.stringify(subscriberAnswer)}`,
+    );
+    const publisherOffer = previousPublisherOffer
+      ? toProtoSessionDescription({
+          sdp: previousPublisherOffer.sdp,
+          type: previousPublisherOffer.type,
+        })
+      : undefined;
+    const publisherAnswer = previousPublisherAnswer
+      ? toProtoSessionDescription({
+          sdp: previousPublisherAnswer.sdp,
+          type: previousPublisherAnswer.type,
+        })
+      : undefined;
+    this.log.info(
+      `RAJA prevOffer: ${JSON.stringify(previousPublisherOffer)}, pubOffer: ${JSON.stringify(publisherOffer)}, prevAnswer: ${JSON.stringify(previousPublisherAnswer)}, pubAnswer: ${JSON.stringify(publisherAnswer)}`,
+    );
+    const syncState = new SyncState({
+      subscriberAnswer,
+      subscriberOffer,
+      subscription: new UpdateSubscription({
+        trackSids,
+        subscribe: !autoSubscribe,
+        participantTracks: [],
+      }),
+      publishTracks: getTrackPublicationInfo(localTracks),
+      dataChannels: this.dataChannelsInfo(),
+      trackSidsDisabled,
+      datachannelReceiveStates: this.reliableReceivedState.map((seq, sid) => {
+        return new DataChannelReceiveState({
+          publisherSid: sid,
+          lastSeq: seq,
+        });
+      }),
+      publisherOffer,
+      publisherAnswer,
+    });
+    this.log.info('RAJA sending sync state', syncState);
     this.client.sendSyncState(
+      /* RAJA-TODO
       new SyncState({
         subscriberAnswer: previousSubscriberAnswer
           ? toProtoSessionDescription({
@@ -1497,7 +1545,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             lastSeq: seq,
           });
         }),
-        /*
         publisherOffer: previousPublisherOffer
           ? toProtoSessionDescription({
               sdp: previousPublisherOffer.sdp,
@@ -1510,8 +1557,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
               type: previousPublisherAnswer.type,
             })
           : undefined,
-          */
       }),
+      */
+      syncState,
     );
   }
 

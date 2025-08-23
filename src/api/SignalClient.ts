@@ -795,7 +795,6 @@ export class SignalClient {
         this.onRoomMoved(msg.value);
       }
     } else if (msg.case === 'mediaSectionsRequirement') {
-      this.log.info('RAJA got msr'); // REMOVE
       if (this.onMediaSectionsRequirement) {
         this.onMediaSectionsRequirement(msg.value);
       }
