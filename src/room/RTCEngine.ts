@@ -1443,12 +1443,12 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       this.log.warn('sync state cannot be sent without peer connection setup', this.logContext);
       return;
     }
-    const previousPublisherOffer = this.pcManager.publisher.getLocalDescription();
-    const previousPublisherAnswer = this.pcManager.publisher.getRemoteDescription();
+    //const previousPublisherOffer = this.pcManager.publisher.getLocalDescription();
+    //const previousPublisherAnswer = this.pcManager.publisher.getRemoteDescription();
     const previousSubscriberOffer = this.pcManager.subscriber.getRemoteDescription();
     const previousSubscriberAnswer = this.pcManager.subscriber.getLocalDescription();
-    this.log.info('pubOffer: ', previousPublisherOffer);    // REMOVE
-    this.log.info('pubAnswer: ', previousPublisherAnswer);
+    //this.log.info('pubOffer: ', previousPublisherOffer);    // REMOVE
+    //this.log.info('pubAnswer: ', previousPublisherAnswer);
     this.log.info('subOffer: ', previousSubscriberOffer);
     this.log.info('subAnswer: ', previousSubscriberAnswer);
 
@@ -1498,6 +1498,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             lastSeq: seq,
           });
         }),
+        /*
         publisherOffer: previousPublisherOffer
           ? toProtoSessionDescription({
               sdp: previousPublisherOffer.sdp,
@@ -1510,6 +1511,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
               type: previousPublisherAnswer.type,
             })
           : undefined,
+          */
       }),
     );
   }
