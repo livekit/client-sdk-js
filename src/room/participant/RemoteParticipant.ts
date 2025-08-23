@@ -245,7 +245,6 @@ export default class RemoteParticipant extends Participant {
       track.setVolume(this.volumeMap.get(publication.source)!);
     }
 
-    this.log.info('RAAAAAJAAAAAAAAAAAAA created publication', track, publication);
     return publication;
   }
 

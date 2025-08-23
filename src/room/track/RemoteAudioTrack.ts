@@ -120,7 +120,6 @@ export default class RemoteAudioTrack extends RemoteTrack<Track.Kind.Audio> {
       this.setVolume(this.elementVolume);
     }
 
-      this.log.info("RAAAAAAJAAAAAAA attached audio", element); // REMOVE
     return element;
   }
 

@@ -558,7 +558,6 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     };
 
     this.client.onMediaSectionsRequirement = (requirement: MediaSectionsRequirement) => {
-      this.log.info('RAJA got msr', requirement.numAudios, requirement.numVideos, this.pcManager); // REMOVE
       const transceiverInit: RTCRtpTransceiverInit = { direction: 'recvonly' };
       for (let i: number = 0; i < requirement.numAudios; i++) {
         this.pcManager?.addPublisherTransceiverOfKind('audio', transceiverInit);
