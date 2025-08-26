@@ -142,8 +142,8 @@ export function isSVCCodec(codec?: string): boolean {
 }
 
 export function supportsSetSinkId(elm?: HTMLMediaElement): boolean {
-  if (!document || isSafariBased()) {
-    return false;
+  if (!document || (!isSafariSpeakerSelectionSupported() && isSafariBased())) {
+    return false
   }
   if (!elm) {
     elm = document.createElement('audio');
