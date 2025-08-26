@@ -506,6 +506,18 @@ export default class LocalParticipant extends Participant {
     if (enabled) {
       if (track) {
         await track.unmute();
+        if (options) {
+          this.log.info('ignoring capture options for already published track', {
+            ...this.logContext,
+            source,
+          });
+        }
+        if (publishOptions && publishOptions !== track.options) {
+          this.log.info('ignoring publish options for already published track', {
+            ...this.logContext,
+            source,
+          });
+        }
       } else {
         let localTracks: Array<LocalTrack> | undefined;
         if (this.pendingPublishing.has(source)) {
