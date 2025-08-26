@@ -48,6 +48,7 @@ import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
+import { protocolVersion } from '../version';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
@@ -1465,72 +1466,36 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     });
 
-    const subscriberAnswer = previousSubscriberAnswer
-      ? toProtoSessionDescription({
-          sdp: previousSubscriberAnswer.sdp,
-          type: previousSubscriberAnswer.type,
-        })
-      : undefined;
-    const subscriberOffer = previousSubscriberOffer
-      ? toProtoSessionDescription({
-          sdp: previousSubscriberOffer.sdp,
-          type: previousSubscriberOffer.type,
-        })
-      : undefined;
-    this.log.info(
-      `RAJA prevOffer: ${JSON.stringify(previousSubscriberOffer)}, subOffer: ${JSON.stringify(subscriberOffer)}, prevAnswer: ${JSON.stringify(previousSubscriberAnswer)}, subAnswer: ${JSON.stringify(subscriberAnswer)}`,
-    );
-    const publisherOffer = previousPublisherOffer
-      ? toProtoSessionDescription({
-          sdp: previousPublisherOffer.sdp,
-          type: previousPublisherOffer.type,
-        })
-      : undefined;
-    const publisherAnswer = previousPublisherAnswer
-      ? toProtoSessionDescription({
-          sdp: previousPublisherAnswer.sdp,
-          type: previousPublisherAnswer.type,
-        })
-      : undefined;
-    this.log.info(
-      `RAJA prevOffer: ${JSON.stringify(previousPublisherOffer)}, pubOffer: ${JSON.stringify(publisherOffer)}, prevAnswer: ${JSON.stringify(previousPublisherAnswer)}, pubAnswer: ${JSON.stringify(publisherAnswer)}`,
-    );
-    const syncState = new SyncState({
-      subscriberAnswer,
-      subscriberOffer,
-      subscription: new UpdateSubscription({
-        trackSids,
-        subscribe: !autoSubscribe,
-        participantTracks: [],
-      }),
-      publishTracks: getTrackPublicationInfo(localTracks),
-      dataChannels: this.dataChannelsInfo(),
-      trackSidsDisabled,
-      datachannelReceiveStates: this.reliableReceivedState.map((seq, sid) => {
-        return new DataChannelReceiveState({
-          publisherSid: sid,
-          lastSeq: seq,
-        });
-      }),
-      publisherOffer,
-      publisherAnswer,
-    });
-    this.log.info('RAJA sending sync state', syncState);
     this.client.sendSyncState(
-      /* RAJA-TODO
       new SyncState({
-        subscriberAnswer: previousSubscriberAnswer
-          ? toProtoSessionDescription({
-              sdp: previousSubscriberAnswer.sdp,
-              type: previousSubscriberAnswer.type,
-            })
-          : undefined,
-        subscriberOffer: previousSubscriberOffer
-          ? toProtoSessionDescription({
-              sdp: previousSubscriberOffer.sdp,
-              type: previousSubscriberOffer.type,
-            })
-          : undefined,
+        answer:
+          protocolVersion > 16
+            ? previousPublisherAnswer
+              ? toProtoSessionDescription({
+                  sdp: previousPublisherAnswer.sdp,
+                  type: previousPublisherAnswer.type,
+                })
+              : undefined
+            : previousSubscriberAnswer
+              ? toProtoSessionDescription({
+                  sdp: previousSubscriberAnswer.sdp,
+                  type: previousSubscriberAnswer.type,
+                })
+              : undefined,
+        offer:
+          protocolVersion > 16
+            ? previousPublisherOffer
+              ? toProtoSessionDescription({
+                  sdp: previousPublisherOffer.sdp,
+                  type: previousPublisherOffer.type,
+                })
+              : undefined
+            : previousSubscriberOffer
+              ? toProtoSessionDescription({
+                  sdp: previousSubscriberOffer.sdp,
+                  type: previousSubscriberOffer.type,
+                })
+              : undefined,
         subscription: new UpdateSubscription({
           trackSids,
           subscribe: !autoSubscribe,
@@ -1545,21 +1510,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
             lastSeq: seq,
           });
         }),
-        publisherOffer: previousPublisherOffer
-          ? toProtoSessionDescription({
-              sdp: previousPublisherOffer.sdp,
-              type: previousPublisherOffer.type,
-            })
-          : undefined,
-        publisherAnswer: previousPublisherAnswer
-          ? toProtoSessionDescription({
-              sdp: previousPublisherAnswer.sdp,
-              type: previousPublisherAnswer.type,
-            })
-          : undefined,
       }),
-      */
-      syncState,
     );
   }
 
