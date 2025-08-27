@@ -4,7 +4,6 @@ import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
 import { nodeResolve } from '@rollup/plugin-node-resolve';
 import terser from '@rollup/plugin-terser';
-import del from 'rollup-plugin-delete';
 import typescript from 'rollup-plugin-typescript2';
 import packageJson from './package.json';
 
@@ -51,9 +50,5 @@ export default {
       plugins: [terser()],
     },
   ],
-  plugins: [
-    del({ targets: 'dist/*' }),
-    typescript({ tsconfig: './tsconfig.json' }),
-    ...commonPlugins,
-  ],
+  plugins: [typescript({ tsconfig: './tsconfig.json' }), ...commonPlugins],
 };
