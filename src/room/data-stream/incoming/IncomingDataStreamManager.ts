@@ -3,6 +3,7 @@ import {
   DataStream_Chunk,
   DataStream_Header,
   DataStream_Trailer,
+  Encryption_Type,
 } from '@livekit/protocol';
 import log from '../../../logger';
 import { DataStreamError, DataStreamErrorReason } from '../../errors';
@@ -89,20 +90,28 @@ export default class IncomingDataStreamManager {
     }
   }
 
-  async handleDataStreamPacket(packet: DataPacket) {
+  async handleDataStreamPacket(packet: DataPacket, encryptionType: Encryption_Type) {
     switch (packet.value.case) {
       case 'streamHeader':
-        return this.handleStreamHeader(packet.value.value, packet.participantIdentity);
+        return this.handleStreamHeader(
+          packet.value.value,
+          packet.participantIdentity,
+          encryptionType,
+        );
       case 'streamChunk':
-        return this.handleStreamChunk(packet.value.value);
+        return this.handleStreamChunk(packet.value.value, encryptionType);
       case 'streamTrailer':
-        return this.handleStreamTrailer(packet.value.value);
+        return this.handleStreamTrailer(packet.value.value, encryptionType);
       default:
         throw new Error(`DataPacket of value "${packet.value.case}" is not data stream related!`);
     }
   }
 
-  private async handleStreamHeader(streamHeader: DataStream_Header, participantIdentity: string) {
+  private async handleStreamHeader(
+    streamHeader: DataStream_Header,
+    participantIdentity: string,
+    encryptionType: Encryption_Type,
+  ) {
     if (streamHeader.contentHeader.case === 'byteHeader') {
       const streamHandlerCallback = this.byteStreamHandlers.get(streamHeader.topic);
       if (!streamHandlerCallback) {
@@ -124,6 +133,7 @@ export default class IncomingDataStreamManager {
         topic: streamHeader.topic,
         timestamp: bigIntToNumber(streamHeader.timestamp),
         attributes: streamHeader.attributes,
+        encryptionType,
       };
       const stream = new ReadableStream({
         start: (controller) => {
@@ -175,6 +185,7 @@ export default class IncomingDataStreamManager {
         topic: streamHeader.topic,
         timestamp: Number(streamHeader.timestamp),
         attributes: streamHeader.attributes,
+        encryptionType,
       };
 
       const stream = new ReadableStream<DataStream_Chunk>({
@@ -209,39 +220,68 @@ export default class IncomingDataStreamManager {
     }
   }
 
-  private handleStreamChunk(chunk: DataStream_Chunk) {
+  private handleStreamChunk(chunk: DataStream_Chunk, encryptionType: Encryption_Type) {
     const fileBuffer = this.byteStreamControllers.get(chunk.streamId);
     if (fileBuffer) {
-      if (chunk.content.length > 0) {
+      if (fileBuffer.info.encryptionType !== encryptionType) {
+        fileBuffer.controller.error(
+          new DataStreamError(
+            `Encryption type mismatch for stream ${chunk.streamId}. Expected ${encryptionType}, got ${fileBuffer.info.encryptionType}`,
+            DataStreamErrorReason.EncryptionTypeMismatch,
+          ),
+        );
+        this.byteStreamControllers.delete(chunk.streamId);
+      } else if (chunk.content.length > 0) {
         fileBuffer.controller.enqueue(chunk);
       }
     }
     const textBuffer = this.textStreamControllers.get(chunk.streamId);
     if (textBuffer) {
-      if (chunk.content.length > 0) {
+      if (textBuffer.info.encryptionType !== encryptionType) {
+        textBuffer.controller.error(
+          new DataStreamError(
+            `Encryption type mismatch for stream ${chunk.streamId}. Expected ${encryptionType}, got ${textBuffer.info.encryptionType}`,
+            DataStreamErrorReason.EncryptionTypeMismatch,
+          ),
+        );
+        this.textStreamControllers.delete(chunk.streamId);
+      } else if (chunk.content.length > 0) {
         textBuffer.controller.enqueue(chunk);
       }
     }
   }
 
-  private handleStreamTrailer(trailer: DataStream_Trailer) {
+  private handleStreamTrailer(trailer: DataStream_Trailer, encryptionType: Encryption_Type) {
     const textBuffer = this.textStreamControllers.get(trailer.streamId);
     if (textBuffer) {
-      textBuffer.info.attributes = {
-        ...textBuffer.info.attributes,
-        ...trailer.attributes,
-      };
-      textBuffer.controller.close();
-      this.textStreamControllers.delete(trailer.streamId);
+      if (textBuffer.info.encryptionType !== encryptionType) {
+        textBuffer.controller.error(
+          new DataStreamError(
+            `Encryption type mismatch for stream ${trailer.streamId}. Expected ${encryptionType}, got ${textBuffer.info.encryptionType}`,
+            DataStreamErrorReason.EncryptionTypeMismatch,
+          ),
+        );
+      } else {
+        textBuffer.info.attributes = { ...textBuffer.info.attributes, ...trailer.attributes };
+        textBuffer.controller.close();
+        this.textStreamControllers.delete(trailer.streamId);
+      }
     }
 
     const fileBuffer = this.byteStreamControllers.get(trailer.streamId);
     if (fileBuffer) {
-      {
+      if (fileBuffer.info.encryptionType !== encryptionType) {
+        fileBuffer.controller.error(
+          new DataStreamError(
+            `Encryption type mismatch for stream ${trailer.streamId}. Expected ${encryptionType}, got ${fileBuffer.info.encryptionType}`,
+            DataStreamErrorReason.EncryptionTypeMismatch,
+          ),
+        );
+      } else {
         fileBuffer.info.attributes = { ...fileBuffer.info.attributes, ...trailer.attributes };
         fileBuffer.controller.close();
-        this.byteStreamControllers.delete(trailer.streamId);
       }
+      this.byteStreamControllers.delete(trailer.streamId);
     }
   }
 }

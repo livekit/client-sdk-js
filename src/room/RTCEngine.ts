@@ -11,6 +11,7 @@ import {
   DisconnectReason,
   EncryptedPacket,
   EncryptedPacketPayload,
+  Encryption_Type,
   type JoinResponse,
   type LeaveRequest,
   LeaveRequest_Action,
@@ -736,13 +737,13 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
           // compatibility
           applyUserDataCompat(newDp, newDp.value.value);
         }
-        this.emit(EngineEvent.DataPacketReceived, newDp);
+        this.emit(EngineEvent.DataPacketReceived, newDp, dp.value.value.encryptionType);
       } else {
         if (dp.value?.case === 'user') {
           // compatibility
           applyUserDataCompat(dp, dp.value.value);
         }
-        this.emit(EngineEvent.DataPacketReceived, dp);
+        this.emit(EngineEvent.DataPacketReceived, dp, Encryption_Type.NONE);
       }
     } finally {
       unlock();
@@ -1602,7 +1603,7 @@ export type EngineEventCallbacks = {
     receiver: RTCRtpReceiver,
   ) => void;
   activeSpeakersUpdate: (speakers: Array<SpeakerInfo>) => void;
-  dataPacketReceived: (packet: DataPacket) => void;
+  dataPacketReceived: (packet: DataPacket, encryptionType: Encryption_Type) => void;
   transcriptionReceived: (transcription: Transcription) => void;
   transportsCreated: (publisher: PCTransport, subscriber: PCTransport) => void;
   /** @internal */

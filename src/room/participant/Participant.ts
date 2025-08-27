@@ -1,5 +1,6 @@
 import {
   DataPacket_Kind,
+  Encryption_Type,
   ParticipantInfo,
   ParticipantInfo_State,
   ParticipantInfo_Kind as ParticipantKind,
@@ -408,7 +409,11 @@ export type ParticipantEventCallbacks = {
   localSenderCreated: (sender: RTCRtpSender, track: Track) => void;
   participantMetadataChanged: (prevMetadata: string | undefined, participant?: any) => void;
   participantNameChanged: (name: string) => void;
-  dataReceived: (payload: Uint8Array, kind: DataPacket_Kind) => void;
+  dataReceived: (
+    payload: Uint8Array,
+    kind: DataPacket_Kind,
+    encryptionType?: Encryption_Type,
+  ) => void;
   sipDTMFReceived: (dtmf: SipDTMF) => void;
   transcriptionReceived: (
     transcription: TranscriptionSegment[],

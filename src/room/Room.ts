@@ -5,6 +5,7 @@ import {
   type DataPacket,
   DataPacket_Kind,
   DisconnectReason,
+  Encryption_Type,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
@@ -1729,11 +1730,11 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     pub.setSubscriptionError(update.err);
   };
 
-  private handleDataPacket = (packet: DataPacket) => {
+  private handleDataPacket = (packet: DataPacket, encryptionType: Encryption_Type) => {
     // find the participant
     const participant = this.remoteParticipants.get(packet.participantIdentity);
     if (packet.value.case === 'user') {
-      this.handleUserPacket(participant, packet.value.value, packet.kind);
+      this.handleUserPacket(participant, packet.value.value, packet.kind, encryptionType);
     } else if (packet.value.case === 'transcription') {
       this.handleTranscription(participant, packet.value.value);
     } else if (packet.value.case === 'sipDtmf') {
@@ -1747,7 +1748,7 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
       packet.value.case === 'streamChunk' ||
       packet.value.case === 'streamTrailer'
     ) {
-      this.handleDataStream(packet);
+      this.handleDataStream(packet, encryptionType);
     } else if (packet.value.case === 'rpcRequest') {
       const rpc = packet.value.value;
       this.handleIncomingRpcRequest(
@@ -1765,11 +1766,19 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     participant: RemoteParticipant | undefined,
     userPacket: UserPacket,
     kind: DataPacket_Kind,
+    encryptionType: Encryption_Type,
   ) => {
-    this.emit(RoomEvent.DataReceived, userPacket.payload, participant, kind, userPacket.topic);
+    this.emit(
+      RoomEvent.DataReceived,
+      userPacket.payload,
+      participant,
+      kind,
+      userPacket.topic,
+      encryptionType,
+    );
 
     // also emit on the participant
-    participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind);
+    participant?.emit(ParticipantEvent.DataReceived, userPacket.payload, kind, encryptionType);
   };
 
   private handleSipDtmf = (participant: RemoteParticipant | undefined, dtmf: SipDTMF) => {
@@ -1809,8 +1818,8 @@ class Room extends (EventEmitter as new () => TypedEmitter<RoomEventCallbacks>) 
     this.emit(RoomEvent.MetricsReceived, metrics, participant);
   };
 
-  private handleDataStream = (packet: DataPacket) => {
-    this.incomingDataStreamManager.handleDataStreamPacket(packet);
+  private handleDataStream = (packet: DataPacket, encryptionType: Encryption_Type) => {
+    this.incomingDataStreamManager.handleDataStreamPacket(packet, encryptionType);
   };
 
   private async handleIncomingRpcRequest(
@@ -2614,6 +2623,7 @@ export type RoomEventCallbacks = {
     participant?: RemoteParticipant,
     kind?: DataPacket_Kind,
     topic?: string,
+    encryptionType?: Encryption_Type,
   ) => void;
   sipDTMFReceived: (dtmf: SipDTMF, participant?: RemoteParticipant) => void;
   transcriptionReceived: (

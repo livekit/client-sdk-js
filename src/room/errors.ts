@@ -130,6 +130,9 @@ export enum DataStreamErrorReason {
 
   // Unable to register a stream handler more than once.
   HandlerAlreadyRegistered = 7,
+
+  // Encryption type mismatch.
+  EncryptionTypeMismatch = 8,
 }
 
 export class DataStreamError extends LivekitError {

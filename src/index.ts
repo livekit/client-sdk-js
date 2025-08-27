@@ -1,5 +1,11 @@
 import { Mutex } from '@livekit/mutex';
-import { DataPacket_Kind, DisconnectReason, SubscriptionError, TrackType } from '@livekit/protocol';
+import {
+  DataPacket_Kind,
+  DisconnectReason,
+  Encryption_Type,
+  SubscriptionError,
+  TrackType,
+} from '@livekit/protocol';
 import { LogLevel, LoggerNames, getLogger, setLogExtension, setLogLevel } from './logger';
 import DefaultReconnectPolicy from './room/DefaultReconnectPolicy';
 import type { ReconnectContext, ReconnectPolicy } from './room/ReconnectPolicy';
@@ -79,6 +85,7 @@ export {
   ConnectionState,
   CriticalTimers,
   DataPacket_Kind,
+  Encryption_Type,
   DefaultReconnectPolicy,
   DisconnectReason,
   LocalAudioTrack,
