@@ -37,6 +37,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "build": "rollup --config --bundleConfigAsCjs && rollup --config rollup.config.worker.js --bundleConfigAsCjs && pnpm downlevel-dts",
+    "build:clean": "rm -rf ./dist && pnpm build",
     "build:watch": "rollup --watch --config --bundleConfigAsCjs",
     "build:worker:watch": "rollup --watch --config rollup.config.worker.js --bundleConfigAsCjs",
     "build-docs": "typedoc && mkdir -p docs/assets/github && cp .github/*.png docs/assets/github/ && find docs -name '*.html' -type f -exec sed -i.bak 's|=\"/.github/|=\"assets/github/|g' {} + && find docs -name '*.bak' -delete",
@@ -48,7 +49,7 @@
     "deploy": "gh-pages -d examples/demo/dist",
     "format": "prettier --write src examples/**/*.ts",
     "format:check": "prettier --check src examples/**/*.ts",
-    "ci:publish": "pnpm build && pnpm compat && changeset publish",
+    "ci:publish": "pnpm build:clean && pnpm compat && changeset publish",
     "downlevel-dts": "downlevel-dts ./dist/ ./dist/ts4.2 --to=4.2",
     "compat": "eslint --no-eslintrc --config ./.eslintrc.dist.cjs ./dist/livekit-client.umd.js",
     "size-limit": "size-limit"
