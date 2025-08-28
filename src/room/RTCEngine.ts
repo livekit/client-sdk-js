@@ -48,7 +48,7 @@ import log, { LoggerNames, getLogger } from '../logger';
 import type { InternalRoomOptions } from '../options';
 import { DataPacketBuffer } from '../utils/dataPacketBuffer';
 import { TTLMap } from '../utils/ttlmap';
-import { protocolVersion } from '../version';
+import { version } from '../version';
 import PCTransport, { PCEvents } from './PCTransport';
 import { PCTransportManager, PCTransportState } from './PCTransportManager';
 import type { ReconnectContext, ReconnectPolicy } from './ReconnectPolicy';
@@ -74,6 +74,7 @@ import type { TrackPublishOptions, VideoCodec } from './track/options';
 import { getTrackPublicationInfo } from './track/utils';
 import type { LoggerOptions } from './types';
 import {
+  compareVersions,
   isVideoCodec,
   isVideoTrack,
   isWeb,
@@ -1469,7 +1470,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
     this.client.sendSyncState(
       new SyncState({
         answer:
-          protocolVersion > 16
+          compareVersions(version, '3.0.0') >= 0
             ? previousPublisherAnswer
               ? toProtoSessionDescription({
                   sdp: previousPublisherAnswer.sdp,
@@ -1483,7 +1484,7 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
                 })
               : undefined,
         offer:
-          protocolVersion > 16
+          compareVersions(version, '3.0.0') >= 0
             ? previousPublisherOffer
               ? toProtoSessionDescription({
                   sdp: previousPublisherOffer.sdp,

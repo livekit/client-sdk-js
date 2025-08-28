@@ -4,7 +4,9 @@ import {
   AudioTrackFeature,
   ClientInfo,
   ConnectionQualityUpdate,
+  ConnectionSettings,
   DisconnectReason,
+  JoinRequest,
   JoinResponse,
   LeaveRequest,
   LeaveRequest_Action,
@@ -39,14 +41,16 @@ import {
   UpdateTrackSettings,
   UpdateVideoLayers,
   VideoLayer,
+  WrappedJoinRequest,
   protoInt64,
 } from '@livekit/protocol';
 import log, { LoggerNames, getLogger } from '../logger';
 import { ConnectionError, ConnectionErrorReason } from '../room/errors';
 import CriticalTimers from '../room/timers';
 import type { LoggerOptions } from '../room/types';
-import { getClientInfo, isReactNative, sleep } from '../room/utils';
+import { compareVersions, getClientInfo, isReactNative, sleep } from '../room/utils';
 import { AsyncQueue } from '../utils/AsyncQueue';
+import { version } from '../version';
 import { createRtcUrl, createValidateUrl } from './utils';
 
 // internal options
@@ -266,7 +270,10 @@ export class SignalClient {
   ): Promise<JoinResponse | ReconnectResponse | undefined> {
     this.connectOptions = opts;
     const clientInfo = getClientInfo();
-    const params = createConnectionParams(token, clientInfo, opts);
+    const params =
+      compareVersions(version, '3.0.0') >= 0
+        ? createJoinRequestConnectionParams(token, clientInfo, opts)
+        : createConnectionParams(token, clientInfo, opts);
     const rtcUrl = createRtcUrl(url, params);
     const validateUrl = createValidateUrl(rtcUrl);
 
@@ -963,6 +970,34 @@ function createConnectionParams(
     // @ts-ignore
     params.set('network', navigator.connection.type);
   }
+
+  return params;
+}
+
+function createJoinRequestConnectionParams(
+  token: string,
+  info: ClientInfo,
+  opts: ConnectOpts,
+): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set('access_token', token);
+
+  const joinRequest = new JoinRequest({
+    clientInfo: info,
+    connectionSettings: new ConnectionSettings({
+      autoSubscribe: !!opts.autoSubscribe,
+      adaptiveStream: !!opts.adaptiveStream,
+    }),
+    reconnect: !!opts.reconnect,
+    participantSid: opts.sid ? opts.sid : undefined,
+  });
+  if (opts.reconnectReason) {
+    joinRequest.reconnectReason = opts.reconnectReason;
+  }
+  const wrappedJoinRequest = new WrappedJoinRequest({
+    joinRequest: joinRequest.toBinary(),
+  });
+  params.set('join_request', btoa(new TextDecoder('utf-8').decode(wrappedJoinRequest.toBinary())));
 
   return params;
 }
