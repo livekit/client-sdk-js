@@ -31,6 +31,12 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
 
   readonly close: (closeInfo?: WebSocketCloseInfo) => void;
 
+  get readyState(): number {
+    return this.ws.readyState;
+  }
+
+  private ws: WebSocket;
+
   constructor(url: string, options: WebSocketStreamOptions = {}) {
     if (options.signal?.aborted) {
       throw new DOMException('This operation was aborted', 'AbortError');
@@ -40,6 +46,7 @@ export class WebSocketStream<T extends ArrayBuffer | string = ArrayBuffer | stri
 
     const ws = new WebSocket(url, options.protocols ?? []);
     ws.binaryType = 'arraybuffer';
+    this.ws = ws;
 
     const closeWithInfo = ({ closeCode: code, reason }: WebSocketCloseInfo = {}) =>
       ws.close(code, reason);
