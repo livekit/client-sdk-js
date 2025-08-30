@@ -474,6 +474,9 @@ export default class RTCEngine extends (EventEmitter as new () => TypedEventEmit
       }
     };
     this.pcManager.onTrack = (ev: RTCTrackEvent) => {
+      // this fires after the underlying transceiver is stopped and potentially
+      // peer connection closed, so do not bubble up if there are no streams
+      if (ev.streams.length === 0) return;
       this.emit(EngineEvent.MediaTrackAdded, ev.track, ev.streams[0], ev.receiver);
     };
 
