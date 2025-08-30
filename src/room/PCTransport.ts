@@ -159,7 +159,6 @@ export default class PCTransport extends EventEmitter {
     }
     let mungedSDP: string | undefined = undefined;
     if (sd.type === 'offer') {
-      // SINGLE-PEER-CONNECTION-TODO: have to do this from `answer`.
       let { stereoMids, nackMids } = extractStereoAndNackAudioFromOffer(sd);
       this.remoteStereoMids = stereoMids;
       this.remoteNackMids = nackMids;
@@ -167,7 +166,7 @@ export default class PCTransport extends EventEmitter {
       const sdpParsed = parse(sd.sdp ?? '');
       sdpParsed.media.forEach((media) => {
         if (media.type === 'audio') {
-          // mung sdp for opus bitrate settings
+          // munge sdp for opus bitrate settings
           this.trackBitrates.some((trackbr): boolean => {
             if (!trackbr.transceiver || media.mid != trackbr.transceiver.mid) {
               return false;
