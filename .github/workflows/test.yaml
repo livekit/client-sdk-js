@@ -31,5 +31,5 @@ jobs:
 
     - name: Check browser target compatibility
       run: |
-        pnpm build
+        pnpm build:clean
         pnpm compat

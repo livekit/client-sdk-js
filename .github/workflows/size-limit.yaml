@@ -24,4 +24,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           script: npx size-limit --json
           package_manager: pnpm
-          build_script: build
+          build_script: build:clean
