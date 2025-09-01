@@ -841,19 +841,20 @@ export default class LocalParticipant extends Participant {
       return existingPublication;
     }
 
+    const opts: TrackPublishOptions = {
+      ...this.roomOptions.publishDefaults,
+      ...options,
+    };
     const isStereoInput =
       ('channelCount' in track.mediaStreamTrack.getSettings() &&
         // @ts-ignore `channelCount` on getSettings() is currently only available for Safari, but is generally the best way to determine a stereo track https://developer.mozilla.org/en-US/docs/Web/API/MediaTrackSettings/channelCount
         track.mediaStreamTrack.getSettings().channelCount === 2) ||
       track.mediaStreamTrack.getConstraints().channelCount === 2;
-    const isStereo = options?.forceStereo ?? isStereoInput;
+    const isStereo = opts.forceStereo ?? isStereoInput;
 
     // disable dtx for stereo track if not enabled explicitly
     if (isStereo) {
-      if (!options) {
-        options = {};
-      }
-      if (options.dtx === undefined) {
+      if (opts.dtx === undefined) {
         this.log.info(
           `Opus DTX will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
           {
@@ -862,18 +863,14 @@ export default class LocalParticipant extends Participant {
           },
         );
       }
-      if (options.red === undefined) {
+      if (opts.red === undefined) {
         this.log.info(
           `Opus RED will be disabled for stereo tracks by default. Enable them explicitly to make it work.`,
         );
       }
-      options.dtx ??= false;
-      options.red ??= false;
+      opts.dtx ??= false;
+      opts.red ??= false;
     }
-    const opts: TrackPublishOptions = {
-      ...this.roomOptions.publishDefaults,
-      ...options,
-    };
 
     if (!isE2EESimulcastSupported() && this.roomOptions.e2ee) {
       this.log.info(
